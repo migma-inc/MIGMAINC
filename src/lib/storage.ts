@@ -1,7 +1,5 @@
-import { supabase } from './supabase';
-
-const BUCKET_NAME = 'cv-files';
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 
 export interface UploadCVResult {
     success: boolean;
@@ -11,7 +9,8 @@ export interface UploadCVResult {
 }
 
 /**
- * Upload CV file to Supabase Storage
+ * Upload CV file via Edge Function (server-side)
+ * This avoids authentication issues since the Edge Function uses service_role
  * @param file - The CV file to upload
  * @returns Result with file path and name, or error message
  */
@@ -33,32 +32,41 @@ export async function uploadCV(file: File): Promise<UploadCVResult> {
             };
         }
 
-        // Generate unique file name
-        const timestamp = Date.now();
-        const randomString = Math.random().toString(36).substring(2, 15);
-        const fileName = `${timestamp}-${randomString}-${file.name}`;
-        const filePath = `applications/${fileName}`;
+        console.log('[STORAGE DEBUG] Uploading file via Edge Function:', {
+            fileName: file.name,
+            fileSize: file.size,
+            fileType: file.type,
+        });
 
-        // Upload file to Supabase Storage
-        const { data, error } = await supabase.storage
-            .from(BUCKET_NAME)
-            .upload(filePath, file, {
-                cacheControl: '3600',
-                upsert: false,
-            });
+        // Create FormData to send file to Edge Function
+        const formData = new FormData();
+        formData.append('file', file);
 
-        if (error) {
-            console.error('Error uploading file:', error);
+        // Call Edge Function to upload file
+        const response = await fetch(`${SUPABASE_URL}/functions/v1/upload-cv`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+            },
+            body: formData,
+        });
+
+        const result = await response.json();
+
+        if (!response.ok || !result.success) {
+            console.error('[STORAGE DEBUG] Upload error:', result);
             return {
                 success: false,
-                error: error.message || 'Failed to upload file',
+                error: result.error || 'Failed to upload file',
             };
         }
 
+        console.log('[STORAGE DEBUG] File uploaded successfully:', result);
+
         return {
             success: true,
-            filePath: data.path,
-            fileName: file.name,
+            filePath: result.filePath,
+            fileName: result.fileName,
         };
     } catch (error) {
         console.error('Unexpected error uploading file:', error);
@@ -68,4 +76,5 @@ export async function uploadCV(file: File): Promise<UploadCVResult> {
         };
     }
 }
+
 

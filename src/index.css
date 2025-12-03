@@ -19,9 +19,20 @@
     --popover: 0 0% 100%;
     --popover-foreground: 0 0% 0%;
 
-    --primary: 210 100% 52%;
-    /* Migma Blue #0A84FF */
-    --primary-foreground: 0 0% 100%;
+    /* MIGMA Gold Palette - Metallic Gradient */
+    --gold-dark: 38 50% 37%;
+    /* Ouro Escuro #8E6E2F - Shadow/Base */
+    --gold-medium: 38 58% 55%;
+    /* Ouro Médio #CE9F48 - Base Color */
+    --gold-light: 45 80% 77%;
+    /* Ouro Claro #F3E196 - Highlight */
+    --gold-specular: 60 100% 95%;
+    /* Brilho Intenso #FFFFE3 - Specular Highlight */
+
+    --primary: 38 58% 55%;
+    /* Migma Gold Medium - Primary actions */
+    --primary-foreground: 0 0% 0%;
+    /* Black text on gold */
 
     --secondary: 0 0% 96%;
     /* Light Gray for secondary actions */
@@ -30,17 +41,18 @@
     --muted: 0 0% 96%;
     --muted-foreground: 0 0% 45%;
 
-    --accent: 210 100% 96%;
-    /* Very light blue for hover states */
-    --accent-foreground: 210 100% 52%;
+    --accent: 45 80% 95%;
+    /* Very light gold for hover states */
+    --accent-foreground: 38 58% 55%;
 
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 0 0% 98%;
 
-    --border: 0 0% 90%;
+    --border: 38 30% 85%;
+    /* Light gold border */
     --input: 0 0% 90%;
-    --ring: 210 100% 52%;
-    /* Focus ring matches primary */
+    --ring: 38 58% 55%;
+    /* Focus ring matches primary gold */
 
     --radius: 0.5rem;
   }
@@ -120,7 +132,14 @@
   }
 
   .btn-primary {
-    @apply bg-black text-white hover:bg-black/90;
+    background: linear-gradient(
+      180deg,
+      #F3E196 0%,
+      #CE9F48 50%,
+      #F3E196 100%
+    );
+    @apply text-black font-bold hover:opacity-90 transition-opacity shadow-lg;
+    box-shadow: 0 4px 12px rgba(206, 159, 72, 0.4);
   }
 
   .btn-text {
@@ -129,16 +148,30 @@
 
   /* Tags e Badges */
   .tag {
-    @apply text-sm inline-flex border border-[#222]/10 px-3 py-1 rounded-lg tracking-tight bg-white/50 backdrop-blur-sm;
+    @apply text-sm inline-flex border border-gold-medium/30 px-3 py-1 rounded-lg tracking-tight bg-gold-dark/20 backdrop-blur-sm text-gold-light;
   }
 
   /* Títulos de Seção */
   .section-title {
-    @apply text-center text-3xl md:text-[54px] md:leading-[60px] font-bold tracking-tighter bg-gradient-to-b from-black to-[#001E80] text-transparent bg-clip-text;
+    @apply text-center text-3xl md:text-[54px] md:leading-[60px] font-bold tracking-tighter;
+    background: linear-gradient(
+      180deg,
+      #8E6E2F 0%,
+      #F3E196 25%,
+      #CE9F48 50%,
+      #F3E196 75%,
+      #8E6E2F 100%
+    );
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    color: transparent;
+    filter: drop-shadow(0px 1px 1px rgba(0, 0, 0, 0.2));
   }
 
   .section-description {
-    @apply text-center text-[22px] leading-[30px] tracking-tight text-[#010D3E];
+    @apply text-center text-[22px] leading-[30px] tracking-tight;
+    color: #1a1a1a;
   }
 
   .section-heading {
@@ -152,14 +185,125 @@
 
   /* Gradientes */
   .gradient-hero {
-    background: radial-gradient(ellipse 200% 100% at bottom left, #183EC2, #EAEEFE 100%);
+    background: radial-gradient(ellipse 200% 100% at bottom left, #000000, #1a1a1a 100%);
   }
 
   .gradient-section {
-    @apply bg-gradient-to-b from-white to-[#D2DCFF];
+    @apply bg-gradient-to-b from-black via-[#1a1a1a] to-black;
   }
 
   .gradient-text {
-    @apply bg-gradient-to-b from-black to-[#001E80] text-transparent bg-clip-text;
+    background: linear-gradient(
+      180deg,
+      #8E6E2F 0%,
+      #F3E196 25%,
+      #CE9F48 50%,
+      #F3E196 75%,
+      #8E6E2F 100%
+    );
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    color: transparent;
+    filter: drop-shadow(0px 1px 1px rgba(0, 0, 0, 0.2));
+  }
+
+  /* MIGMA Gold Text Effect */
+  .migma-gold-text {
+    font-weight: bold;
+    background: linear-gradient(
+      180deg,
+      #8E6E2F 0%,
+      #F3E196 25%,
+      #CE9F48 50%,
+      #F3E196 75%,
+      #8E6E2F 100%
+    );
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    color: transparent;
+    filter: drop-shadow(0px 1px 1px rgba(0, 0, 0, 0.2));
+  }
+
+  /* Gold Gradient Background */
+  .bg-gold-gradient {
+    background: linear-gradient(
+      180deg,
+      #8E6E2F 0%,
+      #CE9F48 50%,
+      #8E6E2F 100%
+    );
+  }
+
+  /* Gold Border */
+  .border-gold {
+    @apply border-gold-medium/30;
+  }
+
+  /* Card Gold Style */
+  .card-gold {
+    @apply bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border-gold-medium/30 shadow-[0_7px_14px_rgba(206,159,72,0.1)];
+  }
+
+  /* Gold Loader */
+  .loader-gold {
+    --c1: #8E6E2F; /* gold-dark */
+    --c2: #CE9F48; /* gold-medium */
+    width: 40px;
+    height: 80px;
+    border-top: 4px solid var(--c1);
+    border-bottom: 4px solid var(--c1);
+    background: linear-gradient(90deg, var(--c1) 2px, var(--c2) 0 5px, var(--c1) 0) 50%/7px 8px no-repeat;
+    display: grid;
+    overflow: hidden;
+    animation: l5-0 2s infinite linear;
+  }
+
+  .loader-gold::before,
+  .loader-gold::after {
+    content: "";
+    grid-area: 1/1;
+    width: 75%;
+    height: calc(50% - 4px);
+    margin: 0 auto;
+    border: 2px solid var(--c1);
+    border-top: 0;
+    box-sizing: content-box;
+    border-radius: 0 0 40% 40%;
+    -webkit-mask: linear-gradient(#000 0 0) bottom/4px 2px no-repeat,
+      linear-gradient(#000 0 0);
+    -webkit-mask-composite: destination-out;
+    mask-composite: exclude;
+    background: linear-gradient(var(--d,0deg), var(--c2) 50%, #0000 0) bottom /100% 205%,
+      linear-gradient(var(--c2) 0 0) center/0 100%;
+    background-repeat: no-repeat;
+    animation: inherit;
+    animation-name: l5-1;
+  }
+
+  .loader-gold::after {
+    transform-origin: 50% calc(100% + 2px);
+    transform: scaleY(-1);
+    --s: 3px;
+    --d: 180deg;
+  }
+
+  @keyframes l5-0 {
+    80% {
+      transform: rotate(0);
+    }
+    100% {
+      transform: rotate(0.5turn);
+    }
+  }
+
+  @keyframes l5-1 {
+    10%, 70% {
+      background-size: 100% 205%, var(--s,0) 100%;
+    }
+    70%, 100% {
+      background-position: top, center;
+    }
   }
 }

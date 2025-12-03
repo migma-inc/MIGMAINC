@@ -9,6 +9,15 @@ export default {
   	extend: {
   		colors: {
   			migmaBlack: '#000000',
+  			// MIGMA Gold Palette - Metallic Gradient
+  			gold: {
+  				dark: '#8E6E2F',      // Ouro Escuro (Shadow)
+  				medium: '#CE9F48',     // Ouro Médio (Base)
+  				light: '#F3E196',      // Ouro Claro (Highlight)
+  				specular: '#FFFFE3',    // Brilho Intenso (Specular)
+  				DEFAULT: '#CE9F48',     // Default to medium gold
+  			},
+  			// Legacy colors (keeping for compatibility)
   			migmaBlue: '#0A84FF',
   			electricCyan: '#17D9E8',
   			softGray: '#D8D8D8',

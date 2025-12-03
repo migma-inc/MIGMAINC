@@ -49,6 +49,7 @@ const legalSchema = z.object({
 const experienceSchema = z.object({
     currentOccupation: z.string().optional(),
     areaOfExpertise: z.array(z.string()).min(1, "Select at least one expertise"),
+    otherAreaOfExpertise: z.string().optional(),
     yearsOfExperience: z.string().min(1, "Years of experience is required"),
     englishLevel: z.string().min(1, "English level is required"),
     clientExperience: z.enum(["Yes", "No"]).refine((val) => val !== undefined, {
@@ -63,11 +64,23 @@ const experienceSchema = z.object({
 }, {
     message: "Please describe your client experience",
     path: ["clientExperienceDescription"],
+}).refine((data) => {
+    if (data.areaOfExpertise?.includes("Other")) {
+        return data.otherAreaOfExpertise && data.otherAreaOfExpertise.trim().length >= 3;
+    }
+    return true;
+}, {
+    message: "Please specify your area of expertise",
+    path: ["otherAreaOfExpertise"],
 });
 
 const fitSchema = z.object({
     weeklyAvailability: z.string().min(1, "Availability is required"),
-    whyMigma: z.string().min(10, "Please tell us more about why you want to join"),
+    whyMigma: z.string()
+        .min(1, "This field is required")
+        .refine((val) => val.trim().length >= 10, {
+            message: "Please tell us more about why you want to join (minimum 10 characters)",
+        }),
     comfortableModel: z.boolean().refine(val => val === true, "You must acknowledge the contractor status"),
 });
 
@@ -82,8 +95,12 @@ const finalizeSchema = z.object({
 });
 
 const consentSchema = z.object({
-    infoAccurate: z.boolean().refine(val => val === true, "You must confirm that all information is accurate"),
-    marketingConsent: z.boolean().optional(),
+    infoAccurate: z.boolean()
+        .default(false)
+        .refine(val => val === true, {
+            message: "You must confirm that all information is accurate",
+        }),
+    marketingConsent: z.boolean().optional().default(false),
 });
 
 // Combined schema for type inference (though we validate step-by-step)
@@ -120,10 +137,10 @@ export const GlobalPartner = () => {
     return (
         <div className="min-h-screen bg-background font-sans text-foreground">
             {/* Wrapper com gradiente azul para Header + Hero */}
-            <div style={{ background: "radial-gradient(ellipse 200% 100% at bottom left, #183EC2, #EAEEFE 100%)" }} className="pt-[80px]">
+            <div style={{ background: "radial-gradient(ellipse 200% 100% at bottom left, #000000, #1a1a1a 100%)" }} className="pt-[80px]">
                 {/* Header - Replicado do Template */}
-                <header className={`fixed top-0 left-0 right-0 backdrop-blur-sm z-50 transition-colors duration-300 ${isScrolled ? 'bg-white' : 'bg-transparent'}`}>
-                    <div className={`py-3 transition-colors duration-300 ${isScrolled ? 'bg-white' : 'bg-transparent'}`}>
+                <header className={`fixed top-0 left-0 right-0 backdrop-blur-sm z-50 transition-colors duration-300 ${isScrolled ? 'bg-black/95' : 'bg-transparent'}`}>
+                    <div className={`py-3 transition-colors duration-300 ${isScrolled ? 'bg-black/95' : 'bg-transparent'}`}>
                         <div className="container">
                             <div className="flex items-center justify-between">
                                 <div className="flex items-center gap-2">
@@ -133,13 +150,13 @@ export const GlobalPartner = () => {
                                         className="h-16 md:h-20 w-auto"
                                     />
                                 </div>
-                                <svg className={`h-5 w-5 md:hidden transition-colors duration-300 ${isScrolled ? 'text-black' : 'text-white'}`} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <svg className={`h-5 w-5 md:hidden transition-colors duration-300 ${isScrolled ? 'text-gold-light' : 'text-white'}`} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                                     <path d="M3 12H21M3 6H21M3 18H21" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
                                 </svg>
-                                <nav className={`hidden md:flex gap-6 items-center transition-colors duration-300 ${isScrolled ? 'text-black/60' : 'text-black/60'}`}>
-                                    <a href="#benefits" className="hover:text-black transition">Benefits</a>
-                                    <a href="#how-it-works" className="hover:text-black transition">How it works</a>
-                                    <button onClick={scrollToForm} className="bg-migmaBlue text-white px-4 py-2 rounded-lg font-medium inline-flex items-center justify-center tracking-tight hover:bg-blue-600 transition">
+                                <nav className={`hidden md:flex gap-6 items-center transition-colors duration-300 ${isScrolled ? 'text-gold-light' : 'text-gold-light'}`}>
+                                    <a href="#benefits" className="transition hover:text-gold-medium">Benefits</a>
+                                    <a href="#how-it-works" className="transition hover:text-gold-medium">How it works</a>
+                                    <button onClick={scrollToForm} className="px-4 py-2 rounded-lg font-bold inline-flex items-center justify-center tracking-tight hover:opacity-90 transition shadow-lg" style={{ background: 'linear-gradient(180deg, #F3E196 0%, #CE9F48 50%, #F3E196 100%)', color: '#000', WebkitTextFillColor: '#000', boxShadow: '0 4px 12px rgba(206, 159, 72, 0.4)' }}>
                                         Get started
                                     </button>
                                 </nav>
@@ -156,13 +173,13 @@ export const GlobalPartner = () => {
                     <div className="container">
                         <div className="md:flex items-center">
                             <div className="md:w-[478px]">
-                                <div className="text-sm inline-flex border border-[#222]/10 px-3 py-1 rounded-lg tracking-tight">
+                                <div className="text-sm inline-flex border border-gold-medium/30 bg-gold-dark/20 text-gold-light px-3 py-1 rounded-lg tracking-tight">
                                     Global Partner Program
                                 </div>
-                                <h1 className="text-5xl md:text-7xl font-bold tracking-tighter bg-gradient-to-b from-black to-[#001E80] text-transparent bg-clip-text mt-6">
+                                <h1 className="text-5xl md:text-7xl font-bold tracking-tighter migma-gold-text mt-6">
                                     Work with MIGMA from anywhere in the world
                                 </h1>
-                                <p className="text-xl text-[#010D3E] tracking-tight mt-6">
+                                <p className="text-xl text-gold-light tracking-tight mt-6">
                                     Join the MIGMA Global Partner Program and collaborate with us as a Global Independent Contractor Partner.
                                 </p>
                                 <div className="flex gap-1 items-center mt-[30px]">
@@ -205,9 +222,9 @@ export const GlobalPartner = () => {
             <div className="relative w-full overflow-x-clip -mt-32 mb-32">
                 <motion.img
                     src="/foto3.png"
-                    width={220}
+                    width={250}
                     alt="Global Network Connections"
-                    className="hidden lg:block absolute top-1/2 right-1/4 -translate-y-1/2 rotate-[30deg]"
+                    className="hidden lg:block absolute top-1/2 right-[18%] -translate-y-1/2 rotate-[30deg]"
                     style={{
                         rotate: 30,
                         translateY: translateY,
@@ -217,7 +234,7 @@ export const GlobalPartner = () => {
             </div>
 
             {/* Section B: Benefits Grid */}
-            <section id="benefits" className="gradient-section py-24 overflow-x-clip relative">
+            <section id="benefits" className="bg-gradient-to-b from-black via-[#1a1a1a] to-black py-24 overflow-x-clip relative">
                 <div className="container">
                     {/* Heading centralizado inspirado no template */}
                     <div className="section-heading mb-16">
@@ -227,7 +244,7 @@ export const GlobalPartner = () => {
                         <h2 className="section-title mt-5">
                             Work with freedom and earn in USD
                         </h2>
-                        <p className="section-description mt-5">
+                        <p className="section-description mt-5 text-white">
                             Join a global team of talented professionals and enjoy the benefits of working remotely with competitive compensation.
                         </p>
                     </div>
@@ -265,12 +282,12 @@ export const GlobalPartner = () => {
                             transition={{ delay: 0.1 }}
                             className="group"
                         >
-                            <div className="relative h-full bg-white rounded-2xl p-8 shadow-[0_7px_14px_#EAEAEA] hover:shadow-[0_14px_28px_rgba(0,0,0,0.1)] transition-all duration-300 border border-[#F1F1F1]">
+                            <div className="relative h-full bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 rounded-2xl p-8 shadow-[0_7px_14px_rgba(206,159,72,0.1)] hover:shadow-[0_14px_28px_rgba(206,159,72,0.2)] transition-all duration-300 border border-gold-medium/30">
                                 <div className="w-16 h-16 mb-6 group-hover:scale-110 transition-transform duration-300">
                                     <img src="/money-icon.svg" alt="Money" className="w-full h-full" />
                                 </div>
-                                <h3 className="text-2xl font-bold mb-4 text-gray-900">Earn in USD</h3>
-                                <p className="text-gray-600 leading-relaxed">
+                                <h3 className="text-2xl font-bold mb-4 migma-gold-text">Earn in USD</h3>
+                                <p className="text-gray-300 leading-relaxed">
                                     Competitive compensation paid in US Dollars, regardless of your location.
                                 </p>
                             </div>
@@ -284,12 +301,12 @@ export const GlobalPartner = () => {
                             transition={{ delay: 0.2 }}
                             className="group"
                         >
-                            <div className="relative h-full bg-white rounded-2xl p-8 shadow-[0_7px_14px_#EAEAEA] hover:shadow-[0_14px_28px_rgba(0,0,0,0.1)] transition-all duration-300 border border-[#F1F1F1]">
+                            <div className="relative h-full bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 rounded-2xl p-8 shadow-[0_7px_14px_rgba(206,159,72,0.1)] hover:shadow-[0_14px_28px_rgba(206,159,72,0.2)] transition-all duration-300 border border-gold-medium/30">
                                 <div className="w-16 h-16 mb-6 group-hover:scale-110 transition-transform duration-300">
                                     <img src="/remote-work-icon.svg" alt="Remote Work" className="w-full h-full" />
                                 </div>
-                                <h3 className="text-2xl font-bold mb-4 text-gray-900">Work Remotely</h3>
-                                <p className="text-gray-600 leading-relaxed">
+                                <h3 className="text-2xl font-bold mb-4 migma-gold-text">Work Remotely</h3>
+                                <p className="text-gray-300 leading-relaxed">
                                     Complete freedom to work from anywhere. All you need is a reliable internet connection.
                                 </p>
                             </div>
@@ -303,12 +320,12 @@ export const GlobalPartner = () => {
                             transition={{ delay: 0.3 }}
                             className="group"
                         >
-                            <div className="relative h-full bg-white rounded-2xl p-8 shadow-[0_7px_14px_#EAEAEA] hover:shadow-[0_14px_28px_rgba(0,0,0,0.1)] transition-all duration-300 border border-[#F1F1F1]">
+                            <div className="relative h-full bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 rounded-2xl p-8 shadow-[0_7px_14px_rgba(206,159,72,0.1)] hover:shadow-[0_14px_28px_rgba(206,159,72,0.2)] transition-all duration-300 border border-gold-medium/30">
                                 <div className="w-16 h-16 mb-6 group-hover:scale-110 transition-transform duration-300">
                                     <img src="/business-icon.svg" alt="Business" className="w-full h-full" />
                                 </div>
-                                <h3 className="text-2xl font-bold mb-4 text-gray-900">Business Entity Required</h3>
-                                <p className="text-gray-600 leading-relaxed">
+                                <h3 className="text-2xl font-bold mb-4 migma-gold-text">Business Entity Required</h3>
+                                <p className="text-gray-300 leading-relaxed">
                                     You must have a valid business entity (CNPJ, NIF, or equivalent) to invoice us.
                                 </p>
                             </div>
@@ -318,11 +335,11 @@ export const GlobalPartner = () => {
             </section>
 
             {/* Section C: Who is this for? */}
-            <section id="who-is-this-for" className="bg-white py-24">
+            <section id="who-is-this-for" className="bg-gradient-to-b from-[#1a1a1a] to-black py-24">
                 <div className="container max-w-3xl">
                     <div className="section-heading mb-16">
                         <h2 className="section-title">Who is the MIGMA Global Partner Program for?</h2>
-                        <p className="section-description mt-5">
+                        <p className="section-description mt-5 text-gray-300">
                             We are looking for ambitious people and companies who want to work with MIGMA as independent contractors and help us expand globally.
                         </p>
                     </div>
@@ -334,8 +351,8 @@ export const GlobalPartner = () => {
                             transition={{ delay: 0.1 }}
                             className="flex items-start gap-3"
                         >
-                            <div className="w-2 h-2 rounded-full bg-primary mt-2 flex-shrink-0" />
-                            <p className="text-muted-foreground">You live in Brazil, Portugal, Angola, Mozambique, Cape Verde or any other country.</p>
+                            <div className="w-2 h-2 rounded-full bg-gold-medium mt-2 flex-shrink-0" />
+                            <p className="text-gray-400">You live in Brazil, Portugal, Angola, Mozambique, Cape Verde or any other country.</p>
                         </motion.div>
                         <motion.div
                             initial={{ opacity: 0, y: 20 }}
@@ -344,8 +361,8 @@ export const GlobalPartner = () => {
                             transition={{ delay: 0.2 }}
                             className="flex items-start gap-3"
                         >
-                            <div className="w-2 h-2 rounded-full bg-primary mt-2 flex-shrink-0" />
-                            <p className="text-muted-foreground">You have (or are able to obtain) a valid business or tax registration (CNPJ, NIF or equivalent).</p>
+                            <div className="w-2 h-2 rounded-full bg-gold-medium mt-2 flex-shrink-0" />
+                            <p className="text-gray-400">You have (or are able to obtain) a valid business or tax registration (CNPJ, NIF or equivalent).</p>
                         </motion.div>
                         <motion.div
                             initial={{ opacity: 0, y: 20 }}
@@ -354,8 +371,8 @@ export const GlobalPartner = () => {
                             transition={{ delay: 0.3 }}
                             className="flex items-start gap-3"
                         >
-                            <div className="w-2 h-2 rounded-full bg-primary mt-2 flex-shrink-0" />
-                            <p className="text-muted-foreground">You are comfortable working with clients, sales, service, operations or consulting.</p>
+                            <div className="w-2 h-2 rounded-full bg-gold-medium mt-2 flex-shrink-0" />
+                            <p className="text-gray-400">You are comfortable working with clients, sales, service, operations or consulting.</p>
                         </motion.div>
                         <motion.div
                             initial={{ opacity: 0, y: 20 }}
@@ -364,8 +381,8 @@ export const GlobalPartner = () => {
                             transition={{ delay: 0.4 }}
                             className="flex items-start gap-3"
                         >
-                            <div className="w-2 h-2 rounded-full bg-primary mt-2 flex-shrink-0" />
-                            <p className="text-muted-foreground">You are open to being paid per result, commission or project.</p>
+                            <div className="w-2 h-2 rounded-full bg-gold-medium mt-2 flex-shrink-0" />
+                            <p className="text-gray-400">You are open to being paid per result, commission or project.</p>
                         </motion.div>
                         <motion.div
                             initial={{ opacity: 0, y: 20 }}
@@ -374,8 +391,8 @@ export const GlobalPartner = () => {
                             transition={{ delay: 0.5 }}
                             className="flex items-start gap-3"
                         >
-                            <div className="w-2 h-2 rounded-full bg-primary mt-2 flex-shrink-0" />
-                            <p className="text-muted-foreground">You like the idea of growing with an international ecosystem instead of a traditional job.</p>
+                            <div className="w-2 h-2 rounded-full bg-gold-medium mt-2 flex-shrink-0" />
+                            <p className="text-gray-400">You like the idea of growing with an international ecosystem instead of a traditional job.</p>
                         </motion.div>
                         <motion.div
                             initial={{ opacity: 0, y: 20 }}
@@ -384,8 +401,8 @@ export const GlobalPartner = () => {
                             transition={{ delay: 0.6 }}
                             className="flex items-start gap-3"
                         >
-                            <div className="w-2 h-2 rounded-full bg-primary mt-2 flex-shrink-0" />
-                            <p className="text-muted-foreground">You like to receive payments in USD.</p>
+                            <div className="w-2 h-2 rounded-full bg-gold-medium mt-2 flex-shrink-0" />
+                            <p className="text-gray-400">You like to receive payments in USD.</p>
                         </motion.div>
                         <motion.div
                             initial={{ opacity: 0, y: 20 }}
@@ -394,21 +411,21 @@ export const GlobalPartner = () => {
                             transition={{ delay: 0.7 }}
                             className="flex items-start gap-3"
                         >
-                            <div className="w-2 h-2 rounded-full bg-primary mt-2 flex-shrink-0" />
-                            <p className="text-muted-foreground">You enjoy working with the United States visa process.</p>
+                            <div className="w-2 h-2 rounded-full bg-gold-medium mt-2 flex-shrink-0" />
+                            <p className="text-gray-400">You enjoy working with the United States visa process.</p>
                         </motion.div>
                     </div>
                 </div>
             </section>
 
             {/* Section D: Timeline */}
-            <section id="how-it-works" className="bg-white py-24">
+            <section id="how-it-works" className="bg-[#1a1a1a] py-24">
                 <div className="container max-w-3xl">
                     <div className="section-heading mb-16">
                         <h2 className="section-title">How it works</h2>
-                        <p className="section-description mt-5">Join our global team in four simple steps</p>
+                        <p className="section-description mt-5 text-gray-300">Join our global team in four simple steps</p>
                     </div>
-                    <div className="relative border-l-2 border-muted ml-4 md:ml-0 md:pl-8 space-y-12">
+                    <div className="relative border-l-2 border-gold-medium/30 ml-4 md:ml-0 md:pl-8 space-y-12">
                         {[
                             { title: 'Apply', desc: 'Submit your application with your professional details.' },
                             { title: 'Profile Review', desc: 'Our team reviews your experience and qualifications.' },
@@ -423,9 +440,9 @@ export const GlobalPartner = () => {
                                 transition={{ delay: index * 0.1 }}
                                 className="relative pl-8 md:pl-0"
                             >
-                                <div className="absolute -left-[9px] md:-left-[33px] top-1 bg-primary w-4 h-4 rounded-full border-4 border-background shadow-sm" />
-                                <h3 className="text-xl font-bold">{step.title}</h3>
-                                <p className="text-muted-foreground">{step.desc}</p>
+                                <div className="absolute -left-[9px] md:-left-[33px] top-1 bg-gold-medium w-4 h-4 rounded-full border-4 border-[#1a1a1a] shadow-sm" />
+                                <h3 className="text-xl font-bold migma-gold-text">{step.title}</h3>
+                                <p className="text-gray-300">{step.desc}</p>
                             </motion.div>
                         ))}
                     </div>
@@ -433,15 +450,15 @@ export const GlobalPartner = () => {
             </section>
 
             {/* Section E: Application Form */}
-            <section id="application-form" className="gradient-section py-24">
+            <section id="application-form" className="bg-gradient-to-b from-black via-[#1a1a1a] to-black py-24">
                 <div className="container max-w-3xl">
                     <div className="text-center mb-8">
                         <h2 className="section-title">Apply to become a MIGMA Global Partner</h2>
-                        <p className="section-description mt-5">
+                        <p className="section-description mt-5 text-gray-300">
                             Tell us more about you, your experience and why you want to work with MIGMA. If your profile matches what we are looking for, you will receive an email to schedule an interview.
                         </p>
                     </div>
-                    <Card className="border-none shadow-2xl bg-white/80 backdrop-blur-sm">
+                    <Card className="border-gold-medium/30 shadow-2xl bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 backdrop-blur-sm">
                         <CardContent className="p-8 sm:p-12">
                             <ApplicationWizard />
                         </CardContent>
@@ -543,8 +560,8 @@ const TestimonialsSection = () => {
                         ...new Array(2).fill(0).map((_, index) => (
                             <React.Fragment key={index}>
                                 {columnTestimonials.map(({ text, imageSrc, name, username }) => (
-                                    <div className="bg-white rounded-2xl p-6 shadow-[0_7px_14px_#EAEAEA] border border-[#F1F1F1]" key={username}>
-                                        <div className="text-gray-700">{text}</div>
+                                    <div className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 rounded-2xl p-6 shadow-[0_7px_14px_rgba(206,159,72,0.1)] border border-gold-medium/30" key={username}>
+                                        <div className="text-gray-300">{text}</div>
                                         <div className="flex items-center gap-2 mt-5">
                                             <img
                                                 src={imageSrc}
@@ -552,8 +569,8 @@ const TestimonialsSection = () => {
                                                 className="h-10 w-10 rounded-full object-cover"
                                             />
                                             <div className="flex flex-col">
-                                                <div className="font-medium tracking-tight leading-5 text-gray-900">{name}</div>
-                                                <div className="leading-5 tracking-tight text-gray-500 text-sm">{username}</div>
+                                                <div className="font-medium tracking-tight leading-5 text-gold-light">{name}</div>
+                                                <div className="leading-5 tracking-tight text-gray-400 text-sm">{username}</div>
                                             </div>
                                         </div>
                                     </div>
@@ -567,14 +584,14 @@ const TestimonialsSection = () => {
     };
 
     return (
-        <section className="bg-white py-24">
+        <section className="bg-black py-24">
             <div className="container">
                 <div className="section-heading">
                     <div className="flex justify-center">
                         <div className="tag">Testimonials</div>
                     </div>
                     <h2 className="section-title mt-5">What our partners say</h2>
-                    <p className="section-description mt-5">
+                    <p className="section-description mt-5 text-gray-300">
                         Join a community of talented professionals who have found success working with MIGMA as Global Partners.
                     </p>
                 </div>
@@ -600,11 +617,11 @@ const CallToActionSection = ({ scrollToForm }: { scrollToForm: () => void }) => 
     const translateY = useTransform(scrollYProgress, [0, 1], [150, -150]);
 
     return (
-        <section ref={sectionRef} className="bg-gradient-to-b from-white to-[#D2DCFF] py-24 overflow-x-clip">
+        <section ref={sectionRef} className="bg-black py-24 overflow-x-clip">
             <div className="container">
                 <div className="section-heading relative">
                     <h2 className="section-title">Ready to join our global team?</h2>
-                    <p className="section-description mt-5">
+                    <p className="section-description mt-5 migma-gold-text">
                         Start your journey as a MIGMA Global Partner and work with freedom, earn in USD, and collaborate with a world-class team.
                     </p>
 
@@ -618,12 +635,13 @@ const CallToActionSection = ({ scrollToForm }: { scrollToForm: () => void }) => 
                         }}
                     />
                     <motion.img
-                        src="/spring.png"
-                        alt="spring image"
+                        src="/foto7.png"
+                        alt="Golden diamond representing valuable opportunity"
                         width={360}
-                        className="hidden lg:block absolute -right-[331px] -top-[19px]"
+                        className="hidden lg:block absolute -right-[331px] -top-[100px] -rotate-[15deg]"
                         style={{
                             translateY: translateY,
+                            rotate: 15,
                         }}
                     />
                 </div>
@@ -639,7 +657,7 @@ const CallToActionSection = ({ scrollToForm }: { scrollToForm: () => void }) => 
 // Footer Section
 const FooterSection = () => {
     return (
-        <footer className="bg-black text-[#BCBCBC] text-sm py-10 text-center">
+        <footer className="bg-black text-gold-light/70 text-sm py-10 text-center">
             <div className="container">
                 <div className="inline-flex">
                     <img src="/logo2.png" alt="MIGMA INC" className="h-16 md:h-20 w-auto" />
@@ -711,27 +729,111 @@ const countryPhoneCodes: Record<string, string> = {
     'Other': '+',
 };
 
+const STORAGE_KEY = 'migma_application_form';
+const STORAGE_STEP_KEY = 'migma_application_step';
+
 const ApplicationWizard = () => {
     const navigate = useNavigate();
-    const [step, setStep] = React.useState(1);
+    
+    // Load saved form data first to check if CV is missing
+    const savedFormData = React.useMemo(() => {
+        try {
+            const saved = localStorage.getItem(STORAGE_KEY);
+            if (saved) {
+                const parsed = JSON.parse(saved);
+                return parsed;
+            }
+        } catch (error) {
+            console.warn('Failed to load saved form data:', error);
+        }
+        return null;
+    }, []);
+
+    // Load saved step from localStorage, but adjust if CV is missing
+    const savedStep = React.useMemo(() => {
+        try {
+            const saved = localStorage.getItem(STORAGE_STEP_KEY);
+            const step = saved ? parseInt(saved, 10) : 1;
+            
+            // If there's saved data but no CV, always redirect to step 5 (CV step)
+            // This ensures user can re-upload CV after refresh
+            if (savedFormData && Object.keys(savedFormData).length > 0 && !savedFormData.cv) {
+                return 5;
+            }
+            
+            return step;
+        } catch {
+            return 1;
+        }
+    }, [savedFormData]);
+    
+    const [step, setStep] = React.useState(savedStep);
+    const [triedToSubmit, setTriedToSubmit] = React.useState(false);
+    const [isSubmitting, setIsSubmitting] = React.useState(false);
     const totalSteps = 6;
+
+    // Load saved form data from localStorage
+    const loadSavedFormData = (): Partial<FormData> => {
+        try {
+            const saved = localStorage.getItem(STORAGE_KEY);
+            if (saved) {
+                const parsed = JSON.parse(saved);
+                // Remove cv file from saved data (can't be serialized)
+                const { cv, ...rest } = parsed;
+                return rest;
+            }
+        } catch (error) {
+            console.warn('Failed to load saved form data:', error);
+        }
+        return {};
+    };
 
     // We use a single form for all steps, but validate per step
     const form = useForm<FormData>({
         resolver: zodResolver(formSchema) as any,
-        mode: 'onChange',
+        mode: 'onSubmit', // Only validate when trying to submit/advance
+        reValidateMode: 'onChange', // Re-validate on change after first validation
+        shouldFocusError: false, // Don't auto-focus on error
         defaultValues: {
             areaOfExpertise: [],
+            otherAreaOfExpertise: '',
             hasBusiness: undefined,
             clientExperience: undefined,
+            infoAccurate: false,
+            marketingConsent: false,
+            ...loadSavedFormData(), // Merge saved data
         }
     });
 
     const { register, trigger, formState: { errors }, setValue, watch } = form;
     const areaOfExpertise = watch('areaOfExpertise') || [];
+    
+    // Watch all form values to save to localStorage
+    const formValues = watch();
+    
+    // Save form data to localStorage whenever it changes
+    React.useEffect(() => {
+        try {
+            // Don't save the CV file (can't be serialized)
+            const { cv, ...dataToSave } = formValues;
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(dataToSave));
+        } catch (error) {
+            console.warn('Failed to save form data to localStorage:', error);
+        }
+    }, [formValues]);
+    
+    // Save current step to localStorage
+    React.useEffect(() => {
+        try {
+            localStorage.setItem(STORAGE_STEP_KEY, step.toString());
+        } catch (error) {
+            console.warn('Failed to save step to localStorage:', error);
+        }
+    }, [step]);
     const hasBusiness = watch('hasBusiness');
     const clientExperience = watch('clientExperience');
     const selectedCountry = watch('country');
+    const hasOtherSelected = areaOfExpertise?.includes('Other');
 
     // Função para atualizar código do país no telefone
     const updatePhoneWithCountryCode = (country: string) => {
@@ -752,7 +854,7 @@ const ApplicationWizard = () => {
         switch (currentStep) {
             case 1: fieldsToValidate = ['fullName', 'email', 'phone', 'country']; break;
             case 2: fieldsToValidate = ['hasBusiness', 'businessId']; break;
-            case 3: fieldsToValidate = ['areaOfExpertise', 'yearsOfExperience', 'englishLevel', 'clientExperience', 'clientExperienceDescription']; break;
+            case 3: fieldsToValidate = ['areaOfExpertise', 'otherAreaOfExpertise', 'yearsOfExperience', 'englishLevel', 'clientExperience', 'clientExperienceDescription']; break;
             case 4: fieldsToValidate = ['weeklyAvailability', 'whyMigma', 'comfortableModel']; break;
             case 5: fieldsToValidate = ['cv']; break;
             case 6: fieldsToValidate = ['infoAccurate']; break;
@@ -762,6 +864,10 @@ const ApplicationWizard = () => {
     };
 
     const handleNext = async () => {
+        // Mark that user tried to advance (for step 6, this means they tried to submit)
+        if (step === 6) {
+            setTriedToSubmit(true);
+        }
         const isStepValid = await validateStep(step);
         if (isStepValid) {
             setStep((s) => Math.min(s + 1, totalSteps));
@@ -784,8 +890,32 @@ const ApplicationWizard = () => {
         }
     };
 
+    // Find the first step with missing required fields
+    const findFirstInvalidStep = async (): Promise<number | null> => {
+        for (let stepNum = 1; stepNum <= totalSteps; stepNum++) {
+            const isValid = await validateStep(stepNum);
+            if (!isValid) {
+                return stepNum;
+            }
+        }
+        return null;
+    };
+
     const onSubmit = async (data: FormData) => {
+        setIsSubmitting(true);
         try {
+            // First, validate all steps to find any missing required fields
+            const firstInvalidStep = await findFirstInvalidStep();
+            if (firstInvalidStep !== null) {
+                // Redirect to the step with missing required field
+                setStep(firstInvalidStep);
+                setTriedToSubmit(true);
+                setIsSubmitting(false);
+                // Trigger validation to show errors
+                await validateStep(firstInvalidStep);
+                return;
+            }
+
             // Step 1: Upload CV file
             let cvFilePath: string | undefined;
             let cvFileName: string | undefined;
@@ -794,6 +924,7 @@ const ApplicationWizard = () => {
                 const uploadResult = await uploadCV(data.cv);
                 if (!uploadResult.success) {
                     alert(`Error uploading CV: ${uploadResult.error}`);
+                    setIsSubmitting(false);
                     return;
                 }
                 cvFilePath = uploadResult.filePath;
@@ -805,6 +936,14 @@ const ApplicationWizard = () => {
 
             // Step 3: Prepare data for database
             // Ensure boolean fields are actual booleans, not strings
+            // Process area_of_expertise: if "Other" is selected, replace it with the custom value
+            let processedAreaOfExpertise = [...(data.areaOfExpertise || [])];
+            if (processedAreaOfExpertise.includes('Other') && data.otherAreaOfExpertise?.trim()) {
+                // Remove "Other" and add the custom value
+                processedAreaOfExpertise = processedAreaOfExpertise.filter(area => area !== 'Other');
+                processedAreaOfExpertise.push(`Other: ${data.otherAreaOfExpertise.trim()}`);
+            }
+            
             const applicationData = {
                 full_name: data.fullName,
                 email: data.email,
@@ -817,7 +956,7 @@ const ApplicationWizard = () => {
                 business_id: data.businessId || null,
                 tax_id: data.taxId || null,
                 current_occupation: data.currentOccupation || null,
-                area_of_expertise: data.areaOfExpertise,
+                area_of_expertise: processedAreaOfExpertise,
                 years_of_experience: data.yearsOfExperience,
                 english_level: data.englishLevel,
                 client_experience: data.clientExperience,
@@ -873,6 +1012,7 @@ const ApplicationWizard = () => {
                 } else {
                     alert(`Error submitting application: ${insertError.message}`);
                 }
+                setIsSubmitting(false);
                 return;
             }
 
@@ -893,18 +1033,39 @@ const ApplicationWizard = () => {
             }
 
             console.log('[FORM DEBUG] ✅ Application submitted successfully');
+            
+            // Clear localStorage after successful submission
+            try {
+                localStorage.removeItem(STORAGE_KEY);
+                localStorage.removeItem(STORAGE_STEP_KEY);
+            } catch (error) {
+                console.warn('Failed to clear localStorage:', error);
+            }
+            
             // Redirect to thank you page
             navigate('/global-partner/thank-you');
         } catch (error) {
             console.error("Error submitting form:", error);
             alert("There was an error submitting your application. Please try again.");
+            setIsSubmitting(false);
         }
     };
 
     return (
         <div>
+            {/* Loading Overlay */}
+            {isSubmitting && (
+                <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50">
+                    <div className="text-center">
+                        <div className="loader-gold mx-auto mb-4"></div>
+                        <p className="text-gold-light text-lg font-semibold">Submitting your application...</p>
+                        <p className="text-gray-400 text-sm mt-2">Please wait</p>
+                    </div>
+                </div>
+            )}
+
             <div className="mb-8">
-                <div className="flex justify-between text-sm font-medium text-muted-foreground mb-2">
+                <div className="flex justify-between text-sm font-medium text-white mb-2">
                     <span>Step {step} of {totalSteps}</span>
                     <span>{Math.round(progress)}%</span>
                 </div>
@@ -914,25 +1075,25 @@ const ApplicationWizard = () => {
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
                 {step === 1 && (
                     <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="space-y-4">
-                        <h3 className="text-2xl font-bold mb-4">Personal Information</h3>
+                        <h3 className="text-2xl font-bold mb-4 text-white">Personal Information</h3>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <div className="space-y-2">
-                                <Label htmlFor="fullName">Full Name *</Label>
-                                <Input id="fullName" {...register('fullName')} />
+                                <Label htmlFor="fullName" className="text-white">Full Name *</Label>
+                                <Input id="fullName" {...register('fullName')} className="bg-white text-black" />
                                 {errors.fullName && <p className="text-sm text-destructive">{errors.fullName.message}</p>}
                             </div>
                             <div className="space-y-2">
-                                <Label htmlFor="email">Email *</Label>
-                                <Input id="email" type="email" {...register('email')} />
+                                <Label htmlFor="email" className="text-white">Email *</Label>
+                                <Input id="email" type="email" {...register('email')} className="bg-white text-black" />
                                 {errors.email && <p className="text-sm text-destructive">{errors.email.message}</p>}
                             </div>
                             <div className="space-y-2">
-                                <Label htmlFor="country">Country *</Label>
+                                <Label htmlFor="country" className="text-white">Country *</Label>
                                 <Select onValueChange={(val) => {
                                     setValue('country', val);
                                     updatePhoneWithCountryCode(val);
                                 }}>
-                                    <SelectTrigger>
+                                    <SelectTrigger className="bg-white text-black">
                                         <SelectValue />
                                     </SelectTrigger>
                                     <SelectContent>
@@ -944,18 +1105,19 @@ const ApplicationWizard = () => {
                                 {errors.country && <p className="text-sm text-destructive">{errors.country.message}</p>}
                             </div>
                             <div className="space-y-2">
-                                <Label htmlFor="phone">Phone * (include country code)</Label>
+                                <Label htmlFor="phone" className="text-white">Phone * (include country code)</Label>
                                 <Input 
                                     id="phone" 
                                     type="tel" 
                                     placeholder={selectedCountry && countryPhoneCodes[selectedCountry] ? countryPhoneCodes[selectedCountry] + ' ...' : '+...'}
                                     {...register('phone')} 
+                                    className="bg-white text-black"
                                 />
                                 {errors.phone && <p className="text-sm text-destructive">{errors.phone.message}</p>}
                             </div>
                             <div className="space-y-2">
-                                <Label htmlFor="city">City</Label>
-                                <Input id="city" {...register('city')} />
+                                <Label htmlFor="city" className="text-white">City</Label>
+                                <Input id="city" {...register('city')} className="bg-white text-black" />
                                 {errors.city && <p className="text-sm text-destructive">{errors.city.message}</p>}
                             </div>
                         </div>
@@ -964,10 +1126,10 @@ const ApplicationWizard = () => {
 
                 {step === 2 && (
                     <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="space-y-4">
-                        <h3 className="text-2xl font-bold mb-4">Legal / Tax Information</h3>
+                        <h3 className="text-2xl font-bold mb-4 text-white">Legal / Tax Information</h3>
                         <div className="space-y-4">
                             <div className="space-y-2">
-                                <Label>Do you have a valid business or tax registration (CNPJ, NIF or equivalent)? *</Label>
+                                <Label className="text-white">Do you have a valid business or tax registration (CNPJ, NIF or equivalent)? *</Label>
                                 <div className="flex gap-6">
                                     <div className="flex items-center space-x-2">
                                         <input
@@ -977,7 +1139,7 @@ const ApplicationWizard = () => {
                                             {...register('hasBusiness')}
                                             className="w-4 h-4"
                                         />
-                                        <Label htmlFor="hasBusinessYes" className="font-normal cursor-pointer">Yes</Label>
+                                        <Label htmlFor="hasBusinessYes" className="font-normal cursor-pointer text-white">Yes</Label>
                                     </div>
                                     <div className="flex items-center space-x-2">
                                         <input
@@ -987,7 +1149,7 @@ const ApplicationWizard = () => {
                                             {...register('hasBusiness')}
                                             className="w-4 h-4"
                                         />
-                                        <Label htmlFor="hasBusinessNo" className="font-normal cursor-pointer">No</Label>
+                                        <Label htmlFor="hasBusinessNo" className="font-normal cursor-pointer text-white">No</Label>
                                     </div>
                                 </div>
                                 {errors.hasBusiness && <p className="text-sm text-destructive">{errors.hasBusiness.message}</p>}
@@ -996,23 +1158,23 @@ const ApplicationWizard = () => {
                             {hasBusiness === "Yes" && (
                                 <>
                                     <div className="space-y-2">
-                                        <Label htmlFor="registrationType">Registration Type (CNPJ, NIF or equivalent)</Label>
-                                        <Input id="registrationType" placeholder="CNPJ, NIF or equivalent" {...register('registrationType')} />
+                                        <Label htmlFor="registrationType" className="text-white">Registration Type (CNPJ, NIF or equivalent)</Label>
+                                        <Input id="registrationType" placeholder="CNPJ, NIF or equivalent" {...register('registrationType')} className="bg-white text-black" />
                                         {errors.registrationType && <p className="text-sm text-destructive">{errors.registrationType.message}</p>}
                                     </div>
                                     <div className="space-y-2">
-                                        <Label htmlFor="businessId">Business Registration Number (CNPJ/NIF) *</Label>
-                                        <Input id="businessId" {...register('businessId')} />
+                                        <Label htmlFor="businessId" className="text-white">Business Registration Number (CNPJ/NIF) *</Label>
+                                        <Input id="businessId" {...register('businessId')} className="bg-white text-black" />
                                         {errors.businessId && <p className="text-sm text-destructive">{errors.businessId.message}</p>}
                                     </div>
                                     <div className="space-y-2">
-                                        <Label htmlFor="businessName">Business Name</Label>
-                                        <Input id="businessName" {...register('businessName')} />
+                                        <Label htmlFor="businessName" className="text-white">Business Name</Label>
+                                        <Input id="businessName" {...register('businessName')} className="bg-white text-black" />
                                         {errors.businessName && <p className="text-sm text-destructive">{errors.businessName.message}</p>}
                                     </div>
                                     <div className="space-y-2">
-                                        <Label htmlFor="taxId">Tax ID</Label>
-                                        <Input id="taxId" {...register('taxId')} />
+                                        <Label htmlFor="taxId" className="text-white">Tax ID</Label>
+                                        <Input id="taxId" {...register('taxId')} className="bg-white text-black" />
                                         {errors.taxId && <p className="text-sm text-destructive">{errors.taxId.message}</p>}
                                     </div>
                                 </>
@@ -1023,19 +1185,19 @@ const ApplicationWizard = () => {
 
                 {step === 3 && (
                     <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="space-y-4">
-                        <h3 className="text-2xl font-bold mb-4">Professional Background</h3>
+                        <h3 className="text-2xl font-bold mb-4 text-white">Professional Background</h3>
                         
                         <div className="space-y-2">
-                            <Label htmlFor="currentOccupation">Current Occupation</Label>
-                            <Input id="currentOccupation" {...register('currentOccupation')} />
+                            <Label htmlFor="currentOccupation" className="text-white">Current Occupation</Label>
+                            <Input id="currentOccupation" {...register('currentOccupation')} className="bg-white text-black" />
                             {errors.currentOccupation && <p className="text-sm text-destructive">{errors.currentOccupation.message}</p>}
                         </div>
 
                         <div className="space-y-2">
-                            <Label>Area of Expertise * (Select all that apply)</Label>
+                            <Label className="text-white">Area of Expertise * (Select all that apply)</Label>
                             <div className="grid grid-cols-2 gap-2">
                                 {['Sales / Business Development', 'Customer Support / Service', 'Marketing / Social Media', 'Operations / Administration', 'Legal / Immigration / Consulting', 'Other'].map((skill) => (
-                                    <div key={skill} className="flex items-center space-x-2 border p-3 rounded-md hover:bg-muted/50 transition">
+                                    <div key={skill} className="flex items-center space-x-2 border border-gold-medium/30 bg-white/10 p-3 rounded-md hover:bg-white/20 transition">
                                         <Checkbox
                                             id={`skill-${skill}`}
                                             checked={areaOfExpertise?.includes(skill)}
@@ -1045,19 +1207,39 @@ const ApplicationWizard = () => {
                                                     ? [...current, skill]
                                                     : current.filter((s) => s !== skill);
                                                 setValue('areaOfExpertise', updated);
+                                                // Clear other area if "Other" is unchecked
+                                                if (!checked && skill === 'Other') {
+                                                    setValue('otherAreaOfExpertise', '');
+                                                }
                                             }}
                                         />
-                                        <Label htmlFor={`skill-${skill}`} className="cursor-pointer flex-1 text-sm">{skill}</Label>
+                                        <Label htmlFor={`skill-${skill}`} className="cursor-pointer flex-1 text-sm text-white">{skill}</Label>
                                     </div>
                                 ))}
                             </div>
                             {errors.areaOfExpertise && <p className="text-sm text-destructive">{errors.areaOfExpertise.message}</p>}
+                            
+                            {/* Campo condicional para "Other" */}
+                            {hasOtherSelected && (
+                                <div className="mt-3 space-y-2">
+                                    <Label htmlFor="otherAreaOfExpertise" className="text-white">Please specify your area of expertise *</Label>
+                                    <Input
+                                        id="otherAreaOfExpertise"
+                                        {...register('otherAreaOfExpertise')}
+                                        placeholder="Enter your area of expertise"
+                                        className="w-full bg-white text-black"
+                                    />
+                                    {errors.otherAreaOfExpertise && (
+                                        <p className="text-sm text-destructive">{errors.otherAreaOfExpertise.message}</p>
+                                    )}
+                                </div>
+                            )}
                         </div>
 
                         <div className="space-y-2">
-                            <Label>Years of Experience *</Label>
+                            <Label className="text-white">Years of Experience *</Label>
                             <Select onValueChange={(val) => setValue('yearsOfExperience', val)}>
-                                <SelectTrigger>
+                                <SelectTrigger className="bg-white text-black">
                                     <SelectValue />
                                 </SelectTrigger>
                                 <SelectContent>
@@ -1071,9 +1253,9 @@ const ApplicationWizard = () => {
                         </div>
 
                         <div className="space-y-2">
-                            <Label>English Level *</Label>
+                            <Label className="text-white">English Level *</Label>
                             <Select onValueChange={(val) => setValue('englishLevel', val)}>
-                                <SelectTrigger>
+                                <SelectTrigger className="bg-white text-black">
                                     <SelectValue />
                                 </SelectTrigger>
                                 <SelectContent>
@@ -1087,7 +1269,7 @@ const ApplicationWizard = () => {
                         </div>
 
                         <div className="space-y-2">
-                            <Label>Do you have experience working with clients, sales or business development? *</Label>
+                            <Label className="text-white">Do you have experience working with clients, sales or business development? *</Label>
                             <div className="flex gap-6">
                                 <div className="flex items-center space-x-2">
                                     <input
@@ -1097,7 +1279,7 @@ const ApplicationWizard = () => {
                                         {...register('clientExperience')}
                                         className="w-4 h-4"
                                     />
-                                    <Label htmlFor="clientExperienceYes" className="font-normal cursor-pointer">Yes</Label>
+                                    <Label htmlFor="clientExperienceYes" className="font-normal cursor-pointer text-white">Yes</Label>
                                 </div>
                                 <div className="flex items-center space-x-2">
                                     <input
@@ -1107,7 +1289,7 @@ const ApplicationWizard = () => {
                                         {...register('clientExperience')}
                                         className="w-4 h-4"
                                     />
-                                    <Label htmlFor="clientExperienceNo" className="font-normal cursor-pointer">No</Label>
+                                    <Label htmlFor="clientExperienceNo" className="font-normal cursor-pointer text-white">No</Label>
                                 </div>
                             </div>
                             {errors.clientExperience && <p className="text-sm text-destructive">{errors.clientExperience.message}</p>}
@@ -1115,8 +1297,8 @@ const ApplicationWizard = () => {
 
                         {clientExperience === "Yes" && (
                             <div className="space-y-2">
-                                <Label htmlFor="clientExperienceDescription">Please briefly describe your experience working with clients, sales or business development *</Label>
-                                <Textarea id="clientExperienceDescription" className="min-h-[100px]" {...register('clientExperienceDescription')} />
+                                <Label htmlFor="clientExperienceDescription" className="text-white">Please briefly describe your experience working with clients, sales or business development *</Label>
+                                <Textarea id="clientExperienceDescription" className="min-h-[100px] bg-white text-black" {...register('clientExperienceDescription')} />
                                 {errors.clientExperienceDescription && <p className="text-sm text-destructive">{errors.clientExperienceDescription.message}</p>}
                             </div>
                         )}
@@ -1125,11 +1307,11 @@ const ApplicationWizard = () => {
 
                 {step === 4 && (
                     <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="space-y-4">
-                        <h3 className="text-2xl font-bold mb-4">Availability & Fit</h3>
+                        <h3 className="text-2xl font-bold mb-4 text-white">Availability & Fit</h3>
                         <div className="space-y-2">
-                            <Label>Weekly Availability *</Label>
+                            <Label className="text-white">Weekly Availability *</Label>
                             <Select onValueChange={(val) => setValue('weeklyAvailability', val)}>
-                                <SelectTrigger>
+                                <SelectTrigger className="bg-white text-black">
                                     <SelectValue />
                                 </SelectTrigger>
                                 <SelectContent>
@@ -1143,8 +1325,12 @@ const ApplicationWizard = () => {
                         </div>
 
                         <div className="space-y-2">
-                            <Label htmlFor="whyMigma">Why do you want to work with MIGMA as a Global Partner? *</Label>
-                            <Textarea id="whyMigma" className="min-h-[120px]" {...register('whyMigma')} />
+                            <Label htmlFor="whyMigma" className="text-white">Why do you want to work with MIGMA as a Global Partner? *</Label>
+                            <Textarea 
+                                id="whyMigma" 
+                                className="min-h-[120px] bg-white text-black" 
+                                {...register('whyMigma')} 
+                            />
                             {errors.whyMigma && <p className="text-sm text-destructive">{errors.whyMigma.message}</p>}
                         </div>
 
@@ -1157,7 +1343,7 @@ const ApplicationWizard = () => {
                                     setValue('comfortableModel', boolValue, { shouldValidate: true });
                                 }}
                             />
-                            <Label htmlFor="comfortableModel" className="font-normal">I understand that this is not an employment offer and that the collaboration with MIGMA is as an independent contractor. *</Label>
+                            <Label htmlFor="comfortableModel" className="font-normal text-white">I understand that this is not an employment offer and that the collaboration with MIGMA is as an independent contractor. *</Label>
                         </div>
                         {errors.comfortableModel && <p className="text-sm text-destructive">{errors.comfortableModel.message}</p>}
                     </motion.div>
@@ -1165,10 +1351,10 @@ const ApplicationWizard = () => {
 
                 {step === 5 && (
                     <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="space-y-4">
-                        <h3 className="text-2xl font-bold mb-4">CV & Links</h3>
+                        <h3 className="text-2xl font-bold mb-4 text-white">CV & Links</h3>
                         <div className="space-y-2">
-                            <Label htmlFor="cv">Upload CV (PDF) *</Label>
-                            <div className="border-2 border-dashed border-input rounded-md p-8 text-center hover:bg-muted/50 transition cursor-pointer flex flex-col items-center justify-center gap-2 relative">
+                            <Label htmlFor="cv" className="text-white">Upload CV (PDF) *</Label>
+                            <div className="border-2 border-dashed border-gold-medium/50 rounded-md p-8 text-center hover:bg-white/10 transition cursor-pointer flex flex-col items-center justify-center gap-2 relative bg-white/5">
                                 <input
                                     type="file"
                                     id="cv"
@@ -1181,25 +1367,25 @@ const ApplicationWizard = () => {
                                         }
                                     }}
                                 />
-                                <Upload className="h-8 w-8 text-muted-foreground" />
-                                <p className="text-muted-foreground">Click to upload or drag and drop</p>
-                                <p className="text-xs text-muted-foreground/70">PDF only, max 5MB</p>
+                                <Upload className="h-8 w-8 text-gold-light" />
+                                <p className="text-white">Click to upload or drag and drop</p>
+                                <p className="text-xs text-gray-300">PDF only, max 5MB</p>
                                 {watch('cv') && (
-                                    <p className="text-sm text-green-600 mt-2">✓ File selected: {(watch('cv') as File)?.name}</p>
+                                    <p className="text-sm text-gold-light mt-2">✓ File selected: {(watch('cv') as File)?.name}</p>
                                 )}
                             </div>
                             {errors.cv && <p className="text-sm text-destructive">{errors.cv.message as string}</p>}
                         </div>
 
                         <div className="space-y-2">
-                            <Label htmlFor="linkedin">LinkedIn Profile URL</Label>
-                            <Input id="linkedin" type="url" {...register('linkedin')} />
+                            <Label htmlFor="linkedin" className="text-white">LinkedIn Profile URL</Label>
+                            <Input id="linkedin" type="url" {...register('linkedin')} className="bg-white text-black" />
                             {errors.linkedin && <p className="text-sm text-destructive">{errors.linkedin.message}</p>}
                         </div>
 
                         <div className="space-y-2">
-                            <Label htmlFor="otherLinks">Other Links</Label>
-                            <Input id="otherLinks" type="url" {...register('otherLinks')} />
+                            <Label htmlFor="otherLinks" className="text-white">Other Links</Label>
+                            <Input id="otherLinks" type="url" {...register('otherLinks')} className="bg-white text-black" />
                             {errors.otherLinks && <p className="text-sm text-destructive">{errors.otherLinks.message as string}</p>}
                         </div>
                     </motion.div>
@@ -1207,7 +1393,7 @@ const ApplicationWizard = () => {
 
                 {step === 6 && (
                     <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="space-y-4">
-                        <h3 className="text-2xl font-bold mb-4">Consents</h3>
+                        <h3 className="text-2xl font-bold mb-4 text-white">Consents</h3>
                         <div className="space-y-4">
                             <div className="flex items-start space-x-2">
                                 <Checkbox
@@ -1215,12 +1401,12 @@ const ApplicationWizard = () => {
                                     checked={watch('infoAccurate') || false}
                                     onCheckedChange={(checked) => {
                                         const boolValue = checked === true;
-                                        setValue('infoAccurate', boolValue, { shouldValidate: true });
+                                        setValue('infoAccurate', boolValue, { shouldValidate: false });
                                     }}
                                 />
-                                <Label htmlFor="infoAccurate" className="font-normal cursor-pointer">I confirm that all the information provided is true and accurate. *</Label>
+                                <Label htmlFor="infoAccurate" className="font-normal cursor-pointer text-white">I confirm that all the information provided is true and accurate. *</Label>
                             </div>
-                            {errors.infoAccurate && <p className="text-sm text-destructive">{errors.infoAccurate.message}</p>}
+                            {errors.infoAccurate && triedToSubmit && <p className="text-sm text-destructive">{errors.infoAccurate.message}</p>}
 
                             <div className="flex items-start space-x-2">
                                 <Checkbox
@@ -1228,10 +1414,10 @@ const ApplicationWizard = () => {
                                     checked={watch('marketingConsent') || false}
                                     onCheckedChange={(checked) => {
                                         const boolValue = checked === true;
-                                        setValue('marketingConsent', boolValue, { shouldValidate: true });
+                                        setValue('marketingConsent', boolValue, { shouldValidate: false });
                                     }}
                                 />
-                                <Label htmlFor="marketingConsent" className="font-normal cursor-pointer">I agree to receive relevant updates and opportunities from MIGMA by email.</Label>
+                                <Label htmlFor="marketingConsent" className="font-normal cursor-pointer text-white">I agree to receive relevant updates and opportunities from MIGMA by email.</Label>
                             </div>
                         </div>
                     </motion.div>
@@ -1247,12 +1433,20 @@ const ApplicationWizard = () => {
                     )}
 
                     {step < totalSteps ? (
-                        <Button type="button" onClick={handleNext}>
+                        <Button 
+                            type="button" 
+                            onClick={handleNext}
+                            className="bg-gradient-to-b from-gold-light via-gold-medium to-gold-light text-black font-bold hover:from-gold-medium hover:via-gold-light hover:to-gold-medium transition-all shadow-lg"
+                        >
                             Next Step <ChevronRight className="w-4 h-4 ml-2" />
                         </Button>
                     ) : (
-                        <Button type="submit">
-                            Submit Application <Check className="w-4 h-4 ml-2" />
+                        <Button 
+                            type="submit"
+                            disabled={isSubmitting}
+                            className="bg-gradient-to-b from-gold-light via-gold-medium to-gold-light text-black font-bold hover:from-gold-medium hover:via-gold-light hover:to-gold-medium transition-all shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                            {isSubmitting ? 'Submitting...' : 'Submit Application'} <Check className="w-4 h-4 ml-2" />
                         </Button>
                     )}
                 </div>

@@ -109,11 +109,27 @@ export async function approveCandidateAndSendTermsLink(
         }
 
         // Enviar email com link
-        // A URL será construída dentro da função de email
+        // Get base URL from environment or current origin
+        const getBaseUrl = (): string => {
+            // Try environment variable first (for production builds)
+            const envUrl = import.meta.env.VITE_APP_URL;
+            if (envUrl) return envUrl;
+            
+            // If in browser, use current origin
+            if (typeof window !== 'undefined' && window.location.origin) {
+                return window.location.origin;
+            }
+            
+            // Fallback (should be set via VITE_APP_URL in production)
+            return 'https://migma.com';
+        };
+        
+        const baseUrl = getBaseUrl();
         const emailSent = await sendTermsLinkEmail(
             application.email,
             application.full_name,
-            tokenResult.token
+            tokenResult.token,
+            baseUrl
         );
 
         if (!emailSent) {
