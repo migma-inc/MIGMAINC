@@ -211,7 +211,6 @@ export const PartnerTerms = () => {
                                 onUploadError={(error) => {
                                     setPhotoUploadError(error);
                                 }}
-                                required={true}
                             />
                             
                             {photoUploadError && (
