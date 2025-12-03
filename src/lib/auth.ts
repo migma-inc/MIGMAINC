@@ -134,7 +134,7 @@ export async function signOut(): Promise<void> {
  * Listen to auth state changes
  */
 export function onAuthStateChange(callback: (user: AdminUser | null) => void) {
-  return adminSupabase.auth.onAuthStateChange((event, session) => {
+  return adminSupabase.auth.onAuthStateChange((_event, session) => {
     if (session?.user) {
       callback({
         id: session.user.id,

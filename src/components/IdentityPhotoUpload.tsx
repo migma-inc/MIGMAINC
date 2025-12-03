@@ -5,14 +5,11 @@
 
 import { useState, useRef } from 'react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { X, CheckCircle, AlertCircle, Upload, Camera, FileImage } from 'lucide-react';
 
 interface IdentityPhotoUploadProps {
   onUploadSuccess: (filePath: string, fileName: string) => void;
   onUploadError?: (error: string) => void;
-  required?: boolean;
 }
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
@@ -20,10 +17,9 @@ const ALLOWED_TYPES = ['image/jpeg', 'image/jpg', 'image/png'];
 
 export function IdentityPhotoUpload({ 
   onUploadSuccess, 
-  onUploadError,
-  required = true 
+  onUploadError
 }: IdentityPhotoUploadProps) {
-  const [file, setFile] = useState<File | null>(null);
+  const [, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);

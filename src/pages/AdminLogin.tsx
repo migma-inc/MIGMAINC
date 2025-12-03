@@ -3,7 +3,8 @@
  * Allows admin users to sign in with email and password
  */
 
-import { useState, FormEvent } from 'react';
+import { useState } from 'react';
+import type { FormEvent } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { signIn } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
