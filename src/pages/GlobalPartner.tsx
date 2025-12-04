@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -18,6 +18,27 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Progress } from '@/components/ui/progress';
 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+
+// Function to check if email already exists
+const checkEmailExists = async (email: string): Promise<boolean> => {
+    try {
+        const { data, error } = await supabase
+            .from('global_partner_applications')
+            .select('id')
+            .eq('email', email.toLowerCase().trim())
+            .maybeSingle();
+        
+        if (error && error.code !== 'PGRST116') { // PGRST116 = no rows returned
+            console.error('Error checking email:', error);
+            return false; // If error, don't block (let database constraint handle it)
+        }
+        
+        return !!data; // Return true if email exists
+    } catch (error) {
+        console.error('Error checking email:', error);
+        return false; // If error, don't block
+    }
+};
 
 // --- Zod Schemas ---
 const personalSchema = z.object({
@@ -143,13 +164,13 @@ export const GlobalPartner = () => {
                     <div className={`py-3 transition-colors duration-300 ${isScrolled ? 'bg-black/95' : 'bg-transparent'}`}>
                         <div className="container">
                             <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-2">
+                                <Link to="/" className="flex items-center gap-2">
                                     <img 
                                         src="/logo2.png" 
                                         alt="MIGMA INC" 
                                         className="h-16 md:h-20 w-auto"
                                     />
-                                </div>
+                                </Link>
                                 <svg className={`h-5 w-5 md:hidden transition-colors duration-300 ${isScrolled ? 'text-gold-light' : 'text-white'}`} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                                     <path d="M3 12H21M3 6H21M3 18H21" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
                                 </svg>
@@ -657,21 +678,58 @@ const CallToActionSection = ({ scrollToForm }: { scrollToForm: () => void }) => 
 // Footer Section
 const FooterSection = () => {
     return (
-        <footer className="bg-black text-gold-light/70 text-sm py-10 text-center">
+        <footer className="bg-black text-gold-light/70 text-sm py-10">
             <div className="container">
-                <div className="inline-flex">
-                    <img src="/logo2.png" alt="MIGMA INC" className="h-16 md:h-20 w-auto" />
-                </div>
-                <nav className="flex flex-col md:flex-row md:justify-center gap-6 mt-6">
-                    <a href="#benefits">Benefits</a>
-                    <a href="#how-it-works">How it works</a>
-                    <a href="#application-form">Apply</a>
-                    <a href="#application-form">Pricing</a>
-                    <a href="#application-form">Help</a>
-                    <a href="#application-form">Careers</a>
-                </nav>
+                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-8">
+                    {/* Logo and Copyright */}
+                    <div className="flex flex-col items-center md:items-start">
+                        <Link to="/" className="inline-flex mb-4">
+                            <img src="/logo2.png" alt="MIGMA INC" className="h-16 md:h-20 w-auto" />
+                        </Link>
+                        <p className="text-gray-400">&copy; 2025 MIGMA INC. All rights reserved.</p>
+                    </div>
 
-                <p className="mt-6">&copy; 2025 MIGMA INC. All rights reserved.</p>
+                    {/* Navigation Links */}
+                    <nav className="flex flex-col md:flex-row gap-6 md:gap-8">
+                        <div className="flex flex-col md:flex-row gap-4 md:gap-6">
+                            <Link to="/" className="transition hover:text-gold-medium text-center md:text-left">
+                                Home
+                            </Link>
+                            <Link to="/services" className="transition hover:text-gold-medium text-center md:text-left">
+                                Services
+                            </Link>
+                            <Link to="/about" className="transition hover:text-gold-medium text-center md:text-left">
+                                About
+                            </Link>
+                            <Link to="/contact" className="transition hover:text-gold-medium text-center md:text-left">
+                                Contact
+                            </Link>
+                            <a href="#benefits" className="transition hover:text-gold-medium text-center md:text-left">
+                                Benefits
+                            </a>
+                            <a href="#how-it-works" className="transition hover:text-gold-medium text-center md:text-left">
+                                How it works
+                            </a>
+                            <a href="#application-form" className="transition hover:text-gold-medium text-center md:text-left">
+                                Apply
+                            </a>
+                        </div>
+                        <div className="flex flex-col md:flex-row gap-4 md:gap-6 border-t md:border-t-0 md:border-l border-gold-medium/30 pt-4 md:pt-0 md:pl-6">
+                            <Link to="/legal/privacy-policy" className="transition hover:text-gold-medium text-center md:text-left">
+                                Privacy Policy
+                            </Link>
+                            <Link to="/legal/website-terms" className="transition hover:text-gold-medium text-center md:text-left">
+                                Website Terms
+                            </Link>
+                            <Link to="/legal/cookies" className="transition hover:text-gold-medium text-center md:text-left">
+                                Cookies
+                            </Link>
+                            <Link to="/legal/global-partner-terms" className="transition hover:text-gold-medium text-center md:text-left">
+                                Partner Terms
+                            </Link>
+                        </div>
+                    </nav>
+                </div>
             </div>
         </footer>
     );
@@ -730,12 +788,11 @@ const countryPhoneCodes: Record<string, string> = {
 };
 
 const STORAGE_KEY = 'migma_application_form';
-const STORAGE_STEP_KEY = 'migma_application_step';
 
 const ApplicationWizard = () => {
     const navigate = useNavigate();
     
-    // Load saved form data first to check if CV is missing
+    // Load saved form data first to check if we should redirect to step 5
     const savedFormData = React.useMemo(() => {
         try {
             const saved = localStorage.getItem(STORAGE_KEY);
@@ -749,25 +806,48 @@ const ApplicationWizard = () => {
         return null;
     }, []);
 
-    // Load saved step from localStorage, but adjust if CV is missing
-    const savedStep = React.useMemo(() => {
-        try {
-            const saved = localStorage.getItem(STORAGE_STEP_KEY);
-            const step = saved ? parseInt(saved, 10) : 1;
-            
-            // If there's saved data but no CV, always redirect to step 5 (CV step)
-            // This ensures user can re-upload CV after refresh
-            if (savedFormData && Object.keys(savedFormData).length > 0 && !savedFormData.cv) {
-                return 5;
-            }
-            
-            return step;
-        } catch {
-            return 1;
-        }
-    }, [savedFormData]);
-    
-    const [step, setStep] = React.useState(savedStep);
+    // Helper function to check if previous steps (1-4) are filled
+    const arePreviousStepsFilled = (data: any): boolean => {
+        if (!data) return false;
+        
+        // Check Step 1 (Personal Info) - required fields
+        const step1Filled = data.fullName && data.fullName.trim().length >= 2 &&
+                          data.email && data.email.includes('@') &&
+                          data.phone && data.phone.trim().length >= 5 &&
+                          data.country && data.country.trim().length >= 2;
+        
+        // Check Step 2 (Legal) - required fields
+        const step2Filled = data.hasBusiness !== undefined && data.hasBusiness !== null;
+        // If hasBusiness is "Yes", also check businessId
+        const step2Complete = data.hasBusiness === "Yes" 
+            ? (data.businessId && data.businessId.trim().length >= 3)
+            : true;
+        
+        // Check Step 3 (Experience) - required fields
+        const step3Filled = Array.isArray(data.areaOfExpertise) && data.areaOfExpertise.length > 0 &&
+                           data.yearsOfExperience &&
+                           data.englishLevel &&
+                           data.clientExperience !== undefined && data.clientExperience !== null;
+        // If clientExperience is "Yes", also check description
+        const step3Complete = data.clientExperience === "Yes"
+            ? (data.clientExperienceDescription && data.clientExperienceDescription.trim().length >= 10)
+            : true;
+        // If "Other" is selected, check otherAreaOfExpertise
+        const step3OtherComplete = data.areaOfExpertise?.includes("Other")
+            ? (data.otherAreaOfExpertise && data.otherAreaOfExpertise.trim().length >= 3)
+            : true;
+        
+        // Check Step 4 (Fit) - required fields
+        const step4Filled = data.weeklyAvailability &&
+                           data.whyMigma && data.whyMigma.trim().length >= 10 &&
+                           data.comfortableModel === true;
+        
+        // All previous steps (1-4) must be filled
+        return step1Filled && step2Filled && step2Complete && step3Filled && step3Complete && step3OtherComplete && step4Filled;
+    };
+
+    // Always start at step 1, then check if we should redirect to step 5
+    const [step, setStep] = React.useState(1);
     const [triedToSubmit, setTriedToSubmit] = React.useState(false);
     const [isSubmitting, setIsSubmitting] = React.useState(false);
     const totalSteps = 6;
@@ -778,8 +858,8 @@ const ApplicationWizard = () => {
             const saved = localStorage.getItem(STORAGE_KEY);
             if (saved) {
                 const parsed = JSON.parse(saved);
-                // Remove cv file from saved data (can't be serialized)
-                const { cv, ...rest } = parsed;
+                // Remove cv file and cvInfo from saved data (can't be serialized)
+                const { cv, cvInfo, ...rest } = parsed;
                 return rest;
             }
         } catch (error) {
@@ -791,7 +871,7 @@ const ApplicationWizard = () => {
     // We use a single form for all steps, but validate per step
     const form = useForm<FormData>({
         resolver: zodResolver(formSchema) as any,
-        mode: 'onSubmit', // Only validate when trying to submit/advance
+        mode: 'onBlur', // Validate on blur for better UX
         reValidateMode: 'onChange', // Re-validate on change after first validation
         shouldFocusError: false, // Don't auto-focus on error
         defaultValues: {
@@ -810,26 +890,56 @@ const ApplicationWizard = () => {
     
     // Watch all form values to save to localStorage
     const formValues = watch();
+    const cvFile = watch('cv');
     
     // Save form data to localStorage whenever it changes
     React.useEffect(() => {
         try {
-            // Don't save the CV file (can't be serialized)
+            // Don't save the CV file (can't be serialized), but save CV info
             const { cv, ...dataToSave } = formValues;
+            
+            // Save CV metadata if CV file is selected
+            if (cvFile && cvFile instanceof File) {
+                (dataToSave as any).cvInfo = {
+                    name: cvFile.name,
+                    size: cvFile.size,
+                    type: cvFile.type,
+                    lastModified: cvFile.lastModified,
+                };
+            } else {
+                // Remove cvInfo if CV is not set
+                delete (dataToSave as any).cvInfo;
+            }
+            
             localStorage.setItem(STORAGE_KEY, JSON.stringify(dataToSave));
         } catch (error) {
             console.warn('Failed to save form data to localStorage:', error);
         }
-    }, [formValues]);
+    }, [formValues, cvFile]);
     
-    // Save current step to localStorage
+    // Check on mount if we should redirect to step 5
+    // This happens after form is initialized with saved data
     React.useEffect(() => {
-        try {
-            localStorage.setItem(STORAGE_STEP_KEY, step.toString());
-        } catch (error) {
-            console.warn('Failed to save step to localStorage:', error);
+        if (!savedFormData) return;
+        
+        // Check if steps 1-4 are filled
+        if (arePreviousStepsFilled(savedFormData)) {
+            // Wait a moment for form to initialize, then check CV
+            const timer = setTimeout(() => {
+                const currentCvFile = form.getValues('cv');
+                
+                // If no CV file is currently selected, redirect to step 5
+                // Note: cvInfo in savedFormData indicates there was a CV before, but File objects can't be restored from localStorage
+                // So we always need to redirect to step 5 if steps 1-4 are complete and no file is selected
+                if (!currentCvFile || !(currentCvFile instanceof File)) {
+                    setStep(5);
+                }
+            }, 50);
+            
+            return () => clearTimeout(timer);
         }
-    }, [step]);
+    }, []); // Only run once on mount
+    
     const hasBusiness = watch('hasBusiness');
     const clientExperience = watch('clientExperience');
     const selectedCountry = watch('country');
@@ -852,7 +962,25 @@ const ApplicationWizard = () => {
     const validateStep = async (currentStep: number) => {
         let fieldsToValidate: (keyof FormData)[] = [];
         switch (currentStep) {
-            case 1: fieldsToValidate = ['fullName', 'email', 'phone', 'country']; break;
+            case 1: 
+                fieldsToValidate = ['fullName', 'email', 'phone', 'country'];
+                // Validate email format first
+                const emailValid = await trigger(['email']);
+                if (emailValid) {
+                    // If email format is valid, check if it already exists
+                    const emailValue = watch('email');
+                    if (emailValue) {
+                        const emailExists = await checkEmailExists(emailValue);
+                        if (emailExists) {
+                            form.setError('email', {
+                                type: 'manual',
+                                message: 'This email is already registered. Please use a different email address.',
+                            });
+                            return false;
+                        }
+                    }
+                }
+                break;
             case 2: fieldsToValidate = ['hasBusiness', 'businessId']; break;
             case 3: fieldsToValidate = ['areaOfExpertise', 'otherAreaOfExpertise', 'yearsOfExperience', 'englishLevel', 'clientExperience', 'clientExperienceDescription']; break;
             case 4: fieldsToValidate = ['weeklyAvailability', 'whyMigma', 'comfortableModel']; break;
@@ -863,14 +991,24 @@ const ApplicationWizard = () => {
         return result;
     };
 
-    const handleNext = async () => {
+    const handleNext = async (e?: React.MouseEvent) => {
+        // Prevent form submission
+        if (e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+        
         // Mark that user tried to advance (for step 6, this means they tried to submit)
         if (step === 6) {
             setTriedToSubmit(true);
         }
+        
         const isStepValid = await validateStep(step);
         if (isStepValid) {
-            setStep((s) => Math.min(s + 1, totalSteps));
+            // Only advance if not on the last step
+            if (step < totalSteps) {
+                setStep((s) => Math.min(s + 1, totalSteps));
+            }
         }
     };
 
@@ -902,6 +1040,13 @@ const ApplicationWizard = () => {
     };
 
     const onSubmit = async (data: FormData) => {
+        // Only allow submission from step 6 (Consents step)
+        if (step !== 6) {
+            // If not on step 6, just advance to next step instead
+            await handleNext();
+            return;
+        }
+        
         setIsSubmitting(true);
         try {
             // First, validate all steps to find any missing required fields
@@ -1006,9 +1151,14 @@ const ApplicationWizard = () => {
                     details: insertError.details,
                 });
                 
-                // Tratamento específico para email duplicado
+                // Tratamento específico para email duplicado - set error on email field
                 if (insertError.code === '23505' && insertError.message.includes('email')) {
-                    alert('This email address has already been used to submit an application. Please use a different email address or contact us if you need to update your application.');
+                    form.setError('email', {
+                        type: 'manual',
+                        message: 'This email is already registered. Please use a different email address.',
+                    });
+                    // Go back to step 1 to show the error
+                    setStep(1);
                 } else {
                     alert(`Error submitting application: ${insertError.message}`);
                 }
@@ -1034,13 +1184,12 @@ const ApplicationWizard = () => {
 
             console.log('[FORM DEBUG] ✅ Application submitted successfully');
             
-            // Clear localStorage after successful submission
-            try {
-                localStorage.removeItem(STORAGE_KEY);
-                localStorage.removeItem(STORAGE_STEP_KEY);
-            } catch (error) {
-                console.warn('Failed to clear localStorage:', error);
-            }
+             // Clear localStorage after successful submission
+             try {
+                 localStorage.removeItem(STORAGE_KEY);
+             } catch (error) {
+                 console.warn('Failed to clear localStorage:', error);
+             }
             
             // Redirect to thank you page
             navigate('/global-partner/thank-you');
@@ -1084,17 +1233,34 @@ const ApplicationWizard = () => {
                             </div>
                             <div className="space-y-2">
                                 <Label htmlFor="email" className="text-white">Email *</Label>
-                                <Input id="email" type="email" {...register('email')} className="bg-white text-black" />
-                                {errors.email && <p className="text-sm text-destructive">{errors.email.message}</p>}
+                                <Input 
+                                    id="email" 
+                                    type="email" 
+                                    {...register('email', {
+                                        onBlur: async () => {
+                                            const emailValue = watch('email');
+                                            if (emailValue && emailValue.includes('@')) {
+                                                await trigger('email');
+                                            }
+                                        }
+                                    })} 
+                                    className="bg-white text-black" 
+                                />
+                                {errors.email && (
+                                    <p className="text-sm text-red-400 font-medium">{errors.email.message}</p>
+                                )}
                             </div>
                             <div className="space-y-2">
                                 <Label htmlFor="country" className="text-white">Country *</Label>
-                                <Select onValueChange={(val) => {
-                                    setValue('country', val);
-                                    updatePhoneWithCountryCode(val);
-                                }}>
+                                <Select 
+                                    value={watch('country') || ''} 
+                                    onValueChange={(val) => {
+                                        setValue('country', val);
+                                        updatePhoneWithCountryCode(val);
+                                    }}
+                                >
                                     <SelectTrigger className="bg-white text-black">
-                                        <SelectValue />
+                                        <SelectValue placeholder="Select a country" />
                                     </SelectTrigger>
                                     <SelectContent>
                                         {countries.map((country) => (
@@ -1238,9 +1404,12 @@ const ApplicationWizard = () => {
 
                         <div className="space-y-2">
                             <Label className="text-white">Years of Experience *</Label>
-                            <Select onValueChange={(val) => setValue('yearsOfExperience', val)}>
+                            <Select 
+                                value={watch('yearsOfExperience') || ''} 
+                                onValueChange={(val) => setValue('yearsOfExperience', val)}
+                            >
                                 <SelectTrigger className="bg-white text-black">
-                                    <SelectValue />
+                                    <SelectValue placeholder="Select years of experience" />
                                 </SelectTrigger>
                                 <SelectContent>
                                     <SelectItem value="Less than 1 year">Less than 1 year</SelectItem>
@@ -1254,9 +1423,12 @@ const ApplicationWizard = () => {
 
                         <div className="space-y-2">
                             <Label className="text-white">English Level *</Label>
-                            <Select onValueChange={(val) => setValue('englishLevel', val)}>
+                            <Select 
+                                value={watch('englishLevel') || ''} 
+                                onValueChange={(val) => setValue('englishLevel', val)}
+                            >
                                 <SelectTrigger className="bg-white text-black">
-                                    <SelectValue />
+                                    <SelectValue placeholder="Select English level" />
                                 </SelectTrigger>
                                 <SelectContent>
                                     <SelectItem value="Basic">Basic</SelectItem>
@@ -1310,9 +1482,12 @@ const ApplicationWizard = () => {
                         <h3 className="text-2xl font-bold mb-4 text-white">Availability & Fit</h3>
                         <div className="space-y-2">
                             <Label className="text-white">Weekly Availability *</Label>
-                            <Select onValueChange={(val) => setValue('weeklyAvailability', val)}>
+                            <Select 
+                                value={watch('weeklyAvailability') || ''} 
+                                onValueChange={(val) => setValue('weeklyAvailability', val)}
+                            >
                                 <SelectTrigger className="bg-white text-black">
-                                    <SelectValue />
+                                    <SelectValue placeholder="Select availability" />
                                 </SelectTrigger>
                                 <SelectContent>
                                     <SelectItem value="Up to 10 hours / week">Up to 10 hours / week</SelectItem>
@@ -1435,7 +1610,11 @@ const ApplicationWizard = () => {
                     {step < totalSteps ? (
                         <Button 
                             type="button" 
-                            onClick={handleNext}
+                            onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                handleNext(e);
+                            }}
                             className="bg-gradient-to-b from-gold-light via-gold-medium to-gold-light text-black font-bold hover:from-gold-medium hover:via-gold-light hover:to-gold-medium transition-all shadow-lg"
                         >
                             Next Step <ChevronRight className="w-4 h-4 ml-2" />

@@ -64,12 +64,12 @@ async function sendEmail(options: EmailOptions): Promise<boolean> {
  */
 export async function sendApplicationConfirmationEmail(email: string, fullName: string): Promise<boolean> {
     const html = `
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-</head>
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        </head>
 <body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #000000;">
     <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background-color: #000000;">
         <tr>
@@ -126,8 +126,8 @@ export async function sendApplicationConfirmationEmail(email: string, fullName: 
             </td>
         </tr>
     </table>
-</body>
-</html>
+        </body>
+        </html>
     `;
 
     return sendEmail({
@@ -172,12 +172,12 @@ export async function sendApprovalEmail(
     const termsUrl = `${origin}/partner-terms?token=${token}`;
 
     const html = `
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-</head>
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        </head>
 <body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #000000;">
     <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background-color: #000000;">
         <tr>
@@ -227,8 +227,8 @@ export async function sendApprovalEmail(
                                             <tr>
                                                 <td align="center" style="padding: 0 0 30px;">
                                                     <a href="${termsUrl}" style="display: inline-block; padding: 16px 40px; background: linear-gradient(180deg, #F3E196 0%, #CE9F48 50%, #F3E196 100%); color: #000000; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 16px; box-shadow: 0 4px 12px rgba(206, 159, 72, 0.4);">
-                                                        Review and Accept Terms
-                                                    </a>
+                    Review and Accept Terms
+                </a>
                                                 </td>
                                             </tr>
                                         </table>
@@ -273,8 +273,8 @@ export async function sendApprovalEmail(
             </td>
         </tr>
     </table>
-</body>
-</html>
+        </body>
+        </html>
     `;
 
     return sendEmail({
@@ -306,12 +306,12 @@ export async function sendTermsAcceptanceConfirmationEmail(
     contractPdfUrl?: string
 ): Promise<boolean> {
     const html = `
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-</head>
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        </head>
 <body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #000000;">
     <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background-color: #000000;">
         <tr>
@@ -402,8 +402,8 @@ export async function sendTermsAcceptanceConfirmationEmail(
             </td>
         </tr>
     </table>
-</body>
-</html>
+        </body>
+        </html>
     `;
 
     return sendEmail({

@@ -4,6 +4,7 @@
 
 import { supabase } from './supabase';
 import { approveCandidateAndSendTermsLink } from './partner-terms';
+import { invalidateAllCache } from './cache';
 
 /**
  * Approve an application
@@ -29,6 +30,9 @@ export async function approveApplication(
 
     // Generate token and send email
     const token = await approveCandidateAndSendTermsLink(applicationId);
+
+    // Invalidate cache after status update
+    invalidateAllCache();
 
     if (!token) {
       console.warn('[ADMIN] Token generation or email sending failed, but status was updated');
@@ -77,6 +81,9 @@ export async function rejectApplication(
       console.error('[ADMIN] Error rejecting application:', updateError);
       return { success: false, error: updateError.message };
     }
+
+    // Invalidate cache after status update
+    invalidateAllCache();
 
     return { success: true };
   } catch (error) {

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Check, ArrowLeft, AlertCircle, CheckCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -21,6 +21,16 @@ export const PartnerTerms = () => {
     const [identityPhotoPath, setIdentityPhotoPath] = useState<string | null>(null);
     const [identityPhotoName, setIdentityPhotoName] = useState<string | null>(null);
     const [photoUploadError, setPhotoUploadError] = useState<string | null>(null);
+    
+    // Use refs to always have the latest values
+    const identityPhotoPathRef = useRef<string | null>(null);
+    const identityPhotoNameRef = useRef<string | null>(null);
+    
+    // Keep refs in sync with state
+    useEffect(() => {
+        identityPhotoPathRef.current = identityPhotoPath;
+        identityPhotoNameRef.current = identityPhotoName;
+    }, [identityPhotoPath, identityPhotoName]);
 
     // Validar token ao carregar a página
     useEffect(() => {
@@ -85,11 +95,42 @@ export const PartnerTerms = () => {
         }
     };
 
+    // Smooth scroll animation function
+    const smoothScrollTo = (targetElement: HTMLElement, duration: number = 800) => {
+        const targetPosition = targetElement.getBoundingClientRect().top + window.pageYOffset;
+        const startPosition = window.pageYOffset;
+        const distance = targetPosition - startPosition;
+        let startTime: number | null = null;
+
+        const easeInOutCubic = (t: number): number => {
+            return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+        };
+
+        const animation = (currentTime: number) => {
+            if (startTime === null) startTime = currentTime;
+            const timeElapsed = currentTime - startTime;
+            const progress = Math.min(timeElapsed / duration, 1);
+            const ease = easeInOutCubic(progress);
+
+            window.scrollTo(0, startPosition + distance * ease);
+
+            if (timeElapsed < duration) {
+                requestAnimationFrame(animation);
+            }
+        };
+
+        requestAnimationFrame(animation);
+    };
+
     const handleAccept = async () => {
         if (!accepted || !token || !tokenValid) return;
+
+        // Use refs to get the latest values (avoid closure issues)
+        const currentPhotoPath = identityPhotoPathRef.current;
+        const currentPhotoName = identityPhotoNameRef.current;
         
         // Verificar se foto foi enviada
-        if (!identityPhotoPath || !identityPhotoName) {
+        if (!currentPhotoPath || !currentPhotoName) {
             setPhotoUploadError('Please upload a photo with your identity document before accepting the terms.');
             return;
         }
@@ -101,11 +142,14 @@ export const PartnerTerms = () => {
 
             // Atualizar registro de aceite no banco
             console.log('[PARTNER TERMS] Updating acceptance with photo:', { 
-                identityPhotoPath, 
-                identityPhotoName,
+                identityPhotoPath: currentPhotoPath, 
+                identityPhotoName: currentPhotoName,
                 token,
-                termAcceptanceId: tokenData.id 
+                termAcceptanceId: tokenData.id,
+                stateIdentityPhotoPath: identityPhotoPath,
+                stateIdentityPhotoName: identityPhotoName
             });
+            
 
             const { data: updatedAcceptance, error: updateError } = await supabase
                 .from('partner_terms_acceptances')
@@ -113,8 +157,8 @@ export const PartnerTerms = () => {
                     accepted_at: new Date().toISOString(),
                     ip_address: ipAddress,
                     user_agent: userAgent,
-                    identity_photo_path: identityPhotoPath,
-                    identity_photo_name: identityPhotoName,
+                    identity_photo_path: currentPhotoPath,
+                    identity_photo_name: currentPhotoName,
                 })
                 .eq('token', token)
                 .select()
@@ -139,8 +183,18 @@ export const PartnerTerms = () => {
                 accepted_at: updatedAcceptance?.accepted_at
             });
 
+            // Verify that the saved photo path matches what we just set
+            if (updatedAcceptance?.identity_photo_path !== currentPhotoPath) {
+                console.error('[PARTNER TERMS] Photo path mismatch!', {
+                    expected: currentPhotoPath,
+                    saved: updatedAcceptance?.identity_photo_path
+                });
+                alert('There was an error saving your photo. Please try uploading again.');
+                return;
+            }
+
             // Aguardar um pouco para garantir que o update foi persistido no banco
-            await new Promise(resolve => setTimeout(resolve, 1000));
+            await new Promise(resolve => setTimeout(resolve, 2000));
 
             // Chamar Edge Function para gerar PDF do contrato (em background)
             if (tokenData?.application_id) {
@@ -149,7 +203,8 @@ export const PartnerTerms = () => {
                     console.log('[PARTNER TERMS] Triggering PDF generation:', {
                         application_id: tokenData.application_id,
                         term_acceptance_id: updatedAcceptance.id,
-                        identity_photo_path: updatedAcceptance.identity_photo_path
+                        identity_photo_path: updatedAcceptance.identity_photo_path,
+                        expected_photo_path: currentPhotoPath
                     });
 
                     fetch(`${SUPABASE_URL}/functions/v1/generate-contract-pdf`, {
@@ -185,65 +240,11 @@ export const PartnerTerms = () => {
                     <ArrowLeft className="w-4 h-4 mr-2" /> Back to Application
                 </Button>
 
-                {/* Photo Upload Section - MOVED TO TOP */}
-                {!loading && tokenValid && (
-                    <Card className="mb-6 shadow-xl border-2 border-gold-medium/50 bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10">
-                        <CardHeader className="pb-6 bg-gradient-to-r from-gold-dark via-gold-medium to-gold-dark text-white rounded-t-lg">
-                            <div className="flex items-center gap-3">
-                                <span className="bg-white text-gold-medium rounded-full w-10 h-10 flex items-center justify-center text-xl font-bold shadow-lg">1</span>
-                                <div>
-                                    <CardTitle className="text-2xl font-bold text-white">
-                                        Identity Verification Required
-                                    </CardTitle>
-                                    <CardDescription className="text-gold-light mt-1 text-base">
-                                        Upload your photo before accepting the terms
-                                    </CardDescription>
-                                </div>
-                            </div>
-                        </CardHeader>
-                        <CardContent className="p-6 sm:p-8">
-                            <IdentityPhotoUpload
-                                onUploadSuccess={(filePath, fileName) => {
-                                    setIdentityPhotoPath(filePath);
-                                    setIdentityPhotoName(fileName);
-                                    setPhotoUploadError(null);
-                                }}
-                                onUploadError={(error) => {
-                                    setPhotoUploadError(error);
-                                }}
-                            />
-                            
-                            {photoUploadError && (
-                                <div className="mt-4 p-4 bg-red-900/30 border-2 border-red-500/50 rounded-md">
-                                    <div className="flex items-start gap-3">
-                                        <AlertCircle className="w-5 h-5 text-red-300 flex-shrink-0 mt-0.5" />
-                                        <div>
-                                            <p className="text-red-300 font-semibold">Upload Error</p>
-                                            <p className="text-red-200 text-sm mt-1">{photoUploadError}</p>
-                                        </div>
-                                    </div>
-                                </div>
-                            )}
-                            
-                            {identityPhotoPath && (
-                                <div className="mt-6 p-4 bg-green-900/30 border-2 border-green-500/50 rounded-lg">
-                                    <div className="flex items-center gap-3">
-                                        <CheckCircle className="w-6 h-6 text-green-300 flex-shrink-0" />
-                                        <div>
-                                            <p className="text-green-300 font-bold text-base">✓ Verification Complete!</p>
-                                            <p className="text-green-200 text-sm mt-1">Your photo has been uploaded successfully. You can now proceed to read and accept the terms below.</p>
-                                        </div>
-                                    </div>
-                                </div>
-                            )}
-                        </CardContent>
-                    </Card>
-                )}
-
-                <Card className="shadow-lg border border-gold-medium/30 bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10">
+                {/* Terms & Conditions Agreement - FIRST */}
+                <Card className="mb-6 shadow-lg border border-gold-medium/30 bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10">
                     <CardHeader className="text-center border-b border-gold-medium/30 bg-gradient-to-r from-gold-dark via-gold-medium to-gold-dark rounded-t-lg pb-8 pt-10">
                         <CardTitle className="text-3xl font-bold flex items-center justify-center gap-2 text-white">
-                            <span className="bg-white text-black rounded-full w-8 h-8 flex items-center justify-center text-lg font-bold border border-gold-medium/50">2</span>
+                            <span className="bg-white text-black rounded-full w-8 h-8 flex items-center justify-center text-lg font-bold border border-gold-medium/50">1</span>
                             MIGMA Global Independent Contractor Terms & Conditions Agreement
                         </CardTitle>
                         <CardDescription className="text-lg mt-4 text-gold-light">
@@ -262,7 +263,7 @@ export const PartnerTerms = () => {
                         <div className="space-y-4">
                             <h3 className="text-xl font-bold text-gold-light">1. Parties</h3>
                             <p>
-                                This Agreement is entered into between MIGMA INC ("MIGMA" or "Company"), a company incorporated under the laws of the United States, and the Partner identified in the associated application ("Partner" or "Contractor"). Both parties agree to the terms and conditions set forth herein.
+                                Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur.
                             </p>
                         </div>
 
@@ -271,7 +272,7 @@ export const PartnerTerms = () => {
                         <div className="space-y-4">
                             <h3 className="text-xl font-bold text-gold-light">2. Relationship (Independent Contractor)</h3>
                             <p>
-                                The Partner is an independent contractor and not an employee of MIGMA. Nothing in this Agreement shall be construed to create a partnership, joint venture, or employer-employee relationship. The Partner shall be responsible for all taxes, social security contributions, and other obligations arising from payments made under this Agreement. The Partner acknowledges that they are not entitled to any employee benefits, including but not limited to health insurance, retirement benefits, or paid time off.
+                                Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum. Sed ut perspiciatis unde omnis iste natus error sit voluptatem accusantium doloremque laudantium, totam rem aperiam, eaque ipsa quae ab illo inventore veritatis et quasi architecto beatae vitae dicta sunt explicabo.
                             </p>
                         </div>
 
@@ -280,7 +281,7 @@ export const PartnerTerms = () => {
                         <div className="space-y-4">
                             <h3 className="text-xl font-bold text-gold-light">3. Scope of Services</h3>
                             <p>
-                                The Partner agrees to perform the services described in specific Statements of Work (SOW) or project assignments agreed upon by both parties. Services shall be performed in a professional manner consistent with industry standards. The Partner shall have the right to determine the method, details, and means of performing the services, subject to the results and deliverables specified by MIGMA.
+                                Nemo enim ipsam voluptatem quia voluptas sit aspernatur aut odit aut fugit, sed quia consequuntur magni dolores eos qui ratione voluptatem sequi nesciunt. Neque porro quisquam est, qui dolorem ipsum quia dolor sit amet, consectetur, adipisci velit, sed quia non numquam eius modi tempora incidunt ut labore et dolore magnam aliquam quaerat voluptatem.
                             </p>
                         </div>
 
@@ -289,7 +290,7 @@ export const PartnerTerms = () => {
                         <div className="space-y-4">
                             <h3 className="text-xl font-bold text-gold-light">4. Compensation & Invoices</h3>
                             <p>
-                                Compensation for services shall be as agreed upon in individual project agreements or SOWs. The Partner shall invoice MIGMA for services rendered in accordance with the payment terms specified in each project agreement. MIGMA shall pay invoices within the agreed payment terms, typically net 30 days from invoice date. The Partner is solely responsible for all taxes, withholdings, and reporting obligations related to compensation received under this Agreement.
+                                Ut enim ad minima veniam, quis nostrum exercitationem ullam corporis suscipit laboriosam, nisi ut aliquid ex ea commodi consequatur. Quis autem vel eum iure reprehenderit qui in ea voluptate velit esse quam nihil molestiae consequatur, vel illum qui dolorem eum fugiat quo voluptas nulla pariatur.
                             </p>
                         </div>
 
@@ -298,7 +299,7 @@ export const PartnerTerms = () => {
                         <div className="space-y-4">
                             <h3 className="text-xl font-bold text-gold-light">5. Confidentiality & Data Protection</h3>
                             <p>
-                                The Partner agrees to keep confidential all proprietary information of MIGMA and its clients, including but not limited to business strategies, client information, financial data, technical information, and any other information marked as confidential or that would reasonably be considered confidential. The Partner shall comply with all applicable data protection laws, including GDPR, and shall implement appropriate security measures to protect confidential information. This obligation survives the termination of this Agreement.
+                                At vero eos et accusamus et iusto odio dignissimos ducimus qui blanditiis praesentium voluptatum deleniti atque corrupti quos dolores et quas molestias excepturi sint occaecati cupiditate non provident, similique sunt in culpa qui officia deserunt mollitia animi, id est laborum et dolorum fuga.
                             </p>
                         </div>
 
@@ -307,7 +308,7 @@ export const PartnerTerms = () => {
                         <div className="space-y-4">
                             <h3 className="text-xl font-bold text-gold-light">6. Intellectual Property</h3>
                             <p>
-                                All work product, deliverables, inventions, improvements, and intellectual property created by the Partner in connection with the Services shall be the sole and exclusive property of MIGMA. The Partner hereby assigns all rights, title, and interest in such work product to MIGMA. The Partner agrees to execute any additional documents necessary to perfect MIGMA's ownership of such intellectual property.
+                                Et harum quidem rerum facilis est et expedita distinctio. Nam libero tempore, cum soluta nobis est eligendi optio cumque nihil impedit quo minus id quod maxime placeat facere possimus, omnis voluptas assumenda est, omnis dolor repellendus.
                             </p>
                         </div>
 
@@ -316,7 +317,7 @@ export const PartnerTerms = () => {
                         <div className="space-y-4">
                             <h3 className="text-xl font-bold text-gold-light">7. Non-Solicitation & Ethical Conduct</h3>
                             <p>
-                                During the term of this Agreement and for a period of twelve (12) months thereafter, the Partner agrees not to solicit, directly or indirectly, any clients, employees, or contractors of MIGMA. The Partner shall conduct business in an ethical manner and comply with all applicable laws and regulations. The Partner shall not engage in any activity that could damage MIGMA's reputation or business interests.
+                                Temporibus autem quibusdam et aut officiis debitis aut rerum necessitatibus saepe eveniet ut et voluptates repudiandae sint et molestiae non recusandae. Itaque earum rerum hic tenetur a sapiente delectus, ut aut reiciendis voluptatibus maiores alias consequatur aut perferendis doloribus asperiores repellat.
                             </p>
                         </div>
 
@@ -325,7 +326,7 @@ export const PartnerTerms = () => {
                         <div className="space-y-4">
                             <h3 className="text-xl font-bold text-gold-light">8. Term & Termination</h3>
                             <p>
-                                This Agreement shall commence upon acceptance by the Partner and shall continue until terminated by either party with thirty (30) days written notice, or immediately upon breach of any material term of this Agreement. Upon termination, the Partner shall return all confidential information and materials belonging to MIGMA. Sections relating to confidentiality, intellectual property, and non-solicitation shall survive termination.
+                                Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur.
                             </p>
                         </div>
 
@@ -334,7 +335,7 @@ export const PartnerTerms = () => {
                         <div className="space-y-4">
                             <h3 className="text-xl font-bold text-gold-light">9. No Exclusivity</h3>
                             <p>
-                                This Agreement is non-exclusive. The Partner is free to provide services to other clients, provided that such services do not conflict with the Partner's obligations under this Agreement, violate confidentiality provisions, or compete directly with MIGMA's business interests. The Partner shall notify MIGMA of any potential conflicts of interest.
+                                Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum. Sed ut perspiciatis unde omnis iste natus error sit voluptatem accusantium doloremque laudantium, totam rem aperiam, eaque ipsa quae ab illo inventore veritatis.
                             </p>
                         </div>
 
@@ -343,7 +344,7 @@ export const PartnerTerms = () => {
                         <div className="space-y-4">
                             <h3 className="text-xl font-bold text-gold-light">10. Compliance & Legal Responsibility</h3>
                             <p>
-                                The Partner represents and warrants that they have the legal capacity and authority to enter into this Agreement. The Partner shall comply with all applicable laws, regulations, and professional standards in the performance of services. The Partner shall maintain all necessary licenses, permits, and registrations required to perform the services. The Partner is solely responsible for their own business operations, including tax compliance, insurance, and legal obligations in their jurisdiction.
+                                Nemo enim ipsam voluptatem quia voluptas sit aspernatur aut odit aut fugit, sed quia consequuntur magni dolores eos qui ratione voluptatem sequi nesciunt. Neque porro quisquam est, qui dolorem ipsum quia dolor sit amet, consectetur, adipisci velit.
                             </p>
                         </div>
 
@@ -352,7 +353,7 @@ export const PartnerTerms = () => {
                         <div className="space-y-4">
                             <h3 className="text-xl font-bold text-gold-light">11. Governing Law / Jurisdiction</h3>
                             <p>
-                                This Agreement shall be governed by and construed in accordance with the laws of the State of Delaware, United States, without regard to its conflict of law provisions. Any disputes arising under this Agreement shall be subject to the exclusive jurisdiction of the courts of Delaware. The Partner agrees to submit to the jurisdiction of such courts and waives any objection to venue.
+                                Ut enim ad minima veniam, quis nostrum exercitationem ullam corporis suscipit laboriosam, nisi ut aliquid ex ea commodi consequatur. Quis autem vel eum iure reprehenderit qui in ea voluptate velit esse quam nihil molestiae consequatur.
                             </p>
                         </div>
 
@@ -361,7 +362,7 @@ export const PartnerTerms = () => {
                         <div className="space-y-4">
                             <h3 className="text-xl font-bold text-gold-light">12. Digital Acceptance</h3>
                             <p>
-                                By clicking "I Agree and Accept These Terms" below, the Partner acknowledges that they have read, understood, and agree to be bound by all terms and conditions of this Agreement. This digital acceptance shall have the same legal effect as a handwritten signature. The Partner acknowledges that they have had the opportunity to review this Agreement and consult with legal counsel if desired.
+                                At vero eos et accusamus et iusto odio dignissimos ducimus qui blanditiis praesentium voluptatum deleniti atque corrupti quos dolores et quas molestias excepturi sint occaecati cupiditate non provident, similique sunt in culpa qui officia deserunt mollitia animi.
                             </p>
                         </div>
 
@@ -369,28 +370,104 @@ export const PartnerTerms = () => {
                     </CardContent>
                 </Card>
 
+                {/* Photo Upload Section - SECOND */}
+                {!loading && tokenValid && (
+                    <Card id="photo-upload-section" className="mb-6 shadow-xl border-2 border-gold-medium/50 bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10">
+                        <CardHeader className="pb-6 bg-gradient-to-r from-gold-dark via-gold-medium to-gold-dark text-white rounded-t-lg">
+                            <div className="flex items-center gap-3">
+                                <span className="bg-white text-gold-medium rounded-full w-10 h-10 flex items-center justify-center text-xl font-bold shadow-lg">2</span>
+                                <div>
+                                    <CardTitle className="text-2xl font-bold text-white">
+                                        Identity Verification Required
+                                    </CardTitle>
+                                    <CardDescription className="text-gold-light mt-1 text-base">
+                                        Upload your photo before accepting the terms
+                                    </CardDescription>
+                                </div>
+                            </div>
+                        </CardHeader>
+                        <CardContent className="p-6 sm:p-8">
+                            <IdentityPhotoUpload
+                                onUploadSuccess={(filePath, fileName) => {
+                                    console.log('[PARTNER TERMS] Photo uploaded successfully:', { 
+                                        filePath, 
+                                        fileName,
+                                        previousPath: identityPhotoPathRef.current,
+                                        previousName: identityPhotoNameRef.current
+                                    });
+                                    // Update both state and refs to ensure we always have the latest value
+                                    setIdentityPhotoPath(filePath);
+                                    setIdentityPhotoName(fileName);
+                                    identityPhotoPathRef.current = filePath;
+                                    identityPhotoNameRef.current = fileName;
+                                    setPhotoUploadError(null);
+                                    console.log('[PARTNER TERMS] State and refs updated with new photo:', { filePath, fileName });
+                                }}
+                                onUploadError={(error) => {
+                                    setPhotoUploadError(error);
+                                }}
+                                onRemove={() => {
+                                    console.log('[PARTNER TERMS] Photo removed, clearing state');
+                                    setIdentityPhotoPath(null);
+                                    setIdentityPhotoName(null);
+                                    identityPhotoPathRef.current = null;
+                                    identityPhotoNameRef.current = null;
+                                    setPhotoUploadError(null);
+                                }}
+                            />
+                            
+                            {photoUploadError && (
+                                <div className="mt-4 p-4 bg-red-900/30 border-2 border-red-500/50 rounded-md">
+                                    <div className="flex items-start gap-3">
+                                        <AlertCircle className="w-5 h-5 text-red-300 flex-shrink-0 mt-0.5" />
+                                        <div>
+                                            <p className="text-red-300 font-semibold">Upload Error</p>
+                                            <p className="text-red-200 text-sm mt-1">{photoUploadError}</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+                            
+                        </CardContent>
+                    </Card>
+                )}
+
                 {/* Sticky Footer for Acceptance */}
                 {!loading && tokenValid && (
                     <div className="fixed bottom-0 left-0 right-0 bg-black/95 border-t border-gold-medium/30 p-4 shadow-[0_-4px_6px_-1px_rgba(206,159,72,0.3)] z-50">
                         <div className="max-w-3xl mx-auto">
                             <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-                                <div className="flex items-center space-x-2">
-                                    <Checkbox
-                                        id="accept-terms"
-                                        checked={accepted}
-                                        onCheckedChange={(checked) => setAccepted(checked as boolean)}
-                                    />
+                            <div className="flex items-center space-x-2">
+                                <Checkbox
+                                    id="accept-terms"
+                                    checked={accepted}
+                                    onCheckedChange={(checked) => {
+                                        const isChecked = checked as boolean;
+                                        setAccepted(isChecked);
+                                        
+                                        // If user checks the box but hasn't uploaded photo, smoothly scroll to photo section
+                                        if (isChecked && !identityPhotoPath) {
+                                            setTimeout(() => {
+                                                const photoSection = document.getElementById('photo-upload-section');
+                                                if (photoSection) {
+                                                    // Use custom smooth scroll animation
+                                                    smoothScrollTo(photoSection, 1000);
+                                                }
+                                            }, 150);
+                                        }
+                                    }}
+                                />
                                     <Label htmlFor="accept-terms" className="cursor-pointer font-medium text-white">
-                                        I have read and I agree to the MIGMA Global Independent Contractor Terms & Conditions.
-                                    </Label>
-                                </div>
+                                    I have read and I agree to the MIGMA Global Independent Contractor Terms & Conditions.
+                                </Label>
+                            </div>
                                 <Button 
                                     onClick={handleAccept} 
                                     disabled={!accepted || !identityPhotoPath} 
                                     className="w-full sm:w-auto min-w-[200px] bg-gradient-to-b from-gold-light via-gold-medium to-gold-light text-black font-bold hover:from-gold-medium hover:via-gold-light hover:to-gold-medium transition-all disabled:opacity-30 disabled:cursor-not-allowed shadow-lg disabled:shadow-none"
                                 >
-                                    I Agree and Accept These Terms <Check className="w-4 h-4 ml-2" />
-                                </Button>
+                                I Agree and Accept These Terms <Check className="w-4 h-4 ml-2" />
+                            </Button>
                             </div>
                         </div>
                     </div>

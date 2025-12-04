@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
-import { FileText, ClipboardList, LayoutDashboard } from 'lucide-react';
+import { FileText, ClipboardList, LayoutDashboard, Phone } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface SidebarProps {
@@ -14,6 +14,12 @@ export function Sidebar({ className }: SidebarProps) {
       title: 'Applications',
       icon: ClipboardList,
       path: '/dashboard',
+      exact: true,
+    },
+    {
+      title: 'Book a Call',
+      icon: Phone,
+      path: '/dashboard/book-a-call',
       exact: true,
     },
     {

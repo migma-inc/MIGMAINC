@@ -10,6 +10,7 @@ import { X, CheckCircle, AlertCircle, Upload, Camera, FileImage } from 'lucide-r
 interface IdentityPhotoUploadProps {
   onUploadSuccess: (filePath: string, fileName: string) => void;
   onUploadError?: (error: string) => void;
+  onRemove?: () => void;
 }
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
@@ -17,7 +18,8 @@ const ALLOWED_TYPES = ['image/jpeg', 'image/jpg', 'image/png'];
 
 export function IdentityPhotoUpload({ 
   onUploadSuccess, 
-  onUploadError
+  onUploadError,
+  onRemove
 }: IdentityPhotoUploadProps) {
   const [, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
@@ -60,8 +62,10 @@ export function IdentityPhotoUpload({
     const selectedFile = e.target.files?.[0];
     if (!selectedFile) return;
 
+    // Clear previous state completely when selecting a new file
     setError(null);
     setUploaded(false);
+    setUploadedPath(null);
     setFile(selectedFile);
 
     // Validate file type
@@ -109,8 +113,15 @@ export function IdentityPhotoUpload({
         throw new Error(result.error || 'Failed to upload photo');
       }
 
+      console.log('[IdentityPhotoUpload] Upload successful:', {
+        filePath: result.filePath,
+        fileName: result.fileName,
+        previousPath: uploadedPath
+      });
+      
       setUploaded(true);
       setUploadedPath(result.filePath);
+      // Always call onUploadSuccess with the new file path to ensure parent state is updated
       onUploadSuccess(result.filePath, result.fileName);
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : 'Failed to upload photo';
@@ -135,6 +146,10 @@ export function IdentityPhotoUpload({
     setUploadedPath(null);
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
+    }
+    // Notify parent that photo was removed
+    if (onRemove) {
+      onRemove();
     }
   };
 
@@ -247,24 +262,13 @@ export function IdentityPhotoUpload({
         </div>
       )}
 
-      {/* Success Message */}
-      {uploaded && uploadedPath && (
-        <div className="flex items-center gap-3 text-green-300 text-sm bg-green-900/30 p-4 rounded-md border border-green-500/50">
-          <CheckCircle className="w-5 h-5 flex-shrink-0" />
-          <div>
-            <p className="font-semibold">Photo uploaded successfully!</p>
-            <p className="text-xs text-green-200 mt-1">Your identity verification is complete</p>
-          </div>
-        </div>
-      )}
-
-      {/* Preview */}
+      {/* Preview - Single view for both uploading and uploaded states */}
       {preview && (
         <div className="mt-4 relative inline-block w-full">
           <div className="relative rounded-lg border-2 border-gold-medium/50 overflow-hidden bg-black/30 p-4">
             <img
               src={preview}
-              alt="Preview"
+              alt={uploaded ? "Uploaded photo" : "Preview"}
               className="max-w-full h-auto max-h-80 mx-auto rounded-lg shadow-md"
             />
             {uploading && (
@@ -276,7 +280,7 @@ export function IdentityPhotoUpload({
                 </div>
               </div>
             )}
-            {!uploaded && !uploading && (
+            {!uploading && (
               <Button
                 type="button"
                 variant="destructive"
@@ -290,6 +294,17 @@ export function IdentityPhotoUpload({
                 <X className="w-4 h-4" />
               </Button>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Success Message - Only show when uploaded */}
+      {uploaded && uploadedPath && (
+        <div className="mt-4 flex items-center gap-3 text-green-300 text-sm bg-green-900/30 p-4 rounded-md border border-green-500/50">
+          <CheckCircle className="w-5 h-5 flex-shrink-0" />
+          <div className="flex-1">
+            <p className="font-semibold">Photo uploaded successfully!</p>
+            <p className="text-xs text-green-200 mt-1">Your identity verification is complete</p>
           </div>
         </div>
       )}

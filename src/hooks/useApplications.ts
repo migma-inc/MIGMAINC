@@ -5,6 +5,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import type { Application } from '@/types/application';
+import { getCachedData, setCachedData, generateCacheKey } from '@/lib/cache';
 
 // Re-export for convenience
 export type { Application };
@@ -28,7 +29,20 @@ export function useApplications(options: UseApplicationsOptions = {}) {
     orderDirection = 'desc',
   } = options;
 
-  const fetchApplications = useCallback(async () => {
+  const cacheKey = generateCacheKey('applications', options);
+
+  const fetchApplications = useCallback(async (useCache = true) => {
+    // Check cache first
+    if (useCache) {
+      const cached = getCachedData<Application[]>(cacheKey);
+      if (cached) {
+        setApplications(cached);
+        setLoading(false);
+        setError(null);
+        return;
+      }
+    }
+
     try {
       setLoading(true);
       setError(null);
@@ -52,7 +66,9 @@ export function useApplications(options: UseApplicationsOptions = {}) {
         throw queryError;
       }
 
-      setApplications((data as Application[]) || []);
+      const apps = (data as Application[]) || [];
+      setApplications(apps);
+      setCachedData(cacheKey, apps);
     } catch (err) {
       console.error('[useApplications] Error fetching applications:', err);
       setError(err instanceof Error ? err.message : 'Failed to fetch applications');
@@ -60,16 +76,16 @@ export function useApplications(options: UseApplicationsOptions = {}) {
     } finally {
       setLoading(false);
     }
-  }, [status, limit, orderBy, orderDirection]);
+  }, [status, limit, orderBy, orderDirection, cacheKey]);
 
   useEffect(() => {
-    fetchApplications();
+    fetchApplications(true);
   }, [fetchApplications]);
 
   return {
     applications,
     loading,
     error,
-    refetch: fetchApplications,
+    refetch: () => fetchApplications(false), // Force refetch without cache
   };
 }
