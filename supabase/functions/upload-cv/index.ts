@@ -67,10 +67,30 @@ Deno.serve(async (req) => {
       );
     }
 
+    // Normalize file name to remove accents, special characters, and spaces
+    const normalizeFileName = (name: string): string => {
+      // Get file extension
+      const lastDot = name.lastIndexOf('.');
+      const extension = lastDot > 0 ? name.substring(lastDot) : '.pdf';
+      const nameWithoutExt = lastDot > 0 ? name.substring(0, lastDot) : name;
+      
+      // Remove accents and normalize
+      const normalized = nameWithoutExt
+        .normalize('NFD') // Decompose characters (é -> e + ´)
+        .replace(/[\u0300-\u036f]/g, '') // Remove diacritics
+        .toLowerCase() // Convert to lowercase
+        .replace(/[^a-z0-9]+/g, '-') // Replace non-alphanumeric with hyphen
+        .replace(/^-+|-+$/g, '') // Remove leading/trailing hyphens
+        .substring(0, 100); // Limit length
+      
+      return `${normalized}${extension}`;
+    };
+
     // Generate unique file name
     const timestamp = Date.now();
     const randomString = Math.random().toString(36).substring(2, 15);
-    const fileName = `${timestamp}-${randomString}-${file.name}`;
+    const normalizedOriginalName = normalizeFileName(file.name);
+    const fileName = `${timestamp}-${randomString}-${normalizedOriginalName}`;
     const filePath = `applications/${fileName}`;
 
     console.log("[EDGE FUNCTION] Uploading CV:", {

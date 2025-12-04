@@ -50,9 +50,22 @@ Deno.serve(async (req) => {
       );
     }
 
+    // Normalize file extension to ensure it's safe
+    const normalizeFileExtension = (name: string): string => {
+      const lastDot = name.lastIndexOf('.');
+      if (lastDot > 0) {
+        const ext = name.substring(lastDot + 1).toLowerCase();
+        // Only allow safe extensions
+        if (['jpg', 'jpeg', 'png'].includes(ext)) {
+          return ext === 'jpeg' ? 'jpg' : ext;
+        }
+      }
+      return 'jpg'; // Default to jpg
+    };
+
     const timestamp = Date.now();
     const randomString = Math.random().toString(36).substring(2, 15);
-    const fileExtension = file.name.split('.').pop() || 'jpg';
+    const fileExtension = normalizeFileExtension(file.name);
     const fileName = `${timestamp}-${randomString}-identity.${fileExtension}`;
     const filePath = `photos/${fileName}`;
 
