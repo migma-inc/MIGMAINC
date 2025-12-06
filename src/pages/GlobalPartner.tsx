@@ -72,6 +72,8 @@ const experienceSchema = z.object({
     areaOfExpertise: z.array(z.string()).min(1, "Select at least one expertise"),
     otherAreaOfExpertise: z.string().optional(),
     yearsOfExperience: z.string().min(1, "Years of experience is required"),
+    interestedRoles: z.array(z.string()).optional(),
+    visaExperience: z.string().min(1, "Please select your visa experience"),
     englishLevel: z.string().min(1, "English level is required"),
     clientExperience: z.enum(["Yes", "No"]).refine((val) => val !== undefined, {
         message: "Please select if you have client experience",
@@ -877,6 +879,7 @@ const ApplicationWizard = () => {
         defaultValues: {
             areaOfExpertise: [],
             otherAreaOfExpertise: '',
+            interestedRoles: [],
             hasBusiness: undefined,
             clientExperience: undefined,
             infoAccurate: false,
@@ -887,6 +890,7 @@ const ApplicationWizard = () => {
 
     const { register, trigger, formState: { errors }, setValue, watch } = form;
     const areaOfExpertise = watch('areaOfExpertise') || [];
+    const interestedRoles = watch('interestedRoles') || [];
     
     // Watch all form values to save to localStorage
     const formValues = watch();
@@ -982,7 +986,7 @@ const ApplicationWizard = () => {
                 }
                 break;
             case 2: fieldsToValidate = ['hasBusiness', 'businessId']; break;
-            case 3: fieldsToValidate = ['areaOfExpertise', 'otherAreaOfExpertise', 'yearsOfExperience', 'englishLevel', 'clientExperience', 'clientExperienceDescription']; break;
+            case 3: fieldsToValidate = ['areaOfExpertise', 'otherAreaOfExpertise', 'yearsOfExperience', 'interestedRoles', 'visaExperience', 'englishLevel', 'clientExperience', 'clientExperienceDescription']; break;
             case 4: fieldsToValidate = ['weeklyAvailability', 'whyMigma', 'comfortableModel']; break;
             case 5: fieldsToValidate = ['cv']; break;
             case 6: fieldsToValidate = ['infoAccurate']; break;
@@ -1102,6 +1106,8 @@ const ApplicationWizard = () => {
                 tax_id: data.taxId || null,
                 current_occupation: data.currentOccupation || null,
                 area_of_expertise: processedAreaOfExpertise,
+                interested_roles: data.interestedRoles || [],
+                visa_experience: data.visaExperience || null,
                 years_of_experience: data.yearsOfExperience,
                 english_level: data.englishLevel,
                 client_experience: data.clientExperience,
@@ -1355,14 +1361,14 @@ const ApplicationWizard = () => {
                         
                         <div className="space-y-2">
                             <Label htmlFor="currentOccupation" className="text-white">Current Occupation</Label>
-                            <Input id="currentOccupation" {...register('currentOccupation')} className="bg-white text-black" />
+                            <Input id="currentOccupation" {...register('currentOccupation')} placeholder="e.g., Visa Consultant, Sales Closer, Assistant, Student, Administrator" className="bg-white text-black" />
                             {errors.currentOccupation && <p className="text-sm text-destructive">{errors.currentOccupation.message}</p>}
                         </div>
 
                         <div className="space-y-2">
                             <Label className="text-white">Area of Expertise * (Select all that apply)</Label>
                             <div className="grid grid-cols-2 gap-2">
-                                {['Sales / Business Development', 'Customer Support / Service', 'Marketing / Social Media', 'Operations / Administration', 'Legal / Immigration / Consulting', 'Other'].map((skill) => (
+                                {['Visa Consulting / Immigration Support', 'Sales – Closer', 'Sales – Pre-Sales / SDR / Lead Qualification', 'Sales Coordinator / Sales Operations', 'Customer Success / Client Support', 'Team Leadership / Management', 'Operations / Administrative Support', 'Other'].map((skill) => (
                                     <div key={skill} className="flex items-center space-x-2 border border-gold-medium/30 bg-white/10 p-3 rounded-md hover:bg-white/20 transition">
                                         <Checkbox
                                             id={`skill-${skill}`}
@@ -1419,6 +1425,48 @@ const ApplicationWizard = () => {
                                 </SelectContent>
                             </Select>
                             {errors.yearsOfExperience && <p className="text-sm text-destructive">{errors.yearsOfExperience.message}</p>}
+                        </div>
+
+                        <div className="space-y-2">
+                            <Label className="text-white">Which role(s) are you interested in? (multi-select)</Label>
+                            <div className="grid grid-cols-2 gap-2">
+                                {['Visa Consultant / Immigration Consultant', 'Sales Closer', 'Sales Pre-Sales / SDR', 'Sales Coordinator', 'Customer Support', 'Operational Assistant', 'Manager / Supervisor', 'Any role where MIGMA believes I am a good fit'].map((role) => (
+                                    <div key={role} className="flex items-center space-x-2 border border-gold-medium/30 bg-white/10 p-3 rounded-md hover:bg-white/20 transition">
+                                        <Checkbox
+                                            id={`role-${role}`}
+                                            checked={interestedRoles?.includes(role)}
+                                            onCheckedChange={(checked) => {
+                                                const current = interestedRoles || [];
+                                                const updated = checked
+                                                    ? [...current, role]
+                                                    : current.filter((r) => r !== role);
+                                                setValue('interestedRoles', updated);
+                                            }}
+                                        />
+                                        <Label htmlFor={`role-${role}`} className="cursor-pointer flex-1 text-sm text-white">{role}</Label>
+                                    </div>
+                                ))}
+                            </div>
+                            {errors.interestedRoles && <p className="text-sm text-destructive">{errors.interestedRoles.message}</p>}
+                        </div>
+
+                        <div className="space-y-2">
+                            <Label className="text-white">Do you have experience with U.S. visa processes? *</Label>
+                            <Select 
+                                value={watch('visaExperience') || ''} 
+                                onValueChange={(val) => setValue('visaExperience', val)}
+                            >
+                                <SelectTrigger className="bg-white text-black">
+                                    <SelectValue placeholder="Select your experience" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="Yes, professional experience">Yes, professional experience</SelectItem>
+                                    <SelectItem value="Yes, informal experience">Yes, informal experience</SelectItem>
+                                    <SelectItem value="No, but I learn fast">No, but I learn fast</SelectItem>
+                                    <SelectItem value="No experience">No experience</SelectItem>
+                                </SelectContent>
+                            </Select>
+                            {errors.visaExperience && <p className="text-sm text-destructive">{errors.visaExperience.message}</p>}
                         </div>
 
                         <div className="space-y-2">

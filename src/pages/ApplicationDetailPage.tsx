@@ -394,10 +394,31 @@ function ApplicationDetailContent() {
                     ))}
                   </div>
                 </div>
+                {application.interested_roles && application.interested_roles.length > 0 && (
+                  <div className="md:col-span-2">
+                    <p className="text-sm text-gray-400 mb-2">Interested Roles</p>
+                    <div className="flex flex-wrap gap-2">
+                      {application.interested_roles.map((role, idx) => (
+                        <span
+                          key={idx}
+                          className="px-3 py-1 bg-purple-500/30 text-white border border-purple-500/50 rounded-full text-sm font-medium"
+                        >
+                          {role}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
                 <div>
                   <p className="text-sm text-gray-400 mb-1">Years of Experience</p>
                   <p className="font-medium text-gray-200">{application.years_of_experience}</p>
                 </div>
+                {application.visa_experience && (
+                  <div>
+                    <p className="text-sm text-gray-400 mb-1">U.S. Visa Experience</p>
+                    <p className="font-medium text-gray-200">{application.visa_experience}</p>
+                  </div>
+                )}
                 <div>
                   <p className="text-sm text-gray-400 mb-1">English Level</p>
                   <p className="font-medium text-gray-200">{application.english_level}</p>

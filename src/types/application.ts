@@ -16,6 +16,8 @@ export interface Application {
   tax_id: string | null;
   current_occupation: string | null;
   area_of_expertise: string[];
+  interested_roles: string[];
+  visa_experience: string | null;
   years_of_experience: string;
   english_level: string;
   client_experience: string;

@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
-import { FileText, ClipboardList, LayoutDashboard, Phone } from 'lucide-react';
+import { FileText, ClipboardList, LayoutDashboard, Phone, ShoppingCart, DollarSign, UserCircle2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface SidebarProps {
@@ -26,6 +26,24 @@ export function Sidebar({ className }: SidebarProps) {
       title: 'Accepted Contracts',
       icon: FileText,
       path: '/dashboard/contracts',
+      exact: false,
+    },
+    {
+      title: 'Visa Orders',
+      icon: ShoppingCart,
+      path: '/dashboard/visa-orders',
+      exact: false,
+    },
+    {
+      title: 'Zelle Approval',
+      icon: DollarSign,
+      path: '/dashboard/zelle-approval',
+      exact: false,
+    },
+    {
+      title: 'Sellers & Sales',
+      icon: UserCircle2,
+      path: '/dashboard/sellers',
       exact: false,
     },
   ];

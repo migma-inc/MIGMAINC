@@ -157,10 +157,31 @@ export function ApplicationDetails({
                   ))}
                 </div>
               </div>
+              {application.interested_roles && application.interested_roles.length > 0 && (
+                <div className="md:col-span-2">
+                  <p className="text-sm text-gray-500">Interested Roles</p>
+                  <div className="flex flex-wrap gap-2 mt-1">
+                    {application.interested_roles.map((role, idx) => (
+                      <span
+                        key={idx}
+                        className="px-2 py-1 bg-purple-100 text-purple-800 rounded text-sm"
+                      >
+                        {role}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
               <div>
                 <p className="text-sm text-gray-500">Years of Experience</p>
                 <p className="font-medium">{application.years_of_experience}</p>
               </div>
+              {application.visa_experience && (
+                <div>
+                  <p className="text-sm text-gray-500">U.S. Visa Experience</p>
+                  <p className="font-medium">{application.visa_experience}</p>
+                </div>
+              )}
               <div>
                 <p className="text-sm text-gray-500">English Level</p>
                 <p className="font-medium">{application.english_level}</p>
