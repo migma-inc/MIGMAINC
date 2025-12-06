@@ -54,7 +54,7 @@ export const SellerOrderDetail = () => {
   const [order, setOrder] = useState<Order | null>(null);
   const [termsAcceptance, setTermsAcceptance] = useState<TermsAcceptance | null>(null);
   const [loading, setLoading] = useState(true);
-  const [seller, setSeller] = useState<any>(null);
+  const [_seller, setSeller] = useState<any>(null);
 
   useEffect(() => {
     const loadData = async () => {
@@ -407,4 +407,5 @@ export const SellerOrderDetail = () => {
     </div>
   );
 };
+
 

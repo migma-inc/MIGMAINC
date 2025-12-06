@@ -14,7 +14,7 @@ interface ContractSigningProps {
   onCancel?: () => void;
 }
 
-export const ContractSigning = ({ onComplete, onCancel }: ContractSigningProps) => {
+export const ContractSigning = ({ onComplete }: ContractSigningProps) => {
   const [selfieFile, setSelfieFile] = useState<File | null>(null);
   const [selfiePreview, setSelfiePreview] = useState<string | null>(null);
   const [termsAccepted, setTermsAccepted] = useState(false);
@@ -229,4 +229,5 @@ export const ContractSigning = ({ onComplete, onCancel }: ContractSigningProps) 
     </Card>
   );
 };
+
 

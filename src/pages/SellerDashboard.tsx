@@ -4,8 +4,7 @@ import { supabase } from '@/lib/supabase';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Input } from '@/components/ui/input';
-import { LogOut, Copy, CheckCircle, Clock, XCircle, DollarSign, Users, ShoppingCart, Link as LinkIcon, FileText, TrendingUp, MousePointerClick, FileEdit, CreditCard } from 'lucide-react';
+import { LogOut, Copy, CheckCircle, Clock, DollarSign, Users, ShoppingCart, Link as LinkIcon, FileText, TrendingUp, MousePointerClick, FileEdit, CreditCard } from 'lucide-react';
 
 interface SellerInfo {
   id: string;
@@ -175,20 +174,6 @@ export const SellerDashboard = () => {
     setTimeout(() => setCopiedLink(null), 3000);
   };
 
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'completed':
-        return <Badge className="bg-green-500/20 text-green-300 border-green-500/50">Completed</Badge>;
-      case 'pending':
-        return <Badge className="bg-yellow-500/20 text-yellow-300 border-yellow-500/50">Pending</Badge>;
-      case 'failed':
-        return <Badge className="bg-red-500/20 text-red-300 border-red-500/50">Failed</Badge>;
-      case 'cancelled':
-        return <Badge className="bg-gray-500/20 text-gray-300 border-gray-500/50">Cancelled</Badge>;
-      default:
-        return <Badge>{status}</Badge>;
-    }
-  };
 
   if (loading) {
     return (
@@ -549,4 +534,5 @@ export const SellerDashboard = () => {
     </div>
   );
 };
+
 

@@ -12,9 +12,9 @@ interface DocumentFile {
 
 interface DocumentUploadProps {
   onComplete: (files: {
-    documentFront: { file: File; url: string } | null;
+    documentFront: { file: File; url: string };
     documentBack: { file: File; url: string } | null;
-    selfie: { file: File; url: string } | null;
+    selfie: { file: File; url: string };
   }) => void;
   onCancel?: () => void;
 }
@@ -88,7 +88,7 @@ export const DocumentUpload = ({ onComplete, onCancel }: DocumentUploadProps) =>
   // Remove file
   const removeFile = (
     setter: (file: DocumentFile | null) => void,
-    inputRef: React.RefObject<HTMLInputElement>
+    inputRef: React.RefObject<HTMLInputElement | null>
   ) => {
     setter(null);
     if (inputRef.current) {
@@ -141,7 +141,7 @@ export const DocumentUpload = ({ onComplete, onCancel }: DocumentUploadProps) =>
 
       onComplete({
         documentFront: { file: documentFront.file, url: documentFrontUrl },
-        documentBack: documentBack ? { file: documentBack.file, url: documentBackUrl } : null,
+        documentBack: documentBack && documentBackUrl ? { file: documentBack.file, url: documentBackUrl } : null,
         selfie: { file: selfie.file, url: selfieUrl },
       });
     } catch (err: any) {
@@ -374,4 +374,5 @@ export const DocumentUpload = ({ onComplete, onCancel }: DocumentUploadProps) =>
     </Card>
   );
 };
+
 

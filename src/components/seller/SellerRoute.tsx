@@ -65,3 +65,4 @@ export const SellerRoute = ({ children }: SellerRouteProps) => {
   return <>{children}</>;
 };
 
+

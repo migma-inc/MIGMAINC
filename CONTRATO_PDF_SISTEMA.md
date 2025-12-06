@@ -400,3 +400,4 @@ await supabase.functions.invoke('generate-visa-contract-pdf', {
 
 O sistema está completo e funcional. Teste fazendo um pedido de teste e verifique se o PDF é gerado corretamente! 🎊
 
+

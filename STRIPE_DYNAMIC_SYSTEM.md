@@ -418,3 +418,4 @@ console.log(`🔑 Stripe Config (${envInfo.environment}):`, {
 **Versão:** 1.0.0  
 **Projeto:** MIGMA Visa Services
 
+

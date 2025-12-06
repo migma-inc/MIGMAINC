@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { CheckCircle, XCircle, Eye, ExternalLink, DollarSign, Clock } from 'lucide-react';
+import { CheckCircle, XCircle, Eye, ExternalLink, Clock } from 'lucide-react';
 import { ConfirmModal } from '@/components/ui/confirm-modal';
 import { AlertModal } from '@/components/ui/alert-modal';
 
@@ -25,7 +25,6 @@ interface ZelleOrder {
 }
 
 export const ZelleApprovalPage = () => {
-  const navigate = useNavigate();
   const [orders, setOrders] = useState<ZelleOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedOrder, setSelectedOrder] = useState<ZelleOrder | null>(null);
@@ -476,4 +475,5 @@ export const ZelleApprovalPage = () => {
     </div>
   );
 };
+
 

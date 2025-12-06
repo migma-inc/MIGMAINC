@@ -296,3 +296,4 @@ export const SellersPage = () => {
     </div>
   );
 };
+
