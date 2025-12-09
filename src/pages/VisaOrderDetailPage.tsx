@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { PdfModal } from '@/components/ui/pdf-modal';
 import { ImageModal } from '@/components/ui/image-modal';
-import { ArrowLeft, ExternalLink, FileText, CheckCircle2, XCircle, Shield } from 'lucide-react';
+import { ArrowLeft, FileText, CheckCircle2, XCircle, Shield } from 'lucide-react';
 
 interface Order {
   id: string;
