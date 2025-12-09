@@ -68,6 +68,10 @@ export default {
   			sans: [
   				'Inter',
   				'sans-serif'
+  			],
+  			grotesk: [
+  				'Space Grotesk',
+  				'sans-serif'
   			]
   		},
   		borderRadius: {

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Outlet, Navigate } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import { SellerSidebar } from '@/components/seller/SellerSidebar';
@@ -11,29 +11,70 @@ interface SellerInfo {
   status: string;
 }
 
+const SELLER_CACHE_KEY = 'seller_cache';
+const SELLER_CACHE_TIMESTAMP_KEY = 'seller_cache_timestamp';
+const CACHE_DURATION = 5 * 60 * 1000; // 5 minutos
+
+function getCachedSeller(): SellerInfo | null {
+  try {
+    const cached = sessionStorage.getItem(SELLER_CACHE_KEY);
+    const timestamp = sessionStorage.getItem(SELLER_CACHE_TIMESTAMP_KEY);
+    
+    if (!cached || !timestamp) return null;
+    
+    const age = Date.now() - parseInt(timestamp, 10);
+    if (age > CACHE_DURATION) {
+      // Cache expirado
+      sessionStorage.removeItem(SELLER_CACHE_KEY);
+      sessionStorage.removeItem(SELLER_CACHE_TIMESTAMP_KEY);
+      return null;
+    }
+    
+    return JSON.parse(cached);
+  } catch (err) {
+    console.error('[SellerDashboardLayout] Error reading cache:', err);
+    return null;
+  }
+}
+
+function setCachedSeller(seller: SellerInfo): void {
+  try {
+    sessionStorage.setItem(SELLER_CACHE_KEY, JSON.stringify(seller));
+    sessionStorage.setItem(SELLER_CACHE_TIMESTAMP_KEY, Date.now().toString());
+  } catch (err) {
+    console.error('[SellerDashboardLayout] Error saving cache:', err);
+  }
+}
+
+function clearCachedSeller(): void {
+  try {
+    sessionStorage.removeItem(SELLER_CACHE_KEY);
+    sessionStorage.removeItem(SELLER_CACHE_TIMESTAMP_KEY);
+  } catch (err) {
+    console.error('[SellerDashboardLayout] Error clearing cache:', err);
+  }
+}
+
 export function SellerDashboardLayout() {
-  const [seller, setSeller] = useState<SellerInfo | null>(null);
-  const [loading, setLoading] = useState(true);
+  // Tenta carregar do cache imediatamente para evitar loading
+  const cachedSeller = getCachedSeller();
+  const [seller, setSeller] = useState<SellerInfo | null>(cachedSeller);
+  const [loading, setLoading] = useState(!cachedSeller);
 
   useEffect(() => {
-    let mounted = true;
-    let initialCheckDone = false;
-
-    const loadSeller = async () => {
-      if (!mounted) return;
-
+    async function loadSeller() {
       try {
-        // First check session (faster and more reliable)
+        // First check session
         const { data: { session }, error: sessionError } = await supabase.auth.getSession();
 
-        if (!mounted) return;
-
         if (sessionError || !session) {
-          console.log('[SellerDashboardLayout] No session found');
+          setSeller(null);
           setLoading(false);
+          clearCachedSeller();
           return;
         }
 
+        // Fetch seller from database
         const { data: sellerData, error } = await supabase
           .from('sellers')
           .select('*')
@@ -41,53 +82,39 @@ export function SellerDashboardLayout() {
           .eq('status', 'active')
           .single();
 
-        if (!mounted) return;
-
         if (error || !sellerData) {
           console.error('[SellerDashboardLayout] Not a seller or inactive:', error);
+          setSeller(null);
           setLoading(false);
+          clearCachedSeller();
           return;
         }
 
-        console.log('[SellerDashboardLayout] Seller loaded:', sellerData.email);
+        // Save to cache and state
+        setCachedSeller(sellerData);
         setSeller(sellerData);
       } catch (err) {
         console.error('[SellerDashboardLayout] Error loading seller:', err);
-      } finally {
-        if (mounted) {
-          setLoading(false);
-          initialCheckDone = true;
-        }
-      }
-    };
-
-    // Do initial load
-    loadSeller();
-
-    // Listen for auth state changes (only after initial check is done)
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      // Skip if initial check hasn't completed yet
-      if (!initialCheckDone) {
-        return;
-      }
-
-      if (!mounted) return;
-
-      console.log('[SellerDashboardLayout] Auth state changed:', event);
-
-      if (session) {
-        // Re-load seller when auth state changes
-        loadSeller();
-      } else {
         setSeller(null);
+        clearCachedSeller();
+      } finally {
         setLoading(false);
       }
-    });
+    }
 
-    return () => {
-      mounted = false;
-      subscription.unsubscribe();
-    };
+    // If we have cache, restore immediately and validate in background
+    if (cachedSeller) {
+      // Restore from cache immediately if not already in state
+      if (!seller) {
+        setSeller(cachedSeller);
+        setLoading(false);
+      }
+      // Validate in background without blocking UI
+      loadSeller();
+    } else {
+      // If no cache, load normally
+      loadSeller();
+    }
   }, []);
 
   if (loading) {
