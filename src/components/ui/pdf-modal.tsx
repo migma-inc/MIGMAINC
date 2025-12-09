@@ -67,3 +67,4 @@ export function PdfModal({ isOpen, onClose, pdfUrl, title = 'Contract PDF', show
     </div>
   );
 }
+

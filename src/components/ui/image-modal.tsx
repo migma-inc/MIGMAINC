@@ -66,3 +66,4 @@ export function ImageModal({ isOpen, onClose, imageUrl, title = 'Image' }: Image
     </div>
   );
 }
+
