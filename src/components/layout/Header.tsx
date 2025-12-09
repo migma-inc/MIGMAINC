@@ -24,9 +24,20 @@ export const Header = () => {
     };
 
     return (
-        <header className={`fixed top-0 left-0 right-0 backdrop-blur-sm z-50 transition-colors duration-300 ${isScrolled ? 'bg-black/95' : 'bg-transparent'}`}>
-            <div className={`py-3 transition-colors duration-300 ${isScrolled ? 'bg-black/95' : 'bg-transparent'}`}>
-                <div className="container">
+        <>
+            {/* Mobile Menu Overlay */}
+            {isMobileMenuOpen && (
+                <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    onClick={() => setIsMobileMenuOpen(false)}
+                    className="fixed inset-0 bg-black/80 z-40 md:hidden"
+                />
+            )}
+            <header className={`fixed top-0 left-0 right-0 backdrop-blur-sm z-50 transition-colors duration-300 ${isScrolled ? 'bg-black/95' : 'bg-transparent'}`}>
+                <div className={`py-3 transition-colors duration-300 ${isScrolled ? 'bg-black/95' : 'bg-transparent'}`}>
+                    <div className="container">
                     <div className="flex items-center justify-between">
                         <Link to="/" className="flex items-center gap-2">
                             <img 
@@ -97,7 +108,7 @@ export const Header = () => {
                             initial={{ opacity: 0, height: 0 }}
                             animate={{ opacity: 1, height: 'auto' }}
                             exit={{ opacity: 0, height: 0 }}
-                            className="md:hidden mt-4 pb-4 space-y-3"
+                            className="md:hidden mt-4 pb-4 space-y-3 bg-black rounded-lg px-4 py-4 relative z-50"
                         >
                             <Link 
                                 to="/" 
@@ -148,8 +159,11 @@ export const Header = () => {
                 </div>
             </div>
         </header>
+        </>
     );
 };
+
+
 
 
 

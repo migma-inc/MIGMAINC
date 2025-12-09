@@ -10,6 +10,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { supabase } from '@/lib/supabase';
 
 const contactSchema = z.object({
     name: z.string().min(2, "Name is required"),
@@ -33,11 +34,50 @@ export const Contact = () => {
     const onSubmit = async (data: ContactFormData) => {
         setIsSubmitting(true);
         try {
-            // TODO: Implement contact form submission (email or database)
-            console.log('Contact form submitted:', data);
+            // Get user IP and user agent
+            const ipAddress = await fetch('https://api.ipify.org?format=json')
+                .then(res => res.json())
+                .then(data => data.ip)
+                .catch(() => null);
             
-            // Simulate API call
-            await new Promise(resolve => setTimeout(resolve, 1000));
+            const userAgent = navigator.userAgent;
+
+            // Save message to database
+            const { error: dbError } = await supabase
+                .from('contact_messages')
+                .insert({
+                    name: data.name,
+                    email: data.email,
+                    subject: data.subject,
+                    message: data.message,
+                    ip_address: ipAddress,
+                    user_agent: userAgent,
+                });
+
+            if (dbError) {
+                console.error('Error saving message:', dbError);
+                throw new Error('Failed to save message');
+            }
+
+            // Send confirmation email
+            try {
+                const { error: emailError } = await supabase.functions.invoke('send-contact-confirmation-email', {
+                    body: {
+                        name: data.name,
+                        email: data.email,
+                        subject: data.subject,
+                        message: data.message,
+                    },
+                });
+
+                if (emailError) {
+                    console.error('Error sending confirmation email:', emailError);
+                    // Don't fail the form submission if email fails
+                }
+            } catch (emailErr) {
+                console.error('Exception sending email:', emailErr);
+                // Don't fail the form submission if email fails
+            }
             
             setSubmitted(true);
             reset();
@@ -189,6 +229,8 @@ export const Contact = () => {
         </div>
     );
 };
+
+
 
 
 

@@ -4,6 +4,8 @@ import { supabase } from '@/lib/supabase';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { PdfModal } from '@/components/ui/pdf-modal';
+import { ImageModal } from '@/components/ui/image-modal';
 import { ArrowLeft, ExternalLink, FileText, CheckCircle2, XCircle, Shield } from 'lucide-react';
 
 interface Order {
@@ -53,6 +55,8 @@ export const VisaOrderDetailPage = () => {
   const [order, setOrder] = useState<Order | null>(null);
   const [termsAcceptance, setTermsAcceptance] = useState<TermsAcceptance | null>(null);
   const [loading, setLoading] = useState(true);
+  const [showPdfModal, setShowPdfModal] = useState(false);
+  const [showZelleModal, setShowZelleModal] = useState(false);
 
   useEffect(() => {
     const loadData = async () => {
@@ -358,28 +362,26 @@ export const VisaOrderDetailPage = () => {
               {order.zelle_proof_url && (
                 <div className="pt-3 border-t border-gold-medium/30">
                   <p className="text-gray-400 mb-2">Zelle Receipt:</p>
-                  <a
-                    href={order.zelle_proof_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center text-gold-light hover:text-gold-medium"
+                  <Button
+                    variant="outline"
+                    onClick={() => setShowZelleModal(true)}
+                    className="border-gold-medium/50 bg-black/50 text-gold-light hover:bg-black hover:border-gold-medium hover:text-gold-medium"
                   >
-                    View Receipt <ExternalLink className="w-4 h-4 ml-1" />
-                  </a>
+                    View Receipt
+                  </Button>
                 </div>
               )}
               {order.contract_pdf_url && (
                 <div className="pt-3 border-t border-gold-medium/30">
                   <p className="text-gray-400 mb-2">Contract PDF:</p>
-                  <a
-                    href={order.contract_pdf_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center text-gold-light hover:text-gold-medium"
+                  <Button
+                    variant="outline"
+                    onClick={() => setShowPdfModal(true)}
+                    className="border-gold-medium/50 bg-black/50 text-gold-light hover:bg-black hover:border-gold-medium hover:text-gold-medium"
                   >
                     <FileText className="w-4 h-4 mr-1" />
-                    View Contract PDF <ExternalLink className="w-4 h-4 ml-1" />
-                  </a>
+                    View Contract PDF
+                  </Button>
                 </div>
               )}
               <div className="flex justify-between text-sm">
@@ -390,7 +392,29 @@ export const VisaOrderDetailPage = () => {
           </Card>
         </div>
       </div>
+
+      {/* PDF Modal */}
+      {order?.contract_pdf_url && (
+        <PdfModal
+          isOpen={showPdfModal}
+          onClose={() => setShowPdfModal(false)}
+          pdfUrl={order.contract_pdf_url}
+          title={`Contract - ${order.order_number}`}
+        />
+      )}
+
+      {/* Zelle Receipt Modal */}
+      {order?.zelle_proof_url && (
+        <ImageModal
+          isOpen={showZelleModal}
+          onClose={() => setShowZelleModal(false)}
+          imageUrl={order.zelle_proof_url}
+          title={`Zelle Receipt - ${order.order_number}`}
+        />
+      )}
     </div>
   );
 };
+
+
 

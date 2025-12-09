@@ -147,3 +147,10 @@ export function onAuthStateChange(callback: (user: AdminUser | null) => void) {
   });
 }
 
+/**
+ * Export admin Supabase client for use in admin pages
+ * This client has session persistence enabled and should be used
+ * in admin pages to ensure RLS policies can access user metadata
+ */
+export { adminSupabase };
+

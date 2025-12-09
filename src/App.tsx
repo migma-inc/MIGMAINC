@@ -26,13 +26,19 @@ import { CheckoutCancel } from './pages/CheckoutCancel';
 import { VisaServiceTerms } from './pages/VisaServiceTerms';
 import { SellerLogin } from './pages/SellerLogin';
 import { SellerRegister } from './pages/SellerRegister';
-import { SellerDashboard } from './pages/SellerDashboard';
+import { SellerDashboardLayout } from './pages/seller/SellerDashboardLayout';
+import { SellerOverview } from './pages/seller/SellerOverview';
+import { SellerFunnel } from './pages/seller/SellerFunnel';
+import { SellerOrders } from './pages/seller/SellerOrders';
+import { SellerLinks } from './pages/seller/SellerLinks';
+import { SellerLeads } from './pages/seller/SellerLeads';
 import { SellerOrderDetail } from './pages/SellerOrderDetail';
 import { SellerRoute } from './components/seller/SellerRoute';
 import { VisaOrdersPage } from './pages/VisaOrdersPage';
 import { VisaOrderDetailPage } from './pages/VisaOrderDetailPage';
 import { ZelleApprovalPage } from './pages/ZelleApprovalPage';
 import { SellersPage } from './pages/SellersPage';
+import { ContactMessagesPage } from './pages/ContactMessagesPage';
 
 function App() {
   return (
@@ -57,7 +63,13 @@ function App() {
         {/* Seller Routes */}
         <Route path="/seller/login" element={<SellerLogin />} />
         <Route path="/seller/register" element={<SellerRegister />} />
-        <Route path="/seller/dashboard" element={<SellerRoute><SellerDashboard /></SellerRoute>} />
+        <Route path="/seller/dashboard" element={<SellerRoute><SellerDashboardLayout /></SellerRoute>}>
+          <Route index element={<SellerOverview />} />
+          <Route path="funnel" element={<SellerFunnel />} />
+          <Route path="orders" element={<SellerOrders />} />
+          <Route path="links" element={<SellerLinks />} />
+          <Route path="leads" element={<SellerLeads />} />
+        </Route>
         <Route path="/seller/orders/:orderId" element={<SellerRoute><SellerOrderDetail /></SellerRoute>} />
         
         <Route path="/global-partner/thank-you" element={<ThankYou />} />
@@ -73,6 +85,7 @@ function App() {
           <Route path="visa-orders/:id" element={<VisaOrderDetailPage />} />
           <Route path="zelle-approval" element={<ZelleApprovalPage />} />
           <Route path="sellers" element={<SellersPage />} />
+          <Route path="contact-messages" element={<ContactMessagesPage />} />
         </Route>
       </Routes>
     </Router>

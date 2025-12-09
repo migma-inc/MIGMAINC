@@ -4,6 +4,7 @@ import { supabase } from '@/lib/supabase';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { PdfModal } from '@/components/ui/pdf-modal';
 import { LogOut, Copy, CheckCircle, Clock, DollarSign, Users, ShoppingCart, Link as LinkIcon, FileText, TrendingUp, MousePointerClick, FileEdit, CreditCard } from 'lucide-react';
 
 interface SellerInfo {
@@ -42,6 +43,8 @@ export const SellerDashboard = () => {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [copiedLink, setCopiedLink] = useState<string | null>(null);
+  const [selectedPdfUrl, setSelectedPdfUrl] = useState<string | null>(null);
+  const [selectedPdfTitle, setSelectedPdfTitle] = useState<string>('Contract PDF');
 
   // Stats
   const [stats, setStats] = useState({
@@ -508,17 +511,18 @@ export const SellerDashboard = () => {
                               </Button>
                             </Link>
                             {order.contract_pdf_url && (
-                              <a
-                                href={order.contract_pdf_url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="inline-flex items-center"
+                              <Button 
+                                size="sm" 
+                                variant="outline" 
+                                onClick={() => {
+                                  setSelectedPdfUrl(order.contract_pdf_url);
+                                  setSelectedPdfTitle(`Contract - ${order.order_number}`);
+                                }}
+                                className="text-xs border-gold-medium/50 bg-black/50 text-gold-light hover:bg-black hover:border-gold-medium hover:text-gold-medium"
                                 title="View Contract PDF"
                               >
-                                <Button size="sm" variant="outline" className="text-xs border-gold-medium/50 text-white hover:bg-gold-medium/20">
-                                  <FileText className="w-3 h-3" />
-                                </Button>
-                              </a>
+                                <FileText className="w-3 h-3" />
+                              </Button>
                             )}
                           </div>
                         </td>
@@ -531,8 +535,20 @@ export const SellerDashboard = () => {
           </CardContent>
         </Card>
       </div>
+
+      {/* PDF Modal */}
+      {selectedPdfUrl && (
+        <PdfModal
+          isOpen={!!selectedPdfUrl}
+          onClose={() => setSelectedPdfUrl(null)}
+          pdfUrl={selectedPdfUrl}
+          title={selectedPdfTitle}
+        />
+      )}
     </div>
   );
 };
+
+
 
 

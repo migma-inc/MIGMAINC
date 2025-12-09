@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { supabase } from '@/lib/supabase';
+import { adminSupabase } from '@/lib/auth';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -48,8 +48,8 @@ export const SellersPage = () => {
 
   const loadSellersData = async () => {
     try {
-      // Load all sellers
-      const { data: sellers, error: sellersError } = await supabase
+      // Load all sellers using adminSupabase to ensure RLS policies can access user metadata
+      const { data: sellers, error: sellersError } = await adminSupabase
         .from('sellers')
         .select('*')
         .order('created_at', { ascending: false });
@@ -67,7 +67,7 @@ export const SellersPage = () => {
 
       // For each seller, load their orders and calculate stats
       const statsPromises = sellers.map(async (seller) => {
-        const { data: orders, error: ordersError } = await supabase
+        const { data: orders, error: ordersError } = await adminSupabase
           .from('visa_orders')
           .select('*')
           .eq('seller_id', seller.seller_id_public)
@@ -296,4 +296,6 @@ export const SellersPage = () => {
     </div>
   );
 };
+
+
 

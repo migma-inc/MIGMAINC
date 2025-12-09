@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useSearchParams, Link } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import { Button } from '@/components/ui/button';
@@ -42,9 +42,29 @@ export const VisaCheckout = () => {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
-  // Multi-step state
-  const [currentStep, setCurrentStep] = useState(1);
+  // Multi-step state - Initialize by checking localStorage immediately
+  // If user was on step 2 or 3, force them to step 1 immediately
+  const getInitialStep = (): number => {
+    try {
+      const draft = localStorage.getItem(DRAFT_STORAGE_KEY);
+      if (draft) {
+        const parsed = JSON.parse(draft);
+        // ALWAYS start at step 1 if user was on step 2 or 3
+        // This ensures they review their data before re-uploading documents
+        if (parsed.currentStep === 2 || parsed.currentStep === 3) {
+          return 1;
+        }
+        return parsed.currentStep || 1;
+      }
+    } catch (err) {
+      // Ignore errors
+    }
+    return 1;
+  };
+  
+  const [currentStep, setCurrentStep] = useState(getInitialStep());
   const totalSteps = 3;
+  const hasRestoredStepRef = useRef(false); // Track if we've already restored the step
 
   // Form state - Step 1: Personal Information
   const [extraUnits, setExtraUnits] = useState(0);
@@ -77,46 +97,338 @@ export const VisaCheckout = () => {
   const [dataAuthorization, setDataAuthorization] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<'card' | 'pix' | 'zelle'>('card');
   const [zelleReceipt, setZelleReceipt] = useState<File | null>(null);
+  const [exchangeRate, setExchangeRate] = useState<number | null>(null);
 
   // Service request data (saved after step 1)
   const [serviceRequestId, setServiceRequestId] = useState<string | null>(null);
   const [clientId, setClientId] = useState<string | null>(null);
+  
+  // Flag to prevent saving during restoration (using useRef for better control)
+  const isRestoringRef = useRef(false);
+  const restoreAttemptedRef = useRef(false);
+  const returningFromStripeRef = useRef(false);
 
-  // Load draft from localStorage
+  // Check if user is returning from Stripe (via browser back button) - Fallback verification on Step 3
+  // This is a fallback in case the initial check didn't catch it
+  // IMPORTANT: Only check if user is actually returning from Stripe, not during normal navigation
   useEffect(() => {
+    // Check if there's a pending order that was created but payment was cancelled
+    const checkPendingOrder = async () => {
+      // Only check if we have at least product_slug (required)
+      if (!productSlug) return;
+      
+      // Verificar se usuário está navegando normalmente (não veio do Stripe)
+      const referrer = document.referrer;
+      if (referrer && (referrer.includes('/checkout/visa/') || referrer.includes(window.location.origin + '/checkout/visa/'))) {
+        // Usuário está navegando normalmente pelo checkout, não verificar Stripe
+        return;
+      }
+      
+      // Verificar se usuário veio da página de cancelamento (não redirecionar novamente)
+      if (referrer && referrer.includes('/checkout/cancel')) {
+        // Usuário veio da página de cancelamento, não redirecionar novamente
+        return;
+      }
+      
+      // Verificar se já foi redirecionado para cancelamento antes
+      const redirectKey = `stripe_redirected_to_cancel_${productSlug}_${sellerId || 'no-seller'}`;
+      if (sessionStorage.getItem(redirectKey)) {
+        // Já foi redirecionado para cancelamento antes, não redirecionar novamente
+        return;
+      }
+      
+      // Only check once when component mounts on step 3
+      // Use a flag to prevent multiple checks
+      const checkKey = `stripe_return_check_step3_${productSlug}_${sellerId || 'no-seller'}_${serviceRequestId || 'no-service'}`;
+      if (sessionStorage.getItem(checkKey)) {
+        return; // Already checked
+      }
+      
+      // Só verificar se o referrer indica que veio de uma página externa (como Stripe)
+      const isExternalReferrer = !referrer || 
+        referrer.includes('checkout.stripe.com') || 
+        referrer.includes('stripe.com') ||
+        (!referrer.includes(window.location.hostname));
+      
+      if (!isExternalReferrer) {
+        // Referrer indica navegação interna, não verificar Stripe
+        sessionStorage.setItem(checkKey, 'true');
+        return;
+      }
+      
+      try {
+        // Check if there's a pending order created in the last 10 minutes (expanded from 5)
+        const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+        
+        // Build query - try multiple approaches
+        let query = supabase
+          .from('visa_orders')
+          .select('id, payment_status, stripe_session_id, created_at')
+          .eq('product_slug', productSlug)
+          .eq('payment_status', 'pending')
+          .not('stripe_session_id', 'is', null)
+          .gte('created_at', tenMinutesAgo)
+          .order('created_at', { ascending: false })
+          .limit(1);
+        
+        // Add seller filter if exists
+        if (sellerId) {
+          query = query.eq('seller_id', sellerId);
+        }
+        
+        // If we have serviceRequestId, also try filtering by it (but don't require it)
+        // This makes the query more flexible
+        const { data: orders, error: queryError } = await query;
+        
+        if (queryError) {
+          console.error('Error checking pending order:', queryError);
+          sessionStorage.setItem(checkKey, 'true');
+          return;
+        }
+        
+        // If we have serviceRequestId, also try a more specific query
+        if (serviceRequestId && (!orders || orders.length === 0)) {
+          const { data: ordersByService } = await supabase
+            .from('visa_orders')
+            .select('id, payment_status, stripe_session_id, created_at')
+            .eq('service_request_id', serviceRequestId)
+            .eq('payment_status', 'pending')
+            .not('stripe_session_id', 'is', null)
+            .gte('created_at', tenMinutesAgo)
+            .order('created_at', { ascending: false })
+            .limit(1);
+          
+          if (ordersByService && ordersByService.length > 0) {
+            // Found order by service_request_id
+            const order = ordersByService[0];
+            if (order.stripe_session_id) {
+              sessionStorage.setItem(checkKey, 'true');
+              sessionStorage.setItem(redirectKey, 'true');
+              returningFromStripeRef.current = true;
+              window.location.replace(`/checkout/cancel?order_id=${order.id}`);
+              return;
+            }
+          }
+        }
+        
+        if (orders && orders.length > 0 && orders[0].stripe_session_id) {
+          // Mark as checked to prevent multiple redirects
+          sessionStorage.setItem(checkKey, 'true');
+          sessionStorage.setItem(redirectKey, 'true');
+          
+          // User has a pending order with Stripe session - they likely came back from Stripe
+          // Mark that user is returning from Stripe
+          returningFromStripeRef.current = true;
+          
+          // Redirect to cancel page using replace() to not stay in history
+          window.location.replace(`/checkout/cancel?order_id=${orders[0].id}`);
+        } else {
+          // No recent pending order, mark as checked
+          sessionStorage.setItem(checkKey, 'true');
+        }
+      } catch (err) {
+        console.error('Error checking pending order:', err);
+        sessionStorage.setItem(checkKey, 'true');
+      }
+    };
+    
+    // Only check if we're on step 3 (as fallback) AND user might be returning from Stripe
+    if (currentStep === 3 && productSlug) {
+      // Small delay to ensure component is fully mounted
+      const timeoutId = setTimeout(() => {
+        checkPendingOrder();
+      }, 500);
+      
+      return () => clearTimeout(timeoutId);
+    }
+  }, [currentStep, serviceRequestId, productSlug, sellerId]);
+
+  // Function to restore draft from localStorage
+  const restoreDraft = useCallback(() => {
+    // Skip if already restoring
+    if (isRestoringRef.current) {
+      return;
+    }
+    
     try {
       const draft = localStorage.getItem(DRAFT_STORAGE_KEY);
-      if (draft) {
-        const parsed = JSON.parse(draft);
-        if (parsed.productSlug === productSlug) {
-          // Restore form data
-          setClientName(parsed.clientName || '');
-          setClientEmail(parsed.clientEmail || '');
-          setClientWhatsApp(parsed.clientWhatsApp || '');
-          setClientCountry(parsed.clientCountry || '');
-          setClientNationality(parsed.clientNationality || '');
-          setDateOfBirth(parsed.dateOfBirth || '');
-          setDocumentType(parsed.documentType || '');
-          setDocumentNumber(parsed.documentNumber || '');
-          setAddressLine(parsed.addressLine || '');
-          setCity(parsed.city || '');
-          setState(parsed.state || '');
-          setPostalCode(parsed.postalCode || '');
-          setMaritalStatus(parsed.maritalStatus || '');
-          setExtraUnits(parsed.extraUnits || 0);
-          setCurrentStep(parsed.currentStep || 1);
+      if (!draft) {
+        restoreAttemptedRef.current = true;
+        return;
+      }
+      
+      const parsed = JSON.parse(draft);
+      // Restore if same product and seller (or no seller in draft)
+      if (parsed.productSlug === productSlug && (!parsed.sellerId || parsed.sellerId === sellerId || !sellerId)) {
+        // Set restoring flag to prevent saving during restoration
+        isRestoringRef.current = true;
+        
+        // Restore form data - Step 1
+        setClientName(parsed.clientName || '');
+        setClientEmail(parsed.clientEmail || '');
+        setClientWhatsApp(parsed.clientWhatsApp || '');
+        setClientCountry(parsed.clientCountry || '');
+        setClientNationality(parsed.clientNationality || '');
+        setDateOfBirth(parsed.dateOfBirth || '');
+        setDocumentType(parsed.documentType || '');
+        setDocumentNumber(parsed.documentNumber || '');
+        setAddressLine(parsed.addressLine || '');
+        setCity(parsed.city || '');
+        setState(parsed.state || '');
+        setPostalCode(parsed.postalCode || '');
+        setMaritalStatus(parsed.maritalStatus || '');
+        setClientObservations(parsed.clientObservations || '');
+        setExtraUnits(parsed.extraUnits || 0);
+        
+        // Restore Step 3 data (terms and payment method)
+        if (parsed.termsAccepted !== undefined) {
+          setTermsAccepted(parsed.termsAccepted || false);
         }
+        if (parsed.dataAuthorization !== undefined) {
+          setDataAuthorization(parsed.dataAuthorization || false);
+        }
+        if (parsed.paymentMethod) {
+          setPaymentMethod(parsed.paymentMethod);
+        }
+        
+        // Restore service_request_id and client_id if they exist
+        // These are critical for Step 2 to work properly
+        // Restore them BEFORE restoring the step to ensure they're available
+        if (parsed.serviceRequestId) {
+          setServiceRequestId(parsed.serviceRequestId);
+        }
+        if (parsed.clientId) {
+          setClientId(parsed.clientId);
+        }
+        
+        // Restore step - if user was on step 2 or 3, ALWAYS go back to step 1 (with data filled)
+        // User can then click "Continue" to go to step 2 and re-upload documents
+        // This applies when returning from Stripe, browser back button, or any navigation
+        // Force step 1 immediately if user was on step 2 or 3
+        if (!hasRestoredStepRef.current && parsed.currentStep && parsed.currentStep > 1) {
+          // ALWAYS go back to step 1 if user was on step 2 or 3
+          if (parsed.currentStep === 2 || parsed.currentStep === 3) {
+            // Force Step 1 and ensure it's set
+            setCurrentStep(1);
+            hasRestoredStepRef.current = true;
+            // Reset document upload state
+            setDocumentsUploaded(false);
+            setDocumentFiles(null);
+            
+            // Small delay to ensure state is updated
+            setTimeout(() => {
+              isRestoringRef.current = false;
+            }, 300);
+          } else {
+            setCurrentStep(parsed.currentStep);
+            hasRestoredStepRef.current = true;
+            isRestoringRef.current = false;
+          }
+        } else {
+          // No step restoration needed, allow saving immediately
+          restoreAttemptedRef.current = true;
+          setTimeout(() => {
+            isRestoringRef.current = false;
+          }, 300);
+        }
+      } else {
+        // No matching draft, allow saving immediately
+        isRestoringRef.current = false;
+        restoreAttemptedRef.current = true;
       }
     } catch (err) {
       console.warn('Failed to load draft:', err);
+      isRestoringRef.current = false;
+      restoreAttemptedRef.current = true;
     }
-  }, [productSlug]);
+  }, [productSlug, sellerId]);
 
-  // Save draft to localStorage
+  // Load draft from localStorage - runs on mount and when productSlug/sellerId changes
+  // IMPORTANT: This runs AFTER the Stripe return check to avoid showing checkout if user is returning
   useEffect(() => {
+    // Don't restore if we're returning from Stripe (check happens in another useEffect)
+    if (returningFromStripeRef.current) {
+      return; // Skip restoration if we detected Stripe return
+    }
+    
+    // Reset restore flag when productSlug or sellerId changes
+    restoreAttemptedRef.current = false;
+    isRestoringRef.current = false;
+    hasRestoredStepRef.current = false; // Reset step restoration flag
+    
+    // Small delay to ensure Stripe check runs first
+    const timeoutId = setTimeout(() => {
+      // Double-check we're not returning from Stripe
+      if (!returningFromStripeRef.current) {
+        restoreDraft();
+      }
+    }, 100);
+    
+    return () => clearTimeout(timeoutId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [productSlug, sellerId, loading]); // Add loading to dependencies
+
+  // Additional check: if form is empty but draft exists, restore it
+  // This handles cases where restoration didn't happen for some reason
+  useEffect(() => {
+    // Only check if form is empty and we haven't restored yet
+    if (!clientName && !clientEmail && !restoreAttemptedRef.current) {
+      const draft = localStorage.getItem(DRAFT_STORAGE_KEY);
+      if (draft) {
+        try {
+          const parsed = JSON.parse(draft);
+          if (parsed.productSlug === productSlug && (!parsed.sellerId || parsed.sellerId === sellerId || !sellerId)) {
+            // Form is empty but draft exists - restore it
+            restoreDraft();
+          }
+        } catch (err) {
+          // Ignore parse errors
+        }
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clientName, clientEmail, productSlug, sellerId]);
+
+  // Detect browser back/forward navigation and restore draft
+  useEffect(() => {
+    const handlePageShow = (event: PageTransitionEvent) => {
+      // When page is restored from cache (browser back/forward)
+      if (event.persisted) {
+        // Reset restore flag to allow restoration
+        restoreAttemptedRef.current = false;
+        isRestoringRef.current = false;
+        hasRestoredStepRef.current = false; // Reset step restoration flag
+        // Small delay to ensure component is ready
+        setTimeout(() => {
+          restoreDraft();
+        }, 100);
+      }
+    };
+
+    window.addEventListener('pageshow', handlePageShow);
+    return () => {
+      window.removeEventListener('pageshow', handlePageShow);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [productSlug, sellerId]);
+
+  // Save draft to localStorage (all text inputs and selects, but NOT file uploads)
+  useEffect(() => {
+    // Don't save during restoration
+    if (isRestoringRef.current) {
+      return;
+    }
+    
+    // Don't save if we haven't attempted restoration yet (first render)
+    if (!restoreAttemptedRef.current) {
+      return;
+    }
+    
     try {
       const draft = {
         productSlug,
+        sellerId, // Save seller ID so it works when user returns
+        // Step 1: Personal Information
         clientName,
         clientEmail,
         clientWhatsApp,
@@ -130,14 +442,167 @@ export const VisaCheckout = () => {
         state,
         postalCode,
         maritalStatus,
+        clientObservations,
         extraUnits,
+        // Step 3: Terms & Payment (text/select only, no files)
+        termsAccepted,
+        dataAuthorization,
+        paymentMethod,
+        // Service request and client IDs (if they exist)
+        serviceRequestId: serviceRequestId || undefined,
+        clientId: clientId || undefined,
+        // Current step
         currentStep,
+        // Timestamp for reference
+        savedAt: new Date().toISOString(),
       };
       localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(draft));
     } catch (err) {
       console.warn('Failed to save draft:', err);
+      // If storage is full, try to clear old data
+      try {
+        localStorage.removeItem(DRAFT_STORAGE_KEY);
+        localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify({
+          productSlug,
+          sellerId,
+          clientName,
+          clientEmail,
+          currentStep,
+        }));
+      } catch (clearErr) {
+        console.warn('Failed to clear and save minimal draft:', clearErr);
+      }
     }
-  }, [productSlug, clientName, clientEmail, clientWhatsApp, clientCountry, clientNationality, dateOfBirth, documentType, documentNumber, addressLine, city, state, postalCode, maritalStatus, extraUnits, currentStep]);
+  }, [
+    productSlug,
+    sellerId,
+    // Step 1 fields
+    clientName,
+    clientEmail,
+    clientWhatsApp,
+    clientCountry,
+    clientNationality,
+    dateOfBirth,
+    documentType,
+    documentNumber,
+    addressLine,
+    city,
+    state,
+    postalCode,
+    maritalStatus,
+    clientObservations,
+    extraUnits,
+    // Step 3 fields (text/select only)
+    termsAccepted,
+    dataAuthorization,
+    paymentMethod,
+    // Current step
+    currentStep,
+  ]);
+
+  // Check if user is returning from Stripe (BEFORE restoring draft)
+  // This runs FIRST, immediately after product loads, to catch Stripe returns
+  // This is critical - must run before any draft restoration to prevent showing checkout
+  // IMPORTANT: Only check if user is actually returning from Stripe, not during normal navigation
+  useEffect(() => {
+    const checkStripeReturn = async () => {
+      if (!productSlug || loading) return; // Aguardar produto carregar
+      
+      // Verificar se usuário veio da página de cancelamento (não redirecionar novamente)
+      const referrer = document.referrer;
+      if (referrer && referrer.includes('/checkout/cancel')) {
+        // Usuário veio da página de cancelamento, não redirecionar novamente
+        return;
+      }
+      
+      // Verificar se usuário está navegando normalmente pelo checkout (não veio do Stripe)
+      // Se o referrer é a própria página de checkout, significa que está navegando normalmente
+      if (referrer && (referrer.includes('/checkout/visa/') || referrer.includes(window.location.origin + '/checkout/visa/'))) {
+        // Usuário está navegando normalmente pelo checkout, não verificar Stripe
+        return;
+      }
+      
+      // Verificar se já foi redirecionado para cancelamento antes (flag persistente)
+      const redirectKey = `stripe_redirected_to_cancel_${productSlug}_${sellerId || 'no-seller'}`;
+      if (sessionStorage.getItem(redirectKey)) {
+        // Já foi redirecionado para cancelamento antes, não redirecionar novamente
+        return;
+      }
+      
+      // Verificar se já foi checado nesta sessão
+      const checkKey = `stripe_return_check_${productSlug}_${sellerId || 'no-seller'}`;
+      if (sessionStorage.getItem(checkKey)) {
+        return; // Já verificado
+      }
+      
+      // Só verificar se o referrer indica que veio de uma página externa (como Stripe)
+      // Ou se não há referrer (pode ser uma nova aba/janela)
+      const isExternalReferrer = !referrer || 
+        referrer.includes('checkout.stripe.com') || 
+        referrer.includes('stripe.com') ||
+        (!referrer.includes(window.location.hostname));
+      
+      if (!isExternalReferrer) {
+        // Referrer indica navegação interna, não verificar Stripe
+        sessionStorage.setItem(checkKey, 'true'); // Marcar como verificado para não verificar novamente
+        return;
+      }
+      
+      try {
+        // Buscar ordem pendente recente (últimos 10 minutos)
+        const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+        
+        let query = supabase
+          .from('visa_orders')
+          .select('id, payment_status, stripe_session_id, created_at')
+          .eq('product_slug', productSlug)
+          .eq('payment_status', 'pending')
+          .not('stripe_session_id', 'is', null)
+          .gte('created_at', tenMinutesAgo)
+          .order('created_at', { ascending: false })
+          .limit(1);
+        
+        // Adicionar filtro de seller se existir
+        if (sellerId) {
+          query = query.eq('seller_id', sellerId);
+        }
+        
+        const { data: orders, error: queryError } = await query;
+        
+        if (queryError) {
+          console.error('Error checking Stripe return:', queryError);
+          sessionStorage.setItem(checkKey, 'true'); // Marcar mesmo em erro para não ficar em loop
+          return;
+        }
+        
+        if (orders && orders.length > 0 && orders[0].stripe_session_id) {
+          // Marcar como verificado ANTES de redirecionar
+          sessionStorage.setItem(checkKey, 'true');
+          // Marcar que foi redirecionado para cancelamento (flag persistente)
+          sessionStorage.setItem(redirectKey, 'true');
+          
+          // Marcar que usuário está retornando do Stripe
+          returningFromStripeRef.current = true;
+          
+          // Redirecionar para página de cancelamento usando replace() para não ficar no histórico
+          window.location.replace(`/checkout/cancel?order_id=${orders[0].id}`);
+          return; // Não continuar com o resto do componente
+        } else {
+          // Marcar como verificado mesmo sem encontrar ordem
+          sessionStorage.setItem(checkKey, 'true');
+        }
+      } catch (err) {
+        console.error('Error checking Stripe return:', err);
+        sessionStorage.setItem(checkKey, 'true'); // Marcar mesmo em erro para não ficar em loop
+      }
+    };
+    
+    // Executar IMEDIATAMENTE após produto carregar (sem delay)
+    if (!loading && productSlug) {
+      // Executar de forma síncrona se possível, sem delay
+      checkStripeReturn();
+    }
+  }, [productSlug, sellerId, loading]); // Dependências: produto e seller
 
   // Load product and track link click
   useEffect(() => {
@@ -175,8 +640,13 @@ export const VisaCheckout = () => {
     loadProduct();
   }, [productSlug, sellerId]);
 
-  // Calculate total based on calculation_type
-  const calculateTotal = () => {
+  // Stripe fee constants (matching backend)
+  const CARD_FEE_PERCENTAGE = 0.039; // 3.9%
+  const CARD_FEE_FIXED = 0.30; // $0.30
+  const PIX_FEE_PERCENTAGE = 0.0179; // 1.79% (1.19% processing + 0.6% conversion)
+
+  // Calculate base total (before fees) based on calculation_type
+  const calculateBaseTotal = () => {
     if (!product) return 0;
     
     const basePrice = parseFloat(product.base_price_usd);
@@ -191,7 +661,48 @@ export const VisaCheckout = () => {
     }
   };
 
-  const total = calculateTotal();
+  const baseTotal = calculateBaseTotal();
+
+  // Calculate total with fees based on payment method
+  const calculateTotalWithFees = () => {
+    if (paymentMethod === 'zelle') {
+      // Zelle: no fees
+      return baseTotal;
+    } else if (paymentMethod === 'card') {
+      // Card: 3.9% + $0.30
+      return baseTotal + (baseTotal * CARD_FEE_PERCENTAGE) + CARD_FEE_FIXED;
+    } else if (paymentMethod === 'pix') {
+      // PIX: 1.79% fee (already includes conversion)
+      if (!exchangeRate) return baseTotal; // Fallback if rate not loaded
+      const netAmountBRL = baseTotal * exchangeRate;
+      const grossAmountBRL = netAmountBRL / (1 - PIX_FEE_PERCENTAGE);
+      return grossAmountBRL;
+    }
+    return baseTotal;
+  };
+
+  const totalWithFees = calculateTotalWithFees();
+
+  // Fetch exchange rate for PIX
+  useEffect(() => {
+    const fetchExchangeRate = async () => {
+      try {
+        const response = await fetch('https://api.exchangerate-api.com/v4/latest/USD');
+        const data = await response.json();
+        const baseRate = parseFloat(data.rates.BRL);
+        // Apply 4% commercial margin (matching backend)
+        setExchangeRate(baseRate * 1.04);
+      } catch (error) {
+        console.error('Error fetching exchange rate:', error);
+        // Fallback rate
+        setExchangeRate(5.6);
+      }
+    };
+
+    if (currentStep === 3) {
+      fetchExchangeRate();
+    }
+  }, [currentStep]);
 
   // Get client IP and user agent
   const getClientIP = async (): Promise<string | null> => {
@@ -352,6 +863,19 @@ export const VisaCheckout = () => {
 
         serviceRequestIdToUse = serviceRequestData.id;
         setServiceRequestId(serviceRequestIdToUse);
+        
+        // Save serviceRequestId to localStorage for restoration
+        try {
+          const draft = localStorage.getItem(DRAFT_STORAGE_KEY);
+          if (draft) {
+            const parsed = JSON.parse(draft);
+            parsed.serviceRequestId = serviceRequestIdToUse;
+            parsed.clientId = clientIdToUse;
+            localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(parsed));
+          }
+        } catch (err) {
+          console.warn('Failed to save serviceRequestId to draft:', err);
+        }
       } else {
         // Update existing service request
         const { error: updateError } = await supabase
@@ -385,9 +909,106 @@ export const VisaCheckout = () => {
 
   // Save Step 2 documents to database
   const saveStep2 = async (): Promise<boolean> => {
-    if (!documentFiles || !serviceRequestId) {
-      setError('Missing documents or service request');
+    if (!documentFiles) {
+      setError('Please upload all required documents (front, back, and selfie)');
       return false;
+    }
+    
+    // Ensure all required documents are present
+    if (!documentFiles.documentFront || !documentFiles.documentBack || !documentFiles.selfie) {
+      setError('Please upload all required documents (front, back, and selfie)');
+      return false;
+    }
+    
+    // If serviceRequestId is missing, try to create it from Step 1 data
+    // This handles cases where user returns and Step 1 data is restored but service_request wasn't created yet
+    let serviceRequestIdToUse = serviceRequestId;
+    if (!serviceRequestIdToUse) {
+      // Check if we have client data to create service request
+      if (!clientName || !clientEmail || !productSlug) {
+        setError('Please complete Step 1 first');
+        // Force user back to Step 1
+        setCurrentStep(1);
+        return false;
+      }
+      
+      // Create service request on the fly
+      try {
+        // First, ensure client exists
+        let clientIdToUse = clientId;
+        if (!clientIdToUse) {
+          const { data: clientData, error: clientError } = await supabase
+            .from('clients')
+            .insert({
+              full_name: clientName,
+              email: clientEmail,
+              whatsapp: clientWhatsApp || null,
+              country_of_residence: clientCountry || null,
+              nationality: clientNationality || null,
+              date_of_birth: dateOfBirth || null,
+              document_type: documentType || null,
+              document_number: documentNumber || null,
+              address_line: addressLine || null,
+              city: city || null,
+              state: state || null,
+              postal_code: postalCode || null,
+              marital_status: maritalStatus || null,
+              observations: clientObservations || null,
+            })
+            .select()
+            .single();
+          
+          if (clientError || !clientData) {
+            console.error('Error creating client:', clientError);
+            setError('Failed to create client record. Please complete Step 1 again.');
+            setCurrentStep(1);
+            return false;
+          }
+          
+          clientIdToUse = clientData.id;
+          setClientId(clientIdToUse);
+        }
+        
+        // Create service request
+        const { data: serviceRequestData, error: serviceRequestError } = await supabase
+          .from('service_requests')
+          .insert({
+            client_id: clientIdToUse,
+            service_id: productSlug,
+            dependents_count: extraUnits,
+            status: 'pending_documents',
+          })
+          .select()
+          .single();
+        
+        if (serviceRequestError || !serviceRequestData) {
+          console.error('Error creating service request:', serviceRequestError);
+          setError('Failed to create service request. Please complete Step 1 again.');
+          setCurrentStep(1);
+          return false;
+        }
+        
+        serviceRequestIdToUse = serviceRequestData.id;
+        setServiceRequestId(serviceRequestIdToUse);
+        
+        // Save to localStorage
+        try {
+          const draft = localStorage.getItem(DRAFT_STORAGE_KEY);
+          if (draft) {
+            const parsed = JSON.parse(draft);
+            parsed.serviceRequestId = serviceRequestIdToUse;
+            parsed.clientId = clientIdToUse;
+            localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(parsed));
+          }
+        } catch (err) {
+          console.warn('Failed to save serviceRequestId to draft:', err);
+        }
+      } catch (err) {
+        console.error('Error creating service request on the fly:', err);
+        setError('Failed to create service request. Please complete Step 1 again.');
+        setCurrentStep(1);
+        return false;
+      }
     }
 
     try {
@@ -399,7 +1020,7 @@ export const VisaCheckout = () => {
         const { error: frontError } = await supabase
           .from('identity_files')
           .insert({
-            service_request_id: serviceRequestId,
+            service_request_id: serviceRequestIdToUse,
             file_type: 'document_front',
             file_path: documentFiles.documentFront.url,
             file_name: documentFiles.documentFront.file.name,
@@ -415,25 +1036,28 @@ export const VisaCheckout = () => {
         }
       }
 
-      // Save document back (if provided)
-      if (documentFiles.documentBack) {
-        const { error: backError } = await supabase
-          .from('identity_files')
-          .insert({
-            service_request_id: serviceRequestId,
-            file_type: 'document_back',
-            file_path: documentFiles.documentBack.url,
-            file_name: documentFiles.documentBack.file.name,
-            file_size: documentFiles.documentBack.file.size,
-            created_ip: clientIP,
-            user_agent: userAgent,
-          });
+      // Save document back (required)
+      if (!documentFiles.documentBack) {
+        setError('Document back is required');
+        return false;
+      }
+      
+      const { error: backError } = await supabase
+        .from('identity_files')
+        .insert({
+          service_request_id: serviceRequestIdToUse,
+          file_type: 'document_back',
+          file_path: documentFiles.documentBack.url,
+          file_name: documentFiles.documentBack.file.name,
+          file_size: documentFiles.documentBack.file.size,
+          created_ip: clientIP,
+          user_agent: userAgent,
+        });
 
-        if (backError) {
-          console.error('Error saving document back:', backError);
-          setError('Failed to save document');
-          return false;
-        }
+      if (backError) {
+        console.error('Error saving document back:', backError);
+        setError('Failed to save document back');
+        return false;
       }
 
       // Save selfie
@@ -441,7 +1065,7 @@ export const VisaCheckout = () => {
         const { error: selfieError } = await supabase
           .from('identity_files')
           .insert({
-            service_request_id: serviceRequestId,
+            service_request_id: serviceRequestIdToUse,
             file_type: 'selfie_doc',
             file_path: documentFiles.selfie.url,
             file_name: documentFiles.selfie.file.name,
@@ -461,7 +1085,7 @@ export const VisaCheckout = () => {
       await supabase
         .from('service_requests')
         .update({ status: 'pending_payment', updated_at: new Date().toISOString() })
-        .eq('id', serviceRequestId);
+        .eq('id', serviceRequestIdToUse);
 
       return true;
     } catch (err) {
@@ -527,7 +1151,12 @@ export const VisaCheckout = () => {
       }
     } else if (currentStep === 2) {
       if (!documentsUploaded || !documentFiles) {
-        setError('Please upload at least the front of your document and a selfie');
+        setError('Please upload all required documents (front, back, and selfie)');
+        return;
+      }
+      // Ensure all required documents are present
+      if (!documentFiles.documentFront || !documentFiles.documentBack || !documentFiles.selfie) {
+        setError('Please upload all required documents (front, back, and selfie)');
         return;
       }
       const saved = await saveStep2();
@@ -575,7 +1204,7 @@ export const VisaCheckout = () => {
       // Track payment started
       if (sellerId && productSlug) {
         await trackPaymentStarted(sellerId, productSlug, method, {
-          total_amount: total,
+          total_amount: totalWithFees,
           extra_units: extraUnits,
         });
       }
@@ -586,6 +1215,37 @@ export const VisaCheckout = () => {
       // Get document URLs from documentFiles
       const documentFrontUrl = documentFiles?.documentFront?.url || '';
       const selfieUrl = documentFiles?.selfie?.url || '';
+
+      // Force save current form data to localStorage before redirecting
+      try {
+        const draft = {
+          productSlug,
+          sellerId,
+          clientName,
+          clientEmail,
+          clientWhatsApp,
+          clientCountry,
+          clientNationality,
+          dateOfBirth,
+          documentType,
+          documentNumber,
+          addressLine,
+          city,
+          state,
+          postalCode,
+          maritalStatus,
+          clientObservations,
+          extraUnits,
+          termsAccepted,
+          dataAuthorization,
+          paymentMethod: method,
+          currentStep,
+          savedAt: new Date().toISOString(),
+        };
+        localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(draft));
+      } catch (err) {
+        console.warn('Failed to save draft before redirect:', err);
+      }
 
       const { data, error } = await supabase.functions.invoke('create-visa-checkout-session', {
         body: {
@@ -599,6 +1259,7 @@ export const VisaCheckout = () => {
           client_nationality: clientNationality,
           client_observations: clientObservations,
           payment_method: method,
+          exchange_rate: exchangeRate || undefined, // Pass exchange rate for PIX
           contract_document_url: documentFrontUrl, // Use front document
           contract_selfie_url: selfieUrl,
           ip_address: clientIP,
@@ -613,9 +1274,31 @@ export const VisaCheckout = () => {
       }
 
       if (data?.checkout_url) {
-        // Clear draft
-        localStorage.removeItem(DRAFT_STORAGE_KEY);
-        window.location.href = data.checkout_url;
+        // Salvar informações da ordem no localStorage para detecção futura
+        try {
+          const orderInfo = {
+            order_id: data.order_id,
+            product_slug: productSlug,
+            seller_id: sellerId || null,
+            redirect_time: new Date().toISOString(),
+          };
+          localStorage.setItem('last_stripe_order', JSON.stringify(orderInfo));
+          
+          // Limpar flags de verificação anteriores para garantir detecção na próxima volta
+          const checkKey = `stripe_return_check_${productSlug}_${sellerId || 'no-seller'}`;
+          sessionStorage.removeItem(checkKey);
+          // Limpar flag de redirecionamento para cancelamento - nova ordem foi criada
+          const redirectKey = `stripe_redirected_to_cancel_${productSlug}_${sellerId || 'no-seller'}`;
+          sessionStorage.removeItem(redirectKey);
+        } catch (err) {
+          console.warn('Failed to save order info:', err);
+        }
+        
+        // DON'T clear draft - keep it so user can return and see their data
+        // localStorage.removeItem(DRAFT_STORAGE_KEY);
+        // Use replace() instead of href to prevent checkout from staying in browser history
+        // This way, when user clicks browser back button, they won't return to checkout
+        window.location.replace(data.checkout_url);
       }
     } catch (err) {
       console.error('Error:', err);
@@ -661,7 +1344,7 @@ export const VisaCheckout = () => {
       // Track payment started
       if (sellerId && productSlug) {
         await trackPaymentStarted(sellerId, productSlug, 'zelle', {
-          total_amount: total,
+          total_amount: baseTotal, // Zelle uses base total (no fees)
           extra_units: extraUnits,
         });
       }
@@ -691,7 +1374,7 @@ export const VisaCheckout = () => {
         .from('payments')
         .insert({
           service_request_id: serviceRequestId,
-          amount: total,
+          amount: baseTotal, // Zelle uses base total (no fees)
           currency: 'USD',
           status: 'pending',
         })
@@ -722,7 +1405,7 @@ export const VisaCheckout = () => {
           extra_unit_label: product!.extra_unit_label,
           extra_unit_price_usd: parseFloat(product!.extra_unit_price),
           calculation_type: product!.calculation_type,
-          total_price_usd: total,
+          total_price_usd: baseTotal, // Store base total, fees are handled separately
           client_name: clientName,
           client_email: clientEmail,
           client_whatsapp: clientWhatsApp || null,
@@ -739,7 +1422,7 @@ export const VisaCheckout = () => {
           ip_address: clientIP,
           payment_metadata: {
             base_amount: parseFloat(product!.base_price_usd).toFixed(2),
-            final_amount: total.toFixed(2),
+            final_amount: baseTotal.toFixed(2), // Zelle uses base total (no fees)
             extra_units: extraUnits,
             calculation_type: product!.calculation_type,
             ip_address: clientIP,
@@ -770,8 +1453,8 @@ export const VisaCheckout = () => {
         // Continue anyway - PDF generation is not critical for redirect
       }
 
-      // Clear draft
-      localStorage.removeItem(DRAFT_STORAGE_KEY);
+      // DON'T clear draft for Zelle - only clear on success page
+      // localStorage.removeItem(DRAFT_STORAGE_KEY);
 
       // Redirect to success page
       window.location.href = `/checkout/success?order_id=${order.id}&method=zelle`;
@@ -783,6 +1466,7 @@ export const VisaCheckout = () => {
     }
   };
 
+  // Show loading only when product is loading initially
   if (loading) {
     return (
       <div className="min-h-screen bg-black flex items-center justify-center">
@@ -794,7 +1478,9 @@ export const VisaCheckout = () => {
     );
   }
 
-  if (error || !product) {
+  // Only show error page if product is not found (critical error)
+  // Other errors should be shown inline in the component
+  if (!product) {
     return (
       <div className="min-h-screen bg-black flex items-center justify-center p-4">
         <Card className="max-w-md w-full bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30">
@@ -842,9 +1528,9 @@ export const VisaCheckout = () => {
           </div>
           <Progress value={progressPercentage} className="h-2" />
           <div className="flex justify-between mt-2 text-xs text-gray-500">
-            <span>1/3 Dados pessoais</span>
-            <span>2/3 Documentos</span>
-            <span>3/3 Termos e Pagamento</span>
+            <span>1/3 Personal Information</span>
+            <span>2/3 Documents</span>
+            <span>3/3 Terms & Payment</span>
           </div>
         </div>
 
@@ -1129,7 +1815,7 @@ export const VisaCheckout = () => {
                       <Button
                         variant="outline"
                         onClick={handlePrev}
-                        className="border-gold-medium/50 text-white hover:bg-gold-medium/20"
+                        className="border-gold-medium/50 bg-black/50 text-gold-light hover:bg-gold-medium/30 hover:text-gold-light"
                       >
                         <ChevronLeft className="w-4 h-4 mr-2" />
                         Back
@@ -1223,32 +1909,40 @@ export const VisaCheckout = () => {
 
                       {paymentMethod === 'zelle' && (
                         <div className="space-y-4 mt-4 p-4 bg-yellow-900/20 border border-yellow-500/30 rounded-md">
-                          <p className="text-sm text-yellow-200">
-                            For Zelle payments, please transfer the amount to our Zelle account and upload the payment receipt below.
-                          </p>
-                          <div className="space-y-2">
-                            <Label htmlFor="zelle-receipt" className="text-white">Upload Payment Receipt *</Label>
-                            <div className="border-2 border-dashed border-gold-medium/50 rounded-md p-4 text-center hover:bg-white/10 transition cursor-pointer">
-                              <input
-                                type="file"
-                                id="zelle-receipt"
-                                accept="image/*,.pdf"
-                                onChange={(e) => {
-                                  const file = e.target.files?.[0];
-                                  if (file) {
-                                    setZelleReceipt(file);
-                                  }
-                                }}
-                                className="hidden"
-                              />
-                              <label htmlFor="zelle-receipt" className="cursor-pointer">
-                                <Upload className="h-8 w-8 text-gold-light mx-auto mb-2" />
-                                {zelleReceipt ? (
-                                  <p className="text-sm text-gold-light">✓ {zelleReceipt.name}</p>
-                                ) : (
-                                  <p className="text-sm text-white">Click to upload receipt</p>
-                                )}
-                              </label>
+                          <div className="space-y-3">
+                            <div className="bg-black/30 p-3 rounded-md border border-gold-medium/20">
+                              <p className="text-sm font-semibold text-yellow-200 mb-2">Zelle Payment Instructions:</p>
+                              <ol className="text-sm text-yellow-100 space-y-2 list-decimal list-inside">
+                                <li>Transfer the total amount to our Zelle account</li>
+                                <li className="font-semibold text-gold-light">Zelle Key: <span className="font-mono">adm@migmainc.com</span></li>
+                                <li>After completing the transfer, take a screenshot or photo of the payment confirmation</li>
+                                <li>Upload the payment receipt below</li>
+                              </ol>
+                            </div>
+                            <div className="space-y-2">
+                              <Label htmlFor="zelle-receipt" className="text-white">Upload Payment Receipt *</Label>
+                              <div className="border-2 border-dashed border-gold-medium/50 rounded-md p-4 text-center hover:bg-white/10 transition cursor-pointer">
+                                <input
+                                  type="file"
+                                  id="zelle-receipt"
+                                  accept="image/*,.pdf"
+                                  onChange={(e) => {
+                                    const file = e.target.files?.[0];
+                                    if (file) {
+                                      setZelleReceipt(file);
+                                    }
+                                  }}
+                                  className="hidden"
+                                />
+                                <label htmlFor="zelle-receipt" className="cursor-pointer">
+                                  <Upload className="h-8 w-8 text-gold-light mx-auto mb-2" />
+                                  {zelleReceipt ? (
+                                    <p className="text-sm text-gold-light">✓ {zelleReceipt.name}</p>
+                                  ) : (
+                                    <p className="text-sm text-white">Click to upload receipt</p>
+                                  )}
+                                </label>
+                              </div>
                             </div>
                           </div>
                         </div>
@@ -1260,7 +1954,7 @@ export const VisaCheckout = () => {
                       <Button
                         variant="outline"
                         onClick={handlePrev}
-                        className="border-gold-medium/50 text-white hover:bg-gold-medium/20"
+                        className="border-gold-medium/50 bg-black/50 text-gold-light hover:bg-gold-medium/30 hover:text-gold-light"
                       >
                         <ChevronLeft className="w-4 h-4 mr-2" />
                         Back
@@ -1269,47 +1963,6 @@ export const VisaCheckout = () => {
                   </CardContent>
                 </Card>
               </>
-            )}
-
-            {/* Extra Units (Dependents, RFEs, Applicants, etc) */}
-            {product.allow_extra_units && (
-              <Card className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30">
-                <CardHeader>
-                  <CardTitle className="text-white">{product.extra_unit_label}</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-2">
-                    <Label htmlFor="extra-units" className="text-white">
-                      {product.extra_unit_label} {product.calculation_type === 'units_only' ? '(required)' : '(0-5)'}
-                    </Label>
-                    <Select
-                      value={extraUnits.toString()}
-                      onValueChange={(value) => setExtraUnits(parseInt(value))}
-                    >
-                      <SelectTrigger className="bg-white text-black">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {[0, 1, 2, 3, 4, 5].map((num) => (
-                          <SelectItem key={num} value={num.toString()}>
-                            {num}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    {product.calculation_type === 'base_plus_units' && extraUnits > 0 && (
-                      <p className="text-sm text-gray-400">
-                        Additional cost: US$ {(extraUnits * parseFloat(product.extra_unit_price)).toFixed(2)}
-                      </p>
-                    )}
-                    {product.calculation_type === 'units_only' && (
-                      <p className="text-sm text-gray-400">
-                        Total cost: US$ {(extraUnits * parseFloat(product.extra_unit_price)).toFixed(2)}
-                      </p>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
             )}
 
           </div>
@@ -1343,11 +1996,33 @@ export const VisaCheckout = () => {
                         <span className="text-white">US$ {(extraUnits * parseFloat(product.extra_unit_price)).toFixed(2)}</span>
                       </div>
                     )}
+
                     <div className="border-t border-gold-medium/30 pt-2 mt-2">
                       <div className="flex justify-between">
                         <span className="text-white font-bold">Total</span>
-                        <span className="text-2xl font-bold text-gold-light">US$ {total.toFixed(2)}</span>
+                        <span className="text-2xl font-bold text-gold-light">
+                          {paymentMethod === 'pix' && exchangeRate ? (
+                            <>R$ {totalWithFees.toFixed(2)}</>
+                          ) : (
+                            <>US$ {totalWithFees.toFixed(2)}</>
+                          )}
+                        </span>
                       </div>
+                      {paymentMethod === 'pix' && exchangeRate && (
+                        <p className="text-xs text-gray-400 mt-1 text-right">
+                          Includes processing fee
+                        </p>
+                      )}
+                      {paymentMethod === 'card' && (
+                        <p className="text-xs text-gray-400 mt-1 text-right">
+                          Includes Stripe processing fee
+                        </p>
+                      )}
+                      {paymentMethod === 'zelle' && (
+                        <p className="text-xs text-gray-400 mt-1 text-right">
+                          No processing fees
+                        </p>
+                      )}
                     </div>
                   </div>
 
@@ -1414,5 +2089,7 @@ export const VisaCheckout = () => {
     </div>
   );
 };
+
+
 
 

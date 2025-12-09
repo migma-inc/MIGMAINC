@@ -138,21 +138,34 @@ Deno.serve(async (req: Request) => {
         }
 
         // Get payment intent to determine payment method
+        // First, try to use the payment_method already saved in the order (most reliable)
         let paymentMethod = "card";
-        if (session.payment_intent) {
-          try {
-            const paymentIntent = await stripe.paymentIntents.retrieve(
-              session.payment_intent as string
-            );
-            
-            if (paymentIntent.charges.data.length > 0) {
-              const charge = paymentIntent.charges.data[0];
-              if (charge.payment_method_details?.type === "pix") {
-                paymentMethod = "pix";
+        if (order.payment_method === "stripe_pix") {
+          paymentMethod = "pix";
+        } else if (order.payment_method === "stripe_card") {
+          paymentMethod = "card";
+        } else {
+          // Fallback: detect from payment intent
+          if (session.payment_intent) {
+            try {
+              const paymentIntent = await stripe.paymentIntents.retrieve(
+                session.payment_intent as string
+              );
+              
+              if (paymentIntent.charges.data.length > 0) {
+                const charge = paymentIntent.charges.data[0];
+                if (charge.payment_method_details?.type === "pix") {
+                  paymentMethod = "pix";
+                }
               }
+            } catch (error) {
+              console.error("[Webhook] Error retrieving payment intent:", error);
             }
-          } catch (error) {
-            console.error("[Webhook] Error retrieving payment intent:", error);
+          }
+          // Also check currency in metadata as fallback
+          const metadata = order.payment_metadata as any;
+          if (metadata?.currency === "BRL" || metadata?.currency === "brl") {
+            paymentMethod = "pix";
           }
         }
 
@@ -260,43 +273,26 @@ Deno.serve(async (req: Request) => {
 
         // Send confirmation email to client
         try {
-          await supabase.functions.invoke("send-email", {
+          // Get currency and final amount from payment_metadata
+          const metadata = order.payment_metadata as any;
+          const currency = metadata?.currency || (paymentMethod === "pix" ? "BRL" : "USD");
+          const finalAmount = metadata?.final_amount || order.total_price_usd;
+          
+          await supabase.functions.invoke("send-payment-confirmation-email", {
             body: {
-              to: order.client_email,
-              subject: `Visa Application Payment Confirmed - Order ${order.order_number}`,
-              html: `
-                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-                  <h1 style="color: #D4AF37;">Payment Confirmed</h1>
-                  <p>Dear ${order.client_name},</p>
-                  <p>We have received your payment for your visa application.</p>
-                  <h2 style="color: #333;">Order Details:</h2>
-                  <table style="width: 100%; border-collapse: collapse;">
-                    <tr>
-                      <td style="padding: 10px; border-bottom: 1px solid #ddd;"><strong>Order Number:</strong></td>
-                      <td style="padding: 10px; border-bottom: 1px solid #ddd;">${order.order_number}</td>
-                    </tr>
-                    <tr>
-                      <td style="padding: 10px; border-bottom: 1px solid #ddd;"><strong>Product:</strong></td>
-                      <td style="padding: 10px; border-bottom: 1px solid #ddd;">${order.product_slug}</td>
-                    </tr>
-                    <tr>
-                      <td style="padding: 10px; border-bottom: 1px solid #ddd;"><strong>Dependents:</strong></td>
-                      <td style="padding: 10px; border-bottom: 1px solid #ddd;">${order.number_of_dependents || 0}</td>
-                    </tr>
-                    <tr>
-                      <td style="padding: 10px; border-bottom: 1px solid #ddd;"><strong>Total:</strong></td>
-                      <td style="padding: 10px; border-bottom: 1px solid #ddd;">US$ ${order.total_price_usd.toFixed(2)}</td>
-                    </tr>
-                  </table>
-                  <p style="margin-top: 20px;">Our team will contact you shortly to begin the visa application process.</p>
-                  <p>Best regards,<br>MIGMA Team</p>
-                </div>
-              `,
+              clientName: order.client_name,
+              clientEmail: order.client_email,
+              orderNumber: order.order_number,
+              productSlug: order.product_slug,
+              totalAmount: order.total_price_usd, // Fallback
+              paymentMethod: paymentMethod === "pix" ? "stripe_pix" : "stripe_card",
+              currency: currency,
+              finalAmount: finalAmount,
             },
           });
-          console.log("[Webhook] Confirmation email sent to client");
+          console.log("[Webhook] Payment confirmation email sent to client");
         } catch (emailError) {
-          console.error("[Webhook] Error sending email:", emailError);
+          console.error("[Webhook] Error sending payment confirmation email:", emailError);
         }
 
         // Send notification to seller if seller_id exists
@@ -419,6 +415,30 @@ Deno.serve(async (req: Request) => {
           }
         } catch (pdfError) {
           console.error("[Webhook] Exception generating PDF:", pdfError);
+        }
+
+        // Send confirmation email to client (PIX)
+        try {
+          // Get currency and final amount from payment_metadata
+          const metadata = order.payment_metadata as any;
+          const currency = metadata?.currency || "BRL";
+          const finalAmount = metadata?.final_amount || order.total_price_usd;
+          
+          await supabase.functions.invoke("send-payment-confirmation-email", {
+            body: {
+              clientName: order.client_name,
+              clientEmail: order.client_email,
+              orderNumber: order.order_number,
+              productSlug: order.product_slug,
+              totalAmount: order.total_price_usd, // Fallback
+              paymentMethod: "stripe_pix",
+              currency: currency,
+              finalAmount: finalAmount,
+            },
+          });
+          console.log("[Webhook] Payment confirmation email sent to client (PIX)");
+        } catch (emailError) {
+          console.error("[Webhook] Error sending payment confirmation email (PIX):", emailError);
         }
 
         break;
@@ -548,5 +568,7 @@ Deno.serve(async (req: Request) => {
     );
   }
 });
+
+
 
 

@@ -140,7 +140,7 @@ export const SellerRegister = () => {
       console.log('[SellerRegister] Login successful, redirecting to dashboard...');
       
       // 4. Redirect to dashboard
-      navigate('/seller/dashboard');
+      navigate('/seller/dashboard', { replace: true });
     } catch (err) {
       console.error('[SellerRegister] Unexpected error:', err);
       setError('An unexpected error occurred. Please try again.');
@@ -280,5 +280,7 @@ export const SellerRegister = () => {
     </div>
   );
 };
+
+
 
 

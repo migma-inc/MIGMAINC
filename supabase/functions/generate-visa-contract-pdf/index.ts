@@ -253,11 +253,31 @@ Deno.serve(async (req) => {
     pdf.text(product?.name || order.product_slug, margin + 50, currentY);
     currentY += 8;
 
-    // Total Price
+    // Total Price (use final amount with fees for Stripe, base amount for Zelle)
+    let displayAmount = parseFloat(order.total_price_usd);
+    let currencySymbol = 'US$';
+    
+    // If payment was via Stripe (card or PIX), use the final_amount from payment_metadata (includes fees)
+    if (order.payment_method === 'stripe_card' || order.payment_method === 'stripe_pix') {
+      if (order.payment_metadata && typeof order.payment_metadata === 'object' && 'final_amount' in order.payment_metadata) {
+        const finalAmount = parseFloat(order.payment_metadata.final_amount as string);
+        if (!isNaN(finalAmount) && finalAmount > 0) {
+          displayAmount = finalAmount;
+        }
+        
+        // Check currency in payment_metadata - if BRL, use R$ symbol (for PIX payments)
+        const currency = (order.payment_metadata as any)?.currency;
+        if (currency === 'BRL' || currency === 'brl') {
+          currencySymbol = 'R$';
+        }
+      }
+    }
+    // For Zelle, use total_price_usd (no fees, already correct) - always USD
+    
     pdf.setFont('helvetica', 'bold');
     pdf.text('Total Amount:', margin, currentY);
     pdf.setFont('helvetica', 'normal');
-    pdf.text(`US$ ${parseFloat(order.total_price_usd).toFixed(2)}`, margin + 50, currentY);
+    pdf.text(`${currencySymbol} ${displayAmount.toFixed(2)}`, margin + 50, currentY);
     currentY += 8;
 
     // Payment Method
@@ -265,8 +285,19 @@ Deno.serve(async (req) => {
       pdf.setFont('helvetica', 'bold');
       pdf.text('Payment Method:', margin, currentY);
       pdf.setFont('helvetica', 'normal');
-      const paymentMethod = order.payment_method.replace('_', ' ').toUpperCase();
-      pdf.text(paymentMethod, margin + 50, currentY);
+      
+      // Determine correct payment method display
+      let paymentMethodDisplay = order.payment_method.replace('_', ' ').toUpperCase();
+      
+      // If currency is BRL in metadata, it's PIX (even if payment_method says stripe_card)
+      if (order.payment_metadata && typeof order.payment_metadata === 'object') {
+        const currency = (order.payment_metadata as any)?.currency;
+        if (currency === 'BRL' || currency === 'brl') {
+          paymentMethodDisplay = 'STRIPE PIX';
+        }
+      }
+      
+      pdf.text(paymentMethodDisplay, margin + 50, currentY);
       currentY += 8;
     }
 
@@ -339,10 +370,15 @@ Deno.serve(async (req) => {
 
     // Extra Units (if applicable)
     if (order.extra_units > 0 && order.extra_unit_label) {
+      // Calculate label width to position value correctly
       pdf.setFont('helvetica', 'bold');
-      pdf.text(`${order.extra_unit_label}:`, margin, currentY);
+      const labelText = `${order.extra_unit_label}:`;
+      pdf.text(labelText, margin, currentY);
+      
+      // Position value with proper spacing after the label
+      const labelWidth = pdf.getTextWidth(labelText);
       pdf.setFont('helvetica', 'normal');
-      pdf.text(order.extra_units.toString(), margin + 40, currentY);
+      pdf.text(order.extra_units.toString(), margin + labelWidth + 5, currentY);
       currentY += 8;
     }
 
@@ -381,6 +417,41 @@ The client has electronically signed this contract by uploading a selfie with th
     pdf.setFont('helvetica', 'normal');
     currentY = addWrappedText(
       termsContent,
+      margin,
+      currentY,
+      pageWidth - margin * 2,
+      10
+    );
+    currentY += 20;
+
+    // ============================================
+    // 4.1. Payment Terms & Anti-Chargeback Policy
+    // ============================================
+    if (currentY > pageHeight - margin - 80) {
+      pdf.addPage();
+      currentY = margin;
+    }
+
+    pdf.setFontSize(14);
+    pdf.setFont('helvetica', 'bold');
+    pdf.text('PAYMENT TERMS & ANTI-CHARGEBACK POLICY', margin, currentY);
+    currentY += 12;
+
+    // Anti-chargeback content (matching frontend Lorem Ipsum)
+    const antiChargebackContent = `
+Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.
+
+Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.
+
+Sed ut perspiciatis unde omnis iste natus error sit voluptatem accusantium doloremque laudantium, totam rem aperiam, eaque ipsa quae ab illo inventore veritatis et quasi architecto beatae vitae dicta sunt explicabo.
+
+By proceeding with payment, you acknowledge that chargebacks or payment disputes may result in legal action and additional fees. All transactions are final and non-refundable except as explicitly stated in our refund policy.
+    `.trim();
+
+    pdf.setFontSize(10);
+    pdf.setFont('helvetica', 'normal');
+    currentY = addWrappedText(
+      antiChargebackContent,
       margin,
       currentY,
       pageWidth - margin * 2,
@@ -605,12 +676,14 @@ The client has electronically signed this contract by uploading a selfie with th
       currentY += 8;
     }
 
-    // Payment Status
-    pdf.setFont('helvetica', 'bold');
-    pdf.text('Payment Status:', margin, currentY);
-    pdf.setFont('helvetica', 'normal');
-    pdf.text(order.payment_status.toUpperCase(), margin + 60, currentY);
-    currentY += 8;
+    // Payment Status (only show if completed, not for pending Zelle payments)
+    if (order.payment_status === 'completed') {
+      pdf.setFont('helvetica', 'bold');
+      pdf.text('Payment Status:', margin, currentY);
+      pdf.setFont('helvetica', 'normal');
+      pdf.text(order.payment_status.toUpperCase(), margin + 60, currentY);
+      currentY += 8;
+    }
 
     // Add footer to all pages
     addFooter();
@@ -682,5 +755,7 @@ The client has electronically signed this contract by uploading a selfie with th
     );
   }
 });
+
+
 
 

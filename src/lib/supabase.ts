@@ -27,9 +27,9 @@ console.log('[SUPABASE INIT] Client initialized:', {
 // Criar uma única instância do cliente Supabase
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
-    persistSession: false,
-    autoRefreshToken: false,
-    detectSessionInUrl: false,
+    persistSession: true, // Enable session persistence
+    autoRefreshToken: true, // Automatically refresh tokens
+    detectSessionInUrl: true, // Detect session in URL (for OAuth redirects)
   },
 });
 

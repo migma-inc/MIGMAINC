@@ -4,7 +4,8 @@ import { supabase } from '@/lib/supabase';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { FileText, ExternalLink, Eye } from 'lucide-react';
+import { PdfModal } from '@/components/ui/pdf-modal';
+import { FileText, Eye } from 'lucide-react';
 
 interface VisaOrder {
   id: string;
@@ -23,6 +24,8 @@ interface VisaOrder {
 export const VisaOrdersPage = () => {
   const [orders, setOrders] = useState<VisaOrder[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedPdfUrl, setSelectedPdfUrl] = useState<string | null>(null);
+  const [selectedPdfTitle, setSelectedPdfTitle] = useState<string>('Contract PDF');
 
   useEffect(() => {
     const loadOrders = async () => {
@@ -128,16 +131,18 @@ export const VisaOrdersPage = () => {
                         </td>
                         <td className="py-3 px-4">
                           {order.contract_pdf_url ? (
-                            <a
-                              href={order.contract_pdf_url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="inline-flex items-center text-gold-light hover:text-gold-medium"
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                setSelectedPdfUrl(order.contract_pdf_url);
+                                setSelectedPdfTitle(`Contract - ${order.order_number}`);
+                              }}
+                              className="border-gold-medium/50 bg-black/50 text-gold-light hover:bg-black hover:border-gold-medium hover:text-gold-medium"
                             >
                               <FileText className="w-4 h-4 mr-1" />
                               View PDF
-                              <ExternalLink className="w-3 h-3 ml-1" />
-                            </a>
+                            </Button>
                           ) : (
                             <span className="text-gray-500 text-xs">Not generated</span>
                           )}
@@ -163,8 +168,20 @@ export const VisaOrdersPage = () => {
           </CardContent>
         </Card>
       </div>
+
+      {/* PDF Modal */}
+      {selectedPdfUrl && (
+        <PdfModal
+          isOpen={!!selectedPdfUrl}
+          onClose={() => setSelectedPdfUrl(null)}
+          pdfUrl={selectedPdfUrl}
+          title={selectedPdfTitle}
+        />
+      )}
     </div>
   );
 };
+
+
 
 

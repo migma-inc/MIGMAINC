@@ -36,6 +36,12 @@ export const CheckoutSuccess = () => {
           console.error('Error loading order:', error);
         } else {
           setOrder(data);
+          // Clear localStorage draft only when payment is confirmed
+          try {
+            localStorage.removeItem('visa_checkout_draft');
+          } catch (err) {
+            console.warn('Failed to clear draft:', err);
+          }
         }
       } catch (err) {
         console.error('Error:', err);
@@ -92,14 +98,32 @@ export const CheckoutSuccess = () => {
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-400">Total:</span>
-                  <span className="text-white font-bold">US$ {parseFloat(order.total_price_usd).toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-400">Status:</span>
-                  <span className={`font-bold ${order.payment_status === 'completed' ? 'text-green-400' : 'text-yellow-400'}`}>
-                    {order.payment_status === 'completed' ? 'Completed' : 'Pending'}
+                  <span className="text-white font-bold">
+                    {(() => {
+                      // Get currency and final amount from payment_metadata
+                      const metadata = order.payment_metadata as any;
+                      const currency = metadata?.currency || 'USD';
+                      const finalAmount = metadata?.final_amount 
+                        ? parseFloat(metadata.final_amount) 
+                        : parseFloat(order.total_price_usd);
+                      
+                      if (currency === 'BRL' || currency === 'brl') {
+                        return `R$ ${finalAmount.toFixed(2)}`;
+                      } else {
+                        // USD - show with fees (final_amount already includes fees)
+                        return `US$ ${finalAmount.toFixed(2)}`;
+                      }
+                    })()}
                   </span>
                 </div>
+                {order.payment_status === 'completed' && (
+                  <div className="flex justify-between">
+                    <span className="text-gray-400">Status:</span>
+                    <span className="font-bold text-green-400">
+                      Completed
+                    </span>
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -125,5 +149,7 @@ export const CheckoutSuccess = () => {
     </div>
   );
 };
+
+
 
 

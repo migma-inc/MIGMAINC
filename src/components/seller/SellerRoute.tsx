@@ -11,12 +11,20 @@ export const SellerRoute = ({ children }: SellerRouteProps) => {
   const [isAuthorized, setIsAuthorized] = useState(false);
 
   useEffect(() => {
-    const checkAuth = async () => {
-      try {
-        // Check if user is authenticated
-        const { data: { user } } = await supabase.auth.getUser();
+    let mounted = true;
+    let initialCheckDone = false;
 
-        if (!user) {
+    const checkAuth = async () => {
+      if (!mounted) return;
+
+      try {
+        // First check session (faster and more reliable)
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+
+        if (!mounted) return;
+
+        if (sessionError || !session) {
+          console.log('[SellerRoute] No session found');
           setIsAuthorized(false);
           setLoading(false);
           return;
@@ -26,25 +34,84 @@ export const SellerRoute = ({ children }: SellerRouteProps) => {
         const { data: sellerData, error } = await supabase
           .from('sellers')
           .select('*')
-          .eq('user_id', user.id)
+          .eq('user_id', session.user.id)
           .eq('status', 'active')
           .single();
+
+        if (!mounted) return;
 
         if (error || !sellerData) {
           console.error('[SellerRoute] Not a seller or inactive:', error);
           setIsAuthorized(false);
         } else {
+          console.log('[SellerRoute] Seller authorized:', sellerData.email);
           setIsAuthorized(true);
         }
       } catch (err) {
         console.error('[SellerRoute] Auth check error:', err);
-        setIsAuthorized(false);
+        if (mounted) {
+          setIsAuthorized(false);
+        }
       } finally {
-        setLoading(false);
+        if (mounted) {
+          setLoading(false);
+          initialCheckDone = true;
+        }
       }
     };
 
+    // Do initial check
     checkAuth();
+
+    // Listen for auth state changes (only after initial check is done)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      // Skip if initial check hasn't completed yet
+      if (!initialCheckDone) {
+        return;
+      }
+
+      if (!mounted) return;
+
+      console.log('[SellerRoute] Auth state changed:', event);
+
+      if (session) {
+        // Re-check seller status when auth state changes
+        setLoading(true);
+        try {
+          const { data: sellerData, error } = await supabase
+            .from('sellers')
+            .select('*')
+            .eq('user_id', session.user.id)
+            .eq('status', 'active')
+            .single();
+
+          if (!mounted) return;
+
+          if (error || !sellerData) {
+            setIsAuthorized(false);
+          } else {
+            setIsAuthorized(true);
+          }
+        } catch (err) {
+          console.error('[SellerRoute] Auth state change error:', err);
+          if (mounted) {
+            setIsAuthorized(false);
+          }
+        } finally {
+          if (mounted) {
+            setLoading(false);
+          }
+        }
+      } else {
+        setIsAuthorized(false);
+        setLoading(false);
+      }
+    });
+
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
   }, []);
 
   if (loading) {
@@ -64,5 +131,7 @@ export const SellerRoute = ({ children }: SellerRouteProps) => {
 
   return <>{children}</>;
 };
+
+
 
 

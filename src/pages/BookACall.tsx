@@ -137,6 +137,31 @@ export const BookACall = () => {
                 return;
             }
 
+            // Send confirmation email
+            try {
+                const { error: emailError } = await supabase.functions.invoke('send-book-a-call-confirmation-email', {
+                    body: {
+                        contactName: data.contactName,
+                        email: data.email,
+                        companyName: data.companyName,
+                        country: data.country,
+                        phone: data.phone,
+                        typeOfBusiness: data.typeOfBusiness,
+                        leadVolume: data.leadVolume,
+                        website: data.website || null,
+                        challenges: data.challenges || null,
+                    },
+                });
+
+                if (emailError) {
+                    console.error('Error sending confirmation email:', emailError);
+                    // Don't fail the form submission if email fails
+                }
+            } catch (emailErr) {
+                console.error('Exception sending email:', emailErr);
+                // Don't fail the form submission if email fails
+            }
+
             // Clear saved form data after successful submission
             localStorage.removeItem(STORAGE_KEY);
             

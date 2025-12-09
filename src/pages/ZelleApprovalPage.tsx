@@ -4,7 +4,9 @@ import { supabase } from '@/lib/supabase';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { CheckCircle, XCircle, Eye, ExternalLink, Clock } from 'lucide-react';
+import { PdfModal } from '@/components/ui/pdf-modal';
+import { ImageModal } from '@/components/ui/image-modal';
+import { CheckCircle, XCircle, Eye, Clock } from 'lucide-react';
 import { ConfirmModal } from '@/components/ui/confirm-modal';
 import { AlertModal } from '@/components/ui/alert-modal';
 
@@ -28,6 +30,10 @@ export const ZelleApprovalPage = () => {
   const [orders, setOrders] = useState<ZelleOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedOrder, setSelectedOrder] = useState<ZelleOrder | null>(null);
+  const [selectedPdfUrl, setSelectedPdfUrl] = useState<string | null>(null);
+  const [selectedPdfTitle, setSelectedPdfTitle] = useState<string>('Contract PDF');
+  const [selectedZelleUrl, setSelectedZelleUrl] = useState<string | null>(null);
+  const [selectedZelleTitle, setSelectedZelleTitle] = useState<string>('Zelle Receipt');
   const [showApproveConfirm, setShowApproveConfirm] = useState(false);
   const [showRejectConfirm, setShowRejectConfirm] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -122,38 +128,20 @@ export const ZelleApprovalPage = () => {
 
       // Send confirmation email to client
       try {
-        await supabase.functions.invoke('send-email', {
+        await supabase.functions.invoke('send-payment-confirmation-email', {
           body: {
-            to: selectedOrder.client_email,
-            subject: `Payment Confirmed - Order ${selectedOrder.order_number}`,
-            html: `
-              <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-                <h1 style="color: #D4AF37;">Payment Confirmed</h1>
-                <p>Dear ${selectedOrder.client_name},</p>
-                <p>We have received and verified your Zelle payment for your visa application.</p>
-                <h2 style="color: #333;">Order Details:</h2>
-                <table style="width: 100%; border-collapse: collapse;">
-                  <tr>
-                    <td style="padding: 10px; border-bottom: 1px solid #ddd;"><strong>Order Number:</strong></td>
-                    <td style="padding: 10px; border-bottom: 1px solid #ddd;">${selectedOrder.order_number}</td>
-                  </tr>
-                  <tr>
-                    <td style="padding: 10px; border-bottom: 1px solid #ddd;"><strong>Product:</strong></td>
-                    <td style="padding: 10px; border-bottom: 1px solid #ddd;">${selectedOrder.product_slug}</td>
-                  </tr>
-                  <tr>
-                    <td style="padding: 10px; border-bottom: 1px solid #ddd;"><strong>Total:</strong></td>
-                    <td style="padding: 10px; border-bottom: 1px solid #ddd;">US$ ${parseFloat(selectedOrder.total_price_usd).toFixed(2)}</td>
-                  </tr>
-                </table>
-                <p style="margin-top: 20px;">Our team will contact you shortly to begin the visa application process.</p>
-                <p>Best regards,<br>MIGMA Team</p>
-              </div>
-            `,
+            clientName: selectedOrder.client_name,
+            clientEmail: selectedOrder.client_email,
+            orderNumber: selectedOrder.order_number,
+            productSlug: selectedOrder.product_slug,
+            totalAmount: selectedOrder.total_price_usd,
+            paymentMethod: 'zelle',
+            currency: 'USD', // Zelle is always USD
+            finalAmount: selectedOrder.total_price_usd, // Zelle has no fees
           },
         });
       } catch (emailError) {
-        console.error('Error sending email:', emailError);
+        console.error('Error sending payment confirmation email:', emailError);
         // Continue even if email fails
       }
 
@@ -348,41 +336,36 @@ export const ZelleApprovalPage = () => {
                   <div className="border-t border-gold-medium/30 pt-4">
                     <p className="text-sm text-gray-400 mb-2">Payment Receipt:</p>
                     <div className="flex items-center gap-2">
-                      <a
-                        href={order.zelle_proof_url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center text-gold-light hover:text-gold-medium"
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setSelectedZelleUrl(order.zelle_proof_url);
+                          setSelectedZelleTitle(`Zelle Receipt - ${order.order_number}`);
+                        }}
+                        className="border-gold-medium/50 bg-black/50 text-gold-light hover:bg-black hover:border-gold-medium hover:text-gold-medium"
                       >
                         <Eye className="w-4 h-4 mr-1" />
                         View Receipt
-                        <ExternalLink className="w-3 h-3 ml-1" />
-                      </a>
+                      </Button>
                     </div>
-                    {order.zelle_proof_url.match(/\.(jpg|jpeg|png|gif)$/i) && (
-                      <div className="mt-3">
-                        <img
-                          src={order.zelle_proof_url}
-                          alt="Payment receipt"
-                          className="max-w-md rounded-md border border-gold-medium/30"
-                        />
-                      </div>
-                    )}
                   </div>
                 )}
 
                 {order.contract_pdf_url && (
                   <div className="border-t border-gold-medium/30 pt-4">
                     <p className="text-sm text-gray-400 mb-2">Contract PDF:</p>
-                    <a
-                      href={order.contract_pdf_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center text-gold-light hover:text-gold-medium"
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setSelectedPdfUrl(order.contract_pdf_url);
+                        setSelectedPdfTitle(`Contract - ${order.order_number}`);
+                      }}
+                      className="border-gold-medium/50 bg-black/50 text-gold-light hover:bg-black hover:border-gold-medium hover:text-gold-medium"
                     >
                       View Contract PDF
-                      <ExternalLink className="w-3 h-3 ml-1" />
-                    </a>
+                    </Button>
                   </div>
                 )}
 
@@ -472,8 +455,30 @@ export const ZelleApprovalPage = () => {
           variant={alertData.variant}
         />
       )}
+
+      {/* PDF Modal */}
+      {selectedPdfUrl && (
+        <PdfModal
+          isOpen={!!selectedPdfUrl}
+          onClose={() => setSelectedPdfUrl(null)}
+          pdfUrl={selectedPdfUrl}
+          title={selectedPdfTitle}
+        />
+      )}
+
+      {/* Zelle Receipt Modal */}
+      {selectedZelleUrl && (
+        <ImageModal
+          isOpen={!!selectedZelleUrl}
+          onClose={() => setSelectedZelleUrl(null)}
+          imageUrl={selectedZelleUrl}
+          title={selectedZelleTitle}
+        />
+      )}
     </div>
   );
 };
+
+
 
 

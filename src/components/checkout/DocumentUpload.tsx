@@ -2,7 +2,7 @@ import { useState, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
-import { Camera, Upload, X, CheckCircle } from 'lucide-react';
+import { Camera, Upload, X } from 'lucide-react';
 
 interface DocumentFile {
   file: File;
@@ -13,7 +13,7 @@ interface DocumentFile {
 interface DocumentUploadProps {
   onComplete: (files: {
     documentFront: { file: File; url: string };
-    documentBack: { file: File; url: string } | null;
+    documentBack: { file: File; url: string };
     selfie: { file: File; url: string };
   }) => void;
   onCancel?: () => void;
@@ -25,6 +25,7 @@ export const DocumentUpload = ({ onComplete, onCancel }: DocumentUploadProps) =>
   const [selfie, setSelfie] = useState<DocumentFile | null>(null);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState('');
+  const [documentsUploaded, setDocumentsUploaded] = useState(false);
 
   const frontInputRef = useRef<HTMLInputElement>(null);
   const backInputRef = useRef<HTMLInputElement>(null);
@@ -94,6 +95,8 @@ export const DocumentUpload = ({ onComplete, onCancel }: DocumentUploadProps) =>
     if (inputRef.current) {
       inputRef.current.value = '';
     }
+    // Reset uploaded state when a file is removed (user wants to change documents)
+    setDocumentsUploaded(false);
   };
 
   // Upload file to Supabase Storage
@@ -119,7 +122,12 @@ export const DocumentUpload = ({ onComplete, onCancel }: DocumentUploadProps) =>
   // Handle final submission
   const handleSubmit = async () => {
     if (!documentFront) {
-      setError('Please upload at least the front of your document');
+      setError('Please upload the front of your document');
+      return;
+    }
+
+    if (!documentBack) {
+      setError('Please upload the back of your document');
       return;
     }
 
@@ -132,18 +140,21 @@ export const DocumentUpload = ({ onComplete, onCancel }: DocumentUploadProps) =>
     setError('');
 
     try {
-      // Upload all files
+      // Upload all files (all are required now)
       const [documentFrontUrl, documentBackUrl, selfieUrl] = await Promise.all([
         uploadFile(documentFront.file, 'documents/front'),
-        documentBack ? uploadFile(documentBack.file, 'documents/back') : Promise.resolve(null),
+        uploadFile(documentBack.file, 'documents/back'),
         uploadFile(selfie.file, 'selfies'),
       ]);
 
       onComplete({
         documentFront: { file: documentFront.file, url: documentFrontUrl },
-        documentBack: documentBack && documentBackUrl ? { file: documentBack.file, url: documentBackUrl } : null,
+        documentBack: { file: documentBack.file, url: documentBackUrl },
         selfie: { file: selfie.file, url: selfieUrl },
       });
+      
+      // Mark documents as uploaded
+      setDocumentsUploaded(true);
     } catch (err: any) {
       console.error('Upload error:', err);
       setError(err.message || 'Failed to upload documents. Please try again.');
@@ -152,7 +163,7 @@ export const DocumentUpload = ({ onComplete, onCancel }: DocumentUploadProps) =>
     }
   };
 
-  const canProceed = documentFront && selfie;
+  const canProceed = documentFront && documentBack && selfie;
 
   return (
     <Card className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30">
@@ -204,7 +215,7 @@ export const DocumentUpload = ({ onComplete, onCancel }: DocumentUploadProps) =>
                       e.stopPropagation();
                       removeFile(setDocumentFront, frontInputRef);
                     }}
-                    className="mt-2 border-gold-medium/50 text-white hover:bg-gold-medium/20"
+                    className="mt-2 border-gold-medium/50 bg-black/50 text-gold-light hover:bg-gold-medium/30 hover:text-gold-light"
                   >
                     <X className="w-4 h-4 mr-2" />
                     Remove
@@ -221,10 +232,10 @@ export const DocumentUpload = ({ onComplete, onCancel }: DocumentUploadProps) =>
           </div>
         </div>
 
-        {/* Document Back (Optional) */}
+        {/* Document Back (Required) */}
         <div className="space-y-2">
           <Label htmlFor="document-back" className="text-white">
-            Document Back (Optional)
+            Document Back *
           </Label>
           <div className="border-2 border-dashed border-gold-medium/50 rounded-md p-6 text-center hover:bg-white/5 transition cursor-pointer">
             <input
@@ -259,7 +270,7 @@ export const DocumentUpload = ({ onComplete, onCancel }: DocumentUploadProps) =>
                       e.stopPropagation();
                       removeFile(setDocumentBack, backInputRef);
                     }}
-                    className="mt-2 border-gold-medium/50 text-white hover:bg-gold-medium/20"
+                    className="mt-2 border-gold-medium/50 bg-black/50 text-gold-light hover:bg-gold-medium/30 hover:text-gold-light"
                   >
                     <X className="w-4 h-4 mr-2" />
                     Remove
@@ -324,7 +335,7 @@ export const DocumentUpload = ({ onComplete, onCancel }: DocumentUploadProps) =>
                       e.stopPropagation();
                       removeFile(setSelfie, selfieInputRef);
                     }}
-                    className="mt-2 border-gold-medium/50 text-white hover:bg-gold-medium/20"
+                    className="mt-2 border-gold-medium/50 bg-black/50 text-gold-light hover:bg-gold-medium/30 hover:text-gold-light"
                   >
                     <X className="w-4 h-4 mr-2" />
                     Retake Photo
@@ -341,38 +352,43 @@ export const DocumentUpload = ({ onComplete, onCancel }: DocumentUploadProps) =>
           </div>
         </div>
 
-        <div className="flex justify-end gap-2">
-          {onCancel && (
-            <Button
-              type="button"
-              variant="outline"
-              onClick={onCancel}
-              className="border-gold-medium/50 text-white hover:bg-gold-medium/20"
-            >
-              Cancel
-            </Button>
-          )}
-          <Button
-            onClick={handleSubmit}
-            disabled={!canProceed || uploading}
-            className="bg-gold-medium hover:bg-gold-light text-black"
-          >
-            {uploading ? (
-              <>
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-black mr-2" />
-                Uploading...
-              </>
-            ) : (
-              <>
-                <CheckCircle className="w-4 h-4 mr-2" />
-                Continue
-              </>
+        {/* Only show upload button if documents haven't been uploaded yet, or if user changed files */}
+        {!documentsUploaded && (
+          <div className="flex justify-end gap-2">
+            {onCancel && (
+              <Button
+                type="button"
+                variant="outline"
+                onClick={onCancel}
+                className="border-gold-medium/50 bg-black/50 text-gold-light hover:bg-gold-medium/30 hover:text-gold-light"
+              >
+                Cancel
+              </Button>
             )}
-          </Button>
-        </div>
+            <Button
+              onClick={handleSubmit}
+              disabled={!canProceed || uploading}
+              className="bg-gold-medium hover:bg-gold-light text-black"
+            >
+              {uploading ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-black mr-2" />
+                  Uploading Documents...
+                </>
+              ) : (
+                <>
+                  <Upload className="w-4 h-4 mr-2" />
+                  Upload & Save Documents
+                </>
+              )}
+            </Button>
+          </div>
+        )}
       </CardContent>
     </Card>
   );
 };
+
+
 
 
