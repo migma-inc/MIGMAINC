@@ -76,7 +76,7 @@ export function SellerLinks() {
   const [copiedLink, setCopiedLink] = useState<string | null>(null);
   const [loading, setLoading] = useState(!hasCachedProducts);
   const hasLoadedRef = useRef(hasCachedProducts);
-  const copyTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const copyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     // Se já temos produtos no estado e já carregou, não precisa fazer nada

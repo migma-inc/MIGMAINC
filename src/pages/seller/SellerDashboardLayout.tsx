@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { Outlet, Navigate } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import { SellerSidebar } from '@/components/seller/SellerSidebar';
