@@ -6,11 +6,13 @@
 import { useState, useEffect } from 'react';
 import { Outlet } from 'react-router-dom';
 import { getCurrentUser, signOut, signIn, isAuthenticated as checkIsAuthenticated, checkAdminAccess } from '@/lib/auth';
+import { supabase } from '@/lib/supabase';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { LogOut, Filter } from 'lucide-react';
+import { LogOut, Filter, FileText, AlertCircle } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { ApplicationsList } from '@/components/admin/ApplicationsList';
 import { Sidebar } from '@/components/admin/Sidebar';
 import type { Application } from '@/types/application';
@@ -170,6 +172,7 @@ function DashboardLayout() {
 export function DashboardContent() {
   const [statusFilter, setStatusFilter] = useState<'pending' | 'approved' | 'rejected' | undefined>(undefined);
   const [stats, setStats] = useState<{ total: number; pending: number; approved: number; rejected: number } | null>(null);
+  const [pendingContractApprovals, setPendingContractApprovals] = useState(0);
   const [isProcessing, setIsProcessing] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
   
@@ -184,11 +187,27 @@ export function DashboardContent() {
 
   useEffect(() => {
     loadStats();
+    loadPendingContractApprovals();
   }, []);
 
   const loadStats = async () => {
     const statistics = await getApplicationStats();
     setStats(statistics);
+  };
+
+  const loadPendingContractApprovals = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('visa_orders')
+        .select('id')
+        .eq('contract_approval_status', 'pending');
+
+      if (!error && data) {
+        setPendingContractApprovals(data.length);
+      }
+    } catch (err) {
+      console.error('Error loading pending contract approvals:', err);
+    }
   };
 
   const handleApprove = async (application: Application) => {
@@ -287,6 +306,35 @@ export function DashboardContent() {
 
   return (
     <div className="p-6">
+      {/* Pending Contract Approvals Alert */}
+      {pendingContractApprovals > 0 && (
+        <Card className="bg-gradient-to-br from-yellow-500/20 via-yellow-500/10 to-yellow-500/20 border-2 border-yellow-500/50 mb-6">
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <div className="p-3 bg-yellow-500/20 rounded-lg">
+                  <AlertCircle className="w-8 h-8 text-yellow-400" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-yellow-300 mb-1">
+                    {pendingContractApprovals} {pendingContractApprovals === 1 ? 'Contract' : 'Contracts'} Pending Approval
+                  </h3>
+                  <p className="text-sm text-yellow-200/80">
+                    There {pendingContractApprovals === 1 ? 'is' : 'are'} {pendingContractApprovals} visa service {pendingContractApprovals === 1 ? 'contract' : 'contracts'} waiting for review
+                  </p>
+                </div>
+              </div>
+              <Link to="/dashboard/visa-orders">
+                <Button className="bg-yellow-600 hover:bg-yellow-700 text-white">
+                  <FileText className="w-4 h-4 mr-2" />
+                  Review Contracts
+                </Button>
+              </Link>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Statistics */}
       {stats && (
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">

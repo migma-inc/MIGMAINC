@@ -152,3 +152,8 @@ CORPO: Poppins (moderna, legível)
 - Font Pairing Guide: https://www.fontpair.co
 - Type Scale: https://type-scale.com
 
+
+
+
+
+

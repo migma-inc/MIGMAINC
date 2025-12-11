@@ -39,6 +39,7 @@ import { VisaOrderDetailPage } from './pages/VisaOrderDetailPage';
 import { ZelleApprovalPage } from './pages/ZelleApprovalPage';
 import { SellersPage } from './pages/SellersPage';
 import { ContactMessagesPage } from './pages/ContactMessagesPage';
+import { VisaContractResubmit } from './pages/VisaContractResubmit';
 
 function App() {
   return (
@@ -57,6 +58,7 @@ function App() {
         <Route path="/legal/visa-service-terms" element={<VisaServiceTerms />} />
         <Route path="/global-partner" element={<GlobalPartner />} />
         <Route path="/checkout/visa/:productSlug" element={<VisaCheckout />} />
+        <Route path="/checkout/visa/resubmit" element={<VisaContractResubmit />} />
         <Route path="/checkout/success" element={<CheckoutSuccess />} />
         <Route path="/checkout/cancel" element={<CheckoutCancel />} />
         

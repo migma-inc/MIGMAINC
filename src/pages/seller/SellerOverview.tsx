@@ -3,7 +3,8 @@ import { useOutletContext, Link } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
-import { ShoppingCart, CheckCircle, Clock, DollarSign } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { ShoppingCart, CheckCircle, Clock, DollarSign, FileText, AlertCircle } from 'lucide-react';
 
 interface SellerInfo {
   id: string;
@@ -18,6 +19,7 @@ interface Stats {
   completedSales: number;
   pendingSales: number;
   totalRevenue: number;
+  pendingApprovals: number;
 }
 
 export function SellerOverview() {
@@ -27,6 +29,7 @@ export function SellerOverview() {
     completedSales: 0,
     pendingSales: 0,
     totalRevenue: 0,
+    pendingApprovals: 0,
   });
   const [loading, setLoading] = useState(true);
 
@@ -45,12 +48,37 @@ export function SellerOverview() {
           const completed = ordersData.filter(o => o.payment_status === 'completed' || o.payment_status === 'paid');
           const pending = ordersData.filter(o => o.payment_status === 'pending');
           const revenue = completed.reduce((sum, o) => sum + parseFloat(o.total_price_usd || '0'), 0);
+          
+          // Count pending approvals:
+          // 1. Orders with contract_approval_status = 'pending'
+          // 2. Orders with contract_approval_status = null/undefined (old orders before migration)
+          // 3. Only count orders that are paid/completed (not payment pending)
+          const pendingApprovals = ordersData.filter(o => {
+            const isPaid = o.payment_status === 'completed' || o.payment_status === 'paid';
+            const needsApproval = 
+              o.contract_approval_status === 'pending' || 
+              o.contract_approval_status === null ||
+              o.contract_approval_status === undefined ||
+              !('contract_approval_status' in o);
+            return isPaid && needsApproval;
+          }).length;
+
+          console.log('[SellerOverview] Pending approvals:', pendingApprovals, 'out of', ordersData.length, 'orders');
+          if (ordersData.length > 0) {
+            console.log('[SellerOverview] Sample approval statuses:', ordersData.slice(0, 3).map(o => ({
+              order: o.order_number,
+              payment_status: o.payment_status,
+              approval_status: o.contract_approval_status,
+              has_field: 'contract_approval_status' in o
+            })));
+          }
 
           setStats({
             totalSales: ordersData.length,
             completedSales: completed.length,
             pendingSales: pending.length,
             totalRevenue: revenue,
+            pendingApprovals: pendingApprovals,
           });
         }
       } catch (err) {
@@ -169,6 +197,46 @@ export function SellerOverview() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Pending Approvals Alert */}
+      {stats.pendingApprovals > 0 && (
+        <Card className="bg-gradient-to-br from-yellow-500/20 via-yellow-500/10 to-yellow-500/20 border-2 border-yellow-500/50 mb-8">
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <div className="p-3 bg-yellow-500/20 rounded-lg">
+                  <AlertCircle className="w-8 h-8 text-yellow-400" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-yellow-300 mb-1">
+                    {stats.pendingApprovals} {stats.pendingApprovals === 1 ? 'Contract' : 'Contracts'} Pending Approval
+                  </h3>
+                  <p className="text-sm text-yellow-200/80">
+                    You have {stats.pendingApprovals} {stats.pendingApprovals === 1 ? 'contract' : 'contracts'} waiting for your review
+                  </p>
+                </div>
+              </div>
+              <Link to="/seller/dashboard/orders">
+                <Button className="bg-yellow-600 hover:bg-yellow-700 text-white">
+                  <FileText className="w-4 h-4 mr-2" />
+                  Review Contracts
+                </Button>
+              </Link>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Debug info - remove after testing */}
+      {process.env.NODE_ENV === 'development' && (
+        <Card className="bg-black/50 border border-gray-700 mb-4">
+          <CardContent className="p-4">
+            <p className="text-xs text-gray-400">
+              Debug: Pending Approvals = {stats.pendingApprovals}
+            </p>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Quick Actions */}
       <Card className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30">

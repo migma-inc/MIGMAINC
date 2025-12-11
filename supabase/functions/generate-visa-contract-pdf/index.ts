@@ -253,26 +253,29 @@ Deno.serve(async (req) => {
     pdf.text(product?.name || order.product_slug, margin + 50, currentY);
     currentY += 8;
 
-    // Total Price (use final amount with fees for Stripe, base amount for Zelle)
+    // Total Price - use correct amount and currency based on payment method
     let displayAmount = parseFloat(order.total_price_usd);
     let currencySymbol = 'US$';
     
-    // If payment was via Stripe (card or PIX), use the final_amount from payment_metadata (includes fees)
-    if (order.payment_method === 'stripe_card' || order.payment_method === 'stripe_pix') {
+    // Determine amount and currency based on payment method (not currency in metadata)
+    if (order.payment_method === 'stripe_pix') {
+      // PIX payments: use final_amount in BRL from metadata
       if (order.payment_metadata && typeof order.payment_metadata === 'object' && 'final_amount' in order.payment_metadata) {
         const finalAmount = parseFloat(order.payment_metadata.final_amount as string);
         if (!isNaN(finalAmount) && finalAmount > 0) {
           displayAmount = finalAmount;
         }
-        
-        // Check currency in payment_metadata - if BRL, use R$ symbol (for PIX payments)
-        const currency = (order.payment_metadata as any)?.currency;
-        if (currency === 'BRL' || currency === 'brl') {
-          currencySymbol = 'R$';
-        }
       }
+      currencySymbol = 'R$';
+    } else if (order.payment_method === 'stripe_card') {
+      // Card payments: always use USD amount (total_price_usd), regardless of processing currency
+      displayAmount = parseFloat(order.total_price_usd);
+      currencySymbol = 'US$';
+    } else if (order.payment_method === 'zelle') {
+      // Zelle: always USD, use total_price_usd (no fees)
+      displayAmount = parseFloat(order.total_price_usd);
+      currencySymbol = 'US$';
     }
-    // For Zelle, use total_price_usd (no fees, already correct) - always USD
     
     pdf.setFont('helvetica', 'bold');
     pdf.text('Total Amount:', margin, currentY);
@@ -280,21 +283,22 @@ Deno.serve(async (req) => {
     pdf.text(`${currencySymbol} ${displayAmount.toFixed(2)}`, margin + 50, currentY);
     currentY += 8;
 
-    // Payment Method
+    // Payment Method - use actual payment_method, don't assume based on currency
     if (order.payment_method) {
       pdf.setFont('helvetica', 'bold');
       pdf.text('Payment Method:', margin, currentY);
       pdf.setFont('helvetica', 'normal');
       
-      // Determine correct payment method display
-      let paymentMethodDisplay = order.payment_method.replace('_', ' ').toUpperCase();
-      
-      // If currency is BRL in metadata, it's PIX (even if payment_method says stripe_card)
-      if (order.payment_metadata && typeof order.payment_metadata === 'object') {
-        const currency = (order.payment_metadata as any)?.currency;
-        if (currency === 'BRL' || currency === 'brl') {
-          paymentMethodDisplay = 'STRIPE PIX';
-        }
+      // Determine correct payment method display based on actual payment_method
+      let paymentMethodDisplay = '';
+      if (order.payment_method === 'stripe_card') {
+        paymentMethodDisplay = 'STRIPE CARD';
+      } else if (order.payment_method === 'stripe_pix') {
+        paymentMethodDisplay = 'STRIPE PIX';
+      } else if (order.payment_method === 'zelle') {
+        paymentMethodDisplay = 'ZELLE';
+      } else {
+        paymentMethodDisplay = order.payment_method.replace('_', ' ').toUpperCase();
       }
       
       pdf.text(paymentMethodDisplay, margin + 50, currentY);
@@ -755,6 +759,11 @@ By proceeding with payment, you acknowledge that chargebacks or payment disputes
     );
   }
 });
+
+
+
+
+
 
 
 
