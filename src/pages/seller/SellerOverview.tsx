@@ -227,16 +227,6 @@ export function SellerOverview() {
         </Card>
       )}
 
-      {/* Debug info - remove after testing */}
-      {process.env.NODE_ENV === 'development' && (
-        <Card className="bg-black/50 border border-gray-700 mb-4">
-          <CardContent className="p-4">
-            <p className="text-xs text-gray-400">
-              Debug: Pending Approvals = {stats.pendingApprovals}
-            </p>
-          </CardContent>
-        </Card>
-      )}
 
       {/* Quick Actions */}
       <Card className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30">
