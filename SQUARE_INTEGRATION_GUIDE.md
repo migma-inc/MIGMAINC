@@ -386,3 +386,5 @@ A: Sim, mas Square só funcionaria para clientes de países onde está disponív
 
 
 
+
+

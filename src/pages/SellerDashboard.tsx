@@ -5,7 +5,11 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { PdfModal } from '@/components/ui/pdf-modal';
-import { LogOut, Copy, CheckCircle, Clock, DollarSign, Users, ShoppingCart, Link as LinkIcon, FileText, TrendingUp, MousePointerClick, FileEdit, CreditCard } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { LogOut, Copy, CheckCircle, Clock, DollarSign, Users, ShoppingCart, Link as LinkIcon, FileText, TrendingUp, MousePointerClick, FileEdit, CreditCard, ChevronDown, ChevronUp } from 'lucide-react';
 
 interface SellerInfo {
   id: string;
@@ -20,6 +24,7 @@ interface VisaProduct {
   name: string;
   base_price_usd: string;
   extra_unit_price: string;
+  allow_extra_units?: boolean;
 }
 
 interface Order {
@@ -45,6 +50,35 @@ export const SellerDashboard = () => {
   const [copiedLink, setCopiedLink] = useState<string | null>(null);
   const [selectedPdfUrl, setSelectedPdfUrl] = useState<string | null>(null);
   const [selectedPdfTitle, setSelectedPdfTitle] = useState<string>('Contract PDF');
+
+  // Prefill form state
+  const [prefillFormData, setPrefillFormData] = useState({
+    productSlug: '',
+    extraUnits: 0,
+    clientName: '',
+    clientEmail: '',
+    clientWhatsApp: '',
+    clientCountry: '',
+    clientNationality: '',
+    dateOfBirth: '',
+    documentType: '' as 'passport' | 'id' | 'driver_license' | '',
+    documentNumber: '',
+    addressLine: '',
+    city: '',
+    state: '',
+    postalCode: '',
+    maritalStatus: '' as 'single' | 'married' | 'divorced' | 'widowed' | 'other' | '',
+    clientObservations: '',
+  });
+  const [generatedPrefillLink, setGeneratedPrefillLink] = useState<string | null>(null);
+  const [prefillError, setPrefillError] = useState('');
+  
+  // Dropdown state for service groups
+  const [expandedServices, setExpandedServices] = useState<{ [key: string]: boolean }>({
+    initial: true,
+    cos: true,
+    transfer: true,
+  });
 
   // Stats
   const [stats, setStats] = useState({
@@ -93,7 +127,7 @@ export const SellerDashboard = () => {
         // Load products
         const { data: productsData } = await supabase
           .from('visa_products')
-          .select('slug, name, base_price_usd, extra_unit_price')
+          .select('slug, name, base_price_usd, extra_unit_price, allow_extra_units')
           .eq('is_active', true)
           .order('name');
 
@@ -397,6 +431,341 @@ export const SellerDashboard = () => {
           </CardContent>
         </Card>
 
+        {/* Prefill Client Data Form */}
+        <Card className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30 mb-8">
+          <CardHeader>
+            <CardTitle className="text-white flex items-center">
+              <FileEdit className="w-5 h-5 mr-2" />
+              Pre-fill Client Data
+            </CardTitle>
+            <p className="text-sm text-gray-400 mt-2">
+              Fill in the client's information and generate a pre-filled checkout link
+            </p>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {/* Product Selection */}
+              <div className="space-y-2">
+                <Label htmlFor="prefill-product" className="text-white">Select Product *</Label>
+                <Select
+                  value={prefillFormData.productSlug}
+                  onValueChange={(value) => setPrefillFormData({ ...prefillFormData, productSlug: value })}
+                >
+                  <SelectTrigger className="bg-white text-black">
+                    <SelectValue placeholder="Select a product" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {products.map((product) => (
+                      <SelectItem key={product.slug} value={product.slug}>
+                        {product.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Extra Units */}
+              <div className="space-y-2">
+                <Label htmlFor="prefill-extra-units" className="text-white">Number of Dependents</Label>
+                <Select
+                  value={prefillFormData.extraUnits.toString()}
+                  onValueChange={(value) => setPrefillFormData({ ...prefillFormData, extraUnits: parseInt(value) })}
+                >
+                  <SelectTrigger className="bg-white text-black">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {[0, 1, 2, 3, 4, 5].map((num) => (
+                      <SelectItem key={num} value={num.toString()}>
+                        {num}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Client Name */}
+              <div className="space-y-2">
+                <Label htmlFor="prefill-name" className="text-white">Full Name *</Label>
+                <Input
+                  id="prefill-name"
+                  value={prefillFormData.clientName}
+                  onChange={(e) => setPrefillFormData({ ...prefillFormData, clientName: e.target.value })}
+                  className="bg-white text-black"
+                />
+              </div>
+
+              {/* Email */}
+              <div className="space-y-2">
+                <Label htmlFor="prefill-email" className="text-white">Email *</Label>
+                <Input
+                  id="prefill-email"
+                  type="email"
+                  value={prefillFormData.clientEmail}
+                  onChange={(e) => setPrefillFormData({ ...prefillFormData, clientEmail: e.target.value })}
+                  className="bg-white text-black"
+                />
+              </div>
+
+              {/* Date of Birth */}
+              <div className="space-y-2">
+                <Label htmlFor="prefill-dob" className="text-white">Date of Birth *</Label>
+                <Input
+                  id="prefill-dob"
+                  type="date"
+                  value={prefillFormData.dateOfBirth}
+                  onChange={(e) => setPrefillFormData({ ...prefillFormData, dateOfBirth: e.target.value })}
+                  className="bg-white text-black"
+                />
+              </div>
+
+              {/* Document Type and Number */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="prefill-doc-type" className="text-white">Document Type *</Label>
+                  <Select
+                    value={prefillFormData.documentType}
+                    onValueChange={(value: any) => setPrefillFormData({ ...prefillFormData, documentType: value })}
+                  >
+                    <SelectTrigger className="bg-white text-black">
+                      <SelectValue placeholder="Select type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="passport">Passport</SelectItem>
+                      <SelectItem value="id">ID</SelectItem>
+                      <SelectItem value="driver_license">Driver's License</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="prefill-doc-number" className="text-white">Document Number *</Label>
+                  <Input
+                    id="prefill-doc-number"
+                    value={prefillFormData.documentNumber}
+                    onChange={(e) => setPrefillFormData({ ...prefillFormData, documentNumber: e.target.value })}
+                    className="bg-white text-black"
+                  />
+                </div>
+              </div>
+
+              {/* Address */}
+              <div className="space-y-2">
+                <Label htmlFor="prefill-address" className="text-white">Address Line *</Label>
+                <Input
+                  id="prefill-address"
+                  value={prefillFormData.addressLine}
+                  onChange={(e) => setPrefillFormData({ ...prefillFormData, addressLine: e.target.value })}
+                  className="bg-white text-black"
+                />
+              </div>
+
+              {/* City, State, Postal Code */}
+              <div className="grid grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="prefill-city" className="text-white">City *</Label>
+                  <Input
+                    id="prefill-city"
+                    value={prefillFormData.city}
+                    onChange={(e) => setPrefillFormData({ ...prefillFormData, city: e.target.value })}
+                    className="bg-white text-black"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="prefill-state" className="text-white">State *</Label>
+                  <Input
+                    id="prefill-state"
+                    value={prefillFormData.state}
+                    onChange={(e) => setPrefillFormData({ ...prefillFormData, state: e.target.value })}
+                    className="bg-white text-black"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="prefill-postal" className="text-white">Postal Code *</Label>
+                  <Input
+                    id="prefill-postal"
+                    value={prefillFormData.postalCode}
+                    onChange={(e) => setPrefillFormData({ ...prefillFormData, postalCode: e.target.value })}
+                    className="bg-white text-black"
+                  />
+                </div>
+              </div>
+
+              {/* Country and Nationality */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="prefill-country" className="text-white">Country of Residence *</Label>
+                  <Input
+                    id="prefill-country"
+                    value={prefillFormData.clientCountry}
+                    onChange={(e) => setPrefillFormData({ ...prefillFormData, clientCountry: e.target.value })}
+                    className="bg-white text-black"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="prefill-nationality" className="text-white">Nationality *</Label>
+                  <Input
+                    id="prefill-nationality"
+                    value={prefillFormData.clientNationality}
+                    onChange={(e) => setPrefillFormData({ ...prefillFormData, clientNationality: e.target.value })}
+                    className="bg-white text-black"
+                  />
+                </div>
+              </div>
+
+              {/* WhatsApp and Marital Status */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="prefill-whatsapp" className="text-white">WhatsApp (with country code) *</Label>
+                  <Input
+                    id="prefill-whatsapp"
+                    type="tel"
+                    placeholder="+1 234 567 8900"
+                    value={prefillFormData.clientWhatsApp}
+                    onChange={(e) => setPrefillFormData({ ...prefillFormData, clientWhatsApp: e.target.value })}
+                    className="bg-white text-black"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="prefill-marital" className="text-white">Marital Status *</Label>
+                  <Select
+                    value={prefillFormData.maritalStatus}
+                    onValueChange={(value: any) => setPrefillFormData({ ...prefillFormData, maritalStatus: value })}
+                  >
+                    <SelectTrigger className="bg-white text-black">
+                      <SelectValue placeholder="Select status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="single">Single</SelectItem>
+                      <SelectItem value="married">Married</SelectItem>
+                      <SelectItem value="divorced">Divorced</SelectItem>
+                      <SelectItem value="widowed">Widowed</SelectItem>
+                      <SelectItem value="other">Other</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              {/* Observations */}
+              <div className="space-y-2">
+                <Label htmlFor="prefill-observations" className="text-white">Observations (optional)</Label>
+                <Textarea
+                  id="prefill-observations"
+                  value={prefillFormData.clientObservations}
+                  onChange={(e) => setPrefillFormData({ ...prefillFormData, clientObservations: e.target.value })}
+                  className="bg-white text-black min-h-[100px]"
+                  placeholder="Any additional information..."
+                />
+              </div>
+
+              {/* Error Message */}
+              {prefillError && (
+                <div className="bg-red-500/10 border border-red-500/50 text-red-300 p-4 rounded-md">
+                  {prefillError}
+                </div>
+              )}
+
+              {/* Generated Link */}
+              {generatedPrefillLink && (
+                <div className="bg-green-500/10 border border-green-500/50 text-green-300 p-4 rounded-md">
+                  <p className="font-semibold mb-2">Link Generated Successfully!</p>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      value={generatedPrefillLink}
+                      readOnly
+                      className="bg-white text-black flex-1"
+                    />
+                    <Button
+                      onClick={() => {
+                        navigator.clipboard.writeText(generatedPrefillLink);
+                        setCopiedLink(generatedPrefillLink);
+                        setTimeout(() => setCopiedLink(null), 3000);
+                      }}
+                      className="bg-gold-medium hover:bg-gold-light text-black"
+                    >
+                      {copiedLink === generatedPrefillLink ? (
+                        <>
+                          <CheckCircle className="w-4 h-4 mr-2" />
+                          Copied!
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="w-4 h-4 mr-2" />
+                          Copy
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {/* Generate Link Button */}
+              <Button
+                onClick={async () => {
+                  // Validate required fields
+                  if (!prefillFormData.productSlug) {
+                    setPrefillError('Please select a product');
+                    return;
+                  }
+                  if (!prefillFormData.clientName || !prefillFormData.clientEmail) {
+                    setPrefillError('Please fill in at least client name and email');
+                    return;
+                  }
+
+                  setPrefillError('');
+                  
+                  // Generate token and create prefill record
+                  try {
+                    const token = crypto.randomUUID();
+                    const expiresAt = new Date();
+                    expiresAt.setDate(expiresAt.getDate() + 30); // 30 days validity
+
+                    const { error: insertError } = await supabase
+                      .from('checkout_prefill_tokens')
+                      .insert({
+                        token,
+                        seller_id: seller!.seller_id_public,
+                        product_slug: prefillFormData.productSlug,
+                        client_data: {
+                          clientName: prefillFormData.clientName,
+                          clientEmail: prefillFormData.clientEmail,
+                          clientWhatsApp: prefillFormData.clientWhatsApp,
+                          clientCountry: prefillFormData.clientCountry,
+                          clientNationality: prefillFormData.clientNationality,
+                          dateOfBirth: prefillFormData.dateOfBirth,
+                          documentType: prefillFormData.documentType,
+                          documentNumber: prefillFormData.documentNumber,
+                          addressLine: prefillFormData.addressLine,
+                          city: prefillFormData.city,
+                          state: prefillFormData.state,
+                          postalCode: prefillFormData.postalCode,
+                          maritalStatus: prefillFormData.maritalStatus,
+                          clientObservations: prefillFormData.clientObservations,
+                          extraUnits: prefillFormData.extraUnits,
+                        },
+                        expires_at: expiresAt.toISOString(),
+                      });
+
+                    if (insertError) {
+                      throw insertError;
+                    }
+
+                    // Generate link
+                    const siteUrl = window.location.origin;
+                    const link = `${siteUrl}/checkout/visa/${prefillFormData.productSlug}?seller=${seller!.seller_id_public}&prefill=${token}`;
+                    setGeneratedPrefillLink(link);
+                  } catch (err: any) {
+                    console.error('Error generating prefill link:', err);
+                    setPrefillError(err.message || 'Failed to generate link. Please try again.');
+                  }
+                }}
+                className="w-full bg-gold-medium hover:bg-gold-light text-black"
+              >
+                Generate Link for Client
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+
         {/* Link Generator */}
         <Card className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30 mb-8">
           <CardHeader>
@@ -406,44 +775,174 @@ export const SellerDashboard = () => {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
-              {products.map((product) => {
-                const link = `${window.location.origin}/checkout/visa/${product.slug}?seller=${seller.seller_id_public}`;
-                const isCopied = copiedLink === link;
+            <div className="space-y-6">
+              {/* Group products by service */}
+              {(() => {
+                // Group products by service type
+                const serviceGroups: { [key: string]: { name: string; products: VisaProduct[] } } = {
+                  initial: { name: 'INITIAL Application', products: [] },
+                  cos: { name: 'Change of Status (COS)', products: [] },
+                  transfer: { name: 'TRANSFER', products: [] },
+                  other: { name: 'Other Services', products: [] },
+                };
 
-                return (
-                  <div
-                    key={product.slug}
-                    className="flex items-center justify-between p-4 bg-black/50 rounded-lg border border-gold-medium/20"
-                  >
-                    <div className="flex-1">
-                      <p className="text-white font-semibold">{product.name}</p>
-                      <p className="text-xs text-gray-400 font-mono mt-1 break-all">{link}</p>
+                products.forEach((product) => {
+                  if (product.slug.startsWith('initial-')) {
+                    serviceGroups.initial.products.push(product);
+                  } else if (product.slug.startsWith('cos-')) {
+                    serviceGroups.cos.products.push(product);
+                  } else if (product.slug.startsWith('transfer-')) {
+                    serviceGroups.transfer.products.push(product);
+                  } else {
+                    serviceGroups.other.products.push(product);
+                  }
+                });
+
+                // Sort products within each group
+                const sortProducts = (products: VisaProduct[]) => {
+                  const order = ['selection-process', 'scholarship', 'i20-control'];
+                  return products.sort((a, b) => {
+                    const aIndex = order.findIndex(o => a.slug.includes(o));
+                    const bIndex = order.findIndex(o => b.slug.includes(o));
+                    return (aIndex === -1 ? 999 : aIndex) - (bIndex === -1 ? 999 : bIndex);
+                  });
+                };
+
+                return Object.entries(serviceGroups).map(([key, group]) => {
+                  if (group.products.length === 0) return null;
+
+                  const sortedProducts = sortProducts(group.products);
+                  const paymentLabels = ['Selection Process', 'Scholarship', 'I-20 Control'];
+                  const isServiceGroup = ['initial', 'cos', 'transfer'].includes(key);
+                  const isExpanded = expandedServices[key] ?? false;
+
+                  // For INITIAL, COS, TRANSFER - use dropdown
+                  if (isServiceGroup) {
+                    return (
+                      <div key={key} className="border border-gold-medium/30 rounded-lg overflow-hidden">
+                        {/* Dropdown Header */}
+                        <button
+                          onClick={() => setExpandedServices({ ...expandedServices, [key]: !isExpanded })}
+                          className="w-full flex items-center justify-between p-4 bg-black/50 hover:bg-black/70 transition-colors"
+                        >
+                          <div className="flex items-center gap-3">
+                            {isExpanded ? (
+                              <ChevronUp className="w-5 h-5 text-gold-light" />
+                            ) : (
+                              <ChevronDown className="w-5 h-5 text-gold-light" />
+                            )}
+                            <div className="text-left">
+                              <h3 className="text-lg font-bold text-gold-light">{group.name}</h3>
+                              <p className="text-xs text-gray-400 mt-1">
+                                {sortedProducts.length} sequential payments
+                              </p>
+                            </div>
+                          </div>
+                        </button>
+
+                        {/* Dropdown Content */}
+                        {isExpanded && (
+                          <div className="border-t border-gold-medium/20 bg-black/30 p-4 space-y-2">
+                            {sortedProducts.map((product, index) => {
+                              const link = `${window.location.origin}/checkout/visa/${product.slug}?seller=${seller.seller_id_public}`;
+                              const isCopied = copiedLink === link;
+                              const paymentNumber = index + 1;
+                              const paymentLabel = paymentLabels[index] || `Payment ${paymentNumber}`;
+
+                              return (
+                                <div
+                                  key={product.slug}
+                                  className="flex items-center justify-between p-3 bg-black/50 rounded-lg border border-gold-medium/20"
+                                >
+                                  <div className="flex-1">
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-xs font-semibold text-gold-light bg-gold-medium/20 px-2 py-1 rounded">
+                                        {paymentNumber}/{sortedProducts.length}
+                                      </span>
+                                      <p className="text-white font-medium">{paymentLabel}</p>
+                                    </div>
+                                    <p className="text-xs text-gray-400 mt-1">
+                                      Base: ${parseFloat(product.base_price_usd).toFixed(2)}
+                                      {product.allow_extra_units && (
+                                        <> • Per dependent: ${parseFloat(product.extra_unit_price).toFixed(2)}</>
+                                      )}
+                                    </p>
+                                    <p className="text-xs text-gray-500 font-mono mt-1 break-all">{link}</p>
+                                  </div>
+                                  <Button
+                                    onClick={() => copyLink(product.slug)}
+                                    size="sm"
+                                    className={`ml-4 ${
+                                      isCopied
+                                        ? 'bg-green-500 hover:bg-green-600'
+                                        : 'bg-gold-medium hover:bg-gold-light'
+                                    } text-black`}
+                                  >
+                                    {isCopied ? (
+                                      <>
+                                        <CheckCircle className="w-4 h-4 mr-1" />
+                                        Copied!
+                                      </>
+                                    ) : (
+                                      <>
+                                        <Copy className="w-4 h-4 mr-1" />
+                                        Copy
+                                      </>
+                                    )}
+                                  </Button>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  }
+
+                  // For other products - show normally
+                  return (
+                    <div key={key} className="space-y-2">
+                      {sortedProducts.map((product) => {
+                        const link = `${window.location.origin}/checkout/visa/${product.slug}?seller=${seller.seller_id_public}`;
+                        const isCopied = copiedLink === link;
+
+                        return (
+                          <div
+                            key={product.slug}
+                            className="flex items-center justify-between p-4 bg-black/50 rounded-lg border border-gold-medium/20"
+                          >
+                            <div className="flex-1">
+                              <p className="text-white font-semibold">{product.name}</p>
+                              <p className="text-xs text-gray-400 font-mono mt-1 break-all">{link}</p>
+                            </div>
+                            <Button
+                              onClick={() => copyLink(product.slug)}
+                              size="sm"
+                              className={`ml-4 ${
+                                isCopied
+                                  ? 'bg-green-500 hover:bg-green-600'
+                                  : 'bg-gold-medium hover:bg-gold-light'
+                              } text-black`}
+                            >
+                              {isCopied ? (
+                                <>
+                                  <CheckCircle className="w-4 h-4 mr-1" />
+                                  Copied!
+                                </>
+                              ) : (
+                                <>
+                                  <Copy className="w-4 h-4 mr-1" />
+                                  Copy
+                                </>
+                              )}
+                            </Button>
+                          </div>
+                        );
+                      })}
                     </div>
-                    <Button
-                      onClick={() => copyLink(product.slug)}
-                      size="sm"
-                      className={`ml-4 ${
-                        isCopied
-                          ? 'bg-green-500 hover:bg-green-600'
-                          : 'bg-gold-medium hover:bg-gold-light'
-                      } text-black`}
-                    >
-                      {isCopied ? (
-                        <>
-                          <CheckCircle className="w-4 h-4 mr-1" />
-                          Copied!
-                        </>
-                      ) : (
-                        <>
-                          <Copy className="w-4 h-4 mr-1" />
-                          Copy
-                        </>
-                      )}
-                    </Button>
-                  </div>
-                );
-              })}
+                  );
+                });
+              })()}
             </div>
           </CardContent>
         </Card>

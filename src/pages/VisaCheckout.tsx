@@ -36,6 +36,7 @@ export const VisaCheckout = () => {
   const { productSlug } = useParams<{ productSlug: string }>();
   const [searchParams] = useSearchParams();
   const sellerId = searchParams.get('seller') || '';
+  const prefillToken = searchParams.get('prefill') || '';
 
   const [product, setProduct] = useState<VisaProduct | null>(null);
   const [loading, setLoading] = useState(true);
@@ -102,6 +103,14 @@ export const VisaCheckout = () => {
   // Service request data (saved after step 1)
   const [serviceRequestId, setServiceRequestId] = useState<string | null>(null);
   const [clientId, setClientId] = useState<string | null>(null);
+  
+  // Existing contract data (for reusing signed contracts)
+  const [hasExistingContract, setHasExistingContract] = useState(false);
+  const [existingContractData, setExistingContractData] = useState<{
+    contract_document_url: string;
+    contract_selfie_url: string;
+    contract_signed_at: string;
+  } | null>(null);
   
   // Flag to prevent saving during restoration (using useRef for better control)
   const isRestoringRef = useRef(false);
@@ -640,6 +649,165 @@ export const VisaCheckout = () => {
     loadProduct();
   }, [productSlug, sellerId]);
 
+  // Check for existing signed contract
+  // Only reuses contract if:
+  // - Current product is Scholarship or I-20 Control (not Selection Process)
+  // - There's a contract from Selection Process of the same service (initial/cos/transfer)
+  // 
+  // IMPORTANT: This checks 3 criteria to avoid confusion between different clients/vendors:
+  // 1. client_email - Must be the SAME client (different emails = different clients)
+  // 2. seller_id - Must be the SAME seller (different sellers = different contracts)
+  // 3. product_slug - Must be Selection Process of the SAME service (initial/cos/transfer)
+  //
+  // Example: Client 1 (email1) pays Selection Process → contract saved
+  //          Client 2 (email2) gets Scholarship link → NO contract found (different email)
+  //          Client 1 (email1) gets Scholarship link → Contract found (same email + seller + service)
+  const checkExistingContract = async () => {
+    // Only check if we have email, seller_id, and product
+    // The email identifies the specific client, so different clients won't share contracts
+    if (!clientEmail || !sellerId || !productSlug) {
+      return;
+    }
+
+    // If this is Selection Process (first payment), always sign new contract
+    // Never reuse contract for the first payment
+    if (productSlug.includes('selection-process')) {
+      return;
+    }
+
+    // For Scholarship and I-20 Control, check if there's a contract from Selection Process
+    // of the same service (initial, cos, or transfer)
+    try {
+      // Extract service type from current product slug
+      let serviceType = '';
+      if (productSlug.startsWith('initial-')) {
+        serviceType = 'initial';
+      } else if (productSlug.startsWith('cos-')) {
+        serviceType = 'cos';
+      } else if (productSlug.startsWith('transfer-')) {
+        serviceType = 'transfer';
+      } else {
+        // Not a service that supports contract reuse
+        return;
+      }
+
+      // Find Selection Process contract from the same service
+      const selectionProcessSlug = `${serviceType}-selection-process`;
+      
+      let query = supabase
+        .from('visa_orders')
+        .select('contract_document_url, contract_selfie_url, contract_signed_at, service_request_id, product_slug')
+        .eq('client_email', clientEmail)
+        .eq('seller_id', sellerId)
+        .eq('product_slug', selectionProcessSlug)
+        .eq('contract_accepted', true)
+        .not('contract_signed_at', 'is', null)
+        .order('contract_signed_at', { ascending: false })
+        .limit(1);
+
+      const { data: orders, error } = await query;
+
+      if (error) {
+        console.error('Error checking existing contract:', error);
+        return;
+      }
+
+      if (orders && orders.length > 0) {
+        const order = orders[0];
+        if (order.contract_document_url && order.contract_selfie_url) {
+          setHasExistingContract(true);
+          setExistingContractData({
+            contract_document_url: order.contract_document_url,
+            contract_selfie_url: order.contract_selfie_url,
+            contract_signed_at: order.contract_signed_at || '',
+          });
+          console.log('Found existing contract from Selection Process, will reuse it');
+        }
+      }
+    } catch (err) {
+      console.error('Error in checkExistingContract:', err);
+    }
+  };
+
+  // Load prefill data from token
+  const loadPrefillData = async (token: string) => {
+    try {
+      const { data: tokenData, error } = await supabase
+        .from('checkout_prefill_tokens')
+        .select('*')
+        .eq('token', token)
+        .single();
+
+      if (error || !tokenData) {
+        console.error('Error loading prefill token:', error);
+        return false;
+      }
+
+      // Check if token is expired
+      if (new Date(tokenData.expires_at) < new Date()) {
+        setError('This link has expired. Please contact your seller for a new link.');
+        return false;
+      }
+
+      // Check if token was already used
+      if (tokenData.used_at) {
+        setError('This link has already been used. Please contact your seller for a new link.');
+        return false;
+      }
+
+      // Parse client data
+      const clientData = tokenData.client_data;
+
+      // Fill form fields with prefill data
+      if (clientData.clientName) setClientName(clientData.clientName);
+      if (clientData.clientEmail) setClientEmail(clientData.clientEmail);
+      if (clientData.clientWhatsApp) setClientWhatsApp(clientData.clientWhatsApp);
+      if (clientData.clientCountry) setClientCountry(clientData.clientCountry);
+      if (clientData.clientNationality) setClientNationality(clientData.clientNationality);
+      if (clientData.dateOfBirth) setDateOfBirth(clientData.dateOfBirth);
+      if (clientData.documentType) setDocumentType(clientData.documentType);
+      if (clientData.documentNumber) setDocumentNumber(clientData.documentNumber);
+      if (clientData.addressLine) setAddressLine(clientData.addressLine);
+      if (clientData.city) setCity(clientData.city);
+      if (clientData.state) setState(clientData.state);
+      if (clientData.postalCode) setPostalCode(clientData.postalCode);
+      if (clientData.maritalStatus) setMaritalStatus(clientData.maritalStatus);
+      if (clientData.clientObservations) setClientObservations(clientData.clientObservations);
+      if (clientData.extraUnits !== undefined) setExtraUnits(clientData.extraUnits);
+
+      // Mark token as used
+      await supabase
+        .from('checkout_prefill_tokens')
+        .update({ used_at: new Date().toISOString() })
+        .eq('token', token);
+
+      // Show success message
+      console.log('Prefill data loaded successfully');
+      return true;
+    } catch (err) {
+      console.error('Error in loadPrefillData:', err);
+      return false;
+    }
+  };
+
+  // Load prefill data on mount if token is present
+  useEffect(() => {
+    if (prefillToken && !loading && product) {
+      loadPrefillData(prefillToken);
+    }
+  }, [prefillToken, loading, product]);
+
+  // Check for existing contract when email is available
+  // Only checks if current product is NOT selection-process
+  useEffect(() => {
+    if (clientEmail && sellerId && product && productSlug) {
+      // Only check for existing contract if this is NOT the first payment (Selection Process)
+      if (!productSlug.includes('selection-process')) {
+        checkExistingContract();
+      }
+    }
+  }, [clientEmail, sellerId, product, productSlug]);
+
   // Stripe fee constants (matching backend)
   const CARD_FEE_PERCENTAGE = 0.039; // 3.9%
   const CARD_FEE_FIXED = 0.30; // $0.30
@@ -1150,6 +1318,12 @@ export const VisaCheckout = () => {
         setCurrentStep(2);
       }
     } else if (currentStep === 2) {
+      // If we have an existing contract, skip document upload
+      if (hasExistingContract && existingContractData) {
+        setCurrentStep(3);
+        return;
+      }
+      
       if (!documentsUploaded || !documentFiles) {
         setError('Please upload all required documents (front, back, and selfie)');
         return;
@@ -1212,9 +1386,13 @@ export const VisaCheckout = () => {
       // Get client IP
       const clientIP = await getClientIP();
 
-      // Get document URLs from documentFiles
-      const documentFrontUrl = documentFiles?.documentFront?.url || '';
-      const selfieUrl = documentFiles?.selfie?.url || '';
+      // Get document URLs from documentFiles or existing contract
+      const documentFrontUrl = hasExistingContract && existingContractData
+        ? existingContractData.contract_document_url
+        : documentFiles?.documentFront?.url || '';
+      const selfieUrl = hasExistingContract && existingContractData
+        ? existingContractData.contract_selfie_url
+        : documentFiles?.selfie?.url || '';
 
       // Force save current form data to localStorage before redirecting
       try {
@@ -1388,8 +1566,13 @@ export const VisaCheckout = () => {
       // Create order (for compatibility with existing system)
       const orderNumber = `ORD-${new Date().toISOString().split('T')[0].replace(/-/g, '')}-${Math.floor(Math.random() * 10000).toString().padStart(4, '0')}`;
       
-      const documentFrontUrl = documentFiles?.documentFront?.url || '';
-      const selfieUrl = documentFiles?.selfie?.url || '';
+      // Get document URLs from documentFiles or existing contract
+      const documentFrontUrl = hasExistingContract && existingContractData
+        ? existingContractData.contract_document_url
+        : documentFiles?.documentFront?.url || '';
+      const selfieUrl = hasExistingContract && existingContractData
+        ? existingContractData.contract_selfie_url
+        : documentFiles?.selfie?.url || '';
 
       const { data: order, error: orderError } = await supabase
         .from('visa_orders')
@@ -1803,31 +1986,75 @@ export const VisaCheckout = () => {
                   <CardTitle className="text-white">Step 2: Documents & Selfie</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <DocumentUpload
-                    onComplete={(files) => {
-                      setDocumentFiles(files);
-                      setDocumentsUploaded(true);
-                    }}
-                    onCancel={handlePrev}
-                  />
-                  {documentsUploaded && (
-                    <div className="mt-4 flex justify-between">
-                      <Button
-                        variant="outline"
-                        onClick={handlePrev}
-                        className="border-gold-medium/50 bg-black/50 text-gold-light hover:bg-gold-medium/30 hover:text-gold-light"
-                      >
-                        <ChevronLeft className="w-4 h-4 mr-2" />
-                        Back
-                      </Button>
-                      <Button
-                        onClick={handleNext}
-                        className="bg-gold-medium hover:bg-gold-light text-black"
-                      >
-                        Continue
-                        <ChevronRight className="w-4 h-4 ml-2" />
-                      </Button>
+                  {hasExistingContract && existingContractData ? (
+                    <div className="space-y-4">
+                      <div className="bg-green-500/10 border border-green-500/50 text-green-300 p-4 rounded-md">
+                        <p className="font-semibold mb-2">Reusing Previous Contract</p>
+                        <p className="text-sm">
+                          You already have a signed contract from the Selection Process payment. We will reuse that contract for this payment.
+                        </p>
+                        {existingContractData.contract_signed_at && (
+                          <p className="text-xs mt-2 opacity-75">
+                            Contract signed on: {new Date(existingContractData.contract_signed_at).toLocaleString()}
+                          </p>
+                        )}
+                      </div>
+                      <div className="flex justify-between pt-4">
+                        <Button
+                          variant="outline"
+                          onClick={handlePrev}
+                          className="border-gold-medium/50 bg-black/50 text-gold-light hover:bg-gold-medium/30 hover:text-gold-light"
+                        >
+                          <ChevronLeft className="w-4 h-4 mr-2" />
+                          Back
+                        </Button>
+                        <Button
+                          onClick={() => {
+                            // Mark documents as uploaded using existing contract data
+                            setDocumentFiles({
+                              documentFront: null,
+                              documentBack: null,
+                              selfie: null,
+                            });
+                            setDocumentsUploaded(true);
+                            handleNext();
+                          }}
+                          className="bg-gold-medium hover:bg-gold-light text-black"
+                        >
+                          Continue with Existing Contract
+                          <ChevronRight className="w-4 h-4 ml-2" />
+                        </Button>
+                      </div>
                     </div>
+                  ) : (
+                    <>
+                      <DocumentUpload
+                        onComplete={(files) => {
+                          setDocumentFiles(files);
+                          setDocumentsUploaded(true);
+                        }}
+                        onCancel={handlePrev}
+                      />
+                      {documentsUploaded && (
+                        <div className="mt-4 flex justify-between">
+                          <Button
+                            variant="outline"
+                            onClick={handlePrev}
+                            className="border-gold-medium/50 bg-black/50 text-gold-light hover:bg-gold-medium/30 hover:text-gold-light"
+                          >
+                            <ChevronLeft className="w-4 h-4 mr-2" />
+                            Back
+                          </Button>
+                          <Button
+                            onClick={handleNext}
+                            className="bg-gold-medium hover:bg-gold-light text-black"
+                          >
+                            Continue
+                            <ChevronRight className="w-4 h-4 ml-2" />
+                          </Button>
+                        </div>
+                      )}
+                    </>
                   )}
                 </CardContent>
               </Card>
@@ -2089,6 +2316,8 @@ export const VisaCheckout = () => {
     </div>
   );
 };
+
+
 
 
 
