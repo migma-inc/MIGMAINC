@@ -12,6 +12,10 @@ import { Progress } from '@/components/ui/progress';
 import { ArrowLeft, CreditCard, DollarSign, Upload, ChevronRight, ChevronLeft } from 'lucide-react';
 import { DocumentUpload } from '@/components/checkout/DocumentUpload';
 import { trackLinkClick, trackFormStarted, trackFormCompleted, trackPaymentStarted } from '@/lib/funnel-tracking';
+import { TERMS_VERSION, DRAFT_STORAGE_KEY, countries, getPhoneCodeFromCountry } from '@/lib/visa-checkout-constants';
+import { getClientIP, getUserAgent, calculateBaseTotal, calculateTotalWithFees } from '@/lib/visa-checkout-utils';
+import { validateStep1, type Step1FormData } from '@/lib/visa-checkout-validation';
+import { saveStep1Data, saveStep2Data, saveStep3Data } from '@/lib/visa-checkout-service';
 
 interface VisaProduct {
   id: string;
@@ -25,64 +29,6 @@ interface VisaProduct {
   extra_unit_price: string;
   calculation_type: 'base_plus_units' | 'units_only';
 }
-
-// Terms version constant
-const TERMS_VERSION = 'v1.0-2025-01-15';
-
-// localStorage key for draft
-const DRAFT_STORAGE_KEY = 'visa_checkout_draft';
-
-// Lista de países
-const countries = [
-  'Brazil', 'Portugal', 'Angola', 'Mozambique', 'Cape Verde', 'United States', 'United Kingdom',
-  'Canada', 'Australia', 'Germany', 'France', 'Spain', 'Italy', 'Netherlands', 'Belgium',
-  'Switzerland', 'Austria', 'Sweden', 'Norway', 'Denmark', 'Finland', 'Poland', 'Czech Republic',
-  'Ireland', 'New Zealand', 'Japan', 'South Korea', 'Singapore', 'Hong Kong', 'Mexico', 'Argentina',
-  'Chile', 'Colombia', 'Peru', 'Ecuador', 'Uruguay', 'Paraguay', 'Venezuela', 'Other'
-];
-
-// Mapeamento de países para códigos de telefone
-const countryPhoneCodes: Record<string, string> = {
-  'Brazil': '+55',
-  'Portugal': '+351',
-  'Angola': '+244',
-  'Mozambique': '+258',
-  'Cape Verde': '+238',
-  'United States': '+1',
-  'United Kingdom': '+44',
-  'Canada': '+1',
-  'Australia': '+61',
-  'Germany': '+49',
-  'France': '+33',
-  'Spain': '+34',
-  'Italy': '+39',
-  'Netherlands': '+31',
-  'Belgium': '+32',
-  'Switzerland': '+41',
-  'Austria': '+43',
-  'Sweden': '+46',
-  'Norway': '+47',
-  'Denmark': '+45',
-  'Finland': '+358',
-  'Poland': '+48',
-  'Czech Republic': '+420',
-  'Ireland': '+353',
-  'New Zealand': '+64',
-  'Japan': '+81',
-  'South Korea': '+82',
-  'Singapore': '+65',
-  'Hong Kong': '+852',
-  'Mexico': '+52',
-  'Argentina': '+54',
-  'Chile': '+56',
-  'Colombia': '+57',
-  'Peru': '+51',
-  'Ecuador': '+593',
-  'Uruguay': '+598',
-  'Paraguay': '+595',
-  'Venezuela': '+58',
-  'Other': '+',
-};
 
 export const VisaCheckout = () => {
   const { productSlug } = useParams<{ productSlug: string }>();
@@ -801,10 +747,25 @@ export const VisaCheckout = () => {
         return false;
       }
 
-      // Check if token was already used
-      if (tokenData.used_at) {
-        setError('This link has already been used. Please contact your seller for a new link.');
-        return false;
+      // Check if payment was already completed for this token
+      // Only block if there's a completed/paid order with matching email, seller, and product
+      // If token was used but payment failed, allow reuse
+      const clientEmail = tokenData.client_data?.clientEmail;
+      if (clientEmail) {
+        const { data: completedOrders } = await supabase
+          .from('visa_orders')
+          .select('id, payment_status')
+          .eq('client_email', clientEmail)
+          .eq('seller_id', tokenData.seller_id)
+          .eq('product_slug', tokenData.product_slug)
+          .in('payment_status', ['completed', 'paid']);
+
+        // Only block if payment was actually completed
+        if (completedOrders && completedOrders.length > 0) {
+          setError('This link has already been used and payment was completed. Please contact your seller for a new link.');
+          return false;
+        }
+        // If no completed payment found, allow use (even if used_at exists - payment might have failed)
       }
 
       // Parse client data
@@ -827,11 +788,14 @@ export const VisaCheckout = () => {
       if (clientData.clientObservations) setClientObservations(clientData.clientObservations);
       if (clientData.extraUnits !== undefined) setExtraUnits(clientData.extraUnits);
 
-      // Mark token as used
-      await supabase
-        .from('checkout_prefill_tokens')
-        .update({ used_at: new Date().toISOString() })
-        .eq('token', token);
+      // Mark token as used (but don't block if payment fails - user can retry)
+      // The token will only be blocked if payment_status becomes 'completed' or 'paid'
+      if (!tokenData.used_at) {
+        await supabase
+          .from('checkout_prefill_tokens')
+          .update({ used_at: new Date().toISOString() })
+          .eq('token', token);
+      }
 
       // Show success message
       console.log('Prefill data loaded successfully');
@@ -860,48 +824,11 @@ export const VisaCheckout = () => {
     }
   }, [clientEmail, sellerId, product, productSlug]);
 
-  // Stripe fee constants (matching backend)
-  const CARD_FEE_PERCENTAGE = 0.039; // 3.9%
-  const CARD_FEE_FIXED = 0.30; // $0.30
-  const PIX_FEE_PERCENTAGE = 0.0179; // 1.79% (1.19% processing + 0.6% conversion)
-
   // Calculate base total (before fees) based on calculation_type
-  const calculateBaseTotal = () => {
-    if (!product) return 0;
-    
-    const basePrice = parseFloat(product.base_price_usd);
-    const extraUnitPrice = parseFloat(product.extra_unit_price);
-    
-    if (product.calculation_type === 'units_only') {
-      // For units_only: total = extra_units * extra_unit_price
-      return extraUnits * extraUnitPrice;
-    } else {
-      // For base_plus_units: total = base_price + (extra_units * extra_unit_price)
-      return basePrice + (extraUnits * extraUnitPrice);
-    }
-  };
-
-  const baseTotal = calculateBaseTotal();
+  const baseTotal = product ? calculateBaseTotal(product, extraUnits) : 0;
 
   // Calculate total with fees based on payment method
-  const calculateTotalWithFees = () => {
-    if (paymentMethod === 'zelle') {
-      // Zelle: no fees
-      return baseTotal;
-    } else if (paymentMethod === 'card') {
-      // Card: 3.9% + $0.30
-      return baseTotal + (baseTotal * CARD_FEE_PERCENTAGE) + CARD_FEE_FIXED;
-    } else if (paymentMethod === 'pix') {
-      // PIX: 1.79% fee (already includes conversion)
-      if (!exchangeRate) return baseTotal; // Fallback if rate not loaded
-      const netAmountBRL = baseTotal * exchangeRate;
-      const grossAmountBRL = netAmountBRL / (1 - PIX_FEE_PERCENTAGE);
-      return grossAmountBRL;
-    }
-    return baseTotal;
-  };
-
-  const totalWithFees = calculateTotalWithFees();
+  const totalWithFees = calculateTotalWithFees(baseTotal, paymentMethod, exchangeRate || undefined);
 
   // Fetch exchange rate for PIX
   useEffect(() => {
@@ -924,80 +851,34 @@ export const VisaCheckout = () => {
     }
   }, [currentStep]);
 
-  // Get client IP and user agent
-  const getClientIP = async (): Promise<string | null> => {
-    try {
-      const response = await fetch('https://api.ipify.org?format=json');
-      const data = await response.json();
-      return data.ip || null;
-    } catch (error) {
-      console.warn('Could not fetch IP address:', error);
-      return null;
-    }
-  };
-
-  const getUserAgent = (): string => {
-    return typeof navigator !== 'undefined' ? navigator.userAgent : '';
-  };
 
   // Validate Step 1
-  const validateStep1 = (): boolean => {
-    if (!clientName.trim()) {
-      setError('Full name is required');
-      return false;
-    }
-    if (!clientEmail.trim() || !clientEmail.includes('@')) {
-      setError('Valid email is required');
-      return false;
-    }
-    if (!dateOfBirth) {
-      setError('Date of birth is required');
-      return false;
-    }
-    if (!documentType) {
-      setError('Document type is required');
-      return false;
-    }
-    if (!documentNumber.trim() || documentNumber.length < 5) {
-      setError('Document number is required (minimum 5 characters)');
-      return false;
-    }
-    if (!addressLine.trim()) {
-      setError('Address is required');
-      return false;
-    }
-    if (!city.trim()) {
-      setError('City is required');
-      return false;
-    }
-    if (!state.trim()) {
-      setError('State is required');
-      return false;
-    }
-    if (!postalCode.trim()) {
-      setError('Postal code is required');
-      return false;
-    }
-    if (!clientCountry.trim()) {
-      setError('Country is required');
-      return false;
-    }
-    if (!clientNationality.trim()) {
-      setError('Nationality is required');
-      return false;
-    }
-    if (!clientWhatsApp.trim() || !clientWhatsApp.startsWith('+')) {
-      setError('WhatsApp with country code (e.g., +1) is required');
-      return false;
-    }
-    if (!maritalStatus) {
-      setError('Marital status is required');
+  const validateStep1Form = (): boolean => {
+    const formData: Step1FormData = {
+      clientName,
+      clientEmail,
+      dateOfBirth,
+      documentType,
+      documentNumber,
+      addressLine,
+      city,
+      state,
+      postalCode,
+      clientCountry,
+      clientNationality,
+      clientWhatsApp,
+      maritalStatus,
+    };
+    
+    const result = validateStep1(formData);
+    if (!result.valid && result.error) {
+      setError(result.error);
       return false;
     }
     return true;
   };
 
-  // Save Step 1 data to database
+  // Save Step 1 data to database (deprecated - using saveStep1Data from service)
   const saveStep1 = async (): Promise<boolean> => {
     try {
       // Create or update client
@@ -1127,8 +1008,9 @@ export const VisaCheckout = () => {
     }
   };
 
-  // Save Step 2 documents to database
-  const saveStep2 = async (): Promise<boolean> => {
+  // Save Step 2 documents to database - DEPRECATED: Now using saveStep2Data from service
+  // Keeping for reference but not used
+  const _saveStep2_deprecated = async (): Promise<boolean> => {
     if (!documentFiles) {
       setError('Please upload all required documents (front, back, and selfie)');
       return false;
@@ -1232,7 +1114,7 @@ export const VisaCheckout = () => {
     }
 
     try {
-      const clientIP = await getClientIP();
+      const clientIP = await getClientIP() || '';
       const userAgent = getUserAgent();
 
       // Save document front
@@ -1315,8 +1197,9 @@ export const VisaCheckout = () => {
     }
   };
 
-  // Save Step 3 terms acceptance
-  const saveStep3 = async (): Promise<boolean> => {
+  // Save Step 3 terms acceptance - DEPRECATED: Now using saveStep3Data from service
+  // Keeping for reference but not used
+  const _saveStep3_deprecated = async (): Promise<boolean> => {
     if (!serviceRequestId) {
       setError('Service request not found');
       return false;
@@ -1328,7 +1211,7 @@ export const VisaCheckout = () => {
     }
 
     try {
-      const clientIP = await getClientIP();
+      const clientIP = await getClientIP() || '';
       const userAgent = getUserAgent();
 
       const { error: termsError } = await supabase
@@ -1362,10 +1245,46 @@ export const VisaCheckout = () => {
     setError('');
 
     if (currentStep === 1) {
-      if (!validateStep1()) {
+      if (!validateStep1Form()) {
         return;
       }
-      const saved = await saveStep1();
+      
+      const formData: Step1FormData = {
+        clientName,
+        clientEmail,
+        dateOfBirth,
+        documentType,
+        documentNumber,
+        addressLine,
+        city,
+        state,
+        postalCode,
+        clientCountry,
+        clientNationality,
+        clientWhatsApp,
+        maritalStatus,
+      };
+      
+      const result = await saveStep1Data(
+        formData,
+        extraUnits,
+        productSlug!,
+        sellerId || '',
+        clientId || undefined,
+        serviceRequestId || undefined,
+        setClientId,
+        setServiceRequestId,
+        formStartedTracked,
+        setFormStartedTracked,
+        DRAFT_STORAGE_KEY
+      );
+      
+      if (!result.success) {
+        setError(result.error || 'Failed to save information');
+        return;
+      }
+      
+      const saved = result.success;
       if (saved) {
         setCurrentStep(2);
       }
@@ -1385,7 +1304,27 @@ export const VisaCheckout = () => {
         setError('Please upload all required documents (front, back, and selfie)');
         return;
       }
-      const saved = await saveStep2();
+      
+      // Ensure serviceRequestId exists
+      let serviceRequestIdToUse = serviceRequestId;
+      if (!serviceRequestIdToUse) {
+        setError('Please complete Step 1 first');
+        setCurrentStep(1);
+        return;
+      }
+      
+      const existingContractDataForSave = hasExistingContract && existingContractData ? {
+        contract_document_url: existingContractData.contract_document_url,
+        contract_selfie_url: existingContractData.contract_selfie_url,
+      } : undefined;
+      
+      const result = await saveStep2Data(serviceRequestIdToUse, documentFiles, existingContractDataForSave);
+      if (!result.success) {
+        setError(result.error || 'Failed to save documents');
+        return;
+      }
+      
+      const saved = result.success;
       if (saved) {
         setCurrentStep(3);
       }
@@ -1412,8 +1351,9 @@ export const VisaCheckout = () => {
     }
 
     // Save terms acceptance
-    const termsSaved = await saveStep3();
-    if (!termsSaved) {
+    const result = await saveStep3Data(serviceRequestId, termsAccepted, dataAuthorization);
+    if (!result.success) {
+      setError(result.error || 'Failed to save terms acceptance');
       return;
     }
 
@@ -1556,8 +1496,9 @@ export const VisaCheckout = () => {
     }
 
     // Save terms acceptance
-    const termsSaved = await saveStep3();
-    if (!termsSaved) {
+    const result = await saveStep3Data(serviceRequestId, termsAccepted, dataAuthorization);
+    if (!result.success) {
+      setError(result.error || 'Failed to save terms acceptance');
       return;
     }
 
@@ -1957,7 +1898,7 @@ export const VisaCheckout = () => {
                       <Select
                         value={clientCountry}
                         onValueChange={(value) => {
-                          const phoneCode = countryPhoneCodes[value] || '+';
+                          const phoneCode = getPhoneCodeFromCountry(value);
                           // Se o WhatsApp já tem um código de país, substituir; senão, adicionar o novo código
                           let newWhatsApp = clientWhatsApp;
                           if (newWhatsApp) {
