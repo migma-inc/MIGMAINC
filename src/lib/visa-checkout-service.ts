@@ -79,13 +79,13 @@ export async function saveStep1Data(
         .select()
         .single();
 
-      if (clientError) {
+      if (clientError || !clientData) {
         console.error('Error creating client:', clientError);
         return { success: false, error: 'Failed to save client information' };
       }
 
       clientIdToUse = clientData.id;
-      if (setClientId) {
+      if (setClientId && clientIdToUse) {
         setClientId(clientIdToUse);
       }
     } else {
@@ -131,13 +131,13 @@ export async function saveStep1Data(
         .select()
         .single();
 
-      if (serviceRequestError) {
+      if (serviceRequestError || !serviceRequestData) {
         console.error('Error creating service request:', serviceRequestError);
         return { success: false, error: 'Failed to create service request' };
       }
 
       serviceRequestIdToUse = serviceRequestData.id;
-      if (setServiceRequestId) {
+      if (setServiceRequestId && serviceRequestIdToUse) {
         setServiceRequestId(serviceRequestIdToUse);
       }
       
