@@ -11,9 +11,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Progress } from '@/components/ui/progress';
 import { ArrowLeft, CreditCard, DollarSign, Upload, ChevronRight, ChevronLeft } from 'lucide-react';
 import { DocumentUpload } from '@/components/checkout/DocumentUpload';
-import { trackLinkClick, trackFormStarted, trackFormCompleted, trackPaymentStarted } from '@/lib/funnel-tracking';
-import { TERMS_VERSION, DRAFT_STORAGE_KEY, countries, getPhoneCodeFromCountry } from '@/lib/visa-checkout-constants';
-import { getClientIP, getUserAgent, calculateBaseTotal, calculateTotalWithFees } from '@/lib/visa-checkout-utils';
+import { trackLinkClick, trackFormCompleted, trackPaymentStarted } from '@/lib/funnel-tracking';
+import { DRAFT_STORAGE_KEY, countries, getPhoneCodeFromCountry } from '@/lib/visa-checkout-constants';
+import { getClientIP, calculateBaseTotal, calculateTotalWithFees } from '@/lib/visa-checkout-utils';
 import { validateStep1, type Step1FormData } from '@/lib/visa-checkout-validation';
 import { saveStep1Data, saveStep2Data, saveStep3Data } from '@/lib/visa-checkout-service';
 
