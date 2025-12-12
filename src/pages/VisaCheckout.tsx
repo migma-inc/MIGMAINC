@@ -32,6 +32,58 @@ const TERMS_VERSION = 'v1.0-2025-01-15';
 // localStorage key for draft
 const DRAFT_STORAGE_KEY = 'visa_checkout_draft';
 
+// Lista de países
+const countries = [
+  'Brazil', 'Portugal', 'Angola', 'Mozambique', 'Cape Verde', 'United States', 'United Kingdom',
+  'Canada', 'Australia', 'Germany', 'France', 'Spain', 'Italy', 'Netherlands', 'Belgium',
+  'Switzerland', 'Austria', 'Sweden', 'Norway', 'Denmark', 'Finland', 'Poland', 'Czech Republic',
+  'Ireland', 'New Zealand', 'Japan', 'South Korea', 'Singapore', 'Hong Kong', 'Mexico', 'Argentina',
+  'Chile', 'Colombia', 'Peru', 'Ecuador', 'Uruguay', 'Paraguay', 'Venezuela', 'Other'
+];
+
+// Mapeamento de países para códigos de telefone
+const countryPhoneCodes: Record<string, string> = {
+  'Brazil': '+55',
+  'Portugal': '+351',
+  'Angola': '+244',
+  'Mozambique': '+258',
+  'Cape Verde': '+238',
+  'United States': '+1',
+  'United Kingdom': '+44',
+  'Canada': '+1',
+  'Australia': '+61',
+  'Germany': '+49',
+  'France': '+33',
+  'Spain': '+34',
+  'Italy': '+39',
+  'Netherlands': '+31',
+  'Belgium': '+32',
+  'Switzerland': '+41',
+  'Austria': '+43',
+  'Sweden': '+46',
+  'Norway': '+47',
+  'Denmark': '+45',
+  'Finland': '+358',
+  'Poland': '+48',
+  'Czech Republic': '+420',
+  'Ireland': '+353',
+  'New Zealand': '+64',
+  'Japan': '+81',
+  'South Korea': '+82',
+  'Singapore': '+65',
+  'Hong Kong': '+852',
+  'Mexico': '+52',
+  'Argentina': '+54',
+  'Chile': '+56',
+  'Colombia': '+57',
+  'Peru': '+51',
+  'Ecuador': '+593',
+  'Uruguay': '+598',
+  'Paraguay': '+595',
+  'Venezuela': '+58',
+  'Other': '+',
+};
+
 export const VisaCheckout = () => {
   const { productSlug } = useParams<{ productSlug: string }>();
   const [searchParams] = useSearchParams();
@@ -1902,23 +1954,52 @@ export const VisaCheckout = () => {
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="country" className="text-white">Country of Residence *</Label>
-                      <Input
-                        id="country"
+                      <Select
                         value={clientCountry}
-                        onChange={(e) => setClientCountry(e.target.value)}
-                        className="bg-white text-black"
-                        required
-                      />
+                        onValueChange={(value) => {
+                          const phoneCode = countryPhoneCodes[value] || '+';
+                          // Se o WhatsApp já tem um código de país, substituir; senão, adicionar o novo código
+                          let newWhatsApp = clientWhatsApp;
+                          if (newWhatsApp) {
+                            // Remove qualquer código de país existente (começa com +)
+                            const withoutCode = newWhatsApp.replace(/^\+\d{1,4}\s*/, '');
+                            newWhatsApp = phoneCode + (withoutCode ? ' ' + withoutCode : '');
+                          } else {
+                            newWhatsApp = phoneCode;
+                          }
+                          setClientCountry(value);
+                          setClientWhatsApp(newWhatsApp);
+                        }}
+                      >
+                        <SelectTrigger className="bg-white text-black">
+                          <SelectValue placeholder="Select country" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {countries.map((country) => (
+                            <SelectItem key={country} value={country}>
+                              {country}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="nationality" className="text-white">Nationality *</Label>
-                      <Input
-                        id="nationality"
+                      <Select
                         value={clientNationality}
-                        onChange={(e) => setClientNationality(e.target.value)}
-                        className="bg-white text-black"
-                        required
-                      />
+                        onValueChange={(value) => setClientNationality(value)}
+                      >
+                        <SelectTrigger className="bg-white text-black">
+                          <SelectValue placeholder="Select nationality" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {countries.map((country) => (
+                            <SelectItem key={country} value={country}>
+                              {country}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
                   </div>
 
@@ -1929,7 +2010,7 @@ export const VisaCheckout = () => {
                       <Input
                         id="whatsapp"
                         type="tel"
-                        placeholder="+1 234 567 8900"
+                        placeholder="+55 11 98765 4321"
                         value={clientWhatsApp}
                         onChange={(e) => setClientWhatsApp(e.target.value)}
                         className="bg-white text-black"

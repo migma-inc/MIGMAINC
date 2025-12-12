@@ -4,7 +4,7 @@ import { supabase } from '@/lib/supabase';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { LinkIcon, Copy, CheckCircle, DollarSign, Users, Info, ChevronDown, ChevronUp, FileEdit } from 'lucide-react';
+import { LinkIcon, Copy, CheckCircle, DollarSign, Users, Info, ChevronDown, ChevronUp, FileEdit, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -47,6 +47,58 @@ interface PrefillFormData {
   maritalStatus: 'single' | 'married' | 'divorced' | 'widowed' | 'other' | '';
   clientObservations: string;
 }
+
+// Lista de países
+const countries = [
+  'Brazil', 'Portugal', 'Angola', 'Mozambique', 'Cape Verde', 'United States', 'United Kingdom',
+  'Canada', 'Australia', 'Germany', 'France', 'Spain', 'Italy', 'Netherlands', 'Belgium',
+  'Switzerland', 'Austria', 'Sweden', 'Norway', 'Denmark', 'Finland', 'Poland', 'Czech Republic',
+  'Ireland', 'New Zealand', 'Japan', 'South Korea', 'Singapore', 'Hong Kong', 'Mexico', 'Argentina',
+  'Chile', 'Colombia', 'Peru', 'Ecuador', 'Uruguay', 'Paraguay', 'Venezuela', 'Other'
+];
+
+// Mapeamento de países para códigos de telefone
+const countryPhoneCodes: Record<string, string> = {
+  'Brazil': '+55',
+  'Portugal': '+351',
+  'Angola': '+244',
+  'Mozambique': '+258',
+  'Cape Verde': '+238',
+  'United States': '+1',
+  'United Kingdom': '+44',
+  'Canada': '+1',
+  'Australia': '+61',
+  'Germany': '+49',
+  'France': '+33',
+  'Spain': '+34',
+  'Italy': '+39',
+  'Netherlands': '+31',
+  'Belgium': '+32',
+  'Switzerland': '+41',
+  'Austria': '+43',
+  'Sweden': '+46',
+  'Norway': '+47',
+  'Denmark': '+45',
+  'Finland': '+358',
+  'Poland': '+48',
+  'Czech Republic': '+420',
+  'Ireland': '+353',
+  'New Zealand': '+64',
+  'Japan': '+81',
+  'South Korea': '+82',
+  'Singapore': '+65',
+  'Hong Kong': '+852',
+  'Mexico': '+52',
+  'Argentina': '+54',
+  'Chile': '+56',
+  'Colombia': '+57',
+  'Peru': '+51',
+  'Ecuador': '+593',
+  'Uruguay': '+598',
+  'Paraguay': '+595',
+  'Venezuela': '+58',
+  'Other': '+',
+};
 
 const PRODUCTS_CACHE_KEY = 'seller_products_cache';
 const PRODUCTS_CACHE_TIMESTAMP_KEY = 'seller_products_cache_timestamp';
@@ -131,6 +183,7 @@ export function SellerLinks() {
   const [generatedPrefillLink, setGeneratedPrefillLink] = useState<string | null>(null);
   const [prefillError, setPrefillError] = useState('');
   const [prefillFormExpanded, setPrefillFormExpanded] = useState(false);
+  const [prefillFormStep, setPrefillFormStep] = useState(1);
 
   useEffect(() => {
     // Se já temos produtos no estado e já carregou, não precisa fazer nada
@@ -293,13 +346,27 @@ export function SellerLinks() {
         <p className="text-gray-400">Generate and copy your personalized checkout links</p>
       </div>
 
-      {/* Prefill Client Data Form */}
-      <Card className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30 mb-8">
-        <CardHeader>
-          <button
-            onClick={() => setPrefillFormExpanded(!prefillFormExpanded)}
-            className="w-full flex items-center justify-between"
-          >
+      {/* Quick Client Setup Form */}
+      <Card 
+        className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30 mb-8 cursor-pointer hover:border-gold-medium/50 transition-colors"
+        onClick={() => {
+          if (!prefillFormExpanded) {
+            setPrefillFormExpanded(true);
+          }
+        }}
+      >
+        <CardHeader 
+          onClick={(e) => {
+            e.stopPropagation();
+            setPrefillFormExpanded(!prefillFormExpanded);
+            // Reset to step 1 when closing
+            if (prefillFormExpanded) {
+              setPrefillFormStep(1);
+            }
+          }}
+          className="cursor-pointer"
+        >
+          <div className="flex items-center justify-between">
             <div className="flex items-center">
               {prefillFormExpanded ? (
                 <ChevronUp className="w-5 h-5 text-gold-light mr-2" />
@@ -308,343 +375,429 @@ export function SellerLinks() {
               )}
               <CardTitle className="text-white flex items-center">
                 <FileEdit className="w-5 h-5 mr-2" />
-                Pre-fill Client Data
+                Quick Client Setup
               </CardTitle>
             </div>
             <p className="text-sm text-gray-400">
               {prefillFormExpanded ? 'Click to collapse' : 'Click to expand'}
             </p>
-          </button>
+          </div>
           {!prefillFormExpanded && (
             <p className="text-sm text-gray-400 mt-2 ml-7">
-              Fill in the client's information and generate a pre-filled checkout link
+              Pre-fill client information to generate a personalized checkout link
             </p>
           )}
         </CardHeader>
         {prefillFormExpanded && (
-          <CardContent>
-            <div className="space-y-4">
-            {/* Product Selection */}
-            <div className="space-y-2">
-              <Label htmlFor="prefill-product" className="text-white">Select Product *</Label>
-              <Select
-                value={prefillFormData.productSlug}
-                onValueChange={(value) => setPrefillFormData({ ...prefillFormData, productSlug: value })}
-              >
-                <SelectTrigger className="bg-white text-black">
-                  <SelectValue placeholder="Select a product" />
-                </SelectTrigger>
-                <SelectContent>
-                  {products.map((product) => (
-                    <SelectItem key={product.slug} value={product.slug}>
-                      {product.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Extra Units */}
-            <div className="space-y-2">
-              <Label htmlFor="prefill-extra-units" className="text-white">Number of Dependents</Label>
-              <Select
-                value={prefillFormData.extraUnits.toString()}
-                onValueChange={(value) => setPrefillFormData({ ...prefillFormData, extraUnits: parseInt(value) })}
-              >
-                <SelectTrigger className="bg-white text-black">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {[0, 1, 2, 3, 4, 5].map((num) => (
-                    <SelectItem key={num} value={num.toString()}>
-                      {num}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Client Name */}
-            <div className="space-y-2">
-              <Label htmlFor="prefill-name" className="text-white">Full Name *</Label>
-              <Input
-                id="prefill-name"
-                value={prefillFormData.clientName}
-                onChange={(e) => setPrefillFormData({ ...prefillFormData, clientName: e.target.value })}
-                className="bg-white text-black"
-              />
-            </div>
-
-            {/* Email */}
-            <div className="space-y-2">
-              <Label htmlFor="prefill-email" className="text-white">Email *</Label>
-              <Input
-                id="prefill-email"
-                type="email"
-                value={prefillFormData.clientEmail}
-                onChange={(e) => setPrefillFormData({ ...prefillFormData, clientEmail: e.target.value })}
-                className="bg-white text-black"
-              />
-            </div>
-
-            {/* Date of Birth */}
-            <div className="space-y-2">
-              <Label htmlFor="prefill-dob" className="text-white">Date of Birth *</Label>
-              <Input
-                id="prefill-dob"
-                type="date"
-                value={prefillFormData.dateOfBirth}
-                onChange={(e) => setPrefillFormData({ ...prefillFormData, dateOfBirth: e.target.value })}
-                className="bg-white text-black"
-              />
-            </div>
-
-            {/* Document Type and Number */}
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="prefill-doc-type" className="text-white">Document Type *</Label>
-                <Select
-                  value={prefillFormData.documentType}
-                  onValueChange={(value: any) => setPrefillFormData({ ...prefillFormData, documentType: value })}
-                >
-                  <SelectTrigger className="bg-white text-black">
-                    <SelectValue placeholder="Select type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="passport">Passport</SelectItem>
-                    <SelectItem value="id">ID</SelectItem>
-                    <SelectItem value="driver_license">Driver's License</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="prefill-doc-number" className="text-white">Document Number *</Label>
-                <Input
-                  id="prefill-doc-number"
-                  value={prefillFormData.documentNumber}
-                  onChange={(e) => setPrefillFormData({ ...prefillFormData, documentNumber: e.target.value })}
-                  className="bg-white text-black"
-                />
-              </div>
-            </div>
-
-            {/* Address */}
-            <div className="space-y-2">
-              <Label htmlFor="prefill-address" className="text-white">Address Line *</Label>
-              <Input
-                id="prefill-address"
-                value={prefillFormData.addressLine}
-                onChange={(e) => setPrefillFormData({ ...prefillFormData, addressLine: e.target.value })}
-                className="bg-white text-black"
-              />
-            </div>
-
-            {/* City, State, Postal Code */}
-            <div className="grid grid-cols-3 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="prefill-city" className="text-white">City *</Label>
-                <Input
-                  id="prefill-city"
-                  value={prefillFormData.city}
-                  onChange={(e) => setPrefillFormData({ ...prefillFormData, city: e.target.value })}
-                  className="bg-white text-black"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="prefill-state" className="text-white">State *</Label>
-                <Input
-                  id="prefill-state"
-                  value={prefillFormData.state}
-                  onChange={(e) => setPrefillFormData({ ...prefillFormData, state: e.target.value })}
-                  className="bg-white text-black"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="prefill-postal" className="text-white">Postal Code *</Label>
-                <Input
-                  id="prefill-postal"
-                  value={prefillFormData.postalCode}
-                  onChange={(e) => setPrefillFormData({ ...prefillFormData, postalCode: e.target.value })}
-                  className="bg-white text-black"
-                />
-              </div>
-            </div>
-
-            {/* Country and Nationality */}
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="prefill-country" className="text-white">Country of Residence *</Label>
-                <Input
-                  id="prefill-country"
-                  value={prefillFormData.clientCountry}
-                  onChange={(e) => setPrefillFormData({ ...prefillFormData, clientCountry: e.target.value })}
-                  className="bg-white text-black"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="prefill-nationality" className="text-white">Nationality *</Label>
-                <Input
-                  id="prefill-nationality"
-                  value={prefillFormData.clientNationality}
-                  onChange={(e) => setPrefillFormData({ ...prefillFormData, clientNationality: e.target.value })}
-                  className="bg-white text-black"
-                />
-              </div>
-            </div>
-
-            {/* WhatsApp and Marital Status */}
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="prefill-whatsapp" className="text-white">WhatsApp (with country code) *</Label>
-                <Input
-                  id="prefill-whatsapp"
-                  type="tel"
-                  placeholder="+1 234 567 8900"
-                  value={prefillFormData.clientWhatsApp}
-                  onChange={(e) => setPrefillFormData({ ...prefillFormData, clientWhatsApp: e.target.value })}
-                  className="bg-white text-black"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="prefill-marital" className="text-white">Marital Status *</Label>
-                <Select
-                  value={prefillFormData.maritalStatus}
-                  onValueChange={(value: any) => setPrefillFormData({ ...prefillFormData, maritalStatus: value })}
-                >
-                  <SelectTrigger className="bg-white text-black">
-                    <SelectValue placeholder="Select status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="single">Single</SelectItem>
-                    <SelectItem value="married">Married</SelectItem>
-                    <SelectItem value="divorced">Divorced</SelectItem>
-                    <SelectItem value="widowed">Widowed</SelectItem>
-                    <SelectItem value="other">Other</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            {/* Observations */}
-            <div className="space-y-2">
-              <Label htmlFor="prefill-observations" className="text-white">Observations (optional)</Label>
-              <Textarea
-                id="prefill-observations"
-                value={prefillFormData.clientObservations}
-                onChange={(e) => setPrefillFormData({ ...prefillFormData, clientObservations: e.target.value })}
-                className="bg-white text-black min-h-[100px]"
-                placeholder="Any additional information..."
-              />
-            </div>
-
-            {/* Error Message */}
-            {prefillError && (
-              <div className="bg-red-500/10 border border-red-500/50 text-red-300 p-4 rounded-md">
-                {prefillError}
-              </div>
-            )}
-
-            {/* Generated Link */}
-            {generatedPrefillLink && (
-              <div className="bg-green-500/10 border border-green-500/50 text-green-300 p-4 rounded-md">
-                <p className="font-semibold mb-2">Link Generated Successfully!</p>
-                <div className="flex items-center gap-2">
-                  <Input
-                    value={generatedPrefillLink}
-                    readOnly
-                    className="bg-white text-black flex-1"
-                  />
-                  <Button
-                    onClick={() => {
-                      navigator.clipboard.writeText(generatedPrefillLink);
-                      setCopiedLink(generatedPrefillLink);
-                      copyTimeoutRef.current = setTimeout(() => {
-                        setCopiedLink(null);
-                        copyTimeoutRef.current = null;
-                      }, 3000);
-                    }}
-                    className="bg-gold-medium hover:bg-gold-light text-black"
-                  >
-                    {copiedLink === generatedPrefillLink ? (
-                      <>
-                        <CheckCircle className="w-4 h-4 mr-2" />
-                        Copied!
-                      </>
-                    ) : (
-                      <>
-                        <Copy className="w-4 h-4 mr-2" />
-                        Copy
-                      </>
-                    )}
-                  </Button>
+          <CardContent onClick={(e) => e.stopPropagation()}>
+            {/* Step Indicator */}
+            <div className="mb-6 flex items-center justify-center gap-2">
+              <div className={`flex items-center gap-2 ${prefillFormStep === 1 ? 'text-gold-light' : 'text-gray-400'}`}>
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center ${prefillFormStep === 1 ? 'bg-gold-medium/20 border-2 border-gold-medium' : 'bg-gray-700 border-2 border-gray-600'}`}>
+                  1
                 </div>
+                <span className="text-sm font-medium">Basic Info</span>
               </div>
-            )}
+              <div className="w-12 h-0.5 bg-gray-600"></div>
+              <div className={`flex items-center gap-2 ${prefillFormStep === 2 ? 'text-gold-light' : 'text-gray-400'}`}>
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center ${prefillFormStep === 2 ? 'bg-gold-medium/20 border-2 border-gold-medium' : 'bg-gray-700 border-2 border-gray-600'}`}>
+                  2
+                </div>
+                <span className="text-sm font-medium">Address & Details</span>
+              </div>
+            </div>
 
-            {/* Generate Link Button */}
-            <Button
-              onClick={async () => {
-                // Validate required fields
-                if (!prefillFormData.productSlug) {
-                  setPrefillError('Please select a product');
-                  return;
-                }
-                if (!prefillFormData.clientName || !prefillFormData.clientEmail) {
-                  setPrefillError('Please fill in at least client name and email');
-                  return;
-                }
+            <div className="space-y-3" onClick={(e) => e.stopPropagation()}>
+              {/* STEP 1: Basic Info */}
+              {prefillFormStep === 1 && (
+                <>
+                  {/* Product Selection */}
+                  <div className="space-y-1.5">
+                    <Label htmlFor="prefill-product" className="text-white text-sm">Select Product *</Label>
+                    <Select
+                      value={prefillFormData.productSlug}
+                      onValueChange={(value) => setPrefillFormData({ ...prefillFormData, productSlug: value })}
+                    >
+                      <SelectTrigger className="bg-white text-black h-9 text-sm">
+                        <SelectValue placeholder="Select a product" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {products.map((product) => (
+                          <SelectItem key={product.slug} value={product.slug}>
+                            {product.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
 
-                setPrefillError('');
-                
-                // Generate token and create prefill record
-                try {
-                  const token = crypto.randomUUID();
-                  const expiresAt = new Date();
-                  expiresAt.setDate(expiresAt.getDate() + 30); // 30 days validity
+                  {/* Extra Units */}
+                  <div className="space-y-1.5">
+                    <Label htmlFor="prefill-extra-units" className="text-white text-sm">Number of Dependents</Label>
+                    <Select
+                      value={prefillFormData.extraUnits.toString()}
+                      onValueChange={(value) => setPrefillFormData({ ...prefillFormData, extraUnits: parseInt(value) })}
+                    >
+                      <SelectTrigger className="bg-white text-black h-9 text-sm">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {[0, 1, 2, 3, 4, 5].map((num) => (
+                          <SelectItem key={num} value={num.toString()}>
+                            {num}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
 
-                  const { error: insertError } = await supabase
-                    .from('checkout_prefill_tokens')
-                    .insert({
-                      token,
-                      seller_id: seller.seller_id_public,
-                      product_slug: prefillFormData.productSlug,
-                      client_data: {
-                        clientName: prefillFormData.clientName,
-                        clientEmail: prefillFormData.clientEmail,
-                        clientWhatsApp: prefillFormData.clientWhatsApp,
-                        clientCountry: prefillFormData.clientCountry,
-                        clientNationality: prefillFormData.clientNationality,
-                        dateOfBirth: prefillFormData.dateOfBirth,
-                        documentType: prefillFormData.documentType,
-                        documentNumber: prefillFormData.documentNumber,
-                        addressLine: prefillFormData.addressLine,
-                        city: prefillFormData.city,
-                        state: prefillFormData.state,
-                        postalCode: prefillFormData.postalCode,
-                        maritalStatus: prefillFormData.maritalStatus,
-                        clientObservations: prefillFormData.clientObservations,
-                        extraUnits: prefillFormData.extraUnits,
-                      },
-                      expires_at: expiresAt.toISOString(),
-                    });
+                  {/* Client Name */}
+                  <div className="space-y-1.5">
+                    <Label htmlFor="prefill-name" className="text-white text-sm">Full Name *</Label>
+                    <Input
+                      id="prefill-name"
+                      value={prefillFormData.clientName}
+                      onChange={(e) => setPrefillFormData({ ...prefillFormData, clientName: e.target.value })}
+                      className="bg-white text-black h-9 text-sm"
+                    />
+                  </div>
 
-                  if (insertError) {
-                    throw insertError;
-                  }
+                  {/* Email */}
+                  <div className="space-y-1.5">
+                    <Label htmlFor="prefill-email" className="text-white text-sm">Email *</Label>
+                    <Input
+                      id="prefill-email"
+                      type="email"
+                      value={prefillFormData.clientEmail}
+                      onChange={(e) => setPrefillFormData({ ...prefillFormData, clientEmail: e.target.value })}
+                      className="bg-white text-black h-9 text-sm"
+                    />
+                  </div>
 
-                  // Generate link
-                  const siteUrl = window.location.origin;
-                  const link = `${siteUrl}/checkout/visa/${prefillFormData.productSlug}?seller=${seller.seller_id_public}&prefill=${token}`;
-                  setGeneratedPrefillLink(link);
-                } catch (err: any) {
-                  console.error('Error generating prefill link:', err);
-                  setPrefillError(err.message || 'Failed to generate link. Please try again.');
-                }
-              }}
-              className="w-full bg-gold-medium hover:bg-gold-light text-black"
-            >
-              Generate Link for Client
-            </Button>
+                  {/* Date of Birth */}
+                  <div className="space-y-1.5">
+                    <Label htmlFor="prefill-dob" className="text-white text-sm">Date of Birth *</Label>
+                    <Input
+                      id="prefill-dob"
+                      type="date"
+                      value={prefillFormData.dateOfBirth}
+                      onChange={(e) => setPrefillFormData({ ...prefillFormData, dateOfBirth: e.target.value })}
+                      className="bg-white text-black h-9 text-sm"
+                    />
+                  </div>
+
+                  {/* Document Type and Number */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <Label htmlFor="prefill-doc-type" className="text-white text-sm">Document Type *</Label>
+                      <Select
+                        value={prefillFormData.documentType}
+                        onValueChange={(value: any) => setPrefillFormData({ ...prefillFormData, documentType: value })}
+                      >
+                        <SelectTrigger className="bg-white text-black h-9 text-sm">
+                          <SelectValue placeholder="Select type" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="passport">Passport</SelectItem>
+                          <SelectItem value="id">ID</SelectItem>
+                          <SelectItem value="driver_license">Driver's License</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="prefill-doc-number" className="text-white text-sm">Document Number *</Label>
+                      <Input
+                        id="prefill-doc-number"
+                        value={prefillFormData.documentNumber}
+                        onChange={(e) => setPrefillFormData({ ...prefillFormData, documentNumber: e.target.value })}
+                        className="bg-white text-black h-9 text-sm"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Navigation */}
+                  <div className="flex justify-end pt-2">
+                    <Button
+                      onClick={() => setPrefillFormStep(2)}
+                      className="bg-gold-medium hover:bg-gold-light text-black h-9 text-sm"
+                    >
+                      Next: Address & Details
+                      <ChevronRight className="w-4 h-4 ml-2" />
+                    </Button>
+                  </div>
+                </>
+              )}
+
+              {/* STEP 2: Address & Details */}
+              {prefillFormStep === 2 && (
+                <>
+                  {/* Address */}
+                  <div className="space-y-1.5">
+                    <Label htmlFor="prefill-address" className="text-white text-sm">Address Line *</Label>
+                    <Input
+                      id="prefill-address"
+                      value={prefillFormData.addressLine}
+                      onChange={(e) => setPrefillFormData({ ...prefillFormData, addressLine: e.target.value })}
+                      className="bg-white text-black h-9 text-sm"
+                    />
+                  </div>
+
+                  {/* City, State, Postal Code */}
+                  <div className="grid grid-cols-3 gap-3">
+                    <div className="space-y-1.5">
+                      <Label htmlFor="prefill-city" className="text-white text-sm">City *</Label>
+                      <Input
+                        id="prefill-city"
+                        value={prefillFormData.city}
+                        onChange={(e) => setPrefillFormData({ ...prefillFormData, city: e.target.value })}
+                        className="bg-white text-black h-9 text-sm"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="prefill-state" className="text-white text-sm">State *</Label>
+                      <Input
+                        id="prefill-state"
+                        value={prefillFormData.state}
+                        onChange={(e) => setPrefillFormData({ ...prefillFormData, state: e.target.value })}
+                        className="bg-white text-black h-9 text-sm"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="prefill-postal" className="text-white text-sm">Postal Code *</Label>
+                      <Input
+                        id="prefill-postal"
+                        value={prefillFormData.postalCode}
+                        onChange={(e) => setPrefillFormData({ ...prefillFormData, postalCode: e.target.value })}
+                        className="bg-white text-black h-9 text-sm"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Country and Nationality */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <Label htmlFor="prefill-country" className="text-white text-sm">Country of Residence *</Label>
+                      <Select
+                        value={prefillFormData.clientCountry}
+                        onValueChange={(value) => {
+                          const phoneCode = countryPhoneCodes[value] || '+';
+                          // Se o WhatsApp já tem um código de país, substituir; senão, adicionar o novo código
+                          let newWhatsApp = prefillFormData.clientWhatsApp;
+                          if (newWhatsApp) {
+                            // Remove qualquer código de país existente (começa com +)
+                            const withoutCode = newWhatsApp.replace(/^\+\d{1,4}\s*/, '');
+                            newWhatsApp = phoneCode + (withoutCode ? ' ' + withoutCode : '');
+                          } else {
+                            newWhatsApp = phoneCode;
+                          }
+                          setPrefillFormData({ 
+                            ...prefillFormData, 
+                            clientCountry: value,
+                            clientWhatsApp: newWhatsApp
+                          });
+                        }}
+                      >
+                        <SelectTrigger className="bg-white text-black h-9 text-sm">
+                          <SelectValue placeholder="Select country" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {countries.map((country) => (
+                            <SelectItem key={country} value={country}>
+                              {country}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="prefill-nationality" className="text-white text-sm">Nationality *</Label>
+                      <Select
+                        value={prefillFormData.clientNationality}
+                        onValueChange={(value) => setPrefillFormData({ ...prefillFormData, clientNationality: value })}
+                      >
+                        <SelectTrigger className="bg-white text-black h-9 text-sm">
+                          <SelectValue placeholder="Select nationality" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {countries.map((country) => (
+                            <SelectItem key={country} value={country}>
+                              {country}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  {/* WhatsApp and Marital Status */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <Label htmlFor="prefill-whatsapp" className="text-white text-sm">WhatsApp (with country code) *</Label>
+                      <Input
+                        id="prefill-whatsapp"
+                        type="tel"
+                        placeholder="+55 11 98765 4321"
+                        value={prefillFormData.clientWhatsApp}
+                        onChange={(e) => setPrefillFormData({ ...prefillFormData, clientWhatsApp: e.target.value })}
+                        className="bg-white text-black h-9 text-sm"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="prefill-marital" className="text-white text-sm">Marital Status *</Label>
+                      <Select
+                        value={prefillFormData.maritalStatus}
+                        onValueChange={(value: any) => setPrefillFormData({ ...prefillFormData, maritalStatus: value })}
+                      >
+                        <SelectTrigger className="bg-white text-black h-9 text-sm">
+                          <SelectValue placeholder="Select status" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="single">Single</SelectItem>
+                          <SelectItem value="married">Married</SelectItem>
+                          <SelectItem value="divorced">Divorced</SelectItem>
+                          <SelectItem value="widowed">Widowed</SelectItem>
+                          <SelectItem value="other">Other</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  {/* Observations */}
+                  <div className="space-y-1.5">
+                    <Label htmlFor="prefill-observations" className="text-white text-sm">Observations (optional)</Label>
+                    <Textarea
+                      id="prefill-observations"
+                      value={prefillFormData.clientObservations}
+                      onChange={(e) => setPrefillFormData({ ...prefillFormData, clientObservations: e.target.value })}
+                      className="bg-white text-black min-h-[80px] text-sm"
+                      placeholder="Any additional information..."
+                    />
+                  </div>
+
+                  {/* Navigation */}
+                  <div className="flex justify-between pt-2">
+                    <Button
+                      onClick={() => setPrefillFormStep(1)}
+                      variant="outline"
+                      className="border-gold-medium/50 bg-black/50 text-gold-light hover:bg-gold-medium/30 h-9 text-sm"
+                    >
+                      <ChevronLeft className="w-4 h-4 mr-2" />
+                      Back
+                    </Button>
+                  </div>
+                </>
+              )}
+
+              {/* Error Message */}
+              {prefillError && (
+                <div className="bg-red-500/10 border border-red-500/50 text-red-300 p-3 rounded-md text-sm">
+                  {prefillError}
+                </div>
+              )}
+
+              {/* Generated Link */}
+              {generatedPrefillLink && (
+                <div className="bg-green-500/10 border border-green-500/50 text-green-300 p-3 rounded-md">
+                  <p className="font-semibold mb-2 text-sm">Link Generated Successfully!</p>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      value={generatedPrefillLink}
+                      readOnly
+                      className="bg-white text-black flex-1 h-9 text-xs"
+                    />
+                    <Button
+                      onClick={() => {
+                        navigator.clipboard.writeText(generatedPrefillLink);
+                        setCopiedLink(generatedPrefillLink);
+                        copyTimeoutRef.current = setTimeout(() => {
+                          setCopiedLink(null);
+                          copyTimeoutRef.current = null;
+                        }, 3000);
+                      }}
+                      className="bg-gold-medium hover:bg-gold-light text-black h-9 text-sm"
+                    >
+                      {copiedLink === generatedPrefillLink ? (
+                        <>
+                          <CheckCircle className="w-4 h-4 mr-1" />
+                          Copied!
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="w-4 h-4 mr-1" />
+                          Copy
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {/* Generate Link Button - Only show on Step 2 */}
+              {prefillFormStep === 2 && (
+                <Button
+                  onClick={async () => {
+                    // Validate required fields
+                    if (!prefillFormData.productSlug) {
+                      setPrefillError('Please select a product');
+                      return;
+                    }
+                    if (!prefillFormData.clientName || !prefillFormData.clientEmail) {
+                      setPrefillError('Please fill in at least client name and email');
+                      return;
+                    }
+
+                    setPrefillError('');
+                    
+                    // Generate token and create prefill record
+                    try {
+                      const token = crypto.randomUUID();
+                      const expiresAt = new Date();
+                      expiresAt.setDate(expiresAt.getDate() + 30); // 30 days validity
+
+                      const { error: insertError } = await supabase
+                        .from('checkout_prefill_tokens')
+                        .insert({
+                          token,
+                          seller_id: seller.seller_id_public,
+                          product_slug: prefillFormData.productSlug,
+                          client_data: {
+                            clientName: prefillFormData.clientName,
+                            clientEmail: prefillFormData.clientEmail,
+                            clientWhatsApp: prefillFormData.clientWhatsApp,
+                            clientCountry: prefillFormData.clientCountry,
+                            clientNationality: prefillFormData.clientNationality,
+                            dateOfBirth: prefillFormData.dateOfBirth,
+                            documentType: prefillFormData.documentType,
+                            documentNumber: prefillFormData.documentNumber,
+                            addressLine: prefillFormData.addressLine,
+                            city: prefillFormData.city,
+                            state: prefillFormData.state,
+                            postalCode: prefillFormData.postalCode,
+                            maritalStatus: prefillFormData.maritalStatus,
+                            clientObservations: prefillFormData.clientObservations,
+                            extraUnits: prefillFormData.extraUnits,
+                          },
+                          expires_at: expiresAt.toISOString(),
+                        });
+
+                      if (insertError) {
+                        throw insertError;
+                      }
+
+                      // Generate link
+                      const siteUrl = window.location.origin;
+                      const link = `${siteUrl}/checkout/visa/${prefillFormData.productSlug}?seller=${seller.seller_id_public}&prefill=${token}`;
+                      setGeneratedPrefillLink(link);
+                    } catch (err: any) {
+                      console.error('Error generating prefill link:', err);
+                      setPrefillError(err.message || 'Failed to generate link. Please try again.');
+                    }
+                  }}
+                  className="w-full bg-gold-medium hover:bg-gold-light text-black h-9 text-sm"
+                >
+                  Generate Link for Client
+                </Button>
+              )}
           </div>
         </CardContent>
         )}
