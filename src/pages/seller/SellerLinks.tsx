@@ -407,11 +407,11 @@ export function SellerLinks() {
               </div>
             </div>
 
-            <div className="space-y-3" onClick={(e) => e.stopPropagation()}>
+            <div className="space-y-4 max-w-4xl mx-auto" onClick={(e) => e.stopPropagation()}>
               {/* STEP 1: Basic Info */}
               {prefillFormStep === 1 && (
                 <>
-                  {/* Product Selection */}
+                  {/* Product Selection - full width row */}
                   <div className="space-y-1.5">
                     <Label htmlFor="prefill-product" className="text-white text-sm">Select Product *</Label>
                     <Select
@@ -431,63 +431,69 @@ export function SellerLinks() {
                     </Select>
                   </div>
 
-                  {/* Extra Units */}
-                  <div className="space-y-1.5">
-                    <Label htmlFor="prefill-extra-units" className="text-white text-sm">Number of Dependents</Label>
-                    <Select
-                      value={prefillFormData.extraUnits.toString()}
-                      onValueChange={(value) => setPrefillFormData({ ...prefillFormData, extraUnits: parseInt(value) })}
-                    >
-                      <SelectTrigger className="bg-white text-black h-9 text-sm">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {[0, 1, 2, 3, 4, 5].map((num) => (
-                          <SelectItem key={num} value={num.toString()}>
-                            {num}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                  {/* Dependents & Full Name */}
+                  <div className="grid gap-3 md:grid-cols-2">
+                    {/* Number of Dependents */}
+                    <div className="space-y-1.5">
+                      <Label htmlFor="prefill-extra-units" className="text-white text-sm">Number of Dependents</Label>
+                      <Select
+                        value={prefillFormData.extraUnits.toString()}
+                        onValueChange={(value) => setPrefillFormData({ ...prefillFormData, extraUnits: parseInt(value) })}
+                      >
+                        <SelectTrigger className="bg-white text-black h-9 text-sm">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {[0, 1, 2, 3, 4, 5].map((num) => (
+                            <SelectItem key={num} value={num.toString()}>
+                              {num}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {/* Client Name */}
+                    <div className="space-y-1.5">
+                      <Label htmlFor="prefill-name" className="text-white text-sm">Full Name *</Label>
+                      <Input
+                        id="prefill-name"
+                        value={prefillFormData.clientName}
+                        onChange={(e) => setPrefillFormData({ ...prefillFormData, clientName: e.target.value })}
+                        className="bg-white text-black h-9 text-sm"
+                      />
+                    </div>
                   </div>
 
-                  {/* Client Name */}
-                  <div className="space-y-1.5">
-                    <Label htmlFor="prefill-name" className="text-white text-sm">Full Name *</Label>
-                    <Input
-                      id="prefill-name"
-                      value={prefillFormData.clientName}
-                      onChange={(e) => setPrefillFormData({ ...prefillFormData, clientName: e.target.value })}
-                      className="bg-white text-black h-9 text-sm"
-                    />
-                  </div>
+                  {/* Email & Date of Birth */}
+                  <div className="grid gap-3 md:grid-cols-2">
+                    {/* Email */}
+                    <div className="space-y-1.5">
+                      <Label htmlFor="prefill-email" className="text-white text-sm">Email *</Label>
+                      <Input
+                        id="prefill-email"
+                        type="email"
+                        value={prefillFormData.clientEmail}
+                        onChange={(e) => setPrefillFormData({ ...prefillFormData, clientEmail: e.target.value })}
+                        className="bg-white text-black h-9 text-sm"
+                      />
+                    </div>
 
-                  {/* Email */}
-                  <div className="space-y-1.5">
-                    <Label htmlFor="prefill-email" className="text-white text-sm">Email *</Label>
-                    <Input
-                      id="prefill-email"
-                      type="email"
-                      value={prefillFormData.clientEmail}
-                      onChange={(e) => setPrefillFormData({ ...prefillFormData, clientEmail: e.target.value })}
-                      className="bg-white text-black h-9 text-sm"
-                    />
-                  </div>
-
-                  {/* Date of Birth */}
-                  <div className="space-y-1.5">
-                    <Label htmlFor="prefill-dob" className="text-white text-sm">Date of Birth *</Label>
-                    <Input
-                      id="prefill-dob"
-                      type="date"
-                      value={prefillFormData.dateOfBirth}
-                      onChange={(e) => setPrefillFormData({ ...prefillFormData, dateOfBirth: e.target.value })}
-                      className="bg-white text-black h-9 text-sm"
-                    />
+                    {/* Date of Birth */}
+                    <div className="space-y-1.5">
+                      <Label htmlFor="prefill-dob" className="text-white text-sm">Date of Birth *</Label>
+                      <Input
+                        id="prefill-dob"
+                        type="date"
+                        value={prefillFormData.dateOfBirth}
+                        onChange={(e) => setPrefillFormData({ ...prefillFormData, dateOfBirth: e.target.value })}
+                        className="bg-white text-black h-9 text-sm"
+                      />
+                    </div>
                   </div>
 
                   {/* Document Type and Number */}
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <div className="space-y-1.5">
                       <Label htmlFor="prefill-doc-type" className="text-white text-sm">Document Type *</Label>
                       <Select
