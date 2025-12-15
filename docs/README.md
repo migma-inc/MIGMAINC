@@ -99,7 +99,7 @@ VITE_APP_URL=https://seu-dominio.com
 - Domínio customizado: `VITE_APP_URL=https://migma.com`
 
 ### Documentação Completa
-Para configuração detalhada, consulte: **[SMTP_SETUP.md](./SMTP_SETUP.md)**
+Para configuração detalhada, consulte: **[SMTP_SETUP.md](./docs/SMTP_SETUP.md)**
 
 ### Resumo Rápido
 
@@ -126,4 +126,4 @@ Para configuração detalhada, consulte: **[SMTP_SETUP.md](./SMTP_SETUP.md)**
 - **Backend**: `supabase/functions/send-email/index.ts` - Edge Function SMTP
 - **Protocolo**: SMTP direto via sockets TLS do Deno
 
-Para mais detalhes técnicos, implementação e troubleshooting, veja [SMTP_SETUP.md](./SMTP_SETUP.md).
+Para mais detalhes técnicos, implementação e troubleshooting, veja [SMTP_SETUP.md](./docs/SMTP_SETUP.md).

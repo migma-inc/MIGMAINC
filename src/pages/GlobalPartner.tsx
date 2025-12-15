@@ -72,7 +72,7 @@ const experienceSchema = z.object({
     areaOfExpertise: z.array(z.string()).min(1, "Select at least one expertise"),
     otherAreaOfExpertise: z.string().optional(),
     yearsOfExperience: z.string().min(1, "Years of experience is required"),
-    interestedRoles: z.array(z.string()).optional(),
+    interestedRoles: z.array(z.string()).min(1, "Select at least one role"),
     visaExperience: z.string().min(1, "Please select your visa experience"),
     englishLevel: z.string().min(1, "English level is required"),
     clientExperience: z.enum(["Yes", "No"]).refine((val) => val !== undefined, {
@@ -726,9 +726,6 @@ const FooterSection = () => {
                             <Link to="/legal/cookies" className="transition hover:text-gold-medium text-center md:text-left">
                                 Cookies
                             </Link>
-                            <Link to="/legal/global-partner-terms" className="transition hover:text-gold-medium text-center md:text-left">
-                                Partner Terms
-                            </Link>
                         </div>
                     </nav>
                 </div>
@@ -813,23 +810,27 @@ const ApplicationWizard = () => {
         if (!data) return false;
         
         // Check Step 1 (Personal Info) - required fields
-        const step1Filled = data.fullName && data.fullName.trim().length >= 2 &&
-                          data.email && data.email.includes('@') &&
-                          data.phone && data.phone.trim().length >= 5 &&
-                          data.country && data.country.trim().length >= 2;
+        const step1Filled =
+            data.fullName && data.fullName.trim().length >= 2 &&
+            data.email && data.email.includes('@') &&
+            data.phone && data.phone.trim().length >= 5 &&
+            data.country && data.country.trim().length >= 2;
         
         // Check Step 2 (Legal) - required fields
         const step2Filled = data.hasBusiness !== undefined && data.hasBusiness !== null;
         // If hasBusiness is "Yes", also check businessId
-        const step2Complete = data.hasBusiness === "Yes" 
+        const step2Complete = data.hasBusiness === "Yes"
             ? (data.businessId && data.businessId.trim().length >= 3)
             : true;
         
         // Check Step 3 (Experience) - required fields
-        const step3Filled = Array.isArray(data.areaOfExpertise) && data.areaOfExpertise.length > 0 &&
-                           data.yearsOfExperience &&
-                           data.englishLevel &&
-                           data.clientExperience !== undefined && data.clientExperience !== null;
+        const step3Filled =
+            Array.isArray(data.areaOfExpertise) && data.areaOfExpertise.length > 0 &&
+            data.yearsOfExperience &&
+            Array.isArray(data.interestedRoles) && data.interestedRoles.length > 0 &&
+            data.englishLevel &&
+            data.visaExperience && // <- required select that caused issues when empty
+            data.clientExperience !== undefined && data.clientExperience !== null;
         // If clientExperience is "Yes", also check description
         const step3Complete = data.clientExperience === "Yes"
             ? (data.clientExperienceDescription && data.clientExperienceDescription.trim().length >= 10)
@@ -840,12 +841,16 @@ const ApplicationWizard = () => {
             : true;
         
         // Check Step 4 (Fit) - required fields
-        const step4Filled = data.weeklyAvailability &&
-                           data.whyMigma && data.whyMigma.trim().length >= 10 &&
-                           data.comfortableModel === true;
+        const step4Filled =
+            data.weeklyAvailability &&
+            data.whyMigma && data.whyMigma.trim().length >= 10 &&
+            data.comfortableModel === true;
         
         // All previous steps (1-4) must be filled
-        return step1Filled && step2Filled && step2Complete && step3Filled && step3Complete && step3OtherComplete && step4Filled;
+        return step1Filled &&
+               step2Filled && step2Complete &&
+               step3Filled && step3Complete && step3OtherComplete &&
+               step4Filled;
     };
 
     // Always start at step 1, then check if we should redirect to step 5
@@ -891,6 +896,12 @@ const ApplicationWizard = () => {
     const { register, trigger, formState: { errors }, setValue, watch } = form;
     const areaOfExpertise = watch('areaOfExpertise') || [];
     const interestedRoles = watch('interestedRoles') || [];
+
+    // Ensure complex array fields are registered so validation runs correctly
+    React.useEffect(() => {
+        register('areaOfExpertise');
+        register('interestedRoles');
+    }, [register]);
     
     // Watch all form values to save to localStorage
     const formValues = watch();
@@ -964,6 +975,21 @@ const ApplicationWizard = () => {
     };
 
     const validateStep = async (currentStep: number) => {
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/28ab7e6c-aff6-477c-b6d9-0ba600b33f6d', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                sessionId: 'debug-session',
+                runId: 'pre-fix-1',
+                hypothesisId: 'H1',
+                location: 'GlobalPartner.tsx:validateStep:entry',
+                message: 'validateStep called',
+                data: { currentStep },
+                timestamp: Date.now(),
+            }),
+        }).catch(() => { });
+        // #endregion agent log
         let fieldsToValidate: (keyof FormData)[] = [];
         switch (currentStep) {
             case 1: 
@@ -986,12 +1012,134 @@ const ApplicationWizard = () => {
                 }
                 break;
             case 2: fieldsToValidate = ['hasBusiness', 'businessId']; break;
-            case 3: fieldsToValidate = ['areaOfExpertise', 'otherAreaOfExpertise', 'yearsOfExperience', 'interestedRoles', 'visaExperience', 'englishLevel', 'clientExperience', 'clientExperienceDescription']; break;
+            case 3:
+                fieldsToValidate = [
+                    'areaOfExpertise',
+                    'otherAreaOfExpertise',
+                    'yearsOfExperience',
+                    'interestedRoles',
+                    'visaExperience',
+                    'englishLevel',
+                    'clientExperience',
+                    'clientExperienceDescription',
+                ];
+                break;
             case 4: fieldsToValidate = ['weeklyAvailability', 'whyMigma', 'comfortableModel']; break;
             case 5: fieldsToValidate = ['cv']; break;
             case 6: fieldsToValidate = ['infoAccurate']; break;
         }
+
         const result = await trigger(fieldsToValidate);
+
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/28ab7e6c-aff6-477c-b6d9-0ba600b33f6d', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                sessionId: 'debug-session',
+                runId: 'pre-fix-1',
+                hypothesisId: 'H2',
+                location: 'GlobalPartner.tsx:validateStep:afterTrigger',
+                message: 'After trigger validation',
+                data: { currentStep, result, fieldsToValidate },
+                timestamp: Date.now(),
+            }),
+        }).catch(() => { });
+        // #endregion agent log
+
+        // Hard guard for multi-select arrays on step 3, to avoid any edge cases
+        if (currentStep === 3) {
+            const values = form.getValues();
+
+            // #region agent log
+            fetch('http://127.0.0.1:7242/ingest/28ab7e6c-aff6-477c-b6d9-0ba600b33f6d', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    sessionId: 'debug-session',
+                    runId: 'pre-fix-1',
+                    hypothesisId: 'H3',
+                    location: 'GlobalPartner.tsx:validateStep:step3Values',
+                    message: 'Step 3 values before hard guard',
+                    data: {
+                        areaOfExpertise: values.areaOfExpertise,
+                        interestedRoles: values.interestedRoles,
+                        yearsOfExperience: values.yearsOfExperience,
+                        visaExperience: values.visaExperience,
+                        englishLevel: values.englishLevel,
+                    },
+                    timestamp: Date.now(),
+                }),
+            }).catch(() => { });
+            // #endregion agent log
+
+            if (!values.areaOfExpertise || !Array.isArray(values.areaOfExpertise) || values.areaOfExpertise.length === 0) {
+                form.setError('areaOfExpertise', {
+                    type: 'manual',
+                    message: 'Select at least one expertise',
+                });
+
+                // #region agent log
+                fetch('http://127.0.0.1:7242/ingest/28ab7e6c-aff6-477c-b6d9-0ba600b33f6d', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        sessionId: 'debug-session',
+                        runId: 'pre-fix-1',
+                        hypothesisId: 'H4',
+                        location: 'GlobalPartner.tsx:validateStep:areaOfExpertiseFail',
+                        message: 'Blocking step advance: areaOfExpertise empty',
+                        data: { areaOfExpertise: values.areaOfExpertise },
+                        timestamp: Date.now(),
+                    }),
+                }).catch(() => { });
+                // #endregion agent log
+
+                return false;
+            }
+
+            if (!values.interestedRoles || !Array.isArray(values.interestedRoles) || values.interestedRoles.length === 0) {
+                form.setError('interestedRoles', {
+                    type: 'manual',
+                    message: 'Select at least one role',
+                });
+
+                // #region agent log
+                fetch('http://127.0.0.1:7242/ingest/28ab7e6c-aff6-477c-b6d9-0ba600b33f6d', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        sessionId: 'debug-session',
+                        runId: 'pre-fix-1',
+                        hypothesisId: 'H5',
+                        location: 'GlobalPartner.tsx:validateStep:interestedRolesFail',
+                        message: 'Blocking step advance: interestedRoles empty',
+                        data: { interestedRoles: values.interestedRoles },
+                        timestamp: Date.now(),
+                    }),
+                }).catch(() => { });
+                // #endregion agent log
+
+                return false;
+            }
+        }
+
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/28ab7e6c-aff6-477c-b6d9-0ba600b33f6d', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                sessionId: 'debug-session',
+                runId: 'pre-fix-1',
+                hypothesisId: 'H6',
+                location: 'GlobalPartner.tsx:validateStep:return',
+                message: 'validateStep returning',
+                data: { currentStep, result },
+                timestamp: Date.now(),
+            }),
+        }).catch(() => { });
+        // #endregion agent log
+
         return result;
     };
 
@@ -1008,6 +1156,23 @@ const ApplicationWizard = () => {
         }
         
         const isStepValid = await validateStep(step);
+
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/28ab7e6c-aff6-477c-b6d9-0ba600b33f6d', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                sessionId: 'debug-session',
+                runId: 'pre-fix-1',
+                hypothesisId: 'H7',
+                location: 'GlobalPartner.tsx:handleNext:afterValidate',
+                message: 'Result of validateStep',
+                data: { step, isStepValid },
+                timestamp: Date.now(),
+            }),
+        }).catch(() => { });
+        // #endregion agent log
+
         if (isStepValid) {
             // Only advance if not on the last step
             if (step < totalSteps) {

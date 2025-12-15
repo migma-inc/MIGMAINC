@@ -214,46 +214,55 @@ Deno.serve(async (req) => {
         .trim();
     };
 
-    // Helper function to load identity photo
-    const loadIdentityPhoto = async (): Promise<{ dataUrl: string; format: string } | null> => {
-      if (!termAcceptance.identity_photo_path) {
+    // Generic helper to load an image either from a public URL or from storage path
+    const loadImage = async (urlOrPath: string | null | undefined): Promise<{ dataUrl: string; format: string } | null> => {
+      if (!urlOrPath) {
         return null;
       }
 
       try {
-        console.log("[EDGE FUNCTION] Attempting to load identity photo:", termAcceptance.identity_photo_path);
-        
-        // Download image directly from storage using service role
-        const { data: imageData, error: downloadError } = await supabase.storage
-          .from('identity-photos')
-          .download(termAcceptance.identity_photo_path);
-
         let imageArrayBuffer: ArrayBuffer;
         let mimeType: string;
 
-        if (downloadError || !imageData) {
-          console.error("[EDGE FUNCTION] Error downloading image:", downloadError);
-          // Try public URL as fallback
-          const { data: { publicUrl } } = supabase.storage
-            .from('identity-photos')
-            .getPublicUrl(termAcceptance.identity_photo_path);
-          
-          console.log("[EDGE FUNCTION] Trying public URL:", publicUrl);
-          const imageResponse = await fetch(publicUrl);
-          
+        // If it's a full URL, fetch directly
+        if (urlOrPath.startsWith('http://') || urlOrPath.startsWith('https://')) {
+          console.log("[EDGE FUNCTION] Loading image from URL:", urlOrPath);
+          const imageResponse = await fetch(urlOrPath);
           if (!imageResponse.ok) {
-            throw new Error(`Failed to fetch image: ${imageResponse.status}`);
+            throw new Error(`Failed to fetch image from URL: ${imageResponse.status}`);
           }
-          
           const imageBlob = await imageResponse.blob();
           imageArrayBuffer = await imageBlob.arrayBuffer();
-          mimeType = imageBlob.type;
+          mimeType = imageBlob.type || 'image/jpeg';
         } else {
-          imageArrayBuffer = await imageData.arrayBuffer();
-          const fileExtension = termAcceptance.identity_photo_path.toLowerCase().split('.').pop();
-          mimeType = fileExtension === 'png' ? 'image/png' : 'image/jpeg';
+          // Assume it's a path in the identity-photos bucket (backwards compatibility)
+          console.log("[EDGE FUNCTION] Attempting to load image from storage path:", urlOrPath);
+          const { data: imageData, error: downloadError } = await supabase.storage
+            .from('identity-photos')
+            .download(urlOrPath);
+
+          if (downloadError || !imageData) {
+            console.error("[EDGE FUNCTION] Error downloading image from storage:", downloadError);
+            // Try public URL as fallback
+            const { data: { publicUrl } } = supabase.storage
+              .from('identity-photos')
+              .getPublicUrl(urlOrPath);
+            
+            console.log("[EDGE FUNCTION] Trying public URL for storage image:", publicUrl);
+            const imageResponse = await fetch(publicUrl);
+            if (!imageResponse.ok) {
+              throw new Error(`Failed to fetch image from storage public URL: ${imageResponse.status}`);
+            }
+            const imageBlob = await imageResponse.blob();
+            imageArrayBuffer = await imageBlob.arrayBuffer();
+            mimeType = imageBlob.type || 'image/jpeg';
+          } else {
+            imageArrayBuffer = await imageData.arrayBuffer();
+            const fileExtension = urlOrPath.toLowerCase().split('.').pop();
+            mimeType = fileExtension === 'png' ? 'image/png' : 'image/jpeg';
+          }
         }
-        
+
         // Convert ArrayBuffer to base64 (chunked approach for large files)
         const bytes = new Uint8Array(imageArrayBuffer);
         let binary = '';
@@ -265,14 +274,19 @@ Deno.serve(async (req) => {
         const imageBase64 = btoa(binary);
         const imageFormat = mimeType.includes('png') ? 'PNG' : 'JPEG';
         const imageDataUrl = `data:${mimeType};base64,${imageBase64}`;
-        
-        console.log("[EDGE FUNCTION] Identity photo loaded successfully");
+
+        console.log("[EDGE FUNCTION] Image loaded successfully");
         return { dataUrl: imageDataUrl, format: imageFormat };
       } catch (imageError) {
-        console.error("[EDGE FUNCTION] Could not load identity photo:", imageError);
+        console.error("[EDGE FUNCTION] Could not load image:", imageError);
         return null;
       }
     };
+
+    // Helper functions for specific images
+    const loadIdentityPhoto = async () => loadImage(termAcceptance.identity_photo_path);
+    const loadDocumentFront = async () => loadImage((termAcceptance as any).document_front_url);
+    const loadDocumentBack = async () => loadImage((termAcceptance as any).document_back_url);
 
     // ============================================
     // 1. Header
@@ -445,25 +459,47 @@ Deno.serve(async (req) => {
     pdf.text(application.phone, margin + 50, currentY);
     currentY += 10;
 
-    // Identity photo (in signature section)
+    // Document images + identity selfie in signature section
+    const documentFront = await loadDocumentFront();
+    const documentBack = await loadDocumentBack();
     const identityPhoto = await loadIdentityPhoto();
-    if (identityPhoto) {
+
+    if (documentFront || documentBack || identityPhoto) {
       // Check if new page is needed
-      if (currentY > pageHeight - margin - 80) {
+      if (currentY > pageHeight - margin - 120) {
         pdf.addPage();
         currentY = margin;
       }
 
-      pdf.setFontSize(10);
-      pdf.setFont('helvetica', 'bold');
-      pdf.text('IDENTITY PHOTO WITH DOCUMENT', margin, currentY);
-      currentY += 8;
-
-      // Add image (max width 60mm, maintain aspect ratio)
       const maxWidth = 60;
       const maxHeight = 45;
-      pdf.addImage(identityPhoto.dataUrl, identityPhoto.format, margin, currentY, maxWidth, maxHeight);
-      currentY += maxHeight + 10;
+
+      if (documentFront) {
+        pdf.setFontSize(10);
+        pdf.setFont('helvetica', 'bold');
+        pdf.text('DOCUMENT FRONT', margin, currentY);
+        currentY += 8;
+        pdf.addImage(documentFront.dataUrl, documentFront.format, margin, currentY, maxWidth, maxHeight);
+        currentY += maxHeight + 10;
+      }
+
+      if (documentBack) {
+        pdf.setFontSize(10);
+        pdf.setFont('helvetica', 'bold');
+        pdf.text('DOCUMENT BACK', margin, currentY);
+        currentY += 8;
+        pdf.addImage(documentBack.dataUrl, documentBack.format, margin, currentY, maxWidth, maxHeight);
+        currentY += maxHeight + 10;
+      }
+
+      if (identityPhoto) {
+        pdf.setFontSize(10);
+        pdf.setFont('helvetica', 'bold');
+        pdf.text('IDENTITY PHOTO WITH DOCUMENT', margin, currentY);
+        currentY += 8;
+        pdf.addImage(identityPhoto.dataUrl, identityPhoto.format, margin, currentY, maxWidth, maxHeight);
+        currentY += maxHeight + 10;
+      }
     }
 
     // ============================================

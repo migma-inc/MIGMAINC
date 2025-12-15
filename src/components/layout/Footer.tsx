@@ -42,9 +42,6 @@ export const Footer = () => {
                             <Link to="/legal/cookies" className="transition hover:text-gold-medium text-center md:text-left">
                                 Cookies
                             </Link>
-                            <Link to="/legal/global-partner-terms" className="transition hover:text-gold-medium text-center md:text-left">
-                                Partner Terms
-                            </Link>
                         </div>
                     </nav>
                 </div>
@@ -52,6 +49,7 @@ export const Footer = () => {
         </footer>
     );
 };
+
 
 
 

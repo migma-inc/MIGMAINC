@@ -64,3 +64,4 @@ export const countryPhoneCodes: Record<string, string> = {
 export function getPhoneCodeFromCountry(country: string): string {
   return countryPhoneCodes[country] || '+';
 }
+

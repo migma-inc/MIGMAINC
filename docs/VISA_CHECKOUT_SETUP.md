@@ -22,22 +22,9 @@ Sistema completo de checkout "ghost" para vendas de serviços de visto com integ
 
 ### 1. Variáveis de Ambiente no Supabase
 
-Configure no **Supabase Dashboard → Project Settings → Edge Functions → Secrets**:
-
-```bash
-# Chaves do Stripe
-STRIPE_SECRET_KEY=sk_test_...          # Chave de teste
-STRIPE_SECRET_KEY_TEST=sk_test_...     # Opcional: chave de teste específica
-STRIPE_SECRET_KEY_LIVE=sk_live_...     # Opcional: chave de produção específica
-
-# Webhook Secret (obtido após configurar webhook no Stripe)
-STRIPE_WEBHOOK_SECRET=whsec_...
-
-# URL do site
-SITE_URL=https://seusite.com           # Produção
-# ou
-SITE_URL=http://localhost:5173         # Desenvolvimento
-```
+Configure no **Supabase Dashboard → Project Settings → Edge Functions → Secrets** as variáveis necessárias
+para Stripe (secret key, webhook secret, publishable key) e a URL do site.  
+Por segurança, **não coloque exemplos de valores ou chaves reais neste arquivo**.
 
 ### 2. Configurar Webhook no Stripe Dashboard
 
@@ -329,6 +316,7 @@ Para dúvidas ou problemas, contate o desenvolvedor.
 ---
 
 **Última atualização:** Janeiro 2025
+
 
 
 

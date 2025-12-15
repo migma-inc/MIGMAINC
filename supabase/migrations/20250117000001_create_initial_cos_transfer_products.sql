@@ -136,3 +136,4 @@ INSERT INTO visa_products (
   )
 ON CONFLICT (slug) DO NOTHING;
 
+

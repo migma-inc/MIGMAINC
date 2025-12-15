@@ -342,3 +342,4 @@ export async function saveStep3Data(
     return { success: false, error: 'Failed to save terms acceptance. Please try again.' };
   }
 }
+

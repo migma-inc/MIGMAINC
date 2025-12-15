@@ -174,16 +174,8 @@ O sistema de envio de emails do MIGMA Global Partner foi implementado usando **S
 | `SMTP_FROM_EMAIL` | `seu-email@gmail.com` | Email que aparecerá como remetente |
 | `SMTP_FROM_NAME` | `MIGMA` | Nome que aparecerá como remetente |
 
-**Exemplo de configuração:**
-
-```
-SMTP_HOST=smtp.gmail.com
-SMTP_PORT=587
-SMTP_USER=appsmigma@gmail.com
-SMTP_PASS=cbtvlwmlgydsfahj
-SMTP_FROM_EMAIL=appsmigma@gmail.com
-SMTP_FROM_NAME=MIGMA
-```
+**Importante:** configure essas variáveis apenas nos **Secrets do Supabase** ou no seu ambiente de produção.  
+Não registre exemplos de valores reais (emails ou senhas) em arquivos versionados.
 
 **⚠️ Importante:**
 - ✅ Use a senha de app de **16 caracteres** (sem espaços)

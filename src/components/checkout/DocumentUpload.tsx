@@ -31,12 +31,12 @@ export const DocumentUpload = ({ onComplete, onCancel }: DocumentUploadProps) =>
   const backInputRef = useRef<HTMLInputElement>(null);
   const selfieInputRef = useRef<HTMLInputElement>(null);
 
-  // Validate file
+  // Validate file - images only (no PDF)
   const validateFile = (file: File): string | null => {
     // Check file type
-    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'application/pdf'];
+    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png'];
     if (!allowedTypes.includes(file.type)) {
-      return 'File must be JPG, PNG, or PDF';
+      return 'File must be a JPG or PNG image';
     }
 
     // Check file size (max 10MB)
@@ -65,25 +65,16 @@ export const DocumentUpload = ({ onComplete, onCancel }: DocumentUploadProps) =>
 
     setError('');
 
-    // Create preview for images
-    if (file.type.startsWith('image/')) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setter({
-          file,
-          preview: reader.result as string,
-          type,
-        });
-      };
-      reader.readAsDataURL(file);
-    } else {
-      // For PDF, just set the file without preview
+    // Create preview for images (we only allow images now)
+    const reader = new FileReader();
+    reader.onloadend = () => {
       setter({
         file,
-        preview: '',
+        preview: reader.result as string,
         type,
       });
-    }
+    };
+    reader.readAsDataURL(file);
   };
 
   // Remove file
@@ -187,7 +178,7 @@ export const DocumentUpload = ({ onComplete, onCancel }: DocumentUploadProps) =>
               ref={frontInputRef}
               type="file"
               id="document-front"
-              accept="image/*,.pdf"
+              accept="image/*"
               capture="environment"
               onChange={(e) => handleFileSelect(e, 'document_front', setDocumentFront)}
               className="hidden"
@@ -195,17 +186,11 @@ export const DocumentUpload = ({ onComplete, onCancel }: DocumentUploadProps) =>
             <label htmlFor="document-front" className="cursor-pointer">
               {documentFront ? (
                 <div className="space-y-2">
-                  {documentFront.preview ? (
-                    <img
-                      src={documentFront.preview}
-                      alt="Document front preview"
-                      className="max-h-48 mx-auto rounded-md border border-gold-medium/30"
-                    />
-                  ) : (
-                    <div className="bg-gray-800 p-4 rounded-md">
-                      <p className="text-sm text-white">PDF: {documentFront.file.name}</p>
-                    </div>
-                  )}
+                  <img
+                    src={documentFront.preview}
+                    alt="Document front preview"
+                    className="max-h-48 mx-auto rounded-md border border-gold-medium/30"
+                  />
                   <p className="text-sm text-gold-light mt-2">✓ {documentFront.file.name}</p>
                   <Button
                     type="button"
@@ -225,7 +210,7 @@ export const DocumentUpload = ({ onComplete, onCancel }: DocumentUploadProps) =>
                 <div>
                   <Upload className="h-12 w-12 text-gold-light mx-auto mb-2" />
                   <p className="text-sm text-white">Click to upload or take photo</p>
-                  <p className="text-xs text-gray-400 mt-1">JPG, PNG or PDF (max 10MB)</p>
+                  <p className="text-xs text-gray-400 mt-1">JPG or PNG (max 10MB)</p>
                 </div>
               )}
             </label>
@@ -242,7 +227,7 @@ export const DocumentUpload = ({ onComplete, onCancel }: DocumentUploadProps) =>
               ref={backInputRef}
               type="file"
               id="document-back"
-              accept="image/*,.pdf"
+              accept="image/*"
               capture="environment"
               onChange={(e) => handleFileSelect(e, 'document_back', setDocumentBack)}
               className="hidden"
@@ -250,17 +235,11 @@ export const DocumentUpload = ({ onComplete, onCancel }: DocumentUploadProps) =>
             <label htmlFor="document-back" className="cursor-pointer">
               {documentBack ? (
                 <div className="space-y-2">
-                  {documentBack.preview ? (
-                    <img
-                      src={documentBack.preview}
-                      alt="Document back preview"
-                      className="max-h-48 mx-auto rounded-md border border-gold-medium/30"
-                    />
-                  ) : (
-                    <div className="bg-gray-800 p-4 rounded-md">
-                      <p className="text-sm text-white">PDF: {documentBack.file.name}</p>
-                    </div>
-                  )}
+                  <img
+                    src={documentBack.preview}
+                    alt="Document back preview"
+                    className="max-h-48 mx-auto rounded-md border border-gold-medium/30"
+                  />
                   <p className="text-sm text-gold-light mt-2">✓ {documentBack.file.name}</p>
                   <Button
                     type="button"
@@ -388,6 +367,7 @@ export const DocumentUpload = ({ onComplete, onCancel }: DocumentUploadProps) =>
     </Card>
   );
 };
+
 
 
 

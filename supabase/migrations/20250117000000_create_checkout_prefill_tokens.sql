@@ -18,3 +18,4 @@ CREATE INDEX IF NOT EXISTS idx_checkout_prefill_tokens_seller_id ON checkout_pre
 CREATE INDEX IF NOT EXISTS idx_checkout_prefill_tokens_expires_at ON checkout_prefill_tokens(expires_at);
 CREATE INDEX IF NOT EXISTS idx_checkout_prefill_tokens_used_at ON checkout_prefill_tokens(used_at);
 
+

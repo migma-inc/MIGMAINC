@@ -87,3 +87,4 @@ export function calculateTotalWithFees(
   // Fallback: retornar total base
   return baseTotal;
 }
+

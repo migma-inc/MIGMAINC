@@ -165,28 +165,8 @@ Webhooks do Stripe não enviam headers `referer` ou `origin`, tornando difícil 
 
 ### Variáveis de Ambiente Necessárias
 
-Acesse: **Supabase Dashboard** > **Settings** > **Edge Functions** > **Environment Variables**
-
-#### Para Produção:
-```
-STRIPE_SECRET_KEY_PROD=sk_live_...
-STRIPE_WEBHOOK_SECRET_PROD=whsec_...
-STRIPE_PUBLISHABLE_KEY_PROD=pk_live_...
-```
-
-#### Para Teste/Desenvolvimento:
-```
-STRIPE_SECRET_KEY_TEST=sk_test_...
-STRIPE_WEBHOOK_SECRET_TEST=whsec_...
-STRIPE_PUBLISHABLE_KEY_TEST=pk_test_...
-```
-
-#### Opcional (Staging):
-```
-STRIPE_SECRET_KEY_STAGING=sk_test_...
-STRIPE_WEBHOOK_SECRET_STAGING=whsec_...
-STRIPE_PUBLISHABLE_KEY_STAGING=pk_test_...
-```
+Acesse: **Supabase Dashboard** > **Settings** > **Edge Functions** > **Environment Variables**  
+e configure as chaves do Stripe (secret, webhook secret e publishable) **sem colocá-las neste arquivo**.
 
 ---
 
@@ -194,12 +174,7 @@ STRIPE_PUBLISHABLE_KEY_STAGING=pk_test_...
 
 ### 1. Testar em Desenvolvimento
 
-1. **Configure as chaves de TESTE no Supabase:**
-   ```
-   STRIPE_SECRET_KEY_TEST=sk_test_51ABC123...
-   STRIPE_WEBHOOK_SECRET_TEST=whsec_test_...
-   STRIPE_PUBLISHABLE_KEY_TEST=pk_test_...
-   ```
+1. Configure as chaves de **teste** no Supabase (use valores fornecidos pelo Stripe, sem registrar aqui neste documento).
 
 2. **Inicie o servidor local:**
    ```bash
@@ -230,12 +205,7 @@ STRIPE_PUBLISHABLE_KEY_STAGING=pk_test_...
 
 ### 2. Testar em Produção
 
-1. **Configure as chaves de PRODUÇÃO no Supabase:**
-   ```
-   STRIPE_SECRET_KEY_PROD=sk_live_51XYZ789...
-   STRIPE_WEBHOOK_SECRET_PROD=whsec_live_...
-   STRIPE_PUBLISHABLE_KEY_PROD=pk_live_...
-   ```
+1. Configure as chaves de **produção** no Supabase (use valores fornecidos pelo Stripe, sem registrar aqui neste documento).
 
 2. **Acesse o domínio de produção:**
    ```
@@ -417,6 +387,7 @@ console.log(`🔑 Stripe Config (${envInfo.environment}):`, {
 **Última atualização:** Janeiro 2025  
 **Versão:** 1.0.0  
 **Projeto:** MIGMA Visa Services
+
 
 
 
