@@ -7,7 +7,6 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { supabase } from '@/lib/supabase';
-import { IdentityPhotoUpload } from '@/components/IdentityPhotoUpload';
 import { DocumentUpload } from '@/components/checkout/DocumentUpload';
 
 export const PartnerTerms = () => {
