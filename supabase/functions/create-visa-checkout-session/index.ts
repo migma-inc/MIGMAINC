@@ -19,6 +19,9 @@ function detectEnvironment(req: Request): { isProduction: boolean; environment: 
     referer.includes('migma.com') ||
     origin.includes('migma.com') ||
     host.includes('migma.com') ||
+    referer.includes('migmainc.com') ||
+    origin.includes('migmainc.com') ||
+    host.includes('migmainc.com') ||
     (referer.includes('vercel.app') && !referer.includes('preview')) ||
     (origin.includes('vercel.app') && !origin.includes('preview'));
 

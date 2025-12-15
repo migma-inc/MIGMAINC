@@ -29,11 +29,14 @@ export function detectEnvironment(req: Request): EnvironmentInfo {
   const host = req.headers.get('host') || '';
   const userAgent = req.headers.get('user-agent') || '';
 
-  // Detect production: if any header contains migma.com or vercel.app (production deployment)
+  // Detect production: if any header contains migma.com / migmainc.com or vercel.app (production deployment)
   const isProductionDomain = 
     referer.includes('migma.com') ||
     origin.includes('migma.com') ||
     host.includes('migma.com') ||
+    referer.includes('migmainc.com') ||
+    origin.includes('migmainc.com') ||
+    host.includes('migmainc.com') ||
     (referer.includes('vercel.app') && !referer.includes('preview')) ||
     (origin.includes('vercel.app') && !origin.includes('preview'));
 

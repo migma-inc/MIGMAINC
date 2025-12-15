@@ -747,27 +747,6 @@ export const VisaCheckout = () => {
         return false;
       }
 
-      // Check if payment was already completed for this token
-      // Only block if there's a completed/paid order with matching email, seller, and product
-      // If token was used but payment failed, allow reuse
-      const clientEmail = tokenData.client_data?.clientEmail;
-      if (clientEmail) {
-        const { data: completedOrders } = await supabase
-          .from('visa_orders')
-          .select('id, payment_status')
-          .eq('client_email', clientEmail)
-          .eq('seller_id', tokenData.seller_id)
-          .eq('product_slug', tokenData.product_slug)
-          .in('payment_status', ['completed', 'paid']);
-
-        // Only block if payment was actually completed
-        if (completedOrders && completedOrders.length > 0) {
-          setError('This link has already been used and payment was completed. Please contact your seller for a new link.');
-          return false;
-        }
-        // If no completed payment found, allow use (even if used_at exists - payment might have failed)
-      }
-
       // Parse client data
       const clientData = tokenData.client_data;
 
