@@ -1059,7 +1059,9 @@ export const VisaCheckout = () => {
 
       if (error) {
         console.error('Error creating checkout:', error);
-        alert('Failed to create checkout session');
+        setError('Failed to create checkout session. We were unable to redirect you to Stripe. Please try again later or contact support.');
+        // Bring the user attention to the error banner
+        window.scrollTo({ top: 0, behavior: 'smooth' });
         return;
       }
 
@@ -1092,7 +1094,8 @@ export const VisaCheckout = () => {
       }
     } catch (err) {
       console.error('Error:', err);
-      alert('An error occurred. Please try again.');
+      setError('An unexpected error occurred while creating your checkout session. We were unable to redirect you to Stripe. Please try again later or contact support.');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     } finally {
       setSubmitting(false);
     }
