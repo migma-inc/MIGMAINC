@@ -50,11 +50,30 @@ export async function rejectPartnerContract(
   reason?: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
+    // Get current origin (localhost in dev, production URL in prod)
+    const getAppUrl = (): string => {
+      // If in browser, use current origin
+      if (typeof window !== 'undefined' && window.location.origin) {
+        return window.location.origin;
+      }
+      
+      // Try environment variable (for production builds)
+      const envUrl = import.meta.env.VITE_APP_URL;
+      if (envUrl) return envUrl;
+      
+      // Fallback
+      return 'https://migma.com';
+    };
+
+    const appUrl = getAppUrl();
+    console.log('[PARTNER_CONTRACTS] Sending rejection with app_url:', appUrl);
+
     const { data, error } = await supabase.functions.invoke('reject-partner-contract', {
       body: {
         acceptance_id: acceptanceId,
         reviewed_by: reviewedBy,
         rejection_reason: reason || null,
+        app_url: appUrl, // Send current origin so Edge Function knows which URL to use
       },
     });
 
