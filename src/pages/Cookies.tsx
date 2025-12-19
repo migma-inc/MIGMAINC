@@ -12,10 +12,10 @@ export const Cookies = () => {
                 <div className="container max-w-4xl">
                     <div className="text-center mb-12">
                         <h1 className="text-4xl md:text-5xl font-bold tracking-tighter migma-gold-text mb-4">
-                            Cookie Policy
+                            Cookies Policy
                         </h1>
                         <p className="text-lg text-gray-400">
-                            Last updated: {new Date().toLocaleDateString()}
+                            Last updated: December 17, 2025
                         </p>
                     </div>
 
@@ -24,7 +24,7 @@ export const Cookies = () => {
                             <div className="space-y-4">
                                 <h2 className="text-2xl font-bold text-gold-light">1. What Are Cookies</h2>
                                 <p className="text-gray-300 leading-relaxed">
-                                    Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.
+                                    Cookies are small text files stored on your device when you visit a website. They are widely used to ensure websites function properly, improve user experience, and provide information to website owners about how their sites are used.
                                 </p>
                             </div>
 
@@ -33,7 +33,7 @@ export const Cookies = () => {
                             <div className="space-y-4">
                                 <h2 className="text-2xl font-bold text-gold-light">2. How We Use Cookies</h2>
                                 <p className="text-gray-300 leading-relaxed">
-                                    Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.
+                                    MIGMA Inc. uses cookies to operate and maintain our website, analyze website traffic and performance, enhance functionality, and improve the overall user experience. Cookies help us understand how visitors interact with our website so we can improve content and usability.
                                 </p>
                             </div>
 
@@ -42,13 +42,31 @@ export const Cookies = () => {
                             <div className="space-y-4">
                                 <h2 className="text-2xl font-bold text-gold-light">3. Types of Cookies We Use</h2>
                                 <p className="text-gray-300 leading-relaxed">
-                                    Sed ut perspiciatis unde omnis iste natus error sit voluptatem accusantium doloremque laudantium, totam rem aperiam, eaque ipsa quae ab illo inventore veritatis et quasi architecto beatae vitae dicta sunt explicabo.
+                                    We may use the following categories of cookies:
                                 </p>
-                                <ul className="list-disc list-inside space-y-2 text-gray-300 ml-4">
-                                    <li>Essential Cookies: Lorem ipsum dolor sit amet</li>
-                                    <li>Analytics Cookies: Consectetur adipiscing elit</li>
-                                    <li>Marketing Cookies: Sed do eiusmod tempor</li>
-                                </ul>
+                                <div className="space-y-4 mt-4">
+                                    <div>
+                                        <h3 className="text-xl font-semibold text-gold-medium mb-2">Essential Cookies:</h3>
+                                        <p className="text-gray-300 leading-relaxed">
+                                            Necessary for the proper functioning of the website. These cookies enable core features such as security, page navigation, and access to protected areas.
+                                        </p>
+                                    </div>
+                                    <div>
+                                        <h3 className="text-xl font-semibold text-gold-medium mb-2">Analytics Cookies:</h3>
+                                        <p className="text-gray-300 leading-relaxed">
+                                            Used to collect aggregated and anonymous information about how visitors use the website, such as pages visited and time spent on the site. This data helps us improve website performance and user experience.
+                                        </p>
+                                    </div>
+                                    <div>
+                                        <h3 className="text-xl font-semibold text-gold-medium mb-2">Functional Cookies:</h3>
+                                        <p className="text-gray-300 leading-relaxed">
+                                            Allow the website to remember user preferences and settings to provide enhanced and personalized features.
+                                        </p>
+                                    </div>
+                                </div>
+                                <p className="text-gray-300 leading-relaxed mt-4">
+                                    MIGMA does not use cookies to directly identify individuals or collect sensitive personal data.
+                                </p>
                             </div>
 
                             <Separator className="bg-gold-medium/30" />
@@ -56,7 +74,7 @@ export const Cookies = () => {
                             <div className="space-y-4">
                                 <h2 className="text-2xl font-bold text-gold-light">4. Managing Cookies</h2>
                                 <p className="text-gray-300 leading-relaxed">
-                                    Nemo enim ipsam voluptatem quia voluptas sit aspernatur aut odit aut fugit, sed quia consequuntur magni dolores eos qui ratione voluptatem sequi nesciunt.
+                                    You can manage or disable cookies through your browser settings at any time. Please note that disabling certain cookies may affect the functionality and performance of the website.
                                 </p>
                             </div>
 
@@ -65,7 +83,7 @@ export const Cookies = () => {
                             <div className="space-y-4">
                                 <h2 className="text-2xl font-bold text-gold-light">5. Third-Party Cookies</h2>
                                 <p className="text-gray-300 leading-relaxed">
-                                    Neque porro quisquam est, qui dolorem ipsum quia dolor sit amet, consectetur, adipisci velit, sed quia non numquam eius modi tempora incidunt ut labore et dolore magnam aliquam quaerat voluptatem.
+                                    Our website may use third-party cookies provided by trusted service providers for analytics and performance purposes. These third parties process data in accordance with their own privacy policies, and MIGMA does not control or assume responsibility for their cookie practices.
                                 </p>
                             </div>
                         </CardContent>
@@ -77,26 +95,3 @@ export const Cookies = () => {
         </div>
     );
 };
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

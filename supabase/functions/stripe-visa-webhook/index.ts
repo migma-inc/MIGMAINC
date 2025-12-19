@@ -36,6 +36,27 @@ function getStripeConfigForWebhook(verifiedEnvironment: 'production' | 'staging'
   };
 }
 
+// Normalize service name for grouped products (initial, cos, transfer)
+function normalizeServiceName(productSlug: string, productName: string): string {
+  // F1 Initial - agrupa os 3 produtos (selection-process, scholarship, i20-control)
+  if (productSlug.startsWith('initial-')) {
+    return 'F1 Initial';
+  }
+  
+  // COS - agrupa os 3 produtos
+  if (productSlug.startsWith('cos-')) {
+    return 'COS & Transfer';
+  }
+  
+  // Transfer - agrupa os 3 produtos
+  if (productSlug.startsWith('transfer-')) {
+    return 'COS & Transfer';
+  }
+  
+  // Para outros produtos, retorna o nome original
+  return productName;
+}
+
 // Send webhook to client (n8n) after payment confirmation
 async function sendClientWebhook(order: any, supabase: any) {
   try {
@@ -65,17 +86,34 @@ async function sendClientWebhook(order: any, supabase: any) {
       console.log('[Webhook Client] ✅ Product found:', product?.name);
     }
     
-    // 2. Montar payload conforme especificado pelo cliente
-    const metadata = order.payment_metadata as any;
-    const finalAmount = metadata?.final_amount || order.total_price_usd;
+    // 2. Normalizar nome do serviço para produtos agrupados
+    const normalizedServiceName = normalizeServiceName(
+      order.product_slug,
+      product?.name || order.product_slug
+    );
+    
+    // 3. Montar payload conforme especificado pelo cliente
+    // IMPORTANTE: valor_servico deve ser APENAS o valor base do serviço
+    // Para produtos units_only: extra_unit_price * extra_units (sem base)
+    // Para produtos base_plus_units: apenas base_price_usd (sem dependentes, sem taxas)
+    let baseServicePrice: number;
+    if (order.calculation_type === 'units_only') {
+      // Para units_only: valor = extra_unit_price * extra_units
+      const extraUnitPrice = parseFloat(order.extra_unit_price_usd || '0');
+      const extraUnits = order.extra_units || 0;
+      baseServicePrice = extraUnitPrice * extraUnits;
+    } else {
+      // Para base_plus_units: valor = apenas base_price_usd (sem dependentes)
+      baseServicePrice = parseFloat(order.base_price_usd || '0');
+    }
     
     const payload = {
-      servico: product?.name || order.product_slug,
+      servico: normalizedServiceName,
       plano_servico: order.product_slug,
       nome_completo: order.client_name,
       whatsapp: order.client_whatsapp || '',
       email: order.client_email,
-      valor_servico: typeof finalAmount === 'string' ? finalAmount : finalAmount.toString(),
+      valor_servico: baseServicePrice.toFixed(2),
       vendedor: order.seller_id || '',
     };
     

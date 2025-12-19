@@ -138,6 +138,16 @@ Deno.serve(async (req: Request) => {
       ip_address,
       service_request_id, // NEW: Optional service_request_id from frontend
     } = body;
+    
+    // Validate extra_units
+    const extraUnitsNum = parseInt(extra_units) || 0;
+    if (extraUnitsNum < 0 || isNaN(extraUnitsNum)) {
+      console.error("[Checkout] Invalid extra_units:", extra_units);
+      return new Response(
+        JSON.stringify({ error: "Invalid number of extra units" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
 
     // Validate required fields
     if (!product_slug || !client_name || !client_email) {
@@ -166,13 +176,45 @@ Deno.serve(async (req: Request) => {
     const basePrice = parseFloat(product.base_price_usd);
     const extraUnitPrice = parseFloat(product.extra_unit_price);
     
+    // Validate prices
+    if (isNaN(basePrice) || basePrice < 0) {
+      console.error("[Checkout] Invalid base_price_usd:", product.base_price_usd);
+      return new Response(
+        JSON.stringify({ error: "Invalid product price configuration" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+    
+    if (isNaN(extraUnitPrice) || extraUnitPrice < 0) {
+      console.error("[Checkout] Invalid extra_unit_price:", product.extra_unit_price);
+      return new Response(
+        JSON.stringify({ error: "Invalid product extra unit price configuration" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+    
     let totalBeforeFees: number;
     if (product.calculation_type === 'units_only') {
       // For units_only: total = extra_units * extra_unit_price
-      totalBeforeFees = extra_units * extraUnitPrice;
+      totalBeforeFees = extraUnitsNum * extraUnitPrice;
     } else {
       // For base_plus_units: total = base_price + (extra_units * extra_unit_price)
-      totalBeforeFees = basePrice + (extra_units * extraUnitPrice);
+      totalBeforeFees = basePrice + (extraUnitsNum * extraUnitPrice);
+    }
+    
+    // Validate total before fees
+    if (isNaN(totalBeforeFees) || totalBeforeFees <= 0) {
+      console.error("[Checkout] Invalid totalBeforeFees:", {
+        basePrice,
+        extraUnitPrice,
+        extra_units: extraUnitsNum,
+        calculation_type: product.calculation_type,
+        totalBeforeFees
+      });
+      return new Response(
+        JSON.stringify({ error: "Invalid total amount calculated" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
 
     // Calculate amount with fees based on payment method
@@ -196,6 +238,38 @@ Deno.serve(async (req: Request) => {
       currency = "usd";
       feeAmount = (finalAmount / 100) - totalBeforeFees;
     }
+    
+    // Validate final amount (must be at least $0.50 USD or equivalent)
+    const finalAmountUSD = finalAmount / 100;
+    if (finalAmountUSD < 0.50) {
+      console.error("[Checkout] Final amount too small:", {
+        totalBeforeFees,
+        finalAmount,
+        finalAmountUSD,
+        currency,
+        basePrice,
+        extraUnitPrice,
+        extra_units: extraUnitsNum,
+        calculation_type: product.calculation_type
+      });
+      return new Response(
+        JSON.stringify({ 
+          error: `Amount too small. Minimum is $0.50 USD. Calculated: $${finalAmountUSD.toFixed(2)}` 
+        }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+    
+    console.log("[Checkout] Price calculation:", {
+      basePrice,
+      extraUnitPrice,
+      extra_units: extraUnitsNum,
+      calculation_type: product.calculation_type,
+      totalBeforeFees,
+      finalAmount,
+      finalAmountUSD,
+      currency
+    });
 
     // Generate unique order number
     const orderNumber = `ORD-${new Date().toISOString().split('T')[0].replace(/-/g, '')}-${Math.floor(Math.random() * 10000).toString().padStart(4, '0')}`;
@@ -234,8 +308,8 @@ Deno.serve(async (req: Request) => {
         service_request_id: serviceRequestIdToUse || null, // NEW: Link to service_request
         base_price_usd: basePrice,
         price_per_dependent_usd: extraUnitPrice,
-        number_of_dependents: extra_units,
-        extra_units: extra_units,
+        number_of_dependents: extraUnitsNum,
+        extra_units: extraUnitsNum,
         extra_unit_label: product.extra_unit_label,
         extra_unit_price_usd: extraUnitPrice,
         calculation_type: product.calculation_type,
@@ -260,7 +334,7 @@ Deno.serve(async (req: Request) => {
           fee_percentage: isPixOnly ? PIX_FEE_PERCENTAGE.toString() : CARD_FEE_PERCENTAGE.toString(),
           currency: currency.toUpperCase(),
           exchange_rate: exchangeRate.toFixed(4),
-          extra_units: extra_units,
+          extra_units: extraUnitsNum,
           calculation_type: product.calculation_type,
           ip_address: ip_address || null,
           payment_id: paymentData?.id || null, // NEW: Link to payment record
@@ -283,7 +357,7 @@ Deno.serve(async (req: Request) => {
       order_number: orderNumber,
       product_slug: product_slug,
       seller_id: seller_id || "",
-      extra_units: extra_units.toString(),
+      extra_units: extraUnitsNum.toString(),
       calculation_type: product.calculation_type,
       terms_accepted: "true",
       terms_version: "v1.0-2025-01-15",
@@ -302,7 +376,7 @@ Deno.serve(async (req: Request) => {
             currency: currency,
             product_data: {
               name: product.name,
-              description: `${product.description}${extra_units > 0 && product.allow_extra_units ? ` (${extra_units} ${product.extra_unit_label.toLowerCase()})` : ''}`,
+              description: `${product.description}${extraUnitsNum > 0 && product.allow_extra_units ? ` (${extraUnitsNum} ${product.extra_unit_label.toLowerCase()})` : ''}`,
             },
             unit_amount: finalAmount,
           },

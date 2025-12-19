@@ -509,7 +509,8 @@ export function useContentProtection(enabled: boolean) {
          e.key === 'u' || e.key === 'U');  // Ctrl+U
 
       const isDevToolsShortcut = 
-        e.key === 'F12' ||
+        // TEMPORARIAMENTE DESATIVADO: F12 permitido para desenvolvimento
+        // e.key === 'F12' ||
         ((e.ctrlKey || e.metaKey) && e.shiftKey && 
          (e.key === 'i' || e.key === 'I' || // Ctrl+Shift+I
           e.key === 'c' || e.key === 'C' || // Ctrl+Shift+C
@@ -531,6 +532,12 @@ export function useContentProtection(enabled: boolean) {
         e.stopPropagation();
         showWarning('Screenshots are not permitted. This document is protected.');
         return false;
+      }
+
+      // TEMPORARIAMENTE: Permitir F12 (não bloquear)
+      if (e.key === 'F12') {
+        // Permitir F12 passar sem bloqueio
+        return;
       }
 
       if (isProtectedArea(e.target) || isGlobalShortcut || isDevToolsShortcut) {
