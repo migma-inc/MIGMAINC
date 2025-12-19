@@ -14,13 +14,16 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { LogOut, Filter, FileText, AlertCircle } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { ApplicationsList } from '@/components/admin/ApplicationsList';
+import { PartnerContractsList } from '@/components/admin/PartnerContractsList';
 import { Sidebar } from '@/components/admin/Sidebar';
 import type { Application } from '@/types/application';
-import { approveApplication, rejectApplication, getApplicationStats } from '@/lib/admin';
+import { approveApplication, rejectApplication, getApplicationStats, approveApplicationForMeeting, approveApplicationAfterMeeting } from '@/lib/admin';
+import { approvePartnerContract, rejectPartnerContract } from '@/lib/partner-contracts';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ConfirmModal } from '@/components/ui/confirm-modal';
 import { PromptModal } from '@/components/ui/prompt-modal';
 import { AlertModal } from '@/components/ui/alert-modal';
+import { MeetingScheduleModal } from '@/components/admin/MeetingScheduleModal';
 
 function LoginForm({ onLoginSuccess }: { onLoginSuccess: () => void }) {
   const [email, setEmail] = useState('');
@@ -170,11 +173,13 @@ function DashboardLayout() {
 }
 
 export function DashboardContent() {
-  const [statusFilter, setStatusFilter] = useState<'pending' | 'approved' | 'rejected' | undefined>(undefined);
-  const [stats, setStats] = useState<{ total: number; pending: number; approved: number; rejected: number } | null>(null);
+  const [statusFilter, setStatusFilter] = useState<'pending' | 'approved' | 'approved_for_meeting' | 'approved_for_contract' | 'rejected' | undefined>(undefined);
+  const [stats, setStats] = useState<{ total: number; pending: number; approved: number; approved_for_meeting: number; approved_for_contract: number; rejected: number } | null>(null);
   const [pendingContractApprovals, setPendingContractApprovals] = useState(0);
+  const [pendingPartnerContracts, setPendingPartnerContracts] = useState(0);
   const [isProcessing, setIsProcessing] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [contractsRefreshKey, setContractsRefreshKey] = useState(0);
   
   // Modal states
   const [showApproveConfirm, setShowApproveConfirm] = useState(false);
@@ -184,10 +189,13 @@ export function DashboardContent() {
   const [alertData, setAlertData] = useState<{ title: string; message: string; variant: 'success' | 'error' | 'warning' | 'info' } | null>(null);
   const [pendingApplication, setPendingApplication] = useState<Application | null>(null);
   const [rejectionReason, setRejectionReason] = useState('');
+  const [showMeetingModal, setShowMeetingModal] = useState(false);
+  const [pendingContract, setPendingContract] = useState<any>(null);
 
   useEffect(() => {
     loadStats();
     loadPendingContractApprovals();
+    loadPendingPartnerContracts();
   }, []);
 
   const loadStats = async () => {
@@ -210,9 +218,88 @@ export function DashboardContent() {
     }
   };
 
+  const loadPendingPartnerContracts = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('partner_terms_acceptances')
+        .select('id')
+        .eq('verification_status', 'pending')
+        .not('accepted_at', 'is', null);
+
+      if (!error && data) {
+        setPendingPartnerContracts(data.length);
+      }
+    } catch (err) {
+      console.error('Error loading pending partner contracts:', err);
+    }
+  };
+
   const handleApprove = async (application: Application) => {
     setPendingApplication(application);
+    
+    // If status is pending, open meeting modal
+    if (application.status === 'pending') {
+      setShowMeetingModal(true);
+      return;
+    }
+    
+    // If status is approved_for_meeting, approve for contract
+    if (application.status === 'approved_for_meeting') {
+      setShowApproveConfirm(true);
+      return;
+    }
+    
+    // For other statuses, use old flow (backward compatibility)
     setShowApproveConfirm(true);
+  };
+
+  const handleMeetingSchedule = async (data: {
+    meetingDate: string;
+    meetingTime: string;
+    meetingLink: string;
+    scheduledBy?: string;
+  }) => {
+    if (!pendingApplication) return;
+    
+    setShowMeetingModal(false);
+    setIsProcessing(true);
+    try {
+      const result = await approveApplicationForMeeting(
+        pendingApplication.id,
+        data.meetingDate,
+        data.meetingTime,
+        data.meetingLink,
+        data.scheduledBy
+      );
+      if (result.success) {
+        setAlertData({
+          title: 'Success',
+          message: result.error || 'Meeting scheduled successfully! Email sent.',
+          variant: 'success',
+        });
+        setShowAlert(true);
+        await loadStats();
+        // Trigger list refresh
+        setRefreshKey(prev => prev + 1);
+      } else {
+        setAlertData({
+          title: 'Error',
+          message: result.error || 'Failed to schedule meeting',
+          variant: 'error',
+        });
+        setShowAlert(true);
+      }
+    } catch (error) {
+      setAlertData({
+        title: 'Error',
+        message: error instanceof Error ? error.message : 'Unknown error occurred',
+        variant: 'error',
+      });
+      setShowAlert(true);
+    } finally {
+      setIsProcessing(false);
+      setPendingApplication(null);
+    }
   };
 
   const confirmApprove = async () => {
@@ -221,11 +308,20 @@ export function DashboardContent() {
     setShowApproveConfirm(false);
     setIsProcessing(true);
     try {
-      const result = await approveApplication(pendingApplication.id);
+      let result;
+      
+      // If status is approved_for_meeting, use new function
+      if (pendingApplication.status === 'approved_for_meeting') {
+        result = await approveApplicationAfterMeeting(pendingApplication.id);
+      } else {
+        // For backward compatibility with old 'approved' status
+        result = await approveApplication(pendingApplication.id);
+      }
+      
       if (result.success) {
         setAlertData({
           title: 'Success',
-          message: 'Application approved successfully! Email sent.',
+          message: result.error || 'Application approved successfully! Email sent.',
           variant: 'success',
         });
         setShowAlert(true);
@@ -304,6 +400,109 @@ export function DashboardContent() {
     }
   };
 
+  const handleApprovePartnerContract = async (contract: any) => {
+    setPendingContract(contract);
+    setShowApproveConfirm(true);
+  };
+
+  const handleRejectPartnerContract = async (contract: any) => {
+    setPendingContract(contract);
+    setShowRejectPrompt(true);
+  };
+
+  const confirmApprovePartnerContract = async () => {
+    if (!pendingContract) return;
+
+    setIsProcessing(true);
+    try {
+      const user = await getCurrentUser();
+      const reviewedBy = user?.email || user?.id || 'unknown';
+
+      const result = await approvePartnerContract(pendingContract.id, reviewedBy);
+      
+      if (result.success) {
+        setAlertData({
+          title: 'Success',
+          message: 'Partner contract approved successfully!',
+          variant: 'success',
+        });
+        setShowAlert(true);
+        setRefreshKey(prev => prev + 1);
+        setContractsRefreshKey(prev => prev + 1);
+        loadStats();
+        loadPendingPartnerContracts();
+      } else {
+        setAlertData({
+          title: 'Error',
+          message: 'Failed to approve contract: ' + (result.error || 'Unknown error'),
+          variant: 'error',
+        });
+        setShowAlert(true);
+      }
+    } catch (err) {
+      console.error('Error approving partner contract:', err);
+      setAlertData({
+        title: 'Error',
+        message: 'An error occurred while approving the contract',
+        variant: 'error',
+      });
+      setShowAlert(true);
+    } finally {
+      setIsProcessing(false);
+      setShowApproveConfirm(false);
+      setPendingContract(null);
+    }
+  };
+
+  const confirmRejectPartnerContract = async () => {
+    if (!pendingContract) return;
+
+    setIsProcessing(true);
+    try {
+      const user = await getCurrentUser();
+      const reviewedBy = user?.email || user?.id || 'unknown';
+
+      const result = await rejectPartnerContract(
+        pendingContract.id,
+        reviewedBy,
+        rejectionReason || undefined
+      );
+      
+      if (result.success) {
+        setAlertData({
+          title: 'Success',
+          message: 'Partner contract rejected successfully.',
+          variant: 'success',
+        });
+        setShowAlert(true);
+        setRefreshKey(prev => prev + 1);
+        setContractsRefreshKey(prev => prev + 1);
+        loadStats();
+        loadPendingPartnerContracts();
+      } else {
+        setAlertData({
+          title: 'Error',
+          message: 'Failed to reject contract: ' + (result.error || 'Unknown error'),
+          variant: 'error',
+        });
+        setShowAlert(true);
+      }
+    } catch (err) {
+      console.error('Error rejecting partner contract:', err);
+      setAlertData({
+        title: 'Error',
+        message: 'An error occurred while rejecting the contract',
+        variant: 'error',
+      });
+      setShowAlert(true);
+    } finally {
+      setIsProcessing(false);
+      setShowRejectConfirm(false);
+      setPendingContract(null);
+      setRejectionReason('');
+    }
+  };
+
   return (
     <div className="p-6">
       {/* Pending Contract Approvals Alert */}
@@ -330,6 +529,29 @@ export function DashboardContent() {
                   Review Contracts
                 </Button>
               </Link>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Pending Partner Contracts Alert */}
+      {pendingPartnerContracts > 0 && (
+        <Card className="bg-gradient-to-br from-blue-500/20 via-blue-500/10 to-blue-500/20 border-2 border-blue-500/50 mb-6">
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <div className="p-3 bg-blue-500/20 rounded-lg">
+                  <AlertCircle className="w-8 h-8 text-blue-400" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-blue-300 mb-1">
+                    {pendingPartnerContracts} {pendingPartnerContracts === 1 ? 'Partner Contract' : 'Partner Contracts'} Pending Verification
+                  </h3>
+                  <p className="text-sm text-blue-200/80">
+                    There {pendingPartnerContracts === 1 ? 'is' : 'are'} {pendingPartnerContracts} Global Partner {pendingPartnerContracts === 1 ? 'contract' : 'contracts'} waiting for document verification
+                  </p>
+                </div>
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -364,7 +586,7 @@ export function DashboardContent() {
           <label className="text-sm font-medium text-white">Filter by Status:</label>
           <Select
             value={statusFilter || 'all'}
-            onValueChange={(value) => setStatusFilter(value === 'all' ? undefined : value as 'pending' | 'approved' | 'rejected')}
+            onValueChange={(value) => setStatusFilter(value === 'all' ? undefined : value as 'pending' | 'approved' | 'approved_for_meeting' | 'approved_for_contract' | 'rejected')}
           >
             <SelectTrigger className="w-40 bg-black/50 border-gold-medium/50 text-white">
               <SelectValue />
@@ -372,12 +594,26 @@ export function DashboardContent() {
             <SelectContent className="bg-black border-gold-medium/50">
               <SelectItem value="all" className="text-white focus:bg-gold-medium/20 focus:text-gold-light">All</SelectItem>
               <SelectItem value="pending" className="text-white focus:bg-gold-medium/20 focus:text-gold-light">Pending</SelectItem>
-              <SelectItem value="approved" className="text-white focus:bg-gold-medium/20 focus:text-gold-light">Approved</SelectItem>
+              <SelectItem value="approved_for_meeting" className="text-white focus:bg-gold-medium/20 focus:text-gold-light">Approved for Meeting</SelectItem>
+              <SelectItem value="approved_for_contract" className="text-white focus:bg-gold-medium/20 focus:text-gold-light">Approved for Contract</SelectItem>
+              <SelectItem value="approved" className="text-white focus:bg-gold-medium/20 focus:text-gold-light">Approved (Legacy)</SelectItem>
               <SelectItem value="rejected" className="text-white focus:bg-gold-medium/20 focus:text-gold-light">Rejected</SelectItem>
             </SelectContent>
           </Select>
         </div>
       </div>
+
+      {/* Pending Partner Contracts List */}
+      {pendingPartnerContracts > 0 && (
+        <div className="bg-gradient-to-br from-blue-500/10 via-blue-500/5 to-blue-500/10 rounded-lg shadow p-6 border border-blue-500/30 mb-6">
+          <h2 className="text-xl font-semibold mb-4 text-blue-300">Partner Contracts Pending Verification</h2>
+          <PartnerContractsList
+            onApprove={handleApprovePartnerContract}
+            onReject={handleRejectPartnerContract}
+            refreshKey={contractsRefreshKey}
+          />
+        </div>
+      )}
 
       {/* Applications List */}
       <div className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 rounded-lg shadow p-6 border border-gold-medium/30">
@@ -400,16 +636,46 @@ export function DashboardContent() {
         </div>
       )}
 
+      {/* Meeting Schedule Modal */}
+      <MeetingScheduleModal
+        isOpen={showMeetingModal}
+        onClose={() => {
+          setShowMeetingModal(false);
+          setPendingApplication(null);
+        }}
+        onConfirm={handleMeetingSchedule}
+        isLoading={isProcessing}
+      />
+
       {/* Approve Confirmation Modal */}
       <ConfirmModal
         isOpen={showApproveConfirm}
         onClose={() => {
           setShowApproveConfirm(false);
           setPendingApplication(null);
+          setPendingContract(null);
         }}
-        onConfirm={confirmApprove}
-        title="Approve Application"
-        message={`Are you sure you want to approve ${pendingApplication?.full_name}? This will send them an email with terms link.`}
+        onConfirm={() => {
+          if (pendingContract) {
+            confirmApprovePartnerContract();
+          } else if (pendingApplication) {
+            confirmApprove();
+          }
+        }}
+        title={
+          pendingContract
+            ? 'Approve Partner Contract'
+            : pendingApplication?.status === 'approved_for_meeting' 
+            ? 'Approve After Meeting' 
+            : 'Approve Application'
+        }
+        message={
+          pendingContract
+            ? `Are you sure you want to approve the contract for ${pendingContract.global_partner_applications?.full_name || 'this partner'}? This will activate them as an Active Partner.`
+            : pendingApplication?.status === 'approved_for_meeting'
+            ? `Are you sure you want to approve ${pendingApplication?.full_name} after the meeting? This will send them an email with the contract terms link.`
+            : `Are you sure you want to approve ${pendingApplication?.full_name}? This will send them an email with terms link.`
+        }
         confirmText="Approve"
         cancelText="Cancel"
         variant="default"
@@ -422,10 +688,23 @@ export function DashboardContent() {
         onClose={() => {
           setShowRejectPrompt(false);
           setPendingApplication(null);
+          setPendingContract(null);
+          setRejectionReason('');
         }}
-        onConfirm={handleRejectReasonSubmit}
-        title="Reject Application"
-        message={`Enter rejection reason for ${pendingApplication?.full_name} (optional):`}
+        onConfirm={(reason: string) => {
+          if (pendingContract) {
+            setRejectionReason(reason);
+            setShowRejectConfirm(true);
+          } else {
+            handleRejectReasonSubmit(reason);
+          }
+        }}
+        title={pendingContract ? "Reject Contract" : "Reject Application"}
+        message={
+          pendingContract
+            ? `Enter rejection reason for contract verification (optional):`
+            : `Enter rejection reason for ${pendingApplication?.full_name} (optional):`
+        }
         placeholder="Enter rejection reason (optional)..."
         confirmText="Continue"
         cancelText="Cancel"
@@ -438,11 +717,22 @@ export function DashboardContent() {
         onClose={() => {
           setShowRejectConfirm(false);
           setPendingApplication(null);
+          setPendingContract(null);
           setRejectionReason('');
         }}
-        onConfirm={confirmReject}
-        title="Confirm Rejection"
-        message={`Are you sure you want to reject ${pendingApplication?.full_name}?`}
+        onConfirm={() => {
+          if (pendingContract) {
+            confirmRejectPartnerContract();
+          } else if (pendingApplication) {
+            confirmReject();
+          }
+        }}
+        title={pendingContract ? "Confirm Contract Rejection" : "Confirm Rejection"}
+        message={
+          pendingContract
+            ? `Are you sure you want to reject the contract for ${pendingContract.global_partner_applications?.full_name || 'this partner'}? This will mark the application as Verification Failed.`
+            : `Are you sure you want to reject ${pendingApplication?.full_name}?`
+        }
         confirmText="Reject"
         cancelText="Cancel"
         variant="danger"

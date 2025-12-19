@@ -7,29 +7,39 @@ import type { Application } from '@/types/application';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 // Badge component is defined inline in StatusBadge
-import { Eye, CheckCircle, XCircle } from 'lucide-react';
+import { Eye, CheckCircle, XCircle, Calendar, Clock, Link as LinkIcon } from 'lucide-react';
 import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 
 interface ApplicationsListProps {
   onApprove?: (application: Application) => void;
   onReject?: (application: Application) => void;
-  statusFilter?: 'pending' | 'approved' | 'rejected';
+  statusFilter?: 'pending' | 'approved' | 'approved_for_meeting' | 'approved_for_contract' | 'rejected';
   refreshKey?: number;
 }
 
 function StatusBadge({ status }: { status: Application['status'] }) {
-  const variants = {
+  const variants: Record<string, string> = {
     pending: 'bg-gold-medium/30 text-white border-gold-medium/50',
     approved: 'bg-green-900/30 text-green-300 border-green-500/50',
+    approved_for_meeting: 'bg-yellow-900/30 text-yellow-300 border-yellow-500/50',
+    approved_for_contract: 'bg-green-900/30 text-green-300 border-green-500/50',
     rejected: 'bg-red-900/30 text-red-300 border-red-500/50',
+  };
+
+  const displayText: Record<string, string> = {
+    pending: 'Pending',
+    approved: 'Approved',
+    approved_for_meeting: 'Approved for Meeting',
+    approved_for_contract: 'Approved for Contract',
+    rejected: 'Rejected',
   };
 
   return (
     <span
-      className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${variants[status]}`}
+      className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${variants[status] || variants.pending}`}
     >
-      {status.charAt(0).toUpperCase() + status.slice(1)}
+      {displayText[status] || status}
     </span>
   );
 }
@@ -125,6 +135,53 @@ export function ApplicationsList({
               </div>
             </div>
 
+            {/* Meeting Information */}
+            {application.meeting_date && (
+              <div className="mb-4 p-3 bg-yellow-900/20 border border-yellow-500/30 rounded-lg">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                  <div className="flex items-center gap-2">
+                    <Calendar className="w-4 h-4 text-yellow-400" />
+                    <div>
+                      <p className="text-xs text-gray-400">Meeting Date</p>
+                      <p className="font-medium text-yellow-300">
+                        {new Date(application.meeting_date).toLocaleDateString('en-US', {
+                          month: 'short',
+                          day: 'numeric',
+                          year: 'numeric',
+                        })}
+                      </p>
+                    </div>
+                  </div>
+                  {application.meeting_time && (
+                    <div className="flex items-center gap-2">
+                      <Clock className="w-4 h-4 text-yellow-400" />
+                      <div>
+                        <p className="text-xs text-gray-400">Meeting Time</p>
+                        <p className="font-medium text-yellow-300">{application.meeting_time}</p>
+                      </div>
+                    </div>
+                  )}
+                  {application.meeting_link && (
+                    <div className="flex items-center gap-2 md:col-span-2">
+                      <LinkIcon className="w-4 h-4 text-yellow-400" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs text-gray-400">Meeting Link</p>
+                        <a
+                          href={application.meeting_link}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="font-medium text-yellow-300 hover:text-yellow-200 underline truncate block"
+                          title={application.meeting_link}
+                        >
+                          {application.meeting_link}
+                        </a>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
             <div className="flex gap-2 flex-wrap">
               <Link to={`/dashboard/applications/${application.id}`}>
                 <Button
@@ -161,6 +218,17 @@ export function ApplicationsList({
                     </Button>
                   )}
                 </>
+              )}
+              {application.status === 'approved_for_meeting' && onApprove && (
+                <Button
+                  variant="default"
+                  size="sm"
+                  onClick={() => onApprove(application)}
+                  className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white"
+                >
+                  <CheckCircle className="w-4 h-4" />
+                  Approve After Meeting
+                </Button>
               )}
             </div>
           </CardContent>

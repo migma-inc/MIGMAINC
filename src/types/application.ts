@@ -32,7 +32,12 @@ export interface Application {
   info_accurate: boolean;
   marketing_consent: boolean;
   ip_address: string | null;
-  status: 'pending' | 'approved' | 'rejected';
+  status: 'pending' | 'approved' | 'approved_for_meeting' | 'approved_for_contract' | 'rejected';
+  meeting_date?: string | null;
+  meeting_time?: string | null;
+  meeting_link?: string | null;
+  meeting_scheduled_at?: string | null;
+  meeting_scheduled_by?: string | null;
   created_at: string;
   updated_at: string;
 }

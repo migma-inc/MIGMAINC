@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { FileText, Download, Eye, FileDown, User } from 'lucide-react';
+import { FileText, Download, Eye, FileDown, User, MapPin, Hash, FileCode, Globe } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { fetchAcceptedContracts, getContractPdfUrl, getCvFileUrl, type AcceptedContract } from '@/lib/contracts';
@@ -176,6 +176,64 @@ export function ContractsPage() {
                 </div>
               </CardHeader>
               <CardContent>
+                {/* Legal Information Section */}
+                {(contract.contract_version || contract.contract_hash || contract.geolocation_country || contract.signature_name) && (
+                  <div className="mb-4 p-3 bg-black/30 rounded-lg border border-gold-medium/20">
+                    <h4 className="text-sm font-semibold text-gold-light mb-3 flex items-center gap-2">
+                      <FileCode className="w-4 h-4" />
+                      Legal Records
+                    </h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                      {contract.contract_version && (
+                        <div className="flex items-start gap-2">
+                          <FileCode className="w-4 h-4 text-gold-medium mt-0.5 flex-shrink-0" />
+                          <div>
+                            <span className="text-gray-400">Contract Version:</span>
+                            <span className="text-white ml-2 font-mono">{contract.contract_version}</span>
+                          </div>
+                        </div>
+                      )}
+                      {contract.contract_hash && (
+                        <div className="flex items-start gap-2">
+                          <Hash className="w-4 h-4 text-gold-medium mt-0.5 flex-shrink-0" />
+                          <div className="flex-1 min-w-0">
+                            <span className="text-gray-400">Contract Hash:</span>
+                            <span className="text-white ml-2 font-mono text-xs break-all">{contract.contract_hash.substring(0, 32)}...</span>
+                          </div>
+                        </div>
+                      )}
+                      {(contract.geolocation_country || contract.geolocation_city) && (
+                        <div className="flex items-start gap-2">
+                          <MapPin className="w-4 h-4 text-gold-medium mt-0.5 flex-shrink-0" />
+                          <div>
+                            <span className="text-gray-400">Location:</span>
+                            <span className="text-white ml-2">
+                              {[contract.geolocation_city, contract.geolocation_country].filter(Boolean).join(', ') || 'N/A'}
+                            </span>
+                          </div>
+                        </div>
+                      )}
+                      {contract.signature_name && (
+                        <div className="flex items-start gap-2">
+                          <User className="w-4 h-4 text-gold-medium mt-0.5 flex-shrink-0" />
+                          <div>
+                            <span className="text-gray-400">Digital Signature:</span>
+                            <span className="text-white ml-2">{contract.signature_name}</span>
+                          </div>
+                        </div>
+                      )}
+                      {contract.ip_address && (
+                        <div className="flex items-start gap-2">
+                          <Globe className="w-4 h-4 text-gold-medium mt-0.5 flex-shrink-0" />
+                          <div>
+                            <span className="text-gray-400">IP Address:</span>
+                            <span className="text-white ml-2 font-mono text-xs">{contract.ip_address}</span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
                 <div className="flex flex-wrap gap-2">
                   {contract.contract_pdf_url && (
                     <>

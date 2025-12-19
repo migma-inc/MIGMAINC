@@ -11,7 +11,7 @@ import { getCachedData, setCachedData, generateCacheKey } from '@/lib/cache';
 export type { Application };
 
 export interface UseApplicationsOptions {
-  status?: 'pending' | 'approved' | 'rejected';
+  status?: 'pending' | 'approved' | 'approved_for_meeting' | 'approved_for_contract' | 'rejected';
   limit?: number;
   orderBy?: 'created_at' | 'updated_at';
   orderDirection?: 'asc' | 'desc';

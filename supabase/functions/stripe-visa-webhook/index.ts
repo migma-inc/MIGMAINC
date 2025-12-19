@@ -36,6 +36,101 @@ function getStripeConfigForWebhook(verifiedEnvironment: 'production' | 'staging'
   };
 }
 
+// Send webhook to client (n8n) after payment confirmation
+async function sendClientWebhook(order: any, supabase: any) {
+  try {
+    const webhookUrl = Deno.env.get('CLIENT_WEBHOOK_URL');
+    
+    if (!webhookUrl) {
+      console.error('[Webhook Client] ❌ CLIENT_WEBHOOK_URL environment variable is not set. Skipping webhook.');
+      return;
+    }
+    
+    console.log('[Webhook Client] 📤 Starting webhook send process');
+    console.log('[Webhook Client] Order ID:', order.id);
+    console.log('[Webhook Client] Order Number:', order.order_number);
+    
+    // 1. Buscar produto no banco para obter o nome do serviço
+    const { data: product, error: productError } = await supabase
+      .from('visa_products')
+      .select('name')
+      .eq('slug', order.product_slug)
+      .single();
+    
+    if (productError) {
+      console.warn('[Webhook Client] ⚠️ Error fetching product:', productError);
+      console.warn('[Webhook Client] Using product_slug as fallback:', order.product_slug);
+      // Continue mesmo se não encontrar produto - usar slug como fallback
+    } else {
+      console.log('[Webhook Client] ✅ Product found:', product?.name);
+    }
+    
+    // 2. Montar payload conforme especificado pelo cliente
+    const metadata = order.payment_metadata as any;
+    const finalAmount = metadata?.final_amount || order.total_price_usd;
+    
+    const payload = {
+      servico: product?.name || order.product_slug,
+      plano_servico: order.product_slug,
+      nome_completo: order.client_name,
+      whatsapp: order.client_whatsapp || '',
+      email: order.client_email,
+      valor_servico: typeof finalAmount === 'string' ? finalAmount : finalAmount.toString(),
+      vendedor: order.seller_id || '',
+    };
+    
+    console.log('[Webhook Client] 📦 Payload prepared:', JSON.stringify(payload, null, 2));
+    console.log('[Webhook Client] 🌐 Sending POST request to:', webhookUrl);
+    
+    const startTime = Date.now();
+    
+    // 3. Fazer POST para o webhook do cliente
+    const response = await fetch(webhookUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    });
+    
+    const endTime = Date.now();
+    const duration = endTime - startTime;
+    
+    // 4. Log resultado detalhado (sucesso ou erro)
+    if (!response.ok) {
+      const responseText = await response.text();
+      console.error('[Webhook Client] ❌ Error sending webhook:', {
+        status: response.status,
+        statusText: response.statusText,
+        duration: `${duration}ms`,
+        response: responseText,
+        order_id: order.id,
+        order_number: order.order_number,
+      });
+    } else {
+      const responseText = await response.text();
+      console.log('[Webhook Client] ✅ Successfully sent to client webhook');
+      console.log('[Webhook Client] 📊 Response details:', {
+        status: response.status,
+        statusText: response.statusText,
+        duration: `${duration}ms`,
+        response: responseText || '(empty response)',
+        order_id: order.id,
+        order_number: order.order_number,
+      });
+      console.log('[Webhook Client] ✅ Webhook data received by n8n successfully');
+    }
+  } catch (error) {
+    // Não bloquear fluxo se webhook falhar - apenas logar erro
+    console.error('[Webhook Client] ❌ Exception sending webhook:', {
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+      order_id: order?.id,
+      order_number: order?.order_number,
+    });
+  }
+}
+
 // CORS headers
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -295,6 +390,9 @@ Deno.serve(async (req: Request) => {
           console.error("[Webhook] Error sending payment confirmation email:", emailError);
         }
 
+        // Send webhook to client (n8n) after payment confirmation
+        await sendClientWebhook(order, supabase);
+
         // Send notification to seller if seller_id exists
         if (order.seller_id) {
           console.log("[Webhook] Seller notification:", order.seller_id);
@@ -440,6 +538,9 @@ Deno.serve(async (req: Request) => {
         } catch (emailError) {
           console.error("[Webhook] Error sending payment confirmation email (PIX):", emailError);
         }
+
+        // Send webhook to client (n8n) after PIX payment confirmation
+        await sendClientWebhook(order, supabase);
 
         break;
       }

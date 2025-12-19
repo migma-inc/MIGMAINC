@@ -6,27 +6,40 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
-import { approveApplication, rejectApplication } from '@/lib/admin';
+import { approveApplication, rejectApplication, approveApplicationForMeeting, approveApplicationAfterMeeting } from '@/lib/admin';
+import { approvePartnerContract, rejectPartnerContract } from '@/lib/partner-contracts';
+import { getCurrentUser } from '@/lib/auth';
 import type { Application } from '@/types/application';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { ArrowLeft, Download, CheckCircle, XCircle, ExternalLink, X } from 'lucide-react';
+import { ArrowLeft, Download, CheckCircle, XCircle, ExternalLink, X, Calendar, Clock, Link as LinkIcon, MapPin, Hash, FileCode, Globe, Shield } from 'lucide-react';
 import { ConfirmModal } from '@/components/ui/confirm-modal';
 import { PromptModal } from '@/components/ui/prompt-modal';
 import { AlertModal } from '@/components/ui/alert-modal';
+import { MeetingScheduleModal } from '@/components/admin/MeetingScheduleModal';
 
 function StatusBadge({ status }: { status: Application['status'] }) {
-  const variants = {
+  const variants: Record<string, string> = {
     pending: 'bg-gold-medium/30 text-white border-gold-medium/50',
     approved: 'bg-green-900/30 text-green-300 border-green-500/50',
+    approved_for_meeting: 'bg-yellow-900/30 text-yellow-300 border-yellow-500/50',
+    approved_for_contract: 'bg-green-900/30 text-green-300 border-green-500/50',
     rejected: 'bg-red-900/30 text-red-300 border-red-500/50',
+  };
+
+  const displayText: Record<string, string> = {
+    pending: 'Pending',
+    approved: 'Approved',
+    approved_for_meeting: 'Approved for Meeting',
+    approved_for_contract: 'Approved for Contract',
+    rejected: 'Rejected',
   };
 
   return (
     <span
-      className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium border ${variants[status]}`}
+      className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium border ${variants[status] || variants.pending}`}
     >
-      {status.charAt(0).toUpperCase() + status.slice(1)}
+      {displayText[status] || status}
     </span>
   );
 }
@@ -47,6 +60,8 @@ function ApplicationDetailContent() {
   const [showAlert, setShowAlert] = useState(false);
   const [alertData, setAlertData] = useState<{ title: string; message: string; variant: 'success' | 'error' | 'warning' | 'info' } | null>(null);
   const [rejectionReason, setRejectionReason] = useState('');
+  const [showMeetingModal, setShowMeetingModal] = useState(false);
+  const [termsAcceptance, setTermsAcceptance] = useState<any>(null);
 
   useEffect(() => {
     async function loadApplication() {
@@ -74,6 +89,18 @@ function ApplicationDetailContent() {
         }
 
         setApplication(data as Application);
+
+        // Load terms acceptance data if available
+        const { data: acceptanceData } = await supabase
+          .from('partner_terms_acceptances')
+          .select('*')
+          .eq('application_id', id)
+          .not('accepted_at', 'is', null)
+          .maybeSingle();
+        
+        if (acceptanceData) {
+          setTermsAcceptance(acceptanceData);
+        }
 
         // Get CV URL if available
         if (data.cv_file_path) {
@@ -114,7 +141,70 @@ function ApplicationDetailContent() {
 
   const handleApprove = async () => {
     if (!application) return;
+    
+    // If status is pending, open meeting modal
+    if (application.status === 'pending') {
+      setShowMeetingModal(true);
+      return;
+    }
+    
+    // If status is approved_for_meeting, approve for contract
+    if (application.status === 'approved_for_meeting') {
+      setShowApproveConfirm(true);
+      return;
+    }
+    
+    // For other statuses, use old flow (backward compatibility)
     setShowApproveConfirm(true);
+  };
+
+  const handleMeetingSchedule = async (data: {
+    meetingDate: string;
+    meetingTime: string;
+    meetingLink: string;
+    scheduledBy?: string;
+  }) => {
+    if (!application) return;
+    
+    setShowMeetingModal(false);
+    setIsProcessing(true);
+    try {
+      const result = await approveApplicationForMeeting(
+        application.id,
+        data.meetingDate,
+        data.meetingTime,
+        data.meetingLink,
+        data.scheduledBy
+      );
+      if (result.success) {
+        setAlertData({
+          title: 'Success',
+          message: result.error || 'Meeting scheduled successfully! Email sent.',
+          variant: 'success',
+        });
+        setShowAlert(true);
+        // Reload application to get updated status after alert is closed
+        setTimeout(() => {
+          window.location.reload();
+        }, 2000);
+      } else {
+        setAlertData({
+          title: 'Error',
+          message: result.error || 'Failed to schedule meeting',
+          variant: 'error',
+        });
+        setShowAlert(true);
+      }
+    } catch (error) {
+      setAlertData({
+        title: 'Error',
+        message: error instanceof Error ? error.message : 'Unknown error occurred',
+        variant: 'error',
+      });
+      setShowAlert(true);
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   const confirmApprove = async () => {
@@ -123,11 +213,20 @@ function ApplicationDetailContent() {
     setShowApproveConfirm(false);
     setIsProcessing(true);
     try {
-      const result = await approveApplication(application.id);
+      let result;
+      
+      // If status is approved_for_meeting, use new function
+      if (application.status === 'approved_for_meeting') {
+        result = await approveApplicationAfterMeeting(application.id);
+      } else {
+        // For backward compatibility with old 'approved' status
+        result = await approveApplication(application.id);
+      }
+      
       if (result.success) {
         setAlertData({
           title: 'Success',
-          message: 'Application approved successfully! Email sent.',
+          message: result.error || 'Application approved successfully! Email sent.',
           variant: 'success',
         });
         setShowAlert(true);
@@ -528,6 +627,99 @@ function ApplicationDetailContent() {
             </CardContent>
           </Card>
 
+          {/* Terms Acceptance & Legal Records */}
+          {termsAcceptance && (
+            <Card className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30">
+              <CardHeader>
+                <CardTitle className="text-white flex items-center gap-2">
+                  <Shield className="w-5 h-5 text-gold-light" />
+                  Terms Acceptance & Legal Records
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <span className="text-gray-400">Terms Accepted:</span>
+                    <div className="flex items-center gap-2 text-green-300">
+                      <CheckCircle className="w-4 h-4" />
+                      <span>Yes</span>
+                    </div>
+                  </div>
+                  
+                  {termsAcceptance.accepted_at && (
+                    <div className="flex justify-between">
+                      <span className="text-gray-400">Accepted At:</span>
+                      <span className="text-white">
+                        {new Date(termsAcceptance.accepted_at).toLocaleString('en-US', {
+                          year: 'numeric',
+                          month: 'long',
+                          day: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
+                      </span>
+                    </div>
+                  )}
+
+                  {(termsAcceptance.contract_version || termsAcceptance.contract_hash || termsAcceptance.geolocation_country || termsAcceptance.signature_name) && (
+                    <div className="mt-4 pt-4 border-t border-gold-medium/20">
+                      <h4 className="text-sm font-semibold text-gold-light mb-3">Legal Records</h4>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {termsAcceptance.contract_version && (
+                          <div className="flex items-start gap-2">
+                            <FileCode className="w-4 h-4 text-gold-medium mt-0.5 flex-shrink-0" />
+                            <div>
+                              <p className="text-xs text-gray-400">Contract Version</p>
+                              <p className="text-white font-mono text-sm">{termsAcceptance.contract_version}</p>
+                            </div>
+                          </div>
+                        )}
+                        {termsAcceptance.contract_hash && (
+                          <div className="flex items-start gap-2">
+                            <Hash className="w-4 h-4 text-gold-medium mt-0.5 flex-shrink-0" />
+                            <div className="flex-1 min-w-0">
+                              <p className="text-xs text-gray-400">Contract Hash</p>
+                              <p className="text-white font-mono text-xs break-all">{termsAcceptance.contract_hash.substring(0, 32)}...</p>
+                            </div>
+                          </div>
+                        )}
+                        {(termsAcceptance.geolocation_country || termsAcceptance.geolocation_city) && (
+                          <div className="flex items-start gap-2">
+                            <MapPin className="w-4 h-4 text-gold-medium mt-0.5 flex-shrink-0" />
+                            <div>
+                              <p className="text-xs text-gray-400">Location</p>
+                              <p className="text-white">
+                                {[termsAcceptance.geolocation_city, termsAcceptance.geolocation_country].filter(Boolean).join(', ') || 'N/A'}
+                              </p>
+                            </div>
+                          </div>
+                        )}
+                        {termsAcceptance.signature_name && (
+                          <div className="flex items-start gap-2">
+                            <CheckCircle className="w-4 h-4 text-gold-medium mt-0.5 flex-shrink-0" />
+                            <div>
+                              <p className="text-xs text-gray-400">Digital Signature</p>
+                              <p className="text-white">{termsAcceptance.signature_name}</p>
+                            </div>
+                          </div>
+                        )}
+                        {termsAcceptance.ip_address && (
+                          <div className="flex items-start gap-2">
+                            <Globe className="w-4 h-4 text-gold-medium mt-0.5 flex-shrink-0" />
+                            <div>
+                              <p className="text-xs text-gray-400">IP Address</p>
+                              <p className="text-white font-mono text-xs">{termsAcceptance.ip_address}</p>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           {/* Timestamps */}
           <Card className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30">
             <CardHeader>
@@ -565,8 +757,177 @@ function ApplicationDetailContent() {
             </CardContent>
           </Card>
 
+          {/* Meeting Information */}
+          {application.meeting_date && (
+            <Card className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30">
+              <CardHeader>
+                <CardTitle className="text-white">Meeting Information</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="flex items-start gap-3">
+                    <Calendar className="w-5 h-5 text-gold-medium mt-0.5" />
+                    <div>
+                      <p className="text-sm text-gray-400 mb-1">Meeting Date</p>
+                      <p className="font-medium text-gray-200">
+                        {new Date(application.meeting_date).toLocaleDateString('en-US', {
+                          weekday: 'long',
+                          year: 'numeric',
+                          month: 'long',
+                          day: 'numeric',
+                        })}
+                      </p>
+                    </div>
+                  </div>
+                  {application.meeting_time && (
+                    <div className="flex items-start gap-3">
+                      <Clock className="w-5 h-5 text-gold-medium mt-0.5" />
+                      <div>
+                        <p className="text-sm text-gray-400 mb-1">Meeting Time</p>
+                        <p className="font-medium text-gray-200">{application.meeting_time}</p>
+                      </div>
+                    </div>
+                  )}
+                  {application.meeting_link && (
+                    <div className="flex items-start gap-3 md:col-span-2">
+                      <LinkIcon className="w-5 h-5 text-gold-medium mt-0.5" />
+                      <div className="flex-1">
+                        <p className="text-sm text-gray-400 mb-1">Meeting Link</p>
+                        <a
+                          href={application.meeting_link}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="font-medium text-gold-medium hover:text-gold-light underline break-all"
+                        >
+                          {application.meeting_link}
+                        </a>
+                      </div>
+                    </div>
+                  )}
+                  {application.meeting_scheduled_at && (
+                    <div>
+                      <p className="text-sm text-gray-400 mb-1">Scheduled At</p>
+                      <p className="font-medium text-gray-200">
+                        {new Date(application.meeting_scheduled_at).toLocaleString('en-US', {
+                          year: 'numeric',
+                          month: 'long',
+                          day: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
+                      </p>
+                    </div>
+                  )}
+                  {application.meeting_scheduled_by && (
+                    <div>
+                      <p className="text-sm text-gray-400 mb-1">Scheduled By</p>
+                      <p className="font-medium text-gray-200">{application.meeting_scheduled_by}</p>
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Contract Verification Actions */}
+          {termsAcceptance && termsAcceptance.verification_status === 'pending' && (
+            <Card className="bg-gradient-to-br from-blue-500/10 via-blue-500/5 to-blue-500/10 border border-blue-500/30">
+              <CardHeader>
+                <CardTitle className="text-white">Contract Verification</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="mb-4">
+                  <p className="text-sm text-gray-300 mb-2">
+                    This partner has accepted the contract terms and submitted their documents. 
+                    Please review the documents and verify the contract.
+                  </p>
+                  <div className="flex gap-2 text-xs text-gray-400">
+                    {termsAcceptance.document_front_url && (
+                      <span className="px-2 py-1 bg-green-900/30 text-green-300 rounded">Front Document ✓</span>
+                    )}
+                    {termsAcceptance.document_back_url && (
+                      <span className="px-2 py-1 bg-green-900/30 text-green-300 rounded">Back Document ✓</span>
+                    )}
+                    {termsAcceptance.identity_photo_path && (
+                      <span className="px-2 py-1 bg-green-900/30 text-green-300 rounded">Selfie ✓</span>
+                    )}
+                  </div>
+                </div>
+                <div className="flex gap-4">
+                  <Button
+                    onClick={async () => {
+                      if (!termsAcceptance) return;
+                      setIsProcessing(true);
+                      try {
+                        const user = await getCurrentUser();
+                        const reviewedBy = user?.email || user?.id || 'unknown';
+                        const result = await approvePartnerContract(termsAcceptance.id, reviewedBy);
+                        if (result.success) {
+                          setAlertData({
+                            title: 'Success',
+                            message: 'Contract approved successfully! Partner is now Active.',
+                            variant: 'success',
+                          });
+                          setShowAlert(true);
+                          // Reload application and terms acceptance
+                          const { data: appData } = await supabase
+                            .from('global_partner_applications')
+                            .select('*')
+                            .eq('id', id)
+                            .single();
+                          if (appData) setApplication(appData as Application);
+                          const { data: acceptanceData } = await supabase
+                            .from('partner_terms_acceptances')
+                            .select('*')
+                            .eq('application_id', id)
+                            .not('accepted_at', 'is', null)
+                            .maybeSingle();
+                          if (acceptanceData) setTermsAcceptance(acceptanceData);
+                        } else {
+                          setAlertData({
+                            title: 'Error',
+                            message: result.error || 'Failed to approve contract',
+                            variant: 'error',
+                          });
+                          setShowAlert(true);
+                        }
+                      } catch (err) {
+                        console.error('Error approving contract:', err);
+                        setAlertData({
+                          title: 'Error',
+                          message: 'An error occurred while approving the contract',
+                          variant: 'error',
+                        });
+                        setShowAlert(true);
+                      } finally {
+                        setIsProcessing(false);
+                      }
+                    }}
+                    disabled={isProcessing}
+                    className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white"
+                  >
+                    <CheckCircle className="w-4 h-4" />
+                    Approve Contract
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    onClick={() => {
+                      setRejectionReason('');
+                      setShowRejectPrompt(true);
+                    }}
+                    disabled={isProcessing}
+                    className="flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white"
+                  >
+                    <XCircle className="w-4 h-4" />
+                    Reject Contract
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           {/* Actions */}
-          {application.status === 'pending' && (
+          {(application.status === 'pending' || application.status === 'approved_for_meeting') && (
             <Card className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30">
               <CardHeader>
                 <CardTitle className="text-white">Actions</CardTitle>
@@ -579,17 +940,21 @@ function ApplicationDetailContent() {
                     className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white"
                   >
                     <CheckCircle className="w-4 h-4" />
-                    Approve Application
+                    {application.status === 'pending' 
+                      ? 'Approve & Schedule Meeting' 
+                      : 'Approve After Meeting'}
                   </Button>
-                  <Button
-                    variant="destructive"
-                    onClick={handleReject}
-                    disabled={isProcessing}
-                    className="flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white"
-                  >
-                    <XCircle className="w-4 h-4" />
-                    Reject Application
-                  </Button>
+                  {application.status === 'pending' && (
+                    <Button
+                      variant="destructive"
+                      onClick={handleReject}
+                      disabled={isProcessing}
+                      className="flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white"
+                    >
+                      <XCircle className="w-4 h-4" />
+                      Reject Application
+                    </Button>
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -670,13 +1035,25 @@ function ApplicationDetailContent() {
         </div>
       )}
 
+      {/* Meeting Schedule Modal */}
+      <MeetingScheduleModal
+        isOpen={showMeetingModal}
+        onClose={() => setShowMeetingModal(false)}
+        onConfirm={handleMeetingSchedule}
+        isLoading={isProcessing}
+      />
+
       {/* Approve Confirmation Modal */}
       <ConfirmModal
         isOpen={showApproveConfirm}
         onClose={() => setShowApproveConfirm(false)}
         onConfirm={confirmApprove}
-        title="Approve Application"
-        message={`Are you sure you want to approve ${application?.full_name}? This will send them an email with terms link.`}
+        title={application?.status === 'approved_for_meeting' 
+          ? 'Approve After Meeting' 
+          : 'Approve Application'}
+        message={application?.status === 'approved_for_meeting'
+          ? `Are you sure you want to approve ${application?.full_name} after the meeting? This will send them an email with the contract terms link.`
+          : `Are you sure you want to approve ${application?.full_name}? This will send them an email with terms link.`}
         confirmText="Approve"
         cancelText="Cancel"
         variant="default"
@@ -688,10 +1065,69 @@ function ApplicationDetailContent() {
         isOpen={showRejectPrompt}
         onClose={() => {
           setShowRejectPrompt(false);
+          setRejectionReason('');
         }}
-        onConfirm={handleRejectReasonSubmit}
-        title="Reject Application"
-        message={`Enter rejection reason for ${application?.full_name} (optional):`}
+        onConfirm={async (reason: string) => {
+          if (termsAcceptance && termsAcceptance.verification_status === 'pending') {
+            // Rejecting contract
+            setShowRejectPrompt(false);
+            setIsProcessing(true);
+            try {
+              const user = await getCurrentUser();
+              const reviewedBy = user?.email || user?.id || 'unknown';
+              const result = await rejectPartnerContract(termsAcceptance.id, reviewedBy, reason || undefined);
+              if (result.success) {
+                setAlertData({
+                  title: 'Success',
+                  message: 'Contract rejected successfully.',
+                  variant: 'success',
+                });
+                setShowAlert(true);
+                // Reload application and terms acceptance
+                const { data: appData } = await supabase
+                  .from('global_partner_applications')
+                  .select('*')
+                  .eq('id', id)
+                  .single();
+                if (appData) setApplication(appData as Application);
+                const { data: acceptanceData } = await supabase
+                  .from('partner_terms_acceptances')
+                  .select('*')
+                  .eq('application_id', id)
+                  .not('accepted_at', 'is', null)
+                  .maybeSingle();
+                if (acceptanceData) setTermsAcceptance(acceptanceData);
+              } else {
+                setAlertData({
+                  title: 'Error',
+                  message: result.error || 'Failed to reject contract',
+                  variant: 'error',
+                });
+                setShowAlert(true);
+              }
+            } catch (err) {
+              console.error('Error rejecting contract:', err);
+              setAlertData({
+                title: 'Error',
+                message: 'An error occurred while rejecting the contract',
+                variant: 'error',
+              });
+              setShowAlert(true);
+            } finally {
+              setIsProcessing(false);
+              setRejectionReason('');
+            }
+          } else {
+            // Rejecting application
+            handleRejectReasonSubmit(reason);
+          }
+        }}
+        title={termsAcceptance && termsAcceptance.verification_status === 'pending' ? "Reject Contract" : "Reject Application"}
+        message={
+          termsAcceptance && termsAcceptance.verification_status === 'pending'
+            ? `Enter rejection reason for contract verification (optional):`
+            : `Enter rejection reason for ${application?.full_name} (optional):`
+        }
         placeholder="Enter rejection reason (optional)..."
         confirmText="Continue"
         cancelText="Cancel"

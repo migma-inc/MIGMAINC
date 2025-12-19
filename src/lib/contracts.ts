@@ -12,6 +12,11 @@ export interface AcceptedContract {
   identity_photo_name: string | null;
   contract_pdf_path: string | null;
   contract_pdf_url: string | null;
+  contract_version: string | null;
+  contract_hash: string | null;
+  geolocation_country: string | null;
+  geolocation_city: string | null;
+  signature_name: string | null;
   created_at: string;
   updated_at: string;
   // Joined data from application
@@ -85,5 +90,109 @@ export function getCvFileUrl(cvPath: string | null): string | null {
   const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
   const bucketName = 'cv-files';
   return `${supabaseUrl}/storage/v1/object/public/${bucketName}/${cvPath}`;
+}
+
+/**
+ * Get active contract version from application_terms table
+ * Returns the version and content of the currently active partner contract
+ */
+export async function getActiveContractVersion(): Promise<{ version: string; content: string } | null> {
+  try {
+    const { data, error } = await supabase
+      .from('application_terms')
+      .select('version, content')
+      .eq('term_type', 'partner_contract')
+      .eq('is_active', true)
+      .order('version', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (error) {
+      console.warn('[contracts] Error fetching active contract version:', error);
+      return null;
+    }
+
+    if (!data) {
+      console.warn('[contracts] No active contract version found');
+      return null;
+    }
+
+    return {
+      version: data.version,
+      content: data.content,
+    };
+  } catch (error) {
+    console.error('[contracts] Unexpected error fetching contract version:', error);
+    return null;
+  }
+}
+
+/**
+ * Generate SHA-256 hash of contract content
+ * Uses Web Crypto API (native browser API)
+ */
+export async function generateContractHash(contractHTML: string): Promise<string> {
+  try {
+    // Encode the HTML string to bytes
+    const encoder = new TextEncoder();
+    const data = encoder.encode(contractHTML);
+
+    // Generate SHA-256 hash
+    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+
+    // Convert ArrayBuffer to hex string
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+
+    return hashHex;
+  } catch (error) {
+    console.error('[contracts] Error generating contract hash:', error);
+    throw error;
+  }
+}
+
+/**
+ * Get geolocation (country and city) from IP address
+ * Uses ipapi.co free API (no API key required)
+ * Returns nulls if IP is not provided or API fails
+ */
+export async function getGeolocationFromIP(ipAddress: string | null): Promise<{ country: string | null; city: string | null }> {
+  // If no IP provided, return nulls
+  if (!ipAddress || ipAddress.trim() === '') {
+    return { country: null, city: null };
+  }
+
+  try {
+    // Use ipapi.co free API
+    const response = await fetch(`https://ipapi.co/${ipAddress}/json/`, {
+      method: 'GET',
+      headers: {
+        'Accept': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      console.warn('[contracts] Geolocation API returned non-OK status:', response.status);
+      return { country: null, city: null };
+    }
+
+    const data = await response.json();
+
+    // Check for API error response
+    if (data.error) {
+      console.warn('[contracts] Geolocation API error:', data.reason || data.error);
+      return { country: null, city: null };
+    }
+
+    // Extract country and city
+    const country = data.country_name || data.country || null;
+    const city = data.city || null;
+
+    return { country, city };
+  } catch (error) {
+    console.warn('[contracts] Error fetching geolocation (non-critical):', error);
+    // Return nulls on error - geolocation is not critical for functionality
+    return { country: null, city: null };
+  }
 }
 
