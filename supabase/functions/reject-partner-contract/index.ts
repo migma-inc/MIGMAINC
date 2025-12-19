@@ -19,7 +19,7 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { acceptance_id, rejection_reason, reviewed_by } = await req.json();
+    const { acceptance_id, rejection_reason, reviewed_by, app_url } = await req.json();
 
     if (!acceptance_id) {
       return new Response(
@@ -154,8 +154,11 @@ Deno.serve(async (req) => {
     }
 
     // Get base URL for the resubmission link
-    const baseUrl = Deno.env.get("VITE_APP_URL") || "https://migma.com";
+    // Priority: 1. app_url from request (frontend sends current origin), 2. VITE_APP_URL env var, 3. fallback
+    const baseUrl = app_url || Deno.env.get("VITE_APP_URL") || "https://migma.com";
     const resubmissionUrl = `${baseUrl}/partner-terms?token=${resubmissionToken}`;
+    
+    console.log("[EDGE FUNCTION] Using base URL:", baseUrl);
 
     // Send rejection email if we have email address
     const emailToSend = acceptance.email || application?.email;

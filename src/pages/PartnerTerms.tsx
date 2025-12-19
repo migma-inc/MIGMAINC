@@ -100,7 +100,7 @@ export const PartnerTerms = () => {
                     }
                     
                     body::before {
-                        content: "This document cannot be printed. It is available exclusively through the MIGMA portal.";
+                        content: "";
                         display: block !important;
                         visibility: visible !important;
                         position: fixed;
