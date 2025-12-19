@@ -17,6 +17,10 @@ export interface AcceptedContract {
   geolocation_country: string | null;
   geolocation_city: string | null;
   signature_name: string | null;
+  verification_status: 'pending' | 'approved' | 'rejected' | null;
+  document_front_url: string | null;
+  document_back_url: string | null;
+  signature_image_url: string | null;
   created_at: string;
   updated_at: string;
   // Joined data from application
@@ -33,10 +37,11 @@ export interface AcceptedContract {
 
 /**
  * Fetch all accepted contracts (terms acceptances with accepted_at not null)
+ * @param statusFilter Optional filter by verification_status ('pending', 'approved', 'rejected', or 'all')
  */
-export async function fetchAcceptedContracts(): Promise<AcceptedContract[]> {
+export async function fetchAcceptedContracts(statusFilter?: 'pending' | 'approved' | 'rejected' | 'all'): Promise<AcceptedContract[]> {
   try {
-    const { data, error } = await supabase
+    let query = supabase
       .from('partner_terms_acceptances')
       .select(`
         *,
@@ -50,8 +55,22 @@ export async function fetchAcceptedContracts(): Promise<AcceptedContract[]> {
           cv_file_name
         )
       `)
-      .not('accepted_at', 'is', null)
-      .order('accepted_at', { ascending: false });
+      .not('accepted_at', 'is', null);
+
+    // Apply status filter if provided and not 'all'
+    if (statusFilter && statusFilter !== 'all') {
+      if (statusFilter === 'pending') {
+        // Include both 'pending' and null (old contracts without verification_status)
+        // Use .or() with proper Supabase PostgREST syntax
+        query = query.or('verification_status.eq.pending,verification_status.is.null');
+      } else if (statusFilter === 'approved') {
+        query = query.eq('verification_status', 'approved');
+      } else if (statusFilter === 'rejected') {
+        query = query.eq('verification_status', 'rejected');
+      }
+    }
+
+    const { data, error } = await query.order('accepted_at', { ascending: false });
 
     if (error) {
       console.error('[contracts] Error fetching contracts:', error);
@@ -193,6 +212,42 @@ export async function getGeolocationFromIP(ipAddress: string | null): Promise<{ 
     console.warn('[contracts] Error fetching geolocation (non-critical):', error);
     // Return nulls on error - geolocation is not critical for functionality
     return { country: null, city: null };
+  }
+}
+
+/**
+ * Fetch contract statistics by verification status
+ * Returns counts of contracts by status
+ */
+export async function fetchContractStats(): Promise<{
+  total: number;
+  pending: number;
+  approved: number;
+  rejected: number;
+} | null> {
+  try {
+    const { data, error } = await supabase
+      .from('partner_terms_acceptances')
+      .select('verification_status')
+      .not('accepted_at', 'is', null);
+
+    if (error) {
+      console.error('[contracts] Error fetching contract stats:', error);
+      return null;
+    }
+
+    const stats = {
+      total: data.length,
+      // Include null status as pending (old contracts before verification system)
+      pending: data.filter((item) => item.verification_status === 'pending' || item.verification_status === null).length,
+      approved: data.filter((item) => item.verification_status === 'approved').length,
+      rejected: data.filter((item) => item.verification_status === 'rejected').length,
+    };
+
+    return stats;
+  } catch (error) {
+    console.error('[contracts] Unexpected error fetching contract stats:', error);
+    return null;
   }
 }
 

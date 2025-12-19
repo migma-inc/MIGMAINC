@@ -1,33 +1,117 @@
 import { useState, useEffect } from 'react';
-import { FileText, Download, Eye, FileDown, User, MapPin, Hash, FileCode, Globe } from 'lucide-react';
+import { FileText, Download, Eye, FileDown, User, MapPin, Hash, FileCode, Globe, Check, X, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { fetchAcceptedContracts, getContractPdfUrl, getCvFileUrl, type AcceptedContract } from '@/lib/contracts';
+import { fetchAcceptedContracts, fetchContractStats, getContractPdfUrl, getCvFileUrl, type AcceptedContract } from '@/lib/contracts';
 import { Badge } from '@/components/ui/badge';
+import { approvePartnerContract, rejectPartnerContract } from '@/lib/partner-contracts';
+import { getCurrentUser } from '@/lib/auth';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Textarea } from '@/components/ui/textarea';
+
+// Chave para localStorage
+const CONTRACTS_TAB_STORAGE_KEY = 'contracts_page_selected_tab';
 
 export function ContractsPage() {
+  // Cache de contratos por status para evitar recarregamentos
+  const [contractsCache, setContractsCache] = useState<{
+    all: AcceptedContract[];
+    pending: AcceptedContract[];
+    approved: AcceptedContract[];
+    rejected: AcceptedContract[];
+  }>({
+    all: [],
+    pending: [],
+    approved: [],
+    rejected: [],
+  });
+  
   const [contracts, setContracts] = useState<AcceptedContract[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedContract, setSelectedContract] = useState<AcceptedContract | null>(null);
   const [showPdfModal, setShowPdfModal] = useState(false);
   const [showCvModal, setShowCvModal] = useState(false);
+  
+  // Restaurar statusFilter do localStorage na inicialização
+  const getInitialStatusFilter = (): 'all' | 'pending' | 'approved' | 'rejected' => {
+    try {
+      const saved = localStorage.getItem(CONTRACTS_TAB_STORAGE_KEY);
+      if (saved && ['all', 'pending', 'approved', 'rejected'].includes(saved)) {
+        return saved as 'all' | 'pending' | 'approved' | 'rejected';
+      }
+    } catch (error) {
+      console.warn('[ContractsPage] Error reading from localStorage:', error);
+    }
+    return 'all';
+  };
+  
+  const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>(getInitialStatusFilter());
+  const [stats, setStats] = useState<{ total: number; pending: number; approved: number; rejected: number } | null>(null);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [showApproveConfirm, setShowApproveConfirm] = useState(false);
+  const [showRejectPrompt, setShowRejectPrompt] = useState(false);
+  const [showRejectConfirm, setShowRejectConfirm] = useState(false);
+  const [pendingContract, setPendingContract] = useState<AcceptedContract | null>(null);
+  const [rejectionReason, setRejectionReason] = useState('');
+  const [alertData, setAlertData] = useState<{ title: string; message: string; variant: 'success' | 'error' } | null>(null);
+  const [showAlert, setShowAlert] = useState(false);
 
-  useEffect(() => {
-    loadContracts();
-  }, []);
-
-  const loadContracts = async () => {
+  // Carregar todos os contratos uma vez e organizar por status
+  const loadAllContracts = async () => {
     try {
       setLoading(true);
       setError(null);
-      const data = await fetchAcceptedContracts();
-      setContracts(data);
+      
+      // Carregar todos os contratos de uma vez
+      const allContracts = await fetchAcceptedContracts('all');
+      
+      // Organizar por status
+      const organized: typeof contractsCache = {
+        all: allContracts,
+        pending: allContracts.filter(c => c.verification_status === 'pending' || c.verification_status === null),
+        approved: allContracts.filter(c => c.verification_status === 'approved'),
+        rejected: allContracts.filter(c => c.verification_status === 'rejected'),
+      };
+      
+      setContractsCache(organized);
+      
+      // Atualizar contratos exibidos baseado no filtro atual
+      setContracts(organized[statusFilter] || []);
+      
+      console.log('[ContractsPage] All contracts loaded and cached');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load contracts');
     } finally {
       setLoading(false);
     }
+  };
+
+  // Salvar statusFilter no localStorage quando mudar e atualizar exibição (sem recarregar)
+  const handleStatusFilterChange = (value: 'all' | 'pending' | 'approved' | 'rejected') => {
+    setStatusFilter(value);
+    
+    // Atualizar contratos exibidos do cache (sem recarregar do servidor)
+    setContracts(contractsCache[value] || []);
+    
+    try {
+      localStorage.setItem(CONTRACTS_TAB_STORAGE_KEY, value);
+      console.log('[ContractsPage] Tab changed, using cached data:', value);
+    } catch (error) {
+      console.warn('[ContractsPage] Error saving to localStorage:', error);
+    }
+  };
+
+  // Carregar dados iniciais apenas uma vez
+  useEffect(() => {
+    loadAllContracts();
+    loadStats();
+  }, []); // Executar apenas uma vez no mount
+
+  const loadStats = async () => {
+    const statistics = await fetchContractStats();
+    setStats(statistics);
   };
 
   const handleViewContract = (contract: AcceptedContract) => {
@@ -107,6 +191,310 @@ export function ContractsPage() {
     });
   };
 
+  // Helper component to render contract card
+  const renderContractCard = (contract: AcceptedContract) => (
+    <Card key={contract.id} className="hover:shadow-lg transition-shadow bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30">
+      <CardHeader>
+        <div className="flex items-start justify-between">
+          <div className="flex-1">
+            <CardTitle className="text-xl mb-2 text-white">
+              {contract.application?.full_name || 'Unknown Partner'}
+            </CardTitle>
+            <div className="flex flex-wrap gap-2 text-sm text-gray-400">
+              <span className="flex items-center gap-1">
+                <User className="w-4 h-4" />
+                {contract.application?.email}
+              </span>
+              <span>•</span>
+              <span>{contract.application?.country}</span>
+              <span>•</span>
+              <span>Accepted: {formatDate(contract.accepted_at)}</span>
+            </div>
+          </div>
+          <VerificationStatusBadge status={contract.verification_status} />
+        </div>
+      </CardHeader>
+      <CardContent>
+        {/* Legal Information Section */}
+        {(contract.contract_version || contract.contract_hash || contract.geolocation_country || contract.signature_name) && (
+          <div className="mb-4 p-3 bg-black/30 rounded-lg border border-gold-medium/20">
+            <h4 className="text-sm font-semibold text-gold-light mb-3 flex items-center gap-2">
+              <FileCode className="w-4 h-4" />
+              Legal Records
+            </h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+              {contract.contract_version && (
+                <div className="flex items-start gap-2">
+                  <FileCode className="w-4 h-4 text-gold-medium mt-0.5 flex-shrink-0" />
+                  <div>
+                    <span className="text-gray-400">Contract Version:</span>
+                    <span className="text-white ml-2 font-mono">{contract.contract_version}</span>
+                  </div>
+                </div>
+              )}
+              {contract.contract_hash && (
+                <div className="flex items-start gap-2">
+                  <Hash className="w-4 h-4 text-gold-medium mt-0.5 flex-shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <span className="text-gray-400">Contract Hash:</span>
+                    <span className="text-white ml-2 font-mono text-xs break-all">{contract.contract_hash.substring(0, 32)}...</span>
+                  </div>
+                </div>
+              )}
+              {(contract.geolocation_country || contract.geolocation_city) && (
+                <div className="flex items-start gap-2">
+                  <MapPin className="w-4 h-4 text-gold-medium mt-0.5 flex-shrink-0" />
+                  <div>
+                    <span className="text-gray-400">Location:</span>
+                    <span className="text-white ml-2">
+                      {[contract.geolocation_city, contract.geolocation_country].filter(Boolean).join(', ') || 'N/A'}
+                    </span>
+                  </div>
+                </div>
+              )}
+              {contract.signature_name && (
+                <div className="flex items-start gap-2">
+                  <User className="w-4 h-4 text-gold-medium mt-0.5 flex-shrink-0" />
+                  <div>
+                    <span className="text-gray-400">Digital Signature:</span>
+                    <span className="text-white ml-2">{contract.signature_name}</span>
+                  </div>
+                </div>
+              )}
+              {contract.ip_address && (
+                <div className="flex items-start gap-2">
+                  <Globe className="w-4 h-4 text-gold-medium mt-0.5 flex-shrink-0" />
+                  <div>
+                    <span className="text-gray-400">IP Address:</span>
+                    <span className="text-white ml-2 font-mono text-xs">{contract.ip_address}</span>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+        <div className="flex flex-wrap gap-2">
+          {/* Action buttons for pending contracts (including null status for old contracts) */}
+          {(contract.verification_status === 'pending' || contract.verification_status === null) && (
+            <>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleApproveContract(contract)}
+                disabled={isProcessing}
+                className="flex items-center gap-2 border-green-500/50 bg-green-900/20 text-green-300 hover:bg-green-800/30 hover:text-green-200"
+              >
+                <Check className="w-4 h-4" />
+                Approve
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleRejectContract(contract)}
+                disabled={isProcessing}
+                className="flex items-center gap-2 border-red-500/50 bg-red-900/20 text-red-300 hover:bg-red-800/30 hover:text-red-200"
+              >
+                <X className="w-4 h-4" />
+                Reject
+              </Button>
+            </>
+          )}
+          {contract.contract_pdf_url && (
+            <>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleViewContract(contract)}
+                className="flex items-center gap-2 border-gold-medium/50 bg-black/50 text-white hover:bg-gold-medium/30 hover:text-gold-light"
+              >
+                <Eye className="w-4 h-4" />
+                View Contract
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleDownloadContract(contract)}
+                className="flex items-center gap-2 border-gold-medium/50 bg-black/50 text-white hover:bg-gold-medium/30 hover:text-gold-light"
+              >
+                <Download className="w-4 h-4" />
+                Download Contract
+              </Button>
+            </>
+          )}
+          {contract.application?.cv_file_path && (
+            <>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleViewCv(contract)}
+                className="flex items-center gap-2 border-gold-medium/50 bg-black/50 text-white hover:bg-gold-medium/30 hover:text-gold-light"
+              >
+                <Eye className="w-4 h-4" />
+                View CV
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleDownloadCv(contract)}
+                className="flex items-center gap-2 border-gold-medium/50 bg-black/50 text-white hover:bg-gold-medium/30 hover:text-gold-light"
+              >
+                <FileDown className="w-4 h-4" />
+                Download CV
+              </Button>
+            </>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  );
+
+  // Helper function to render empty state
+  const renderEmptyState = (message: string) => (
+    <Card className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30">
+      <CardContent className="pt-6">
+        <div className="text-center py-12">
+          <FileText className="w-16 h-16 text-gray-500 mx-auto mb-4" />
+          <p className="text-gray-400 text-lg">{message}</p>
+        </div>
+      </CardContent>
+    </Card>
+  );
+
+  // Verification Status Badge Component
+  const VerificationStatusBadge = ({ status }: { status: string | null }) => {
+    const variants: Record<string, string> = {
+      pending: 'bg-yellow-900/30 text-yellow-300 border-yellow-500/50',
+      approved: 'bg-green-900/30 text-green-300 border-green-500/50',
+      rejected: 'bg-red-900/30 text-red-300 border-red-500/50',
+    };
+
+    const displayText: Record<string, string> = {
+      pending: 'Pending Verification',
+      approved: 'Approved',
+      rejected: 'Rejected',
+    };
+
+    // Tratar null como 'pending' (contratos antigos antes da implementação do sistema de verificação)
+    const effectiveStatus = status || 'pending';
+
+    return (
+      <span
+        className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${variants[effectiveStatus] || variants.pending}`}
+      >
+        {displayText[effectiveStatus] || effectiveStatus}
+      </span>
+    );
+  };
+
+  // Handlers for approval/rejection
+  const handleApproveContract = (contract: AcceptedContract) => {
+    setPendingContract(contract);
+    setShowApproveConfirm(true);
+  };
+
+  const confirmApproveContract = async () => {
+    if (!pendingContract) return;
+
+    setIsProcessing(true);
+    try {
+      const user = await getCurrentUser();
+      const reviewedBy = user?.email || user?.id || 'unknown';
+
+      const result = await approvePartnerContract(pendingContract.id, reviewedBy);
+      
+      if (result.success) {
+        setAlertData({
+          title: 'Success',
+          message: 'Partner contract approved successfully!',
+          variant: 'success',
+        });
+        setShowAlert(true);
+        // Recarregar todos os contratos e atualizar cache
+        await loadAllContracts();
+        await loadStats();
+      } else {
+        setAlertData({
+          title: 'Error',
+          message: 'Failed to approve contract: ' + (result.error || 'Unknown error'),
+          variant: 'error',
+        });
+        setShowAlert(true);
+      }
+    } catch (err) {
+      console.error('Error approving partner contract:', err);
+      setAlertData({
+        title: 'Error',
+        message: 'An error occurred while approving the contract',
+        variant: 'error',
+      });
+      setShowAlert(true);
+    } finally {
+      setIsProcessing(false);
+      setShowApproveConfirm(false);
+      setPendingContract(null);
+    }
+  };
+
+  const handleRejectContract = (contract: AcceptedContract) => {
+    setPendingContract(contract);
+    setRejectionReason('');
+    setShowRejectPrompt(true);
+  };
+
+  const handleRejectReasonSubmit = (reason: string) => {
+    setShowRejectPrompt(false);
+    setRejectionReason(reason);
+    setShowRejectConfirm(true);
+  };
+
+  const confirmRejectContract = async () => {
+    if (!pendingContract) return;
+
+    setIsProcessing(true);
+    try {
+      const user = await getCurrentUser();
+      const reviewedBy = user?.email || user?.id || 'unknown';
+
+      const result = await rejectPartnerContract(
+        pendingContract.id,
+        reviewedBy,
+        rejectionReason || undefined
+      );
+      
+      if (result.success) {
+        setAlertData({
+          title: 'Success',
+          message: 'Partner contract rejected successfully.',
+          variant: 'success',
+        });
+        setShowAlert(true);
+        // Recarregar todos os contratos e atualizar cache
+        await loadAllContracts();
+        await loadStats();
+      } else {
+        setAlertData({
+          title: 'Error',
+          message: 'Failed to reject contract: ' + (result.error || 'Unknown error'),
+          variant: 'error',
+        });
+        setShowAlert(true);
+      }
+    } catch (err) {
+      console.error('Error rejecting partner contract:', err);
+      setAlertData({
+        title: 'Error',
+        message: 'An error occurred while rejecting the contract',
+        variant: 'error',
+      });
+      setShowAlert(true);
+    } finally {
+      setIsProcessing(false);
+      setShowRejectConfirm(false);
+      setPendingContract(null);
+      setRejectionReason('');
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -125,7 +513,7 @@ export function ContractsPage() {
           <CardContent className="pt-6">
             <div className="text-center">
               <p className="text-red-300 mb-4">{error}</p>
-              <Button onClick={loadContracts} variant="outline" className="border-gold-medium/50 bg-black/50 text-white hover:bg-gold-medium/30 hover:text-gold-light">Retry</Button>
+              <Button onClick={loadAllContracts} variant="outline" className="border-gold-medium/50 bg-black/50 text-white hover:bg-gold-medium/30 hover:text-gold-light">Retry</Button>
             </div>
           </CardContent>
         </Card>
@@ -138,153 +526,271 @@ export function ContractsPage() {
       <div className="mb-6">
         <h1 className="text-3xl font-bold migma-gold-text mb-2">Accepted Contracts</h1>
         <p className="text-gray-400">View and manage all accepted partner contracts</p>
+        
+        {/* Statistics */}
+        {stats && (
+          <div className="mt-4 flex flex-wrap gap-4 text-sm">
+            <span className="text-gray-400">Total: <span className="text-white font-semibold">{stats.total}</span></span>
+            <span className="text-gray-400">Pending: <span className="text-yellow-300 font-semibold">{stats.pending}</span></span>
+            <span className="text-gray-400">Approved: <span className="text-green-300 font-semibold">{stats.approved}</span></span>
+            <span className="text-gray-400">Rejected: <span className="text-red-300 font-semibold">{stats.rejected}</span></span>
+          </div>
+        )}
+
+        {/* Pending Contracts Alert */}
+        {stats && stats.pending > 0 && (
+          <Card className="bg-gradient-to-br from-yellow-500/20 via-yellow-500/10 to-yellow-500/20 border-2 border-yellow-500/50 mt-4">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-3">
+                <AlertCircle className="w-6 h-6 text-yellow-400" />
+                <div>
+                  <h3 className="text-lg font-bold text-yellow-300">
+                    {stats.pending} {stats.pending === 1 ? 'Contract' : 'Contracts'} Pending Verification
+                  </h3>
+                  <p className="text-sm text-yellow-200/80">
+                    There {stats.pending === 1 ? 'is' : 'are'} {stats.pending} contract{stats.pending === 1 ? '' : 's'} waiting for review
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
       </div>
 
-      {contracts.length === 0 ? (
-        <Card className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30">
-          <CardContent className="pt-6">
-            <div className="text-center py-12">
-              <FileText className="w-16 h-16 text-gray-500 mx-auto mb-4" />
-              <p className="text-gray-400 text-lg">No accepted contracts yet</p>
+      {/* Tabs for filtering */}
+        <Tabs value={statusFilter} onValueChange={(value) => handleStatusFilterChange(value as 'all' | 'pending' | 'approved' | 'rejected')} className="mb-6">
+        <TabsList className="grid w-full grid-cols-4 bg-black/50 border border-gold-medium/30">
+          <TabsTrigger 
+            value="all"
+            className="data-[state=active]:bg-gold-medium data-[state=active]:text-black data-[state=inactive]:text-gray-400 data-[state=inactive]:hover:text-gold-light border-r border-gold-medium/30"
+          >
+            All
+          </TabsTrigger>
+          <TabsTrigger 
+            value="pending"
+            className="data-[state=active]:bg-gold-medium data-[state=active]:text-black data-[state=inactive]:text-gray-400 data-[state=inactive]:hover:text-gold-light border-r border-gold-medium/30"
+          >
+            Pending
+            {stats && stats.pending > 0 && (
+              <Badge className="ml-2 bg-yellow-600 text-white">{stats.pending}</Badge>
+            )}
+          </TabsTrigger>
+          <TabsTrigger 
+            value="approved"
+            className="data-[state=active]:bg-gold-medium data-[state=active]:text-black data-[state=inactive]:text-gray-400 data-[state=inactive]:hover:text-gold-light border-r border-gold-medium/30"
+          >
+            Approved
+          </TabsTrigger>
+          <TabsTrigger 
+            value="rejected"
+            className="data-[state=active]:bg-gold-medium data-[state=active]:text-black data-[state=inactive]:text-gray-400 data-[state=inactive]:hover:text-gold-light"
+          >
+            Rejected
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="all" className="mt-4">
+          {contracts.length === 0 ? (
+            renderEmptyState('No accepted contracts yet')
+          ) : (
+            <div className="grid grid-cols-1 gap-4">
+              {contracts.map(renderContractCard)}
             </div>
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="grid grid-cols-1 gap-4">
-          {contracts.map((contract) => (
-            <Card key={contract.id} className="hover:shadow-lg transition-shadow bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30">
-              <CardHeader>
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <CardTitle className="text-xl mb-2 text-white">
-                      {contract.application?.full_name || 'Unknown Partner'}
-                    </CardTitle>
-                    <div className="flex flex-wrap gap-2 text-sm text-gray-400">
-                      <span className="flex items-center gap-1">
-                        <User className="w-4 h-4" />
-                        {contract.application?.email}
-                      </span>
-                      <span>•</span>
-                      <span>{contract.application?.country}</span>
-                      <span>•</span>
-                      <span>Accepted: {formatDate(contract.accepted_at)}</span>
-                    </div>
-                  </div>
-                  <Badge variant="default" className="bg-green-600 text-white">
-                    Accepted
-                  </Badge>
+          )}
+        </TabsContent>
+
+        <TabsContent value="pending" className="mt-4">
+          {contracts.length === 0 ? (
+            renderEmptyState('No pending contracts')
+          ) : (
+            <div className="grid grid-cols-1 gap-4">
+              {contracts.map(renderContractCard)}
+            </div>
+          )}
+        </TabsContent>
+
+        <TabsContent value="approved" className="mt-4">
+          {contracts.length === 0 ? (
+            renderEmptyState('No approved contracts')
+          ) : (
+            <div className="grid grid-cols-1 gap-4">
+              {contracts.map(renderContractCard)}
+            </div>
+          )}
+        </TabsContent>
+
+        <TabsContent value="rejected" className="mt-4">
+          {contracts.length === 0 ? (
+            renderEmptyState('No rejected contracts')
+          ) : (
+            <div className="grid grid-cols-1 gap-4">
+              {contracts.map(renderContractCard)}
+            </div>
+          )}
+        </TabsContent>
+      </Tabs>
+
+      {/* Approve Confirmation Modal */}
+      <Dialog open={showApproveConfirm} onOpenChange={setShowApproveConfirm}>
+        <DialogContent className="bg-black border-gold-medium/30 relative">
+          {isProcessing && (
+            <div className="absolute inset-0 bg-black/90 backdrop-blur-sm flex items-center justify-center z-50 rounded-lg">
+              <div className="text-center">
+                <div className="loader-gold mx-auto mb-4"></div>
+                <p className="text-gold-light text-lg font-semibold">Processing approval...</p>
+                <p className="text-gray-400 text-sm mt-2">Please wait</p>
+              </div>
+            </div>
+          )}
+          <DialogHeader>
+            <DialogTitle className="text-white">Approve Contract</DialogTitle>
+            <DialogDescription className="text-gray-300">
+              Are you sure you want to approve this contract? An approval email will be sent to the partner.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setShowApproveConfirm(false)}
+              disabled={isProcessing}
+              className="border-gold-medium/50 bg-black/50 text-white hover:bg-gold-medium/30"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={confirmApproveContract}
+              disabled={isProcessing}
+              className="bg-green-600 hover:bg-green-700 text-white"
+            >
+              {isProcessing ? (
+                <div className="flex items-center justify-center">
+                  <div className="loader-gold w-5 h-5 border-2 border-t-2 border-t-white border-green-400 rounded-full animate-spin mr-2"></div>
+                  Processing...
                 </div>
-              </CardHeader>
-              <CardContent>
-                {/* Legal Information Section */}
-                {(contract.contract_version || contract.contract_hash || contract.geolocation_country || contract.signature_name) && (
-                  <div className="mb-4 p-3 bg-black/30 rounded-lg border border-gold-medium/20">
-                    <h4 className="text-sm font-semibold text-gold-light mb-3 flex items-center gap-2">
-                      <FileCode className="w-4 h-4" />
-                      Legal Records
-                    </h4>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
-                      {contract.contract_version && (
-                        <div className="flex items-start gap-2">
-                          <FileCode className="w-4 h-4 text-gold-medium mt-0.5 flex-shrink-0" />
-                          <div>
-                            <span className="text-gray-400">Contract Version:</span>
-                            <span className="text-white ml-2 font-mono">{contract.contract_version}</span>
-                          </div>
-                        </div>
-                      )}
-                      {contract.contract_hash && (
-                        <div className="flex items-start gap-2">
-                          <Hash className="w-4 h-4 text-gold-medium mt-0.5 flex-shrink-0" />
-                          <div className="flex-1 min-w-0">
-                            <span className="text-gray-400">Contract Hash:</span>
-                            <span className="text-white ml-2 font-mono text-xs break-all">{contract.contract_hash.substring(0, 32)}...</span>
-                          </div>
-                        </div>
-                      )}
-                      {(contract.geolocation_country || contract.geolocation_city) && (
-                        <div className="flex items-start gap-2">
-                          <MapPin className="w-4 h-4 text-gold-medium mt-0.5 flex-shrink-0" />
-                          <div>
-                            <span className="text-gray-400">Location:</span>
-                            <span className="text-white ml-2">
-                              {[contract.geolocation_city, contract.geolocation_country].filter(Boolean).join(', ') || 'N/A'}
-                            </span>
-                          </div>
-                        </div>
-                      )}
-                      {contract.signature_name && (
-                        <div className="flex items-start gap-2">
-                          <User className="w-4 h-4 text-gold-medium mt-0.5 flex-shrink-0" />
-                          <div>
-                            <span className="text-gray-400">Digital Signature:</span>
-                            <span className="text-white ml-2">{contract.signature_name}</span>
-                          </div>
-                        </div>
-                      )}
-                      {contract.ip_address && (
-                        <div className="flex items-start gap-2">
-                          <Globe className="w-4 h-4 text-gold-medium mt-0.5 flex-shrink-0" />
-                          <div>
-                            <span className="text-gray-400">IP Address:</span>
-                            <span className="text-white ml-2 font-mono text-xs">{contract.ip_address}</span>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-                <div className="flex flex-wrap gap-2">
-                  {contract.contract_pdf_url && (
-                    <>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleViewContract(contract)}
-                        className="flex items-center gap-2 border-gold-medium/50 bg-black/50 text-white hover:bg-gold-medium/30 hover:text-gold-light"
-                      >
-                        <Eye className="w-4 h-4" />
-                        View Contract
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleDownloadContract(contract)}
-                        className="flex items-center gap-2 border-gold-medium/50 bg-black/50 text-white hover:bg-gold-medium/30 hover:text-gold-light"
-                      >
-                        <Download className="w-4 h-4" />
-                        Download Contract
-                      </Button>
-                    </>
-                  )}
-                  {contract.application?.cv_file_path && (
-                    <>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleViewCv(contract)}
-                        className="flex items-center gap-2 border-gold-medium/50 bg-black/50 text-white hover:bg-gold-medium/30 hover:text-gold-light"
-                      >
-                        <Eye className="w-4 h-4" />
-                        View CV
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleDownloadCv(contract)}
-                        className="flex items-center gap-2 border-gold-medium/50 bg-black/50 text-white hover:bg-gold-medium/30 hover:text-gold-light"
-                      >
-                        <FileDown className="w-4 h-4" />
-                        Download CV
-                      </Button>
-                    </>
-                  )}
+              ) : (
+                'Approve'
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Reject Prompt Modal */}
+      <Dialog open={showRejectPrompt} onOpenChange={setShowRejectPrompt}>
+        <DialogContent className="bg-black border-gold-medium/30">
+          <DialogHeader>
+            <DialogTitle className="text-white">Reject Contract</DialogTitle>
+            <DialogDescription className="text-gray-300">
+              Please provide a reason for rejecting this contract. This reason will be included in the rejection email.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <Textarea
+              placeholder="Enter rejection reason (optional)"
+              value={rejectionReason}
+              onChange={(e) => setRejectionReason(e.target.value)}
+              className="bg-black/50 border-gold-medium/30 text-white placeholder:text-gray-500"
+              rows={4}
+            />
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowRejectPrompt(false);
+                setRejectionReason('');
+              }}
+              disabled={isProcessing}
+              className="border-gold-medium/50 bg-black/50 text-white hover:bg-gold-medium/30"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={() => handleRejectReasonSubmit(rejectionReason)}
+              disabled={isProcessing}
+              className="bg-red-600 hover:bg-red-700 text-white"
+            >
+              Continue
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Reject Confirmation Modal */}
+      <Dialog open={showRejectConfirm} onOpenChange={setShowRejectConfirm}>
+        <DialogContent className="bg-black border-gold-medium/30 relative">
+          {isProcessing && (
+            <div className="absolute inset-0 bg-black/90 backdrop-blur-sm flex items-center justify-center z-50 rounded-lg">
+              <div className="text-center">
+                <div className="loader-gold mx-auto mb-4"></div>
+                <p className="text-gold-light text-lg font-semibold">Processing rejection...</p>
+                <p className="text-gray-400 text-sm mt-2">Please wait</p>
+              </div>
+            </div>
+          )}
+          <DialogHeader>
+            <DialogTitle className="text-white">Confirm Rejection</DialogTitle>
+            <DialogDescription className="text-gray-300">
+              Are you sure you want to reject this contract? A rejection email will be sent to the partner.
+            </DialogDescription>
+            {rejectionReason && (
+              <div className="mt-2 p-2 bg-black/50 rounded border border-gold-medium/30">
+                <p className="text-sm text-gold-light font-semibold mb-1">Rejection Reason:</p>
+                <p className="text-sm text-gray-300">{rejectionReason}</p>
+              </div>
+            )}
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowRejectConfirm(false);
+                setRejectionReason('');
+              }}
+              disabled={isProcessing}
+              className="border-gold-medium/50 bg-black/50 text-white hover:bg-gold-medium/30"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={confirmRejectContract}
+              disabled={isProcessing}
+              className="bg-red-600 hover:bg-red-700 text-white"
+            >
+              {isProcessing ? (
+                <div className="flex items-center justify-center">
+                  <div className="loader-gold w-5 h-5 border-2 border-t-2 border-t-white border-red-400 rounded-full animate-spin mr-2"></div>
+                  Processing...
                 </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      )}
+              ) : (
+                'Confirm Rejection'
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Alert Modal */}
+      <Dialog open={showAlert} onOpenChange={setShowAlert}>
+        <DialogContent className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border-gold-medium/30">
+          <DialogHeader>
+            <DialogTitle className={alertData?.variant === 'success' ? 'text-green-300' : 'text-red-300'}>
+              {alertData?.title}
+            </DialogTitle>
+            <DialogDescription className="text-gray-300">
+              {alertData?.message}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              onClick={() => setShowAlert(false)}
+              className={alertData?.variant === 'success' ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700'}
+            >
+              OK
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* PDF Modal */}
       {showPdfModal && selectedContract && selectedContract.contract_pdf_url && (

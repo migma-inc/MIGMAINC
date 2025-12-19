@@ -114,6 +114,49 @@ Deno.serve(async (req) => {
       console.warn("[EDGE FUNCTION] Acceptance rejected but application status update failed");
     }
 
+    // Generate a new token for resubmission (or reuse existing if not accepted)
+    // First, check if there's an existing token that hasn't been accepted
+    let resubmissionToken: string | null = null;
+    
+    const { data: existingToken, error: tokenCheckError } = await supabase
+      .from('partner_terms_acceptances')
+      .select('token, accepted_at')
+      .eq('application_id', acceptance.application_id)
+      .is('accepted_at', null)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single();
+    
+    if (existingToken && !existingToken.accepted_at) {
+      // Reuse existing token if it hasn't been accepted
+      resubmissionToken = existingToken.token;
+      console.log("[EDGE FUNCTION] Reusing existing token for resubmission:", resubmissionToken);
+    } else {
+      // Generate new token
+      const token = `migma_${Date.now()}_${Math.random().toString(36).substring(2, 15)}_${Math.random().toString(36).substring(2, 15)}`;
+      const expiresAt = new Date();
+      expiresAt.setDate(expiresAt.getDate() + 30); // 30 days expiration
+      
+      const { error: tokenInsertError } = await supabase
+        .from('partner_terms_acceptances')
+        .insert({
+          application_id: acceptance.application_id,
+          token: token,
+          expires_at: expiresAt.toISOString(),
+        });
+      
+      if (tokenInsertError) {
+        console.error("[EDGE FUNCTION] Error creating resubmission token:", tokenInsertError);
+      } else {
+        resubmissionToken = token;
+        console.log("[EDGE FUNCTION] Created new token for resubmission:", resubmissionToken);
+      }
+    }
+
+    // Get base URL for the resubmission link
+    const baseUrl = Deno.env.get("VITE_APP_URL") || "https://migma.com";
+    const resubmissionUrl = `${baseUrl}/partner-terms?token=${resubmissionToken}`;
+
     // Send rejection email if we have email address
     const emailToSend = acceptance.email || application?.email;
     if (emailToSend) {
@@ -163,8 +206,19 @@ Deno.serve(async (req) => {
                                 </div>
                                 ` : ''}
                                 <p style="margin: 0 0 20px 0; font-size: 16px; line-height: 1.6; color: #e0e0e0;">
-                                  Please contact our team to discuss next steps and resolve any issues with your contract verification.
+                                  Please review the contract again, upload the required documents, and sign the contract using the link below.
                                 </p>
+                                ${resubmissionToken ? `
+                                <div style="text-align: center; margin: 30px 0;">
+                                  <a href="${resubmissionUrl}" style="display: inline-block; padding: 15px 40px; background: linear-gradient(135deg, #8E6E2F 0%, #CE9F48 50%, #8E6E2F 100%); color: #000000; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 16px; text-align: center;">
+                                    Review and Resubmit Contract
+                                  </a>
+                                </div>
+                                <p style="margin: 20px 0 0 0; font-size: 14px; line-height: 1.6; color: #999999; text-align: center;">
+                                  Or copy and paste this link:<br>
+                                  <span style="word-break: break-all; color: #CE9F48;">${resubmissionUrl}</span>
+                                </p>
+                                ` : ''}
                                 <p style="margin: 30px 0 0 0; font-size: 16px; line-height: 1.6; color: #e0e0e0;">
                                   If you have any questions, please contact our support team.
                                 </p>

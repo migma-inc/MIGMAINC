@@ -287,6 +287,7 @@ Deno.serve(async (req) => {
     const loadIdentityPhoto = async () => loadImage(termAcceptance.identity_photo_path);
     const loadDocumentFront = async () => loadImage((termAcceptance as any).document_front_url);
     const loadDocumentBack = async () => loadImage((termAcceptance as any).document_back_url);
+    const loadSignatureImage = async () => loadImage((termAcceptance as any).signature_image_url);
 
     // ============================================
     // 1. Header
@@ -420,25 +421,44 @@ Deno.serve(async (req) => {
     pdf.text('CONTRACTOR', margin, currentY);
     currentY += 10;
 
-    // Signature with underlined name
+    // Signature section
     pdf.setFontSize(10);
     pdf.setFont('helvetica', 'normal');
     pdf.text('Signature:', margin, currentY);
+    currentY += 8;
     
-    // Calculate where to start the name
-    const nameStartX = margin + pdf.getTextWidth('Signature: ') + 5;
+    // Try to load and display signature image if available
+    const signatureImage = await loadSignatureImage();
     
-    // Write the name in bold
-    pdf.setFont('helvetica', 'bold');
-    pdf.text(application.full_name, nameStartX, currentY);
+    if (signatureImage) {
+      try {
+        // Check if we need a new page for the signature image
+        if (currentY > pageHeight - margin - 30) {
+          pdf.addPage();
+          currentY = margin;
+        }
+        
+        // Add signature image (max 45mm width, height proportional)
+        const maxWidth = 45;
+        const maxHeight = 20; // Height for signature is typically smaller
+        
+        pdf.addImage(
+          signatureImage.dataUrl,
+          signatureImage.format,
+          margin,
+          currentY,
+          maxWidth,
+          maxHeight
+        );
+        currentY += maxHeight + 8;
+      } catch (imgError) {
+        console.error("[EDGE FUNCTION] Error adding signature image to PDF:", imgError);
+        // Fall through to show name as fallback
+      }
+    }
     
-    // Draw line under the name (underlined)
-    const nameWidth = pdf.getTextWidth(application.full_name);
-    const lineY = currentY + 2;
-    pdf.setLineWidth(0.5);
-    pdf.line(nameStartX, lineY, nameStartX + nameWidth, lineY);
-    
-    currentY += 12;
+    // Nome removido - não é mais necessário pois já aparece em "Full Name:" abaixo
+    // A assinatura desenhada é suficiente
 
     // Repeated data (consistent alignment)
     pdf.setFont('helvetica', 'bold');
@@ -465,40 +485,70 @@ Deno.serve(async (req) => {
     const identityPhoto = await loadIdentityPhoto();
 
     if (documentFront || documentBack || identityPhoto) {
-      // Check if new page is needed
-      if (currentY > pageHeight - margin - 120) {
+      const maxWidth = 60;
+      const maxHeight = 45;
+      const imageSpacing = 10; // Espaçamento entre imagens
+      const titleHeight = 8; // Altura do título acima de cada imagem
+      const totalImageHeight = maxHeight + titleHeight + imageSpacing; // ~63mm por imagem
+
+      // Calcular quantas imagens serão adicionadas
+      let imagesToAdd = 0;
+      if (documentFront) imagesToAdd++;
+      if (documentBack) imagesToAdd++;
+      if (identityPhoto) imagesToAdd++;
+
+      // Calcular espaço total necessário para todas as imagens
+      const totalSpaceNeeded = imagesToAdd * totalImageHeight;
+      const availableSpace = pageHeight - currentY - margin - 20; // 20mm de margem de segurança
+
+      // Se não há espaço suficiente para todas as imagens, criar nova página
+      if (availableSpace < totalSpaceNeeded) {
+        console.log("[EDGE FUNCTION] Not enough space for all images, creating new page");
         pdf.addPage();
         currentY = margin;
       }
 
-      const maxWidth = 60;
-      const maxHeight = 45;
-
       if (documentFront) {
+        // Verificar se há espaço para esta imagem antes de adicionar
+        if (currentY + titleHeight + maxHeight > pageHeight - margin - 20) {
+          pdf.addPage();
+          currentY = margin;
+        }
         pdf.setFontSize(10);
         pdf.setFont('helvetica', 'bold');
         pdf.text('DOCUMENT FRONT', margin, currentY);
-        currentY += 8;
+        currentY += titleHeight;
         pdf.addImage(documentFront.dataUrl, documentFront.format, margin, currentY, maxWidth, maxHeight);
-        currentY += maxHeight + 10;
+        currentY += maxHeight + imageSpacing;
       }
 
       if (documentBack) {
+        // Verificar se há espaço para esta imagem antes de adicionar
+        if (currentY + titleHeight + maxHeight > pageHeight - margin - 20) {
+          pdf.addPage();
+          currentY = margin;
+        }
         pdf.setFontSize(10);
         pdf.setFont('helvetica', 'bold');
         pdf.text('DOCUMENT BACK', margin, currentY);
-        currentY += 8;
+        currentY += titleHeight;
         pdf.addImage(documentBack.dataUrl, documentBack.format, margin, currentY, maxWidth, maxHeight);
-        currentY += maxHeight + 10;
+        currentY += maxHeight + imageSpacing;
       }
 
       if (identityPhoto) {
+        // Verificar se há espaço para esta imagem antes de adicionar (especialmente importante para a última)
+        if (currentY + titleHeight + maxHeight > pageHeight - margin - 20) {
+          console.log("[EDGE FUNCTION] Not enough space for identity photo, creating new page");
+          pdf.addPage();
+          currentY = margin;
+        }
         pdf.setFontSize(10);
         pdf.setFont('helvetica', 'bold');
         pdf.text('IDENTITY PHOTO WITH DOCUMENT', margin, currentY);
-        currentY += 8;
+        currentY += titleHeight;
         pdf.addImage(identityPhoto.dataUrl, identityPhoto.format, margin, currentY, maxWidth, maxHeight);
-        currentY += maxHeight + 10;
+        currentY += maxHeight + imageSpacing;
       }
     }
 
