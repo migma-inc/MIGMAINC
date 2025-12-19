@@ -29,17 +29,6 @@ export function SignaturePadComponent({
   const [isEmpty, setIsEmpty] = useState(true);
   const [isConfirmed, setIsConfirmed] = useState(false);
 
-  // Helper function to calculate canvas offset
-  const getCanvasOffset = (canvas: HTMLCanvasElement) => {
-    const rect = canvas.getBoundingClientRect();
-    return {
-      x: rect.left,
-      y: rect.top,
-      width: rect.width,
-      height: rect.height
-    };
-  };
-
   // Function to resize canvas and update SignaturePad
   const resizeCanvas = () => {
     const canvas = canvasRef.current;
@@ -81,10 +70,7 @@ export function SignaturePadComponent({
     const currentHeight = canvas.height / ratio;
     
     if (Math.abs(currentWidth - displayWidth) < 1 && Math.abs(currentHeight - displayHeight) < 1) {
-      // Dimensions haven't changed significantly, just update SignaturePad coordinates
-      if (signaturePad) {
-        signaturePad.resizeCanvas();
-      }
+      // Dimensions haven't changed significantly, no need to resize
       return;
     }
     
@@ -103,14 +89,11 @@ export function SignaturePadComponent({
       ctx.scale(ratio, ratio);
     }
 
-    // Resize SignaturePad if it exists - this recalculates coordinates
-    if (signaturePad) {
-      signaturePad.resizeCanvas();
-      
-      // Restore saved drawing data after resize
-      if (savedData) {
-        signaturePad.fromData(savedData);
-      }
+    // Restore saved drawing data after resize
+    // Note: signature_pad doesn't have resizeCanvas() method, but it automatically
+    // recalculates coordinates when canvas size changes. We just need to restore the data.
+    if (signaturePad && savedData) {
+      signaturePad.fromData(savedData);
     }
   };
 
