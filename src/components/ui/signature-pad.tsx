@@ -25,60 +25,159 @@ export function SignaturePadComponent({
 }: SignaturePadComponentProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const signaturePadRef = useRef<SignaturePad | null>(null);
+  const isDrawingRef = useRef<boolean>(false);
   const [isEmpty, setIsEmpty] = useState(true);
   const [isConfirmed, setIsConfirmed] = useState(false);
+
+  // Helper function to calculate canvas offset
+  const getCanvasOffset = (canvas: HTMLCanvasElement) => {
+    const rect = canvas.getBoundingClientRect();
+    return {
+      x: rect.left,
+      y: rect.top,
+      width: rect.width,
+      height: rect.height
+    };
+  };
+
+  // Function to resize canvas and update SignaturePad
+  const resizeCanvas = () => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    // Don't resize while user is drawing
+    if (isDrawingRef.current) {
+      return;
+    }
+
+    const signaturePad = signaturePadRef.current;
+    
+    // Save current drawing data before resizing (changing canvas size clears it)
+    let savedData = null;
+    if (signaturePad && !signaturePad.isEmpty()) {
+      savedData = signaturePad.toData();
+    }
+
+    const ratio = Math.max(window.devicePixelRatio || 1, 1);
+    
+    // Get the container (parent element) to calculate available space
+    const container = canvas.parentElement;
+    if (!container) return;
+    
+    const containerRect = container.getBoundingClientRect();
+    
+    // Calculate available width (container width minus border)
+    // Border is 2px on each side = 4px total
+    // Use exactly the available space, no extra padding
+    const borderWidth = 4; // 2px border on each side (2px left + 2px right)
+    const borderHeight = 4; // 2px border on each side (2px top + 2px bottom)
+    
+    // Use exactly the container size minus borders - no minimum, no extra space
+    const displayWidth = Math.max(containerRect.width - borderWidth, 0);
+    const displayHeight = Math.max(containerRect.height - borderHeight, height);
+    
+    // Only resize if dimensions actually changed (to avoid clearing canvas unnecessarily)
+    const currentWidth = canvas.width / ratio;
+    const currentHeight = canvas.height / ratio;
+    
+    if (Math.abs(currentWidth - displayWidth) < 1 && Math.abs(currentHeight - displayHeight) < 1) {
+      // Dimensions haven't changed significantly, just update SignaturePad coordinates
+      if (signaturePad) {
+        signaturePad.resizeCanvas();
+      }
+      return;
+    }
+    
+    // Set internal canvas size (high DPI) - use exact available space
+    // NOTE: Changing canvas.width or canvas.height clears the canvas!
+    canvas.width = displayWidth * ratio;
+    canvas.height = displayHeight * ratio;
+    
+    // Set CSS size (display size) - use exact available space
+    canvas.style.width = `${displayWidth}px`;
+    canvas.style.height = `${displayHeight}px`;
+    
+    // Scale context for high DPI
+    const ctx = canvas.getContext('2d');
+    if (ctx) {
+      ctx.scale(ratio, ratio);
+    }
+
+    // Resize SignaturePad if it exists - this recalculates coordinates
+    if (signaturePad) {
+      signaturePad.resizeCanvas();
+      
+      // Restore saved drawing data after resize
+      if (savedData) {
+        signaturePad.fromData(savedData);
+      }
+    }
+  };
 
   useEffect(() => {
     if (!canvasRef.current || signaturePadRef.current) return;
 
     const canvas = canvasRef.current;
     
-    // Setup canvas dimensions for high DPI displays
-    const ratio = Math.max(window.devicePixelRatio || 1, 1);
-    canvas.width = width * ratio;
-    canvas.height = height * ratio;
-    canvas.style.width = `${width}px`;
-    canvas.style.height = `${height}px`;
-    
-    const ctx = canvas.getContext('2d');
-    if (ctx) {
-      ctx.scale(ratio, ratio);
-    }
+    // Wait a bit for container to be fully rendered, then setup canvas
+    // This ensures we get the correct container dimensions
+    const setupCanvas = () => {
+      resizeCanvas();
+      
+      // Initialize SignaturePad
+      const signaturePad = new SignaturePad(canvas, {
+        backgroundColor: '#ffffff',
+        penColor: '#000000', // Cor preta
+        minWidth: 1.5,
+        maxWidth: 3,
+        throttle: 16,
+      });
 
-    // Initialize SignaturePad
-    const signaturePad = new SignaturePad(canvas, {
-      backgroundColor: '#ffffff',
-      penColor: '#000000', // Cor preta
-      minWidth: 1.5,
-      maxWidth: 3,
-      throttle: 16,
-    });
-
-    signaturePadRef.current = signaturePad;
-
-    // Listen for signature changes
-    signaturePad.addEventListener('beginStroke', () => {
-      if (isConfirmed) {
-        setIsConfirmed(false);
-      }
-      setIsEmpty(false);
-    });
-
-    signaturePad.addEventListener('endStroke', () => {
-      if (!signaturePad.isEmpty()) {
+      signaturePadRef.current = signaturePad;
+      
+      // Listen for signature changes
+      signaturePad.addEventListener('beginStroke', () => {
+        isDrawingRef.current = true;
+        if (isConfirmed) {
+          setIsConfirmed(false);
+        }
         setIsEmpty(false);
-        const dataURL = signaturePad.toDataURL('image/png');
-        onSignatureChange(dataURL);
-      }
+      });
+
+      signaturePad.addEventListener('endStroke', () => {
+        isDrawingRef.current = false;
+        if (!signaturePad.isEmpty()) {
+          setIsEmpty(false);
+          const dataURL = signaturePad.toDataURL('image/png');
+          onSignatureChange(dataURL);
+        }
+      });
+    };
+
+    // Use requestAnimationFrame to ensure DOM is ready
+    requestAnimationFrame(() => {
+      requestAnimationFrame(setupCanvas);
     });
+
+    // Handle window resize
+    const handleResize = () => {
+      resizeCanvas();
+    };
+
+    window.addEventListener('resize', handleResize);
+    
+    // Also handle orientation change on mobile
+    window.addEventListener('orientationchange', handleResize);
 
     return () => {
+      window.removeEventListener('resize', handleResize);
+      window.removeEventListener('orientationchange', handleResize);
       if (signaturePadRef.current) {
         signaturePadRef.current.off();
         signaturePadRef.current = null;
       }
     };
-  }, []); // Empty dependency array - only run once on mount
+  }, [width, height]); // Only depend on width and height, not onSignatureChange or isConfirmed
 
   const handleClear = () => {
     if (signaturePadRef.current) {
@@ -108,7 +207,7 @@ export function SignaturePadComponent({
         </Label>
       )}
       
-      <div className="relative border-2 border-gray-600 rounded-lg bg-white overflow-hidden" style={{ minHeight: `${height}px` }}>
+      <div className="relative border-2 border-gray-600 rounded-lg bg-white overflow-hidden" style={{ minHeight: `${height}px`, width: '100%' }}>
         <canvas
           ref={canvasRef}
           className="cursor-crosshair"
@@ -116,7 +215,7 @@ export function SignaturePadComponent({
             touchAction: 'none', 
             opacity: isConfirmed ? 0.7 : 1,
             display: 'block',
-            width: `${width}px`,
+            width: '100%',
             maxWidth: '100%',
             height: `${height}px`,
             position: 'relative',
