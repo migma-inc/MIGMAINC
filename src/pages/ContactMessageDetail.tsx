@@ -152,34 +152,36 @@ export function ContactMessageDetail() {
         setReplyText('');
 
         // Send email notification to user (ensure token exists)
-        try {
-          let tokenToSend = ticket.access_token;
-          if (!tokenToSend) {
-            const generated = await generateAccessToken(ticket.id);
-            if (generated) {
-              tokenToSend = generated;
-              // update local ticket access_token
-              setTicket({ ...ticket, access_token: tokenToSend });
+        if (!skipEmail) {
+          try {
+            let tokenToSend = ticket.access_token;
+            if (!tokenToSend) {
+              const generated = await generateAccessToken(ticket.id);
+              if (generated) {
+                tokenToSend = generated;
+                // update local ticket access_token
+                setTicket({ ...ticket, access_token: tokenToSend });
+              }
             }
-          }
 
-          if (tokenToSend) {
-            const emailResult = await sendAdminReplyNotification(
-              ticket.email,
-              ticket.name,
-              ticket.subject,
-              tokenToSend
-            );
-            if (emailResult) {
-              console.log('[ADMIN DETAIL] Notification email sent to user');
+            if (tokenToSend) {
+              const emailResult = await sendAdminReplyNotification(
+                ticket.email,
+                ticket.name,
+                ticket.subject,
+                tokenToSend
+              );
+              if (emailResult) {
+                console.log('[ADMIN DETAIL] Notification email sent to user');
+              } else {
+                console.warn('[ADMIN DETAIL] sendAdminReplyNotification returned false');
+              }
             } else {
-              console.warn('[ADMIN DETAIL] sendAdminReplyNotification returned false');
+              console.warn('[ADMIN DETAIL] No access token available to send notification link');
             }
-          } else {
-            console.warn('[ADMIN DETAIL] No access token available to send notification link');
+          } catch (emailErr) {
+            console.error('[ADMIN DETAIL] Failed to send notification email:', emailErr);
           }
-        } catch (emailErr) {
-          console.error('[ADMIN DETAIL] Failed to send notification email:', emailErr);
         }
       } else {
         alert('Failed to send reply. Please try again.');
