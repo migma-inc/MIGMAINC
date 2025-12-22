@@ -13,7 +13,6 @@ import { AlertModal } from '@/components/ui/alert-modal';
 import { ContractTemplateEditor } from '@/components/admin/ContractTemplateEditor';
 import {
   getAllContractTemplates,
-  getActiveContractTemplates,
   createContractTemplate,
   updateContractTemplate,
   deleteContractTemplate,
@@ -210,9 +209,22 @@ export function ContractTemplatesPage() {
         // Update existing template
         result = await updateContractTemplate(editingTemplate.id, data);
       } else {
-        // Create new template
+        // Create new template - garantir que name e content estão definidos
+        if (!data.name || !data.content) {
+          setAlertData({
+            title: 'Error',
+            message: 'Name and content are required to create a template',
+            variant: 'error',
+          });
+          setShowAlert(true);
+          setIsSaving(false);
+          return;
+        }
         const createData: CreateContractTemplateData = {
-          ...data,
+          name: data.name,
+          description: data.description,
+          content: data.content,
+          is_active: data.is_active,
           created_by: createdBy || undefined,
         };
         result = await createContractTemplate(createData);

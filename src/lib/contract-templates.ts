@@ -3,7 +3,6 @@
  * Functions for CRUD operations on contract templates
  */
 
-import { supabase } from './supabase';
 import { adminSupabase } from './auth';
 
 export interface ContractTemplate {

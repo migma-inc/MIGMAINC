@@ -6,7 +6,6 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
-import { Separator } from '@/components/ui/separator';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { ChevronRight, ChevronLeft } from 'lucide-react';
@@ -32,8 +31,6 @@ export const PartnerTerms = () => {
     const [contractContent, setContractContent] = useState<string | null>(null);
     const [loadingContent, setLoadingContent] = useState(true);
     const [templateLoadError, setTemplateLoadError] = useState<string | null>(null);
-    // contentSource: tracks where contract content was loaded from (for debugging/monitoring)
-    const [contentSource, setContentSource] = useState<'template' | 'application_terms' | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [identityPhotoPath, setIdentityPhotoPath] = useState<string | null>(null); // selfie URL
     const [identityPhotoName, setIdentityPhotoName] = useState<string | null>(null); // selfie file name
@@ -255,7 +252,6 @@ export const PartnerTerms = () => {
                 // Load contract content based on template_id
                 // loadingContent já está true desde o início
                 setTemplateLoadError(null);
-                setContentSource(null);
 
                 if (data.contract_template_id) {
                     // Template obrigatório - não pode fazer fallback
@@ -270,7 +266,6 @@ export const PartnerTerms = () => {
                                 console.log('[PARTNER TERMS] Auto-formatted plain text content to HTML');
                             }
                             setContractContent(formattedContent);
-                            setContentSource('template');
                             console.log('[PARTNER TERMS] Loaded contract template:', template.name);
                         } else {
                             // Template não encontrado - ERRO CRÍTICO
@@ -297,7 +292,6 @@ export const PartnerTerms = () => {
                                 console.log('[PARTNER TERMS] Auto-formatted plain text content from application_terms to HTML');
                             }
                             setContractContent(formattedContent);
-                            setContentSource('application_terms');
                             console.log('[PARTNER TERMS] Loaded contract from application_terms, version:', contractVersion.version);
                         } else {
                             // application_terms não encontrado - ERRO
