@@ -17,6 +17,7 @@ import { ConfirmModal } from '@/components/ui/confirm-modal';
 import { PromptModal } from '@/components/ui/prompt-modal';
 import { AlertModal } from '@/components/ui/alert-modal';
 import { MeetingScheduleModal } from '@/components/admin/MeetingScheduleModal';
+import { ContractTemplateSelector } from '@/components/admin/ContractTemplateSelector';
 
 function StatusBadge({ status }: { status: Application['status'] }) {
   const variants: Record<string, string> = {
@@ -61,6 +62,9 @@ function ApplicationDetailContent() {
   const [alertData, setAlertData] = useState<{ title: string; message: string; variant: 'success' | 'error' | 'warning' | 'info' } | null>(null);
   const [rejectionReason, setRejectionReason] = useState('');
   const [showMeetingModal, setShowMeetingModal] = useState(false);
+  const [showTemplateSelector, setShowTemplateSelector] = useState(false);
+  const [showRejectTemplateSelector, setShowRejectTemplateSelector] = useState(false);
+  const [pendingRejection, setPendingRejection] = useState<{ acceptanceId: string; reason?: string } | null>(null);
   const [termsAcceptance, setTermsAcceptance] = useState<any>(null);
 
   useEffect(() => {
@@ -148,9 +152,9 @@ function ApplicationDetailContent() {
       return;
     }
     
-    // If status is approved_for_meeting, approve for contract
+    // If status is approved_for_meeting, show template selector
     if (application.status === 'approved_for_meeting') {
-      setShowApproveConfirm(true);
+      setShowTemplateSelector(true);
       return;
     }
     
@@ -207,21 +211,53 @@ function ApplicationDetailContent() {
     }
   };
 
+  const handleTemplateSelected = async (templateId: string | null) => {
+    if (!application) return;
+    
+    setShowTemplateSelector(false);
+    setIsProcessing(true);
+    try {
+      const result = await approveApplicationAfterMeeting(application.id, templateId);
+      
+      if (result.success) {
+        setAlertData({
+          title: 'Success',
+          message: result.error || 'Application approved successfully! Email sent.',
+          variant: 'success',
+        });
+        setShowAlert(true);
+        // Reload application to get updated status after alert is closed
+        setTimeout(() => {
+          window.location.reload();
+        }, 2000);
+      } else {
+        setAlertData({
+          title: 'Error',
+          message: result.error || 'Failed to approve application',
+          variant: 'error',
+        });
+        setShowAlert(true);
+      }
+    } catch (error) {
+      setAlertData({
+        title: 'Error',
+        message: error instanceof Error ? error.message : 'Unknown error occurred',
+        variant: 'error',
+      });
+      setShowAlert(true);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
   const confirmApprove = async () => {
     if (!application) return;
     
     setShowApproveConfirm(false);
     setIsProcessing(true);
     try {
-      let result;
-      
-      // If status is approved_for_meeting, use new function
-      if (application.status === 'approved_for_meeting') {
-        result = await approveApplicationAfterMeeting(application.id);
-      } else {
         // For backward compatibility with old 'approved' status
-        result = await approveApplication(application.id);
-      }
+      const result = await approveApplication(application.id);
       
       if (result.success) {
         setAlertData({
@@ -1043,6 +1079,14 @@ function ApplicationDetailContent() {
         isLoading={isProcessing}
       />
 
+      {/* Contract Template Selector Modal */}
+      <ContractTemplateSelector
+        isOpen={showTemplateSelector}
+        onClose={() => setShowTemplateSelector(false)}
+        onConfirm={handleTemplateSelected}
+        isLoading={isProcessing}
+      />
+
       {/* Approve Confirmation Modal */}
       <ConfirmModal
         isOpen={showApproveConfirm}
@@ -1069,13 +1113,46 @@ function ApplicationDetailContent() {
         }}
         onConfirm={async (reason: string) => {
           if (termsAcceptance && termsAcceptance.verification_status === 'pending') {
-            // Rejecting contract
+            // Rejecting contract - show template selector to optionally resend with new template
             setShowRejectPrompt(false);
+            setPendingRejection({
+              acceptanceId: termsAcceptance.id,
+              reason: reason || undefined,
+            });
+            setShowRejectTemplateSelector(true);
+          } else {
+            // Rejecting application
+            handleRejectReasonSubmit(reason);
+          }
+        }}
+        title={termsAcceptance && termsAcceptance.verification_status === 'pending' ? "Reject Contract" : "Reject Application"}
+        message={
+          termsAcceptance && termsAcceptance.verification_status === 'pending'
+            ? `Enter rejection reason for contract verification (optional):`
+            : `Enter rejection reason for ${application?.full_name} (optional):`
+        }
+        placeholder="Enter rejection reason (optional)..."
+        confirmText="Continue"
+        cancelText="Cancel"
+        variant="default"
+      />
+
+      {/* Template Selector for Rejection (to resend contract with new template) */}
+      <ContractTemplateSelector
+        isOpen={showRejectTemplateSelector}
+        onClose={async () => {
+          // If user closes without selecting, just reject without resending
+          if (pendingRejection) {
             setIsProcessing(true);
             try {
               const user = await getCurrentUser();
               const reviewedBy = user?.email || user?.id || 'unknown';
-              const result = await rejectPartnerContract(termsAcceptance.id, reviewedBy, reason || undefined);
+              const result = await rejectPartnerContract(
+                pendingRejection.acceptanceId,
+                reviewedBy,
+                pendingRejection.reason,
+                null // No template = just reject
+              );
               if (result.success) {
                 setAlertData({
                   title: 'Success',
@@ -1115,23 +1192,72 @@ function ApplicationDetailContent() {
               setShowAlert(true);
             } finally {
               setIsProcessing(false);
-              setRejectionReason('');
             }
-          } else {
-            // Rejecting application
-            handleRejectReasonSubmit(reason);
+          }
+          setShowRejectTemplateSelector(false);
+          setPendingRejection(null);
+          setRejectionReason('');
+        }}
+        onConfirm={async (templateId: string | null) => {
+          if (!pendingRejection) return;
+          
+          setShowRejectTemplateSelector(false);
+          setIsProcessing(true);
+          try {
+            const user = await getCurrentUser();
+            const reviewedBy = user?.email || user?.id || 'unknown';
+            const result = await rejectPartnerContract(
+              pendingRejection.acceptanceId,
+              reviewedBy,
+              pendingRejection.reason,
+              templateId
+            );
+            if (result.success) {
+              setAlertData({
+                title: 'Success',
+                message: templateId 
+                  ? 'Contract rejected and new contract link sent successfully.' 
+                  : 'Contract rejected successfully.',
+                variant: 'success',
+              });
+              setShowAlert(true);
+              // Reload application and terms acceptance
+              const { data: appData } = await supabase
+                .from('global_partner_applications')
+                .select('*')
+                .eq('id', id)
+                .single();
+              if (appData) setApplication(appData as Application);
+              const { data: acceptanceData } = await supabase
+                .from('partner_terms_acceptances')
+                .select('*')
+                .eq('application_id', id)
+                .not('accepted_at', 'is', null)
+                .maybeSingle();
+              if (acceptanceData) setTermsAcceptance(acceptanceData);
+            } else {
+              setAlertData({
+                title: 'Error',
+                message: result.error || 'Failed to reject contract',
+                variant: 'error',
+              });
+              setShowAlert(true);
+            }
+          } catch (err) {
+            console.error('Error rejecting contract:', err);
+            setAlertData({
+              title: 'Error',
+              message: 'An error occurred while rejecting the contract',
+              variant: 'error',
+            });
+            setShowAlert(true);
+          } finally {
+            setIsProcessing(false);
+            setPendingRejection(null);
+            setRejectionReason('');
           }
         }}
-        title={termsAcceptance && termsAcceptance.verification_status === 'pending' ? "Reject Contract" : "Reject Application"}
-        message={
-          termsAcceptance && termsAcceptance.verification_status === 'pending'
-            ? `Enter rejection reason for contract verification (optional):`
-            : `Enter rejection reason for ${application?.full_name} (optional):`
-        }
-        placeholder="Enter rejection reason (optional)..."
-        confirmText="Continue"
-        cancelText="Cancel"
-        variant="default"
+        isLoading={isProcessing}
       />
 
       {/* Reject Confirmation Modal */}

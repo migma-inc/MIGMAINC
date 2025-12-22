@@ -102,7 +102,43 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Fetch active terms content
+    // Fetch contract content - check if template is specified, otherwise use default
+    let termsContent: string | null = null;
+    let termsTitle: string | null = null;
+
+    if (termAcceptance.contract_template_id) {
+      // Template obrigatório - não pode fazer fallback
+      const { data: templateData, error: templateError } = await supabase
+        .from('contract_templates')
+        .select('name, content')
+        .eq('id', termAcceptance.contract_template_id)
+        .single();
+
+      if (templateError || !templateData) {
+        // Template não encontrado - ERRO CRÍTICO
+        console.error("[EDGE FUNCTION] Contract template not found:", {
+          templateId: termAcceptance.contract_template_id,
+          error: templateError
+        });
+        return new Response(
+          JSON.stringify({ 
+            error: 'Contract template not found',
+            templateId: termAcceptance.contract_template_id,
+            message: 'The contract template selected by the administrator could not be found. PDF generation aborted.'
+          }),
+          { 
+            status: 500, 
+            headers: { 'Content-Type': 'application/json' } 
+          }
+        );
+      }
+
+      // Template encontrado
+      termsContent = templateData.content;
+      termsTitle = templateData.name;
+      console.log("[EDGE FUNCTION] Using contract template:", templateData.name);
+    } else {
+      // No template ID, fetch from application_terms
     const { data: termsData, error: termsError } = await supabase
       .from('application_terms')
       .select('title, content')
@@ -113,7 +149,51 @@ Deno.serve(async (req) => {
       .maybeSingle();
 
     if (termsError) {
-      console.error("[EDGE FUNCTION] Error fetching terms:", termsError);
+        console.error("[EDGE FUNCTION] Error fetching application_terms:", termsError);
+        return new Response(
+          JSON.stringify({ 
+            error: 'Error loading default contract terms',
+            message: 'Default contract terms could not be loaded from the database.'
+          }),
+          { 
+            status: 500, 
+            headers: { 'Content-Type': 'application/json' } 
+          }
+        );
+      }
+
+      if (!termsData || !termsData.content) {
+        console.error("[EDGE FUNCTION] No active contract version found in application_terms");
+        return new Response(
+          JSON.stringify({ 
+            error: 'Default contract terms not available',
+            message: 'No active contract version found in the database.'
+          }),
+          { 
+            status: 500, 
+            headers: { 'Content-Type': 'application/json' } 
+          }
+        );
+      }
+
+      termsContent = termsData.content;
+      termsTitle = termsData.title;
+      console.log("[EDGE FUNCTION] Using default application_terms");
+    }
+
+    // Validate that we have content before proceeding
+    if (!termsContent) {
+      console.error("[EDGE FUNCTION] No contract content available after all attempts");
+      return new Response(
+        JSON.stringify({ 
+          error: 'Contract content unavailable',
+          message: 'No contract content could be loaded for PDF generation.'
+        }),
+        { 
+          status: 500, 
+          headers: { 'Content-Type': 'application/json' } 
+        }
+      );
     }
 
     // Create PDF
@@ -351,7 +431,7 @@ Deno.serve(async (req) => {
     // ============================================
     // 3. Contract Content
     // ============================================
-    if (termsData) {
+    if (termsContent) {
       // Check if new page is needed
       if (currentY > pageHeight - margin - 60) {
         pdf.addPage();
@@ -365,7 +445,7 @@ Deno.serve(async (req) => {
       currentY += 12;
 
       // Converter HTML para texto
-      const textContent = convertHtmlToText(termsData.content);
+      const textContent = convertHtmlToText(termsContent || '');
 
       // TEXTO COM QUEBRA AUTOMÁTICA
       pdf.setFontSize(10);
@@ -570,11 +650,11 @@ Deno.serve(async (req) => {
     pdf.setFont('helvetica', 'normal');
 
     // Term title
-    if (termsData) {
+    if (termsTitle) {
       pdf.setFont('helvetica', 'bold');
       pdf.text('Term Title:', margin, currentY);
       pdf.setFont('helvetica', 'normal');
-      pdf.text(termsData.title, margin + 55, currentY);
+      pdf.text(termsTitle, margin + 55, currentY);
       currentY += 10;
     }
 

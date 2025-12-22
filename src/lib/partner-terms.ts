@@ -5,11 +5,13 @@ import { sendTermsLinkEmail } from './emails';
  * Gera um token único para aceite de termos
  * @param applicationId - ID da aplicação aprovada
  * @param expiresInDays - Dias até o token expirar (padrão: 30 dias)
+ * @param contractTemplateId - ID do template de contrato (opcional)
  * @returns Token único gerado
  */
 export async function generateTermsToken(
     applicationId: string,
-    expiresInDays: number = 30
+    expiresInDays: number = 30,
+    contractTemplateId?: string | null
 ): Promise<{ token: string; expiresAt: Date } | null> {
     try {
         // Gerar token único
@@ -19,14 +21,22 @@ export async function generateTermsToken(
         const expiresAt = new Date();
         expiresAt.setDate(expiresAt.getDate() + expiresInDays);
 
+        // Preparar dados para inserção
+        const insertData: Record<string, any> = {
+            application_id: applicationId,
+            token: token,
+            expires_at: expiresAt.toISOString(),
+        };
+
+        // Adicionar contract_template_id se fornecido
+        if (contractTemplateId) {
+            insertData.contract_template_id = contractTemplateId;
+        }
+
         // Inserir token no banco
         const { error } = await supabase
             .from('partner_terms_acceptances')
-            .insert({
-                application_id: applicationId,
-                token: token,
-                expires_at: expiresAt.toISOString(),
-            });
+            .insert(insertData);
 
         if (error) {
             console.error('Error generating token:', error);
@@ -82,11 +92,13 @@ export async function validateTermsToken(token: string) {
  * 
  * @param applicationId - ID da aplicação aprovada
  * @param expiresInDays - Dias até o token expirar (padrão: 30 dias)
+ * @param contractTemplateId - ID do template de contrato (opcional)
  * @returns Token gerado ou null se houver erro
  */
 export async function approveCandidateAndSendTermsLink(
     applicationId: string,
-    expiresInDays: number = 30
+    expiresInDays: number = 30,
+    contractTemplateId?: string | null
 ): Promise<string | null> {
     try {
         // Buscar dados da aplicação
@@ -101,8 +113,8 @@ export async function approveCandidateAndSendTermsLink(
             return null;
         }
 
-        // Gerar token
-        const tokenResult = await generateTermsToken(applicationId, expiresInDays);
+        // Gerar token com template se fornecido
+        const tokenResult = await generateTermsToken(applicationId, expiresInDays, contractTemplateId);
         if (!tokenResult) {
             console.error('Failed to generate token');
             return null;

@@ -63,3 +63,4 @@ Eu vou atualizando o tracker para você não se perder!
 - O `valor_servico` deve ser **APENAS o base_price_usd** (sem dep, sem taxas)
 - Se encontrar algum erro, me avise imediatamente!
 
+

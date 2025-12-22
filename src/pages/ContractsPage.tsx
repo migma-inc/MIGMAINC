@@ -9,6 +9,7 @@ import { getCurrentUser } from '@/lib/auth';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
+import { ContractTemplateSelector } from '@/components/admin/ContractTemplateSelector';
 
 // Chave para localStorage
 const CONTRACTS_TAB_STORAGE_KEY = 'contracts_page_selected_tab';
@@ -53,6 +54,8 @@ export function ContractsPage() {
   const [showApproveConfirm, setShowApproveConfirm] = useState(false);
   const [showRejectPrompt, setShowRejectPrompt] = useState(false);
   const [showRejectConfirm, setShowRejectConfirm] = useState(false);
+  const [showRejectTemplateSelector, setShowRejectTemplateSelector] = useState(false);
+  const [pendingRejection, setPendingRejection] = useState<{ acceptanceId: string; reason?: string } | null>(null);
   const [pendingContract, setPendingContract] = useState<AcceptedContract | null>(null);
   const [rejectionReason, setRejectionReason] = useState('');
   const [alertData, setAlertData] = useState<{ title: string; message: string; variant: 'success' | 'error' } | null>(null);
@@ -443,12 +446,16 @@ export function ContractsPage() {
 
   const handleRejectReasonSubmit = (reason: string) => {
     setShowRejectPrompt(false);
-    setRejectionReason(reason);
-    setShowRejectConfirm(true);
+    // Show template selector to optionally resend with new template
+    setPendingRejection({
+      acceptanceId: pendingContract!.id,
+      reason: reason || undefined,
+    });
+    setShowRejectTemplateSelector(true);
   };
 
-  const confirmRejectContract = async () => {
-    if (!pendingContract) return;
+  const confirmRejectContract = async (templateId: string | null = null) => {
+    if (!pendingRejection) return;
 
     setIsProcessing(true);
     try {
@@ -456,15 +463,18 @@ export function ContractsPage() {
       const reviewedBy = user?.email || user?.id || 'unknown';
 
       const result = await rejectPartnerContract(
-        pendingContract.id,
+        pendingRejection.acceptanceId,
         reviewedBy,
-        rejectionReason || undefined
+        pendingRejection.reason,
+        templateId
       );
       
       if (result.success) {
         setAlertData({
           title: 'Success',
-          message: 'Partner contract rejected successfully.',
+          message: templateId 
+            ? 'Contract rejected and new contract link sent successfully.' 
+            : 'Contract rejected successfully.',
           variant: 'success',
         });
         setShowAlert(true);
@@ -490,7 +500,9 @@ export function ContractsPage() {
     } finally {
       setIsProcessing(false);
       setShowRejectConfirm(false);
+      setShowRejectTemplateSelector(false);
       setPendingContract(null);
+      setPendingRejection(null);
       setRejectionReason('');
     }
   };
@@ -716,6 +728,23 @@ export function ContractsPage() {
         </DialogContent>
       </Dialog>
 
+      {/* Template Selector for Rejection (to resend contract with new template) */}
+      <ContractTemplateSelector
+        isOpen={showRejectTemplateSelector}
+        onClose={async () => {
+          // If user closes without selecting, just reject without resending
+          if (pendingRejection) {
+            await confirmRejectContract(null);
+          }
+          setShowRejectTemplateSelector(false);
+          setPendingRejection(null);
+        }}
+        onConfirm={async (templateId: string | null) => {
+          await confirmRejectContract(templateId);
+        }}
+        isLoading={isProcessing}
+      />
+
       {/* Reject Confirmation Modal */}
       <Dialog open={showRejectConfirm} onOpenChange={setShowRejectConfirm}>
         <DialogContent className="bg-black border-gold-medium/30 relative">
@@ -753,7 +782,7 @@ export function ContractsPage() {
               Cancel
             </Button>
             <Button
-              onClick={confirmRejectContract}
+              onClick={() => confirmRejectContract(null)}
               disabled={isProcessing}
               className="bg-red-600 hover:bg-red-700 text-white"
             >

@@ -12,6 +12,37 @@ export function useContentProtection(enabled: boolean) {
     let isContentHidden = false;
     let hideTimeout: ReturnType<typeof setTimeout> | null = null;
 
+    // Função para mostrar aviso discreto
+    const showWarning = (message: string) => {
+      // Criar elemento de aviso temporário
+      const warning = document.createElement('div');
+      warning.textContent = message;
+      warning.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        background: rgba(206, 159, 72, 0.95);
+        color: #000;
+        padding: 12px 20px;
+        border-radius: 6px;
+        font-size: 14px;
+        font-weight: 600;
+        z-index: 10000;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        animation: slideIn 0.3s ease-out;
+      `;
+      document.body.appendChild(warning);
+      
+      setTimeout(() => {
+        warning.style.animation = 'slideOut 0.3s ease-out';
+        setTimeout(() => {
+          if (warning.parentNode) {
+            warning.parentNode.removeChild(warning);
+          }
+        }, 300);
+      }, 2000);
+    };
+
     // Adicionar estilos de animação se não existirem
     if (!document.getElementById('protection-styles')) {
       const style = document.createElement('style');
@@ -160,6 +191,7 @@ export function useContentProtection(enabled: boolean) {
       // Bloquear botão direito em toda a página (exceto elementos interativos)
       e.preventDefault();
       e.stopPropagation();
+      showWarning('Right-click is disabled on this page.');
       return false;
     };
 
@@ -168,6 +200,7 @@ export function useContentProtection(enabled: boolean) {
       if (isProtectedArea(e.target)) {
         e.preventDefault();
         e.stopPropagation();
+        showWarning('Copying is disabled on this document.');
         return false;
       }
     };
@@ -177,6 +210,7 @@ export function useContentProtection(enabled: boolean) {
       if (isProtectedArea(e.target)) {
         e.preventDefault();
         e.stopPropagation();
+        showWarning('Cutting is disabled on this document.');
         return false;
       }
     };
@@ -275,7 +309,14 @@ export function useContentProtection(enabled: boolean) {
         `;
         overlay.innerHTML = `
           <div style="max-width: 600px;">
-            <!-- Overlay silencioso - sem mensagens -->
+            <div style="font-size: 48px; margin-bottom: 20px;">🚫</div>
+            <div>Screenshots are not permitted.</div>
+            <div style="font-size: 18px; margin-top: 20px; color: #F3E196;">
+              This document is protected and cannot be captured.
+            </div>
+            <div style="font-size: 16px; margin-top: 30px; color: #999;">
+              This document is available exclusively through the MIGMA portal.
+            </div>
           </div>
         `;
         document.body.appendChild(overlay);
@@ -380,6 +421,7 @@ export function useContentProtection(enabled: boolean) {
       if (navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia) {
         navigator.mediaDevices.getDisplayMedia = async () => {
           hideContractContent(3000);
+          showWarning('Screen recording is not permitted.');
           throw new DOMException('Screen recording is not permitted on this page.', 'NotAllowedError');
         };
       }
@@ -392,6 +434,7 @@ export function useContentProtection(enabled: boolean) {
               ((constraints.video as any).displaySurface === 'monitor' ||
                (constraints.video as any).displaySurface === 'window')) {
             hideContractContent(3000);
+            showWarning('Screen capture is not permitted.');
             throw new DOMException('Screen capture is not permitted on this page.', 'NotAllowedError');
           }
           return originalGetUserMedia(constraints);
@@ -440,6 +483,7 @@ export function useContentProtection(enabled: boolean) {
       if (e.key === 'PrintScreen' || e.code === 'PrintScreen' || keyCode === 44) {
         // Esconder IMEDIATAMENTE antes de qualquer coisa
         hideContractContent(5000); // Manter escondido por mais tempo
+        showWarning('Screenshots are not permitted. This document is protected.');
         e.preventDefault();
         e.stopPropagation();
         return false;
@@ -464,12 +508,13 @@ export function useContentProtection(enabled: boolean) {
          e.key === 's' || e.key === 'S' || // Ctrl+S
          e.key === 'u' || e.key === 'U');  // Ctrl+U
 
-      const isDevToolsShortcut = 
-        e.key === 'F12' ||
-        ((e.ctrlKey || e.metaKey) && e.shiftKey && 
-         (e.key === 'i' || e.key === 'I' || // Ctrl+Shift+I
-          e.key === 'c' || e.key === 'C' || // Ctrl+Shift+C
-          e.key === 'j' || e.key === 'J')); // Ctrl+Shift+J
+      // COMENTADO TEMPORARIAMENTE: Permitir acesso ao DevTools para debug
+      // const isDevToolsShortcut = 
+      //   e.key === 'F12' ||
+      //   ((e.ctrlKey || e.metaKey) && e.shiftKey && 
+      //    (e.key === 'i' || e.key === 'I' || // Ctrl+Shift+I
+      //     e.key === 'c' || e.key === 'C' || // Ctrl+Shift+C
+      //     e.key === 'j' || e.key === 'J')); // Ctrl+Shift+J
 
       // Bloquear screenshot do navegador (Chrome/Edge: Ctrl+Shift+S)
       const isScreenshotShortcut = 
@@ -485,13 +530,44 @@ export function useContentProtection(enabled: boolean) {
         });
         e.preventDefault();
         e.stopPropagation();
+        showWarning('Screenshots are not permitted. This document is protected.');
         return false;
       }
 
-      if (isProtectedArea(e.target) || isGlobalShortcut || isDevToolsShortcut) {
-        if (isGlobalShortcut || isDevToolsShortcut) {
+      // COMENTADO TEMPORARIAMENTE: Permitir acesso ao DevTools para debug
+      // if (isProtectedArea(e.target) || isGlobalShortcut || isDevToolsShortcut) {
+      //   if (isGlobalShortcut || isDevToolsShortcut) {
+      //     e.preventDefault();
+      //     e.stopPropagation();
+      //     if (e.key === 'p' || e.key === 'P') {
+      //       showWarning('Printing is disabled on this document.');
+      //     } else if (e.key === 'c' || e.key === 'C') {
+      //       showWarning('Copying is disabled on this document.');
+      //     } else if (e.key === 'a' || e.key === 'A') {
+      //       showWarning('Select all is disabled on this document.');
+      //     } else if (e.key === 's' || e.key === 'S') {
+      //       showWarning('Saving is disabled on this document.');
+      //     } else if (isDevToolsShortcut) {
+      //       showWarning('Developer tools access is restricted.');
+      //     }
+      //     return false;
+      //   }
+      // }
+      
+      // Permitir apenas atalhos globais na área protegida (mas não DevTools)
+      if (isProtectedArea(e.target) && isGlobalShortcut) {
+        if (isGlobalShortcut) {
           e.preventDefault();
           e.stopPropagation();
+          if (e.key === 'p' || e.key === 'P') {
+            showWarning('Printing is disabled on this document.');
+          } else if (e.key === 'c' || e.key === 'C') {
+            showWarning('Copying is disabled on this document.');
+          } else if (e.key === 'a' || e.key === 'A') {
+            showWarning('Select all is disabled on this document.');
+          } else if (e.key === 's' || e.key === 'S') {
+            showWarning('Saving is disabled on this document.');
+          }
           return false;
         }
       }
@@ -500,6 +576,7 @@ export function useContentProtection(enabled: boolean) {
     // Bloquear impressão
     const handleBeforePrint = (e: Event) => {
       e.preventDefault();
+      showWarning('Printing is disabled. This document is available exclusively through the MIGMA portal.');
       return false;
     };
 
@@ -516,6 +593,7 @@ export function useContentProtection(enabled: boolean) {
           (e.key === 'F13' && e.shiftKey) ||
           e.code === 'PrintScreen') {
         hideContractContent(3000);
+        showWarning('Screenshots are not permitted. This document is protected.');
       }
     };
 
