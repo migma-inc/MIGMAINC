@@ -43,11 +43,13 @@ export async function approvePartnerContract(
 /**
  * Reject a partner contract
  * Calls the reject-partner-contract Edge Function which sends email
+ * If contractTemplateId is provided, generates a new token and resends the contract link
  */
 export async function rejectPartnerContract(
   acceptanceId: string,
   reviewedBy: string,
-  reason?: string
+  reason?: string,
+  contractTemplateId?: string | null
 ): Promise<{ success: boolean; error?: string }> {
   try {
     const { data, error } = await supabase.functions.invoke('reject-partner-contract', {
@@ -55,6 +57,7 @@ export async function rejectPartnerContract(
         acceptance_id: acceptanceId,
         reviewed_by: reviewedBy,
         rejection_reason: reason || null,
+        contract_template_id: contractTemplateId || null,
       },
     });
 

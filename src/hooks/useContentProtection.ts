@@ -508,12 +508,13 @@ export function useContentProtection(enabled: boolean) {
          e.key === 's' || e.key === 'S' || // Ctrl+S
          e.key === 'u' || e.key === 'U');  // Ctrl+U
 
-      const isDevToolsShortcut = 
-        e.key === 'F12' ||
-        ((e.ctrlKey || e.metaKey) && e.shiftKey && 
-         (e.key === 'i' || e.key === 'I' || // Ctrl+Shift+I
-          e.key === 'c' || e.key === 'C' || // Ctrl+Shift+C
-          e.key === 'j' || e.key === 'J')); // Ctrl+Shift+J
+      // COMENTADO TEMPORARIAMENTE: Permitir acesso ao DevTools para debug
+      // const isDevToolsShortcut = 
+      //   e.key === 'F12' ||
+      //   ((e.ctrlKey || e.metaKey) && e.shiftKey && 
+      //    (e.key === 'i' || e.key === 'I' || // Ctrl+Shift+I
+      //     e.key === 'c' || e.key === 'C' || // Ctrl+Shift+C
+      //     e.key === 'j' || e.key === 'J')); // Ctrl+Shift+J
 
       // Bloquear screenshot do navegador (Chrome/Edge: Ctrl+Shift+S)
       const isScreenshotShortcut = 
@@ -533,8 +534,29 @@ export function useContentProtection(enabled: boolean) {
         return false;
       }
 
-      if (isProtectedArea(e.target) || isGlobalShortcut || isDevToolsShortcut) {
-        if (isGlobalShortcut || isDevToolsShortcut) {
+      // COMENTADO TEMPORARIAMENTE: Permitir acesso ao DevTools para debug
+      // if (isProtectedArea(e.target) || isGlobalShortcut || isDevToolsShortcut) {
+      //   if (isGlobalShortcut || isDevToolsShortcut) {
+      //     e.preventDefault();
+      //     e.stopPropagation();
+      //     if (e.key === 'p' || e.key === 'P') {
+      //       showWarning('Printing is disabled on this document.');
+      //     } else if (e.key === 'c' || e.key === 'C') {
+      //       showWarning('Copying is disabled on this document.');
+      //     } else if (e.key === 'a' || e.key === 'A') {
+      //       showWarning('Select all is disabled on this document.');
+      //     } else if (e.key === 's' || e.key === 'S') {
+      //       showWarning('Saving is disabled on this document.');
+      //     } else if (isDevToolsShortcut) {
+      //       showWarning('Developer tools access is restricted.');
+      //     }
+      //     return false;
+      //   }
+      // }
+      
+      // Permitir apenas atalhos globais na área protegida (mas não DevTools)
+      if (isProtectedArea(e.target) && isGlobalShortcut) {
+        if (isGlobalShortcut) {
           e.preventDefault();
           e.stopPropagation();
           if (e.key === 'p' || e.key === 'P') {
@@ -545,8 +567,6 @@ export function useContentProtection(enabled: boolean) {
             showWarning('Select all is disabled on this document.');
           } else if (e.key === 's' || e.key === 'S') {
             showWarning('Saving is disabled on this document.');
-          } else if (isDevToolsShortcut) {
-            showWarning('Developer tools access is restricted.');
           }
           return false;
         }

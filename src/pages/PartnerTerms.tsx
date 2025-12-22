@@ -14,6 +14,8 @@ import { supabase } from '@/lib/supabase';
 import { DocumentUpload } from '@/components/checkout/DocumentUpload';
 import { useContentProtection } from '@/hooks/useContentProtection';
 import { getActiveContractVersion, generateContractHash, getGeolocationFromIP } from '@/lib/contracts';
+import { getContractTemplate } from '@/lib/contract-templates';
+import { formatContractTextToHtml } from '@/lib/contract-formatter';
 import { sendTermsAcceptanceConfirmationEmail } from '@/lib/emails';
 import { countries } from '@/lib/visa-checkout-constants';
 import { SignaturePadComponent } from '@/components/ui/signature-pad';
@@ -27,11 +29,18 @@ export const PartnerTerms = () => {
     const [tokenValid, setTokenValid] = useState<boolean | null>(null);
     const [tokenData, setTokenData] = useState<any>(null);
     const [loading, setLoading] = useState(true);
+    const [contractContent, setContractContent] = useState<string | null>(null);
+    const [loadingContent, setLoadingContent] = useState(true);
+    const [templateLoadError, setTemplateLoadError] = useState<string | null>(null);
+    // contentSource: tracks where contract content was loaded from (for debugging/monitoring)
+    const [contentSource, setContentSource] = useState<'template' | 'application_terms' | null>(null);
+    const [isSubmitting, setIsSubmitting] = useState(false);
     const [identityPhotoPath, setIdentityPhotoPath] = useState<string | null>(null); // selfie URL
     const [identityPhotoName, setIdentityPhotoName] = useState<string | null>(null); // selfie file name
     const [documentFrontUrl, setDocumentFrontUrl] = useState<string | null>(null);
     const [documentBackUrl, setDocumentBackUrl] = useState<string | null>(null);
     const [photoUploadError, setPhotoUploadError] = useState<string | null>(null);
+    const [documentsUploaded, setDocumentsUploaded] = useState<boolean>(false); // Indica se os documentos foram realmente enviados (upload completo)
     const [signatureName, setSignatureName] = useState<string>(''); // Mantido para backward compatibility
     const [signatureImageDataUrl, setSignatureImageDataUrl] = useState<string | null>(null); // Base64 da assinatura desenhada
     const [signatureConfirmed, setSignatureConfirmed] = useState<boolean>(false); // Se a assinatura foi confirmada (botão Done clicado)
@@ -77,6 +86,68 @@ export const PartnerTerms = () => {
         identityPhotoPathRef.current = identityPhotoPath;
         identityPhotoNameRef.current = identityPhotoName;
     }, [identityPhotoPath, identityPhotoName]);
+
+    // Função para mostrar aviso visual (similar ao useContentProtection)
+    const showWarning = (message: string) => {
+        // Adicionar estilos de animação se não existirem
+        if (!document.getElementById('partner-terms-warning-styles')) {
+            const style = document.createElement('style');
+            style.id = 'partner-terms-warning-styles';
+            style.textContent = `
+                @keyframes slideInWarning {
+                    from {
+                        transform: translateX(100%);
+                        opacity: 0;
+                    }
+                    to {
+                        transform: translateX(0);
+                        opacity: 1;
+                    }
+                }
+                @keyframes slideOutWarning {
+                    from {
+                        transform: translateX(0);
+                        opacity: 1;
+                    }
+                    to {
+                        transform: translateX(100%);
+                        opacity: 0;
+                    }
+                }
+            `;
+            document.head.appendChild(style);
+        }
+
+        // Criar elemento de aviso temporário
+        const warning = document.createElement('div');
+        warning.textContent = message;
+        warning.style.cssText = `
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: rgba(206, 159, 72, 0.95);
+            color: #000;
+            padding: 12px 20px;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 600;
+            z-index: 10000;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+            animation: slideInWarning 0.3s ease-out;
+            max-width: 400px;
+            word-wrap: break-word;
+        `;
+        document.body.appendChild(warning);
+        
+        setTimeout(() => {
+            warning.style.animation = 'slideOutWarning 0.3s ease-out';
+            setTimeout(() => {
+                if (warning.parentNode) {
+                    warning.parentNode.removeChild(warning);
+                }
+            }, 300);
+        }, 3000); // Mostrar por 3 segundos
+    };
 
     // Aplicar proteções de conteúdo quando token é válido
     useContentProtection(tokenValid === true);
@@ -134,9 +205,14 @@ export const PartnerTerms = () => {
     // Validar token ao carregar a página
     useEffect(() => {
         const validateToken = async () => {
+            // Iniciar com loading ativo desde o início
+            setLoading(true);
+            setLoadingContent(true);
+            
             if (!token) {
                 setTokenValid(false);
                 setLoading(false);
+                setLoadingContent(false);
                 return;
             }
 
@@ -151,6 +227,7 @@ export const PartnerTerms = () => {
                 if (error || !data) {
                     setTokenValid(false);
                     setLoading(false);
+                    setLoadingContent(false);
                     return;
                 }
 
@@ -160,6 +237,7 @@ export const PartnerTerms = () => {
                 if (now > expiresAt) {
                     setTokenValid(false);
                     setLoading(false);
+                    setLoadingContent(false);
                     return;
                 }
 
@@ -167,16 +245,82 @@ export const PartnerTerms = () => {
                 if (data.accepted_at) {
                     setTokenValid(false);
                     setLoading(false);
+                    setLoadingContent(false);
                     return;
                 }
 
                 setTokenValid(true);
                 setTokenData(data);
+
+                // Load contract content based on template_id
+                // loadingContent já está true desde o início
+                setTemplateLoadError(null);
+                setContentSource(null);
+
+                if (data.contract_template_id) {
+                    // Template obrigatório - não pode fazer fallback
+                    try {
+                        const template = await getContractTemplate(data.contract_template_id);
+                        if (template) {
+                            // Auto-format content if it's plain text (no HTML tags)
+                            let formattedContent = template.content;
+                            if (template.content && !template.content.includes('<p>') && !template.content.includes('<div>')) {
+                                // Content appears to be plain text, format it automatically
+                                formattedContent = formatContractTextToHtml(template.content);
+                                console.log('[PARTNER TERMS] Auto-formatted plain text content to HTML');
+                            }
+                            setContractContent(formattedContent);
+                            setContentSource('template');
+                            console.log('[PARTNER TERMS] Loaded contract template:', template.name);
+                        } else {
+                            // Template não encontrado - ERRO CRÍTICO
+                            setTemplateLoadError('The contract template selected by the administrator could not be found. Please contact support.');
+                            setContractContent(null);
+                            console.error('[PARTNER TERMS] Template not found:', data.contract_template_id);
+                        }
+                    } catch (templateError) {
+                        // Erro ao buscar template - ERRO CRÍTICO
+                        setTemplateLoadError('The contract template selected by the administrator could not be found. Please contact support.');
+                        setContractContent(null);
+                        console.error('[PARTNER TERMS] Error loading contract template:', templateError);
+                    }
+                } else {
+                    // No template ID, fetch from application_terms
+                    try {
+                        const contractVersion = await getActiveContractVersion();
+                        if (contractVersion && contractVersion.content) {
+                            // Auto-format content if it's plain text (no HTML tags)
+                            let formattedContent = contractVersion.content;
+                            if (contractVersion.content && !contractVersion.content.includes('<p>') && !contractVersion.content.includes('<div>')) {
+                                // Content appears to be plain text, format it automatically
+                                formattedContent = formatContractTextToHtml(contractVersion.content);
+                                console.log('[PARTNER TERMS] Auto-formatted plain text content from application_terms to HTML');
+                            }
+                            setContractContent(formattedContent);
+                            setContentSource('application_terms');
+                            console.log('[PARTNER TERMS] Loaded contract from application_terms, version:', contractVersion.version);
+                        } else {
+                            // application_terms não encontrado - ERRO
+                            setTemplateLoadError('Default contract terms are not available. Please contact support.');
+                            setContractContent(null);
+                            console.error('[PARTNER TERMS] No active contract version found in application_terms');
+                        }
+                    } catch (termsError) {
+                        // Erro ao buscar application_terms
+                        setTemplateLoadError('Error loading contract content. Please try again later.');
+                        setContractContent(null);
+                        console.error('[PARTNER TERMS] Error loading application_terms:', termsError);
+                    }
+                }
+
+                setLoadingContent(false);
             } catch (error) {
                 console.error('Error validating token:', error);
                 setTokenValid(false);
+                setLoadingContent(false);
             } finally {
                 setLoading(false);
+                // loadingContent será setado como false apenas quando o conteúdo for carregado ou houver erro
             }
         };
 
@@ -218,6 +362,9 @@ export const PartnerTerms = () => {
             payoutDetails,
             // Assinatura
             signatureName,
+            signatureImageDataUrl,
+            signatureConfirmed,
+            documentsUploaded,
             // Step atual
             currentStep,
             // Checkbox de aceite
@@ -260,6 +407,9 @@ export const PartnerTerms = () => {
                 if (formData.preferredPayoutMethod !== undefined) setPreferredPayoutMethod(formData.preferredPayoutMethod);
                 if (formData.payoutDetails !== undefined) setPayoutDetails(formData.payoutDetails);
                 if (formData.signatureName !== undefined) setSignatureName(formData.signatureName);
+                if (formData.signatureImageDataUrl !== undefined) setSignatureImageDataUrl(formData.signatureImageDataUrl);
+                if (formData.signatureConfirmed !== undefined) setSignatureConfirmed(formData.signatureConfirmed);
+                if (formData.documentsUploaded !== undefined) setDocumentsUploaded(formData.documentsUploaded);
                 if (formData.currentStep !== undefined) setCurrentStep(formData.currentStep);
                 if (formData.accepted !== undefined) setAccepted(formData.accepted);
             }
@@ -498,7 +648,27 @@ export const PartnerTerms = () => {
     };
 
     const handleAccept = async () => {
-        if (!accepted || !token || !tokenValid) return;
+        if (!accepted || !token || !tokenValid) {
+            setPhotoUploadError('Please accept the terms and conditions first.');
+            return;
+        }
+
+        // Verificar se o formulário está completo
+        if (!isFormComplete()) {
+            setPhotoUploadError('Please complete all required fields in the form before accepting.');
+            // Scroll to first error
+            const firstErrorField = document.querySelector('[data-required="true"]:invalid, input[required]:invalid, select[required]:invalid');
+            if (firstErrorField) {
+                firstErrorField.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+            return;
+        }
+
+        // Verificar se os documentos foram realmente enviados (upload completo)
+        if (!documentsUploaded) {
+            setPhotoUploadError('Please upload all required documents (front, back, and selfie) before accepting the terms.');
+            return;
+        }
 
         // Use refs to get the latest values (avoid closure issues)
         const currentPhotoPath = identityPhotoPathRef.current;
@@ -512,9 +682,13 @@ export const PartnerTerms = () => {
 
         // Verificar se assinatura foi confirmada (botão Done clicado)
         if (!signatureImageDataUrl || !signatureConfirmed) {
-            setPhotoUploadError('Please sign and confirm your signature by clicking "Done" button.');
+            setPhotoUploadError('Please sign and confirm your signature by clicking "Done" button before accepting.');
             return;
         }
+
+        // Iniciar loading
+        setIsSubmitting(true);
+        setPhotoUploadError(null);
 
         try {
             // Validar formulário antes de continuar
@@ -532,7 +706,7 @@ export const PartnerTerms = () => {
                     firstErrorStep = 4;
                 }
                 setCurrentStep(firstErrorStep);
-                alert('Please fill in all required fields correctly');
+                showWarning('Please fill in all required fields correctly');
                 return;
             }
 
@@ -629,9 +803,9 @@ export const PartnerTerms = () => {
                     const fileName = `signatures/${Date.now()}-${Math.random().toString(36).substring(7)}.png`;
                     const file = new File([blob], fileName, { type: 'image/png' });
                     
-                    // Upload para storage
+                    // Upload para storage (bucket específico para assinaturas)
                     const { error: uploadError } = await supabase.storage
-                        .from('partner-documents')
+                        .from('partner-signatures')
                         .upload(fileName, file, {
                             contentType: 'image/png',
                             upsert: false,
@@ -644,13 +818,14 @@ export const PartnerTerms = () => {
                     
                     // Obter URL pública
                     const { data: { publicUrl } } = supabase.storage
-                        .from('partner-documents')
+                        .from('partner-signatures')
                         .getPublicUrl(fileName);
                     
                     updateData.signature_image_url = publicUrl;
                     console.log('[PARTNER TERMS] Signature uploaded successfully:', publicUrl);
                 } catch (sigError) {
                     console.error('[PARTNER TERMS] Error processing signature upload:', sigError);
+                    setIsSubmitting(false);
                     setPhotoUploadError('Error uploading signature. Please try again.');
                     return;
                 }
@@ -709,7 +884,8 @@ export const PartnerTerms = () => {
                     details: updateError.details,
                     hint: updateError.hint
                 });
-                alert("There was an error accepting the terms. Please try again.");
+                setIsSubmitting(false);
+                showWarning("There was an error accepting the terms. Please try again.");
                 return;
             }
 
@@ -726,7 +902,8 @@ export const PartnerTerms = () => {
                     expected: currentPhotoPath,
                     saved: updatedAcceptance?.identity_photo_path
                 });
-                alert('There was an error saving your photo. Please try uploading again.');
+                setIsSubmitting(false);
+                showWarning('There was an error saving your photo. Please try uploading again.');
                 return;
             }
 
@@ -800,12 +977,24 @@ export const PartnerTerms = () => {
             navigate('/partner-terms/success');
         } catch (error) {
             console.error("Error accepting terms:", error);
-            alert("There was an error accepting the terms. Please try again.");
+            setIsSubmitting(false);
+            showWarning("There was an error accepting the terms. Please try again.");
         }
     };
 
     return (
         <div className="min-h-screen bg-gradient-to-b from-black via-[#1a1a1a] to-black font-sans text-foreground py-12">
+            {/* Loading Overlay - mesma animação do GlobalPartner */}
+            {isSubmitting && (
+                <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50">
+                    <div className="text-center">
+                        <div className="loader-gold mx-auto mb-4"></div>
+                        <p className="text-gold-light text-lg font-semibold">Processing your acceptance...</p>
+                        <p className="text-gray-400 text-sm mt-2">Please wait</p>
+                    </div>
+                </div>
+            )}
+            
             <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
                 <Button variant="ghost" className="mb-6 pl-0 hover:bg-transparent text-gold-light hover:text-gold-medium" onClick={() => navigate('/global-partner')}>
                     <ArrowLeft className="w-4 h-4 mr-2" /> Back to Application
@@ -864,15 +1053,105 @@ export const PartnerTerms = () => {
                             </div>
                         )}
 
-                        <div className="space-y-2">
-                            <p>
-                                <strong>INDEPENDENT CONTRACTOR AGREEMENT – SALES REPRESENTATIVE CLOSER</strong>
-                                <br />
-                                Effective Date: Upon electronic acceptance of this Agreement.
-                            </p>
-                        </div>
+                        {/* Loading skeleton - show while loading content or validating token */}
+                        {(loading || loadingContent) && (
+                            <div className="space-y-6 animate-pulse">
+                                {/* Title skeleton */}
+                                <div className="space-y-2">
+                                    <div className="h-8 bg-gold-medium/20 rounded w-3/4"></div>
+                                    <div className="h-4 bg-gold-medium/10 rounded w-1/2"></div>
+                                </div>
+                                
+                                {/* Separator skeleton */}
+                                <div className="h-px bg-gold-medium/20"></div>
+                                
+                                {/* Content paragraphs skeleton */}
+                                {[...Array(8)].map((_, i) => (
+                                    <div key={i} className="space-y-2">
+                                        <div className="h-4 bg-gold-medium/10 rounded w-full"></div>
+                                        <div className="h-4 bg-gold-medium/10 rounded w-5/6"></div>
+                                        <div className="h-4 bg-gold-medium/10 rounded w-4/5"></div>
+                                    </div>
+                                ))}
+                                
+                                {/* Section title skeleton */}
+                                <div className="space-y-3 mt-8">
+                                    <div className="h-6 bg-gold-medium/20 rounded w-1/3"></div>
+                                    {[...Array(4)].map((_, i) => (
+                                        <div key={i} className="space-y-2">
+                                            <div className="h-4 bg-gold-medium/10 rounded w-full"></div>
+                                            <div className="h-4 bg-gold-medium/10 rounded w-5/6"></div>
+                                        </div>
+                                    ))}
+                                </div>
+                                
+                                {/* Another separator */}
+                                <div className="h-px bg-gold-medium/20 mt-6"></div>
+                                
+                                {/* More content */}
+                                {[...Array(6)].map((_, i) => (
+                                    <div key={i} className="space-y-2">
+                                        <div className="h-4 bg-gold-medium/10 rounded w-full"></div>
+                                        <div className="h-4 bg-gold-medium/10 rounded w-4/5"></div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
 
-                        <Separator className="bg-gold-medium/30" />
+                        {/* Error state - show only when loading is complete and there's an error */}
+                        {!loading && !loadingContent && templateLoadError && (
+                            <div className="mb-6 p-6 bg-red-900/30 border-2 border-red-500/50 rounded-lg">
+                                <div className="flex items-start gap-3">
+                                    <AlertCircle className="w-6 h-6 text-red-400 flex-shrink-0 mt-0.5" />
+                                    <div>
+                                        <h3 className="text-lg font-semibold text-red-300 mb-2">Contract Content Error</h3>
+                                        <p className="text-red-200">{templateLoadError}</p>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Render contract content - only show when loading is complete and content exists */}
+                        {!loading && !loadingContent && contractContent && !templateLoadError && (
+                            <div
+                                className="prose prose-invert max-w-none prose-p:my-4 prose-p:leading-relaxed prose-strong:text-gold-light"
+                                style={{
+                                    lineHeight: '1.75',
+                                }}
+                                dangerouslySetInnerHTML={{ __html: contractContent }}
+                            />
+                        )}
+
+                        {/* Fallback error - only show when loading is complete, no content, and no specific error */}
+                        {!loading && !loadingContent && !contractContent && !templateLoadError && (
+                            <div className="mb-6 p-6 bg-red-900/30 border-2 border-red-500/50 rounded-lg">
+                                <div className="flex items-start gap-3">
+                                    <AlertCircle className="w-6 h-6 text-red-400 flex-shrink-0 mt-0.5" />
+                                    <div>
+                                        <h3 className="text-lg font-semibold text-red-300 mb-2">Contract Content Unavailable</h3>
+                                        <p className="text-red-200">Contract content could not be loaded. Please contact support.</p>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* 
+                            HARDCODED CONTENT - PRESERVED FOR HISTORICAL REFERENCE
+                            This content is no longer used as fallback to prevent legal issues.
+                            When contract_template_id is specified, the exact template must be used.
+                            When contract_template_id is NULL, content is loaded from application_terms.
+                        */}
+                        {/*
+                            HARDCODED CONTENT COMMENTED OUT
+                            <div className="space-y-2">
+                                    <p>
+                                        <strong>INDEPENDENT CONTRACTOR AGREEMENT – SALES REPRESENTATIVE CLOSER</strong>
+                                        <br />
+                                        Effective Date: Upon electronic acceptance of this Agreement.
+                                    </p>
+                                </div>
+
+                                <Separator className="bg-gold-medium/30" />
 
                         <div className="space-y-2">
                             <h3 className="text-xl font-bold text-gold-light">1. Parties</h3>
@@ -1481,13 +1760,12 @@ export const PartnerTerms = () => {
                                 requiring signature from MIGMA INC.
                             </p>
                         </div>
-
-                        <div className="h-12" /> {/* Spacer */}
+                        */}
                     </CardContent>
                 </Card>
 
                 {/* Contractual Information Form - SECOND */}
-                {!loading && tokenValid && (
+                {!loading && tokenValid && !templateLoadError && contractContent && (
                     <Card className="mb-6 shadow-lg border border-gold-medium/30 bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10">
                         <CardHeader className="text-center border-b border-gold-medium/30 bg-gradient-to-r from-gold-dark via-gold-medium to-gold-dark rounded-t-lg pb-6 pt-8">
                             <CardTitle className="text-2xl font-bold flex items-center justify-center gap-2 text-white">
@@ -1921,6 +2199,7 @@ export const PartnerTerms = () => {
                                     setIdentityPhotoName(selfie.file.name);
                                     identityPhotoPathRef.current = selfie.url;
                                     identityPhotoNameRef.current = selfie.file.name;
+                                    setDocumentsUploaded(true); // Marcar que os documentos foram realmente enviados
                                     setPhotoUploadError(null);
                                 }}
                                 onCancel={() => {
@@ -1931,6 +2210,7 @@ export const PartnerTerms = () => {
                                     setIdentityPhotoName(null);
                                     identityPhotoPathRef.current = null;
                                     identityPhotoNameRef.current = null;
+                                    setDocumentsUploaded(false); // Resetar estado de upload
                                     setPhotoUploadError(null);
                                 }}
                             />
@@ -1986,13 +2266,21 @@ export const PartnerTerms = () => {
                                         // Atualiza enquanto desenha, mas só confirma quando clicar "Done"
                                         if (dataUrl) {
                                             setSignatureImageDataUrl(dataUrl);
+                                        } else {
+                                            setSignatureImageDataUrl(null);
                                         }
+                                        // Salvar automaticamente no localStorage sempre que a assinatura mudar
+                                        saveFormData();
                                     }}
                                     onSignatureConfirm={(dataUrl) => {
                                         // Confirma a assinatura quando clicar "Done"
                                         setSignatureImageDataUrl(dataUrl);
                                         setSignatureConfirmed(true);
+                                        // Salvar automaticamente no localStorage quando confirmar
+                                        saveFormData();
                                     }}
+                                    savedSignature={signatureImageDataUrl}
+                                    isConfirmed={signatureConfirmed}
                                     label="Digital Signature"
                                     required={true}
                                     width={600}
@@ -2000,12 +2288,34 @@ export const PartnerTerms = () => {
                                 />
                             )}
 
+                            {/* Mensagem de validação antes do botão */}
+                            {accepted && (
+                                <div className="mt-4 p-3 bg-black/50 border border-gold-medium/30 rounded-md">
+                                    <p className="text-sm text-gray-300 mb-2">Before accepting, please ensure:</p>
+                                    <ul className="text-xs text-gray-400 space-y-1 list-disc list-inside">
+                                        {!isFormComplete() && <li className="text-red-400">All form fields are completed</li>}
+                                        {isFormComplete() && <li className="text-green-400">✓ Form is complete</li>}
+                                        {!documentsUploaded && <li className="text-red-400">All documents are uploaded (front, back, and selfie)</li>}
+                                        {documentsUploaded && <li className="text-green-400">✓ Documents uploaded</li>}
+                                        {(!signatureImageDataUrl || !signatureConfirmed) && <li className="text-red-400">Signature is drawn and confirmed (click "Done")</li>}
+                                        {signatureImageDataUrl && signatureConfirmed && <li className="text-green-400">✓ Signature confirmed</li>}
+                                    </ul>
+                                </div>
+                            )}
+
                             {/* Botão de aceitar */}
-                            <div className="flex justify-end">
+                            <div className="flex justify-end mt-4">
                                 <Button 
                                     onClick={handleAccept} 
-                                    disabled={!accepted || !documentFrontUrl || !documentBackUrl || !identityPhotoPath || !signatureImageDataUrl || !signatureConfirmed || !isFormComplete()} 
+                                    disabled={!accepted || !documentsUploaded || !documentFrontUrl || !documentBackUrl || !identityPhotoPath || !signatureImageDataUrl || !signatureConfirmed || !isFormComplete() || !!templateLoadError || !contractContent || isSubmitting} 
                                     className="w-full sm:w-auto min-w-[200px] bg-gradient-to-b from-gold-light via-gold-medium to-gold-light text-black font-bold hover:from-gold-medium hover:via-gold-light hover:to-gold-medium transition-all disabled:opacity-30 disabled:cursor-not-allowed shadow-lg disabled:shadow-none"
+                                    title={
+                                        !accepted ? 'Please accept the terms and conditions first' :
+                                        !isFormComplete() ? 'Please complete all form fields' :
+                                        !documentsUploaded ? 'Please upload all required documents' :
+                                        !signatureImageDataUrl || !signatureConfirmed ? 'Please sign and confirm your signature' :
+                                        'Accept the terms and conditions'
+                                    }
                                 >
                                     I ACCEPT <Check className="w-4 h-4 ml-2" />
                                 </Button>

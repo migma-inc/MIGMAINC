@@ -24,6 +24,7 @@ import { ConfirmModal } from '@/components/ui/confirm-modal';
 import { PromptModal } from '@/components/ui/prompt-modal';
 import { AlertModal } from '@/components/ui/alert-modal';
 import { MeetingScheduleModal } from '@/components/admin/MeetingScheduleModal';
+import { ContractTemplateSelector } from '@/components/admin/ContractTemplateSelector';
 
 function LoginForm({ onLoginSuccess }: { onLoginSuccess: () => void }) {
   const [email, setEmail] = useState('');
@@ -190,7 +191,10 @@ export function DashboardContent() {
   const [pendingApplication, setPendingApplication] = useState<Application | null>(null);
   const [rejectionReason, setRejectionReason] = useState('');
   const [showMeetingModal, setShowMeetingModal] = useState(false);
+  const [showTemplateSelector, setShowTemplateSelector] = useState(false);
+  const [showRejectTemplateSelector, setShowRejectTemplateSelector] = useState(false);
   const [pendingContract, setPendingContract] = useState<any>(null);
+  const [pendingRejection, setPendingRejection] = useState<{ acceptanceId: string; reason?: string } | null>(null);
 
   useEffect(() => {
     loadStats();
@@ -243,9 +247,9 @@ export function DashboardContent() {
       return;
     }
     
-    // If status is approved_for_meeting, approve for contract
+    // If status is approved_for_meeting, show template selector
     if (application.status === 'approved_for_meeting') {
-      setShowApproveConfirm(true);
+      setShowTemplateSelector(true);
       return;
     }
     
@@ -302,21 +306,52 @@ export function DashboardContent() {
     }
   };
 
+  const handleTemplateSelected = async (templateId: string | null) => {
+    if (!pendingApplication) return;
+    
+    setShowTemplateSelector(false);
+    setIsProcessing(true);
+    try {
+      const result = await approveApplicationAfterMeeting(pendingApplication.id, templateId);
+      
+      if (result.success) {
+        setAlertData({
+          title: 'Success',
+          message: result.error || 'Application approved successfully! Email sent.',
+          variant: 'success',
+        });
+        setShowAlert(true);
+        await loadStats();
+        setRefreshKey(prev => prev + 1);
+      } else {
+        setAlertData({
+          title: 'Error',
+          message: result.error || 'Failed to approve application',
+          variant: 'error',
+        });
+        setShowAlert(true);
+      }
+    } catch (error) {
+      setAlertData({
+        title: 'Error',
+        message: error instanceof Error ? error.message : 'Unknown error occurred',
+        variant: 'error',
+      });
+      setShowAlert(true);
+    } finally {
+      setIsProcessing(false);
+      setPendingApplication(null);
+    }
+  };
+
   const confirmApprove = async () => {
     if (!pendingApplication) return;
     
     setShowApproveConfirm(false);
     setIsProcessing(true);
     try {
-      let result;
-      
-      // If status is approved_for_meeting, use new function
-      if (pendingApplication.status === 'approved_for_meeting') {
-        result = await approveApplicationAfterMeeting(pendingApplication.id);
-      } else {
         // For backward compatibility with old 'approved' status
-        result = await approveApplication(pendingApplication.id);
-      }
+      const result = await approveApplication(pendingApplication.id);
       
       if (result.success) {
         setAlertData({
@@ -647,6 +682,122 @@ export function DashboardContent() {
         isLoading={isProcessing}
       />
 
+      {/* Contract Template Selector Modal */}
+      <ContractTemplateSelector
+        isOpen={showTemplateSelector}
+        onClose={() => {
+          setShowTemplateSelector(false);
+          setPendingApplication(null);
+        }}
+        onConfirm={handleTemplateSelected}
+        isLoading={isProcessing}
+      />
+
+      {/* Template Selector for Rejection (to resend contract with new template) */}
+      <ContractTemplateSelector
+        isOpen={showRejectTemplateSelector}
+        onClose={async () => {
+          // If user closes without selecting, just reject without resending
+          if (pendingRejection) {
+            setIsProcessing(true);
+            try {
+              const user = await getCurrentUser();
+              const reviewedBy = user?.email || user?.id || 'unknown';
+              const result = await rejectPartnerContract(
+                pendingRejection.acceptanceId,
+                reviewedBy,
+                pendingRejection.reason,
+                null // No template = just reject
+              );
+              if (result.success) {
+                setAlertData({
+                  title: 'Success',
+                  message: 'Contract rejected successfully.',
+                  variant: 'success',
+                });
+                setShowAlert(true);
+                setRefreshKey(prev => prev + 1);
+                setContractsRefreshKey(prev => prev + 1);
+                loadStats();
+                loadPendingPartnerContracts();
+              } else {
+                setAlertData({
+                  title: 'Error',
+                  message: 'Failed to reject contract: ' + (result.error || 'Unknown error'),
+                  variant: 'error',
+                });
+                setShowAlert(true);
+              }
+            } catch (err) {
+              console.error('Error rejecting partner contract:', err);
+              setAlertData({
+                title: 'Error',
+                message: 'An error occurred while rejecting the contract',
+                variant: 'error',
+              });
+              setShowAlert(true);
+            } finally {
+              setIsProcessing(false);
+            }
+          }
+          setShowRejectTemplateSelector(false);
+          setPendingRejection(null);
+          setPendingContract(null);
+          setRejectionReason('');
+        }}
+        onConfirm={async (templateId: string | null) => {
+          if (!pendingRejection) return;
+          
+          setShowRejectTemplateSelector(false);
+          setIsProcessing(true);
+          try {
+            const user = await getCurrentUser();
+            const reviewedBy = user?.email || user?.id || 'unknown';
+            const result = await rejectPartnerContract(
+              pendingRejection.acceptanceId,
+              reviewedBy,
+              pendingRejection.reason,
+              templateId
+            );
+            if (result.success) {
+              setAlertData({
+                title: 'Success',
+                message: templateId 
+                  ? 'Contract rejected and new contract link sent successfully.' 
+                  : 'Contract rejected successfully.',
+                variant: 'success',
+              });
+              setShowAlert(true);
+              setRefreshKey(prev => prev + 1);
+              setContractsRefreshKey(prev => prev + 1);
+              loadStats();
+              loadPendingPartnerContracts();
+            } else {
+              setAlertData({
+                title: 'Error',
+                message: 'Failed to reject contract: ' + (result.error || 'Unknown error'),
+                variant: 'error',
+              });
+              setShowAlert(true);
+            }
+          } catch (err) {
+            console.error('Error rejecting partner contract:', err);
+            setAlertData({
+              title: 'Error',
+              message: 'An error occurred while rejecting the contract',
+              variant: 'error',
+            });
+            setShowAlert(true);
+          } finally {
+            setIsProcessing(false);
+            setPendingRejection(null);
+            setPendingContract(null);
+            setRejectionReason('');
+          }
+        }}
+        isLoading={isProcessing}
+      />
+
       {/* Approve Confirmation Modal */}
       <ConfirmModal
         isOpen={showApproveConfirm}
@@ -693,8 +844,13 @@ export function DashboardContent() {
         }}
         onConfirm={(reason: string) => {
           if (pendingContract) {
-            setRejectionReason(reason);
-            setShowRejectConfirm(true);
+            // Rejecting contract - show template selector to optionally resend with new template
+            setShowRejectPrompt(false);
+            setPendingRejection({
+              acceptanceId: pendingContract.id,
+              reason: reason || undefined,
+            });
+            setShowRejectTemplateSelector(true);
           } else {
             handleRejectReasonSubmit(reason);
           }

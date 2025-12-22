@@ -790,6 +790,67 @@ const countryPhoneCodes: Record<string, string> = {
 const STORAGE_KEY = 'migma_application_form';
 
 const ApplicationWizard = () => {
+    // Função para mostrar aviso visual (similar ao useContentProtection)
+    const showWarning = (message: string) => {
+        // Adicionar estilos de animação se não existirem
+        if (!document.getElementById('global-partner-warning-styles')) {
+            const style = document.createElement('style');
+            style.id = 'global-partner-warning-styles';
+            style.textContent = `
+                @keyframes slideInWarning {
+                    from {
+                        transform: translateX(100%);
+                        opacity: 0;
+                    }
+                    to {
+                        transform: translateX(0);
+                        opacity: 1;
+                    }
+                }
+                @keyframes slideOutWarning {
+                    from {
+                        transform: translateX(0);
+                        opacity: 1;
+                    }
+                    to {
+                        transform: translateX(100%);
+                        opacity: 0;
+                    }
+                }
+            `;
+            document.head.appendChild(style);
+        }
+
+        // Criar elemento de aviso temporário
+        const warning = document.createElement('div');
+        warning.textContent = message;
+        warning.style.cssText = `
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: rgba(206, 159, 72, 0.95);
+            color: #000;
+            padding: 12px 20px;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 600;
+            z-index: 10000;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+            animation: slideInWarning 0.3s ease-out;
+            max-width: 400px;
+            word-wrap: break-word;
+        `;
+        document.body.appendChild(warning);
+        
+        setTimeout(() => {
+            warning.style.animation = 'slideOutWarning 0.3s ease-out';
+            setTimeout(() => {
+                if (warning.parentNode) {
+                    warning.parentNode.removeChild(warning);
+                }
+            }, 300);
+        }, 3000); // Mostrar por 3 segundos
+    };
     const navigate = useNavigate();
     
     // Load saved form data first to check if we should redirect to step 5
@@ -858,6 +919,7 @@ const ApplicationWizard = () => {
     const [step, setStep] = React.useState(1);
     const [triedToSubmit, setTriedToSubmit] = React.useState(false);
     const [isSubmitting, setIsSubmitting] = React.useState(false);
+    const isSubmittingRef = React.useRef(false); // Ref para evitar race conditions
     const totalSteps = 6;
 
     // Load saved form data from localStorage
@@ -1001,13 +1063,24 @@ const ApplicationWizard = () => {
                     // If email format is valid, check if it already exists
                     const emailValue = watch('email');
                     if (emailValue) {
-                        const emailExists = await checkEmailExists(emailValue);
-                        if (emailExists) {
-                            form.setError('email', {
-                                type: 'manual',
-                                message: 'This email is already registered. Please use a different email address.',
-                            });
-                            return false;
+                        try {
+                            // Adicionar timeout para evitar que a validação trave
+                            const emailExists = await Promise.race([
+                                checkEmailExists(emailValue),
+                                new Promise<boolean>((resolve) => 
+                                    setTimeout(() => resolve(false), 5000) // Timeout de 5 segundos
+                                )
+                            ]);
+                            if (emailExists) {
+                                form.setError('email', {
+                                    type: 'manual',
+                                    message: 'This email is already registered. Please use a different email address.',
+                                });
+                                return false;
+                            }
+                        } catch (error) {
+                            console.warn('Error checking email (continuing anyway):', error);
+                            // Se houver erro, continua (deixa o banco de dados validar)
                         }
                     }
                 }
@@ -1200,12 +1273,24 @@ const ApplicationWizard = () => {
 
     // Find the first step with missing required fields
     const findFirstInvalidStep = async (): Promise<number | null> => {
-        for (let stepNum = 1; stepNum <= totalSteps; stepNum++) {
-            const isValid = await validateStep(stepNum);
+        // Validar steps em paralelo para ser mais rápido (exceto step 1 que precisa validar email primeiro)
+        // Step 1 primeiro (pode ter validação de email assíncrona)
+        const step1Valid = await validateStep(1);
+        if (!step1Valid) return 1;
+        
+        // Validar steps 2-6 em paralelo
+        const validationPromises = [];
+        for (let stepNum = 2; stepNum <= totalSteps; stepNum++) {
+            validationPromises.push(validateStep(stepNum).then(isValid => ({ stepNum, isValid })));
+        }
+        
+        const results = await Promise.all(validationPromises);
+        for (const { stepNum, isValid } of results) {
             if (!isValid) {
                 return stepNum;
             }
         }
+        
         return null;
     };
 
@@ -1217,17 +1302,50 @@ const ApplicationWizard = () => {
             return;
         }
         
+        // Proteção contra múltiplos cliques (race condition)
+        if (isSubmittingRef.current || isSubmitting) {
+            console.log('[FORM] Submit already in progress, ignoring duplicate click');
+            return;
+        }
+        
+        isSubmittingRef.current = true;
         setIsSubmitting(true);
         try {
             // First, validate all steps to find any missing required fields
             const firstInvalidStep = await findFirstInvalidStep();
             if (firstInvalidStep !== null) {
+                // Get step name for better user feedback
+                const stepNames: Record<number, string> = {
+                    1: 'Personal Information',
+                    2: 'Legal & Business',
+                    3: 'Experience & Expertise',
+                    4: 'Availability & Fit',
+                    5: 'CV & Links',
+                    6: 'Consents'
+                };
+                
+                const stepName = stepNames[firstInvalidStep] || `Step ${firstInvalidStep}`;
+                
+                // Show warning message
+                showWarning(`Please complete all required fields in "${stepName}" before submitting.`);
+                
                 // Redirect to the step with missing required field
                 setStep(firstInvalidStep);
                 setTriedToSubmit(true);
                 setIsSubmitting(false);
-                // Trigger validation to show errors
-                await validateStep(firstInvalidStep);
+                isSubmittingRef.current = false;
+                
+                // Small delay to ensure step change is visible before scrolling
+                setTimeout(() => {
+                    // Scroll to top of form to ensure user sees the step
+                    const formElement = document.getElementById('application-form');
+                    if (formElement) {
+                        formElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    }
+                    // Trigger validation to show errors
+                    validateStep(firstInvalidStep);
+                }, 100);
+                
                 return;
             }
 
@@ -1238,8 +1356,9 @@ const ApplicationWizard = () => {
             if (data.cv && data.cv instanceof File) {
                 const uploadResult = await uploadCV(data.cv);
                 if (!uploadResult.success) {
-                    alert(`Error uploading CV: ${uploadResult.error}`);
+                    showWarning(`Error uploading CV: ${uploadResult.error}`);
                     setIsSubmitting(false);
+                    isSubmittingRef.current = false;
                     return;
                 }
                 cvFilePath = uploadResult.filePath;
@@ -1332,9 +1451,10 @@ const ApplicationWizard = () => {
                     // Go back to step 1 to show the error
                     setStep(1);
                 } else {
-                    alert(`Error submitting application: ${insertError.message}`);
+                    showWarning(`Error submitting application: ${insertError.message}`);
                 }
                 setIsSubmitting(false);
+                isSubmittingRef.current = false;
                 return;
             }
 
@@ -1427,8 +1547,9 @@ const ApplicationWizard = () => {
             navigate('/global-partner/thank-you');
         } catch (error) {
             console.error("Error submitting form:", error);
-            alert("There was an error submitting your application. Please try again.");
+            showWarning("There was an error submitting your application. Please try again.");
             setIsSubmitting(false);
+            isSubmittingRef.current = false;
         }
     };
 
@@ -1812,6 +1933,29 @@ const ApplicationWizard = () => {
                                     onChange={(e) => {
                                         const file = e.target.files?.[0];
                                         if (file) {
+                                            // Validar tipo de arquivo
+                                            if (file.type !== 'application/pdf') {
+                                                form.setError('cv', {
+                                                    type: 'manual',
+                                                    message: 'Only PDF files are allowed'
+                                                });
+                                                e.target.value = ''; // Limpar input
+                                                return;
+                                            }
+                                            
+                                            // Validar tamanho (5MB = 5 * 1024 * 1024 bytes)
+                                            const MAX_FILE_SIZE = 5 * 1024 * 1024;
+                                            if (file.size > MAX_FILE_SIZE) {
+                                                form.setError('cv', {
+                                                    type: 'manual',
+                                                    message: `File size must be less than 5MB. Your file is ${(file.size / (1024 * 1024)).toFixed(2)}MB`
+                                                });
+                                                e.target.value = ''; // Limpar input
+                                                return;
+                                            }
+                                            
+                                            // Limpar erro se validação passar
+                                            form.clearErrors('cv');
                                             setValue('cv', file);
                                         }
                                     }}
