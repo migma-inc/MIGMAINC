@@ -723,3 +723,436 @@ export async function sendContractRejectionEmail(
     });
 }
 
+/**
+ * Email: New Global Partner Application Notification for Admins
+ * Sent to all admins when a new candidate submits the Global Partner application form
+ */
+export async function sendAdminNewApplicationNotification(
+    adminEmail: string,
+    applicationData: {
+        fullName: string;
+        email: string;
+        country: string;
+        applicationId: string;
+    },
+    baseUrl?: string
+): Promise<boolean> {
+    // Get base URL
+    const getBaseUrl = (): string => {
+        if (baseUrl) return baseUrl;
+        
+        // Try environment variable first (for production builds)
+        const envUrl = import.meta.env.VITE_APP_URL;
+        if (envUrl) return envUrl;
+        
+        // If in browser, use current origin
+        if (typeof window !== 'undefined' && window.location.origin) {
+            return window.location.origin;
+        }
+        
+        // Fallback
+        return 'https://migma.com';
+    };
+    
+    const origin = getBaseUrl();
+    // Link directly to the admin dashboard application detail page
+    // Routes: admin dashboard is served at /dashboard and application detail at /dashboard/applications/:id
+    const dashboardUrl = `${origin}/dashboard/applications/${applicationData.applicationId}`;
+    
+    // Format current date/time
+    const submissionDateTime = new Date().toLocaleString('en-US', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        timeZoneName: 'short',
+    });
+
+    const html = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+        </head>
+        <body style="margin: 0; padding: 0; font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #000000;">
+    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background-color: #000000;">
+        <tr>
+            <td align="center" style="padding: 40px 20px;">
+                <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="600" style="max-width: 600px; background-color: #000000; border-radius: 8px;">
+                    <!-- Logo Header -->
+                    <tr>
+                        <td align="center" style="padding: 40px 20px 30px; background-color: #000000;">
+                            <img src="https://ekxftwrjvxtpnqbraszv.supabase.co/storage/v1/object/public/logo/logo2.png" alt="MIGMA Logo" width="200" style="display: block; max-width: 200px; height: auto;">
+                        </td>
+                    </tr>
+                    <!-- Alert Banner -->
+                    <tr>
+                        <td style="padding: 0 40px 20px;">
+                            <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
+                                <tr>
+                                    <td style="padding: 20px; background: linear-gradient(135deg, #CE9F48 0%, #F3E196 50%, #CE9F48 100%); border-radius: 8px; text-align: center;">
+                                        <h1 style="margin: 0; font-size: 24px; font-weight: bold; color: #000000;">New Application Received</h1>
+                                    </td>
+                                </tr>
+                            </table>
+                        </td>
+                    </tr>
+                    <!-- Main Content -->
+                    <tr>
+                        <td style="padding: 0 40px 40px; background-color: #000000;">
+                            <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
+                                <tr>
+                                    <td style="padding: 30px; background: linear-gradient(135deg, #1a1a1a 0%, #000000 100%); border-radius: 8px; border: 1px solid #CE9F48;">
+                                        <h2 style="margin: 0 0 20px 0; font-size: 20px; font-weight: bold; color: #F3E196;">Application Summary</h2>
+                                        <p style="margin: 0 0 20px 0; font-size: 16px; line-height: 1.6; color: #e0e0e0;">
+                                            A new candidate has submitted an application for the <strong style="color: #CE9F48;">MIGMA Global Partner Program</strong>.
+                                        </p>
+                                        
+                                        <!-- Candidate Info Card -->
+                                        <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
+                                            <tr>
+                                                <td style="padding: 20px; background-color: #1a1a1a; border: 1px solid #CE9F48; border-radius: 8px; margin: 20px 0;">
+                                                    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
+                                                        <tr>
+                                                            <td style="padding-bottom: 12px;">
+                                                                <p style="margin: 0 0 4px 0; font-size: 12px; color: #999999; text-transform: uppercase; letter-spacing: 0.5px;">Candidate Name</p>
+                                                                <p style="margin: 0; font-size: 18px; font-weight: bold; color: #F3E196;">${applicationData.fullName}</p>
+                                                            </td>
+                                                        </tr>
+                                                        <tr>
+                                                            <td style="padding-bottom: 12px; border-top: 1px solid #333333; padding-top: 12px;">
+                                                                <p style="margin: 0 0 4px 0; font-size: 12px; color: #999999; text-transform: uppercase; letter-spacing: 0.5px;">Email</p>
+                                                                <p style="margin: 0; font-size: 16px; color: #e0e0e0;">${applicationData.email}</p>
+                                                            </td>
+                                                        </tr>
+                                                        <tr>
+                                                            <td style="padding-bottom: 12px; border-top: 1px solid #333333; padding-top: 12px;">
+                                                                <p style="margin: 0 0 4px 0; font-size: 12px; color: #999999; text-transform: uppercase; letter-spacing: 0.5px;">Country</p>
+                                                                <p style="margin: 0; font-size: 16px; color: #e0e0e0;">${applicationData.country}</p>
+                                                            </td>
+                                                        </tr>
+                                                        <tr>
+                                                            <td style="padding-top: 12px; border-top: 1px solid #333333;">
+                                                                <p style="margin: 0 0 4px 0; font-size: 12px; color: #999999; text-transform: uppercase; letter-spacing: 0.5px;">Submission Date</p>
+                                                                <p style="margin: 0; font-size: 14px; color: #e0e0e0;">${submissionDateTime}</p>
+                                                            </td>
+                                                        </tr>
+                                                    </table>
+                                                </td>
+                                            </tr>
+                                        </table>
+                                        
+                                        <!-- CTA Button -->
+                                        <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
+                                            <tr>
+                                                <td align="center" style="padding: 30px 0 20px;">
+                                                    <a href="${dashboardUrl}" style="display: inline-block; padding: 16px 40px; background: linear-gradient(180deg, #F3E196 0%, #CE9F48 50%, #F3E196 100%); color: #000000; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 16px; box-shadow: 0 4px 12px rgba(206, 159, 72, 0.4);">
+                                                        View in Dashboard
+                                                    </a>
+                                                </td>
+                                            </tr>
+                                        </table>
+                                        
+                                        <p style="text-align: center; margin: 0 0 20px 0; font-size: 14px; color: #999999;">
+                                            Or copy and paste this link into your browser:<br>
+                                            <span style="word-break: break-all; color: #CE9F48; font-size: 12px;">${dashboardUrl}</span>
+                                        </p>
+                                        
+                                        <!-- Info Box -->
+                                        <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
+                                            <tr>
+                                                <td style="padding: 15px; background-color: #1a1a1a; border-left: 4px solid #CE9F48; border-radius: 4px;">
+                                                    <p style="margin: 0; color: #F3E196; font-size: 14px; line-height: 1.6;">
+                                                        <strong style="color: #CE9F48;">Next Steps:</strong> Review the complete application in the admin dashboard and decide whether to approve, schedule an interview, or reject the candidate.
+                                                    </p>
+                                                </td>
+                                            </tr>
+                                        </table>
+                                        
+                                        <p style="margin: 30px 0 0 0; font-size: 16px; line-height: 1.6; color: #e0e0e0;">
+                                            Best regards,<br>
+                                            <strong style="color: #CE9F48;">MIGMA Automated System</strong>
+                                        </p>
+                                    </td>
+                                </tr>
+                            </table>
+                        </td>
+                    </tr>
+                    <!-- Footer -->
+                    <tr>
+                        <td align="center" style="padding: 20px 40px; background-color: #000000;">
+                            <p style="margin: 0 0 10px 0; font-size: 11px; color: #999999; line-height: 1.5; font-style: italic;">
+                                This is an automated admin notification. Do not reply to this email.
+                            </p>
+                            <p style="margin: 0; font-size: 12px; color: #666666; line-height: 1.5;">
+                                © 2025 MIGMA. All rights reserved.
+                            </p>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+        </body>
+        </html>
+    `;
+
+    return sendEmail({
+        to: adminEmail,
+        subject: `New Global Partner Application: ${applicationData.fullName}`,
+        html: html,
+    });
+}
+
+/**
+ * Email: Contact Message Access Link
+ * Sent to user after they submit a contact form message
+ * Includes unique link to access their support ticket
+ */
+export async function sendContactMessageAccessLink(
+    email: string,
+    name: string,
+    subject: string,
+    token: string,
+    baseUrl?: string
+): Promise<boolean> {
+    // Get base URL
+    const getBaseUrl = (): string => {
+        if (baseUrl) return baseUrl;
+        
+        const envUrl = import.meta.env.VITE_APP_URL;
+        if (envUrl) return envUrl;
+        
+        if (typeof window !== 'undefined' && window.location.origin) {
+            return window.location.origin;
+        }
+        
+        return 'https://migma.com';
+    };
+    
+    const origin = getBaseUrl();
+    const ticketUrl = `${origin}/support/ticket?token=${token}`;
+
+    const html = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+        </head>
+        <body style="margin: 0; padding: 0; font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #000000;">
+    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background-color: #000000;">
+        <tr>
+            <td align="center" style="padding: 40px 20px;">
+                <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="600" style="max-width: 600px; background-color: #000000; border-radius: 8px;">
+                    <!-- Logo Header -->
+                    <tr>
+                        <td align="center" style="padding: 40px 20px 30px; background-color: #000000;">
+                            <img src="https://ekxftwrjvxtpnqbraszv.supabase.co/storage/v1/object/public/logo/logo2.png" alt="MIGMA Logo" width="200" style="display: block; max-width: 200px; height: auto;">
+                        </td>
+                    </tr>
+                    <!-- Main Content -->
+                    <tr>
+                        <td style="padding: 0 40px 40px; background-color: #000000;">
+                            <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
+                                <tr>
+                                    <td style="padding: 30px; background: linear-gradient(135deg, #1a1a1a 0%, #000000 100%); border-radius: 8px; border: 1px solid #CE9F48;">
+                                        <h1 style="margin: 0 0 20px 0; font-size: 28px; font-weight: bold; color: #F3E196; text-align: center; background: linear-gradient(180deg, #8E6E2F 0%, #F3E196 25%, #CE9F48 50%, #F3E196 75%, #8E6E2F 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">
+                                            Message Received!
+                                        </h1>
+                                        <p style="margin: 0 0 20px 0; font-size: 16px; line-height: 1.6; color: #e0e0e0;">
+                                            Dear ${name},
+                                        </p>
+                                        <p style="margin: 0 0 20px 0; font-size: 16px; line-height: 1.6; color: #e0e0e0;">
+                                            Thank you for contacting <strong style="color: #CE9F48;">MIGMA</strong>. We have received your message regarding: <strong style="color: #F3E196;">${subject}</strong>
+                                        </p>
+                                        <p style="margin: 0 0 30px 0; font-size: 16px; line-height: 1.6; color: #e0e0e0;">
+                                            Our team will review your message and respond as soon as possible. You can track the status and continue the conversation using the link below:
+                                        </p>
+                                        <!-- CTA Button -->
+                                        <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
+                                            <tr>
+                                                <td align="center" style="padding: 0 0 30px;">
+                                                    <a href="${ticketUrl}" style="display: inline-block; padding: 16px 40px; background: linear-gradient(180deg, #F3E196 0%, #CE9F48 50%, #F3E196 100%); color: #000000; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 16px; box-shadow: 0 4px 12px rgba(206, 159, 72, 0.4);">
+                                                        View Your Ticket
+                                                    </a>
+                                                </td>
+                                            </tr>
+                                        </table>
+                                        <p style="text-align: center; margin: 0 0 30px 0; font-size: 14px; color: #999999;">
+                                            Or copy and paste this link into your browser:<br>
+                                            <span style="word-break: break-all; color: #CE9F48; font-size: 12px;">${ticketUrl}</span>
+                                        </p>
+                                        <!-- Info Box -->
+                                        <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
+                                            <tr>
+                                                <td style="padding: 20px; background-color: #1a1a1a; border-left: 4px solid #CE9F48; border-radius: 4px;">
+                                                    <p style="margin: 0; color: #F3E196; font-size: 14px; line-height: 1.6;">
+                                                        <strong style="color: #CE9F48;">Important:</strong> Save this link to access your ticket anytime. You'll receive email notifications when we respond.
+                                                    </p>
+                                                </td>
+                                            </tr>
+                                        </table>
+                                        <p style="margin: 30px 0 0 0; font-size: 16px; line-height: 1.6; color: #e0e0e0;">
+                                            Best regards,<br>
+                                            <strong style="color: #CE9F48;">The MIGMA Team</strong>
+                                        </p>
+                                    </td>
+                                </tr>
+                            </table>
+                        </td>
+                    </tr>
+                    <!-- Footer -->
+                    <tr>
+                        <td align="center" style="padding: 20px 40px; background-color: #000000;">
+                            <p style="margin: 0 0 10px 0; font-size: 11px; color: #999999; line-height: 1.5; font-style: italic;">
+                                This is an automated message. Please do not reply to this email.
+                            </p>
+                            <p style="margin: 0; font-size: 12px; color: #666666; line-height: 1.5;">
+                                © 2025 MIGMA. All rights reserved.
+                            </p>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+        </body>
+        </html>
+    `;
+
+    return sendEmail({
+        to: email,
+        subject: 'Your Message Has Been Received - MIGMA Support',
+        html: html,
+    });
+}
+
+/**
+ * Email: Admin Reply Notification
+ * Sent to user when admin responds to their support ticket
+ */
+export async function sendAdminReplyNotification(
+    userEmail: string,
+    userName: string,
+    ticketSubject: string,
+    token: string,
+    baseUrl?: string
+): Promise<boolean> {
+    // Get base URL
+    const getBaseUrl = (): string => {
+        if (baseUrl) return baseUrl;
+        
+        const envUrl = import.meta.env.VITE_APP_URL;
+        if (envUrl) return envUrl;
+        
+        if (typeof window !== 'undefined' && window.location.origin) {
+            return window.location.origin;
+        }
+        
+        return 'https://migma.com';
+    };
+    
+    const origin = getBaseUrl();
+    const ticketUrl = `${origin}/support/ticket?token=${token}`;
+
+    const html = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+        </head>
+        <body style="margin: 0; padding: 0; font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #000000;">
+    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background-color: #000000;">
+        <tr>
+            <td align="center" style="padding: 40px 20px;">
+                <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="600" style="max-width: 600px; background-color: #000000; border-radius: 8px;">
+                    <!-- Logo Header -->
+                    <tr>
+                        <td align="center" style="padding: 40px 20px 30px; background-color: #000000;">
+                            <img src="https://ekxftwrjvxtpnqbraszv.supabase.co/storage/v1/object/public/logo/logo2.png" alt="MIGMA Logo" width="200" style="display: block; max-width: 200px; height: auto;">
+                        </td>
+                    </tr>
+                    <!-- Alert Banner -->
+                    <tr>
+                        <td style="padding: 0 40px 20px;">
+                            <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
+                                <tr>
+                                    <td style="padding: 20px; background: linear-gradient(135deg, #CE9F48 0%, #F3E196 50%, #CE9F48 100%); border-radius: 8px; text-align: center;">
+                                        <h1 style="margin: 0; font-size: 24px; font-weight: bold; color: #000000;">New Response to Your Ticket</h1>
+                                    </td>
+                                </tr>
+                            </table>
+                        </td>
+                    </tr>
+                    <!-- Main Content -->
+                    <tr>
+                        <td style="padding: 0 40px 40px; background-color: #000000;">
+                            <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
+                                <tr>
+                                    <td style="padding: 30px; background: linear-gradient(135deg, #1a1a1a 0%, #000000 100%); border-radius: 8px; border: 1px solid #CE9F48;">
+                                        <p style="margin: 0 0 20px 0; font-size: 16px; line-height: 1.6; color: #e0e0e0;">
+                                            Dear ${userName},
+                                        </p>
+                                        <p style="margin: 0 0 20px 0; font-size: 16px; line-height: 1.6; color: #e0e0e0;">
+                                            Our team has responded to your support ticket: <strong style="color: #F3E196;">${ticketSubject}</strong>
+                                        </p>
+                                        <p style="margin: 0 0 30px 0; font-size: 16px; line-height: 1.6; color: #e0e0e0;">
+                                            Click the button below to view the response and continue the conversation:
+                                        </p>
+                                        <!-- CTA Button -->
+                                        <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
+                                            <tr>
+                                                <td align="center" style="padding: 0 0 30px;">
+                                                    <a href="${ticketUrl}" style="display: inline-block; padding: 16px 40px; background: linear-gradient(180deg, #F3E196 0%, #CE9F48 50%, #F3E196 100%); color: #000000; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 16px; box-shadow: 0 4px 12px rgba(206, 159, 72, 0.4);">
+                                                        View Response
+                                                    </a>
+                                                </td>
+                                            </tr>
+                                        </table>
+                                        <p style="text-align: center; margin: 0 0 20px 0; font-size: 14px; color: #999999;">
+                                            Or copy and paste this link into your browser:<br>
+                                            <span style="word-break: break-all; color: #CE9F48; font-size: 12px;">${ticketUrl}</span>
+                                        </p>
+                                        <p style="margin: 30px 0 0 0; font-size: 16px; line-height: 1.6; color: #e0e0e0;">
+                                            Best regards,<br>
+                                            <strong style="color: #CE9F48;">The MIGMA Team</strong>
+                                        </p>
+                                    </td>
+                                </tr>
+                            </table>
+                        </td>
+                    </tr>
+                    <!-- Footer -->
+                    <tr>
+                        <td align="center" style="padding: 20px 40px; background-color: #000000;">
+                            <p style="margin: 0 0 10px 0; font-size: 11px; color: #999999; line-height: 1.5; font-style: italic;">
+                                This is an automated message. Please do not reply to this email.
+                            </p>
+                            <p style="margin: 0; font-size: 12px; color: #666666; line-height: 1.5;">
+                                © 2025 MIGMA. All rights reserved.
+                            </p>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+        </body>
+        </html>
+    `;
+
+    return sendEmail({
+        to: userEmail,
+        subject: `New Response to Your Ticket: ${ticketSubject}`,
+        html: html,
+    });
+}
+
