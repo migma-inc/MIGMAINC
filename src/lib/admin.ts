@@ -198,9 +198,12 @@ export async function approveApplicationForMeeting(
 /**
  * Approve an application after meeting (second approval step)
  * Updates status to 'approved_for_contract' and sends contract terms link email
+ * @param applicationId - ID da aplicação
+ * @param contractTemplateId - ID do template de contrato (opcional, para compatibilidade)
  */
 export async function approveApplicationAfterMeeting(
-  applicationId: string
+  applicationId: string,
+  contractTemplateId?: string | null
 ): Promise<{ success: boolean; error?: string }> {
   try {
     // Verify current status is 'approved_for_meeting'
@@ -236,8 +239,8 @@ export async function approveApplicationAfterMeeting(
       return { success: false, error: updateError.message };
     }
 
-    // Generate token and send contract terms email
-    const token = await approveCandidateAndSendTermsLink(applicationId);
+    // Generate token and send contract terms email with template if provided
+    const token = await approveCandidateAndSendTermsLink(applicationId, 30, contractTemplateId);
 
     // Invalidate cache after status update
     invalidateAllCache();

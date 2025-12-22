@@ -135,3 +135,4 @@ Antes de usar, verifique:
 ---
 
 **Última atualização:** Janeiro 2025
+

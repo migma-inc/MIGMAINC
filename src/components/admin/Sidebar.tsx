@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
-import { FileText, ClipboardList, LayoutDashboard, Phone, ShoppingCart, DollarSign, UserCircle2, Mail } from 'lucide-react';
+import { FileText, ClipboardList, LayoutDashboard, Phone, ShoppingCart, DollarSign, UserCircle2, Mail, FileCode } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface SidebarProps {
@@ -50,6 +50,12 @@ export function Sidebar({ className }: SidebarProps) {
       title: 'Contact Messages',
       icon: Mail,
       path: '/dashboard/contact-messages',
+      exact: false,
+    },
+    {
+      title: 'Contract Templates',
+      icon: FileCode,
+      path: '/dashboard/contract-templates',
       exact: false,
     },
   ];
