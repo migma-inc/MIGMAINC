@@ -7,7 +7,8 @@ import { motion, useScroll, useTransform } from 'framer-motion';
 import { Check, ChevronRight, ChevronLeft, Upload } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { uploadCV } from '@/lib/storage';
-import { sendApplicationConfirmationEmail } from '@/lib/emails';
+import { sendApplicationConfirmationEmail, sendAdminNewApplicationNotification } from '@/lib/emails';
+import { getAllAdminEmails } from '@/lib/auth';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -1351,6 +1352,66 @@ const ApplicationWizard = () => {
             } catch (emailError) {
                 console.error('[FORM DEBUG] ❌ Exception sending confirmation email:', emailError);
                 // Não bloqueia o fluxo se o email falhar
+            }
+
+            // Step 6: Send notification emails to all admins (não bloqueia o fluxo se falhar)
+            console.log('[FORM DEBUG] Attempting to notify admins...');
+            try {
+                const adminEmails = await getAllAdminEmails();
+
+                if (adminEmails.length === 0) {
+                    console.warn('[FORM DEBUG] ⚠️ No admin emails found to notify');
+                } else {
+                    // If running on localhost, skip the protected admin email
+                    const isLocalhost = typeof window !== 'undefined' && (
+                        window.location.hostname === 'localhost' ||
+                        window.location.hostname === '127.0.0.1' ||
+                        window.location.hostname === '::1' ||
+                        window.location.hostname.includes('local')
+                    );
+
+                    const protectedAdminEmail = 'adm@migmainc.com';
+                    let filteredAdminEmails = Array.isArray(adminEmails) ? [...adminEmails] : [];
+
+                    if (isLocalhost) {
+                        const beforeCount = filteredAdminEmails.length;
+                        filteredAdminEmails = filteredAdminEmails.filter(e => !(e && e.toLowerCase() === protectedAdminEmail));
+                        const removedCount = beforeCount - filteredAdminEmails.length;
+                        if (removedCount > 0) {
+                            console.log(`[FORM DEBUG] Localhost detected - skipping ${removedCount} protected admin email(s) (e.g. ${protectedAdminEmail})`);
+                        }
+                    }
+
+                    console.log(`[FORM DEBUG] Sending notifications to ${filteredAdminEmails.length} admin(s)...`);
+
+                    // Get application ID from inserted data
+                    const applicationId = insertedData?.[0]?.id;
+
+                    if (!applicationId) {
+                        console.error('[FORM DEBUG] ❌ No application ID found, cannot notify admins');
+                    } else {
+                        // Send emails to all admins in parallel (use filtered list)
+                        const adminNotificationPromises = filteredAdminEmails.map(adminEmail =>
+                            sendAdminNewApplicationNotification(adminEmail, {
+                                fullName: data.fullName,
+                                email: data.email,
+                                country: data.country,
+                                applicationId: applicationId,
+                            }).catch(error => {
+                                console.error(`[FORM DEBUG] ❌ Failed to send notification to ${adminEmail}:`, error);
+                                return false;
+                            })
+                        );
+
+                        const results = await Promise.all(adminNotificationPromises);
+                        const successCount = results.filter(result => result === true).length;
+
+                        console.log(`[FORM DEBUG] ✅ Sent ${successCount} of ${filteredAdminEmails.length} admin notification(s)`);
+                    }
+                }
+            } catch (adminNotificationError) {
+                console.error('[FORM DEBUG] ❌ Exception notifying admins:', adminNotificationError);
+                // Não bloqueia o fluxo se as notificações falharem
             }
 
             console.log('[FORM DEBUG] ✅ Application submitted successfully');
