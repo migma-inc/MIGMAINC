@@ -148,6 +148,39 @@ export function onAuthStateChange(callback: (user: AdminUser | null) => void) {
 }
 
 /**
+ * Get all admin email addresses
+ * Calls the SQL function get_admin_emails() via RPC to fetch all users with admin role
+ * Returns an array of email addresses
+ */
+export async function getAllAdminEmails(): Promise<string[]> {
+  try {
+    console.log('[AUTH] Fetching admin emails via RPC...');
+    
+    // Call the SQL function via RPC
+    const { data, error } = await supabase.rpc('get_admin_emails');
+    
+    if (error) {
+      console.error('[AUTH] Error fetching admin emails:', error);
+      return [];
+    }
+    
+    if (!data || !Array.isArray(data)) {
+      console.warn('[AUTH] No admin emails found or invalid response');
+      return [];
+    }
+    
+    // Filter out any null/undefined values
+    const adminEmails = data.filter((email): email is string => !!email);
+    
+    console.log(`[AUTH] Found ${adminEmails.length} admin email(s)`);
+    return adminEmails;
+  } catch (error) {
+    console.error('[AUTH] Exception fetching admin emails:', error);
+    return [];
+  }
+}
+
+/**
  * Export admin Supabase client for use in admin pages
  * This client has session persistence enabled and should be used
  * in admin pages to ensure RLS policies can access user metadata

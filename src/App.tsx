@@ -39,6 +39,8 @@ import { VisaOrderDetailPage } from './pages/VisaOrderDetailPage';
 import { ZelleApprovalPage } from './pages/ZelleApprovalPage';
 import { SellersPage } from './pages/SellersPage';
 import { ContactMessagesPage } from './pages/ContactMessagesPage';
+import { ContactMessageDetail } from './pages/ContactMessageDetail';
+import { SupportTicket } from './pages/SupportTicket';
 import { VisaContractResubmit } from './pages/VisaContractResubmit';
 
 function App() {
@@ -49,6 +51,7 @@ function App() {
         <Route path="/services" element={<Services />} />
         <Route path="/about" element={<About />} />
         <Route path="/contact" element={<Contact />} />
+        <Route path="/support/ticket" element={<SupportTicket />} />
         <Route path="/book-a-call" element={<BookACall />} />
         <Route path="/book-a-call/thank-you" element={<BookACallThankYou />} />
         <Route path="/legal/privacy-policy" element={<PrivacyPolicy />} />
@@ -88,6 +91,7 @@ function App() {
           <Route path="zelle-approval" element={<ZelleApprovalPage />} />
           <Route path="sellers" element={<SellersPage />} />
           <Route path="contact-messages" element={<ContactMessagesPage />} />
+          <Route path="contact-messages/:id" element={<ContactMessageDetail />} />
         </Route>
       </Routes>
     </Router>
