@@ -27,7 +27,6 @@ export const PartnerTerms = () => {
     const [tokenValid, setTokenValid] = useState<boolean | null>(null);
     const [tokenData, setTokenData] = useState<any>(null);
     const [loading, setLoading] = useState(true);
-    const [isSubmitting, setIsSubmitting] = useState(false);
     const [identityPhotoPath, setIdentityPhotoPath] = useState<string | null>(null); // selfie URL
     const [identityPhotoName, setIdentityPhotoName] = useState<string | null>(null); // selfie file name
     const [documentFrontUrl, setDocumentFrontUrl] = useState<string | null>(null);
@@ -100,7 +99,7 @@ export const PartnerTerms = () => {
                     }
                     
                     body::before {
-                        content: "";
+                        content: "This document cannot be printed. It is available exclusively through the MIGMA portal.";
                         display: block !important;
                         visibility: visible !important;
                         position: fixed;
@@ -219,8 +218,6 @@ export const PartnerTerms = () => {
             payoutDetails,
             // Assinatura
             signatureName,
-            signatureImageDataUrl,
-            signatureConfirmed,
             // Step atual
             currentStep,
             // Checkbox de aceite
@@ -263,14 +260,6 @@ export const PartnerTerms = () => {
                 if (formData.preferredPayoutMethod !== undefined) setPreferredPayoutMethod(formData.preferredPayoutMethod);
                 if (formData.payoutDetails !== undefined) setPayoutDetails(formData.payoutDetails);
                 if (formData.signatureName !== undefined) setSignatureName(formData.signatureName);
-                if (formData.signatureImageDataUrl) {
-                    setSignatureImageDataUrl(formData.signatureImageDataUrl);
-                    console.log('[PARTNER TERMS] Signature restored from localStorage');
-                }
-                if (formData.signatureConfirmed !== undefined) {
-                    setSignatureConfirmed(formData.signatureConfirmed);
-                    console.log('[PARTNER TERMS] Signature confirmed state restored:', formData.signatureConfirmed);
-                }
                 if (formData.currentStep !== undefined) setCurrentStep(formData.currentStep);
                 if (formData.accepted !== undefined) setAccepted(formData.accepted);
             }
@@ -527,9 +516,6 @@ export const PartnerTerms = () => {
             return;
         }
 
-        // Iniciar animação de carregamento
-        setIsSubmitting(true);
-
         try {
             // Validar formulário antes de continuar
             if (!validateForm()) {
@@ -643,9 +629,9 @@ export const PartnerTerms = () => {
                     const fileName = `signatures/${Date.now()}-${Math.random().toString(36).substring(7)}.png`;
                     const file = new File([blob], fileName, { type: 'image/png' });
                     
-                    // Upload para storage - usar identity-photos que já existe
+                    // Upload para storage
                     const { error: uploadError } = await supabase.storage
-                        .from('identity-photos')
+                        .from('partner-documents')
                         .upload(fileName, file, {
                             contentType: 'image/png',
                             upsert: false,
@@ -658,7 +644,7 @@ export const PartnerTerms = () => {
                     
                     // Obter URL pública
                     const { data: { publicUrl } } = supabase.storage
-                        .from('identity-photos')
+                        .from('partner-documents')
                         .getPublicUrl(fileName);
                     
                     updateData.signature_image_url = publicUrl;
@@ -723,7 +709,6 @@ export const PartnerTerms = () => {
                     details: updateError.details,
                     hint: updateError.hint
                 });
-                setIsSubmitting(false);
                 alert("There was an error accepting the terms. Please try again.");
                 return;
             }
@@ -741,7 +726,6 @@ export const PartnerTerms = () => {
                     expected: currentPhotoPath,
                     saved: updatedAcceptance?.identity_photo_path
                 });
-                setIsSubmitting(false);
                 alert('There was an error saving your photo. Please try uploading again.');
                 return;
             }
@@ -813,29 +797,15 @@ export const PartnerTerms = () => {
                 }
             }
 
-            // Não desativar isSubmitting aqui - deixar o overlay até a navegação
-            // O overlay será removido quando a página mudar
             navigate('/partner-terms/success');
         } catch (error) {
             console.error("Error accepting terms:", error);
-            setIsSubmitting(false);
             alert("There was an error accepting the terms. Please try again.");
         }
     };
 
     return (
         <div className="min-h-screen bg-gradient-to-b from-black via-[#1a1a1a] to-black font-sans text-foreground py-12">
-            {/* Loading Overlay */}
-            {isSubmitting && (
-                <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50">
-                    <div className="text-center">
-                        <div className="loader-gold mx-auto mb-4"></div>
-                        <p className="text-gold-light text-lg font-semibold">Processing your acceptance...</p>
-                        <p className="text-gray-400 text-sm mt-2">Please wait</p>
-                    </div>
-                </div>
-            )}
-
             <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
                 <Button variant="ghost" className="mb-6 pl-0 hover:bg-transparent text-gold-light hover:text-gold-medium" onClick={() => navigate('/global-partner')}>
                     <ArrowLeft className="w-4 h-4 mr-2" /> Back to Application
@@ -1518,7 +1488,7 @@ export const PartnerTerms = () => {
 
                 {/* Contractual Information Form - SECOND */}
                 {!loading && tokenValid && (
-                    <Card id="contractual-form-section" className="mb-6 shadow-lg border border-gold-medium/30 bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10">
+                    <Card className="mb-6 shadow-lg border border-gold-medium/30 bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10">
                         <CardHeader className="text-center border-b border-gold-medium/30 bg-gradient-to-r from-gold-dark via-gold-medium to-gold-dark rounded-t-lg pb-6 pt-8">
                             <CardTitle className="text-2xl font-bold flex items-center justify-center gap-2 text-white">
                                 <span className="bg-white text-black rounded-full w-8 h-8 flex items-center justify-center text-lg font-bold border border-gold-medium/50">2</span>
@@ -1993,12 +1963,12 @@ export const PartnerTerms = () => {
                                         const isChecked = checked as boolean;
                                         setAccepted(isChecked);
                                         
-                                        // When user checks the box, smoothly scroll to form section
-                                        if (isChecked) {
+                                        // If user checks the box but hasn't uploaded all photos, smoothly scroll to photo section
+                                        if (isChecked && (!documentFrontUrl || !documentBackUrl || !identityPhotoPath)) {
                                             setTimeout(() => {
-                                                const formSection = document.getElementById('contractual-form-section');
-                                                if (formSection) {
-                                                    smoothScrollTo(formSection, 1000);
+                                                const photoSection = document.getElementById('photo-upload-section');
+                                                if (photoSection) {
+                                                    smoothScrollTo(photoSection, 1000);
                                                 }
                                             }, 150);
                                         }
@@ -2020,29 +1990,9 @@ export const PartnerTerms = () => {
                                     }}
                                     onSignatureConfirm={(dataUrl) => {
                                         // Confirma a assinatura quando clicar "Done"
-                                        console.log('[PARTNER TERMS] onSignatureConfirm called, dataUrl length:', dataUrl?.length);
                                         setSignatureImageDataUrl(dataUrl);
                                         setSignatureConfirmed(true);
-                                        
-                                        // Salvar assinatura no localStorage
-                                        if (token) {
-                                            try {
-                                                const storageKey = `partner_terms_form_${token}`;
-                                                const existingData = localStorage.getItem(storageKey);
-                                                const formData = existingData ? JSON.parse(existingData) : {};
-                                                formData.signatureImageDataUrl = dataUrl;
-                                                formData.signatureConfirmed = true;
-                                                localStorage.setItem(storageKey, JSON.stringify(formData));
-                                                console.log('[PARTNER TERMS] Signature saved to localStorage');
-                                            } catch (error) {
-                                                console.warn('[PARTNER TERMS] Error saving signature to localStorage:', error);
-                                            }
-                                        }
-                                        
-                                        console.log('[PARTNER TERMS] signatureConfirmed set to true');
                                     }}
-                                    savedSignature={signatureImageDataUrl}
-                                    isConfirmed={signatureConfirmed}
                                     label="Digital Signature"
                                     required={true}
                                     width={600}

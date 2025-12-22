@@ -694,8 +694,7 @@ export function DashboardContent() {
         onConfirm={(reason: string) => {
           if (pendingContract) {
             setRejectionReason(reason);
-            setShowRejectPrompt(false); // Fechar o PromptModal primeiro
-            setShowRejectConfirm(true); // Depois abrir o ConfirmModal
+            setShowRejectConfirm(true);
           } else {
             handleRejectReasonSubmit(reason);
           }
