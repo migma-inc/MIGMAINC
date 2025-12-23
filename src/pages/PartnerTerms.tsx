@@ -15,9 +15,11 @@ import { useContentProtection } from '@/hooks/useContentProtection';
 import { getActiveContractVersion, generateContractHash, getGeolocationFromIP } from '@/lib/contracts';
 import { getContractTemplate } from '@/lib/contract-templates';
 import { formatContractTextToHtml } from '@/lib/contract-formatter';
-import { sendTermsAcceptanceConfirmationEmail } from '@/lib/emails';
+import { sendTermsAcceptanceConfirmationEmail, sendContractViewLinkEmail } from '@/lib/emails';
+import { generateContractViewToken } from '@/lib/contract-view';
 import { countries } from '@/lib/visa-checkout-constants';
 import { SignaturePadComponent } from '@/components/ui/signature-pad';
+import { AlertModal } from '@/components/ui/alert-modal';
 
 export const PartnerTerms = () => {
     const navigate = useNavigate();
@@ -37,6 +39,9 @@ export const PartnerTerms = () => {
     const [documentFrontUrl, setDocumentFrontUrl] = useState<string | null>(null);
     const [documentBackUrl, setDocumentBackUrl] = useState<string | null>(null);
     const [photoUploadError, setPhotoUploadError] = useState<string | null>(null);
+    const [showValidationModal, setShowValidationModal] = useState(false);
+    const [validationModalTitle, setValidationModalTitle] = useState<string>('');
+    const [validationModalMessage, setValidationModalMessage] = useState<string>('');
     const [documentsUploaded, setDocumentsUploaded] = useState<boolean>(false); // Indica se os documentos foram realmente enviados (upload completo)
     const [signatureName, setSignatureName] = useState<string>(''); // Mantido para backward compatibility
     const [signatureImageDataUrl, setSignatureImageDataUrl] = useState<string | null>(null); // Base64 da assinatura desenhada
@@ -643,24 +648,32 @@ export const PartnerTerms = () => {
 
     const handleAccept = async () => {
         if (!accepted || !token || !tokenValid) {
-            setPhotoUploadError('Please accept the terms and conditions first.');
+            setValidationModalTitle('Attention Required');
+            setValidationModalMessage('Please accept the terms and conditions first by checking the checkbox.');
+            setShowValidationModal(true);
             return;
         }
 
         // Verificar se o formulário está completo
         if (!isFormComplete()) {
-            setPhotoUploadError('Please complete all required fields in the form before accepting.');
+            setValidationModalTitle('Incomplete Form');
+            setValidationModalMessage('Please complete all required fields in the form to proceed. Check all steps: Personal Information, Address, Fiscal Data, and Payment.');
+            setShowValidationModal(true);
             // Scroll to first error
-            const firstErrorField = document.querySelector('[data-required="true"]:invalid, input[required]:invalid, select[required]:invalid');
-            if (firstErrorField) {
-                firstErrorField.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            }
+            setTimeout(() => {
+                const firstErrorField = document.querySelector('[data-required="true"]:invalid, input[required]:invalid, select[required]:invalid');
+                if (firstErrorField) {
+                    firstErrorField.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }
+            }, 300);
             return;
         }
 
         // Verificar se os documentos foram realmente enviados (upload completo)
         if (!documentsUploaded) {
-            setPhotoUploadError('Please upload all required documents (front, back, and selfie) before accepting the terms.');
+            setValidationModalTitle('Documents Pending');
+            setValidationModalMessage('You have not uploaded all required documents. Please upload the front and back of your identity document, and a selfie holding the document to proceed.');
+            setShowValidationModal(true);
             return;
         }
 
@@ -670,13 +683,17 @@ export const PartnerTerms = () => {
         
         // Verificar se todas as imagens foram enviadas (frente, verso e selfie)
         if (!documentFrontUrl || !documentBackUrl || !currentPhotoPath || !currentPhotoName) {
-            setPhotoUploadError('Please upload the front and back of your document and a selfie holding the document before accepting the terms.');
+            setValidationModalTitle('Documents Pending');
+            setValidationModalMessage('You have not uploaded all required documents. Please upload the front and back of your identity document, and a selfie holding the document to proceed.');
+            setShowValidationModal(true);
             return;
         }
 
         // Verificar se assinatura foi confirmada (botão Done clicado)
         if (!signatureImageDataUrl || !signatureConfirmed) {
-            setPhotoUploadError('Please sign and confirm your signature by clicking "Done" button before accepting.');
+            setValidationModalTitle('Signature Pending');
+            setValidationModalMessage('You have not signed the contract. Please draw your digital signature and click the "Done" button to confirm before proceeding.');
+            setShowValidationModal(true);
             return;
         }
 
@@ -700,7 +717,10 @@ export const PartnerTerms = () => {
                     firstErrorStep = 4;
                 }
                 setCurrentStep(firstErrorStep);
-                showWarning('Please fill in all required fields correctly');
+                setIsSubmitting(false);
+                setValidationModalTitle('Incomplete Form');
+                setValidationModalMessage('Please fill in all required fields correctly. Check all form steps before proceeding.');
+                setShowValidationModal(true);
                 return;
             }
 
@@ -928,6 +948,61 @@ export const PartnerTerms = () => {
                     }
                 } catch (emailError) {
                     console.warn('[PARTNER TERMS] Error sending confirmation email (non-critical):', emailError);
+                    // Não bloquear - email é secundário e não deve impedir o fluxo
+                }
+            }
+
+            // ETAPA 10: Gerar token de visualização e enviar email com link
+            if (updatedAcceptance?.id) {
+                try {
+                    console.log('[PARTNER TERMS] Generating contract view token for acceptance:', updatedAcceptance.id);
+                    
+                    // Gerar token de visualização
+                    const tokenResult = await generateContractViewToken(updatedAcceptance.id, 90);
+                    
+                    if (tokenResult && tokenData?.application_id) {
+                        // Buscar dados da aplicação para email
+                        const { data: application, error: appError } = await supabase
+                            .from('global_partner_applications')
+                            .select('email, full_name')
+                            .eq('id', tokenData.application_id)
+                            .single();
+
+                        if (!appError && application?.email && application?.full_name) {
+                            // Get base URL
+                            const getBaseUrl = (): string => {
+                                const envUrl = import.meta.env.VITE_APP_URL;
+                                if (envUrl) return envUrl;
+                                if (typeof window !== 'undefined' && window.location.origin) {
+                                    return window.location.origin;
+                                }
+                                return 'https://migma.com';
+                            };
+
+                            const baseUrl = getBaseUrl();
+                            
+                            // Enviar email com link de visualização
+                            console.log('[PARTNER TERMS] Sending contract view link email to:', application.email);
+                            const viewEmailSent = await sendContractViewLinkEmail(
+                                application.email,
+                                application.full_name,
+                                tokenResult.token,
+                                baseUrl
+                            );
+
+                            if (viewEmailSent) {
+                                console.log('[PARTNER TERMS] Contract view link email sent successfully');
+                            } else {
+                                console.warn('[PARTNER TERMS] Failed to send contract view link email (non-critical)');
+                            }
+                        } else {
+                            console.warn('[PARTNER TERMS] Could not fetch application data for view link email:', appError);
+                        }
+                    } else {
+                        console.warn('[PARTNER TERMS] Failed to generate contract view token (non-critical)');
+                    }
+                } catch (viewTokenError) {
+                    console.warn('[PARTNER TERMS] Error generating token/sending view link email (non-critical):', viewTokenError);
                     // Não bloquear - email é secundário e não deve impedir o fluxo
                 }
             }
@@ -2174,7 +2249,7 @@ export const PartnerTerms = () => {
                                         Identity Verification Required
                                     </CardTitle>
                                     <CardDescription className="text-gold-light mt-1 text-base">
-                                        Upload the front and back of your document and a selfie holding the document before accepting the terms.
+                                        Upload the front and back of your document and a selfie holding the document.
                                     </CardDescription>
                                 </div>
                             </div>
@@ -2282,34 +2357,12 @@ export const PartnerTerms = () => {
                                 />
                             )}
 
-                            {/* Mensagem de validação antes do botão */}
-                            {accepted && (
-                                <div className="mt-4 p-3 bg-black/50 border border-gold-medium/30 rounded-md">
-                                    <p className="text-sm text-gray-300 mb-2">Before accepting, please ensure:</p>
-                                    <ul className="text-xs text-gray-400 space-y-1 list-disc list-inside">
-                                        {!isFormComplete() && <li className="text-red-400">All form fields are completed</li>}
-                                        {isFormComplete() && <li className="text-green-400">✓ Form is complete</li>}
-                                        {!documentsUploaded && <li className="text-red-400">All documents are uploaded (front, back, and selfie)</li>}
-                                        {documentsUploaded && <li className="text-green-400">✓ Documents uploaded</li>}
-                                        {(!signatureImageDataUrl || !signatureConfirmed) && <li className="text-red-400">Signature is drawn and confirmed (click "Done")</li>}
-                                        {signatureImageDataUrl && signatureConfirmed && <li className="text-green-400">✓ Signature confirmed</li>}
-                                    </ul>
-                                </div>
-                            )}
-
                             {/* Botão de aceitar */}
                             <div className="flex justify-end mt-4">
                                 <Button 
                                     onClick={handleAccept} 
-                                    disabled={!accepted || !documentsUploaded || !documentFrontUrl || !documentBackUrl || !identityPhotoPath || !signatureImageDataUrl || !signatureConfirmed || !isFormComplete() || !!templateLoadError || !contractContent || isSubmitting} 
+                                    disabled={!accepted || !!templateLoadError || !contractContent || isSubmitting} 
                                     className="w-full sm:w-auto min-w-[200px] bg-gradient-to-b from-gold-light via-gold-medium to-gold-light text-black font-bold hover:from-gold-medium hover:via-gold-light hover:to-gold-medium transition-all disabled:opacity-30 disabled:cursor-not-allowed shadow-lg disabled:shadow-none"
-                                    title={
-                                        !accepted ? 'Please accept the terms and conditions first' :
-                                        !isFormComplete() ? 'Please complete all form fields' :
-                                        !documentsUploaded ? 'Please upload all required documents' :
-                                        !signatureImageDataUrl || !signatureConfirmed ? 'Please sign and confirm your signature' :
-                                        'Accept the terms and conditions'
-                                    }
                                 >
                                     I ACCEPT <Check className="w-4 h-4 ml-2" />
                                 </Button>
@@ -2331,6 +2384,15 @@ export const PartnerTerms = () => {
                 {/* Spacer for sticky footer */}
                 <div className="h-24" />
             </div>
+
+            {/* Modal de Validação */}
+            <AlertModal
+                isOpen={showValidationModal}
+                onClose={() => setShowValidationModal(false)}
+                title={validationModalTitle}
+                message={validationModalMessage}
+                variant="warning"
+            />
         </div>
     );
 };

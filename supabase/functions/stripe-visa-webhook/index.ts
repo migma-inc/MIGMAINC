@@ -59,6 +59,8 @@ function normalizeServiceName(productSlug: string, productName: string): string 
 
 // Send webhook to client (n8n) after payment confirmation
 async function sendClientWebhook(order: any, supabase: any) {
+  let payload: any = null;
+  
   try {
     const webhookUrl = Deno.env.get('CLIENT_WEBHOOK_URL');
     
@@ -93,21 +95,31 @@ async function sendClientWebhook(order: any, supabase: any) {
     );
     
     // 3. Montar payload conforme especificado pelo cliente
-    // IMPORTANTE: valor_servico deve ser APENAS o valor base do serviço
-    // Para produtos units_only: extra_unit_price * extra_units (sem base)
+    // IMPORTANTE: valor_servico deve ser APENAS o valor unitário do serviço (sem multiplicar por unidades)
+    // Para produtos units_only: apenas extra_unit_price (valor unitário, não o total)
     // Para produtos base_plus_units: apenas base_price_usd (sem dependentes, sem taxas)
     let baseServicePrice: number;
     if (order.calculation_type === 'units_only') {
-      // Para units_only: valor = extra_unit_price * extra_units
-      const extraUnitPrice = parseFloat(order.extra_unit_price_usd || '0');
-      const extraUnits = order.extra_units || 0;
-      baseServicePrice = extraUnitPrice * extraUnits;
+      // Para units_only: valor = apenas extra_unit_price (valor unitário do serviço)
+      // Exemplo: visa-retry-defense = $99 por aplicante, mas valor_servico deve ser $99 (não $99 * número de aplicantes)
+      baseServicePrice = parseFloat(order.extra_unit_price_usd || '0');
     } else {
       // Para base_plus_units: valor = apenas base_price_usd (sem dependentes)
       baseServicePrice = parseFloat(order.base_price_usd || '0');
     }
     
-    const payload = {
+    // Log detalhado do cálculo do valor
+    console.log('[Webhook Client] 💰 Valor calculation details:', {
+      calculation_type: order.calculation_type,
+      base_price_usd: order.base_price_usd,
+      extra_unit_price_usd: order.extra_unit_price_usd,
+      extra_units: order.extra_units,
+      total_price_usd: order.total_price_usd,
+      calculated_baseServicePrice: baseServicePrice,
+      product_slug: order.product_slug,
+    });
+    
+    payload = {
       servico: normalizedServiceName,
       plano_servico: order.product_slug,
       nome_completo: order.client_name,
@@ -117,7 +129,8 @@ async function sendClientWebhook(order: any, supabase: any) {
       vendedor: order.seller_id || '',
     };
     
-    console.log('[Webhook Client] 📦 Payload prepared:', JSON.stringify(payload, null, 2));
+    console.log('[Webhook Client] 📦 Payload completo que será enviado:');
+    console.log(JSON.stringify(payload, null, 2));
     console.log('[Webhook Client] 🌐 Sending POST request to:', webhookUrl);
     
     const startTime = Date.now();
@@ -144,6 +157,7 @@ async function sendClientWebhook(order: any, supabase: any) {
         response: responseText,
         order_id: order.id,
         order_number: order.order_number,
+        payload_sent: payload,
       });
     } else {
       const responseText = await response.text();
@@ -156,6 +170,8 @@ async function sendClientWebhook(order: any, supabase: any) {
         order_id: order.id,
         order_number: order.order_number,
       });
+      console.log('[Webhook Client] 📤 Payload que foi enviado com sucesso:');
+      console.log(JSON.stringify(payload, null, 2));
       console.log('[Webhook Client] ✅ Webhook data received by n8n successfully');
     }
   } catch (error) {
@@ -165,6 +181,7 @@ async function sendClientWebhook(order: any, supabase: any) {
       stack: error instanceof Error ? error.stack : undefined,
       order_id: order?.id,
       order_number: order?.order_number,
+      payload_attempted: payload ? JSON.stringify(payload, null, 2) : 'Payload não foi criado devido ao erro',
     });
   }
 }

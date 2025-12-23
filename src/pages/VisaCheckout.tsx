@@ -285,7 +285,13 @@ export const VisaCheckout = () => {
         setPostalCode(parsed.postalCode || '');
         setMaritalStatus(parsed.maritalStatus || '');
         setClientObservations(parsed.clientObservations || '');
-        setExtraUnits(parsed.extraUnits || 0);
+        // Restaurar extraUnits, mas garantir mínimo de 1 para produtos units_only
+        const restoredExtraUnits = parsed.extraUnits || 0;
+        if (product?.calculation_type === 'units_only' && restoredExtraUnits < 1) {
+          setExtraUnits(1);
+        } else {
+          setExtraUnits(restoredExtraUnits);
+        }
         
         // Restore Step 3 data (terms and payment method)
         if (parsed.termsAccepted !== undefined) {
@@ -632,6 +638,12 @@ export const VisaCheckout = () => {
 
         setProduct(data);
 
+        // Para produtos units_only, inicializar com 1 unidade (mínimo obrigatório)
+        // Isso garante que o usuário não possa ter 0 unidades para esses serviços
+        if (data.calculation_type === 'units_only') {
+          setExtraUnits(1);
+        }
+
         // Track link click if seller_id is present
         if (sellerId) {
           await trackLinkClick(sellerId, productSlug);
@@ -833,6 +845,12 @@ export const VisaCheckout = () => {
 
   // Validate Step 1
   const validateStep1Form = (): boolean => {
+    // Validação especial para produtos units_only: deve ter pelo menos 1 unidade
+    if (product?.calculation_type === 'units_only' && extraUnits < 1) {
+      setError(`${product.extra_unit_label || 'Number of units'} must be at least 1 for this service`);
+      return false;
+    }
+
     const formData: Step1FormData = {
       clientName,
       clientEmail,
@@ -1394,7 +1412,10 @@ export const VisaCheckout = () => {
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          {[0, 1, 2, 3, 4, 5].map((num) => (
+                          {(product.calculation_type === 'units_only' 
+                            ? [1, 2, 3, 4, 5] // units_only: mínimo 1 unidade
+                            : [0, 1, 2, 3, 4, 5] // base_plus_units: pode ser 0
+                          ).map((num) => (
                             <SelectItem key={num} value={num.toString()}>
                               {num}
                             </SelectItem>

@@ -96,6 +96,10 @@ Deno.serve(async (req) => {
       console.warn("[EDGE FUNCTION] Acceptance approved but application status update failed");
     }
 
+    // Token de visualização já foi gerado quando o usuário assinou o contrato
+    // Não precisamos gerar novamente aqui, apenas aprovar o contrato
+    // O usuário já recebeu o email com o link de visualização após assinar
+
     console.log("[EDGE FUNCTION] Partner contract approved successfully");
 
     return new Response(

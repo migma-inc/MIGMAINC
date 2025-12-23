@@ -1037,6 +1037,128 @@ export async function sendContactMessageAccessLink(
  * Email: Admin Reply Notification
  * Sent to user when admin responds to their support ticket
  */
+/**
+ * Email: Send contract view link after contract approval
+ */
+export async function sendContractViewLinkEmail(
+    email: string,
+    fullName: string,
+    token: string,
+    baseUrl?: string
+): Promise<boolean> {
+    // Get base URL
+    const getBaseUrl = (): string => {
+        if (baseUrl) return baseUrl;
+        const envUrl = import.meta.env.VITE_APP_URL;
+        if (envUrl) return envUrl;
+        if (typeof window !== 'undefined' && window.location.origin) {
+            return window.location.origin;
+        }
+        return 'https://migma.com';
+    };
+
+    const appBaseUrl = getBaseUrl();
+    const viewUrl = `${appBaseUrl}/view-contract?token=${token}`;
+
+    const html = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+        </head>
+        <body style="margin: 0; padding: 0; font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #000000;">
+    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background-color: #000000;">
+        <tr>
+            <td align="center" style="padding: 40px 20px;">
+                <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="600" style="max-width: 600px; background-color: #000000; border-radius: 8px;">
+                    <!-- Logo Header -->
+                    <tr>
+                        <td align="center" style="padding: 40px 20px 30px; background-color: #000000;">
+                            <img src="https://ekxftwrjvxtpnqbraszv.supabase.co/storage/v1/object/public/logo/logo2.png" alt="MIGMA Logo" width="200" style="display: block; max-width: 200px; height: auto;">
+                        </td>
+                    </tr>
+                    <!-- Main Content -->
+                    <tr>
+                        <td style="padding: 0 40px 40px; background-color: #000000;">
+                            <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
+                                <tr>
+                                    <td style="padding: 30px; background: linear-gradient(135deg, #1a1a1a 0%, #000000 100%); border-radius: 8px; border: 1px solid #CE9F48;">
+                                        <h1 style="margin: 0 0 20px 0; font-size: 28px; font-weight: bold; color: #F3E196; text-align: center; background: linear-gradient(180deg, #8E6E2F 0%, #F3E196 25%, #CE9F48 50%, #F3E196 75%, #8E6E2F 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">
+                                            Your Contract Has Been Signed!
+                                        </h1>
+                                        <p style="margin: 0 0 20px 0; font-size: 16px; line-height: 1.6; color: #e0e0e0;">
+                                            Dear ${fullName},
+                                        </p>
+                                        <p style="margin: 0 0 20px 0; font-size: 16px; line-height: 1.6; color: #e0e0e0;">
+                                            Thank you for signing your <strong style="color: #CE9F48;">MIGMA Global Partner Contract</strong>! Your contract has been successfully submitted and is now under review.
+                                        </p>
+                                        <p style="margin: 0 0 20px 0; font-size: 16px; line-height: 1.6; color: #e0e0e0;">
+                                            You can now view your signed contract, including your digital signature and identity documents, through our secure portal.
+                                        </p>
+                                        <!-- CTA Button -->
+                                        <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
+                                            <tr>
+                                                <td align="center" style="padding: 0 0 30px;">
+                                                    <a href="${viewUrl}" style="display: inline-block; padding: 16px 40px; background: linear-gradient(180deg, #F3E196 0%, #CE9F48 50%, #F3E196 100%); color: #000000; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 16px; box-shadow: 0 4px 12px rgba(206, 159, 72, 0.4);">
+                                                        View Your Signed Contract
+                                                    </a>
+                                                </td>
+                                            </tr>
+                                        </table>
+                                        <p style="text-align: center; margin: 0 0 30px 0; font-size: 14px; color: #999999;">
+                                            Or copy and paste this link into your browser:<br>
+                                            <span style="word-break: break-all; color: #CE9F48; font-size: 12px;">${viewUrl}</span>
+                                        </p>
+                                        <!-- Info Box -->
+                                        <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
+                                            <tr>
+                                                <td style="padding: 20px; background-color: #1a1a1a; border-left: 4px solid #CE9F48; border-radius: 4px; margin: 20px 0;">
+                                                    <p style="margin: 0; color: #F3E196; font-size: 14px; line-height: 1.6;">
+                                                        <strong style="color: #CE9F48;">Note:</strong> This document is protected and available for viewing only. Downloading, copying, or printing is disabled for security purposes. The link will expire in 90 days.
+                                                    </p>
+                                                </td>
+                                            </tr>
+                                        </table>
+                                        <p style="margin: 30px 0 0 0; font-size: 16px; line-height: 1.6; color: #e0e0e0;">
+                                            Welcome to the MIGMA team! We look forward to working with you.
+                                        </p>
+                                        <p style="margin: 20px 0 0 0; font-size: 16px; line-height: 1.6; color: #e0e0e0;">
+                                            Best regards,<br>
+                                            <strong style="color: #CE9F48;">The MIGMA Team</strong>
+                                        </p>
+                                    </td>
+                                </tr>
+                            </table>
+                        </td>
+                    </tr>
+                    <!-- Footer -->
+                    <tr>
+                        <td align="center" style="padding: 20px 40px; background-color: #000000;">
+                            <p style="margin: 0 0 10px 0; font-size: 11px; color: #999999; line-height: 1.5; font-style: italic;">
+                                This is an automated message. Please do not reply to this email.
+                            </p>
+                            <p style="margin: 0; font-size: 12px; color: #666666; line-height: 1.5;">
+                                © 2025 MIGMA. All rights reserved.
+                            </p>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+        </body>
+        </html>
+    `;
+
+    return sendEmail({
+        to: email,
+        subject: 'Your MIGMA Global Partner Contract Has Been Signed - View Your Contract',
+        html: html,
+    });
+}
+
 export async function sendAdminReplyNotification(
     userEmail: string,
     userName: string,
