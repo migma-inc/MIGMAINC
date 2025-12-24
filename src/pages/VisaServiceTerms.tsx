@@ -11,114 +11,109 @@ export const VisaServiceTerms = () => {
         </Link>
 
         <div className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 rounded-lg p-8 border border-gold-medium/30">
-          <h1 className="text-4xl font-bold migma-gold-text mb-8">Visa Service Terms & Conditions</h1>
+          <h1 className="text-4xl font-bold migma-gold-text mb-8">Website Terms of Use – MIGMA Inc.</h1>
           
           <div className="space-y-6 text-gray-300">
             <section>
-              <h2 className="text-2xl font-bold text-gold-light mb-4">1. Service Agreement</h2>
               <p className="leading-relaxed">
-                Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. 
-                Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.
+                These Website Terms of Use ("Terms") govern your access to and use of the website operated by MIGMA Inc. ("MIGMA", "we", "our", or "us"). By accessing or using this website, you agree to be bound by these Terms. If you do not agree, you must discontinue use of the website.
               </p>
             </section>
 
             <section>
-              <h2 className="text-2xl font-bold text-gold-light mb-4">2. Service Description</h2>
+              <h2 className="text-2xl font-bold text-gold-light mb-4">1. Acceptance of Terms</h2>
+              <p className="leading-relaxed">
+                By accessing, browsing, or using this website, you acknowledge that you have read, understood, and agreed to these Terms, as well as our Privacy Policy and any other legal notices published on the website.
+              </p>
+            </section>
+
+            <section>
+              <h2 className="text-2xl font-bold text-gold-light mb-4">2. Use License</h2>
               <p className="leading-relaxed mb-4">
-                Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. 
-                Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.
+                MIGMA grants you a limited, non-exclusive, non-transferable, and revocable license to access and use the website for informational and personal purposes only.
+              </p>
+              <p className="leading-relaxed mb-4">
+                You may not:
               </p>
               <ul className="list-disc list-inside space-y-2 ml-4">
-                <li>Consultation and application guidance</li>
-                <li>Document preparation and review</li>
-                <li>Interview preparation (if applicable)</li>
-                <li>Application submission assistance</li>
-                <li>Follow-up support throughout the process</li>
+                <li>Modify, copy, reproduce, distribute, or republish website content without prior written consent</li>
+                <li>Use the website for unlawful or prohibited purposes</li>
+                <li>Attempt to gain unauthorized access to systems or data</li>
+                <li>Use the website in a manner that could damage, disable, or impair its operation</li>
               </ul>
+              <p className="leading-relaxed mt-4">
+                All intellectual property rights remain the exclusive property of MIGMA or its licensors.
+              </p>
             </section>
 
             <section>
-              <h2 className="text-2xl font-bold text-gold-light mb-4">3. Payment Terms</h2>
+              <h2 className="text-2xl font-bold text-gold-light mb-4">3. Disclaimer</h2>
               <p className="leading-relaxed mb-4">
-                Lorem ipsum dolor sit amet, consectetur adipiscing elit. Payments are processed securely through our payment partners:
+                The content on this website is provided for general informational purposes only. MIGMA makes no warranties or representations regarding the accuracy, completeness, or reliability of any content.
               </p>
-              <ul className="list-disc list-inside space-y-2 ml-4">
-                <li><strong>Credit/Debit Card & PIX:</strong> Processed through Stripe</li>
-                <li><strong>Zelle:</strong> Transfer verification required</li>
-                <li>All prices are listed in USD</li>
-                <li>Additional dependent fees apply as indicated</li>
-              </ul>
-            </section>
-
-            <section>
-              <h2 className="text-2xl font-bold text-gold-light mb-4">4. Refund Policy</h2>
-              <p className="leading-relaxed">
-                Sed ut perspiciatis unde omnis iste natus error sit voluptatem accusantium doloremque laudantium, 
-                totam rem aperiam, eaque ipsa quae ab illo inventore veritatis et quasi architecto beatae vitae dicta sunt explicabo.
-              </p>
-            </section>
-
-            <section>
-              <h2 className="text-2xl font-bold text-gold-light mb-4">5. Client Responsibilities</h2>
               <p className="leading-relaxed mb-4">
-                Nemo enim ipsam voluptatem quia voluptas sit aspernatur aut odit aut fugit:
+                MIGMA does not provide legal, immigration, governmental, or regulatory services, and nothing on this website constitutes professional advice of any kind.
               </p>
-              <ul className="list-disc list-inside space-y-2 ml-4">
-                <li>Provide accurate and complete information</li>
-                <li>Submit requested documents in a timely manner</li>
-                <li>Attend scheduled consultations and interviews</li>
-                <li>Respond promptly to our communications</li>
-                <li>Comply with all visa requirements and regulations</li>
-              </ul>
-            </section>
-
-            <section>
-              <h2 className="text-2xl font-bold text-gold-light mb-4">6. Service Limitations</h2>
               <p className="leading-relaxed">
-                At vero eos et accusamus et iusto odio dignissimos ducimus qui blanditiis praesentium voluptatum deleniti atque corrupti 
-                quos dolores et quas molestias excepturi sint occaecati cupiditate non provident.
+                Use of the website and reliance on its content is at your own risk.
               </p>
             </section>
 
             <section>
-              <h2 className="text-2xl font-bold text-gold-light mb-4">7. Confidentiality</h2>
+              <h2 className="text-2xl font-bold text-gold-light mb-4">4. Limitations of Liability</h2>
               <p className="leading-relaxed">
-                Similique sunt in culpa qui officia deserunt mollitia animi, id est laborum et dolorum fuga. 
-                Et harum quidem rerum facilis est et expedita distinctio.
+                To the fullest extent permitted by law, MIGMA shall not be liable for any direct, indirect, incidental, consequential, or special damages arising out of or related to the use or inability to use this website, including but not limited to loss of data, revenue, or business opportunities.
               </p>
             </section>
 
             <section>
-              <h2 className="text-2xl font-bold text-gold-light mb-4">8. Liability</h2>
+              <h2 className="text-2xl font-bold text-gold-light mb-4">5. Accuracy of Materials</h2>
               <p className="leading-relaxed">
-                Nam libero tempore, cum soluta nobis est eligendi optio cumque nihil impedit quo minus id quod maxime placeat 
-                facere possimus, omnis voluptas assumenda est, omnis dolor repellendus.
+                While MIGMA strives to keep website content accurate and up to date, we do not warrant that all materials are current, complete, or free from errors. MIGMA reserves the right to modify content at any time without notice.
               </p>
             </section>
 
             <section>
-              <h2 className="text-2xl font-bold text-gold-light mb-4">9. Governing Law</h2>
-              <p className="leading-relaxed">
-                Temporibus autem quibusdam et aut officiis debitis aut rerum necessitatibus saepe eveniet ut et voluptates 
-                repudiandae sint et molestiae non recusandae.
-              </p>
-            </section>
-
-            <section>
-              <h2 className="text-2xl font-bold text-gold-light mb-4">10. Contact Information</h2>
+              <h2 className="text-2xl font-bold text-gold-light mb-4">6. Links to Third-Party Websites</h2>
               <p className="leading-relaxed mb-4">
-                For questions regarding these terms, please contact us:
+                This website may contain links to third-party websites for convenience or informational purposes. MIGMA does not control, endorse, or assume responsibility for the content, policies, or practices of third-party websites.
+              </p>
+              <p className="leading-relaxed">
+                Access to third-party websites is at your own discretion and risk.
+              </p>
+            </section>
+
+            <section>
+              <h2 className="text-2xl font-bold text-gold-light mb-4">7. Modifications</h2>
+              <p className="leading-relaxed">
+                MIGMA reserves the right to revise or update these Terms at any time without prior notice. Changes become effective upon publication on the website. Continued use of the website after updates constitutes acceptance of the revised Terms.
+              </p>
+            </section>
+
+            <section>
+              <h2 className="text-2xl font-bold text-gold-light mb-4">8. Governing Law</h2>
+              <p className="leading-relaxed">
+                These Terms shall be governed by and construed in accordance with the laws of the State of Arizona, United States, without regard to conflict of law principles.
+              </p>
+            </section>
+
+            <section>
+              <h2 className="text-2xl font-bold text-gold-light mb-4">9. Contact</h2>
+              <p className="leading-relaxed mb-4">
+                For questions regarding these Terms, please contact:
               </p>
               <div className="bg-black/50 rounded-lg p-4 space-y-2">
-                <p><strong className="text-gold-light">MIGMA INC</strong></p>
-                <p>Email: info@migma.com</p>
-                <p>Phone: +1 (XXX) XXX-XXXX</p>
+                <p>
+                  <a href="mailto:adm@migmainc.com" className="text-gold-light hover:text-gold-medium transition">
+                    adm@migmainc.com
+                  </a>
+                </p>
               </div>
             </section>
 
             <div className="border-t border-gold-medium/30 pt-6 mt-8">
               <p className="text-sm text-gray-400">
-                Last Updated: {new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
+                ©️ MIGMA Inc. – All rights reserved.
               </p>
             </div>
           </div>
@@ -127,18 +122,6 @@ export const VisaServiceTerms = () => {
     </div>
   );
 };
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
