@@ -127,9 +127,16 @@ async function sendClientWebhook(order: any, supabase: any) {
       email: order.client_email,
       valor_servico: baseServicePrice.toFixed(2),
       vendedor: order.seller_id || '',
+      quantidade_dependentes: order.dependent_names && Array.isArray(order.dependent_names) ? order.dependent_names.length : 0,
     };
     
-    console.log('[Webhook Client] 📦 Payload completo que será enviado:');
+    // Log resumo antes de enviar
+    const dependentCount = order.dependent_names && Array.isArray(order.dependent_names) ? order.dependent_names.length : 0;
+    console.log('[Webhook Client] 📋 RESUMO DOS WEBHOOKS A SEREM ENVIADOS:');
+    console.log(`[Webhook Client] - Cliente Principal: 1 webhook`);
+    console.log(`[Webhook Client] - Dependentes: ${dependentCount} webhook(s)`);
+    console.log(`[Webhook Client] - TOTAL: ${1 + dependentCount} webhook(s)`);
+    console.log('[Webhook Client] 📦 Payload completo do CLIENTE PRINCIPAL que será enviado:');
     console.log(JSON.stringify(payload, null, 2));
     console.log('[Webhook Client] 🌐 Sending POST request to:', webhookUrl);
     
@@ -146,34 +153,148 @@ async function sendClientWebhook(order: any, supabase: any) {
     
     const endTime = Date.now();
     const duration = endTime - startTime;
+    const durationStr = duration + "ms";
     
     // 4. Log resultado detalhado (sucesso ou erro)
     if (!response.ok) {
       const responseText = await response.text();
-      console.error('[Webhook Client] ❌ Error sending webhook:', {
+      console.error('[Webhook Client] ❌ Error sending CLIENTE PRINCIPAL webhook:', {
         status: response.status,
         statusText: response.statusText,
-        duration: `${duration}ms`,
+        duration: durationStr,
         response: responseText,
         order_id: order.id,
         order_number: order.order_number,
         payload_sent: payload,
       });
+      console.error('[Webhook Client] ❌ PAYLOAD QUE FALHOU (Cliente Principal):');
+      console.error(JSON.stringify(payload, null, 2));
     } else {
       const responseText = await response.text();
-      console.log('[Webhook Client] ✅ Successfully sent to client webhook');
-      console.log('[Webhook Client] 📊 Response details:', {
+      console.log('[Webhook Client] ✅ Successfully sent CLIENTE PRINCIPAL webhook');
+      console.log('[Webhook Client] 📊 Response details (Cliente Principal):', {
         status: response.status,
         statusText: response.statusText,
-        duration: `${duration}ms`,
+        duration: durationStr,
         response: responseText || '(empty response)',
         order_id: order.id,
         order_number: order.order_number,
       });
-      console.log('[Webhook Client] 📤 Payload que foi enviado com sucesso:');
+      console.log('[Webhook Client] 📤 PAYLOAD ENVIADO COM SUCESSO (Cliente Principal):');
       console.log(JSON.stringify(payload, null, 2));
-      console.log('[Webhook Client] ✅ Webhook data received by n8n successfully');
+      console.log('[Webhook Client] ✅ Webhook data received by n8n successfully (Cliente Principal)');
     }
+
+    // 5. Enviar webhooks separados para cada dependente
+    if (order.dependent_names && Array.isArray(order.dependent_names) && order.dependent_names.length > 0) {
+      const dependentCount = order.dependent_names.length;
+      const dependentUnitPrice = parseFloat(order.extra_unit_price_usd || '0');
+      
+      console.log('');
+      console.log('[Webhook Client] ========================================');
+      console.log(`[Webhook Client] 📤 INICIANDO ENVIO DE ${dependentCount} WEBHOOK(S) DE DEPENDENTE(S)`);
+      console.log('[Webhook Client] ========================================');
+      
+      for (let i = 0; i < dependentCount; i++) {
+        const dependentName = order.dependent_names[i];
+        
+        if (!dependentName || dependentName.trim() === '') {
+          console.warn(`[Webhook Client] ⚠️ Skipping dependent ${i + 1}: empty name`);
+          continue;
+        }
+        
+        // Payload simplificado - nome do cliente principal, nome do dependente e valor
+        const dependentPayload = {
+          nome_completo_cliente_principal: order.client_name,
+          nome_completo_dependente: dependentName,
+          valor_servico: dependentUnitPrice.toFixed(2),
+        };
+        
+        console.log('');
+        console.log(`[Webhook Client] 📦 PAYLOAD DEPENDENTE ${i + 1}/${dependentCount} (ANTES DE ENVIAR):`);
+        console.log(JSON.stringify(dependentPayload, null, 2));
+        console.log(`[Webhook Client] 🌐 Sending POST request for Dependent ${i + 1}/${dependentCount}`);
+        
+        const dependentStartTime = Date.now();
+        
+        try {
+          const dependentResponse = await fetch(webhookUrl, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(dependentPayload),
+          });
+          
+          const dependentEndTime = Date.now();
+          const dependentDuration = dependentEndTime - dependentStartTime;
+          const dependentDurationStr = dependentDuration + "ms";
+          
+          if (!dependentResponse.ok) {
+            const dependentResponseText = await dependentResponse.text();
+            console.error(`[Webhook Client] ❌ ERRO ao enviar webhook do DEPENDENTE ${i + 1}/${dependentCount}:`, {
+              status: dependentResponse.status,
+              statusText: dependentResponse.statusText,
+              duration: dependentDurationStr,
+              response: dependentResponseText,
+              order_id: order.id,
+              order_number: order.order_number,
+              dependent_name: dependentName,
+              dependent_index: i + 1,
+            });
+            console.error(`[Webhook Client] ❌ PAYLOAD QUE FALHOU (Dependente ${i + 1}):`);
+            console.error(JSON.stringify(dependentPayload, null, 2));
+          } else {
+            const dependentResponseText = await dependentResponse.text();
+            console.log(`[Webhook Client] ✅ SUCESSO ao enviar webhook do DEPENDENTE ${i + 1}/${dependentCount}`);
+            console.log(`[Webhook Client] 📊 Response details (Dependente ${i + 1}):`, {
+              status: dependentResponse.status,
+              statusText: dependentResponse.statusText,
+              duration: dependentDurationStr,
+              response: dependentResponseText || '(empty response)',
+              order_id: order.id,
+              order_number: order.order_number,
+              dependent_name: dependentName,
+              dependent_index: i + 1,
+            });
+            console.log(`[Webhook Client] 📤 PAYLOAD ENVIADO COM SUCESSO (Dependente ${i + 1}):`);
+            console.log(JSON.stringify(dependentPayload, null, 2));
+            console.log(`[Webhook Client] ✅ Webhook data received by n8n successfully (Dependente ${i + 1})`);
+          }
+        } catch (dependentError) {
+          console.error(`[Webhook Client] ❌ EXCEÇÃO ao enviar webhook do DEPENDENTE ${i + 1}/${dependentCount}:`, {
+            error: dependentError instanceof Error ? dependentError.message : String(dependentError),
+            stack: dependentError instanceof Error ? dependentError.stack : undefined,
+            order_id: order?.id,
+            order_number: order?.order_number,
+            dependent_name: dependentName,
+            dependent_index: i + 1,
+          });
+          console.error(`[Webhook Client] ❌ PAYLOAD QUE FALHOU (Dependente ${i + 1}):`);
+          console.error(JSON.stringify(dependentPayload, null, 2));
+        }
+      }
+      
+      console.log('');
+      console.log('[Webhook Client] ========================================');
+      console.log(`[Webhook Client] ✅ FINALIZADO: ${dependentCount} webhook(s) de dependente(s) processado(s)`);
+      console.log('[Webhook Client] ========================================');
+      console.log('');
+    } else {
+      console.log('[Webhook Client] ℹ️ No dependents to send webhooks for');
+    }
+    
+    // Log resumo final
+    console.log('');
+    console.log('[Webhook Client] ========================================');
+    console.log('[Webhook Client] 📋 RESUMO FINAL DOS WEBHOOKS ENVIADOS:');
+    console.log(`[Webhook Client] - Cliente Principal: 1 webhook`);
+    console.log(`[Webhook Client] - Dependentes: ${dependentCount} webhook(s)`);
+    console.log(`[Webhook Client] - TOTAL: ${1 + dependentCount} webhook(s)`);
+    console.log(`[Webhook Client] - Order ID: ${order.id}`);
+    console.log(`[Webhook Client] - Order Number: ${order.order_number}`);
+    console.log('[Webhook Client] ========================================');
+    console.log('');
   } catch (error) {
     // Não bloquear fluxo se webhook falhar - apenas logar erro
     console.error('[Webhook Client] ❌ Exception sending webhook:', {

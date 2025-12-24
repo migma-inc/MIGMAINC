@@ -125,6 +125,7 @@ Deno.serve(async (req: Request) => {
       product_slug,
       seller_id,
       extra_units = 0,
+      dependent_names = [],
       client_name,
       client_email,
       client_whatsapp,
@@ -147,6 +148,31 @@ Deno.serve(async (req: Request) => {
         JSON.stringify({ error: "Invalid number of extra units" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
+    }
+
+    // Validate dependent_names
+    let dependentNamesArray: string[] = [];
+    if (Array.isArray(dependent_names)) {
+      dependentNamesArray = dependent_names.filter(name => name && typeof name === 'string' && name.trim() !== '');
+    }
+    
+    // If extra_units > 0, validate that dependent_names has the same length
+    if (extraUnitsNum > 0) {
+      if (dependentNamesArray.length !== extraUnitsNum) {
+        console.error("[Checkout] Mismatch: extra_units =", extraUnitsNum, "but dependent_names.length =", dependentNamesArray.length);
+        return new Response(
+          JSON.stringify({ error: `Number of dependent names (${dependentNamesArray.length}) must match number of dependents (${extraUnitsNum})` }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      // Validate that all names are non-empty
+      const emptyNames = dependentNamesArray.filter(name => !name || name.trim() === '');
+      if (emptyNames.length > 0) {
+        return new Response(
+          JSON.stringify({ error: "All dependent names must be provided and non-empty" }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
     }
 
     // Validate required fields
@@ -310,6 +336,7 @@ Deno.serve(async (req: Request) => {
         price_per_dependent_usd: extraUnitPrice,
         number_of_dependents: extraUnitsNum,
         extra_units: extraUnitsNum,
+        dependent_names: extraUnitsNum > 0 ? dependentNamesArray : null,
         extra_unit_label: product.extra_unit_label,
         extra_unit_price_usd: extraUnitPrice,
         calculation_type: product.calculation_type,

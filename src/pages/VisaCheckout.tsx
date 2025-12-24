@@ -67,6 +67,7 @@ export const VisaCheckout = () => {
 
   // Form state - Step 1: Personal Information
   const [extraUnits, setExtraUnits] = useState(0);
+  const [dependentNames, setDependentNames] = useState<string[]>([]);
   const [clientName, setClientName] = useState('');
   const [clientEmail, setClientEmail] = useState('');
   const [clientWhatsApp, setClientWhatsApp] = useState('');
@@ -292,6 +293,15 @@ export const VisaCheckout = () => {
         } else {
           setExtraUnits(restoredExtraUnits);
         }
+        // Restaurar nomes dos dependentes
+        if (parsed.dependentNames && Array.isArray(parsed.dependentNames)) {
+          setDependentNames(parsed.dependentNames);
+        } else if (restoredExtraUnits > 0) {
+          // Se não há nomes salvos mas há dependentes, criar array vazio
+          setDependentNames(Array(restoredExtraUnits).fill(''));
+        } else {
+          setDependentNames([]);
+        }
         
         // Restore Step 3 data (terms and payment method)
         if (parsed.termsAccepted !== undefined) {
@@ -457,6 +467,7 @@ export const VisaCheckout = () => {
         maritalStatus,
         clientObservations,
         extraUnits,
+        dependentNames,
         // Step 3: Terms & Payment (text/select only, no files)
         termsAccepted,
         dataAuthorization,
@@ -505,6 +516,7 @@ export const VisaCheckout = () => {
     maritalStatus,
     clientObservations,
     extraUnits,
+    dependentNames,
     // Step 3 fields (text/select only)
     termsAccepted,
     dataAuthorization,
@@ -851,6 +863,20 @@ export const VisaCheckout = () => {
       return false;
     }
 
+    // Validação de nomes de dependentes
+    if (extraUnits > 0) {
+      if (dependentNames.length !== extraUnits) {
+        setError(`Please provide names for all ${extraUnits} dependent${extraUnits > 1 ? 's' : ''}`);
+        return false;
+      }
+      // Verificar que todos os nomes estão preenchidos (não vazios)
+      const emptyNames = dependentNames.filter(name => !name || name.trim() === '');
+      if (emptyNames.length > 0) {
+        setError(`Please provide names for all dependents. ${emptyNames.length} name${emptyNames.length > 1 ? 's' : ''} missing.`);
+        return false;
+      }
+    }
+
     const formData: Step1FormData = {
       clientName,
       clientEmail,
@@ -1044,6 +1070,7 @@ export const VisaCheckout = () => {
           maritalStatus,
           clientObservations,
           extraUnits,
+          dependentNames,
           termsAccepted,
           dataAuthorization,
           paymentMethod: method,
@@ -1060,6 +1087,7 @@ export const VisaCheckout = () => {
           product_slug: productSlug,
           seller_id: sellerId,
           extra_units: extraUnits,
+          dependent_names: dependentNames,
           client_name: clientName,
           client_email: clientEmail,
           client_whatsapp: clientWhatsApp,
@@ -1219,6 +1247,7 @@ export const VisaCheckout = () => {
           price_per_dependent_usd: parseFloat(product!.price_per_dependent_usd),
           number_of_dependents: extraUnits,
           extra_units: extraUnits,
+          dependent_names: extraUnits > 0 ? dependentNames : null,
           extra_unit_label: product!.extra_unit_label,
           extra_unit_price_usd: parseFloat(product!.extra_unit_price),
           calculation_type: product!.calculation_type,
@@ -1406,7 +1435,24 @@ export const VisaCheckout = () => {
                       </Label>
                       <Select
                         value={extraUnits.toString()}
-                        onValueChange={(value) => setExtraUnits(parseInt(value))}
+                        onValueChange={(value) => {
+                          const newExtraUnits = parseInt(value);
+                          setExtraUnits(newExtraUnits);
+                          // Ajustar array de nomes quando quantidade muda
+                          if (newExtraUnits === 0) {
+                            setDependentNames([]);
+                          } else if (newExtraUnits < dependentNames.length) {
+                            // Diminuir: remover nomes excedentes
+                            setDependentNames(dependentNames.slice(0, newExtraUnits));
+                          } else if (newExtraUnits > dependentNames.length) {
+                            // Aumentar: adicionar slots vazios
+                            const newNames = [...dependentNames];
+                            while (newNames.length < newExtraUnits) {
+                              newNames.push('');
+                            }
+                            setDependentNames(newNames);
+                          }
+                        }}
                       >
                         <SelectTrigger className="bg-white text-black">
                           <SelectValue />
@@ -1422,6 +1468,30 @@ export const VisaCheckout = () => {
                           ))}
                         </SelectContent>
                       </Select>
+                    </div>
+                  )}
+
+                  {/* Dependent Names - Dynamic inputs */}
+                  {extraUnits > 0 && (
+                    <div className="space-y-2">
+                      {Array.from({ length: extraUnits }, (_, i) => (
+                        <div key={i} className="space-y-2">
+                          <Label htmlFor={`dependent-name-${i}`} className="text-white">
+                            Dependent Name {i + 1} *
+                          </Label>
+                          <Input
+                            id={`dependent-name-${i}`}
+                            value={dependentNames[i] || ''}
+                            onChange={(e) => {
+                              const newNames = [...dependentNames];
+                              newNames[i] = e.target.value;
+                              setDependentNames(newNames);
+                            }}
+                            className="bg-white text-black"
+                            required
+                          />
+                        </div>
+                      ))}
                     </div>
                   )}
 

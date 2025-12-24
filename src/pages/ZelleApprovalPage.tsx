@@ -151,6 +151,18 @@ export const ZelleApprovalPage = () => {
         // TODO: Implement seller notification
       }
 
+      // Send webhook to client (n8n) after Zelle payment approval
+      try {
+        await supabase.functions.invoke('send-zelle-webhook', {
+          body: {
+            order_id: selectedOrder.id,
+          },
+        });
+      } catch (webhookError) {
+        console.error('Error sending webhook after Zelle approval:', webhookError);
+        // Continue even if webhook fails - payment is already approved
+      }
+
       setAlertData({
         title: 'Success',
         message: 'Payment approved successfully! Email sent to client.',

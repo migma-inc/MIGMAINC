@@ -323,3 +323,6 @@ Para dúvidas ou problemas relacionados a esta alteração, consulte:
 - Código-fonte: `supabase/functions/stripe-visa-webhook/index.ts`
 - Frontend: `src/pages/VisaCheckout.tsx`
 
+
+
+
