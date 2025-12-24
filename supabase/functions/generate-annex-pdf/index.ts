@@ -1,5 +1,5 @@
-// Supabase Edge Function to generate visa service contract PDF
-// Generates a PDF contract including order data, client information, selfie with document, IP, and terms
+// Supabase Edge Function to generate ANNEX I PDF
+// Generates a PDF for Payment Authorization & Non-Dispute Agreement for scholarship and i20-control products
 
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
@@ -14,6 +14,62 @@ const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
+
+// ANNEX I text (plain text version for PDF)
+const ANNEX_I_TEXT = `ANNEX I – PAYMENT AUTHORIZATION & NON-DISPUTE AGREEMENT
+
+This Annex is an integral part of the Educational Services Agreement entered into between MIGMA INC. and the CLIENT.
+
+1. CLIENT IDENTIFICATION
+
+The individual identified at the end of this Agreement ("CLIENT").
+
+2. PAYMENT AUTHORIZATION
+
+The CLIENT expressly declares that:
+
+a) All payments made to MIGMA INC. are voluntary, informed, and authorized;
+b) The CLIENT is fully aware of the service contracted, its nature, scope, and limitations;
+c) Payments may be processed through international or intermediary platforms.
+
+3. NATURE OF SERVICES & NO CHARGEBACK BASIS
+
+The CLIENT acknowledges that:
+
+a) The services are personalized, intellectual, and initiated immediately upon payment;
+b) The COMPANY provides educational mentorship and academic guidance, not legal services;
+c) Once services commence, payments are non-refundable, except as expressly stated in the main Agreement.
+
+4. NON-DISPUTE COMMITMENT
+
+The CLIENT agrees that they will not initiate chargebacks, payment disputes, or claims based on:
+
+- alleged lack of recognition of the transaction;
+- dissatisfaction with outcomes dependent on third parties;
+- processing times of institutions or authorities;
+- misunderstanding of service scope already clarified in the Agreement.
+
+5. PRIOR INTERNAL RESOLUTION
+
+Before initiating any bank or platform dispute, the CLIENT agrees to first contact MIGMA INC. through official support channels for resolution.
+
+6. EVIDENCE AUTHORIZATION
+
+In case of a payment dispute, the CLIENT authorizes MIGMA INC. to use the following as evidence:
+
+- electronic signature
+- selfie holding identification document
+- IP address, date, and time logs
+- signed Agreement and Annex
+- communication records related to service delivery
+
+7. INTERNATIONAL PROCESSING CONSENT
+
+The CLIENT acknowledges that charges may appear under different corporate or platform descriptors due to international payment processing.
+
+8. FINAL DECLARATION
+
+The CLIENT declares that they have read, understood, and voluntarily accepted this Payment Authorization and Non-Dispute Agreement.`;
 
 Deno.serve(async (req) => {
   // Handle CORS
@@ -31,7 +87,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    console.log("[EDGE FUNCTION] Generating visa contract PDF for order:", order_id);
+    console.log("[EDGE FUNCTION] Generating ANNEX I PDF for order:", order_id);
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey, {
       auth: { autoRefreshToken: false, persistSession: false },
@@ -63,40 +119,69 @@ Deno.serve(async (req) => {
       console.error("[EDGE FUNCTION] Error fetching product:", productError);
     }
 
-    // Fetch contract template for this product
-    let contractTemplate: { content: string } | null = null;
-    if (order.product_slug) {
-      const { data: template, error: templateError } = await supabase
-        .from('contract_templates')
-        .select('content')
-        .eq('template_type', 'visa_service')
-        .eq('product_slug', order.product_slug)
-        .eq('is_active', true)
-        .single();
-
-      if (!templateError && template) {
-        contractTemplate = template;
-        console.log("[EDGE FUNCTION] Contract template found for product:", order.product_slug);
-      } else {
-        console.log("[EDGE FUNCTION] No contract template found for product:", order.product_slug);
-      }
-    }
-
-    // Fetch identity files if service_request_id exists
+    // Fetch identity files
+    // For scholarship and i20-control products, we need to get documents from the previous selection-process order
     let identityFiles: { document_front: string | null; document_back: string | null; selfie_doc: string | null } = {
       document_front: null,
       document_back: null,
       selfie_doc: null,
     };
 
-    if (order.service_request_id) {
+    let serviceRequestIdToUse: string | null = null;
+
+    // Check if this is a scholarship or i20-control product
+    const isAnnexProduct = order.product_slug?.endsWith('-scholarship') || order.product_slug?.endsWith('-i20-control');
+    
+    if (isAnnexProduct) {
+      // For scholarship/i20-control, find the previous selection-process order from the same client
+      console.log("[EDGE FUNCTION] This is a scholarship/i20-control product, searching for previous selection-process order...");
+      
+      // Extract base product slug (e.g., "cos-scholarship" -> "cos-selection-process")
+      const baseSlug = order.product_slug.replace(/-scholarship$/, '').replace(/-i20-control$/, '');
+      const selectionProcessSlug = `${baseSlug}-selection-process`;
+      
+      console.log("[EDGE FUNCTION] Looking for selection-process order with slug:", selectionProcessSlug);
+      console.log("[EDGE FUNCTION] Client email:", order.client_email);
+      
+      // Find the most recent completed selection-process order for this client
+      const { data: previousOrder, error: previousOrderError } = await supabase
+        .from('visa_orders')
+        .select('id, service_request_id, product_slug, order_number, created_at')
+        .eq('client_email', order.client_email)
+        .eq('product_slug', selectionProcessSlug)
+        .eq('payment_status', 'completed')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+
+      if (previousOrderError || !previousOrder) {
+        console.error("[EDGE FUNCTION] Could not find previous selection-process order:", previousOrderError);
+        console.log("[EDGE FUNCTION] Will try to use current order's service_request_id as fallback");
+        serviceRequestIdToUse = order.service_request_id;
+      } else {
+        console.log("[EDGE FUNCTION] Found previous selection-process order:", previousOrder.order_number);
+        console.log("[EDGE FUNCTION] Previous order service_request_id:", previousOrder.service_request_id);
+        serviceRequestIdToUse = previousOrder.service_request_id;
+      }
+    } else {
+      // For other products, use current order's service_request_id
+      serviceRequestIdToUse = order.service_request_id;
+    }
+
+    // Fetch identity files using the determined service_request_id
+    if (serviceRequestIdToUse) {
+      console.log("[EDGE FUNCTION] Fetching identity files for service_request_id:", serviceRequestIdToUse);
       const { data: files, error: filesError } = await supabase
         .from('identity_files')
         .select('file_type, file_path')
-        .eq('service_request_id', order.service_request_id);
+        .eq('service_request_id', serviceRequestIdToUse);
 
-      if (!filesError && files) {
+      if (filesError) {
+        console.error("[EDGE FUNCTION] Error fetching identity files:", filesError);
+      } else if (files) {
+        console.log("[EDGE FUNCTION] Found identity files:", files.length);
         files.forEach((file) => {
+          console.log("[EDGE FUNCTION] Identity file:", file.file_type, file.file_path);
           if (file.file_type === 'document_front' && file.file_path) {
             identityFiles.document_front = file.file_path;
           } else if (file.file_type === 'document_back' && file.file_path) {
@@ -105,7 +190,16 @@ Deno.serve(async (req) => {
             identityFiles.selfie_doc = file.file_path;
           }
         });
+        console.log("[EDGE FUNCTION] Identity files summary:", {
+          document_front: identityFiles.document_front ? 'found' : 'missing',
+          document_back: identityFiles.document_back ? 'found' : 'missing',
+          selfie_doc: identityFiles.selfie_doc ? 'found' : 'missing',
+        });
+      } else {
+        console.log("[EDGE FUNCTION] No identity files found for service_request_id:", serviceRequestIdToUse);
       }
+    } else {
+      console.log("[EDGE FUNCTION] No service_request_id available, skipping identity files fetch");
     }
 
     // Create PDF
@@ -114,55 +208,6 @@ Deno.serve(async (req) => {
     const pageHeight = pdf.internal.pageSize.getHeight();
     const margin = 20;
     let currentY = margin;
-
-    // Helper function to convert HTML to plain text
-    const convertHtmlToText = (html: string): string => {
-      if (!html) return '';
-      
-      // Remove script and style tags and their content
-      let text = html.replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '');
-      text = text.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '');
-      
-      // Replace common HTML tags with appropriate text formatting
-      text = text.replace(/<h[1-6][^>]*>/gi, '\n\n');
-      text = text.replace(/<\/h[1-6]>/gi, '\n');
-      text = text.replace(/<p[^>]*>/gi, '\n');
-      text = text.replace(/<\/p>/gi, '\n');
-      text = text.replace(/<br[^>]*>/gi, '\n');
-      text = text.replace(/<li[^>]*>/gi, '\n• ');
-      text = text.replace(/<\/li>/gi, '');
-      text = text.replace(/<ul[^>]*>/gi, '\n');
-      text = text.replace(/<\/ul>/gi, '\n');
-      text = text.replace(/<ol[^>]*>/gi, '\n');
-      text = text.replace(/<\/ol>/gi, '\n');
-      text = text.replace(/<strong[^>]*>/gi, '');
-      text = text.replace(/<\/strong>/gi, '');
-      text = text.replace(/<b[^>]*>/gi, '');
-      text = text.replace(/<\/b>/gi, '');
-      text = text.replace(/<em[^>]*>/gi, '');
-      text = text.replace(/<\/em>/gi, '');
-      text = text.replace(/<i[^>]*>/gi, '');
-      text = text.replace(/<\/i>/gi, '');
-      
-      // Remove all remaining HTML tags
-      text = text.replace(/<[^>]+>/g, '');
-      
-      // Decode HTML entities
-      text = text.replace(/&nbsp;/g, ' ');
-      text = text.replace(/&amp;/g, '&');
-      text = text.replace(/&lt;/g, '<');
-      text = text.replace(/&gt;/g, '>');
-      text = text.replace(/&quot;/g, '"');
-      text = text.replace(/&#39;/g, "'");
-      text = text.replace(/&apos;/g, "'");
-      
-      // Clean up whitespace
-      text = text.replace(/\n\s*\n\s*\n/g, '\n\n'); // Multiple newlines to double
-      text = text.replace(/[ \t]+/g, ' '); // Multiple spaces to single
-      text = text.trim();
-      
-      return text;
-    };
 
     // Helper function to add wrapped text with automatic page breaks
     const addWrappedText = (
@@ -221,7 +266,7 @@ Deno.serve(async (req) => {
       }
     };
 
-    // Helper function to load image from URL (generic, works for any image)
+    // Helper function to load image from URL
     const loadImage = async (imageUrl: string | null): Promise<{ dataUrl: string; format: string } | null> => {
       if (!imageUrl) {
         return null;
@@ -286,14 +331,18 @@ Deno.serve(async (req) => {
     // ============================================
     // 1. Header
     // ============================================
-    pdf.setFontSize(20);
+    pdf.setFontSize(18);
     pdf.setFont('helvetica', 'bold');
-    pdf.text('VISA SERVICE CONTRACT', pageWidth / 2, currentY, { align: 'center' });
+    pdf.text('ANNEX I', pageWidth / 2, currentY, { align: 'center' });
+    currentY += 8;
+    
+    pdf.setFontSize(14);
+    pdf.text('PAYMENT AUTHORIZATION & NON-DISPUTE AGREEMENT', pageWidth / 2, currentY, { align: 'center' });
     currentY += 15;
 
     pdf.setFontSize(12);
     pdf.setFont('helvetica', 'normal');
-    pdf.text('MIGMA', pageWidth / 2, currentY, { align: 'center' });
+    pdf.text('MIGMA INC.', pageWidth / 2, currentY, { align: 'center' });
     currentY += 20;
 
     pdf.setLineWidth(0.5);
@@ -333,9 +382,7 @@ Deno.serve(async (req) => {
     let displayAmount = parseFloat(order.total_price_usd);
     let currencySymbol = 'US$';
     
-    // Determine amount and currency based on payment method (not currency in metadata)
     if (order.payment_method === 'stripe_pix') {
-      // PIX payments: use final_amount in BRL from metadata
       if (order.payment_metadata && typeof order.payment_metadata === 'object' && 'final_amount' in order.payment_metadata) {
         const finalAmount = parseFloat(order.payment_metadata.final_amount as string);
         if (!isNaN(finalAmount) && finalAmount > 0) {
@@ -344,11 +391,9 @@ Deno.serve(async (req) => {
       }
       currencySymbol = 'R$';
     } else if (order.payment_method === 'stripe_card') {
-      // Card payments: always use USD amount (total_price_usd), regardless of processing currency
       displayAmount = parseFloat(order.total_price_usd);
       currencySymbol = 'US$';
     } else if (order.payment_method === 'zelle') {
-      // Zelle: always USD, use total_price_usd (no fees)
       displayAmount = parseFloat(order.total_price_usd);
       currencySymbol = 'US$';
     }
@@ -359,13 +404,12 @@ Deno.serve(async (req) => {
     pdf.text(`${currencySymbol} ${displayAmount.toFixed(2)}`, margin + 50, currentY);
     currentY += 8;
 
-    // Payment Method - use actual payment_method, don't assume based on currency
+    // Payment Method
     if (order.payment_method) {
       pdf.setFont('helvetica', 'bold');
       pdf.text('Payment Method:', margin, currentY);
       pdf.setFont('helvetica', 'normal');
       
-      // Determine correct payment method display based on actual payment_method
       let paymentMethodDisplay = '';
       if (order.payment_method === 'stripe_card') {
         paymentMethodDisplay = 'STRIPE CARD';
@@ -381,91 +425,22 @@ Deno.serve(async (req) => {
       currentY += 8;
     }
 
-    // Seller ID (if exists)
-    if (order.seller_id) {
-      pdf.setFont('helvetica', 'bold');
-      pdf.text('Seller ID:', margin, currentY);
-      pdf.setFont('helvetica', 'normal');
-      pdf.text(order.seller_id, margin + 50, currentY);
-      currentY += 8;
-    }
-
-    currentY += 10;
-
-    // ============================================
-    // 3. Client Information
-    // ============================================
-    if (currentY > pageHeight - margin - 80) {
-      pdf.addPage();
-      currentY = margin;
-    }
-
-    pdf.setFontSize(14);
+    // Client Name
     pdf.setFont('helvetica', 'bold');
-    pdf.text('CLIENT INFORMATION', margin, currentY);
-    currentY += 12;
-
-    pdf.setFontSize(11);
-    
-    // Name
-    pdf.setFont('helvetica', 'bold');
-    pdf.text('Full Name:', margin, currentY);
+    pdf.text('Client Name:', margin, currentY);
     pdf.setFont('helvetica', 'normal');
-    pdf.text(order.client_name, margin + 40, currentY);
+    pdf.text(order.client_name, margin + 50, currentY);
     currentY += 8;
 
-    // Email
+    // Client Email
     pdf.setFont('helvetica', 'bold');
-    pdf.text('Email:', margin, currentY);
+    pdf.text('Client Email:', margin, currentY);
     pdf.setFont('helvetica', 'normal');
-    pdf.text(order.client_email, margin + 40, currentY);
-    currentY += 8;
-
-    // WhatsApp
-    if (order.client_whatsapp) {
-      pdf.setFont('helvetica', 'bold');
-      pdf.text('WhatsApp:', margin, currentY);
-      pdf.setFont('helvetica', 'normal');
-      pdf.text(order.client_whatsapp, margin + 40, currentY);
-      currentY += 8;
-    }
-
-    // Country
-    if (order.client_country) {
-      pdf.setFont('helvetica', 'bold');
-      pdf.text('Country:', margin, currentY);
-      pdf.setFont('helvetica', 'normal');
-      pdf.text(order.client_country, margin + 40, currentY);
-      currentY += 8;
-    }
-
-    // Nationality
-    if (order.client_nationality) {
-      pdf.setFont('helvetica', 'bold');
-      pdf.text('Nationality:', margin, currentY);
-      pdf.setFont('helvetica', 'normal');
-      pdf.text(order.client_nationality, margin + 40, currentY);
-      currentY += 8;
-    }
-
-    // Extra Units (if applicable)
-    if (order.extra_units > 0 && order.extra_unit_label) {
-      // Calculate label width to position value correctly
-      pdf.setFont('helvetica', 'bold');
-      const labelText = `${order.extra_unit_label}:`;
-      pdf.text(labelText, margin, currentY);
-      
-      // Position value with proper spacing after the label
-      const labelWidth = pdf.getTextWidth(labelText);
-      pdf.setFont('helvetica', 'normal');
-      pdf.text(order.extra_units.toString(), margin + labelWidth + 5, currentY);
-      currentY += 8;
-    }
-
-    currentY += 10;
+    pdf.text(order.client_email, margin + 50, currentY);
+    currentY += 15;
 
     // ============================================
-    // 4. Service Terms & Conditions
+    // 3. ANNEX I Text
     // ============================================
     if (currentY > pageHeight - margin - 60) {
       pdf.addPage();
@@ -474,38 +449,13 @@ Deno.serve(async (req) => {
 
     pdf.setFontSize(14);
     pdf.setFont('helvetica', 'bold');
-    pdf.text('TERMS AND CONDITIONS', margin, currentY);
+    pdf.text('ANNEX I TERMS', margin, currentY);
     currentY += 12;
-
-    // Use contract template content if available, otherwise use default
-    let termsContent: string;
-    if (contractTemplate && contractTemplate.content) {
-      // Convert HTML template to plain text for PDF
-      termsContent = convertHtmlToText(contractTemplate.content);
-      console.log("[EDGE FUNCTION] Using contract template from database");
-    } else {
-      // Fallback to default terms if no template found
-      termsContent = `
-By signing this contract, the client agrees to the following terms:
-
-1. The client confirms that all information provided is accurate and truthful.
-2. The client understands that providing false information may result in cancellation of services and legal action.
-3. The client agrees to pay the total amount specified in this contract.
-4. MIGMA will provide visa consultation services as described in the service package.
-5. The client acknowledges that visa approval is subject to immigration authorities and MIGMA cannot guarantee approval.
-6. Refunds are subject to MIGMA's refund policy as outlined in the service terms.
-7. The client agrees to provide all necessary documentation in a timely manner.
-8. This contract is legally binding and enforceable.
-
-The client has electronically signed this contract by uploading a selfie with their identity document, confirming their identity and acceptance of these terms.
-      `.trim();
-      console.log("[EDGE FUNCTION] Using default terms (no template found)");
-    }
 
     pdf.setFontSize(10);
     pdf.setFont('helvetica', 'normal');
     currentY = addWrappedText(
-      termsContent,
+      ANNEX_I_TEXT,
       margin,
       currentY,
       pageWidth - margin * 2,
@@ -514,7 +464,7 @@ The client has electronically signed this contract by uploading a selfie with th
     currentY += 20;
 
     // ============================================
-    // 5. Identity Documents Section
+    // 4. Identity Documents Section
     // ============================================
     if (currentY > pageHeight - margin - 100) {
       pdf.addPage();
@@ -524,16 +474,67 @@ The client has electronically signed this contract by uploading a selfie with th
     pdf.setFontSize(14);
     pdf.setFont('helvetica', 'bold');
     pdf.text('IDENTITY DOCUMENTS', margin, currentY);
-    currentY += 12;
+    currentY += 15;
 
-    // Document Front
-    const documentFrontUrl = identityFiles.document_front || order.contract_document_url || null;
+    // Selfie (if exists)
+    const selfieUrl = identityFiles.selfie_doc || order.contract_selfie_url || null;
+    console.log("[EDGE FUNCTION] Selfie URL:", selfieUrl);
+    if (selfieUrl) {
+      if (currentY > pageHeight - margin - 80) {
+        pdf.addPage();
+        currentY = margin;
+      }
+
+      pdf.setFontSize(11);
+      pdf.setFont('helvetica', 'bold');
+      pdf.text('Selfie with Document:', margin, currentY);
+      currentY += 10;
+
+      console.log("[EDGE FUNCTION] Loading selfie image...");
+      const selfieImage = await loadImage(selfieUrl);
+      if (selfieImage && selfieImage.format !== 'PDF') {
+        try {
+          const maxWidth = 60;
+          const maxHeight = 60;
+          pdf.addImage(
+            selfieImage.dataUrl,
+            selfieImage.format,
+            (pageWidth - maxWidth) / 2,
+            currentY,
+            maxWidth,
+            maxHeight
+          );
+          currentY += maxHeight + 10;
+        } catch (imgError) {
+          console.error("[EDGE FUNCTION] Error adding selfie image:", imgError);
+          pdf.setFontSize(10);
+          pdf.setFont('helvetica', 'italic');
+          pdf.text('(Image could not be loaded)', margin, currentY);
+          currentY += 10;
+        }
+      } else {
+        pdf.setFontSize(10);
+        pdf.setFont('helvetica', 'italic');
+        pdf.text('(PDF document - see storage)', margin, currentY);
+        currentY += 10;
+      }
+    }
+
+    // Document Front (if exists)
+    const documentFrontUrl = identityFiles.document_front || null;
+    console.log("[EDGE FUNCTION] Document Front URL:", documentFrontUrl);
     if (documentFrontUrl) {
+      if (currentY > pageHeight - margin - 80) {
+        pdf.addPage();
+        currentY = margin;
+      }
+
       pdf.setFontSize(11);
       pdf.setFont('helvetica', 'bold');
       pdf.text('Document Front:', margin, currentY);
       currentY += 10;
 
+      console.log("[EDGE FUNCTION] Loading document front image...");
       const docFrontImage = await loadImage(documentFrontUrl);
       if (docFrontImage && docFrontImage.format !== 'PDF') {
         try {
@@ -565,8 +566,9 @@ The client has electronically signed this contract by uploading a selfie with th
 
     // Document Back (if exists)
     const documentBackUrl = identityFiles.document_back || null;
+    console.log("[EDGE FUNCTION] Document Back URL:", documentBackUrl);
     if (documentBackUrl) {
-      if (currentY > pageHeight - margin - 60) {
+      if (currentY > pageHeight - margin - 80) {
         pdf.addPage();
         currentY = margin;
       }
@@ -576,6 +578,7 @@ The client has electronically signed this contract by uploading a selfie with th
       pdf.text('Document Back:', margin, currentY);
       currentY += 10;
 
+      console.log("[EDGE FUNCTION] Loading document back image...");
       const docBackImage = await loadImage(documentBackUrl);
       if (docBackImage && docBackImage.format !== 'PDF') {
         try {
@@ -608,9 +611,9 @@ The client has electronically signed this contract by uploading a selfie with th
     currentY += 10;
 
     // ============================================
-    // 6. Signature Section (with selfie)
+    // 5. Signature Section
     // ============================================
-    if (currentY > pageHeight - margin - 120) {
+    if (currentY > pageHeight - margin - 80) {
       pdf.addPage();
       currentY = margin;
     }
@@ -630,43 +633,12 @@ The client has electronically signed this contract by uploading a selfie with th
     pdf.text(`Date: ${month} ${day}, ${year}.`, margin, currentY);
     currentY += 15;
 
-    // Load and add selfie image
-    const selfieUrl = identityFiles.selfie_doc || order.contract_selfie_url || null;
-    const selfieImage = await loadImage(selfieUrl);
-    if (selfieImage && selfieImage.format !== 'PDF') {
-      try {
-        // Add image (max 60mm width, centered)
-        const maxWidth = 60;
-        const maxHeight = 60;
-        pdf.addImage(
-          selfieImage.dataUrl,
-          selfieImage.format,
-          (pageWidth - maxWidth) / 2,
-          currentY,
-          maxWidth,
-          maxHeight
-        );
-        currentY += maxHeight + 10;
-      } catch (imgError) {
-        console.error("[EDGE FUNCTION] Error adding selfie image to PDF:", imgError);
-        pdf.setFontSize(10);
-        pdf.setFont('helvetica', 'italic');
-        pdf.text('(Selfie image could not be loaded)', margin, currentY);
-        currentY += 10;
-      }
-    } else if (selfieUrl) {
-      pdf.setFontSize(10);
-      pdf.setFont('helvetica', 'italic');
-      pdf.text('(Selfie document - see storage)', margin, currentY);
-      currentY += 10;
-    }
-
     // Signature line
     pdf.setFontSize(14);
     pdf.text('⸻', pageWidth / 2, currentY, { align: 'center' });
     currentY += 12;
 
-    // CONTRACTOR title
+    // CLIENT title
     pdf.setFontSize(12);
     pdf.setFont('helvetica', 'bold');
     pdf.text('CLIENT', margin, currentY);
@@ -683,13 +655,11 @@ The client has electronically signed this contract by uploading a selfie with th
 
     if (signatureImage) {
       try {
-        // Check if we need a new page for the signature image
         if (currentY > pageHeight - margin - 30) {
           pdf.addPage();
           currentY = margin;
         }
         
-        // Add signature image (max 45mm width, height proportional)
         const maxWidth = 45;
         const maxHeight = 20;
         
@@ -702,15 +672,13 @@ The client has electronically signed this contract by uploading a selfie with th
           maxHeight
         );
         currentY += maxHeight + 15;
-        // If signature image exists, don't show name - signature is enough
       } catch (imgError) {
         console.error("[EDGE FUNCTION] Error adding signature image to PDF:", imgError);
-        // Fall through to show name as fallback if image fails
+        // Fall through to show name as fallback
         const nameStartX = margin + pdf.getTextWidth('Signature: ') + 5;
         pdf.setFont('helvetica', 'bold');
         pdf.text(order.client_name, nameStartX, currentY);
         
-        // Draw line under name
         const nameWidth = pdf.getTextWidth(order.client_name);
         const lineY = currentY + 2;
         pdf.setLineWidth(0.5);
@@ -723,7 +691,6 @@ The client has electronically signed this contract by uploading a selfie with th
       pdf.setFont('helvetica', 'bold');
       pdf.text(order.client_name, nameStartX, currentY);
       
-      // Draw line under name
       const nameWidth = pdf.getTextWidth(order.client_name);
       const lineY = currentY + 2;
       pdf.setLineWidth(0.5);
@@ -732,7 +699,7 @@ The client has electronically signed this contract by uploading a selfie with th
     }
 
     // ============================================
-    // 7. Technical Information
+    // 6. Technical Information
     // ============================================
     if (currentY > pageHeight - margin - 60) {
       pdf.addPage();
@@ -773,7 +740,7 @@ The client has electronically signed this contract by uploading a selfie with th
       currentY += 8;
     }
 
-    // Payment Status (only show if completed, not for pending Zelle payments)
+    // Payment Status
     if (order.payment_status === 'completed') {
       pdf.setFont('helvetica', 'bold');
       pdf.text('Payment Status:', margin, currentY);
@@ -798,8 +765,8 @@ The client has electronically signed this contract by uploading a selfie with th
       .replace(/[^a-z0-9]/g, '_');
     const dateStr = new Date().toISOString().split('T')[0];
     const timestamp = Date.now();
-    const fileName = `visa_contract_${normalizedName}_${order.order_number}_${dateStr}_${timestamp}.pdf`;
-    const filePath = `visa-contracts/${fileName}`;
+    const fileName = `annex_i_${normalizedName}_${order.order_number}_${dateStr}_${timestamp}.pdf`;
+    const filePath = `visa-annexes/${fileName}`;
 
     // Upload to storage
     const { error: uploadError } = await supabase.storage
@@ -825,7 +792,7 @@ The client has electronically signed this contract by uploading a selfie with th
     // Update order with PDF URL
     const { error: updateError } = await supabase
       .from('visa_orders')
-      .update({ contract_pdf_url: publicUrl })
+      .update({ annex_pdf_url: publicUrl })
       .eq('id', order_id);
 
     if (updateError) {
@@ -833,7 +800,7 @@ The client has electronically signed this contract by uploading a selfie with th
       // Still return success since PDF was generated
     }
 
-    console.log("[EDGE FUNCTION] Contract PDF generated successfully:", publicUrl);
+    console.log("[EDGE FUNCTION] ANNEX I PDF generated successfully:", publicUrl);
 
     return new Response(
       JSON.stringify({
@@ -845,24 +812,11 @@ The client has electronically signed this contract by uploading a selfie with th
     );
 
   } catch (error) {
-    console.error("[EDGE FUNCTION] Error generating contract PDF:", error);
+    console.error("[EDGE FUNCTION] Error generating ANNEX I PDF:", error);
     return new Response(
       JSON.stringify({ success: false, error: error.message || "Internal server error" }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
 });
-
-
-
-
-
-
-
-
-
-
-
-
-
 

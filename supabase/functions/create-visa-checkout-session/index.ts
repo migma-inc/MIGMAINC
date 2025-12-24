@@ -136,6 +136,7 @@ Deno.serve(async (req: Request) => {
       exchange_rate: frontendExchangeRate,
       contract_document_url,
       contract_selfie_url,
+      signature_image_url,
       ip_address,
       service_request_id, // NEW: Optional service_request_id from frontend
     } = body;
@@ -351,6 +352,7 @@ Deno.serve(async (req: Request) => {
         payment_status: "pending",
         contract_document_url: contract_document_url || null,
         contract_selfie_url: contract_selfie_url || null,
+        signature_image_url: signature_image_url || null,
         contract_accepted: contract_document_url && contract_selfie_url ? true : false,
         contract_signed_at: contract_document_url && contract_selfie_url ? new Date().toISOString() : null,
         ip_address: ip_address || null,

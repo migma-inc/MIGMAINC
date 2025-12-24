@@ -5,12 +5,16 @@
 
 import { adminSupabase } from './auth';
 
+export type ContractTemplateType = 'global_partner' | 'visa_service';
+
 export interface ContractTemplate {
   id: string;
   name: string;
   description?: string | null;
   content: string;
   is_active: boolean;
+  template_type?: ContractTemplateType;
+  product_slug?: string | null;
   created_at: string;
   updated_at: string;
   created_by?: string | null;
@@ -21,6 +25,8 @@ export interface CreateContractTemplateData {
   description?: string;
   content: string;
   is_active?: boolean;
+  template_type?: ContractTemplateType;
+  product_slug?: string;
   created_by?: string;
 }
 
@@ -29,6 +35,8 @@ export interface UpdateContractTemplateData {
   description?: string;
   content?: string;
   is_active?: boolean;
+  template_type?: ContractTemplateType;
+  product_slug?: string;
 }
 
 /**
@@ -55,23 +63,130 @@ export async function getAllContractTemplates(): Promise<ContractTemplate[] | nu
 
 /**
  * Get only active contract templates
+ * By default, returns only global_partner templates (or NULL) for backward compatibility
  */
-export async function getActiveContractTemplates(): Promise<ContractTemplate[] | null> {
+export async function getActiveContractTemplates(
+  templateType?: ContractTemplateType
+): Promise<ContractTemplate[] | null> {
+  try {
+    if (templateType) {
+      // If specific type requested, filter by that type
+      const { data, error } = await adminSupabase
+        .from('contract_templates')
+        .select('*')
+        .eq('is_active', true)
+        .eq('template_type', templateType)
+        .order('name', { ascending: true });
+
+      if (error) {
+        console.error('[CONTRACT_TEMPLATES] Error fetching active templates:', error);
+        return null;
+      }
+
+      return data;
+    } else {
+      // Default: return global_partner templates OR NULL (for backward compatibility)
+      // This is used by ContractTemplateSelector for Global Partner flow
+      const { data, error } = await adminSupabase
+        .from('contract_templates')
+        .select('*')
+        .eq('is_active', true)
+        .order('name', { ascending: true });
+
+      if (error) {
+        console.error('[CONTRACT_TEMPLATES] Error fetching active templates:', error);
+        return null;
+      }
+
+      // Filter in JavaScript to include global_partner or NULL
+      const filtered = (data || []).filter(
+        (t) => !t.template_type || t.template_type === 'global_partner'
+      );
+
+      return filtered;
+    }
+  } catch (error) {
+    console.error('[CONTRACT_TEMPLATES] Exception fetching active templates:', error);
+    return null;
+  }
+}
+
+/**
+ * Get contract templates by type
+ * For 'global_partner', also includes templates with NULL template_type (for backward compatibility)
+ */
+export async function getContractTemplatesByType(
+  type: ContractTemplateType
+): Promise<ContractTemplate[] | null> {
+  try {
+    if (type === 'global_partner') {
+      // Include templates with 'global_partner' type OR NULL (for backward compatibility)
+      // We need to fetch all and filter, or use a raw SQL query
+      // For now, let's fetch all and filter in JavaScript
+      const { data, error } = await adminSupabase
+        .from('contract_templates')
+        .select('*')
+        .order('name', { ascending: true });
+
+      if (error) {
+        console.error('[CONTRACT_TEMPLATES] Error fetching templates by type:', error);
+        return null;
+      }
+
+      // Filter in JavaScript to include global_partner or NULL
+      const filtered = (data || []).filter(
+        (t) => !t.template_type || t.template_type === 'global_partner'
+      );
+
+      return filtered;
+    } else {
+      // For visa_service, only get templates with that specific type
+      const { data, error } = await adminSupabase
+        .from('contract_templates')
+        .select('*')
+        .eq('template_type', type)
+        .order('name', { ascending: true });
+
+      if (error) {
+        console.error('[CONTRACT_TEMPLATES] Error fetching templates by type:', error);
+        return null;
+      }
+
+      return data;
+    }
+  } catch (error) {
+    console.error('[CONTRACT_TEMPLATES] Exception fetching templates by type:', error);
+    return null;
+  }
+}
+
+/**
+ * Get contract template by product slug (for visa services)
+ */
+export async function getContractTemplateByProductSlug(
+  productSlug: string
+): Promise<ContractTemplate | null> {
   try {
     const { data, error } = await adminSupabase
       .from('contract_templates')
       .select('*')
+      .eq('template_type', 'visa_service')
+      .eq('product_slug', productSlug)
       .eq('is_active', true)
-      .order('name', { ascending: true });
+      .single();
 
     if (error) {
-      console.error('[CONTRACT_TEMPLATES] Error fetching active templates:', error);
+      // Not found is not an error, just return null
+      if (error.code === 'PGRST116') {
+        return null;
+      }
+      console.error('[CONTRACT_TEMPLATES] Error fetching template by product slug:', error);
       return null;
     }
 
     return data;
   } catch (error) {
-    console.error('[CONTRACT_TEMPLATES] Exception fetching active templates:', error);
+    console.error('[CONTRACT_TEMPLATES] Exception fetching template by product slug:', error);
     return null;
   }
 }
@@ -106,6 +221,20 @@ export async function createContractTemplate(
   data: CreateContractTemplateData
 ): Promise<{ success: boolean; template?: ContractTemplate; error?: string }> {
   try {
+    // Validate: if template_type is 'visa_service', product_slug must be provided
+    if (data.template_type === 'visa_service' && !data.product_slug) {
+      return {
+        success: false,
+        error: 'product_slug is required when template_type is visa_service',
+      };
+    }
+
+    // Default to 'global_partner' if not specified (backward compatibility)
+    const templateType = data.template_type || 'global_partner';
+
+    // If global_partner, ensure product_slug is null
+    const productSlug = templateType === 'global_partner' ? null : data.product_slug || null;
+
     const { data: template, error } = await adminSupabase
       .from('contract_templates')
       .insert({
@@ -113,6 +242,8 @@ export async function createContractTemplate(
         description: data.description || null,
         content: data.content,
         is_active: data.is_active !== undefined ? data.is_active : true,
+        template_type: templateType,
+        product_slug: productSlug,
         created_by: data.created_by || null,
       })
       .select()
@@ -141,11 +272,42 @@ export async function updateContractTemplate(
   data: UpdateContractTemplateData
 ): Promise<{ success: boolean; template?: ContractTemplate; error?: string }> {
   try {
+    // Get current template to check existing type
+    const currentTemplate = await getContractTemplate(id);
+    if (!currentTemplate) {
+      return { success: false, error: 'Template not found' };
+    }
+
     const updateData: Record<string, any> = {};
     if (data.name !== undefined) updateData.name = data.name;
     if (data.description !== undefined) updateData.description = data.description;
     if (data.content !== undefined) updateData.content = data.content;
     if (data.is_active !== undefined) updateData.is_active = data.is_active;
+    
+    // Handle template_type and product_slug
+    const newTemplateType = data.template_type !== undefined 
+      ? data.template_type 
+      : currentTemplate.template_type || 'global_partner';
+    
+    updateData.template_type = newTemplateType;
+
+    // Validate: if template_type is 'visa_service', product_slug must be provided
+    if (newTemplateType === 'visa_service') {
+      const newProductSlug = data.product_slug !== undefined 
+        ? data.product_slug 
+        : currentTemplate.product_slug;
+      
+      if (!newProductSlug) {
+        return {
+          success: false,
+          error: 'product_slug is required when template_type is visa_service',
+        };
+      }
+      updateData.product_slug = newProductSlug;
+    } else {
+      // If global_partner, ensure product_slug is null
+      updateData.product_slug = null;
+    }
 
     const { data: template, error } = await adminSupabase
       .from('contract_templates')

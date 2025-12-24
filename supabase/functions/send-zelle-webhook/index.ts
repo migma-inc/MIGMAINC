@@ -345,6 +345,25 @@ Deno.serve(async (req: Request) => {
     // Send webhook to client (n8n) - same logic as Stripe webhook
     await sendClientWebhook(order, supabase);
 
+    // Generate ANNEX I PDF for scholarship and i20-control products
+    const isAnnexRequired = order.product_slug?.endsWith('-scholarship') || order.product_slug?.endsWith('-i20-control');
+    if (isAnnexRequired) {
+      try {
+        const { data: annexPdfData, error: annexPdfError } = await supabase.functions.invoke("generate-annex-pdf", {
+          body: { order_id: order.id },
+        });
+        
+        if (annexPdfError) {
+          console.error("[Zelle Webhook] Error generating ANNEX I PDF:", annexPdfError);
+        } else {
+          console.log("[Zelle Webhook] ANNEX I PDF generated successfully:", annexPdfData?.pdf_url);
+        }
+      } catch (annexPdfError) {
+        console.error("[Zelle Webhook] Exception generating ANNEX I PDF:", annexPdfError);
+        // Continue - PDF generation is not critical for payment processing
+      }
+    }
+
     return new Response(
       JSON.stringify({ 
         success: true, 

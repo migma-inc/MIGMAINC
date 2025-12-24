@@ -304,12 +304,14 @@ export async function saveStep2Data(
  * @param serviceRequestId ID do service request
  * @param termsAccepted Flag indicando se os termos foram aceitos
  * @param dataAuthorization Flag indicando se a autorização de dados foi aceita
+ * @param contractTemplateId ID do template de contrato usado (opcional)
  * @returns Resultado da operação
  */
 export async function saveStep3Data(
   serviceRequestId: string,
   termsAccepted: boolean,
-  dataAuthorization: boolean
+  dataAuthorization: boolean,
+  contractTemplateId?: string | null
 ): Promise<SaveStep3Result> {
   if (!termsAccepted || !dataAuthorization) {
     return { success: false, error: 'Please accept both terms and conditions' };
@@ -319,17 +321,24 @@ export async function saveStep3Data(
     const clientIP = await getClientIP();
     const userAgent = getUserAgent();
 
+    const insertData: Record<string, any> = {
+      service_request_id: serviceRequestId,
+      accepted: true,
+      accepted_at: new Date().toISOString(),
+      terms_version: TERMS_VERSION,
+      accepted_ip: clientIP,
+      user_agent: userAgent,
+      data_authorization: true,
+    };
+
+    // Add contract_template_id if provided
+    if (contractTemplateId) {
+      insertData.contract_template_id = contractTemplateId;
+    }
+
     const { error: termsError } = await supabase
       .from('terms_acceptance')
-      .insert({
-        service_request_id: serviceRequestId,
-        accepted: true,
-        accepted_at: new Date().toISOString(),
-        terms_version: TERMS_VERSION,
-        accepted_ip: clientIP,
-        user_agent: userAgent,
-        data_authorization: true,
-      });
+      .insert(insertData);
 
     if (termsError) {
       console.error('Error saving terms acceptance:', termsError);
@@ -342,6 +351,7 @@ export async function saveStep3Data(
     return { success: false, error: 'Failed to save terms acceptance. Please try again.' };
   }
 }
+
 
 
 

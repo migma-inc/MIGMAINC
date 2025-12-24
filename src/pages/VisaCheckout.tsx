@@ -16,6 +16,9 @@ import { DRAFT_STORAGE_KEY, countries, getPhoneCodeFromCountry } from '@/lib/vis
 import { getClientIP, calculateBaseTotal, calculateTotalWithFees } from '@/lib/visa-checkout-utils';
 import { validateStep1, type Step1FormData } from '@/lib/visa-checkout-validation';
 import { saveStep1Data, saveStep2Data, saveStep3Data } from '@/lib/visa-checkout-service';
+import { getContractTemplateByProductSlug, type ContractTemplate } from '@/lib/contract-templates';
+import { SignaturePadComponent } from '@/components/ui/signature-pad';
+import { ANNEX_I_HTML } from '@/lib/annex-text';
 
 interface VisaProduct {
   id: string;
@@ -95,9 +98,15 @@ export const VisaCheckout = () => {
   // Step 3: Terms & Payment
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [dataAuthorization, setDataAuthorization] = useState(false);
+  const [contractTemplate, setContractTemplate] = useState<ContractTemplate | null>(null);
+  const [loadingTemplate, setLoadingTemplate] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<'card' | 'pix' | 'zelle'>('card');
   const [zelleReceipt, setZelleReceipt] = useState<File | null>(null);
   const [exchangeRate, setExchangeRate] = useState<number | null>(null);
+  
+  // Signature states
+  const [signatureImageDataUrl, setSignatureImageDataUrl] = useState<string | null>(null);
+  const [signatureConfirmed, setSignatureConfirmed] = useState<boolean>(false);
 
   // Service request data (saved after step 1)
   const [serviceRequestId, setServiceRequestId] = useState<string | null>(null);
@@ -313,6 +322,12 @@ export const VisaCheckout = () => {
         if (parsed.paymentMethod) {
           setPaymentMethod(parsed.paymentMethod);
         }
+        if (parsed.signatureImageDataUrl !== undefined) {
+          setSignatureImageDataUrl(parsed.signatureImageDataUrl || null);
+        }
+        if (parsed.signatureConfirmed !== undefined) {
+          setSignatureConfirmed(parsed.signatureConfirmed || false);
+        }
         
         // Restore service_request_id and client_id if they exist
         // These are critical for Step 2 to work properly
@@ -471,6 +486,8 @@ export const VisaCheckout = () => {
         // Step 3: Terms & Payment (text/select only, no files)
         termsAccepted,
         dataAuthorization,
+        signatureImageDataUrl,
+        signatureConfirmed,
         paymentMethod,
         // Service request and client IDs (if they exist)
         serviceRequestId: serviceRequestId || undefined,
@@ -520,6 +537,8 @@ export const VisaCheckout = () => {
     // Step 3 fields (text/select only)
     termsAccepted,
     dataAuthorization,
+    signatureImageDataUrl,
+    signatureConfirmed,
     paymentMethod,
     // Current step
     currentStep,
@@ -671,6 +690,42 @@ export const VisaCheckout = () => {
     loadProduct();
   }, [productSlug, sellerId]);
 
+  // Helper function to check if ANNEX I is required (scholarship or i20-control products)
+  const isAnnexRequired = (slug: string | undefined): boolean => {
+    if (!slug) return false;
+    return slug.endsWith('-scholarship') || slug.endsWith('-i20-control');
+  };
+
+  // Load contract template when productSlug is available and user is on step 3
+  // Skip loading template if ANNEX I is required
+  useEffect(() => {
+    const loadContractTemplate = async () => {
+      if (!productSlug || currentStep !== 3) {
+        return;
+      }
+
+      // Don't load template if ANNEX I is required
+      if (isAnnexRequired(productSlug)) {
+        setContractTemplate(null);
+        setLoadingTemplate(false);
+        return;
+      }
+
+      setLoadingTemplate(true);
+      try {
+        const template = await getContractTemplateByProductSlug(productSlug);
+        setContractTemplate(template);
+      } catch (err) {
+        console.error('[VisaCheckout] Error loading contract template:', err);
+        setContractTemplate(null);
+      } finally {
+        setLoadingTemplate(false);
+      }
+    };
+
+    loadContractTemplate();
+  }, [productSlug, currentStep]);
+
   // Check for existing signed contract
   // Only reuses contract if:
   // - Current product is Scholarship or I-20 Control (not Selection Process)
@@ -790,6 +845,12 @@ export const VisaCheckout = () => {
       if (clientData.maritalStatus) setMaritalStatus(clientData.maritalStatus);
       if (clientData.clientObservations) setClientObservations(clientData.clientObservations);
       if (clientData.extraUnits !== undefined) setExtraUnits(clientData.extraUnits);
+      if (clientData.dependentNames && Array.isArray(clientData.dependentNames)) {
+        setDependentNames(clientData.dependentNames);
+      } else if (clientData.extraUnits > 0) {
+        // Se não há nomes salvos mas há dependentes, criar array vazio
+        setDependentNames(Array(clientData.extraUnits).fill(''));
+      }
 
       // Mark token as used (but don't block if payment fails - user can retry)
       // The token will only be blocked if payment_status becomes 'completed' or 'paid'
@@ -1002,10 +1063,62 @@ export const VisaCheckout = () => {
     }
   };
 
+  // Upload signature image to storage
+  const uploadSignatureImage = async (): Promise<string | null> => {
+    if (!signatureImageDataUrl) {
+      return null;
+    }
+
+    try {
+      // Convert base64 to blob
+      const base64Data = signatureImageDataUrl.split(',')[1];
+      const byteCharacters = atob(base64Data);
+      const byteNumbers = new Array(byteCharacters.length);
+      for (let i = 0; i < byteCharacters.length; i++) {
+        byteNumbers[i] = byteCharacters.charCodeAt(i);
+      }
+      const byteArray = new Uint8Array(byteNumbers);
+      const blob = new Blob([byteArray], { type: 'image/png' });
+      
+      // Create File
+      const fileName = `signatures/${Date.now()}-${Math.random().toString(36).substring(7)}.png`;
+      const file = new File([blob], fileName, { type: 'image/png' });
+      
+      // Upload to storage (using visa-documents bucket with signatures folder)
+      const { error: uploadError } = await supabase.storage
+        .from('visa-documents')
+        .upload(fileName, file, {
+          contentType: 'image/png',
+          upsert: false,
+        });
+      
+      if (uploadError) {
+        console.error('[VISA_CHECKOUT] Error uploading signature:', uploadError);
+        throw uploadError;
+      }
+      
+      // Get public URL
+      const { data: { publicUrl } } = supabase.storage
+        .from('visa-documents')
+        .getPublicUrl(fileName);
+      
+      return publicUrl;
+    } catch (error) {
+      console.error('[VISA_CHECKOUT] Error processing signature upload:', error);
+      throw error;
+    }
+  };
+
   // Handle Stripe checkout
   const handleStripeCheckout = async (method: 'card' | 'pix') => {
     if (!termsAccepted || !dataAuthorization) {
       alert('Please accept both terms and conditions');
+      return;
+    }
+
+    // Validate signature
+    if (!signatureImageDataUrl || !signatureConfirmed) {
+      alert('Please draw and confirm your digital signature before proceeding with payment.');
       return;
     }
 
@@ -1014,12 +1127,17 @@ export const VisaCheckout = () => {
       return;
     }
 
-    // Save terms acceptance
-    const result = await saveStep3Data(serviceRequestId, termsAccepted, dataAuthorization);
-    if (!result.success) {
-      setError(result.error || 'Failed to save terms acceptance');
-      return;
-    }
+      // Save terms acceptance
+      const result = await saveStep3Data(
+        serviceRequestId, 
+        termsAccepted, 
+        dataAuthorization,
+        contractTemplate?.id || null
+      );
+      if (!result.success) {
+        setError(result.error || 'Failed to save terms acceptance');
+        return;
+      }
 
     setSubmitting(true);
     try {
@@ -1041,6 +1159,16 @@ export const VisaCheckout = () => {
 
       // Get client IP
       const clientIP = await getClientIP();
+
+      // Upload signature image
+      let signatureImageUrl: string | null = null;
+      try {
+        signatureImageUrl = await uploadSignatureImage();
+      } catch (sigError) {
+        setError('Error uploading signature. Please try again.');
+        setSubmitting(false);
+        return;
+      }
 
       // Get document URLs from documentFiles or existing contract
       const documentFrontUrl = hasExistingContract && existingContractData
@@ -1073,6 +1201,8 @@ export const VisaCheckout = () => {
           dependentNames,
           termsAccepted,
           dataAuthorization,
+          signatureImageDataUrl,
+          signatureConfirmed,
           paymentMethod: method,
           currentStep,
           savedAt: new Date().toISOString(),
@@ -1098,6 +1228,7 @@ export const VisaCheckout = () => {
           exchange_rate: exchangeRate || undefined, // Pass exchange rate for PIX
           contract_document_url: documentFrontUrl, // Use front document
           contract_selfie_url: selfieUrl,
+          signature_image_url: signatureImageUrl,
           ip_address: clientIP,
           service_request_id: serviceRequestId, // Pass service request ID
         },
@@ -1154,6 +1285,12 @@ export const VisaCheckout = () => {
       return;
     }
 
+    // Validate signature
+    if (!signatureImageDataUrl || !signatureConfirmed) {
+      alert('Please draw and confirm your digital signature before proceeding with payment.');
+      return;
+    }
+
     if (!serviceRequestId) {
       alert('Please complete all steps first');
       return;
@@ -1164,12 +1301,17 @@ export const VisaCheckout = () => {
       return;
     }
 
-    // Save terms acceptance
-    const result = await saveStep3Data(serviceRequestId, termsAccepted, dataAuthorization);
-    if (!result.success) {
-      setError(result.error || 'Failed to save terms acceptance');
-      return;
-    }
+      // Save terms acceptance
+      const result = await saveStep3Data(
+        serviceRequestId, 
+        termsAccepted, 
+        dataAuthorization,
+        contractTemplate?.id || null
+      );
+      if (!result.success) {
+        setError(result.error || 'Failed to save terms acceptance');
+        return;
+      }
 
     setSubmitting(true);
     try {
@@ -1208,6 +1350,16 @@ export const VisaCheckout = () => {
       const { data: { publicUrl } } = supabase.storage
         .from('visa-documents')
         .getPublicUrl(fileName);
+
+      // Upload signature image
+      let signatureImageUrl: string | null = null;
+      try {
+        signatureImageUrl = await uploadSignatureImage();
+      } catch (sigError) {
+        setError('Error uploading signature. Please try again.');
+        setSubmitting(false);
+        return;
+      }
 
       // Create payment record
       const { data: paymentData, error: paymentError } = await supabase
@@ -1263,6 +1415,7 @@ export const VisaCheckout = () => {
           zelle_proof_url: publicUrl,
           contract_document_url: documentFrontUrl,
           contract_selfie_url: selfieUrl,
+          signature_image_url: signatureImageUrl,
           contract_accepted: true,
           contract_signed_at: new Date().toISOString(),
           ip_address: clientIP,
@@ -1433,41 +1586,56 @@ export const VisaCheckout = () => {
                       <Label htmlFor="extra-units" className="text-white">
                         {product.extra_unit_label} {product.calculation_type === 'units_only' ? '(required)' : '(0-5)'}
                       </Label>
-                      <Select
-                        value={extraUnits.toString()}
-                        onValueChange={(value) => {
-                          const newExtraUnits = parseInt(value);
-                          setExtraUnits(newExtraUnits);
-                          // Ajustar array de nomes quando quantidade muda
-                          if (newExtraUnits === 0) {
-                            setDependentNames([]);
-                          } else if (newExtraUnits < dependentNames.length) {
-                            // Diminuir: remover nomes excedentes
-                            setDependentNames(dependentNames.slice(0, newExtraUnits));
-                          } else if (newExtraUnits > dependentNames.length) {
-                            // Aumentar: adicionar slots vazios
-                            const newNames = [...dependentNames];
-                            while (newNames.length < newExtraUnits) {
-                              newNames.push('');
+                      <div className="relative">
+                        <Select
+                          value={extraUnits.toString()}
+                          onValueChange={(value) => {
+                            const newExtraUnits = parseInt(value);
+                            setExtraUnits(newExtraUnits);
+                            // Ajustar array de nomes quando quantidade muda
+                            if (newExtraUnits === 0) {
+                              setDependentNames([]);
+                            } else if (newExtraUnits < dependentNames.length) {
+                              // Diminuir: remover nomes excedentes
+                              setDependentNames(dependentNames.slice(0, newExtraUnits));
+                            } else if (newExtraUnits > dependentNames.length) {
+                              // Aumentar: adicionar slots vazios
+                              const newNames = [...dependentNames];
+                              while (newNames.length < newExtraUnits) {
+                                newNames.push('');
+                              }
+                              setDependentNames(newNames);
                             }
-                            setDependentNames(newNames);
-                          }
-                        }}
-                      >
-                        <SelectTrigger className="bg-white text-black">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {(product.calculation_type === 'units_only' 
-                            ? [1, 2, 3, 4, 5] // units_only: mínimo 1 unidade
-                            : [0, 1, 2, 3, 4, 5] // base_plus_units: pode ser 0
-                          ).map((num) => (
-                            <SelectItem key={num} value={num.toString()}>
-                              {num}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                          }}
+                        >
+                          <SelectTrigger className="bg-white text-black">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {(product.calculation_type === 'units_only' 
+                              ? [1, 2, 3, 4, 5] // units_only: mínimo 1 unidade
+                              : [0, 1, 2, 3, 4, 5] // base_plus_units: pode ser 0
+                            ).map((num) => (
+                              <SelectItem key={num} value={num.toString()}>
+                                {num}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        {/* Overlay para garantir que "0" seja sempre exibido */}
+                        {extraUnits === 0 && (
+                          <span 
+                            className="absolute left-3 top-1/2 -translate-y-1/2 text-black pointer-events-none select-none"
+                            style={{ 
+                              lineHeight: '1.5rem',
+                              fontSize: '0.875rem',
+                              zIndex: 1
+                            }}
+                          >
+                            0
+                          </span>
+                        )}
+                      </div>
                     </div>
                   )}
 
@@ -1805,27 +1973,33 @@ export const VisaCheckout = () => {
                     <CardTitle className="text-white">Step 3: Terms & Payment</CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-4">
-                    {/* Payment Terms & Anti-Chargeback Section */}
+                    {/* Contract Terms & Conditions */}
                     <div className="p-4 bg-blue-900/20 border border-blue-500/30 rounded-md">
-                      <h3 className="text-white font-semibold mb-2">Payment Terms & Anti-Chargeback Policy</h3>
-                      <div className="text-sm text-gray-300 space-y-2 max-h-48 overflow-y-auto">
-                        <p>
-                          Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. 
-                          Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.
-                        </p>
-                        <p>
-                          Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. 
-                          Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.
-                        </p>
-                        <p>
-                          Sed ut perspiciatis unde omnis iste natus error sit voluptatem accusantium doloremque laudantium, totam rem aperiam, 
-                          eaque ipsa quae ab illo inventore veritatis et quasi architecto beatae vitae dicta sunt explicabo.
-                        </p>
-                        <p className="font-semibold text-yellow-300">
-                          By proceeding with payment, you acknowledge that chargebacks or payment disputes may result in legal action and 
-                          additional fees. All transactions are final and non-refundable except as explicitly stated in our refund policy.
-                        </p>
-                      </div>
+                      <h3 className="text-white font-semibold mb-2">Terms & Conditions</h3>
+                      {isAnnexRequired(productSlug) ? (
+                        // Show ANNEX I for scholarship and i20-control products
+                        <div 
+                          className="text-sm text-gray-300 space-y-2 max-h-96 overflow-y-auto prose prose-invert max-w-none"
+                          dangerouslySetInnerHTML={{ __html: ANNEX_I_HTML }}
+                        />
+                      ) : loadingTemplate ? (
+                        <div className="flex items-center justify-center py-8">
+                          <div className="text-gray-400">Loading contract terms...</div>
+                        </div>
+                      ) : contractTemplate ? (
+                        <div 
+                          className="text-sm text-gray-300 space-y-2 max-h-96 overflow-y-auto prose prose-invert max-w-none"
+                          dangerouslySetInnerHTML={{ __html: contractTemplate.content }}
+                        />
+                      ) : (
+                        <div className="text-sm text-gray-400 space-y-2">
+                          <p>No specific contract template found for this service.</p>
+                          <p className="font-semibold text-yellow-300 mt-4">
+                            By proceeding with payment, you acknowledge that chargebacks or payment disputes may result in legal action and 
+                            additional fees. All transactions are final and non-refundable except as explicitly stated in our refund policy.
+                          </p>
+                        </div>
+                      )}
                     </div>
 
                     <div className="space-y-4">
@@ -1836,11 +2010,19 @@ export const VisaCheckout = () => {
                           onCheckedChange={(checked) => setTermsAccepted(checked === true)}
                         />
                         <Label htmlFor="terms" className="text-white cursor-pointer">
-                          I have read and agree to the{' '}
-                          <Link to="/legal/visa-service-terms" target="_blank" className="text-gold-light hover:text-gold-medium underline">
-                            Visa Service Terms & Conditions
-                          </Link>
-                          {' '}and the Payment Terms & Anti-Chargeback Policy above. *
+                          {isAnnexRequired(productSlug) ? (
+                            <>I have read and agree to the ANNEX I – Payment Authorization & Non-Dispute Agreement above. *</>
+                          ) : contractTemplate ? (
+                            <>I have read and agree to the Terms & Conditions above. *</>
+                          ) : (
+                            <>
+                              I have read and agree to the Terms & Conditions above and the{' '}
+                              <Link to="/legal/visa-service-terms" target="_blank" className="text-gold-light hover:text-gold-medium underline">
+                                Visa Service Terms & Conditions
+                              </Link>
+                              {' '}and the Payment Terms & Anti-Chargeback Policy. *
+                            </>
+                          )}
                         </Label>
                       </div>
 
@@ -1855,6 +2037,31 @@ export const VisaCheckout = () => {
                         </Label>
                       </div>
                     </div>
+
+                    {/* Digital Signature - Only show after terms are accepted */}
+                    {termsAccepted && (
+                      <div className="space-y-4 pt-4 border-t border-gold-medium/30">
+                        <SignaturePadComponent
+                          onSignatureChange={(dataUrl) => {
+                            if (dataUrl) {
+                              setSignatureImageDataUrl(dataUrl);
+                            } else {
+                              setSignatureImageDataUrl(null);
+                            }
+                          }}
+                          onSignatureConfirm={(dataUrl) => {
+                            setSignatureImageDataUrl(dataUrl);
+                            setSignatureConfirmed(true);
+                          }}
+                          savedSignature={signatureImageDataUrl}
+                          isConfirmed={signatureConfirmed}
+                          label="Digital Signature"
+                          required={true}
+                          width={600}
+                          height={200}
+                        />
+                      </div>
+                    )}
 
                     {/* Payment Method Selection */}
                     <div className="space-y-4 pt-4 border-t border-gold-medium/30">
@@ -1994,7 +2201,7 @@ export const VisaCheckout = () => {
                       {paymentMethod === 'card' && (
                         <Button
                           onClick={() => handleStripeCheckout('card')}
-                          disabled={submitting || !termsAccepted || !dataAuthorization || !documentsUploaded}
+                          disabled={submitting || !termsAccepted || !dataAuthorization || !signatureConfirmed || !documentsUploaded}
                           className="w-full bg-gradient-to-b from-gold-light via-gold-medium to-gold-light text-black font-bold hover:from-gold-medium hover:via-gold-light hover:to-gold-medium"
                         >
                           <CreditCard className="w-4 h-4 mr-2" />
@@ -2004,7 +2211,7 @@ export const VisaCheckout = () => {
                       {paymentMethod === 'pix' && (
                         <Button
                           onClick={() => handleStripeCheckout('pix')}
-                          disabled={submitting || !termsAccepted || !dataAuthorization || !documentsUploaded}
+                          disabled={submitting || !termsAccepted || !dataAuthorization || !signatureConfirmed || !documentsUploaded}
                           className="w-full bg-gradient-to-b from-gold-light via-gold-medium to-gold-light text-black font-bold hover:from-gold-medium hover:via-gold-light hover:to-gold-medium"
                         >
                           <DollarSign className="w-4 h-4 mr-2" />
@@ -2021,7 +2228,7 @@ export const VisaCheckout = () => {
                     <>
                       <Button
                         onClick={handleZellePayment}
-                        disabled={submitting || !termsAccepted || !dataAuthorization || !zelleReceipt || !documentsUploaded}
+                        disabled={submitting || !termsAccepted || !dataAuthorization || !signatureConfirmed || !zelleReceipt || !documentsUploaded}
                         className="w-full bg-gradient-to-b from-gold-light via-gold-medium to-gold-light text-black font-bold hover:from-gold-medium hover:via-gold-light hover:to-gold-medium"
                       >
                         <Upload className="w-4 h-4 mr-2" />
@@ -2030,6 +2237,11 @@ export const VisaCheckout = () => {
                       {(!termsAccepted || !dataAuthorization) && (
                         <p className="text-xs text-yellow-400 text-center">
                           Please accept both terms and conditions
+                        </p>
+                      )}
+                      {(!signatureConfirmed) && (
+                        <p className="text-xs text-yellow-400 text-center">
+                          Please draw and confirm your digital signature
                         </p>
                       )}
                       {!zelleReceipt && (

@@ -32,6 +32,7 @@ interface VisaProduct {
 interface PrefillFormData {
   productSlug: string;
   extraUnits: number;
+  dependentNames: string[];
   clientName: string;
   clientEmail: string;
   clientWhatsApp: string;
@@ -165,6 +166,7 @@ export function SellerLinks() {
   const [prefillFormData, setPrefillFormData] = useState<PrefillFormData>({
     productSlug: '',
     extraUnits: 0,
+    dependentNames: [],
     clientName: '',
     clientEmail: '',
     clientWhatsApp: '',
@@ -436,21 +438,55 @@ export function SellerLinks() {
                     {/* Number of Dependents */}
                     <div className="space-y-1.5">
                       <Label htmlFor="prefill-extra-units" className="text-white text-sm">Number of Dependents</Label>
-                      <Select
-                        value={prefillFormData.extraUnits.toString()}
-                        onValueChange={(value) => setPrefillFormData({ ...prefillFormData, extraUnits: parseInt(value) })}
-                      >
-                        <SelectTrigger className="bg-white text-black h-9 text-sm">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {[0, 1, 2, 3, 4, 5].map((num) => (
-                            <SelectItem key={num} value={num.toString()}>
-                              {num}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <div className="relative">
+                        <Select
+                          value={prefillFormData.extraUnits.toString()}
+                          onValueChange={(value) => {
+                            const newExtraUnits = parseInt(value);
+                            setPrefillFormData((prev) => {
+                              // Ajustar array de nomes quando quantidade muda
+                              let newDependentNames = prev.dependentNames;
+                              if (newExtraUnits === 0) {
+                                newDependentNames = [];
+                              } else if (newExtraUnits < prev.dependentNames.length) {
+                                // Diminuir: remover nomes excedentes
+                                newDependentNames = prev.dependentNames.slice(0, newExtraUnits);
+                              } else if (newExtraUnits > prev.dependentNames.length) {
+                                // Aumentar: adicionar slots vazios
+                                newDependentNames = [...prev.dependentNames];
+                                while (newDependentNames.length < newExtraUnits) {
+                                  newDependentNames.push('');
+                                }
+                              }
+                              return { ...prev, extraUnits: newExtraUnits, dependentNames: newDependentNames };
+                            });
+                          }}
+                        >
+                          <SelectTrigger className="bg-white text-black h-9 text-sm">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {[0, 1, 2, 3, 4, 5].map((num) => (
+                              <SelectItem key={num} value={num.toString()}>
+                                {num}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        {/* Overlay para garantir que "0" seja sempre exibido */}
+                        {prefillFormData.extraUnits === 0 && (
+                          <span 
+                            className="absolute left-3 top-1/2 -translate-y-1/2 text-black pointer-events-none select-none"
+                            style={{ 
+                              lineHeight: '1.5rem',
+                              fontSize: '0.875rem',
+                              zIndex: 1
+                            }}
+                          >
+                            0
+                          </span>
+                        )}
+                      </div>
                     </div>
 
                     {/* Client Name */}
@@ -464,6 +500,30 @@ export function SellerLinks() {
                       />
                     </div>
                   </div>
+
+                  {/* Dependent Names - Dynamic inputs */}
+                  {prefillFormData.extraUnits > 0 && (
+                    <div className="space-y-2">
+                      {Array.from({ length: prefillFormData.extraUnits }, (_, i) => (
+                        <div key={i} className="space-y-1.5">
+                          <Label htmlFor={`prefill-dependent-name-${i}`} className="text-white text-sm">
+                            Dependent Name {i + 1} *
+                          </Label>
+                          <Input
+                            id={`prefill-dependent-name-${i}`}
+                            value={prefillFormData.dependentNames[i] || ''}
+                            onChange={(e) => {
+                              const newNames = [...prefillFormData.dependentNames];
+                              newNames[i] = e.target.value;
+                              setPrefillFormData({ ...prefillFormData, dependentNames: newNames });
+                            }}
+                            className="bg-white text-black h-9 text-sm"
+                            required
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  )}
 
                   {/* Email & Date of Birth */}
                   <div className="grid gap-3 md:grid-cols-2">
@@ -782,6 +842,7 @@ export function SellerLinks() {
                             maritalStatus: prefillFormData.maritalStatus,
                             clientObservations: prefillFormData.clientObservations,
                             extraUnits: prefillFormData.extraUnits,
+                            dependentNames: prefillFormData.dependentNames.length > 0 ? prefillFormData.dependentNames : null,
                           },
                           expires_at: expiresAt.toISOString(),
                         });

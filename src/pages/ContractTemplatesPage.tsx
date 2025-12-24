@@ -9,15 +9,18 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { AlertModal } from '@/components/ui/alert-modal';
 import { ContractTemplateEditor } from '@/components/admin/ContractTemplateEditor';
 import {
   getAllContractTemplates,
+  getContractTemplatesByType,
   createContractTemplate,
   updateContractTemplate,
   deleteContractTemplate,
   toggleTemplateActive,
   type ContractTemplate,
+  type ContractTemplateType,
   type CreateContractTemplateData,
   type UpdateContractTemplateData,
 } from '@/lib/contract-templates';
@@ -30,6 +33,7 @@ export function ContractTemplatesPage() {
   const [filteredTemplates, setFilteredTemplates] = useState<ContractTemplate[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<FilterType>('all');
+  const [activeTab, setActiveTab] = useState<ContractTemplateType>('global_partner');
   const [showEditor, setShowEditor] = useState(false);
   const [editingTemplate, setEditingTemplate] = useState<ContractTemplate | null>(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -42,18 +46,18 @@ export function ContractTemplatesPage() {
 
   useEffect(() => {
     loadTemplates();
-  }, []);
+  }, [activeTab]);
 
   useEffect(() => {
     filterTemplates();
-  }, [templates, filter]);
+  }, [templates, filter, activeTab]);
 
   const loadTemplates = async () => {
     setLoading(true);
     try {
-      const allTemplates = await getAllContractTemplates();
-      if (allTemplates) {
-        setTemplates(allTemplates);
+      const templatesByType = await getContractTemplatesByType(activeTab);
+      if (templatesByType) {
+        setTemplates(templatesByType);
       } else {
         setTemplates([]);
       }
@@ -67,17 +71,28 @@ export function ContractTemplatesPage() {
 
   const filterTemplates = () => {
     let filtered = templates;
+    
+    // Filter by active/inactive status
     if (filter === 'active') {
       filtered = templates.filter((t) => t.is_active);
     } else if (filter === 'inactive') {
       filtered = templates.filter((t) => !t.is_active);
     }
+    
+    // Ensure we only show templates of the current tab type
+    filtered = filtered.filter((t) => (t.template_type || 'global_partner') === activeTab);
+    
     setFilteredTemplates(filtered);
   };
 
   const handleCreate = () => {
     setEditingTemplate(null);
     setShowEditor(true);
+  };
+
+  const handleTabChange = (value: string) => {
+    setActiveTab(value as ContractTemplateType);
+    setFilter('all'); // Reset filter when changing tabs
   };
 
   const handleEdit = (template: ContractTemplate) => {
@@ -96,6 +111,8 @@ export function ContractTemplatesPage() {
         description: template.description || undefined,
         content: template.content,
         is_active: false, // Duplicate as inactive by default
+        template_type: (template.template_type || 'global_partner') as ContractTemplateType,
+        product_slug: template.product_slug || undefined,
         created_by: createdBy || undefined,
       });
 
@@ -225,6 +242,8 @@ export function ContractTemplatesPage() {
           description: data.description,
           content: data.content,
           is_active: data.is_active,
+          template_type: data.template_type || activeTab,
+          product_slug: data.product_slug,
           created_by: createdBy || undefined,
         };
         result = await createContractTemplate(createData);
@@ -290,21 +309,76 @@ export function ContractTemplatesPage() {
         </Button>
       </div>
 
-      {/* Filters */}
-      <div className="mb-6">
-        <Select value={filter} onValueChange={(value) => setFilter(value as FilterType)}>
-          <SelectTrigger className="w-[200px] bg-black text-white border-gold-medium/50">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Templates</SelectItem>
-            <SelectItem value="active">Active Only</SelectItem>
-            <SelectItem value="inactive">Inactive Only</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
+      {/* Tabs */}
+      <Tabs value={activeTab} onValueChange={handleTabChange} className="mb-6">
+        <TabsList className="bg-black border border-gold-medium/30">
+          <TabsTrigger 
+            value="global_partner" 
+            className="data-[state=active]:bg-gold-medium/20 data-[state=active]:text-gold-light"
+          >
+            Global Partner
+          </TabsTrigger>
+          <TabsTrigger 
+            value="visa_service"
+            className="data-[state=active]:bg-gold-medium/20 data-[state=active]:text-gold-light"
+          >
+            Visa Services
+          </TabsTrigger>
+        </TabsList>
 
-      {/* Templates List */}
+        {/* Filters */}
+        <div className="mt-4 mb-6">
+          <Select value={filter} onValueChange={(value) => setFilter(value as FilterType)}>
+            <SelectTrigger className="w-[200px] bg-black text-white border-gold-medium/50">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Templates</SelectItem>
+              <SelectItem value="active">Active Only</SelectItem>
+              <SelectItem value="inactive">Inactive Only</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        {/* Global Partner Templates */}
+        <TabsContent value="global_partner">
+          {renderTemplatesList()}
+        </TabsContent>
+
+        {/* Visa Services Templates */}
+        <TabsContent value="visa_service">
+          {renderTemplatesList()}
+        </TabsContent>
+      </Tabs>
+
+      {/* Editor Modal */}
+      <ContractTemplateEditor
+        isOpen={showEditor}
+        onClose={() => {
+          setShowEditor(false);
+          setEditingTemplate(null);
+        }}
+        onSave={handleSave}
+        template={editingTemplate}
+        isLoading={isSaving}
+        defaultTemplateType={activeTab}
+      />
+
+      {/* Alert Modal */}
+      <AlertModal
+        isOpen={showAlert}
+        onClose={() => setShowAlert(false)}
+        title={alertData?.title || ''}
+        message={alertData?.message || ''}
+        variant={alertData?.variant || 'success'}
+      />
+    </div>
+  );
+
+  function renderTemplatesList() {
+    return (
+      <>
+        {/* Templates List */}
       {filteredTemplates.length === 0 ? (
         <Card className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30">
           <CardContent className="p-12 text-center">
@@ -417,28 +491,8 @@ export function ContractTemplatesPage() {
           ))}
         </div>
       )}
-
-      {/* Editor Modal */}
-      <ContractTemplateEditor
-        isOpen={showEditor}
-        onClose={() => {
-          setShowEditor(false);
-          setEditingTemplate(null);
-        }}
-        onSave={handleSave}
-        template={editingTemplate}
-        isLoading={isSaving}
-      />
-
-      {/* Alert Modal */}
-      <AlertModal
-        isOpen={showAlert}
-        onClose={() => setShowAlert(false)}
-        title={alertData?.title || ''}
-        message={alertData?.message || ''}
-        variant={alertData?.variant || 'success'}
-      />
-    </div>
-  );
+      </>
+    );
+  }
 }
 

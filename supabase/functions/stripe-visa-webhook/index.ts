@@ -527,19 +527,44 @@ Deno.serve(async (req: Request) => {
         }
 
         // Generate contract PDF after payment confirmation
-        try {
-          const { data: pdfData, error: pdfError } = await supabase.functions.invoke("generate-visa-contract-pdf", {
-            body: { order_id: order.id },
-          });
-          
-          if (pdfError) {
-            console.error("[Webhook] Error generating contract PDF:", pdfError);
-          } else {
-            console.log("[Webhook] Contract PDF generated successfully:", pdfData?.pdf_url);
+        // Only generate full contract for selection-process products
+        // For scholarship and i20-control, only generate ANNEX I
+        const isAnnexRequired = order.product_slug?.endsWith('-scholarship') || order.product_slug?.endsWith('-i20-control');
+        
+        if (!isAnnexRequired) {
+          // Generate full contract PDF only for non-annex products (e.g., selection-process)
+          try {
+            const { data: pdfData, error: pdfError } = await supabase.functions.invoke("generate-visa-contract-pdf", {
+              body: { order_id: order.id },
+            });
+            
+            if (pdfError) {
+              console.error("[Webhook] Error generating contract PDF:", pdfError);
+            } else {
+              console.log("[Webhook] Contract PDF generated successfully:", pdfData?.pdf_url);
+            }
+          } catch (pdfError) {
+            console.error("[Webhook] Exception generating PDF:", pdfError);
+            // Continue - PDF generation is not critical for payment processing
           }
-        } catch (pdfError) {
-          console.error("[Webhook] Exception generating PDF:", pdfError);
-          // Continue - PDF generation is not critical for payment processing
+        }
+
+        // Generate ANNEX I PDF for scholarship and i20-control products
+        if (isAnnexRequired) {
+          try {
+            const { data: annexPdfData, error: annexPdfError } = await supabase.functions.invoke("generate-annex-pdf", {
+              body: { order_id: order.id },
+            });
+            
+            if (annexPdfError) {
+              console.error("[Webhook] Error generating ANNEX I PDF:", annexPdfError);
+            } else {
+              console.log("[Webhook] ANNEX I PDF generated successfully:", annexPdfData?.pdf_url);
+            }
+          } catch (annexPdfError) {
+            console.error("[Webhook] Exception generating ANNEX I PDF:", annexPdfError);
+            // Continue - PDF generation is not critical for payment processing
+          }
         }
 
         // Send confirmation email to client
@@ -677,18 +702,44 @@ Deno.serve(async (req: Request) => {
         }
 
         // Generate contract PDF after payment confirmation
-        try {
-          const { data: pdfData, error: pdfError } = await supabase.functions.invoke("generate-visa-contract-pdf", {
-            body: { order_id: order.id },
-          });
-          
-          if (pdfError) {
-            console.error("[Webhook] Error generating contract PDF:", pdfError);
-          } else {
-            console.log("[Webhook] Contract PDF generated successfully:", pdfData?.pdf_url);
+        // Only generate full contract for selection-process products
+        // For scholarship and i20-control, only generate ANNEX I
+        const isAnnexRequired = order.product_slug?.endsWith('-scholarship') || order.product_slug?.endsWith('-i20-control');
+        
+        if (!isAnnexRequired) {
+          // Generate full contract PDF only for non-annex products (e.g., selection-process)
+          try {
+            const { data: pdfData, error: pdfError } = await supabase.functions.invoke("generate-visa-contract-pdf", {
+              body: { order_id: order.id },
+            });
+            
+            if (pdfError) {
+              console.error("[Webhook] Error generating contract PDF:", pdfError);
+            } else {
+              console.log("[Webhook] Contract PDF generated successfully:", pdfData?.pdf_url);
+            }
+          } catch (pdfError) {
+            console.error("[Webhook] Exception generating PDF:", pdfError);
+            // Continue - PDF generation is not critical for payment processing
           }
-        } catch (pdfError) {
-          console.error("[Webhook] Exception generating PDF:", pdfError);
+        }
+
+        // Generate ANNEX I PDF for scholarship and i20-control products
+        if (isAnnexRequired) {
+          try {
+            const { data: annexPdfData, error: annexPdfError } = await supabase.functions.invoke("generate-annex-pdf", {
+              body: { order_id: order.id },
+            });
+            
+            if (annexPdfError) {
+              console.error("[Webhook] Error generating ANNEX I PDF:", annexPdfError);
+            } else {
+              console.log("[Webhook] ANNEX I PDF generated successfully:", annexPdfData?.pdf_url);
+            }
+          } catch (annexPdfError) {
+            console.error("[Webhook] Exception generating ANNEX I PDF:", annexPdfError);
+            // Continue - PDF generation is not critical for payment processing
+          }
         }
 
         // Send confirmation email to client (PIX)

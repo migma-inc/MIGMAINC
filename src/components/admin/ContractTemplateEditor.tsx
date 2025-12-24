@@ -5,9 +5,11 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import type { ContractTemplate, CreateContractTemplateData, UpdateContractTemplateData } from '@/lib/contract-templates';
+import type { ContractTemplate, ContractTemplateType, CreateContractTemplateData, UpdateContractTemplateData } from '@/lib/contract-templates';
 import { formatContractTextToHtml, formatHtmlToContractText } from '@/lib/contract-formatter';
+import { supabase } from '@/lib/supabase';
 
 interface ContractTemplateEditorProps {
   isOpen: boolean;
@@ -15,6 +17,7 @@ interface ContractTemplateEditorProps {
   onSave: (data: CreateContractTemplateData | UpdateContractTemplateData) => Promise<void>;
   template?: ContractTemplate | null;
   isLoading?: boolean;
+  defaultTemplateType?: ContractTemplateType;
 }
 
 export function ContractTemplateEditor({
@@ -23,6 +26,7 @@ export function ContractTemplateEditor({
   onSave,
   template,
   isLoading = false,
+  defaultTemplateType = 'global_partner',
 }: ContractTemplateEditorProps) {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
@@ -30,6 +34,10 @@ export function ContractTemplateEditor({
   const [htmlContent, setHtmlContent] = useState('');
   const [editMode, setEditMode] = useState<'text' | 'html'>('text');
   const [isActive, setIsActive] = useState(true);
+  const [templateType, setTemplateType] = useState<ContractTemplateType>('global_partner');
+  const [productSlug, setProductSlug] = useState('');
+  const [visaProducts, setVisaProducts] = useState<Array<{ slug: string; name: string }>>([]);
+  const [loadingProducts, setLoadingProducts] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
@@ -41,19 +49,55 @@ export function ContractTemplateEditor({
         setHtmlContent(template.content);
         setPlainTextContent(formatHtmlToContractText(template.content));
         setIsActive(template.is_active);
+        setTemplateType((template.template_type || 'global_partner') as ContractTemplateType);
+        setProductSlug(template.product_slug || '');
         setEditMode('text'); // Default to text mode for easier editing
       } else {
-        // Create mode
+        // Create mode - use defaultTemplateType prop
         setName('');
         setDescription('');
         setPlainTextContent('');
         setHtmlContent('');
         setIsActive(true);
+        setTemplateType(defaultTemplateType);
+        setProductSlug('');
         setEditMode('text');
       }
       setErrors({});
     }
   }, [isOpen, template]);
+
+  // Load visa products when template type is visa_service
+  useEffect(() => {
+    if (isOpen && templateType === 'visa_service') {
+      loadVisaProducts();
+    } else {
+      setVisaProducts([]);
+    }
+  }, [isOpen, templateType]);
+
+  const loadVisaProducts = async () => {
+    setLoadingProducts(true);
+    try {
+      const { data, error } = await supabase
+        .from('visa_products')
+        .select('slug, name')
+        .eq('is_active', true)
+        .order('name', { ascending: true });
+
+      if (error) {
+        console.error('[TEMPLATE_EDITOR] Error loading visa products:', error);
+        setVisaProducts([]);
+      } else {
+        setVisaProducts(data || []);
+      }
+    } catch (error) {
+      console.error('[TEMPLATE_EDITOR] Exception loading visa products:', error);
+      setVisaProducts([]);
+    } finally {
+      setLoadingProducts(false);
+    }
+  };
 
   // Auto-format plain text to HTML when user types
   const handlePlainTextChange = (text: string) => {
@@ -75,6 +119,11 @@ export function ContractTemplateEditor({
       newErrors.content = 'Template content is required';
     }
 
+    // Validate product_slug for visa_service templates
+    if (templateType === 'visa_service' && !productSlug.trim()) {
+      newErrors.product_slug = 'Product selection is required for Visa Service templates';
+    }
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -94,6 +143,8 @@ export function ContractTemplateEditor({
       description: description.trim() || undefined,
       content: finalHtmlContent.trim(),
       is_active: isActive,
+      template_type: templateType,
+      product_slug: templateType === 'visa_service' ? productSlug.trim() : undefined,
     };
 
     await onSave(data);
@@ -145,7 +196,6 @@ export function ContractTemplateEditor({
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="e.g., Standard Contract, Premium Contract"
               className="bg-white text-black"
               disabled={isLoading}
             />
@@ -162,11 +212,80 @@ export function ContractTemplateEditor({
               type="text"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="Brief description of this template"
               className="bg-white text-black"
               disabled={isLoading}
             />
           </div>
+
+          {/* Template Type */}
+          <div>
+            <Label htmlFor="template-type" className="text-white mb-2 block">
+              Template Type <span className="text-red-500">*</span>
+            </Label>
+            <Select
+              value={templateType}
+              onValueChange={(value) => {
+                setTemplateType(value as ContractTemplateType);
+                // Clear product_slug when switching to global_partner
+                if (value === 'global_partner') {
+                  setProductSlug('');
+                }
+              }}
+              disabled={isLoading}
+            >
+              <SelectTrigger className="bg-white text-black">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="global_partner">Global Partner</SelectItem>
+                <SelectItem value="visa_service">Visa Service</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Product Slug (only for visa_service) */}
+          {templateType === 'visa_service' && (
+            <div>
+              <Label htmlFor="product-slug" className="text-white mb-2 block">
+                Visa Service Product <span className="text-red-500">*</span>
+              </Label>
+              {loadingProducts ? (
+                <div className="flex items-center gap-2 text-gray-400 py-2">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span className="text-sm">Loading products...</span>
+                </div>
+              ) : (
+                <Select
+                  value={productSlug}
+                  onValueChange={setProductSlug}
+                  disabled={isLoading || loadingProducts}
+                >
+                  <SelectTrigger className="bg-white text-black">
+                    <SelectValue placeholder="Select a visa service product..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {visaProducts.length === 0 ? (
+                      <SelectItem value="" disabled>
+                          No active products found
+                      </SelectItem>
+                    ) : (
+                      visaProducts.map((product) => (
+                        <SelectItem key={product.slug} value={product.slug}>
+                          {product.name} ({product.slug})
+                        </SelectItem>
+                      ))
+                    )}
+                  </SelectContent>
+                </Select>
+              )}
+              {errors.product_slug && (
+                <p className="text-red-500 text-sm mt-1">{errors.product_slug}</p>
+              )}
+              <p className="text-xs text-gray-400 mt-1">
+                Select the visa service product this template will be used for in the checkout Step 3.
+              </p>
+            </div>
+          )}
 
           {/* Content */}
           <div>
