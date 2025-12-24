@@ -13,7 +13,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { AlertModal } from '@/components/ui/alert-modal';
 import { ContractTemplateEditor } from '@/components/admin/ContractTemplateEditor';
 import {
-  getAllContractTemplates,
   getContractTemplatesByType,
   createContractTemplate,
   updateContractTemplate,
