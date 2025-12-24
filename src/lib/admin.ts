@@ -196,6 +196,112 @@ export async function approveApplicationForMeeting(
 }
 
 /**
+ * Update meeting information for an application
+ * Updates meeting details and sends update notification email
+ */
+export async function updateMeetingInfo(
+  applicationId: string,
+  meetingDate: string,
+  meetingTime: string,
+  meetingLink: string,
+  scheduledBy?: string
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    // Validate inputs
+    if (!meetingDate || !meetingTime || !meetingLink) {
+      return { success: false, error: 'Meeting date, time, and link are required' };
+    }
+
+    // Validate URL format
+    try {
+      new URL(meetingLink);
+    } catch {
+      return { success: false, error: 'Invalid meeting link URL format' };
+    }
+
+    // Get application data for email
+    const { data: application, error: fetchError } = await supabase
+      .from('global_partner_applications')
+      .select('email, full_name, status')
+      .eq('id', applicationId)
+      .single();
+
+    if (fetchError || !application) {
+      console.error('[ADMIN] Error fetching application:', fetchError);
+      return { success: false, error: 'Application not found' };
+    }
+
+    // Verify application is in a status that allows meeting updates
+    if (application.status !== 'approved_for_meeting') {
+      return {
+        success: false,
+        error: `Cannot update meeting for application with status: ${application.status}. Application must be in 'approved_for_meeting' status.`,
+      };
+    }
+
+    // Update meeting fields
+    const updateData: {
+      meeting_date: string;
+      meeting_time: string;
+      meeting_link: string;
+      meeting_scheduled_at: string;
+      updated_at: string;
+      meeting_scheduled_by?: string;
+    } = {
+      meeting_date: meetingDate,
+      meeting_time: meetingTime,
+      meeting_link: meetingLink,
+      meeting_scheduled_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+
+    if (scheduledBy) {
+      updateData.meeting_scheduled_by = scheduledBy;
+    }
+
+    const { error: updateError } = await supabase
+      .from('global_partner_applications')
+      .update(updateData)
+      .eq('id', applicationId);
+
+    if (updateError) {
+      console.error('[ADMIN] Error updating meeting information:', updateError);
+      return { success: false, error: updateError.message };
+    }
+
+    // Send meeting update email
+    const { sendMeetingUpdateEmail } = await import('./emails');
+    const emailSent = await sendMeetingUpdateEmail(
+      application.email,
+      application.full_name,
+      meetingDate,
+      meetingTime,
+      meetingLink
+    );
+
+    if (!emailSent) {
+      console.warn('[ADMIN] Meeting update email failed to send, but information was updated');
+      // Information was updated, so we consider it a partial success
+      return {
+        success: true,
+        error: 'Meeting information updated, but email sending failed. Please send manually.',
+      };
+    }
+
+    // Invalidate cache after update
+    invalidateAllCache();
+
+    return { success: true };
+  } catch (error) {
+    console.error('[ADMIN] Error updating meeting information:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error occurred',
+    };
+  }
+}
+
+/**
  * Approve an application after meeting (second approval step)
  * Updates status to 'approved_for_contract' and sends contract terms link email
  * @param applicationId - ID da aplicação

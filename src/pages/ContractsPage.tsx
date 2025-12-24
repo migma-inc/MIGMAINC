@@ -276,7 +276,7 @@ export function ContractsPage() {
             </div>
           </div>
         )}
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-2 items-center">
           {/* Action buttons for pending contracts (including null status for old contracts) */}
           {(contract.verification_status === 'pending' || contract.verification_status === null) && (
             <>
@@ -644,46 +644,48 @@ export function ContractsPage() {
 
       {/* Approve Confirmation Modal */}
       <Dialog open={showApproveConfirm} onOpenChange={setShowApproveConfirm}>
-        <DialogContent className="bg-black border-gold-medium/30 relative">
-          {isProcessing && (
-            <div className="absolute inset-0 bg-black/90 backdrop-blur-sm flex items-center justify-center z-50 rounded-lg">
-              <div className="text-center">
-                <div className="loader-gold mx-auto mb-4"></div>
-                <p className="text-gold-light text-lg font-semibold">Processing approval...</p>
-                <p className="text-gray-400 text-sm mt-2">Please wait</p>
-              </div>
-            </div>
-          )}
-          <DialogHeader>
-            <DialogTitle className="text-white">Approve Contract</DialogTitle>
-            <DialogDescription className="text-gray-300">
-              Are you sure you want to approve this contract? An approval email will be sent to the partner.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setShowApproveConfirm(false)}
-              disabled={isProcessing}
-              className="border-gold-medium/50 bg-black/50 text-white hover:bg-gold-medium/30"
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={confirmApproveContract}
-              disabled={isProcessing}
-              className="bg-green-600 hover:bg-green-700 text-white"
-            >
-              {isProcessing ? (
-                <div className="flex items-center justify-center">
-                  <div className="loader-gold w-5 h-5 border-2 border-t-2 border-t-white border-green-400 rounded-full animate-spin mr-2"></div>
-                  Processing...
+        <DialogContent className="bg-black border-gold-medium/30">
+          <div className="relative">
+            {isProcessing && (
+              <div className="absolute inset-0 bg-black/90 backdrop-blur-sm flex items-center justify-center z-50 rounded-lg">
+                <div className="text-center">
+                  <div className="loader-gold mx-auto mb-4"></div>
+                  <p className="text-gold-light text-lg font-semibold">Processing approval...</p>
+                  <p className="text-gray-400 text-sm mt-2">Please wait</p>
                 </div>
-              ) : (
-                'Approve'
-              )}
-            </Button>
-          </DialogFooter>
+              </div>
+            )}
+            <DialogHeader>
+              <DialogTitle className="text-white">Approve Contract</DialogTitle>
+              <DialogDescription className="text-gray-300">
+                Are you sure you want to approve this contract? An approval email will be sent to the partner.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter className="flex items-center justify-end gap-2">
+              <Button
+                variant="outline"
+                onClick={() => setShowApproveConfirm(false)}
+                disabled={isProcessing}
+                className="border-gold-medium/50 bg-black/50 text-white hover:bg-gold-medium/30 flex items-center"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={confirmApproveContract}
+                disabled={isProcessing}
+                className="bg-green-600 hover:bg-green-700 text-white flex items-center justify-center"
+              >
+                {isProcessing ? (
+                  <>
+                    <div className="loader-gold w-5 h-5 border-2 border-t-2 border-t-white border-green-400 rounded-full animate-spin mr-2"></div>
+                    Processing...
+                  </>
+                ) : (
+                  'Approve'
+                )}
+              </Button>
+            </DialogFooter>
+          </div>
         </DialogContent>
       </Dialog>
 
@@ -769,7 +771,7 @@ export function ContractsPage() {
               </div>
             )}
           </DialogHeader>
-          <DialogFooter>
+          <DialogFooter className="flex items-center justify-end gap-2">
             <Button
               variant="outline"
               onClick={() => {
@@ -777,20 +779,20 @@ export function ContractsPage() {
                 setRejectionReason('');
               }}
               disabled={isProcessing}
-              className="border-gold-medium/50 bg-black/50 text-white hover:bg-gold-medium/30"
+              className="border-gold-medium/50 bg-black/50 text-white hover:bg-gold-medium/30 flex items-center"
             >
               Cancel
             </Button>
             <Button
               onClick={() => confirmRejectContract(null)}
               disabled={isProcessing}
-              className="bg-red-600 hover:bg-red-700 text-white"
+              className="bg-red-600 hover:bg-red-700 text-white flex items-center justify-center"
             >
               {isProcessing ? (
-                <div className="flex items-center justify-center">
+                <>
                   <div className="loader-gold w-5 h-5 border-2 border-t-2 border-t-white border-red-400 rounded-full animate-spin mr-2"></div>
                   Processing...
-                </div>
+                </>
               ) : (
                 'Confirm Rejection'
               )}

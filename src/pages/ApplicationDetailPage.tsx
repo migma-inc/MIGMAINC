@@ -12,7 +12,7 @@ import { getCurrentUser } from '@/lib/auth';
 import type { Application } from '@/types/application';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { ArrowLeft, Download, CheckCircle, XCircle, ExternalLink, X, Calendar, Clock, Link as LinkIcon, MapPin, Hash, FileCode, Globe, Shield } from 'lucide-react';
+import { ArrowLeft, Download, CheckCircle, XCircle, ExternalLink, X, Calendar, Clock, Link as LinkIcon, MapPin, Hash, FileCode, Globe, Shield, Pencil } from 'lucide-react';
 import { ConfirmModal } from '@/components/ui/confirm-modal';
 import { PromptModal } from '@/components/ui/prompt-modal';
 import { AlertModal } from '@/components/ui/alert-modal';
@@ -195,6 +195,56 @@ function ApplicationDetailContent() {
         setAlertData({
           title: 'Error',
           message: result.error || 'Failed to schedule meeting',
+          variant: 'error',
+        });
+        setShowAlert(true);
+      }
+    } catch (error) {
+      setAlertData({
+        title: 'Error',
+        message: error instanceof Error ? error.message : 'Unknown error occurred',
+        variant: 'error',
+      });
+      setShowAlert(true);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleMeetingUpdate = async (data: {
+    meetingDate: string;
+    meetingTime: string;
+    meetingLink: string;
+    scheduledBy?: string;
+  }) => {
+    if (!application) return;
+    
+    setShowMeetingModal(false);
+    setIsProcessing(true);
+    try {
+      const { updateMeetingInfo } = await import('@/lib/admin');
+      const result = await updateMeetingInfo(
+        application.id,
+        data.meetingDate,
+        data.meetingTime,
+        data.meetingLink,
+        data.scheduledBy
+      );
+      if (result.success) {
+        setAlertData({
+          title: 'Success',
+          message: result.error || 'Meeting information updated successfully! Email sent.',
+          variant: 'success',
+        });
+        setShowAlert(true);
+        // Reload application to get updated status after alert is closed
+        setTimeout(() => {
+          window.location.reload();
+        }, 2000);
+      } else {
+        setAlertData({
+          title: 'Error',
+          message: result.error || 'Failed to update meeting information',
           variant: 'error',
         });
         setShowAlert(true);
@@ -797,7 +847,21 @@ function ApplicationDetailContent() {
           {application.meeting_date && (
             <Card className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30">
               <CardHeader>
-                <CardTitle className="text-white">Meeting Information</CardTitle>
+                <div className="flex justify-between items-center">
+                  <CardTitle className="text-white">Meeting Information</CardTitle>
+                  {application.status === 'approved_for_meeting' && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowMeetingModal(true)}
+                      disabled={isProcessing}
+                      className="flex items-center gap-2 border-yellow-500/50 bg-yellow-900/20 text-yellow-300 hover:bg-yellow-800/30 hover:text-yellow-200"
+                    >
+                      <Pencil className="w-4 h-4" />
+                      Edit Meeting
+                    </Button>
+                  )}
+                </div>
               </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -806,12 +870,17 @@ function ApplicationDetailContent() {
                     <div>
                       <p className="text-sm text-gray-400 mb-1">Meeting Date</p>
                       <p className="font-medium text-gray-200">
-                        {new Date(application.meeting_date).toLocaleDateString('en-US', {
-                          weekday: 'long',
-                          year: 'numeric',
-                          month: 'long',
-                          day: 'numeric',
-                        })}
+                        {(() => {
+                          // Parse date in local timezone to avoid timezone conversion issues
+                          const [year, month, day] = application.meeting_date.split('-').map(Number);
+                          const date = new Date(year, month - 1, day);
+                          return date.toLocaleDateString('en-US', {
+                            weekday: 'long',
+                            year: 'numeric',
+                            month: 'long',
+                            day: 'numeric',
+                          });
+                        })()}
                       </p>
                     </div>
                   </div>
@@ -1075,7 +1144,18 @@ function ApplicationDetailContent() {
       <MeetingScheduleModal
         isOpen={showMeetingModal}
         onClose={() => setShowMeetingModal(false)}
-        onConfirm={handleMeetingSchedule}
+        onConfirm={(application?.status === 'approved_for_meeting' && application?.meeting_date)
+          ? handleMeetingUpdate
+          : handleMeetingSchedule}
+        initialData={application?.status === 'approved_for_meeting' && application?.meeting_date
+          ? {
+              meetingDate: application.meeting_date,
+              meetingTime: application.meeting_time || '',
+              meetingLink: application.meeting_link || '',
+              scheduledBy: application.meeting_scheduled_by || '',
+            }
+          : undefined}
+        isEditMode={application?.status === 'approved_for_meeting' && !!application?.meeting_date}
         isLoading={isProcessing}
       />
 

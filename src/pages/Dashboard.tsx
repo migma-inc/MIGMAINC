@@ -306,6 +306,61 @@ export function DashboardContent() {
     }
   };
 
+  const handleEditMeeting = (application: Application) => {
+    setPendingApplication(application);
+    setShowMeetingModal(true);
+  };
+
+  const handleMeetingUpdate = async (data: {
+    meetingDate: string;
+    meetingTime: string;
+    meetingLink: string;
+    scheduledBy?: string;
+  }) => {
+    if (!pendingApplication) return;
+    
+    setShowMeetingModal(false);
+    setIsProcessing(true);
+    try {
+      const { updateMeetingInfo } = await import('@/lib/admin');
+      const result = await updateMeetingInfo(
+        pendingApplication.id,
+        data.meetingDate,
+        data.meetingTime,
+        data.meetingLink,
+        data.scheduledBy
+      );
+      if (result.success) {
+        setAlertData({
+          title: 'Success',
+          message: result.error || 'Meeting information updated successfully! Email sent.',
+          variant: 'success',
+        });
+        setShowAlert(true);
+        await loadStats();
+        // Trigger list refresh
+        setRefreshKey(prev => prev + 1);
+      } else {
+        setAlertData({
+          title: 'Error',
+          message: result.error || 'Failed to update meeting information',
+          variant: 'error',
+        });
+        setShowAlert(true);
+      }
+    } catch (error) {
+      setAlertData({
+        title: 'Error',
+        message: error instanceof Error ? error.message : 'Unknown error occurred',
+        variant: 'error',
+      });
+      setShowAlert(true);
+    } finally {
+      setIsProcessing(false);
+      setPendingApplication(null);
+    }
+  };
+
   const handleTemplateSelected = async (templateId: string | null) => {
     if (!pendingApplication) return;
     
@@ -656,6 +711,7 @@ export function DashboardContent() {
         <ApplicationsList
           onApprove={handleApprove}
           onReject={handleReject}
+          onEditMeeting={handleEditMeeting}
           statusFilter={statusFilter}
           refreshKey={refreshKey}
         />
@@ -678,7 +734,18 @@ export function DashboardContent() {
           setShowMeetingModal(false);
           setPendingApplication(null);
         }}
-        onConfirm={handleMeetingSchedule}
+        onConfirm={(pendingApplication?.status === 'approved_for_meeting' && pendingApplication?.meeting_date) 
+          ? handleMeetingUpdate 
+          : handleMeetingSchedule}
+        initialData={pendingApplication?.status === 'approved_for_meeting' && pendingApplication?.meeting_date
+          ? {
+              meetingDate: pendingApplication.meeting_date,
+              meetingTime: pendingApplication.meeting_time || '',
+              meetingLink: pendingApplication.meeting_link || '',
+              scheduledBy: pendingApplication.meeting_scheduled_by || '',
+            }
+          : undefined}
+        isEditMode={pendingApplication?.status === 'approved_for_meeting' && !!pendingApplication?.meeting_date}
         isLoading={isProcessing}
       />
 

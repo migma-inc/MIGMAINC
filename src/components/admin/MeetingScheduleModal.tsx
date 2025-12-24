@@ -14,6 +14,13 @@ interface MeetingScheduleModalProps {
     scheduledBy?: string;
   }) => void;
   isLoading?: boolean;
+  initialData?: {
+    meetingDate?: string;
+    meetingTime?: string;
+    meetingLink?: string;
+    scheduledBy?: string;
+  };
+  isEditMode?: boolean;
 }
 
 export function MeetingScheduleModal({
@@ -21,6 +28,8 @@ export function MeetingScheduleModal({
   onClose,
   onConfirm,
   isLoading = false,
+  initialData,
+  isEditMode = false,
 }: MeetingScheduleModalProps) {
   const [meetingDate, setMeetingDate] = useState('');
   const [meetingTime, setMeetingTime] = useState('');
@@ -30,14 +39,21 @@ export function MeetingScheduleModal({
 
   useEffect(() => {
     if (isOpen) {
-      // Reset form when modal opens
-      setMeetingDate('');
-      setMeetingTime('');
-      setMeetingLink('');
-      setScheduledBy('');
+      // Set initial data if provided (for edit mode), otherwise reset
+      if (initialData) {
+        setMeetingDate(initialData.meetingDate || '');
+        setMeetingTime(initialData.meetingTime || '');
+        setMeetingLink(initialData.meetingLink || '');
+        setScheduledBy(initialData.scheduledBy || '');
+      } else {
+        setMeetingDate('');
+        setMeetingTime('');
+        setMeetingLink('');
+        setScheduledBy('');
+      }
       setErrors({});
     }
-  }, [isOpen]);
+  }, [isOpen, initialData]);
 
   const validateForm = (): boolean => {
     const newErrors: Record<string, string> = {};
@@ -45,7 +61,9 @@ export function MeetingScheduleModal({
     if (!meetingDate) {
       newErrors.meetingDate = 'Date is required';
     } else {
-      const date = new Date(meetingDate);
+      // Parse date in local timezone to avoid timezone conversion issues
+      const [year, month, day] = meetingDate.split('-').map(Number);
+      const date = new Date(year, month - 1, day);
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       if (date < today) {
@@ -98,7 +116,9 @@ export function MeetingScheduleModal({
       >
         <div className="p-6">
           <div className="flex justify-between items-start mb-4">
-            <h3 className="text-lg font-semibold text-white">Schedule Meeting</h3>
+            <h3 className="text-lg font-semibold text-white">
+              {isEditMode ? 'Edit Meeting Details' : 'Schedule Meeting'}
+            </h3>
             <Button
               variant="ghost"
               size="icon"
@@ -198,7 +218,9 @@ export function MeetingScheduleModal({
               disabled={isLoading}
               className="bg-green-600 hover:bg-green-700 text-white"
             >
-              {isLoading ? 'Scheduling...' : 'Schedule Meeting & Send Email'}
+              {isLoading 
+                ? (isEditMode ? 'Updating...' : 'Scheduling...') 
+                : (isEditMode ? 'Update Meeting & Send Email' : 'Schedule Meeting & Send Email')}
             </Button>
           </div>
         </div>

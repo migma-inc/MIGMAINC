@@ -7,13 +7,14 @@ import type { Application } from '@/types/application';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 // Badge component is defined inline in StatusBadge
-import { Eye, CheckCircle, XCircle, Calendar, Clock, Link as LinkIcon } from 'lucide-react';
+import { Eye, CheckCircle, XCircle, Calendar, Clock, Link as LinkIcon, Pencil } from 'lucide-react';
 import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 
 interface ApplicationsListProps {
   onApprove?: (application: Application) => void;
   onReject?: (application: Application) => void;
+  onEditMeeting?: (application: Application) => void;
   statusFilter?: 'pending' | 'approved' | 'approved_for_meeting' | 'approved_for_contract' | 'rejected';
   refreshKey?: number;
 }
@@ -47,6 +48,7 @@ function StatusBadge({ status }: { status: Application['status'] }) {
 export function ApplicationsList({
   onApprove,
   onReject,
+  onEditMeeting,
   statusFilter,
   refreshKey,
 }: ApplicationsListProps) {
@@ -144,11 +146,16 @@ export function ApplicationsList({
                     <div>
                       <p className="text-xs text-gray-400">Meeting Date</p>
                       <p className="font-medium text-yellow-300">
-                        {new Date(application.meeting_date).toLocaleDateString('en-US', {
-                          month: 'short',
-                          day: 'numeric',
-                          year: 'numeric',
-                        })}
+                        {(() => {
+                          // Parse date in local timezone to avoid timezone conversion issues
+                          const [year, month, day] = application.meeting_date.split('-').map(Number);
+                          const date = new Date(year, month - 1, day);
+                          return date.toLocaleDateString('en-US', {
+                            month: 'short',
+                            day: 'numeric',
+                            year: 'numeric',
+                          });
+                        })()}
                       </p>
                     </div>
                   </div>
@@ -219,16 +226,31 @@ export function ApplicationsList({
                   )}
                 </>
               )}
-              {application.status === 'approved_for_meeting' && onApprove && (
-                <Button
-                  variant="default"
-                  size="sm"
-                  onClick={() => onApprove(application)}
-                  className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white"
-                >
-                  <CheckCircle className="w-4 h-4" />
-                  Approve After Meeting
-                </Button>
+              {application.status === 'approved_for_meeting' && (
+                <>
+                  {onEditMeeting && application.meeting_date && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => onEditMeeting(application)}
+                      className="flex items-center gap-2 border-yellow-500/50 bg-yellow-900/20 text-yellow-300 hover:bg-yellow-800/30 hover:text-yellow-200"
+                    >
+                      <Pencil className="w-4 h-4" />
+                      Edit Meeting
+                    </Button>
+                  )}
+                  {onApprove && (
+                    <Button
+                      variant="default"
+                      size="sm"
+                      onClick={() => onApprove(application)}
+                      className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white"
+                    >
+                      <CheckCircle className="w-4 h-4" />
+                      Approve After Meeting
+                    </Button>
+                  )}
+                </>
               )}
             </div>
           </CardContent>
