@@ -920,7 +920,30 @@ const ApplicationWizard = () => {
     const [triedToSubmit, setTriedToSubmit] = React.useState(false);
     const [isSubmitting, setIsSubmitting] = React.useState(false);
     const isSubmittingRef = React.useRef(false); // Ref para evitar race conditions
+    const formRef = React.useRef<HTMLDivElement>(null); // Ref para o formulário
     const totalSteps = 6;
+    
+    // Scroll to top of form when step changes (especially important on mobile)
+    React.useEffect(() => {
+        // Skip scroll on initial mount (step 1)
+        if (step === 1) return;
+        
+        // Small delay to ensure DOM is updated and step content is rendered
+        const timer = setTimeout(() => {
+            // First try to scroll to the form ref (the ApplicationWizard container)
+            if (formRef.current) {
+                formRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            } else {
+                // Fallback: scroll to application-form section
+                const formElement = document.getElementById('application-form');
+                if (formElement) {
+                    formElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
+            }
+        }, 100); // Small delay to ensure step animation starts
+        
+        return () => clearTimeout(timer);
+    }, [step]);
 
     // Load saved form data from localStorage
     const loadSavedFormData = (): Partial<FormData> => {
@@ -1554,7 +1577,7 @@ const ApplicationWizard = () => {
     };
 
     return (
-        <div>
+        <div ref={formRef}>
             {/* Loading Overlay */}
             {isSubmitting && (
                 <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50">
