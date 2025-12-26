@@ -20,6 +20,7 @@ import { generateContractViewToken } from '@/lib/contract-view';
 import { countries } from '@/lib/visa-checkout-constants';
 import { SignaturePadComponent } from '@/components/ui/signature-pad';
 import { AlertModal } from '@/components/ui/alert-modal';
+import { parseLocalDate, getTodayLocalDate } from '@/lib/utils';
 
 export const PartnerTerms = () => {
     const navigate = useNavigate();
@@ -496,9 +497,15 @@ export const PartnerTerms = () => {
         if (!fullLegalName.trim()) errors.fullLegalName = 'Full legal name is required';
         if (!dateOfBirth) errors.dateOfBirth = 'Date of birth is required';
         else {
-            const birthDate = new Date(dateOfBirth);
-            const today = new Date();
-            if (birthDate >= today) errors.dateOfBirth = 'Date of birth must be in the past';
+            // Parse date in local timezone to avoid timezone conversion issues
+            const birthDate = parseLocalDate(dateOfBirth);
+            if (!birthDate) {
+                errors.dateOfBirth = 'Invalid date format';
+            } else {
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+                if (birthDate >= today) errors.dateOfBirth = 'Date of birth must be in the past';
+            }
         }
         if (!nationality.trim()) errors.nationality = 'Nationality is required';
         if (!countryOfResidence.trim()) errors.countryOfResidence = 'Country of residence is required';
@@ -540,9 +547,15 @@ export const PartnerTerms = () => {
             if (!fullLegalName.trim()) errors.fullLegalName = 'Full legal name is required';
             if (!dateOfBirth) errors.dateOfBirth = 'Date of birth is required';
             else {
-                const birthDate = new Date(dateOfBirth);
-                const today = new Date();
-                if (birthDate >= today) errors.dateOfBirth = 'Date of birth must be in the past';
+                // Parse date in local timezone to avoid timezone conversion issues
+                const birthDate = parseLocalDate(dateOfBirth);
+                if (!birthDate) {
+                    errors.dateOfBirth = 'Invalid date format';
+                } else {
+                    const today = new Date();
+                    today.setHours(0, 0, 0, 0);
+                    if (birthDate >= today) errors.dateOfBirth = 'Date of birth must be in the past';
+                }
             }
             if (!nationality.trim()) errors.nationality = 'Nationality is required';
             if (!countryOfResidence.trim()) errors.countryOfResidence = 'Country of residence is required';
@@ -1904,7 +1917,7 @@ export const PartnerTerms = () => {
                                                 value={dateOfBirth}
                                                 onChange={(e) => setDateOfBirth(e.target.value)}
                                                 className="bg-white text-black"
-                                                max={new Date().toISOString().split('T')[0]}
+                                                max={getTodayLocalDate()}
                                             />
                                             {formErrors.dateOfBirth && (
                                                 <p className="text-sm text-red-400">{formErrors.dateOfBirth}</p>
