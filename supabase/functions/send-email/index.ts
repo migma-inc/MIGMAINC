@@ -18,7 +18,19 @@ Deno.serve(async (req) => {
   try {
     const { to, subject, html, from } = await req.json();
 
+    // Extract URL from HTML to check if it's localhost or production
+    const urlMatch = html.match(/href=["']([^"']*partner-terms[^"']*)["']/i) || 
+                      html.match(/href=["']([^"']*\/partner-terms[^"']*)["']/i) ||
+                      html.match(/(https?:\/\/[^\s<>"']*partner-terms[^\s<>"']*)/i);
+    const extractedUrl = urlMatch ? urlMatch[1] : null;
+    const isLocalhost = extractedUrl ? (extractedUrl.includes('localhost') || extractedUrl.includes('127.0.0.1')) : null;
+
     console.log("[EDGE FUNCTION] Sending email to:", to);
+    console.log("[EDGE FUNCTION] Email link URL:", {
+      extractedUrl: extractedUrl || 'not found in HTML',
+      isLocalhost: isLocalhost,
+      subject: subject
+    });
 
     if (!to || !subject || !html) {
       return new Response(

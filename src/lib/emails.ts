@@ -172,6 +172,15 @@ export async function sendApprovalEmail(
     const origin = getBaseUrl();
     const termsUrl = `${origin}/partner-terms?token=${token}`;
 
+    // Log the URL being used for debugging
+    console.log('[EMAIL DEBUG] Approval email link URL:', {
+        email,
+        baseUrl: origin,
+        fullUrl: termsUrl,
+        isLocalhost: origin.includes('localhost') || origin.includes('127.0.0.1'),
+        source: baseUrl ? 'parameter' : (import.meta.env.VITE_APP_URL ? 'env' : (typeof window !== 'undefined' ? 'browser' : 'fallback'))
+    });
+
     const html = `
         <!DOCTYPE html>
         <html>

@@ -7,7 +7,7 @@ import type { Application } from '@/types/application';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 // Badge component is defined inline in StatusBadge
-import { Eye, CheckCircle, XCircle, Calendar, Clock, Link as LinkIcon, Pencil } from 'lucide-react';
+import { Eye, CheckCircle, XCircle, Calendar, Clock, Link as LinkIcon, Pencil, Mail } from 'lucide-react';
 import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 
@@ -15,6 +15,7 @@ interface ApplicationsListProps {
   onApprove?: (application: Application) => void;
   onReject?: (application: Application) => void;
   onEditMeeting?: (application: Application) => void;
+  onResendEmail?: (application: Application) => void;
   statusFilter?: 'pending' | 'approved' | 'approved_for_meeting' | 'approved_for_contract' | 'rejected';
   refreshKey?: number;
 }
@@ -49,6 +50,7 @@ export function ApplicationsList({
   onApprove,
   onReject,
   onEditMeeting,
+  onResendEmail,
   statusFilter,
   refreshKey,
 }: ApplicationsListProps) {
@@ -251,6 +253,17 @@ export function ApplicationsList({
                     </Button>
                   )}
                 </>
+              )}
+              {application.status === 'approved_for_contract' && onResendEmail && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => onResendEmail(application)}
+                  className="flex items-center gap-2 border-blue-500/50 bg-blue-900/20 text-blue-300 hover:bg-blue-800/30 hover:text-blue-200"
+                >
+                  <Mail className="w-4 h-4" />
+                  Resend Contract Email
+                </Button>
               )}
             </div>
           </CardContent>

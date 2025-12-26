@@ -137,6 +137,15 @@ export async function approveCandidateAndSendTermsLink(
         };
         
         const baseUrl = getBaseUrl();
+        
+        // Log the URL being used for debugging
+        console.log('[PARTNER TERMS] Sending terms link email:', {
+            email: application.email,
+            baseUrl: baseUrl,
+            isLocalhost: baseUrl.includes('localhost') || baseUrl.includes('127.0.0.1'),
+            source: import.meta.env.VITE_APP_URL ? 'env' : (typeof window !== 'undefined' ? 'browser' : 'fallback')
+        });
+        
         const emailSent = await sendTermsLinkEmail(
             application.email,
             application.full_name,
@@ -153,6 +162,145 @@ export async function approveCandidateAndSendTermsLink(
     } catch (error) {
         console.error('Error approving candidate:', error);
         return null;
+    }
+}
+
+/**
+ * Reenvia o email com link do contrato para uma aplicação já aprovada
+ * Usa o token existente se válido, ou gera um novo se necessário
+ * Força o uso da URL de produção (não localhost)
+ * 
+ * @param applicationId - ID da aplicação
+ * @param forceProductionUrl - Se true, força uso de URL de produção (padrão: true)
+ * @returns Token usado ou null se houver erro
+ */
+export async function resendContractTermsEmail(
+    applicationId: string,
+    forceProductionUrl: boolean = true
+): Promise<{ success: boolean; token?: string; error?: string }> {
+    try {
+        // Buscar dados da aplicação
+        const { data: application, error: appError } = await supabase
+            .from('global_partner_applications')
+            .select('email, full_name, status')
+            .eq('id', applicationId)
+            .single();
+
+        if (appError || !application) {
+            console.error('[RESEND EMAIL] Error fetching application:', appError);
+            return { success: false, error: 'Application not found' };
+        }
+
+        if (application.status !== 'approved_for_contract') {
+            return { 
+                success: false, 
+                error: `Application must be in 'approved_for_contract' status. Current status: ${application.status}` 
+            };
+        }
+
+        // Buscar token existente e válido
+        const { data: existingToken, error: tokenError } = await supabase
+            .from('partner_terms_acceptances')
+            .select('token, expires_at, contract_template_id, accepted_at')
+            .eq('application_id', applicationId)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .single();
+
+        let tokenToUse: string;
+        let contractTemplateId: string | null = null;
+
+        // Verificar se o token existente é válido (não expirado e não aceito)
+        if (existingToken && !tokenError) {
+            const now = new Date();
+            const expiresAt = new Date(existingToken.expires_at);
+            const isExpired = now > expiresAt;
+            const isAccepted = !!existingToken.accepted_at;
+
+            if (!isExpired && !isAccepted) {
+                // Usar token existente
+                tokenToUse = existingToken.token;
+                contractTemplateId = existingToken.contract_template_id;
+                console.log('[RESEND EMAIL] Using existing valid token:', tokenToUse);
+            } else {
+                // Token expirado ou já aceito, gerar novo
+                console.log('[RESEND EMAIL] Existing token is expired or accepted, generating new token');
+                const tokenResult = await generateTermsToken(
+                    applicationId, 
+                    30, 
+                    existingToken.contract_template_id
+                );
+                if (!tokenResult) {
+                    return { success: false, error: 'Failed to generate new token' };
+                }
+                tokenToUse = tokenResult.token;
+                contractTemplateId = existingToken.contract_template_id;
+            }
+        } else {
+            // Não há token existente, gerar novo
+            console.log('[RESEND EMAIL] No existing token found, generating new token');
+            const tokenResult = await generateTermsToken(applicationId, 30);
+            if (!tokenResult) {
+                return { success: false, error: 'Failed to generate token' };
+            }
+            tokenToUse = tokenResult.token;
+        }
+
+        // Get base URL - forçar produção se solicitado
+        const getBaseUrl = (): string => {
+            // Se forceProductionUrl, sempre usar produção
+            if (forceProductionUrl) {
+                const envUrl = import.meta.env.VITE_APP_URL;
+                if (envUrl && !envUrl.includes('localhost') && !envUrl.includes('127.0.0.1')) {
+                    return envUrl;
+                }
+                // Fallback para produção
+                return 'https://migma.com';
+            }
+            
+            // Caso contrário, usar lógica normal
+            const envUrl = import.meta.env.VITE_APP_URL;
+            if (envUrl) return envUrl;
+            
+            if (typeof window !== 'undefined' && window.location.origin) {
+                return window.location.origin;
+            }
+            
+            return 'https://migma.com';
+        };
+        
+        const baseUrl = getBaseUrl();
+        
+        // Log the URL being used for debugging
+        console.log('[RESEND EMAIL] Resending contract terms link email:', {
+            email: application.email,
+            baseUrl: baseUrl,
+            isLocalhost: baseUrl.includes('localhost') || baseUrl.includes('127.0.0.1'),
+            forceProductionUrl: forceProductionUrl,
+            token: tokenToUse
+        });
+        
+        const emailSent = await sendTermsLinkEmail(
+            application.email,
+            application.full_name,
+            tokenToUse,
+            baseUrl
+        );
+
+        if (!emailSent) {
+            return { 
+                success: false, 
+                error: 'Failed to send email. Token was generated/retrieved but email sending failed.' 
+            };
+        }
+
+        return { success: true, token: tokenToUse };
+    } catch (error) {
+        console.error('[RESEND EMAIL] Error resending contract terms email:', error);
+        return { 
+            success: false, 
+            error: error instanceof Error ? error.message : 'Unknown error occurred' 
+        };
     }
 }
 

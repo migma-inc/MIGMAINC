@@ -7,12 +7,13 @@ import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import { approveApplication, rejectApplication, approveApplicationForMeeting, approveApplicationAfterMeeting } from '@/lib/admin';
+import { resendContractTermsEmail } from '@/lib/partner-terms';
 import { approvePartnerContract, rejectPartnerContract } from '@/lib/partner-contracts';
 import { getCurrentUser } from '@/lib/auth';
 import type { Application } from '@/types/application';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { ArrowLeft, Download, CheckCircle, XCircle, ExternalLink, X, Calendar, Clock, Link as LinkIcon, MapPin, Hash, FileCode, Globe, Shield, Pencil } from 'lucide-react';
+import { ArrowLeft, Download, CheckCircle, XCircle, ExternalLink, X, Calendar, Clock, Link as LinkIcon, MapPin, Hash, FileCode, Globe, Shield, Pencil, Mail } from 'lucide-react';
 import { ConfirmModal } from '@/components/ui/confirm-modal';
 import { PromptModal } from '@/components/ui/prompt-modal';
 import { AlertModal } from '@/components/ui/alert-modal';
@@ -284,6 +285,41 @@ function ApplicationDetailContent() {
         setAlertData({
           title: 'Error',
           message: result.error || 'Failed to approve application',
+          variant: 'error',
+        });
+        setShowAlert(true);
+      }
+    } catch (error) {
+      setAlertData({
+        title: 'Error',
+        message: error instanceof Error ? error.message : 'Unknown error occurred',
+        variant: 'error',
+      });
+      setShowAlert(true);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleResendEmail = async () => {
+    if (!application) return;
+    
+    setIsProcessing(true);
+    try {
+      // Forçar uso de URL de produção
+      const result = await resendContractTermsEmail(application.id, true);
+      
+      if (result.success) {
+        setAlertData({
+          title: 'Success',
+          message: 'Contract terms email resent successfully! The email was sent with the production URL.',
+          variant: 'success',
+        });
+        setShowAlert(true);
+      } else {
+        setAlertData({
+          title: 'Error',
+          message: result.error || 'Failed to resend email',
           variant: 'error',
         });
         setShowAlert(true);
@@ -1060,6 +1096,29 @@ function ApplicationDetailContent() {
                       Reject Application
                     </Button>
                   )}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {application.status === 'approved_for_contract' && (
+            <Card className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30">
+              <CardHeader>
+                <CardTitle className="text-white">Actions</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  <Button
+                    onClick={handleResendEmail}
+                    disabled={isProcessing}
+                    className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white"
+                  >
+                    <Mail className="w-4 h-4" />
+                    Resend Contract Email
+                  </Button>
+                  <p className="text-sm text-gray-400">
+                    Resend the contract terms link email. The email will be sent with the production URL (not localhost).
+                  </p>
                 </div>
               </CardContent>
             </Card>

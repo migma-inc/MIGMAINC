@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { LogOut, Filter, FileText, AlertCircle } from 'lucide-react';
+import { LogOut, Filter, FileText, AlertCircle, Mail } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { ApplicationsList } from '@/components/admin/ApplicationsList';
 import { PartnerContractsList } from '@/components/admin/PartnerContractsList';
@@ -445,6 +445,39 @@ export function DashboardContent() {
     setShowRejectPrompt(true);
   };
 
+  const handleResendEmail = async (application: Application) => {
+    setIsProcessing(true);
+    try {
+      const { resendContractTermsEmail } = await import('@/lib/partner-terms');
+      const result = await resendContractTermsEmail(application.id);
+
+      if (result.success) {
+        setAlertData({
+          title: 'Success',
+          message: result.error || 'Contract terms email resent successfully!',
+          variant: 'success',
+        });
+        setShowAlert(true);
+      } else {
+        setAlertData({
+          title: 'Error',
+          message: result.error || 'Failed to resend contract terms email',
+          variant: 'error',
+        });
+        setShowAlert(true);
+      }
+    } catch (error) {
+      setAlertData({
+        title: 'Error',
+        message: error instanceof Error ? error.message : 'Unknown error occurred',
+        variant: 'error',
+      });
+      setShowAlert(true);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
   const handleRejectReasonSubmit = (reason: string) => {
     setShowRejectPrompt(false);
     setRejectionReason(reason);
@@ -712,6 +745,7 @@ export function DashboardContent() {
           onApprove={handleApprove}
           onReject={handleReject}
           onEditMeeting={handleEditMeeting}
+          onResendEmail={handleResendEmail}
           statusFilter={statusFilter}
           refreshKey={refreshKey}
         />
