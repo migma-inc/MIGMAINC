@@ -76,10 +76,13 @@ export async function rejectVisaContract(
       
       // Try environment variable (for production builds)
       const envUrl = import.meta.env.VITE_APP_URL;
-      if (envUrl) return envUrl;
+      if (envUrl) {
+        // Remove trailing slash and return
+        return envUrl.trim().replace(/\/+$/, '');
+      }
       
       // Fallback
-      return 'https://migma.com';
+      return 'https://migmainc.com';
     };
 
     const appUrl = getAppUrl();

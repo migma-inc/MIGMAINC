@@ -158,15 +158,28 @@ export async function sendApprovalEmail(
         
         // Try environment variable first (for production builds)
         const envUrl = import.meta.env.VITE_APP_URL;
-        if (envUrl) return envUrl;
+        console.log('[EMAIL DEBUG] Environment variable check:', {
+            VITE_APP_URL: envUrl,
+            exists: !!envUrl,
+            type: typeof envUrl
+        });
+        
+        if (envUrl) {
+            // Remove trailing slash and return
+            const normalizedUrl = envUrl.trim().replace(/\/+$/, '');
+            console.log('[EMAIL DEBUG] Using environment variable:', normalizedUrl);
+            return normalizedUrl;
+        }
         
         // If in browser, use current origin
         if (typeof window !== 'undefined' && window.location.origin) {
+            console.log('[EMAIL DEBUG] Using browser origin:', window.location.origin);
             return window.location.origin;
         }
         
         // Fallback (should be set via VITE_APP_URL in production)
-        return 'https://migma.com';
+        console.log('[EMAIL DEBUG] Using fallback URL: https://migmainc.com');
+        return 'https://migmainc.com';
     };
     
     const origin = getBaseUrl();
@@ -178,7 +191,8 @@ export async function sendApprovalEmail(
         baseUrl: origin,
         fullUrl: termsUrl,
         isLocalhost: origin.includes('localhost') || origin.includes('127.0.0.1'),
-        source: baseUrl ? 'parameter' : (import.meta.env.VITE_APP_URL ? 'env' : (typeof window !== 'undefined' ? 'browser' : 'fallback'))
+        source: baseUrl ? 'parameter' : (import.meta.env.VITE_APP_URL ? 'env' : (typeof window !== 'undefined' ? 'browser' : 'fallback')),
+        envVarValue: import.meta.env.VITE_APP_URL
     });
 
     const html = `
@@ -741,7 +755,10 @@ export async function sendContractRejectionEmail(
         
         // Try environment variable first (for production builds)
         const envUrl = import.meta.env.VITE_APP_URL;
-        if (envUrl) return envUrl;
+        if (envUrl) {
+            // Remove trailing slash and return
+            return envUrl.trim().replace(/\/+$/, '');
+        }
         
         // If in browser, use current origin
         if (typeof window !== 'undefined' && window.location.origin) {
@@ -749,7 +766,7 @@ export async function sendContractRejectionEmail(
         }
         
         // Fallback (should be set via VITE_APP_URL in production)
-        return 'https://migma.com';
+        return 'https://migmainc.com';
     };
     
     const origin = getBaseUrl();
@@ -887,7 +904,10 @@ export async function sendAdminNewApplicationNotification(
         
         // Try environment variable first (for production builds)
         const envUrl = import.meta.env.VITE_APP_URL;
-        if (envUrl) return envUrl;
+        if (envUrl) {
+            // Remove trailing slash and return
+            return envUrl.trim().replace(/\/+$/, '');
+        }
         
         // If in browser, use current origin
         if (typeof window !== 'undefined' && window.location.origin) {

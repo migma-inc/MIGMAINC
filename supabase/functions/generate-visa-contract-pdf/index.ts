@@ -498,7 +498,7 @@ By signing this contract, the client agrees to the following terms:
 8. This contract is legally binding and enforceable.
 
 The client has electronically signed this contract by uploading a selfie with their identity document, confirming their identity and acceptance of these terms.
-      `.trim();
+    `.trim();
       console.log("[EDGE FUNCTION] Using default terms (no template found)");
     }
 
@@ -706,16 +706,16 @@ The client has electronically signed this contract by uploading a selfie with th
       } catch (imgError) {
         console.error("[EDGE FUNCTION] Error adding signature image to PDF:", imgError);
         // Fall through to show name as fallback if image fails
-        const nameStartX = margin + pdf.getTextWidth('Signature: ') + 5;
-        pdf.setFont('helvetica', 'bold');
-        pdf.text(order.client_name, nameStartX, currentY);
-        
-        // Draw line under name
-        const nameWidth = pdf.getTextWidth(order.client_name);
-        const lineY = currentY + 2;
-        pdf.setLineWidth(0.5);
-        pdf.line(nameStartX, lineY, nameStartX + nameWidth, lineY);
-        currentY += 15;
+    const nameStartX = margin + pdf.getTextWidth('Signature: ') + 5;
+    pdf.setFont('helvetica', 'bold');
+    pdf.text(order.client_name, nameStartX, currentY);
+    
+    // Draw line under name
+    const nameWidth = pdf.getTextWidth(order.client_name);
+    const lineY = currentY + 2;
+    pdf.setLineWidth(0.5);
+    pdf.line(nameStartX, lineY, nameStartX + nameWidth, lineY);
+    currentY += 15;
       }
     } else {
       // No signature image - show name as fallback
