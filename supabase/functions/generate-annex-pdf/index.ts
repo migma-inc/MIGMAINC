@@ -30,7 +30,8 @@ The CLIENT expressly declares that:
 
 a) All payments made to MIGMA INC. are voluntary, informed, and authorized;
 b) The CLIENT is fully aware of the service contracted, its nature, scope, and limitations;
-c) Payments may be processed through international or intermediary platforms.
+c) Payments may be processed through international or intermediary platforms;
+d) The total amount charged may include administrative processing fees (e.g., credit card fees) as agreed in the main Agreement.
 
 3. NATURE OF SERVICES & NO CHARGEBACK BASIS
 
@@ -46,6 +47,7 @@ The CLIENT agrees that they will not initiate chargebacks, payment disputes, or 
 
 - alleged lack of recognition of the transaction;
 - dissatisfaction with outcomes dependent on third parties;
+- discrepancies related to currency exchange rates, local taxes (IOF), or credit card processing fees;
 - processing times of institutions or authorities;
 - misunderstanding of service scope already clarified in the Agreement.
 
@@ -58,14 +60,14 @@ Before initiating any bank or platform dispute, the CLIENT agrees to first conta
 In case of a payment dispute, the CLIENT authorizes MIGMA INC. to use the following as evidence:
 
 - electronic signature
-- selfie holding identification document
+- selfie holding identification document (if applicable)
 - IP address, date, and time logs
 - signed Agreement and Annex
 - communication records related to service delivery
 
-7. INTERNATIONAL PROCESSING CONSENT
+7. INTERNATIONAL PROCESSING & CURRENCY CONSENT
 
-The CLIENT acknowledges that charges may appear under different corporate or platform descriptors due to international payment processing.
+The CLIENT acknowledges that charges may appear under different corporate or platform descriptors due to international payment processing. Furthermore, if paying in a currency other than USD, the CLIENT accepts sole responsibility for exchange rates and conversion fees applied by their bank or card issuer.
 
 8. FINAL DECLARATION
 

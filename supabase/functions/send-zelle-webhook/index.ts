@@ -342,11 +342,95 @@ Deno.serve(async (req: Request) => {
       payment_status: order.payment_status,
     });
 
-    // Send webhook to client (n8n) - same logic as Stripe webhook
-    await sendClientWebhook(order, supabase);
+    // Update payment record if exists
+    if (order.service_request_id) {
+      // Try to find payment record by service_request_id and order_id
+      const { data: paymentRecord } = await supabase
+        .from("payments")
+        .select("id")
+        .eq("service_request_id", order.service_request_id)
+        .eq("external_payment_id", order.id)
+        .maybeSingle();
+
+      if (paymentRecord) {
+        await supabase
+          .from("payments")
+          .update({
+            status: "paid",
+            external_payment_id: order.id,
+            raw_webhook_log: {
+              payment_method: "zelle",
+              order_id: order.id,
+              order_number: order.order_number,
+              completed_at: new Date().toISOString(),
+            },
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", paymentRecord.id);
+        console.log("[Zelle Webhook] Payment record updated:", paymentRecord.id);
+      }
+
+      // Update service_request status to 'paid'
+      await supabase
+        .from("service_requests")
+        .update({
+          status: "paid",
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", order.service_request_id);
+      console.log("[Zelle Webhook] Service request status updated to 'paid':", order.service_request_id);
+    }
+
+    // Track payment completed in funnel
+    if (order.seller_id) {
+      try {
+        await supabase
+          .from('seller_funnel_events')
+          .insert({
+            seller_id: order.seller_id,
+            product_slug: order.product_slug,
+            event_type: 'payment_completed',
+            session_id: `order_${order.id}`,
+            metadata: {
+              order_id: order.id,
+              order_number: order.order_number,
+              payment_method: 'zelle',
+              total_amount: order.total_price_usd,
+            },
+          });
+        console.log("[Zelle Webhook] Payment completed tracked in funnel");
+      } catch (trackError) {
+        console.error("[Zelle Webhook] Error tracking payment completed:", trackError);
+        // Continue - tracking is not critical
+      }
+    }
+
+    // Generate contract PDF after payment confirmation
+    // For ALL products EXCEPT scholarship and i20-control: generate full contract PDF
+    // The contract template is fetched dynamically by product_slug from contract_templates table
+    // For scholarship and i20-control: only generate ANNEX I (no full contract)
+    const isAnnexRequired = order.product_slug?.endsWith('-scholarship') || order.product_slug?.endsWith('-i20-control');
+    
+    if (!isAnnexRequired) {
+      // Generate full contract PDF for any product (selection-process, consulta-brant, etc.)
+      // The generate-visa-contract-pdf function will fetch the appropriate template by product_slug
+      try {
+        const { data: pdfData, error: pdfError } = await supabase.functions.invoke("generate-visa-contract-pdf", {
+          body: { order_id: order.id },
+        });
+        
+        if (pdfError) {
+          console.error("[Zelle Webhook] Error generating contract PDF:", pdfError);
+        } else {
+          console.log("[Zelle Webhook] Contract PDF generated successfully:", pdfData?.pdf_url);
+        }
+      } catch (pdfError) {
+        console.error("[Zelle Webhook] Exception generating contract PDF:", pdfError);
+        // Continue - PDF generation is not critical for payment processing
+      }
+    }
 
     // Generate ANNEX I PDF for scholarship and i20-control products
-    const isAnnexRequired = order.product_slug?.endsWith('-scholarship') || order.product_slug?.endsWith('-i20-control');
     if (isAnnexRequired) {
       try {
         const { data: annexPdfData, error: annexPdfError } = await supabase.functions.invoke("generate-annex-pdf", {
@@ -363,6 +447,28 @@ Deno.serve(async (req: Request) => {
         // Continue - PDF generation is not critical for payment processing
       }
     }
+
+    // Send confirmation email to client
+    try {
+      await supabase.functions.invoke("send-payment-confirmation-email", {
+        body: {
+          clientName: order.client_name,
+          clientEmail: order.client_email,
+          orderNumber: order.order_number,
+          productSlug: order.product_slug,
+          totalAmount: order.total_price_usd,
+          paymentMethod: "zelle",
+          currency: "USD",
+          finalAmount: order.total_price_usd,
+        },
+      });
+      console.log("[Zelle Webhook] Payment confirmation email sent to client");
+    } catch (emailError) {
+      console.error("[Zelle Webhook] Error sending payment confirmation email:", emailError);
+    }
+
+    // Send webhook to client (n8n) - same logic as Stripe webhook
+    await sendClientWebhook(order, supabase);
 
     return new Response(
       JSON.stringify({ 

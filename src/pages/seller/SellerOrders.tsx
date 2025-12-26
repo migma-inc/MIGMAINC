@@ -31,6 +31,7 @@ interface Order {
   payment_method: string;
   extra_units: number;
   contract_pdf_url: string | null;
+  annex_pdf_url: string | null;
   created_at: string;
 }
 
@@ -345,20 +346,26 @@ export function SellerOrders() {
                               View
                             </Button>
                           </Link>
-                          {order.contract_pdf_url && (
-                            <Button 
-                              size="sm" 
-                              variant="outline" 
-                              onClick={() => {
-                                setSelectedPdfUrl(order.contract_pdf_url);
-                                setSelectedPdfTitle(`Contract - ${order.order_number}`);
-                              }}
-                              className="text-xs border-gold-medium/50 bg-black/50 text-gold-light hover:bg-black hover:border-gold-medium hover:text-gold-medium"
-                              title="View Contract PDF"
-                            >
-                              <FileText className="w-3 h-3" />
-                            </Button>
-                          )}
+                          {(() => {
+                            const isAnnexProduct = order.product_slug?.endsWith('-scholarship') || order.product_slug?.endsWith('-i20-control');
+                            const pdfUrl = isAnnexProduct ? order.annex_pdf_url : order.contract_pdf_url;
+                            const pdfTitle = isAnnexProduct ? `ANNEX I - ${order.order_number}` : `Contract - ${order.order_number}`;
+                            
+                            return pdfUrl && (
+                              <Button 
+                                size="sm" 
+                                variant="outline" 
+                                onClick={() => {
+                                  setSelectedPdfUrl(pdfUrl);
+                                  setSelectedPdfTitle(pdfTitle);
+                                }}
+                                className="text-xs border-gold-medium/50 bg-black/50 text-gold-light hover:bg-black hover:border-gold-medium hover:text-gold-medium"
+                                title={isAnnexProduct ? "View ANNEX I PDF" : "View Contract PDF"}
+                              >
+                                <FileText className="w-3 h-3" />
+                              </Button>
+                            );
+                          })()}
                         </div>
                       </td>
                     </tr>

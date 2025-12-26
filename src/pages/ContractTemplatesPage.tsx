@@ -11,6 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { AlertModal } from '@/components/ui/alert-modal';
+import { ConfirmModal } from '@/components/ui/confirm-modal';
 import { ContractTemplateEditor } from '@/components/admin/ContractTemplateEditor';
 import {
   getContractTemplatesByType,
@@ -42,6 +43,8 @@ export function ContractTemplatesPage() {
     variant: 'success' | 'error';
   } | null>(null);
   const [showAlert, setShowAlert] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [templateToDelete, setTemplateToDelete] = useState<ContractTemplate | null>(null);
 
   useEffect(() => {
     loadTemplates();
@@ -177,14 +180,17 @@ export function ContractTemplatesPage() {
     }
   };
 
-  const handleDelete = async (template: ContractTemplate) => {
-    if (!confirm(`Are you sure you want to delete "${template.name}"? This action cannot be undone.`)) {
-      return;
-    }
+  const handleDelete = (template: ContractTemplate) => {
+    setTemplateToDelete(template);
+    setShowDeleteConfirm(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!templateToDelete) return;
 
     setIsSaving(true);
     try {
-      const result = await deleteContractTemplate(template.id);
+      const result = await deleteContractTemplate(templateToDelete.id);
       if (result.success) {
         setAlertData({
           title: 'Success',
@@ -211,6 +217,8 @@ export function ContractTemplatesPage() {
       setShowAlert(true);
     } finally {
       setIsSaving(false);
+      setShowDeleteConfirm(false);
+      setTemplateToDelete(null);
     }
   };
 
@@ -361,6 +369,26 @@ export function ContractTemplatesPage() {
         template={editingTemplate}
         isLoading={isSaving}
         defaultTemplateType={activeTab}
+      />
+
+      {/* Delete Confirmation Modal */}
+      <ConfirmModal
+        isOpen={showDeleteConfirm}
+        onClose={() => {
+          setShowDeleteConfirm(false);
+          setTemplateToDelete(null);
+        }}
+        onConfirm={confirmDelete}
+        title="Confirm Deletion"
+        message={
+          templateToDelete
+            ? `Are you sure you want to delete "${templateToDelete.name}"? This action cannot be undone.`
+            : ''
+        }
+        confirmText="Delete"
+        cancelText="Cancel"
+        variant="danger"
+        isLoading={isSaving}
       />
 
       {/* Alert Modal */}

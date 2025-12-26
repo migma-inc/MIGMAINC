@@ -18,6 +18,7 @@ interface VisaOrder {
   payment_status: string;
   payment_method: string;
   contract_pdf_url: string | null;
+  annex_pdf_url: string | null;
   created_at: string;
 }
 
@@ -130,22 +131,30 @@ export const VisaOrdersPage = () => {
                           {new Date(order.created_at).toLocaleDateString()}
                         </td>
                         <td className="py-3 px-4">
-                          {order.contract_pdf_url ? (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => {
-                                setSelectedPdfUrl(order.contract_pdf_url);
-                                setSelectedPdfTitle(`Contract - ${order.order_number}`);
-                              }}
-                              className="border-gold-medium/50 bg-black/50 text-gold-light hover:bg-black hover:border-gold-medium hover:text-gold-medium"
-                            >
-                              <FileText className="w-4 h-4 mr-1" />
-                              View PDF
-                            </Button>
-                          ) : (
-                            <span className="text-gray-500 text-xs">Not generated</span>
-                          )}
+                          {(() => {
+                            // For scholarship and i20-control products, check annex_pdf_url
+                            // For other products, check contract_pdf_url
+                            const isAnnexProduct = order.product_slug?.endsWith('-scholarship') || order.product_slug?.endsWith('-i20-control');
+                            const pdfUrl = isAnnexProduct ? order.annex_pdf_url : order.contract_pdf_url;
+                            const pdfTitle = isAnnexProduct ? `ANNEX I - ${order.order_number}` : `Contract - ${order.order_number}`;
+                            
+                            return pdfUrl ? (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  setSelectedPdfUrl(pdfUrl);
+                                  setSelectedPdfTitle(pdfTitle);
+                                }}
+                                className="border-gold-medium/50 bg-black/50 text-gold-light hover:bg-black hover:border-gold-medium hover:text-gold-medium"
+                              >
+                                <FileText className="w-4 h-4 mr-1" />
+                                View PDF
+                              </Button>
+                            ) : (
+                              <span className="text-gray-500 text-xs">Not generated</span>
+                            );
+                          })()}
                         </td>
                         <td className="py-3 px-4">
                           <Link to={`/dashboard/visa-orders/${order.id}`}>

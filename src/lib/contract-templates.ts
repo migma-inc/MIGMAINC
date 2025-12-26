@@ -235,6 +235,25 @@ export async function createContractTemplate(
     // If global_partner, ensure product_slug is null
     const productSlug = templateType === 'global_partner' ? null : data.product_slug || null;
 
+    // If creating an active visa_service template, check if there's already an active one
+    const willBeActive = data.is_active !== undefined ? data.is_active : true;
+    if (willBeActive && templateType === 'visa_service' && productSlug) {
+      const { data: existingActive } = await adminSupabase
+        .from('contract_templates')
+        .select('id, name')
+        .eq('template_type', 'visa_service')
+        .eq('product_slug', productSlug)
+        .eq('is_active', true)
+        .maybeSingle();
+      
+      if (existingActive) {
+        return {
+          success: false,
+          error: `An active template ("${existingActive.name}") already exists for product "${productSlug}". Remove the existing template before creating a new one.`,
+        };
+      }
+    }
+
     const { data: template, error } = await adminSupabase
       .from('contract_templates')
       .insert({
@@ -251,15 +270,34 @@ export async function createContractTemplate(
 
     if (error) {
       console.error('[CONTRACT_TEMPLATES] Error creating template:', error);
+      
+      // Check for unique constraint violation (active template per product)
+      if (error.code === '23505' || error.message?.includes('idx_unique_active_visa_template_per_product')) {
+        return {
+          success: false,
+          error: `An active template already exists for product "${data.product_slug}". Remove the existing template before creating a new one.`,
+        };
+      }
+      
       return { success: false, error: error.message };
     }
 
     return { success: true, template };
   } catch (error) {
     console.error('[CONTRACT_TEMPLATES] Exception creating template:', error);
+    
+    // Check for unique constraint violation in catch block too
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    if (errorMessage.includes('idx_unique_active_visa_template_per_product') || errorMessage.includes('23505')) {
+      return {
+        success: false,
+        error: `An active template already exists for product "${data.product_slug}". Remove the existing template before creating a new one.`,
+      };
+    }
+    
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Unknown error occurred',
+      error: errorMessage,
     };
   }
 }
@@ -318,26 +356,49 @@ export async function updateContractTemplate(
 
     if (error) {
       console.error('[CONTRACT_TEMPLATES] Error updating template:', error);
+      
+      // Check for unique constraint violation (active template per product)
+      if (error.code === '23505' || error.message?.includes('idx_unique_active_visa_template_per_product')) {
+        const productSlug = updateData.product_slug || currentTemplate.product_slug;
+        return {
+          success: false,
+          error: `An active template already exists for product "${productSlug}". Remove the existing template before creating a new one.`,
+        };
+      }
+      
       return { success: false, error: error.message };
     }
 
     return { success: true, template };
   } catch (error) {
     console.error('[CONTRACT_TEMPLATES] Exception updating template:', error);
+    
+    // Check for unique constraint violation in catch block too
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    if (errorMessage.includes('idx_unique_active_visa_template_per_product') || errorMessage.includes('23505')) {
+      const productSlug = updateData.product_slug || currentTemplate?.product_slug || 'desconhecido';
+      return {
+        success: false,
+        error: `An active template already exists for product "${productSlug}". Remove the existing template before creating a new one.`,
+      };
+    }
+    
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Unknown error occurred',
+      error: errorMessage,
     };
   }
 }
 
 /**
  * Delete a contract template
+ * Foreign keys are configured with ON DELETE SET NULL, so references are automatically removed
  */
 export async function deleteContractTemplate(
   id: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
+    // Delete the template - foreign keys will automatically set references to NULL
     const { error } = await adminSupabase
       .from('contract_templates')
       .delete()
@@ -345,15 +406,34 @@ export async function deleteContractTemplate(
 
     if (error) {
       console.error('[CONTRACT_TEMPLATES] Error deleting template:', error);
+      
+      // Check for foreign key constraint violation (should not happen with ON DELETE SET NULL)
+      if (error.code === '23503' || error.message?.includes('foreign key constraint')) {
+        return {
+          success: false,
+          error: 'This template cannot be removed because it is being used by terms acceptance records. Please try again or contact support.',
+        };
+      }
+      
       return { success: false, error: error.message };
     }
 
     return { success: true };
   } catch (error) {
     console.error('[CONTRACT_TEMPLATES] Exception deleting template:', error);
+    
+    // Check for foreign key constraint violation in catch block too
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    if (errorMessage.includes('foreign key constraint') || errorMessage.includes('23503') || errorMessage.includes('terms_acceptance_contract_template_id_fkey')) {
+      return {
+        success: false,
+        error: 'This template cannot be removed because it is being used by terms acceptance records. Please try again or contact support.',
+      };
+    }
+    
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Unknown error occurred',
+      error: errorMessage,
     };
   }
 }
@@ -365,6 +445,29 @@ export async function toggleTemplateActive(
   id: string,
   isActive: boolean
 ): Promise<{ success: boolean; template?: ContractTemplate; error?: string }> {
+  // If activating, check if there's already an active template for the same product
+  if (isActive) {
+    const currentTemplate = await getContractTemplate(id);
+    if (currentTemplate && currentTemplate.template_type === 'visa_service' && currentTemplate.product_slug) {
+      // Check if there's already an active template for this product
+      const { data: existingActive } = await adminSupabase
+        .from('contract_templates')
+        .select('id, name')
+        .eq('template_type', 'visa_service')
+        .eq('product_slug', currentTemplate.product_slug)
+        .eq('is_active', true)
+        .neq('id', id)
+        .maybeSingle();
+      
+      if (existingActive) {
+        return {
+          success: false,
+          error: `An active template ("${existingActive.name}") already exists for product "${currentTemplate.product_slug}". Remove the existing template before creating a new one.`,
+        };
+      }
+    }
+  }
+  
   return updateContractTemplate(id, { is_active: isActive });
 }
 

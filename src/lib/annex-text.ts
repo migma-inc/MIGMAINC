@@ -25,7 +25,8 @@ export const ANNEX_I_HTML = `
     <ul style="list-style-type: lower-alpha; margin-left: 1.5rem; margin-bottom: 0.5rem;">
       <li style="margin-bottom: 0.25rem;">All payments made to MIGMA INC. are voluntary, informed, and authorized;</li>
       <li style="margin-bottom: 0.25rem;">The CLIENT is fully aware of the service contracted, its nature, scope, and limitations;</li>
-      <li style="margin-bottom: 0.25rem;">Payments may be processed through international or intermediary platforms.</li>
+      <li style="margin-bottom: 0.25rem;">Payments may be processed through international or intermediary platforms;</li>
+      <li style="margin-bottom: 0.25rem;">The total amount charged may include administrative processing fees (e.g., credit card fees) as agreed in the main Agreement.</li>
     </ul>
   </section>
 
@@ -45,6 +46,7 @@ export const ANNEX_I_HTML = `
     <ul style="list-style-type: disc; margin-left: 1.5rem; margin-bottom: 0.5rem;">
       <li style="margin-bottom: 0.25rem;">alleged lack of recognition of the transaction;</li>
       <li style="margin-bottom: 0.25rem;">dissatisfaction with outcomes dependent on third parties;</li>
+      <li style="margin-bottom: 0.25rem;">discrepancies related to currency exchange rates, local taxes (IOF), or credit card processing fees;</li>
       <li style="margin-bottom: 0.25rem;">processing times of institutions or authorities;</li>
       <li style="margin-bottom: 0.25rem;">misunderstanding of service scope already clarified in the Agreement.</li>
     </ul>
@@ -60,7 +62,7 @@ export const ANNEX_I_HTML = `
     <p style="margin-bottom: 0.5rem;">In case of a payment dispute, the CLIENT authorizes MIGMA INC. to use the following as evidence:</p>
     <ul style="list-style-type: disc; margin-left: 1.5rem; margin-bottom: 0.5rem;">
       <li style="margin-bottom: 0.25rem;">electronic signature</li>
-      <li style="margin-bottom: 0.25rem;">selfie holding identification document</li>
+      <li style="margin-bottom: 0.25rem;">selfie holding identification document (if applicable)</li>
       <li style="margin-bottom: 0.25rem;">IP address, date, and time logs</li>
       <li style="margin-bottom: 0.25rem;">signed Agreement and Annex</li>
       <li style="margin-bottom: 0.25rem;">communication records related to service delivery</li>
@@ -68,8 +70,8 @@ export const ANNEX_I_HTML = `
   </section>
 
   <section style="margin-bottom: 1.5rem;">
-    <h3 style="font-size: 1.2rem; font-weight: bold; margin-bottom: 0.75rem;">7. INTERNATIONAL PROCESSING CONSENT</h3>
-    <p>The CLIENT acknowledges that charges may appear under different corporate or platform descriptors due to international payment processing.</p>
+    <h3 style="font-size: 1.2rem; font-weight: bold; margin-bottom: 0.75rem;">7. INTERNATIONAL PROCESSING & CURRENCY CONSENT</h3>
+    <p>The CLIENT acknowledges that charges may appear under different corporate or platform descriptors due to international payment processing. Furthermore, if paying in a currency other than USD, the CLIENT accepts sole responsibility for exchange rates and conversion fees applied by their bank or card issuer.</p>
   </section>
 
   <section style="margin-bottom: 1.5rem;">
@@ -94,7 +96,8 @@ The CLIENT expressly declares that:
 
 a) All payments made to MIGMA INC. are voluntary, informed, and authorized;
 b) The CLIENT is fully aware of the service contracted, its nature, scope, and limitations;
-c) Payments may be processed through international or intermediary platforms.
+c) Payments may be processed through international or intermediary platforms;
+d) The total amount charged may include administrative processing fees (e.g., credit card fees) as agreed in the main Agreement.
 
 3. NATURE OF SERVICES & NO CHARGEBACK BASIS
 
@@ -110,6 +113,7 @@ The CLIENT agrees that they will not initiate chargebacks, payment disputes, or 
 
 - alleged lack of recognition of the transaction;
 - dissatisfaction with outcomes dependent on third parties;
+- discrepancies related to currency exchange rates, local taxes (IOF), or credit card processing fees;
 - processing times of institutions or authorities;
 - misunderstanding of service scope already clarified in the Agreement.
 
@@ -122,14 +126,14 @@ Before initiating any bank or platform dispute, the CLIENT agrees to first conta
 In case of a payment dispute, the CLIENT authorizes MIGMA INC. to use the following as evidence:
 
 - electronic signature
-- selfie holding identification document
+- selfie holding identification document (if applicable)
 - IP address, date, and time logs
 - signed Agreement and Annex
 - communication records related to service delivery
 
-7. INTERNATIONAL PROCESSING CONSENT
+7. INTERNATIONAL PROCESSING & CURRENCY CONSENT
 
-The CLIENT acknowledges that charges may appear under different corporate or platform descriptors due to international payment processing.
+The CLIENT acknowledges that charges may appear under different corporate or platform descriptors due to international payment processing. Furthermore, if paying in a currency other than USD, the CLIENT accepts sole responsibility for exchange rates and conversion fees applied by their bank or card issuer.
 
 8. FINAL DECLARATION
 

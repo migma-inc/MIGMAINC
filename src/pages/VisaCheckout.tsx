@@ -302,11 +302,12 @@ export const VisaCheckout = () => {
         } else {
           setExtraUnits(restoredExtraUnits);
         }
-        // Restaurar nomes dos dependentes
+        // Restaurar nomes dos dependentes/aplicantes
         if (parsed.dependentNames && Array.isArray(parsed.dependentNames)) {
           setDependentNames(parsed.dependentNames);
         } else if (restoredExtraUnits > 0) {
-          // Se não há nomes salvos mas há dependentes, criar array vazio
+          // Se não há nomes salvos, criar array vazio
+          // Ajuste será feito quando o produto for carregado (no useEffect)
           setDependentNames(Array(restoredExtraUnits).fill(''));
         } else {
           setDependentNames([]);
@@ -674,6 +675,29 @@ export const VisaCheckout = () => {
         if (data.calculation_type === 'units_only') {
           setExtraUnits(1);
         }
+        
+        // Ajustar array de nomes baseado no calculation_type
+        // Se já temos nomes salvos, ajustar o tamanho se necessário
+        setDependentNames((prevNames) => {
+          if (extraUnits === 0) return [];
+          
+          const isUnitsOnly = data.calculation_type === 'units_only';
+          const requiredNamesCount = isUnitsOnly ? extraUnits - 1 : extraUnits;
+          
+          if (prevNames.length === requiredNamesCount) {
+            return prevNames; // Tamanho já está correto
+          } else if (prevNames.length > requiredNamesCount) {
+            // Diminuir: remover nomes excedentes
+            return prevNames.slice(0, requiredNamesCount);
+          } else {
+            // Aumentar: adicionar slots vazios
+            const newNames = [...prevNames];
+            while (newNames.length < requiredNamesCount) {
+              newNames.push('');
+            }
+            return newNames;
+          }
+        });
 
         // Track link click if seller_id is present
         if (sellerId) {
@@ -690,10 +714,16 @@ export const VisaCheckout = () => {
     loadProduct();
   }, [productSlug, sellerId]);
 
-  // Helper function to check if ANNEX I is required (scholarship or i20-control products)
+  // Helper function to check if ANNEX I is required
+  // ANNEX I is required for: scholarship, i20-control, and selection-process products (COS and Transfer)
   const isAnnexRequired = (slug: string | undefined): boolean => {
     if (!slug) return false;
-    return slug.endsWith('-scholarship') || slug.endsWith('-i20-control');
+    return (
+      slug.endsWith('-scholarship') || 
+      slug.endsWith('-i20-control') ||
+      slug === 'cos-selection-process' ||
+      slug === 'transfer-selection-process'
+    );
   };
 
   // Load contract template when productSlug is available and user is on step 3
@@ -848,8 +878,11 @@ export const VisaCheckout = () => {
       if (clientData.dependentNames && Array.isArray(clientData.dependentNames)) {
         setDependentNames(clientData.dependentNames);
       } else if (clientData.extraUnits > 0) {
-        // Se não há nomes salvos mas há dependentes, criar array vazio
-        setDependentNames(Array(clientData.extraUnits).fill(''));
+        // Se não há nomes salvos, criar array vazio com tamanho correto
+        // Para units_only: (extraUnits - 1), para base_plus_units: extraUnits
+        const isUnitsOnly = product?.calculation_type === 'units_only';
+        const requiredNamesCount = isUnitsOnly ? clientData.extraUnits - 1 : clientData.extraUnits;
+        setDependentNames(Array(requiredNamesCount).fill(''));
       }
 
       // Mark token as used (but don't block if payment fails - user can retry)
@@ -920,20 +953,26 @@ export const VisaCheckout = () => {
   const validateStep1Form = (): boolean => {
     // Validação especial para produtos units_only: deve ter pelo menos 1 unidade
     if (product?.calculation_type === 'units_only' && extraUnits < 1) {
-      setError(`${product.extra_unit_label || 'Number of units'} must be at least 1 for this service`);
+      setError('Number of applicants must be at least 1 for this service');
       return false;
     }
 
-    // Validação de nomes de dependentes
+    // Validação de nomes de dependentes/aplicantes
     if (extraUnits > 0) {
-      if (dependentNames.length !== extraUnits) {
-        setError(`Please provide names for all ${extraUnits} dependent${extraUnits > 1 ? 's' : ''}`);
+      const isUnitsOnly = product?.calculation_type === 'units_only';
+      // For units_only: we need (extraUnits - 1) names (client is the first)
+      // For base_plus_units: we need extraUnits names (dependents only)
+      const requiredNamesCount = isUnitsOnly ? extraUnits - 1 : extraUnits;
+      const entityName = isUnitsOnly ? 'applicant' : 'dependent';
+      
+      if (dependentNames.length !== requiredNamesCount) {
+        setError(`Please provide names for all ${requiredNamesCount} ${entityName}${requiredNamesCount > 1 ? 's' : ''}`);
         return false;
       }
       // Verificar que todos os nomes estão preenchidos (não vazios)
       const emptyNames = dependentNames.filter(name => !name || name.trim() === '');
       if (emptyNames.length > 0) {
-        setError(`Please provide names for all dependents. ${emptyNames.length} name${emptyNames.length > 1 ? 's' : ''} missing.`);
+        setError(`Please provide names for all ${entityName}s. ${emptyNames.length} name${emptyNames.length > 1 ? 's' : ''} missing.`);
         return false;
       }
     }
@@ -1584,8 +1623,15 @@ export const VisaCheckout = () => {
                   {product.allow_extra_units && (
                     <div className="space-y-2">
                       <Label htmlFor="extra-units" className="text-white">
-                        {product.extra_unit_label} {product.calculation_type === 'units_only' ? '(required)' : '(0-5)'}
+                        {product.calculation_type === 'units_only' 
+                          ? 'Number of applicants (required)' 
+                          : product.extra_unit_label + ' (0-5)'}
                       </Label>
+                      {product.calculation_type === 'units_only' && (
+                        <p className="text-xs text-gray-400 mt-1">
+                          Note: You count as 1 applicant. If you select 2 applicants, you will need to provide 1 additional applicant name below.
+                        </p>
+                      )}
                       <div className="relative">
                         <Select
                           value={extraUnits.toString()}
@@ -1593,15 +1639,22 @@ export const VisaCheckout = () => {
                             const newExtraUnits = parseInt(value);
                             setExtraUnits(newExtraUnits);
                             // Ajustar array de nomes quando quantidade muda
-                            if (newExtraUnits === 0) {
+                            const isUnitsOnly = product.calculation_type === 'units_only';
+                            // For units_only: we need (extraUnits - 1) inputs (client is the first)
+                            // For base_plus_units: we need extraUnits inputs (dependents only)
+                            const requiredNamesCount = isUnitsOnly 
+                              ? (newExtraUnits > 0 ? newExtraUnits - 1 : 0)
+                              : newExtraUnits;
+                            
+                            if (requiredNamesCount === 0) {
                               setDependentNames([]);
-                            } else if (newExtraUnits < dependentNames.length) {
+                            } else if (requiredNamesCount < dependentNames.length) {
                               // Diminuir: remover nomes excedentes
-                              setDependentNames(dependentNames.slice(0, newExtraUnits));
-                            } else if (newExtraUnits > dependentNames.length) {
+                              setDependentNames(dependentNames.slice(0, requiredNamesCount));
+                            } else if (requiredNamesCount > dependentNames.length) {
                               // Aumentar: adicionar slots vazios
                               const newNames = [...dependentNames];
-                              while (newNames.length < newExtraUnits) {
+                              while (newNames.length < requiredNamesCount) {
                                 newNames.push('');
                               }
                               setDependentNames(newNames);
@@ -1639,29 +1692,40 @@ export const VisaCheckout = () => {
                     </div>
                   )}
 
-                  {/* Dependent Names - Dynamic inputs */}
-                  {extraUnits > 0 && (
-                    <div className="space-y-2">
-                      {Array.from({ length: extraUnits }, (_, i) => (
-                        <div key={i} className="space-y-2">
-                          <Label htmlFor={`dependent-name-${i}`} className="text-white">
-                            Dependent Name {i + 1} *
-                          </Label>
-                          <Input
-                            id={`dependent-name-${i}`}
-                            value={dependentNames[i] || ''}
-                            onChange={(e) => {
-                              const newNames = [...dependentNames];
-                              newNames[i] = e.target.value;
-                              setDependentNames(newNames);
-                            }}
-                            className="bg-white text-black"
-                            required
-                          />
-                        </div>
-                      ))}
-                    </div>
-                  )}
+                  {/* Dependent/Applicant Names - Dynamic inputs */}
+                  {extraUnits > 0 && (() => {
+                    // For units_only products: extraUnits = total applicants, so we need (extraUnits - 1) inputs
+                    // (the first applicant is the client themselves)
+                    // For base_plus_units products: extraUnits = number of dependents, so we need extraUnits inputs
+                    const isUnitsOnly = product.calculation_type === 'units_only';
+                    const numberOfInputs = isUnitsOnly ? extraUnits - 1 : extraUnits;
+                    const labelPrefix = isUnitsOnly ? 'Applicant Name' : 'Dependent Name';
+                    
+                    if (numberOfInputs <= 0) return null;
+                    
+                    return (
+                      <div className="space-y-2">
+                        {Array.from({ length: numberOfInputs }, (_, i) => (
+                          <div key={i} className="space-y-2">
+                            <Label htmlFor={`dependent-name-${i}`} className="text-white">
+                              {labelPrefix} {i + 1} *
+                            </Label>
+                            <Input
+                              id={`dependent-name-${i}`}
+                              value={dependentNames[i] || ''}
+                              onChange={(e) => {
+                                const newNames = [...dependentNames];
+                                newNames[i] = e.target.value;
+                                setDependentNames(newNames);
+                              }}
+                              className="bg-white text-black"
+                              required
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  })()}
 
                   {/* Full Name */}
                   <div className="space-y-2">
@@ -2162,7 +2226,7 @@ export const VisaCheckout = () => {
                     )}
                     {product.calculation_type === 'units_only' && (
                       <div className="flex justify-between text-sm">
-                        <span className="text-gray-400">{product.extra_unit_label} ({extraUnits})</span>
+                        <span className="text-gray-400">Number of applicants ({extraUnits})</span>
                         <span className="text-white">US$ {(extraUnits * parseFloat(product.extra_unit_price)).toFixed(2)}</span>
                       </div>
                     )}

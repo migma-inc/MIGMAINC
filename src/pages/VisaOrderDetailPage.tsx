@@ -34,6 +34,7 @@ interface Order {
   zelle_proof_url: string | null;
   stripe_session_id: string | null;
   contract_pdf_url: string | null;
+  annex_pdf_url: string | null;
   contract_accepted: boolean | null;
   contract_signed_at: string | null;
   ip_address: string | null;
@@ -629,19 +630,25 @@ export const VisaOrderDetailPage = () => {
                   </Button>
                 </div>
               )}
-              {order.contract_pdf_url && (
-                <div className="pt-3 border-t border-gold-medium/30">
-                  <p className="text-gray-400 mb-2">Contract PDF:</p>
-                  <Button
-                    variant="outline"
-                    onClick={() => setShowPdfModal(true)}
-                    className="border-gold-medium/50 bg-black/50 text-gold-light hover:bg-black hover:border-gold-medium hover:text-gold-medium"
-                  >
-                    <FileText className="w-4 h-4 mr-1" />
-                    View Contract PDF
-                  </Button>
-                </div>
-              )}
+              {(() => {
+                const isAnnexProduct = order.product_slug?.endsWith('-scholarship') || order.product_slug?.endsWith('-i20-control');
+                const pdfUrl = isAnnexProduct ? order.annex_pdf_url : order.contract_pdf_url;
+                const pdfTitle = isAnnexProduct ? 'ANNEX I PDF' : 'Contract PDF';
+                
+                return pdfUrl && (
+                  <div className="pt-3 border-t border-gold-medium/30">
+                    <p className="text-gray-400 mb-2">{pdfTitle}:</p>
+                    <Button
+                      variant="outline"
+                      onClick={() => setShowPdfModal(true)}
+                      className="border-gold-medium/50 bg-black/50 text-gold-light hover:bg-black hover:border-gold-medium hover:text-gold-medium"
+                    >
+                      <FileText className="w-4 h-4 mr-1" />
+                      View {pdfTitle}
+                    </Button>
+                  </div>
+                );
+              })()}
               <div className="flex justify-between text-sm">
                 <span className="text-gray-400">Order Date:</span>
                 <span className="text-white">{new Date(order.created_at).toLocaleString()}</span>
@@ -652,14 +659,20 @@ export const VisaOrderDetailPage = () => {
       </div>
 
       {/* PDF Modal */}
-      {order?.contract_pdf_url && (
-        <PdfModal
-          isOpen={showPdfModal}
-          onClose={() => setShowPdfModal(false)}
-          pdfUrl={order.contract_pdf_url}
-          title={`Contract - ${order.order_number}`}
-        />
-      )}
+      {(() => {
+        const isAnnexProduct = order?.product_slug?.endsWith('-scholarship') || order?.product_slug?.endsWith('-i20-control');
+        const pdfUrl = isAnnexProduct ? order?.annex_pdf_url : order?.contract_pdf_url;
+        const pdfTitle = isAnnexProduct ? `ANNEX I - ${order?.order_number}` : `Contract - ${order?.order_number}`;
+        
+        return pdfUrl && (
+          <PdfModal
+            isOpen={showPdfModal}
+            onClose={() => setShowPdfModal(false)}
+            pdfUrl={pdfUrl}
+            title={pdfTitle}
+          />
+        );
+      })()}
 
       {/* Zelle Receipt Modal */}
       {order?.zelle_proof_url && (
