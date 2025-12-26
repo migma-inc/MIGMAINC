@@ -309,14 +309,17 @@ export async function updateContractTemplate(
   id: string,
   data: UpdateContractTemplateData
 ): Promise<{ success: boolean; template?: ContractTemplate; error?: string }> {
+  let currentTemplate: ContractTemplate | null = null;
+  let updateData: Record<string, any> = {};
+  
   try {
     // Get current template to check existing type
-    const currentTemplate = await getContractTemplate(id);
+    currentTemplate = await getContractTemplate(id);
     if (!currentTemplate) {
       return { success: false, error: 'Template not found' };
     }
 
-    const updateData: Record<string, any> = {};
+    updateData = {};
     if (data.name !== undefined) updateData.name = data.name;
     if (data.description !== undefined) updateData.description = data.description;
     if (data.content !== undefined) updateData.content = data.content;
@@ -359,7 +362,7 @@ export async function updateContractTemplate(
       
       // Check for unique constraint violation (active template per product)
       if (error.code === '23505' || error.message?.includes('idx_unique_active_visa_template_per_product')) {
-        const productSlug = updateData.product_slug || currentTemplate.product_slug;
+        const productSlug = updateData.product_slug || currentTemplate?.product_slug || 'unknown';
         return {
           success: false,
           error: `An active template already exists for product "${productSlug}". Remove the existing template before creating a new one.`,
@@ -376,7 +379,7 @@ export async function updateContractTemplate(
     // Check for unique constraint violation in catch block too
     const errorMessage = error instanceof Error ? error.message : String(error);
     if (errorMessage.includes('idx_unique_active_visa_template_per_product') || errorMessage.includes('23505')) {
-      const productSlug = updateData.product_slug || currentTemplate?.product_slug || 'desconhecido';
+      const productSlug = updateData.product_slug || currentTemplate?.product_slug || 'unknown';
       return {
         success: false,
         error: `An active template already exists for product "${productSlug}". Remove the existing template before creating a new one.`,
