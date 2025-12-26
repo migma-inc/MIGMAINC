@@ -208,7 +208,6 @@ export async function resendContractTermsEmail(
             .single();
 
         let tokenToUse: string;
-        let contractTemplateId: string | null = null;
 
         // Verificar se o token existente é válido (não expirado e não aceito)
         if (existingToken && !tokenError) {
@@ -220,7 +219,6 @@ export async function resendContractTermsEmail(
             if (!isExpired && !isAccepted) {
                 // Usar token existente
                 tokenToUse = existingToken.token;
-                contractTemplateId = existingToken.contract_template_id;
                 console.log('[RESEND EMAIL] Using existing valid token:', tokenToUse);
             } else {
                 // Token expirado ou já aceito, gerar novo
@@ -234,7 +232,6 @@ export async function resendContractTermsEmail(
                     return { success: false, error: 'Failed to generate new token' };
                 }
                 tokenToUse = tokenResult.token;
-                contractTemplateId = existingToken.contract_template_id;
             }
         } else {
             // Não há token existente, gerar novo
