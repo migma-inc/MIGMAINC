@@ -18,19 +18,70 @@ Deno.serve(async (req) => {
   try {
     const { to, subject, html, from } = await req.json();
 
-    // Extract URL from HTML to check if it's localhost or production
-    const urlMatch = html.match(/href=["']([^"']*partner-terms[^"']*)["']/i) || 
-                      html.match(/href=["']([^"']*\/partner-terms[^"']*)["']/i) ||
-                      html.match(/(https?:\/\/[^\s<>"']*partner-terms[^\s<>"']*)/i);
-    const extractedUrl = urlMatch ? urlMatch[1] : null;
-    const isLocalhost = extractedUrl ? (extractedUrl.includes('localhost') || extractedUrl.includes('127.0.0.1')) : null;
+    // Extract ALL URLs from HTML to check what links are being sent
+    const allUrlMatches = [
+      ...html.matchAll(/href=["'](https?:\/\/[^"']+)["']/gi),
+      ...html.matchAll(/(https?:\/\/[^\s<>"']+)/gi)
+    ];
+    
+    const extractedUrls = Array.from(new Set(allUrlMatches.map(m => m[1])));
+    
+    // Find partner-terms link specifically
+    const partnerTermsUrl = extractedUrls.find(url => 
+      url.includes('partner-terms') || url.includes('/partner-terms')
+    );
+    
+    // Find any contract/terms related links
+    const contractLinks = extractedUrls.filter(url => 
+      url.includes('partner-terms') || 
+      url.includes('contract') || 
+      url.includes('terms')
+    );
+    
+    // Determine if any link is localhost
+    const hasLocalhost = extractedUrls.some(url => 
+      url.includes('localhost') || url.includes('127.0.0.1')
+    );
+    
+    const isProduction = extractedUrls.some(url => 
+      url.includes('migmainc.com') || url.includes('migma.com')
+    );
 
-    console.log("[EDGE FUNCTION] Sending email to:", to);
-    console.log("[EDGE FUNCTION] Email link URL:", {
-      extractedUrl: extractedUrl || 'not found in HTML',
-      isLocalhost: isLocalhost,
-      subject: subject
-    });
+    console.log("[EDGE FUNCTION] ========================================");
+    console.log("[EDGE FUNCTION] EMAIL SENDING - LINK ANALYSIS");
+    console.log("[EDGE FUNCTION] ========================================");
+    console.log("[EDGE FUNCTION] To:", to);
+    console.log("[EDGE FUNCTION] Subject:", subject);
+    console.log("[EDGE FUNCTION] Total links found in email:", extractedUrls.length);
+    
+    if (partnerTermsUrl) {
+      console.log("[EDGE FUNCTION] ✅ PARTNER TERMS LINK FOUND:");
+      console.log("[EDGE FUNCTION]   Full URL:", partnerTermsUrl);
+      console.log("[EDGE FUNCTION]   Is Localhost:", partnerTermsUrl.includes('localhost') || partnerTermsUrl.includes('127.0.0.1'));
+      console.log("[EDGE FUNCTION]   Is Production (migmainc.com):", partnerTermsUrl.includes('migmainc.com'));
+      console.log("[EDGE FUNCTION]   Is Old Domain (migma.com):", partnerTermsUrl.includes('migma.com') && !partnerTermsUrl.includes('migmainc.com'));
+    } else {
+      console.log("[EDGE FUNCTION] ⚠️  No partner-terms link found in email");
+    }
+    
+    if (contractLinks.length > 0) {
+      console.log("[EDGE FUNCTION] Contract/Terms links found:", contractLinks.length);
+      contractLinks.forEach((link, index) => {
+        console.log(`[EDGE FUNCTION]   Link ${index + 1}:`, link);
+      });
+    }
+    
+    if (extractedUrls.length > 0) {
+      console.log("[EDGE FUNCTION] All links in email:");
+      extractedUrls.forEach((url, index) => {
+        console.log(`[EDGE FUNCTION]   ${index + 1}. ${url}`);
+      });
+    }
+    
+    console.log("[EDGE FUNCTION] Summary:");
+    console.log("[EDGE FUNCTION]   - Has localhost links:", hasLocalhost);
+    console.log("[EDGE FUNCTION]   - Has production links:", isProduction);
+    console.log("[EDGE FUNCTION] ========================================");
 
     if (!to || !subject || !html) {
       return new Response(
