@@ -1633,12 +1633,12 @@ export const VisaCheckout = () => {
                         </p>
                       )}
                       <div className="relative">
-                        <Select
-                          value={extraUnits.toString()}
-                          onValueChange={(value) => {
-                            const newExtraUnits = parseInt(value);
-                            setExtraUnits(newExtraUnits);
-                            // Ajustar array de nomes quando quantidade muda
+                      <Select
+                        value={extraUnits.toString()}
+                        onValueChange={(value) => {
+                          const newExtraUnits = parseInt(value);
+                          setExtraUnits(newExtraUnits);
+                          // Ajustar array de nomes quando quantidade muda
                             const isUnitsOnly = product.calculation_type === 'units_only';
                             // For units_only: we need (extraUnits - 1) inputs (client is the first)
                             // For base_plus_units: we need extraUnits inputs (dependents only)
@@ -1647,34 +1647,34 @@ export const VisaCheckout = () => {
                               : newExtraUnits;
                             
                             if (requiredNamesCount === 0) {
-                              setDependentNames([]);
+                            setDependentNames([]);
                             } else if (requiredNamesCount < dependentNames.length) {
-                              // Diminuir: remover nomes excedentes
+                            // Diminuir: remover nomes excedentes
                               setDependentNames(dependentNames.slice(0, requiredNamesCount));
                             } else if (requiredNamesCount > dependentNames.length) {
-                              // Aumentar: adicionar slots vazios
-                              const newNames = [...dependentNames];
+                            // Aumentar: adicionar slots vazios
+                            const newNames = [...dependentNames];
                               while (newNames.length < requiredNamesCount) {
-                                newNames.push('');
-                              }
-                              setDependentNames(newNames);
+                              newNames.push('');
                             }
-                          }}
-                        >
-                          <SelectTrigger className="bg-white text-black">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {(product.calculation_type === 'units_only' 
-                              ? [1, 2, 3, 4, 5] // units_only: mínimo 1 unidade
-                              : [0, 1, 2, 3, 4, 5] // base_plus_units: pode ser 0
-                            ).map((num) => (
-                              <SelectItem key={num} value={num.toString()}>
-                                {num}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                            setDependentNames(newNames);
+                          }
+                        }}
+                      >
+                        <SelectTrigger className="bg-white text-black">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {(product.calculation_type === 'units_only' 
+                            ? [1, 2, 3, 4, 5] // units_only: mínimo 1 unidade
+                            : [0, 1, 2, 3, 4, 5] // base_plus_units: pode ser 0
+                          ).map((num) => (
+                            <SelectItem key={num} value={num.toString()}>
+                              {num}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                         {/* Overlay para garantir que "0" seja sempre exibido */}
                         {extraUnits === 0 && (
                           <span 
@@ -1704,26 +1704,26 @@ export const VisaCheckout = () => {
                     if (numberOfInputs <= 0) return null;
                     
                     return (
-                      <div className="space-y-2">
+                    <div className="space-y-2">
                         {Array.from({ length: numberOfInputs }, (_, i) => (
-                          <div key={i} className="space-y-2">
-                            <Label htmlFor={`dependent-name-${i}`} className="text-white">
+                        <div key={i} className="space-y-2">
+                          <Label htmlFor={`dependent-name-${i}`} className="text-white">
                               {labelPrefix} {i + 1} *
-                            </Label>
-                            <Input
-                              id={`dependent-name-${i}`}
-                              value={dependentNames[i] || ''}
-                              onChange={(e) => {
-                                const newNames = [...dependentNames];
-                                newNames[i] = e.target.value;
-                                setDependentNames(newNames);
-                              }}
-                              className="bg-white text-black"
-                              required
-                            />
-                          </div>
-                        ))}
-                      </div>
+                          </Label>
+                          <Input
+                            id={`dependent-name-${i}`}
+                            value={dependentNames[i] || ''}
+                            onChange={(e) => {
+                              const newNames = [...dependentNames];
+                              newNames[i] = e.target.value;
+                              setDependentNames(newNames);
+                            }}
+                            className="bg-white text-black"
+                            required
+                          />
+                        </div>
+                      ))}
+                    </div>
                     );
                   })()}
 
