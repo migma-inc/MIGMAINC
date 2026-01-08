@@ -1,274 +1,422 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
+// Types
+interface Order {
+  id: string;
+  order_number: string;
+  payment_method: string;
+  payment_status: string;
+  product_slug: string;
+  calculation_type?: string;
+  base_price_usd?: string;
+  extra_unit_price_usd?: string;
+  total_price_usd?: string;
+  client_name: string;
+  client_whatsapp?: string;
+  client_email: string;
+  seller_id?: string;
+  dependent_names?: string[];
+  service_request_id?: string;
+}
+
+interface WebhookContext {
+  type: 'main' | 'dependent';
+  index?: number;
+  total?: number;
+  orderId: string;
+  orderNumber: string;
+  dependentName?: string;
+}
+
+interface WebhookResult {
+  success: boolean;
+  duration: number;
+  attempts?: number;
+}
+
+interface FetchOptions {
+  timeout?: number;
+  maxRetries?: number;
+  retryDelay?: number;
+}
+
 // Normalize service name for grouped products (initial, cos, transfer)
 function normalizeServiceName(productSlug: string, productName: string): string {
-  // F1 Initial - agrupa os 3 produtos (selection-process, scholarship, i20-control)
   if (productSlug.startsWith('initial-')) {
     return 'F1 Initial';
   }
   
-  // COS - agrupa os 3 produtos
-  if (productSlug.startsWith('cos-')) {
+  if (productSlug.startsWith('cos-') || productSlug.startsWith('transfer-')) {
     return 'COS & Transfer';
   }
   
-  // Transfer - agrupa os 3 produtos
-  if (productSlug.startsWith('transfer-')) {
-    return 'COS & Transfer';
-  }
-  
-  // Para outros produtos, retorna o nome original
   return productName;
 }
 
-// Send webhook to client (n8n) after payment confirmation
-async function sendClientWebhook(order: any, supabase: any) {
-  let payload: any = null;
+// Calculate base service price based on calculation type
+function calculateBaseServicePrice(order: Order): number {
+  if (order.calculation_type === 'units_only') {
+    return parseFloat(order.extra_unit_price_usd || '0');
+  }
+  return parseFloat(order.base_price_usd || '0');
+}
+
+// Get product name from database or fallback to slug
+async function getProductName(supabase: any, productSlug: string): Promise<string> {
+  const { data: product, error } = await supabase
+    .from('visa_products')
+    .select('name')
+    .eq('slug', productSlug)
+    .single();
+  
+  if (error) {
+    console.warn('[Webhook Client] ⚠️ Error fetching product, using slug as fallback:', productSlug);
+    return productSlug;
+  }
+  
+  return product?.name || productSlug;
+}
+
+// Build main client payload
+function buildMainClientPayload(order: Order, serviceName: string, basePrice: number): any {
+  const dependentCount = Array.isArray(order.dependent_names) ? order.dependent_names.length : 0;
+  
+  return {
+    servico: serviceName,
+    plano_servico: order.product_slug,
+    nome_completo: order.client_name,
+    whatsapp: order.client_whatsapp || '',
+    email: order.client_email,
+    valor_servico: basePrice.toFixed(2),
+    vendedor: order.seller_id || '',
+    quantidade_dependentes: dependentCount,
+  };
+}
+
+// Build dependent payload
+function buildDependentPayload(order: Order, dependentName: string, unitPrice: number): any {
+  return {
+    nome_completo_cliente_principal: order.client_name,
+    nome_completo_dependente: dependentName,
+    valor_servico: unitPrice.toFixed(2),
+  };
+}
+
+// Fetch with timeout using AbortController
+async function fetchWithTimeout(
+  url: string,
+  options: RequestInit,
+  timeoutMs: number
+): Promise<Response> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
   
   try {
-    const webhookUrl = Deno.env.get('CLIENT_WEBHOOK_URL');
-    
-    if (!webhookUrl) {
-      console.error('[Webhook Client] ❌ CLIENT_WEBHOOK_URL environment variable is not set. Skipping webhook.');
-      return;
+    const response = await fetch(url, {
+      ...options,
+      signal: controller.signal,
+    });
+    clearTimeout(timeoutId);
+    return response;
+  } catch (error) {
+    clearTimeout(timeoutId);
+    if (error instanceof Error && error.name === 'AbortError') {
+      throw new Error(`Request timeout after ${timeoutMs}ms`);
     }
+    throw error;
+  }
+}
+
+// Calculate exponential backoff delay
+function calculateBackoffDelay(attempt: number, baseDelay: number): number {
+  return Math.min(baseDelay * Math.pow(2, attempt), 10000); // Max 10s
+}
+
+// Send single webhook with optimized fetch, timeout, retry logic and error handling
+async function sendWebhook(
+  webhookUrl: string,
+  payload: any,
+  context: WebhookContext,
+  options: FetchOptions = {}
+): Promise<WebhookResult> {
+  const {
+    timeout = 30000, // 30 seconds default timeout
+    maxRetries = 3, // 3 retry attempts
+    retryDelay = 500, // 500ms base delay
+  } = options;
+
+  const startTime = Date.now();
+  const contextLabel = context.type === 'main' 
+    ? 'Cliente Principal' 
+    : `Dependente ${context.index}/${context.total}`;
+  
+  // Serialize payload once (reused for retries)
+  const payloadJson = JSON.stringify(payload);
+  const payloadSize = new TextEncoder().encode(payloadJson).length;
+  
+  // Optimized headers
+  const headers: HeadersInit = {
+    'Content-Type': 'application/json',
+    'Connection': 'close', // Don't keep connection alive
+    'User-Agent': 'MIGMA-Webhook-Client/1.0',
+  };
+
+  let lastError: Error | null = null;
+  let lastResponse: Response | null = null;
+  let attempts = 0;
+
+  for (attempts = 0; attempts <= maxRetries; attempts++) {
+    const attemptStartTime = Date.now();
     
-    console.log('[Webhook Client] 📤 Starting webhook send process');
-    console.log('[Webhook Client] Order ID:', order.id);
-    console.log('[Webhook Client] Order Number:', order.order_number);
-    
-    // 1. Buscar produto no banco para obter o nome do serviço
-    const { data: product, error: productError } = await supabase
-      .from('visa_products')
-      .select('name')
-      .eq('slug', order.product_slug)
-      .single();
-    
-    if (productError) {
-      console.warn('[Webhook Client] ⚠️ Error fetching product:', productError);
-      console.warn('[Webhook Client] Using product_slug as fallback:', order.product_slug);
-      // Continue mesmo se não encontrar produto - usar slug como fallback
-    } else {
-      console.log('[Webhook Client] ✅ Product found:', product?.name);
+    try {
+      if (attempts > 0) {
+        const backoffDelay = calculateBackoffDelay(attempts - 1, retryDelay);
+        console.log(`[Webhook Client] 🔄 Retentativa ${attempts}/${maxRetries} para ${contextLabel} após ${backoffDelay}ms`);
+        await new Promise(resolve => setTimeout(resolve, backoffDelay));
+      } else {
+        console.log(`[Webhook Client] 📤 Enviando webhook: ${contextLabel} (${payloadSize} bytes)`);
+      }
+      
+      // Fetch with timeout
+      const response = await fetchWithTimeout(
+        webhookUrl,
+        {
+          method: 'POST',
+          headers,
+          body: payloadJson,
+        },
+        timeout
+      );
+      
+      const attemptDuration = Date.now() - attemptStartTime;
+      lastResponse = response;
+      
+      // Limit response body size (max 10KB) to avoid memory issues
+      let responseText = '';
+      const contentLength = response.headers.get('content-length');
+      const maxResponseSize = 10240; // 10KB
+      
+      if (contentLength && parseInt(contentLength) > maxResponseSize) {
+        // Read only first 10KB
+        const reader = response.body?.getReader();
+        if (reader) {
+          const decoder = new TextDecoder();
+          let totalSize = 0;
+          let done = false;
+          
+          while (!done && totalSize < maxResponseSize) {
+            const { value, done: streamDone } = await reader.read();
+            done = streamDone;
+            if (value) {
+              const chunk = decoder.decode(value, { stream: !done });
+              responseText += chunk;
+              totalSize += value.length;
+            }
+          }
+          reader.releaseLock();
+          if (!done) {
+            responseText += '... (truncated)';
+          }
+        }
+      } else {
+        responseText = await response.text();
+      }
+      
+      if (!response.ok) {
+        // Retry on 5xx errors, don't retry on 4xx (client errors)
+        const isRetryable = response.status >= 500 || response.status === 429;
+        
+        if (isRetryable && attempts < maxRetries) {
+          console.warn(`[Webhook Client] ⚠️ Erro ${response.status} (tentativa ${attempts + 1}/${maxRetries + 1}):`, {
+            status: response.status,
+            statusText: response.statusText,
+            duration: `${attemptDuration}ms`,
+            will_retry: true,
+          });
+          lastError = new Error(`HTTP ${response.status}: ${response.statusText}`);
+          continue; // Retry
+        }
+        
+        // Don't retry on 4xx errors or if max retries reached
+        const duration = Date.now() - startTime;
+        console.error(`[Webhook Client] ❌ Erro ao enviar webhook ${contextLabel}:`, {
+          status: response.status,
+          statusText: response.statusText,
+          duration: `${duration}ms`,
+          attempts: attempts + 1,
+          response_preview: responseText.substring(0, 200),
+          order_id: context.orderId,
+          order_number: context.orderNumber,
+          ...(context.dependentName && { dependent_name: context.dependentName }),
+        });
+        return { success: false, duration, attempts: attempts + 1 };
+      }
+      
+      // Success!
+      const duration = Date.now() - startTime;
+      console.log(`[Webhook Client] ✅ Webhook ${contextLabel} enviado com sucesso:`, {
+        status: response.status,
+        duration: `${duration}ms`,
+        attempts: attempts + 1,
+        payload_size: `${payloadSize} bytes`,
+        order_id: context.orderId,
+        order_number: context.orderNumber,
+      });
+      
+      return { success: true, duration, attempts: attempts + 1 };
+      
+    } catch (error) {
+      const attemptDuration = Date.now() - attemptStartTime;
+      lastError = error instanceof Error ? error : new Error(String(error));
+      
+      // Check if error is retryable
+      const isRetryable = 
+        lastError.message.includes('timeout') ||
+        lastError.message.includes('network') ||
+        lastError.message.includes('ECONNREFUSED') ||
+        lastError.message.includes('ENOTFOUND');
+      
+      if (isRetryable && attempts < maxRetries) {
+        console.warn(`[Webhook Client] ⚠️ Erro de rede (tentativa ${attempts + 1}/${maxRetries + 1}):`, {
+          error: lastError.message,
+          duration: `${attemptDuration}ms`,
+          will_retry: true,
+        });
+        continue; // Retry
+      }
+      
+      // Don't retry or max retries reached
+      const duration = Date.now() - startTime;
+      console.error(`[Webhook Client] ❌ Exceção ao enviar webhook ${contextLabel}:`, {
+        error: lastError.message,
+        duration: `${duration}ms`,
+        attempts: attempts + 1,
+        order_id: context.orderId,
+        order_number: context.orderNumber,
+        ...(context.dependentName && { dependent_name: context.dependentName }),
+      });
+      return { success: false, duration, attempts: attempts + 1 };
     }
+  }
+  
+  // Should never reach here, but TypeScript needs it
+  const duration = Date.now() - startTime;
+  return { success: false, duration, attempts };
+}
+
+// Send webhook to client (n8n) after payment confirmation
+async function sendClientWebhook(order: Order, supabase: any): Promise<void> {
+  const webhookUrl = Deno.env.get('CLIENT_WEBHOOK_URL');
+  
+  if (!webhookUrl) {
+    console.error('[Webhook Client] ❌ CLIENT_WEBHOOK_URL não configurado. Pulando webhook.');
+    return;
+  }
+  
+  try {
+    console.log('[Webhook Client] 📤 Iniciando processo de envio de webhooks');
+    console.log('[Webhook Client] Order ID:', order.id, '| Order Number:', order.order_number);
     
-    // 2. Normalizar nome do serviço para produtos agrupados
-    const normalizedServiceName = normalizeServiceName(
-      order.product_slug,
-      product?.name || order.product_slug
-    );
+    // Get product name and normalize service name
+    const productName = await getProductName(supabase, order.product_slug);
+    const normalizedServiceName = normalizeServiceName(order.product_slug, productName);
     
-    // 3. Montar payload conforme especificado pelo cliente
-    // IMPORTANTE: valor_servico deve ser APENAS o valor unitário do serviço (sem multiplicar por unidades)
-    // Para produtos units_only: apenas extra_unit_price (valor unitário, não o total)
-    // Para produtos base_plus_units: apenas base_price_usd (sem dependentes, sem taxas)
-    let baseServicePrice: number;
-    if (order.calculation_type === 'units_only') {
-      // Para units_only: valor = apenas extra_unit_price (valor unitário do serviço)
-      // Exemplo: visa-retry-defense = $99 por aplicante, mas valor_servico deve ser $99 (não $99 * número de aplicantes)
-      baseServicePrice = parseFloat(order.extra_unit_price_usd || '0');
-    } else {
-      // Para base_plus_units: valor = apenas base_price_usd (sem dependentes)
-      baseServicePrice = parseFloat(order.base_price_usd || '0');
-    }
-    
-    // Log detalhado do cálculo do valor
-    console.log('[Webhook Client] 💰 Valor calculation details:', {
+    // Calculate base service price
+    const baseServicePrice = calculateBaseServicePrice(order);
+    console.log('[Webhook Client] 💰 Cálculo do valor:', {
       calculation_type: order.calculation_type,
       base_price_usd: order.base_price_usd,
       extra_unit_price_usd: order.extra_unit_price_usd,
-      extra_units: order.extra_units,
-      total_price_usd: order.total_price_usd,
       calculated_baseServicePrice: baseServicePrice,
-      product_slug: order.product_slug,
     });
     
-    payload = {
-      servico: normalizedServiceName,
-      plano_servico: order.product_slug,
-      nome_completo: order.client_name,
-      whatsapp: order.client_whatsapp || '',
-      email: order.client_email,
-      valor_servico: baseServicePrice.toFixed(2),
-      vendedor: order.seller_id || '',
-      quantidade_dependentes: order.dependent_names && Array.isArray(order.dependent_names) ? order.dependent_names.length : 0,
-    };
+    // Build and send main client webhook
+    const mainPayload = buildMainClientPayload(order, normalizedServiceName, baseServicePrice);
+    const dependentCount = Array.isArray(order.dependent_names) ? order.dependent_names.length : 0;
     
-    // Log resumo antes de enviar
-    const dependentCount = order.dependent_names && Array.isArray(order.dependent_names) ? order.dependent_names.length : 0;
-    console.log('[Webhook Client] 📋 RESUMO DOS WEBHOOKS A SEREM ENVIADOS:');
-    console.log(`[Webhook Client] - Cliente Principal: 1 webhook`);
-    console.log(`[Webhook Client] - Dependentes: ${dependentCount} webhook(s)`);
-    console.log(`[Webhook Client] - TOTAL: ${1 + dependentCount} webhook(s)`);
-    console.log('[Webhook Client] 📦 Payload completo do CLIENTE PRINCIPAL que será enviado:');
-    console.log(JSON.stringify(payload, null, 2));
-    console.log('[Webhook Client] 🌐 Sending POST request to:', webhookUrl);
+    console.log('[Webhook Client] 📋 Resumo: 1 webhook principal +', dependentCount, 'webhook(s) de dependente(s)');
     
-    const startTime = Date.now();
-    
-    // 3. Fazer POST para o webhook do cliente
-    const response = await fetch(webhookUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(payload),
+    const mainResult = await sendWebhook(webhookUrl, mainPayload, {
+      type: 'main',
+      orderId: order.id,
+      orderNumber: order.order_number,
     });
     
-    const endTime = Date.now();
-    const duration = endTime - startTime;
-    const durationStr = duration + "ms";
-    
-    // 4. Log resultado detalhado (sucesso ou erro)
-    if (!response.ok) {
-      const responseText = await response.text();
-      console.error('[Webhook Client] ❌ Error sending CLIENTE PRINCIPAL webhook:', {
-        status: response.status,
-        statusText: response.statusText,
-        duration: durationStr,
-        response: responseText,
-        order_id: order.id,
-        order_number: order.order_number,
-        payload_sent: payload,
-      });
-      console.error('[Webhook Client] ❌ PAYLOAD QUE FALHOU (Cliente Principal):');
-      console.error(JSON.stringify(payload, null, 2));
-    } else {
-      const responseText = await response.text();
-      console.log('[Webhook Client] ✅ Successfully sent CLIENTE PRINCIPAL webhook');
-      console.log('[Webhook Client] 📊 Response details (Cliente Principal):', {
-        status: response.status,
-        statusText: response.statusText,
-        duration: durationStr,
-        response: responseText || '(empty response)',
-        order_id: order.id,
-        order_number: order.order_number,
-      });
-      console.log('[Webhook Client] 📤 PAYLOAD ENVIADO COM SUCESSO (Cliente Principal):');
-      console.log(JSON.stringify(payload, null, 2));
-      console.log('[Webhook Client] ✅ Webhook data received by n8n successfully (Cliente Principal)');
-    }
-
-    // 5. Enviar webhooks separados para cada dependente
-    if (order.dependent_names && Array.isArray(order.dependent_names) && order.dependent_names.length > 0) {
-      const dependentCount = order.dependent_names.length;
+    // Send webhooks for dependents in parallel
+    const dependentResults: Promise<WebhookResult>[] = [];
+    if (dependentCount > 0) {
+      console.log('[Webhook Client] 📤 Iniciando envio paralelo de', dependentCount, 'webhook(s) de dependente(s)');
+      
       const dependentUnitPrice = parseFloat(order.extra_unit_price_usd || '0');
       
-      console.log('');
-      console.log('[Webhook Client] ========================================');
-      console.log(`[Webhook Client] 📤 INICIANDO ENVIO DE ${dependentCount} WEBHOOK(S) DE DEPENDENTE(S)`);
-      console.log('[Webhook Client] ========================================');
-      
       for (let i = 0; i < dependentCount; i++) {
-        const dependentName = order.dependent_names[i];
+        const dependentName = order.dependent_names![i];
         
-        if (!dependentName || dependentName.trim() === '') {
-          console.warn(`[Webhook Client] ⚠️ Skipping dependent ${i + 1}: empty name`);
+        if (!dependentName?.trim()) {
+          console.warn(`[Webhook Client] ⚠️ Pulando dependente ${i + 1}: nome vazio`);
           continue;
         }
         
-        // Payload simplificado - nome do cliente principal, nome do dependente e valor
-        const dependentPayload = {
-          nome_completo_cliente_principal: order.client_name,
-          nome_completo_dependente: dependentName,
-          valor_servico: dependentUnitPrice.toFixed(2),
-        };
-        
-        console.log('');
-        console.log(`[Webhook Client] 📦 PAYLOAD DEPENDENTE ${i + 1}/${dependentCount} (ANTES DE ENVIAR):`);
-        console.log(JSON.stringify(dependentPayload, null, 2));
-        console.log(`[Webhook Client] 🌐 Sending POST request for Dependent ${i + 1}/${dependentCount}`);
-        
-        const dependentStartTime = Date.now();
-        
-        try {
-          const dependentResponse = await fetch(webhookUrl, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(dependentPayload),
-          });
-          
-          const dependentEndTime = Date.now();
-          const dependentDuration = dependentEndTime - dependentStartTime;
-          const dependentDurationStr = dependentDuration + "ms";
-          
-          if (!dependentResponse.ok) {
-            const dependentResponseText = await dependentResponse.text();
-            console.error(`[Webhook Client] ❌ ERRO ao enviar webhook do DEPENDENTE ${i + 1}/${dependentCount}:`, {
-              status: dependentResponse.status,
-              statusText: dependentResponse.statusText,
-              duration: dependentDurationStr,
-              response: dependentResponseText,
-              order_id: order.id,
-              order_number: order.order_number,
-              dependent_name: dependentName,
-              dependent_index: i + 1,
-            });
-            console.error(`[Webhook Client] ❌ PAYLOAD QUE FALHOU (Dependente ${i + 1}):`);
-            console.error(JSON.stringify(dependentPayload, null, 2));
-          } else {
-            const dependentResponseText = await dependentResponse.text();
-            console.log(`[Webhook Client] ✅ SUCESSO ao enviar webhook do DEPENDENTE ${i + 1}/${dependentCount}`);
-            console.log(`[Webhook Client] 📊 Response details (Dependente ${i + 1}):`, {
-              status: dependentResponse.status,
-              statusText: dependentResponse.statusText,
-              duration: dependentDurationStr,
-              response: dependentResponseText || '(empty response)',
-              order_id: order.id,
-              order_number: order.order_number,
-              dependent_name: dependentName,
-              dependent_index: i + 1,
-            });
-            console.log(`[Webhook Client] 📤 PAYLOAD ENVIADO COM SUCESSO (Dependente ${i + 1}):`);
-            console.log(JSON.stringify(dependentPayload, null, 2));
-            console.log(`[Webhook Client] ✅ Webhook data received by n8n successfully (Dependente ${i + 1})`);
-          }
-        } catch (dependentError) {
-          console.error(`[Webhook Client] ❌ EXCEÇÃO ao enviar webhook do DEPENDENTE ${i + 1}/${dependentCount}:`, {
-            error: dependentError instanceof Error ? dependentError.message : String(dependentError),
-            stack: dependentError instanceof Error ? dependentError.stack : undefined,
-            order_id: order?.id,
-            order_number: order?.order_number,
-            dependent_name: dependentName,
-            dependent_index: i + 1,
-          });
-          console.error(`[Webhook Client] ❌ PAYLOAD QUE FALHOU (Dependente ${i + 1}):`);
-          console.error(JSON.stringify(dependentPayload, null, 2));
-        }
+        const dependentPayload = buildDependentPayload(order, dependentName, dependentUnitPrice);
+        dependentResults.push(
+          sendWebhook(webhookUrl, dependentPayload, {
+            type: 'dependent',
+            index: i + 1,
+            total: dependentCount,
+            orderId: order.id,
+            orderNumber: order.order_number,
+            dependentName,
+          })
+        );
       }
-      
-      console.log('');
-      console.log('[Webhook Client] ========================================');
-      console.log(`[Webhook Client] ✅ FINALIZADO: ${dependentCount} webhook(s) de dependente(s) processado(s)`);
-      console.log('[Webhook Client] ========================================');
-      console.log('');
-    } else {
-      console.log('[Webhook Client] ℹ️ No dependents to send webhooks for');
     }
     
-    // Log resumo final
-    console.log('');
-    console.log('[Webhook Client] ========================================');
-    console.log('[Webhook Client] 📋 RESUMO FINAL DOS WEBHOOKS ENVIADOS:');
-    console.log(`[Webhook Client] - Cliente Principal: 1 webhook`);
-    console.log(`[Webhook Client] - Dependentes: ${dependentCount} webhook(s)`);
-    console.log(`[Webhook Client] - TOTAL: ${1 + dependentCount} webhook(s)`);
-    console.log(`[Webhook Client] - Order ID: ${order.id}`);
-    console.log(`[Webhook Client] - Order Number: ${order.order_number}`);
-    console.log('[Webhook Client] ========================================');
-    console.log('');
+    // Wait for all dependent webhooks to complete
+    const dependentResultsArray = await Promise.allSettled(dependentResults);
+    const successDependentCount = dependentResultsArray.filter(
+      (result) => result.status === 'fulfilled' && result.value.success
+    ).length;
+    
+    // Summary
+    const successCount = (mainResult.success ? 1 : 0) + successDependentCount;
+    const totalCount = 1 + dependentCount;
+    
+    console.log('[Webhook Client] 📋 Resumo final:', {
+      total: totalCount,
+      sucesso: successCount,
+      falhas: totalCount - successCount,
+      order_id: order.id,
+      order_number: order.order_number,
+    });
   } catch (error) {
-    // Não bloquear fluxo se webhook falhar - apenas logar erro
-    console.error('[Webhook Client] ❌ Exception sending webhook:', {
+    console.error('[Webhook Client] ❌ Exceção ao processar webhooks:', {
       error: error instanceof Error ? error.message : String(error),
       stack: error instanceof Error ? error.stack : undefined,
       order_id: order?.id,
       order_number: order?.order_number,
-      payload_attempted: payload ? JSON.stringify(payload, null, 2) : 'Payload não foi criado devido ao erro',
     });
+  }
+}
+
+// Invoke edge function with error handling
+async function invokeEdgeFunction(
+  supabase: any,
+  functionName: string,
+  body: any,
+  operationName: string
+): Promise<void> {
+  try {
+    const { data, error } = await supabase.functions.invoke(functionName, { body });
+    
+    if (error) {
+      console.error(`[Zelle Webhook] Erro ao ${operationName}:`, error);
+    } else {
+      console.log(`[Zelle Webhook] ${operationName} executado com sucesso`, data?.pdf_url ? `: ${data.pdf_url}` : '');
+    }
+  } catch (error) {
+    console.error(`[Zelle Webhook] Exceção ao ${operationName}:`, error);
+    // Continue - these operations are not critical for payment processing
   }
 }
 
@@ -300,7 +448,7 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    console.log("[Zelle Webhook] Processing manual approval for order:", order_id);
+    console.log("[Zelle Webhook] Processando aprovação manual para order:", order_id);
 
     // Get order from database
     const { data: order, error: orderError } = await supabase
@@ -310,73 +458,78 @@ Deno.serve(async (req: Request) => {
       .single();
 
     if (orderError || !order) {
-      console.error("[Zelle Webhook] Order not found:", order_id);
+      console.error("[Zelle Webhook] Order não encontrada:", order_id);
       return new Response(
         JSON.stringify({ error: "Order not found" }),
         { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    // Verify payment method is Zelle
-    if (order.payment_method !== 'zelle') {
-      console.error("[Zelle Webhook] Order is not a Zelle payment:", order.payment_method);
+    // Validate payment method and status together
+    if (order.payment_method !== 'zelle' || order.payment_status !== 'completed') {
+      console.error("[Zelle Webhook] Validação falhou:", {
+        payment_method: order.payment_method,
+        payment_status: order.payment_status,
+      });
       return new Response(
-        JSON.stringify({ error: "Order is not a Zelle payment" }),
+        JSON.stringify({ 
+          error: order.payment_method !== 'zelle' 
+            ? "Order is not a Zelle payment" 
+            : "Order payment status must be completed" 
+        }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    // Verify payment status is completed
-    if (order.payment_status !== 'completed') {
-      console.error("[Zelle Webhook] Order payment status is not completed:", order.payment_status);
-      return new Response(
-        JSON.stringify({ error: "Order payment status must be completed" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    console.log("[Zelle Webhook] Order found:", {
+    console.log("[Zelle Webhook] Order encontrada:", {
       id: order.id,
       order_number: order.order_number,
       payment_method: order.payment_method,
       payment_status: order.payment_status,
     });
 
-    // Check zelle_payments record for n8n validation info
-    const { data: zellePayment } = await supabase
-      .from("zelle_payments")
-      .select("*")
-      .eq("order_id", order.id)
-      .maybeSingle();
+    // Execute parallel queries for non-dependent data
+    const [zellePaymentResult, paymentRecordResult] = await Promise.all([
+      supabase
+        .from("zelle_payments")
+        .select("payment_id, status, n8n_confidence, n8n_validated_at")
+        .eq("order_id", order.id)
+        .maybeSingle(),
+      order.service_request_id
+        ? supabase
+            .from("payments")
+            .select("id")
+            .eq("service_request_id", order.service_request_id)
+            .eq("external_payment_id", order.id)
+            .maybeSingle()
+        : Promise.resolve({ data: null, error: null }),
+    ]);
+
+    const zellePayment = zellePaymentResult.data;
+    const paymentRecord = paymentRecordResult.data;
 
     if (zellePayment) {
-      console.log("[Zelle Webhook] Zelle payment record found:", {
+      console.log("[Zelle Webhook] Registro de pagamento Zelle encontrado:", {
         payment_id: zellePayment.payment_id,
         status: zellePayment.status,
         n8n_confidence: zellePayment.n8n_confidence,
         n8n_validated_at: zellePayment.n8n_validated_at,
       });
 
-      // If zelle_payment status is not approved, log warning
       if (zellePayment.status !== 'approved') {
-        console.warn("[Zelle Webhook] Warning: zelle_payment status is not 'approved':", zellePayment.status);
+        console.warn("[Zelle Webhook] Aviso: status do zelle_payment não é 'approved':", zellePayment.status);
       }
     } else {
-      console.log("[Zelle Webhook] No zelle_payment record found for this order (legacy payment)");
+      console.log("[Zelle Webhook] Nenhum registro zelle_payment encontrado (pagamento legado)");
     }
 
-    // Update payment record if exists
-    if (order.service_request_id) {
-      // Try to find payment record by service_request_id and order_id
-      const { data: paymentRecord } = await supabase
-        .from("payments")
-        .select("id")
-        .eq("service_request_id", order.service_request_id)
-        .eq("external_payment_id", order.id)
-        .maybeSingle();
+    // CRITICAL OPERATIONS: Update database records (must complete before non-critical operations)
+    const criticalOperations: Promise<any>[] = [];
 
-      if (paymentRecord) {
-        await supabase
+    // Update payment record if exists
+    if (paymentRecord) {
+      criticalOperations.push(
+        supabase
           .from("payments")
           .update({
             status: "paid",
@@ -389,25 +542,27 @@ Deno.serve(async (req: Request) => {
             },
             updated_at: new Date().toISOString(),
           })
-          .eq("id", paymentRecord.id);
-        console.log("[Zelle Webhook] Payment record updated:", paymentRecord.id);
-      }
-
-      // Update service_request status to 'paid'
-      await supabase
-        .from("service_requests")
-        .update({
-          status: "paid",
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", order.service_request_id);
-      console.log("[Zelle Webhook] Service request status updated to 'paid':", order.service_request_id);
+          .eq("id", paymentRecord.id)
+      );
     }
 
-    // Track payment completed in funnel
+    // Update service_request status to 'paid'
+    if (order.service_request_id) {
+      criticalOperations.push(
+        supabase
+          .from("service_requests")
+          .update({
+            status: "paid",
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", order.service_request_id)
+      );
+    }
+
+    // Track payment completed in funnel (non-critical but should complete)
     if (order.seller_id) {
-      try {
-        await supabase
+      criticalOperations.push(
+        supabase
           .from('seller_funnel_events')
           .insert({
             seller_id: order.seller_id,
@@ -420,79 +575,62 @@ Deno.serve(async (req: Request) => {
               payment_method: 'zelle',
               total_amount: order.total_price_usd,
             },
-          });
-        console.log("[Zelle Webhook] Payment completed tracked in funnel");
-      } catch (trackError) {
-        console.error("[Zelle Webhook] Error tracking payment completed:", trackError);
-        // Continue - tracking is not critical
-      }
+          })
+          .then(() => {
+            console.log("[Zelle Webhook] Evento de pagamento rastreado no funnel");
+          })
+          .catch((trackError) => {
+            console.error("[Zelle Webhook] Erro ao rastrear pagamento:", trackError);
+            // Continue - tracking is not critical
+          })
+      );
     }
 
-    // Generate contract PDF after payment confirmation
-    // For ALL products EXCEPT scholarship and i20-control: generate full contract PDF
-    // The contract template is fetched dynamically by product_slug from contract_templates table
-    // For scholarship and i20-control: only generate ANNEX I (no full contract)
+    // Wait for all critical operations to complete
+    await Promise.allSettled(criticalOperations);
+    console.log("[Zelle Webhook] Operações críticas concluídas");
+
+    // NON-CRITICAL OPERATIONS: Execute in parallel (PDF generation, email, webhook)
     const isAnnexRequired = order.product_slug?.endsWith('-scholarship') || order.product_slug?.endsWith('-i20-control');
     
+    const nonCriticalOperations: Promise<void>[] = [];
+
+    // Generate contract PDF
     if (!isAnnexRequired) {
-      // Generate full contract PDF for any product (selection-process, consulta-brant, etc.)
-      // The generate-visa-contract-pdf function will fetch the appropriate template by product_slug
-      try {
-        const { data: pdfData, error: pdfError } = await supabase.functions.invoke("generate-visa-contract-pdf", {
-          body: { order_id: order.id },
-        });
-        
-        if (pdfError) {
-          console.error("[Zelle Webhook] Error generating contract PDF:", pdfError);
-        } else {
-          console.log("[Zelle Webhook] Contract PDF generated successfully:", pdfData?.pdf_url);
-        }
-      } catch (pdfError) {
-        console.error("[Zelle Webhook] Exception generating contract PDF:", pdfError);
-        // Continue - PDF generation is not critical for payment processing
-      }
+      nonCriticalOperations.push(
+        invokeEdgeFunction(supabase, "generate-visa-contract-pdf", { order_id: order.id }, "gerar PDF do contrato")
+      );
+    } else {
+      nonCriticalOperations.push(
+        invokeEdgeFunction(supabase, "generate-annex-pdf", { order_id: order.id }, "gerar PDF do ANEXO I")
+      );
     }
 
-    // Generate ANNEX I PDF for scholarship and i20-control products
-    if (isAnnexRequired) {
-      try {
-        const { data: annexPdfData, error: annexPdfError } = await supabase.functions.invoke("generate-annex-pdf", {
-          body: { order_id: order.id },
-        });
-        
-        if (annexPdfError) {
-          console.error("[Zelle Webhook] Error generating ANNEX I PDF:", annexPdfError);
-        } else {
-          console.log("[Zelle Webhook] ANNEX I PDF generated successfully:", annexPdfData?.pdf_url);
-        }
-      } catch (annexPdfError) {
-        console.error("[Zelle Webhook] Exception generating ANNEX I PDF:", annexPdfError);
-        // Continue - PDF generation is not critical for payment processing
-      }
-    }
+    // Send confirmation email
+    nonCriticalOperations.push(
+      invokeEdgeFunction(supabase, "send-payment-confirmation-email", {
+        clientName: order.client_name,
+        clientEmail: order.client_email,
+        orderNumber: order.order_number,
+        productSlug: order.product_slug,
+        totalAmount: order.total_price_usd,
+        paymentMethod: "zelle",
+        currency: "USD",
+        finalAmount: order.total_price_usd,
+      }, "enviar email de confirmação")
+    );
 
-    // Send confirmation email to client
-    try {
-      await supabase.functions.invoke("send-payment-confirmation-email", {
-        body: {
-          clientName: order.client_name,
-          clientEmail: order.client_email,
-          orderNumber: order.order_number,
-          productSlug: order.product_slug,
-          totalAmount: order.total_price_usd,
-          paymentMethod: "zelle",
-          currency: "USD",
-          finalAmount: order.total_price_usd,
-        },
-      });
-      console.log("[Zelle Webhook] Payment confirmation email sent to client");
-    } catch (emailError) {
-      console.error("[Zelle Webhook] Error sending payment confirmation email:", emailError);
-    }
+    // Send webhook to client (n8n)
+    nonCriticalOperations.push(sendClientWebhook(order, supabase));
 
-    // Send webhook to client (n8n) - same logic as Stripe webhook
-    await sendClientWebhook(order, supabase);
+    // Execute all non-critical operations in parallel (don't wait for completion)
+    Promise.allSettled(nonCriticalOperations).then(() => {
+      console.log("[Zelle Webhook] Operações não-críticas concluídas");
+    }).catch((error) => {
+      console.error("[Zelle Webhook] Erro em operações não-críticas:", error);
+    });
 
+    // Return success immediately after critical operations complete
     return new Response(
       JSON.stringify({ 
         success: true, 
@@ -504,12 +642,10 @@ Deno.serve(async (req: Request) => {
     );
 
   } catch (error) {
-    console.error("[Zelle Webhook] Error:", error);
+    console.error("[Zelle Webhook] Erro:", error);
     return new Response(
-      JSON.stringify({ error: error.message || "Internal server error" }),
+      JSON.stringify({ error: error instanceof Error ? error.message : "Internal server error" }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
 });
-
-

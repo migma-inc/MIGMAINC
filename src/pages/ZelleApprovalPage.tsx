@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { PdfModal } from '@/components/ui/pdf-modal';
 import { ImageModal } from '@/components/ui/image-modal';
-import { CheckCircle, XCircle, Eye, Clock, Brain, AlertCircle } from 'lucide-react';
+import { CheckCircle, XCircle, Eye, Clock, Brain } from 'lucide-react';
 import { ConfirmModal } from '@/components/ui/confirm-modal';
 import { AlertModal } from '@/components/ui/alert-modal';
 
@@ -56,6 +56,7 @@ export const ZelleApprovalPage = () => {
   const [showApproveConfirm, setShowApproveConfirm] = useState(false);
   const [showRejectConfirm, setShowRejectConfirm] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [processingAction, setProcessingAction] = useState<'approve' | 'reject' | null>(null);
   const [alertData, setAlertData] = useState<{ title: string; message: string; variant: 'success' | 'error' } | null>(null);
   const [showAlert, setShowAlert] = useState(false);
 
@@ -125,6 +126,7 @@ export const ZelleApprovalPage = () => {
 
     setShowApproveConfirm(false);
     setIsProcessing(true);
+    setProcessingAction('approve');
 
     try {
       // Update order status to completed
@@ -233,6 +235,7 @@ export const ZelleApprovalPage = () => {
       setShowAlert(true);
     } finally {
       setIsProcessing(false);
+      setProcessingAction(null);
       setSelectedOrder(null);
     }
   };
@@ -247,6 +250,7 @@ export const ZelleApprovalPage = () => {
 
     setShowRejectConfirm(false);
     setIsProcessing(true);
+    setProcessingAction('reject');
 
     try {
       // Update order status to failed
@@ -550,10 +554,17 @@ export const ZelleApprovalPage = () => {
 
       {/* Processing Overlay */}
       {isProcessing && (
-        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
-          <div className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 rounded-lg p-6 border border-gold-medium/30">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gold-medium mx-auto"></div>
-            <p className="mt-4 text-white">Processing...</p>
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-md">
+          <div className="flex flex-col items-center justify-center space-y-6">
+            <div className="loader-gold"></div>
+            <p className="text-gold-light text-lg font-semibold tracking-tight">
+              {processingAction === 'reject' 
+                ? 'Rejecting payment...' 
+                : 'Processing payment approval...'}
+            </p>
+            <p className="text-gray-400 text-sm">
+              This may take a moment, please wait
+            </p>
           </div>
         </div>
       )}

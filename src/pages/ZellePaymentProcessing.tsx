@@ -16,10 +16,10 @@ export const ZellePaymentProcessing = () => {
               </div>
             </div>
             <h1 className="text-3xl font-bold migma-gold-text mb-2">
-              Seu pagamento está sendo processado
+              Your payment is being processed
             </h1>
             <p className="text-gray-300 text-lg mt-4">
-              Recebemos seu comprovante de pagamento Zelle e nossa equipe está analisando.
+              We have received your Zelle payment receipt and our team is reviewing it.
             </p>
           </div>
 
@@ -28,10 +28,10 @@ export const ZellePaymentProcessing = () => {
               <CheckCircle className="w-5 h-5 text-gold-medium flex-shrink-0 mt-0.5" />
               <div>
                 <h2 className="text-lg font-semibold text-gold-light mb-2">
-                  O que acontece agora?
+                  What happens now?
                 </h2>
                 <p className="text-gray-300 text-sm leading-relaxed">
-                  Nossa equipe está verificando seu comprovante de pagamento. Este procedimento pode levar até <strong className="text-gold-light">48 horas</strong> para ser concluído.
+                  Our team is verifying your payment receipt. This process may take up to <strong className="text-gold-light">48 hours</strong> to complete.
                 </p>
               </div>
             </div>
@@ -40,10 +40,10 @@ export const ZellePaymentProcessing = () => {
               <CheckCircle className="w-5 h-5 text-gold-medium flex-shrink-0 mt-0.5" />
               <div>
                 <h2 className="text-lg font-semibold text-gold-light mb-2">
-                  Você receberá uma confirmação
+                  You will receive a confirmation
                 </h2>
                 <p className="text-gray-300 text-sm leading-relaxed">
-                  Assim que o pagamento for confirmado, você receberá um e-mail com os próximos passos para iniciar o processo de visto.
+                  Once the payment is confirmed, you will receive an email with the next steps to begin the visa process.
                 </p>
               </div>
             </div>
@@ -52,10 +52,10 @@ export const ZellePaymentProcessing = () => {
               <CheckCircle className="w-5 h-5 text-gold-medium flex-shrink-0 mt-0.5" />
               <div>
                 <h2 className="text-lg font-semibold text-gold-light mb-2">
-                  Precisa de ajuda?
+                  Need help?
                 </h2>
                 <p className="text-gray-300 text-sm leading-relaxed">
-                  Se tiver alguma dúvida ou precisar de suporte, entre em contato conosco através da nossa página de contato.
+                  If you have any questions or need support, please contact us through our contact page.
                 </p>
               </div>
             </div>
@@ -64,22 +64,21 @@ export const ZellePaymentProcessing = () => {
           <div className="space-y-4">
             <div className="bg-gold-medium/10 border border-gold-medium/30 rounded-lg p-4">
               <p className="text-sm text-gold-light">
-                <strong>Tempo estimado:</strong> Até 48 horas úteis
+                <strong>Estimated time:</strong> Up to 48 business hours
               </p>
             </div>
             
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <Link to="/contact">
                 <Button className="bg-gradient-to-b from-gold-light via-gold-medium to-gold-light text-black font-bold hover:from-gold-medium hover:via-gold-light hover:to-gold-medium w-full sm:w-auto">
-                  Entrar em Contato
+                  Contact Us
                 </Button>
               </Link>
               <Link to="/">
                 <Button 
-                  variant="outline" 
-                  className="border-gold-medium/50 text-gold-light hover:bg-gold-medium/10 w-full sm:w-auto"
+                  className="bg-black border-2 border-gold-medium/50 text-gold-light hover:bg-black hover:border-gold-medium hover:text-gold-medium w-full sm:w-auto"
                 >
-                  Voltar para Home
+                  Back to Home
                   <ArrowRight className="w-4 h-4 ml-2" />
                 </Button>
               </Link>
