@@ -342,8 +342,8 @@ export function SignaturePadComponent({
     return (
       <div className={`${className}`}>
         {label && (
-          <div className="flex items-center justify-between">
-            <Label className="text-white font-medium text-sm">
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <Label className="text-white font-medium text-sm sm:text-base">
               {label} {required && <span className="text-red-500">*</span>}
             </Label>
             <button
@@ -353,7 +353,7 @@ export function SignaturePadComponent({
                 setIsHidden(false);
                 setShowMinimalMessage(false);
               }}
-              className="text-xs text-gold-light/50 hover:text-gold-light underline"
+              className="text-xs sm:text-sm text-gold-light/50 hover:text-gold-light underline min-h-[44px] px-2"
             >
               Edit signature
             </button>
@@ -366,12 +366,12 @@ export function SignaturePadComponent({
   return (
     <div className={`space-y-2 ${className}`}>
       {label && (
-        <Label className="text-white font-medium">
+        <Label className="text-white font-medium text-sm sm:text-base">
           {label} {required && <span className="text-red-500">*</span>}
         </Label>
       )}
       
-      <div className="relative border-2 border-gray-600 rounded-lg bg-white overflow-hidden" style={{ minHeight: `${height}px`, width: '100%' }}>
+      <div className="relative border-2 border-gray-600 rounded-lg bg-white overflow-hidden w-full" style={{ minHeight: `${height}px` }}>
         <canvas
           ref={canvasRef}
           className="cursor-crosshair"
@@ -389,7 +389,7 @@ export function SignaturePadComponent({
         
         {isEmpty && (
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none" style={{ zIndex: 0 }}>
-            <p className="text-gray-400 text-sm">Sign here with your mouse or finger</p>
+            <p className="text-gray-400 text-xs sm:text-sm px-2 text-center">Sign here with your mouse or finger</p>
           </div>
         )}
       </div>
@@ -401,9 +401,9 @@ export function SignaturePadComponent({
           size="sm"
           onClick={handleClear}
           disabled={isEmpty}
-          className="bg-black text-gold-light border-gold-medium hover:bg-gray-900 hover:text-gold-medium disabled:opacity-50"
+          className="bg-black text-gold-light border-gold-medium hover:bg-gray-900 hover:text-gold-medium disabled:opacity-50 min-h-[44px] text-xs sm:text-sm flex-1 sm:flex-initial"
         >
-          <RotateCcw className="w-4 h-4 mr-2" />
+          <RotateCcw className="w-4 h-4 mr-1 sm:mr-2" />
           Clear
         </Button>
         
@@ -420,21 +420,21 @@ export function SignaturePadComponent({
             handleConfirm();
           }}
           disabled={isEmpty}
-          className="bg-black text-gold-light hover:bg-gray-900 hover:text-gold-medium disabled:opacity-50 font-semibold"
+          className="bg-black text-gold-light hover:bg-gray-900 hover:text-gold-medium disabled:opacity-50 font-semibold min-h-[44px] text-xs sm:text-sm flex-1 sm:flex-initial"
         >
-          <Check className="w-4 h-4 mr-2" />
+          <Check className="w-4 h-4 mr-1 sm:mr-2" />
           Done
         </Button>
       </div>
 
       {!isEmpty && (
-        <p className="text-xs text-gold-light font-medium">
+        <p className="text-xs sm:text-sm text-gold-light font-medium">
           ✓ Signature captured. Click "Done" to confirm, or "Clear" to re-sign.
         </p>
       )}
 
       {isEmpty && (
-        <p className="text-xs text-gray-400">
+        <p className="text-xs sm:text-sm text-gray-400">
           By signing above, you are providing your electronic signature to this agreement.
         </p>
       )}

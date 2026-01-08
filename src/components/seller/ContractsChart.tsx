@@ -69,7 +69,7 @@ export function ContractsChart({ data }: ContractsChartProps) {
     );
 
     // Aplicar cores dos dados
-    series.slices.template.adapters.add('fill', (fill, target) => {
+    series.slices.template.adapters.add('fill', (fill: any, target: any) => {
       const dataItem = target.dataItem;
       const dataContext = dataItem?.dataContext as ChartSlice | undefined;
 

@@ -19,6 +19,7 @@ import { saveStep1Data, saveStep2Data, saveStep3Data } from '@/lib/visa-checkout
 import { getContractTemplateByProductSlug, type ContractTemplate } from '@/lib/contract-templates';
 import { SignaturePadComponent } from '@/components/ui/signature-pad';
 import { ANNEX_I_HTML } from '@/lib/annex-text';
+import { processZellePaymentWithN8n } from '@/lib/zelle-n8n-integration';
 
 interface VisaProduct {
   id: string;
@@ -42,7 +43,11 @@ export const VisaCheckout = () => {
   const [product, setProduct] = useState<VisaProduct | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [isZelleProcessing, setIsZelleProcessing] = useState(false);
   const [error, setError] = useState('');
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [step2Errors, setStep2Errors] = useState<Record<string, string>>({});
+  const [step3Errors, setStep3Errors] = useState<Record<string, string>>({});
 
   // Multi-step state - Initialize by checking localStorage immediately
   // If user was on step 2 or 3, force them to step 1 immediately
@@ -949,11 +954,56 @@ export const VisaCheckout = () => {
   }, [currentStep]);
 
 
+  // Função para fazer scroll até o primeiro campo com erro
+  const scrollToFirstError = (fieldName: string) => {
+    setTimeout(() => {
+      // Mapeamento entre nomes de campos e IDs reais no DOM
+      const fieldIdMap: Record<string, string> = {
+        clientName: 'name',
+        clientEmail: 'email',
+        dateOfBirth: 'date-of-birth',
+        documentType: 'document-type',
+        documentNumber: 'document-number',
+        addressLine: 'address-line',
+        city: 'city',
+        state: 'state',
+        postalCode: 'postal-code',
+        clientCountry: 'country',
+        clientNationality: 'nationality',
+        clientWhatsApp: 'whatsapp',
+        maritalStatus: 'marital-status',
+      };
+      
+      const elementId = fieldIdMap[fieldName] || fieldName;
+      const element = document.getElementById(elementId);
+      if (element) {
+        element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        // Tentar focar no elemento se for um input ou select
+        if (element.tagName === 'INPUT' || element.tagName === 'SELECT') {
+          element.focus();
+        } else {
+          // Se for um SelectTrigger, tentar focar no elemento pai
+          const selectTrigger = element.querySelector('button');
+          if (selectTrigger) {
+            selectTrigger.focus();
+          }
+        }
+      }
+    }, 100);
+  };
+
   // Validate Step 1
   const validateStep1Form = (): boolean => {
+    setFieldErrors({});
+    setError('');
+
     // Validação especial para produtos units_only: deve ter pelo menos 1 unidade
     if (product?.calculation_type === 'units_only' && extraUnits < 1) {
       setError('Number of applicants must be at least 1 for this service');
+      const extraUnitsElement = document.getElementById('extra-units');
+      if (extraUnitsElement) {
+        extraUnitsElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
       return false;
     }
 
@@ -967,12 +1017,21 @@ export const VisaCheckout = () => {
       
       if (dependentNames.length !== requiredNamesCount) {
         setError(`Please provide names for all ${requiredNamesCount} ${entityName}${requiredNamesCount > 1 ? 's' : ''}`);
+        const firstDependentInput = document.getElementById('dependent-name-0');
+        if (firstDependentInput) {
+          firstDependentInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
         return false;
       }
       // Verificar que todos os nomes estão preenchidos (não vazios)
       const emptyNames = dependentNames.filter(name => !name || name.trim() === '');
       if (emptyNames.length > 0) {
+        const firstEmptyIndex = dependentNames.findIndex(name => !name || name.trim() === '');
         setError(`Please provide names for all ${entityName}s. ${emptyNames.length} name${emptyNames.length > 1 ? 's' : ''} missing.`);
+        const emptyInput = document.getElementById(`dependent-name-${firstEmptyIndex}`);
+        if (emptyInput) {
+          emptyInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
         return false;
       }
     }
@@ -994,8 +1053,11 @@ export const VisaCheckout = () => {
     };
     
     const result = validateStep1(formData);
-    if (!result.valid && result.error) {
-      setError(result.error);
+    if (!result.valid && result.errors) {
+      setFieldErrors(result.errors);
+      if (result.firstErrorField) {
+        scrollToFirstError(result.firstErrorField);
+      }
       return false;
     }
     return true;
@@ -1059,13 +1121,42 @@ export const VisaCheckout = () => {
         return;
       }
       
+      setStep2Errors({});
+      setError('');
+      
+      const errors: Record<string, string> = {};
+      
       if (!documentsUploaded || !documentFiles) {
-        setError('Please upload all required documents (front, back, and selfie)');
+        errors.documents = 'Please upload all required documents (front, back, and selfie)';
+        setStep2Errors(errors);
+        setTimeout(() => {
+          const documentUploadElement = document.querySelector('[data-document-upload]');
+          if (documentUploadElement) {
+            documentUploadElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }
+        }, 100);
         return;
       }
+      
       // Ensure all required documents are present
-      if (!documentFiles.documentFront || !documentFiles.documentBack || !documentFiles.selfie) {
-        setError('Please upload all required documents (front, back, and selfie)');
+      if (!documentFiles.documentFront) {
+        errors.documentFront = 'Document front is required';
+      }
+      if (!documentFiles.documentBack) {
+        errors.documentBack = 'Document back is required';
+      }
+      if (!documentFiles.selfie) {
+        errors.selfie = 'Selfie is required';
+      }
+      
+      if (Object.keys(errors).length > 0) {
+        setStep2Errors(errors);
+        setTimeout(() => {
+          const documentUploadElement = document.querySelector('[data-document-upload]');
+          if (documentUploadElement) {
+            documentUploadElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }
+        }, 100);
         return;
       }
       
@@ -1150,14 +1241,45 @@ export const VisaCheckout = () => {
 
   // Handle Stripe checkout
   const handleStripeCheckout = async (method: 'card' | 'pix') => {
-    if (!termsAccepted || !dataAuthorization) {
-      alert('Please accept both terms and conditions');
-      return;
+    setStep3Errors({});
+    setError('');
+    
+    const errors: Record<string, string> = {};
+    
+    if (!termsAccepted) {
+      errors.termsAccepted = 'You must accept the terms and conditions';
+    }
+    
+    if (!dataAuthorization) {
+      errors.dataAuthorization = 'You must accept the data authorization';
     }
 
     // Validate signature
     if (!signatureImageDataUrl || !signatureConfirmed) {
-      alert('Please draw and confirm your digital signature before proceeding with payment.');
+      errors.signature = 'Please draw and confirm your digital signature before proceeding with payment';
+    }
+    
+    if (Object.keys(errors).length > 0) {
+      setStep3Errors(errors);
+      setTimeout(() => {
+        const firstErrorField = Object.keys(errors)[0];
+        if (firstErrorField === 'termsAccepted') {
+          const element = document.getElementById('terms-checkbox');
+          if (element) {
+            element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }
+        } else if (firstErrorField === 'dataAuthorization') {
+          const element = document.getElementById('data-auth-checkbox');
+          if (element) {
+            element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }
+        } else if (firstErrorField === 'signature') {
+          const element = document.querySelector('[data-signature-pad]');
+          if (element) {
+            element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }
+        }
+      }, 100);
       return;
     }
 
@@ -1319,28 +1441,66 @@ export const VisaCheckout = () => {
 
   // Handle Zelle payment
   const handleZellePayment = async () => {
-    if (!termsAccepted || !dataAuthorization) {
-      alert('Please accept both terms and conditions');
-      return;
+    setStep3Errors({});
+    setError('');
+    
+    const errors: Record<string, string> = {};
+    
+    if (!termsAccepted) {
+      errors.termsAccepted = 'You must accept the terms and conditions';
+    }
+    
+    if (!dataAuthorization) {
+      errors.dataAuthorization = 'You must accept the data authorization';
     }
 
     // Validate signature
     if (!signatureImageDataUrl || !signatureConfirmed) {
-      alert('Please draw and confirm your digital signature before proceeding with payment.');
-      return;
+      errors.signature = 'Please draw and confirm your digital signature before proceeding with payment';
     }
 
     if (!serviceRequestId) {
-      alert('Please complete all steps first');
-      return;
+      errors.serviceRequest = 'Please complete all steps first';
     }
 
     if (!zelleReceipt) {
-      alert('Please upload the Zelle payment receipt');
+      errors.zelleReceipt = 'Please upload the Zelle payment receipt';
+    }
+    
+    if (Object.keys(errors).length > 0) {
+      setStep3Errors(errors);
+      setTimeout(() => {
+        const firstErrorField = Object.keys(errors)[0];
+        if (firstErrorField === 'termsAccepted') {
+          const element = document.getElementById('terms-checkbox');
+          if (element) {
+            element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }
+        } else if (firstErrorField === 'dataAuthorization') {
+          const element = document.getElementById('data-auth-checkbox');
+          if (element) {
+            element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }
+        } else if (firstErrorField === 'signature') {
+          const element = document.querySelector('[data-signature-pad]');
+          if (element) {
+            element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }
+        } else if (firstErrorField === 'zelleReceipt') {
+          const element = document.getElementById('zelle-receipt');
+          if (element) {
+            element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }
+        }
+      }, 100);
       return;
     }
 
       // Save terms acceptance
+      if (!serviceRequestId) {
+        setError('Service request ID is required');
+        return;
+      }
       const result = await saveStep3Data(
         serviceRequestId, 
         termsAccepted, 
@@ -1353,6 +1513,7 @@ export const VisaCheckout = () => {
       }
 
     setSubmitting(true);
+    setIsZelleProcessing(true); // Ativar overlay de loading
     try {
       // Track form completed
       if (sellerId && productSlug) {
@@ -1373,22 +1534,249 @@ export const VisaCheckout = () => {
       // Get client IP
       const clientIP = await getClientIP();
 
-      // Upload receipt to Supabase storage
-      const fileExt = zelleReceipt.name.split('.').pop();
-      const fileName = `zelle-receipts/${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
-      
-      const { error: uploadError } = await supabase.storage
-        .from('visa-documents')
-        .upload(fileName, zelleReceipt);
+      // Process Zelle payment with n8n validation
+      let n8nResult;
+      let publicUrl: string;
+      let paymentId: string;
+      let zellePaymentStatus: 'approved' | 'pending_verification' = 'pending_verification';
+      let n8nResponseData: any = null;
+      let n8nConfidence: number | null = null;
 
-      if (uploadError) {
-        throw uploadError;
+      // Get user ID from service request if available
+      if (!serviceRequestId) {
+        throw new Error('Service request ID is required');
       }
+      if (!zelleReceipt) {
+        throw new Error('Zelle receipt is required');
+      }
+      const { data: serviceRequest } = await supabase
+        .from('service_requests')
+        .select('client_id')
+        .eq('id', serviceRequestId)
+        .single();
 
-      // Get public URL
-      const { data: { publicUrl } } = supabase.storage
-        .from('visa-documents')
-        .getPublicUrl(fileName);
+      const userId = serviceRequest?.client_id || null;
+
+      // Process with n8n (upload + validation)
+      // This will throw an error if zelle_comprovantes bucket doesn't exist
+      n8nResult = await processZellePaymentWithN8n(
+        zelleReceipt,
+        baseTotal,
+        productSlug!,
+        userId,
+        undefined // options (scholarships, coupons, etc.) - can be added later
+      );
+
+      publicUrl = n8nResult.imageUrl;
+      paymentId = n8nResult.paymentId;
+      
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/b0c11d9c-30ac-43ca-8975-359f75c28b34',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'VisaCheckout.tsx:1406',message:'Before setting zellePaymentStatus',data:{decision:JSON.stringify(n8nResult.decision),shouldApprove:n8nResult.decision?.shouldApprove,shouldApproveType:typeof n8nResult.decision?.shouldApprove},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'status-check'})}).catch(()=>{});
+      // #endregion
+      
+      zellePaymentStatus = n8nResult.decision.shouldApprove ? 'approved' : 'pending_verification';
+      
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/b0c11d9c-30ac-43ca-8975-359f75c28b34',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'VisaCheckout.tsx:1412',message:'After setting zellePaymentStatus',data:{zellePaymentStatus,zellePaymentStatusType:typeof zellePaymentStatus,zellePaymentStatusValue:JSON.stringify(zellePaymentStatus)},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'status-check'})}).catch(()=>{});
+      // #endregion
+      
+      n8nResponseData = n8nResult.n8nResponse;
+      n8nConfidence = n8nResult.decision.confidence ?? null;
+
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/b0c11d9c-30ac-43ca-8975-359f75c28b34',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'VisaCheckout.tsx:1407',message:'n8nResult received',data:{n8nResult:JSON.stringify(n8nResult),n8nResponseData:JSON.stringify(n8nResponseData),n8nResponseType:typeof n8nResponseData,n8nResponseIsNull:n8nResponseData===null,n8nResponseIsUndefined:n8nResponseData===undefined},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+      // #endregion
+
+      console.log('[Zelle] n8n validation result:', {
+        status: zellePaymentStatus,
+        confidence: n8nConfidence,
+        message: n8nResult.decision.message,
+      });
+
+      // Check if n8n response is valid - if not, redirect to processing page
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/b0c11d9c-30ac-43ca-8975-359f75c28b34',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'VisaCheckout.tsx:1417',message:'Before response extraction',data:{n8nResponseData:JSON.stringify(n8nResponseData),hasResponse:n8nResponseData?.response!==undefined,responseValue:n8nResponseData?.response,responseType:typeof n8nResponseData?.response},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+      // #endregion
+      
+      const n8nResponseText = n8nResponseData?.response?.toLowerCase().trim() || '';
+      const isValidResponse = n8nResponseText === 'the proof of payment is valid.';
+      
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/b0c11d9c-30ac-43ca-8975-359f75c28b34',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'VisaCheckout.tsx:1418',message:'After response validation',data:{n8nResponseText,n8nResponseTextLength:n8nResponseText.length,expectedText:'the proof of payment is valid.',isValidResponse,comparisonResult:n8nResponseText=== 'the proof of payment is valid.'},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
+      // #endregion
+      
+      console.log('[Zelle] Response validation check:', {
+        n8nResponseText,
+        isValidResponse,
+        n8nResponseData: n8nResponseData,
+      });
+      
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/b0c11d9c-30ac-43ca-8975-359f75c28b34',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'VisaCheckout.tsx:1426',message:'Entering redirect check',data:{isValidResponse:isValidResponse,willEnterIf:!isValidResponse},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+      // #endregion
+      
+      if (!isValidResponse) {
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/b0c11d9c-30ac-43ca-8975-359f75c28b34',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'VisaCheckout.tsx:1427',message:'Inside redirect block',data:{isValidResponse},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+        // #endregion
+        
+        console.log('[Zelle] Response is not valid, redirecting to processing page...');
+        
+        // Try to save order data before redirecting (for manual review)
+        // Wrap in try-catch to ensure redirect happens even if save fails
+        try {
+          // Upload signature image first
+          let signatureImageUrl: string | null = null;
+          try {
+            signatureImageUrl = await uploadSignatureImage();
+          } catch (sigError) {
+            console.error('Error uploading signature:', sigError);
+            // Continue anyway
+          }
+
+          // Create payment record
+          const { data: paymentData, error: paymentError } = await supabase
+            .from('payments')
+            .insert({
+              service_request_id: serviceRequestId,
+              amount: baseTotal,
+              currency: 'USD',
+              status: 'pending',
+            })
+            .select()
+            .single();
+
+          if (paymentError) {
+            console.error('Error creating payment:', paymentError);
+            // Continue anyway - will be created on processing page
+          }
+
+          // Create order (for compatibility with existing system)
+          const orderNumber = `ORD-${new Date().toISOString().split('T')[0].replace(/-/g, '')}-${Math.floor(Math.random() * 10000).toString().padStart(4, '0')}`;
+          
+          // Get document URLs from documentFiles or existing contract
+          const documentFrontUrl = hasExistingContract && existingContractData
+            ? existingContractData.contract_document_url
+            : documentFiles?.documentFront?.url || '';
+          const selfieUrl = hasExistingContract && existingContractData
+            ? existingContractData.contract_selfie_url
+            : documentFiles?.selfie?.url || '';
+
+          const { data: order, error: orderError } = await supabase
+            .from('visa_orders')
+            .insert({
+              order_number: orderNumber,
+              product_slug: productSlug,
+              seller_id: sellerId || null,
+              service_request_id: serviceRequestId,
+              base_price_usd: parseFloat(product!.base_price_usd),
+              price_per_dependent_usd: parseFloat(product!.price_per_dependent_usd),
+              number_of_dependents: extraUnits,
+              extra_units: extraUnits,
+              dependent_names: extraUnits > 0 ? dependentNames : null,
+              extra_unit_label: product!.extra_unit_label,
+              extra_unit_price_usd: parseFloat(product!.extra_unit_price),
+              calculation_type: product!.calculation_type,
+              total_price_usd: baseTotal,
+              client_name: clientName,
+              client_email: clientEmail,
+              client_whatsapp: clientWhatsApp || null,
+              client_country: clientCountry || null,
+              client_nationality: clientNationality || null,
+              client_observations: clientObservations || null,
+              payment_method: 'zelle',
+              payment_status: 'pending',
+              zelle_proof_url: publicUrl,
+              contract_document_url: documentFrontUrl,
+              contract_selfie_url: selfieUrl,
+              signature_image_url: signatureImageUrl,
+              contract_accepted: true,
+              contract_signed_at: new Date().toISOString(),
+              ip_address: clientIP,
+              payment_metadata: {
+                base_amount: parseFloat(product!.base_price_usd).toFixed(2),
+                final_amount: baseTotal.toFixed(2),
+                extra_units: extraUnits,
+                calculation_type: product!.calculation_type,
+                ip_address: clientIP,
+                payment_id: paymentData?.id,
+                n8n_validation: n8nResponseData ? {
+                  response: n8nResponseData.response,
+                  confidence: n8nConfidence,
+                  status: n8nResponseData.status,
+                } : null,
+              },
+            })
+            .select()
+            .single();
+
+          if (orderError) {
+            console.error('Error creating order:', orderError);
+            // Continue anyway - redirect to processing page
+          }
+
+          // Create zelle_payment record
+          const { error: zellePaymentError } = await supabase
+            .from('zelle_payments')
+            .insert({
+              payment_id: paymentId,
+              order_id: order?.id || null,
+              service_request_id: serviceRequestId,
+              user_id: userId,
+              amount: baseTotal,
+              currency: 'USD',
+              fee_type: productSlug,
+              screenshot_url: publicUrl,
+              image_path: n8nResult?.imagePath || null,
+              n8n_response: n8nResponseData,
+              n8n_confidence: n8nConfidence,
+              n8n_validated_at: n8nResponseData ? new Date().toISOString() : null,
+              status: 'pending_verification',
+              metadata: {},
+            });
+
+          if (zellePaymentError) {
+            console.error('[Zelle] Error creating zelle_payment record:', zellePaymentError);
+          }
+
+          // Update payment with order reference if order was created
+          if (order && paymentData) {
+            await supabase
+              .from('payments')
+              .update({ external_payment_id: order.id })
+              .eq('id', paymentData.id);
+          }
+        } catch (saveError) {
+          // #region agent log
+          fetch('http://127.0.0.1:7242/ingest/b0c11d9c-30ac-43ca-8975-359f75c28b34',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'VisaCheckout.tsx:1573',message:'Error in save block before redirect',data:{saveError:saveError instanceof Error?saveError.message:String(saveError)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+          // #endregion
+          
+          console.error('[Zelle] Error saving order data before redirect:', saveError);
+          // Continue to redirect anyway
+        }
+
+        // ALWAYS redirect to processing page, even if save failed
+        console.log('[Zelle] Redirecting to processing page...');
+        
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/b0c11d9c-30ac-43ca-8975-359f75c28b34',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'VisaCheckout.tsx:1556',message:'Before redirect execution',data:{submittingState:submitting},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
+        // #endregion
+        
+        setSubmitting(false); // Reset submitting state before redirect
+        // Manter isZelleProcessing ativo até o redirecionamento
+        
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/b0c11d9c-30ac-43ca-8975-359f75c28b34',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'VisaCheckout.tsx:1559',message:'Executing redirect',data:{redirectUrl:'/checkout/zelle/processing',windowLocationExists:typeof window.location!=='undefined'},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
+        // #endregion
+        
+        window.location.href = '/checkout/zelle/processing';
+        
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/b0c11d9c-30ac-43ca-8975-359f75c28b34',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'VisaCheckout.tsx:1562',message:'After redirect execution',data:{redirectExecuted:true},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
+        // #endregion
+        
+        return;
+      }
 
       // Upload signature image
       let signatureImageUrl: string | null = null;
@@ -1427,6 +1815,9 @@ export const VisaCheckout = () => {
         ? existingContractData.contract_selfie_url
         : documentFiles?.selfie?.url || '';
 
+      // Determine payment status based on n8n validation
+      const orderPaymentStatus = zellePaymentStatus === 'approved' ? 'completed' : 'pending';
+
       const { data: order, error: orderError } = await supabase
         .from('visa_orders')
         .insert({
@@ -1450,7 +1841,7 @@ export const VisaCheckout = () => {
           client_nationality: clientNationality || null,
           client_observations: clientObservations || null,
           payment_method: 'zelle',
-          payment_status: 'pending',
+          payment_status: orderPaymentStatus,
           zelle_proof_url: publicUrl,
           contract_document_url: documentFrontUrl,
           contract_selfie_url: selfieUrl,
@@ -1465,6 +1856,11 @@ export const VisaCheckout = () => {
             calculation_type: product!.calculation_type,
             ip_address: clientIP,
             payment_id: paymentData.id,
+            n8n_validation: n8nResponseData ? {
+              response: n8nResponseData.response,
+              confidence: n8nConfidence,
+              status: n8nResponseData.status,
+            } : null,
           },
         })
         .select()
@@ -1474,11 +1870,117 @@ export const VisaCheckout = () => {
         throw orderError;
       }
 
+      // Create zelle_payment record
+      const { data: serviceRequestForZelle } = await supabase
+        .from('service_requests')
+        .select('client_id')
+        .eq('id', serviceRequestId)
+        .single();
+
+      const userIdForZelle = serviceRequestForZelle?.client_id || null;
+
+      // Ensure status is valid for database constraint
+      // Explicitly validate and set status to one of the allowed values
+      let validStatus: 'pending_verification' | 'approved' | 'rejected';
+      if (zellePaymentStatus === 'approved') {
+        validStatus = 'approved';
+      } else {
+        validStatus = 'pending_verification';
+      }
+      
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/b0c11d9c-30ac-43ca-8975-359f75c28b34',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'VisaCheckout.tsx:1706',message:'Status validation before insert',data:{zellePaymentStatus,zellePaymentStatusType:typeof zellePaymentStatus,zellePaymentStatusValue:JSON.stringify(zellePaymentStatus),validStatus,validStatusType:typeof validStatus,validStatusValue:JSON.stringify(validStatus),isApproved:zellePaymentStatus==='approved'},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'status-check'})}).catch(()=>{});
+      // #endregion
+      
+      if (!serviceRequestId) {
+        throw new Error('Service request ID is required');
+      }
+      const insertData: {
+        payment_id: string;
+        order_id: string;
+        service_request_id: string;
+        user_id: string | null;
+        amount: number;
+        currency: string;
+        fee_type: string;
+        screenshot_url: string;
+        image_path: string | null;
+        n8n_response: any;
+        n8n_confidence: number | null;
+        n8n_validated_at: string | null;
+        status: 'pending_verification' | 'approved' | 'rejected';
+        metadata: {};
+      } = {
+        payment_id: paymentId,
+        order_id: order.id,
+        service_request_id: serviceRequestId,
+        user_id: userIdForZelle,
+        amount: baseTotal,
+        currency: 'USD',
+        fee_type: productSlug || '',
+        screenshot_url: publicUrl,
+        image_path: n8nResult?.imagePath || null,
+        n8n_response: n8nResponseData,
+        n8n_confidence: n8nConfidence,
+        n8n_validated_at: n8nResponseData ? new Date().toISOString() : null,
+        status: validStatus,
+        metadata: {},
+      };
+      
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/b0c11d9c-30ac-43ca-8975-359f75c28b34',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'VisaCheckout.tsx:1735',message:'Insert data before database call',data:{insertStatus:insertData.status,insertStatusType:typeof insertData.status,insertStatusValue:JSON.stringify(insertData.status),insertStatusLength:insertData.status?.length,insertDataKeys:Object.keys(insertData),fullInsertData:JSON.stringify(insertData)},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'status-check'})}).catch(()=>{});
+      // #endregion
+      
+      const { error: zellePaymentError } = await supabase
+        .from('zelle_payments')
+        .insert(insertData);
+
+      if (zellePaymentError) {
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/b0c11d9c-30ac-43ca-8975-359f75c28b34',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'VisaCheckout.tsx:1740',message:'Error creating zelle_payment',data:{error:zellePaymentError,errorCode:zellePaymentError.code,errorMessage:zellePaymentError.message,insertDataStatus:insertData.status,insertDataStatusType:typeof insertData.status},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'status-check'})}).catch(()=>{});
+        // #endregion
+        
+        console.error('[Zelle] Error creating zelle_payment record:', zellePaymentError);
+        // Continue anyway - not critical
+      }
+
       // Update payment with order reference
       await supabase
         .from('payments')
         .update({ external_payment_id: order.id })
         .eq('id', paymentData.id);
+
+      // If approved automatically, update payment and service request status
+      if (zellePaymentStatus === 'approved') {
+        await supabase
+          .from('payments')
+          .update({ 
+            status: 'paid',
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', paymentData.id);
+
+        await supabase
+          .from('service_requests')
+          .update({ 
+            status: 'paid',
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', serviceRequestId);
+
+        // Send webhook immediately for auto-approved payments
+        try {
+          await supabase.functions.invoke('send-zelle-webhook', {
+            body: {
+              order_id: order.id,
+            },
+          });
+          console.log('[Zelle] Webhook sent for auto-approved payment');
+        } catch (webhookError) {
+          console.error('[Zelle] Error sending webhook:', webhookError);
+          // Continue anyway - webhook is not critical
+        }
+      }
 
       // Generate contract PDF for Zelle (immediate generation)
       try {
@@ -1495,9 +1997,19 @@ export const VisaCheckout = () => {
       // localStorage.removeItem(DRAFT_STORAGE_KEY);
 
       // Redirect to success page
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/b0c11d9c-30ac-43ca-8975-359f75c28b34',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'VisaCheckout.tsx:1782',message:'Redirecting to success page',data:{orderId:order.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+      // #endregion
+      
+      // Manter isZelleProcessing ativo até o redirecionamento
       window.location.href = `/checkout/success?order_id=${order.id}&method=zelle`;
     } catch (err) {
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/b0c11d9c-30ac-43ca-8975-359f75c28b34',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'VisaCheckout.tsx:1786',message:'Error caught in catch block',data:{error:err instanceof Error?err.message:String(err),errorStack:err instanceof Error?err.stack:undefined},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+      // #endregion
+      
       console.error('Error:', err);
+      setIsZelleProcessing(false); // Desativar overlay em caso de erro
       alert('Failed to process Zelle payment. Please try again.');
     } finally {
       setSubmitting(false);
@@ -1538,37 +2050,40 @@ export const VisaCheckout = () => {
   const progressPercentage = (currentStep / totalSteps) * 100;
 
   return (
-    <div className="min-h-screen bg-black py-12 px-4">
+    <div className="min-h-screen bg-black py-8 sm:py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-4xl mx-auto">
         {/* Header */}
-        <div className="mb-8">
-          <Link to="/" className="inline-flex items-center text-gold-light hover:text-gold-medium transition mb-4">
+        <div className="mb-6 sm:mb-8">
+          <Link to="/" className="inline-flex items-center text-gold-light hover:text-gold-medium transition mb-3 sm:mb-4">
             <ArrowLeft className="w-4 h-4 mr-2" />
-            Back to Home
+            <span className="text-sm sm:text-base">Back to Home</span>
           </Link>
-          <h1 className="text-3xl font-bold migma-gold-text">Visa Application Checkout</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold migma-gold-text">Visa Application Checkout</h1>
           {sellerId && (
-            <p className="text-sm text-gray-400 mt-2">Seller ID: {sellerId}</p>
+            <p className="text-xs sm:text-sm text-gray-400 mt-2">Seller ID: {sellerId}</p>
           )}
         </div>
 
         {/* Progress Bar */}
-        <div className="mb-8">
-          <div className="flex justify-between items-center mb-2">
-            <span className="text-sm text-gray-400">
+        <div className="mb-6 sm:mb-8">
+          <div className="flex justify-between items-center mb-2 flex-wrap gap-2">
+            <span className="text-xs sm:text-sm text-gray-400">
               Step {currentStep} of {totalSteps}
             </span>
-            <span className="text-sm text-gold-light">
+            <span className="text-xs sm:text-sm text-gold-light text-right">
               {currentStep === 1 && 'Personal Information'}
               {currentStep === 2 && 'Documents & Selfie'}
               {currentStep === 3 && 'Terms & Payment'}
             </span>
           </div>
           <Progress value={progressPercentage} className="h-2" />
-          <div className="flex justify-between mt-2 text-xs text-gray-500">
-            <span>1/3 Personal Information</span>
-            <span>2/3 Documents</span>
-            <span>3/3 Terms & Payment</span>
+          <div className="flex justify-between mt-2 text-[10px] sm:text-xs text-gray-500 flex-wrap gap-1">
+            <span className="hidden sm:inline">1/3 Personal Information</span>
+            <span className="sm:hidden">1/3 Info</span>
+            <span className="hidden sm:inline">2/3 Documents</span>
+            <span className="sm:hidden">2/3 Docs</span>
+            <span className="hidden sm:inline">3/3 Terms & Payment</span>
+            <span className="sm:hidden">3/3 Payment</span>
           </div>
         </div>
 
@@ -1578,25 +2093,25 @@ export const VisaCheckout = () => {
           </div>
         )}
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6 lg:gap-8">
           {/* Main Form */}
           <div className="lg:col-span-2 space-y-6">
             {/* Product Summary - Always visible */}
             <Card className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30">
               <CardHeader>
-                <CardTitle className="text-white">Product Details</CardTitle>
+                <CardTitle className="text-white text-lg sm:text-xl">Product Details</CardTitle>
               </CardHeader>
               <CardContent>
-                <h3 className="text-xl font-bold text-gold-light">{product.name}</h3>
-                <p className="text-gray-300 mt-2">{product.description}</p>
+                <h3 className="text-lg sm:text-xl font-bold text-gold-light">{product.name}</h3>
+                <p className="text-sm sm:text-base text-gray-300 mt-2">{product.description}</p>
                 {product.calculation_type === 'base_plus_units' && (
                   <>
                     <div className="mt-4 flex justify-between items-center">
-                      <span className="text-gray-400">Base Price:</span>
-                      <span className="text-2xl font-bold text-gold-light">US$ {parseFloat(product.base_price_usd).toFixed(2)}</span>
+                      <span className="text-sm sm:text-base text-gray-400">Base Price:</span>
+                      <span className="text-xl sm:text-2xl font-bold text-gold-light">US$ {parseFloat(product.base_price_usd).toFixed(2)}</span>
                     </div>
                     {product.allow_extra_units && (
-                      <div className="mt-2 flex justify-between items-center text-sm">
+                      <div className="mt-2 flex justify-between items-center text-xs sm:text-sm">
                         <span className="text-gray-400">Per {product.extra_unit_label.toLowerCase().replace('number of ', '')}:</span>
                         <span className="text-gold-light">US$ {parseFloat(product.extra_unit_price).toFixed(2)}</span>
                       </div>
@@ -1605,8 +2120,8 @@ export const VisaCheckout = () => {
                 )}
                 {product.calculation_type === 'units_only' && product.allow_extra_units && (
                   <div className="mt-4 flex justify-between items-center">
-                    <span className="text-gray-400">Price per unit:</span>
-                    <span className="text-2xl font-bold text-gold-light">US$ {parseFloat(product.extra_unit_price).toFixed(2)}</span>
+                    <span className="text-sm sm:text-base text-gray-400">Price per unit:</span>
+                    <span className="text-xl sm:text-2xl font-bold text-gold-light">US$ {parseFloat(product.extra_unit_price).toFixed(2)}</span>
                   </div>
                 )}
               </CardContent>
@@ -1616,19 +2131,19 @@ export const VisaCheckout = () => {
             {currentStep === 1 && (
               <Card className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30">
                 <CardHeader>
-                  <CardTitle className="text-white">Step 1: Personal Information</CardTitle>
+                  <CardTitle className="text-white text-lg sm:text-xl">Step 1: Personal Information</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   {/* Extra Units (Dependents) */}
                   {product.allow_extra_units && (
                     <div className="space-y-2">
-                      <Label htmlFor="extra-units" className="text-white">
+                      <Label htmlFor="extra-units" className="text-white text-sm sm:text-base">
                         {product.calculation_type === 'units_only' 
                           ? 'Number of applicants (required)' 
                           : product.extra_unit_label + ' (0-5)'}
                       </Label>
                       {product.calculation_type === 'units_only' && (
-                        <p className="text-xs text-gray-400 mt-1">
+                        <p className="text-xs sm:text-sm text-gray-400 mt-1">
                           Note: You count as 1 applicant. If you select 2 applicants, you will need to provide 1 additional applicant name below.
                         </p>
                       )}
@@ -1655,26 +2170,26 @@ export const VisaCheckout = () => {
                             // Aumentar: adicionar slots vazios
                             const newNames = [...dependentNames];
                               while (newNames.length < requiredNamesCount) {
-                              newNames.push('');
+                                newNames.push('');
+                              }
+                              setDependentNames(newNames);
                             }
-                            setDependentNames(newNames);
-                          }
-                        }}
-                      >
-                        <SelectTrigger className="bg-white text-black">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {(product.calculation_type === 'units_only' 
-                            ? [1, 2, 3, 4, 5] // units_only: mínimo 1 unidade
-                            : [0, 1, 2, 3, 4, 5] // base_plus_units: pode ser 0
-                          ).map((num) => (
-                            <SelectItem key={num} value={num.toString()}>
-                              {num}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                          }}
+                        >
+                          <SelectTrigger className="bg-white text-black min-h-[44px]">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {(product.calculation_type === 'units_only' 
+                              ? [1, 2, 3, 4, 5] // units_only: mínimo 1 unidade
+                              : [0, 1, 2, 3, 4, 5] // base_plus_units: pode ser 0
+                            ).map((num) => (
+                              <SelectItem key={num} value={num.toString()}>
+                                {num}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                         {/* Overlay para garantir que "0" seja sempre exibido */}
                         {extraUnits === 0 && (
                           <span 
@@ -1706,71 +2221,122 @@ export const VisaCheckout = () => {
                     return (
                     <div className="space-y-2">
                         {Array.from({ length: numberOfInputs }, (_, i) => (
-                        <div key={i} className="space-y-2">
-                          <Label htmlFor={`dependent-name-${i}`} className="text-white">
+                          <div key={i} className="space-y-2">
+                            <Label htmlFor={`dependent-name-${i}`} className="text-white text-sm sm:text-base">
                               {labelPrefix} {i + 1} *
-                          </Label>
-                          <Input
-                            id={`dependent-name-${i}`}
-                            value={dependentNames[i] || ''}
-                            onChange={(e) => {
-                              const newNames = [...dependentNames];
-                              newNames[i] = e.target.value;
-                              setDependentNames(newNames);
-                            }}
-                            className="bg-white text-black"
-                            required
-                          />
-                        </div>
-                      ))}
-                    </div>
+                            </Label>
+                            <Input
+                              id={`dependent-name-${i}`}
+                              value={dependentNames[i] || ''}
+                              onChange={(e) => {
+                                const newNames = [...dependentNames];
+                                newNames[i] = e.target.value;
+                                setDependentNames(newNames);
+                              }}
+                              className="bg-white text-black min-h-[44px]"
+                              required
+                            />
+                          </div>
+                        ))}
+                      </div>
                     );
                   })()}
 
                   {/* Full Name */}
                   <div className="space-y-2">
-                    <Label htmlFor="name" className="text-white">Full Name *</Label>
+                    <Label htmlFor="name" className="text-white text-sm sm:text-base">Full Name *</Label>
                     <Input
                       id="name"
                       value={clientName}
-                      onChange={(e) => setClientName(e.target.value)}
-                      className="bg-white text-black"
+                      onChange={(e) => {
+                        setClientName(e.target.value);
+                        if (fieldErrors.clientName) {
+                          setFieldErrors(prev => {
+                            const newErrors = { ...prev };
+                            delete newErrors.clientName;
+                            return newErrors;
+                          });
+                        }
+                      }}
+                      className={`bg-white text-black min-h-[44px] ${fieldErrors.clientName ? 'border-2 border-red-500' : ''}`}
                       required
                     />
+                    {fieldErrors.clientName && (
+                      <p className="text-red-400 text-xs sm:text-sm mt-1">{fieldErrors.clientName}</p>
+                    )}
                   </div>
 
                   {/* Email */}
                   <div className="space-y-2">
-                    <Label htmlFor="email" className="text-white">Email *</Label>
+                    <Label htmlFor="email" className="text-white text-sm sm:text-base">Email *</Label>
                     <Input
                       id="email"
                       type="email"
                       value={clientEmail}
-                      onChange={(e) => setClientEmail(e.target.value)}
-                      className="bg-white text-black"
+                      onChange={(e) => {
+                        // Remove spaces automatically
+                        const value = e.target.value.replace(/\s/g, '');
+                        setClientEmail(value);
+                        if (fieldErrors.clientEmail) {
+                          setFieldErrors(prev => {
+                            const newErrors = { ...prev };
+                            delete newErrors.clientEmail;
+                            return newErrors;
+                          });
+                        }
+                      }}
+                      className={`bg-white text-black min-h-[44px] ${fieldErrors.clientEmail ? 'border-2 border-red-500' : ''}`}
                       required
                     />
+                    {fieldErrors.clientEmail && (
+                      <p className="text-red-400 text-xs sm:text-sm mt-1">{fieldErrors.clientEmail}</p>
+                    )}
                   </div>
 
                   {/* Date of Birth */}
                   <div className="space-y-2">
-                    <Label htmlFor="date-of-birth" className="text-white">Date of Birth *</Label>
+                    <Label htmlFor="date-of-birth" className="text-white text-sm sm:text-base">Date of Birth *</Label>
                     <Input
                       id="date-of-birth"
                       type="date"
+                      min="1900-01-01"
                       value={dateOfBirth}
-                      onChange={(e) => setDateOfBirth(e.target.value)}
-                      className="bg-white text-black"
+                      onChange={(e) => {
+                        setDateOfBirth(e.target.value);
+                        if (fieldErrors.dateOfBirth) {
+                          setFieldErrors(prev => {
+                            const newErrors = { ...prev };
+                            delete newErrors.dateOfBirth;
+                            return newErrors;
+                          });
+                        }
+                      }}
+                      className={`bg-white text-black min-h-[44px] ${fieldErrors.dateOfBirth ? 'border-2 border-red-500' : ''}`}
                       required
                     />
+                    {fieldErrors.dateOfBirth && (
+                      <p className="text-red-400 text-xs sm:text-sm mt-1">{fieldErrors.dateOfBirth}</p>
+                    )}
                   </div>
 
                   {/* Document Type and Number */}
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                     <div className="space-y-2">
-                      <Label htmlFor="document-type" className="text-white">Document Type *</Label>
-                      <Select value={documentType} onValueChange={(value: any) => setDocumentType(value)}>
-                        <SelectTrigger className="bg-white text-black">
+                      <Label htmlFor="document-type" className="text-white text-sm sm:text-base">Document Type *</Label>
+                      <Select value={documentType} onValueChange={(value: any) => {
+                        setDocumentType(value);
+                        if (fieldErrors.documentType) {
+                          setFieldErrors(prev => {
+                            const newErrors = { ...prev };
+                            delete newErrors.documentType;
+                            return newErrors;
+                          });
+                        }
+                      }}>
+                        <SelectTrigger 
+                          id="document-type"
+                          className={`bg-white text-black min-h-[44px] ${fieldErrors.documentType ? 'border-2 border-red-500' : ''}`}
+                        >
                           <SelectValue placeholder="Select type" />
                         </SelectTrigger>
                         <SelectContent>
@@ -1779,68 +2345,135 @@ export const VisaCheckout = () => {
                           <SelectItem value="driver_license">Driver's License</SelectItem>
                         </SelectContent>
                       </Select>
+                      {fieldErrors.documentType && (
+                        <p className="text-red-400 text-xs sm:text-sm mt-1">{fieldErrors.documentType}</p>
+                      )}
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="document-number" className="text-white">Document Number *</Label>
+                      <Label htmlFor="document-number" className="text-white text-sm sm:text-base">Document Number *</Label>
                       <Input
                         id="document-number"
                         value={documentNumber}
-                        onChange={(e) => setDocumentNumber(e.target.value)}
-                        className="bg-white text-black"
+                        onChange={(e) => {
+                          setDocumentNumber(e.target.value);
+                          if (fieldErrors.documentNumber) {
+                            setFieldErrors(prev => {
+                              const newErrors = { ...prev };
+                              delete newErrors.documentNumber;
+                              return newErrors;
+                            });
+                          }
+                        }}
+                        className={`bg-white text-black min-h-[44px] ${fieldErrors.documentNumber ? 'border-2 border-red-500' : ''}`}
                         required
                       />
+                      {fieldErrors.documentNumber && (
+                        <p className="text-red-400 text-xs sm:text-sm mt-1">{fieldErrors.documentNumber}</p>
+                      )}
                     </div>
                   </div>
 
                   {/* Address */}
                   <div className="space-y-2">
-                    <Label htmlFor="address-line" className="text-white">Address Line *</Label>
+                    <Label htmlFor="address-line" className="text-white text-sm sm:text-base">Address Line *</Label>
                     <Input
                       id="address-line"
                       value={addressLine}
-                      onChange={(e) => setAddressLine(e.target.value)}
-                      className="bg-white text-black"
+                      onChange={(e) => {
+                        setAddressLine(e.target.value);
+                        if (fieldErrors.addressLine) {
+                          setFieldErrors(prev => {
+                            const newErrors = { ...prev };
+                            delete newErrors.addressLine;
+                            return newErrors;
+                          });
+                        }
+                      }}
+                      className={`bg-white text-black min-h-[44px] ${fieldErrors.addressLine ? 'border-2 border-red-500' : ''}`}
                       required
                     />
+                    {fieldErrors.addressLine && (
+                      <p className="text-red-400 text-xs sm:text-sm mt-1">{fieldErrors.addressLine}</p>
+                    )}
                   </div>
 
-                  <div className="grid grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
                     <div className="space-y-2">
-                      <Label htmlFor="city" className="text-white">City *</Label>
+                      <Label htmlFor="city" className="text-white text-sm sm:text-base">City *</Label>
                       <Input
                         id="city"
                         value={city}
-                        onChange={(e) => setCity(e.target.value)}
-                        className="bg-white text-black"
+                        onChange={(e) => {
+                          // Only allow letters, spaces, hyphens, and apostrophes
+                          const value = e.target.value.replace(/[^a-zA-Z\s\-']/g, '');
+                          setCity(value);
+                          if (fieldErrors.city) {
+                            setFieldErrors(prev => {
+                              const newErrors = { ...prev };
+                              delete newErrors.city;
+                              return newErrors;
+                            });
+                          }
+                        }}
+                        className={`bg-white text-black min-h-[44px] ${fieldErrors.city ? 'border-2 border-red-500' : ''}`}
                         required
                       />
+                      {fieldErrors.city && (
+                        <p className="text-red-400 text-xs sm:text-sm mt-1">{fieldErrors.city}</p>
+                      )}
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="state" className="text-white">State *</Label>
+                      <Label htmlFor="state" className="text-white text-sm sm:text-base">State *</Label>
                       <Input
                         id="state"
                         value={state}
-                        onChange={(e) => setState(e.target.value)}
-                        className="bg-white text-black"
+                        onChange={(e) => {
+                          // Only allow letters, spaces, hyphens, and apostrophes
+                          const value = e.target.value.replace(/[^a-zA-Z\s\-']/g, '');
+                          setState(value);
+                          if (fieldErrors.state) {
+                            setFieldErrors(prev => {
+                              const newErrors = { ...prev };
+                              delete newErrors.state;
+                              return newErrors;
+                            });
+                          }
+                        }}
+                        className={`bg-white text-black min-h-[44px] ${fieldErrors.state ? 'border-2 border-red-500' : ''}`}
                         required
                       />
+                      {fieldErrors.state && (
+                        <p className="text-red-400 text-xs sm:text-sm mt-1">{fieldErrors.state}</p>
+                      )}
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="postal-code" className="text-white">Postal Code *</Label>
+                      <Label htmlFor="postal-code" className="text-white text-sm sm:text-base">Postal Code *</Label>
                       <Input
                         id="postal-code"
                         value={postalCode}
-                        onChange={(e) => setPostalCode(e.target.value)}
-                        className="bg-white text-black"
+                        onChange={(e) => {
+                          setPostalCode(e.target.value);
+                          if (fieldErrors.postalCode) {
+                            setFieldErrors(prev => {
+                              const newErrors = { ...prev };
+                              delete newErrors.postalCode;
+                              return newErrors;
+                            });
+                          }
+                        }}
+                        className={`bg-white text-black min-h-[44px] ${fieldErrors.postalCode ? 'border-2 border-red-500' : ''}`}
                         required
                       />
+                      {fieldErrors.postalCode && (
+                        <p className="text-red-400 text-xs sm:text-sm mt-1">{fieldErrors.postalCode}</p>
+                      )}
                     </div>
                   </div>
 
                   {/* Country and Nationality */}
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                     <div className="space-y-2">
-                      <Label htmlFor="country" className="text-white">Country of Residence *</Label>
+                      <Label htmlFor="country" className="text-white text-sm sm:text-base">Country of Residence *</Label>
                       <Select
                         value={clientCountry}
                         onValueChange={(value) => {
@@ -1856,9 +2489,19 @@ export const VisaCheckout = () => {
                           }
                           setClientCountry(value);
                           setClientWhatsApp(newWhatsApp);
+                          if (fieldErrors.clientCountry) {
+                            setFieldErrors(prev => {
+                              const newErrors = { ...prev };
+                              delete newErrors.clientCountry;
+                              return newErrors;
+                            });
+                          }
                         }}
                       >
-                        <SelectTrigger className="bg-white text-black">
+                        <SelectTrigger 
+                          id="country"
+                          className={`bg-white text-black min-h-[44px] ${fieldErrors.clientCountry ? 'border-2 border-red-500' : ''}`}
+                        >
                           <SelectValue placeholder="Select country" />
                         </SelectTrigger>
                         <SelectContent>
@@ -1869,14 +2512,29 @@ export const VisaCheckout = () => {
                           ))}
                         </SelectContent>
                       </Select>
+                      {fieldErrors.clientCountry && (
+                        <p className="text-red-400 text-xs sm:text-sm mt-1">{fieldErrors.clientCountry}</p>
+                      )}
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="nationality" className="text-white">Nationality *</Label>
+                      <Label htmlFor="nationality" className="text-white text-sm sm:text-base">Nationality *</Label>
                       <Select
                         value={clientNationality}
-                        onValueChange={(value) => setClientNationality(value)}
+                        onValueChange={(value) => {
+                          setClientNationality(value);
+                          if (fieldErrors.clientNationality) {
+                            setFieldErrors(prev => {
+                              const newErrors = { ...prev };
+                              delete newErrors.clientNationality;
+                              return newErrors;
+                            });
+                          }
+                        }}
                       >
-                        <SelectTrigger className="bg-white text-black">
+                        <SelectTrigger 
+                          id="nationality"
+                          className={`bg-white text-black min-h-[44px] ${fieldErrors.clientNationality ? 'border-2 border-red-500' : ''}`}
+                        >
                           <SelectValue placeholder="Select nationality" />
                         </SelectTrigger>
                         <SelectContent>
@@ -1887,27 +2545,54 @@ export const VisaCheckout = () => {
                           ))}
                         </SelectContent>
                       </Select>
+                      {fieldErrors.clientNationality && (
+                        <p className="text-red-400 text-xs sm:text-sm mt-1">{fieldErrors.clientNationality}</p>
+                      )}
                     </div>
                   </div>
 
                   {/* Phone and Marital Status */}
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                     <div className="space-y-2">
-                      <Label htmlFor="whatsapp" className="text-white">WhatsApp (with country code) *</Label>
+                      <Label htmlFor="whatsapp" className="text-white text-sm sm:text-base">WhatsApp (with country code) *</Label>
                       <Input
                         id="whatsapp"
                         type="tel"
                         placeholder="+55 11 98765 4321"
                         value={clientWhatsApp}
-                        onChange={(e) => setClientWhatsApp(e.target.value)}
-                        className="bg-white text-black"
+                        onChange={(e) => {
+                          setClientWhatsApp(e.target.value);
+                          if (fieldErrors.clientWhatsApp) {
+                            setFieldErrors(prev => {
+                              const newErrors = { ...prev };
+                              delete newErrors.clientWhatsApp;
+                              return newErrors;
+                            });
+                          }
+                        }}
+                        className={`bg-white text-black min-h-[44px] ${fieldErrors.clientWhatsApp ? 'border-2 border-red-500' : ''}`}
                         required
                       />
+                      {fieldErrors.clientWhatsApp && (
+                        <p className="text-red-400 text-xs sm:text-sm mt-1">{fieldErrors.clientWhatsApp}</p>
+                      )}
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="marital-status" className="text-white">Marital Status *</Label>
-                      <Select value={maritalStatus} onValueChange={(value: any) => setMaritalStatus(value)}>
-                        <SelectTrigger className="bg-white text-black">
+                      <Label htmlFor="marital-status" className="text-white text-sm sm:text-base">Marital Status *</Label>
+                      <Select value={maritalStatus} onValueChange={(value: any) => {
+                        setMaritalStatus(value);
+                        if (fieldErrors.maritalStatus) {
+                          setFieldErrors(prev => {
+                            const newErrors = { ...prev };
+                            delete newErrors.maritalStatus;
+                            return newErrors;
+                          });
+                        }
+                      }}>
+                        <SelectTrigger 
+                          id="marital-status"
+                          className={`bg-white text-black min-h-[44px] ${fieldErrors.maritalStatus ? 'border-2 border-red-500' : ''}`}
+                        >
                           <SelectValue placeholder="Select status" />
                         </SelectTrigger>
                         <SelectContent>
@@ -1918,17 +2603,20 @@ export const VisaCheckout = () => {
                           <SelectItem value="other">Other</SelectItem>
                         </SelectContent>
                       </Select>
+                      {fieldErrors.maritalStatus && (
+                        <p className="text-red-400 text-xs sm:text-sm mt-1">{fieldErrors.maritalStatus}</p>
+                      )}
                     </div>
                   </div>
 
                   {/* Observations */}
                   <div className="space-y-2">
-                    <Label htmlFor="observations" className="text-white">Observations (optional)</Label>
+                    <Label htmlFor="observations" className="text-white text-sm sm:text-base">Observations (optional)</Label>
                     <Textarea
                       id="observations"
                       value={clientObservations}
                       onChange={(e) => setClientObservations(e.target.value)}
-                      className="bg-white text-black min-h-[100px]"
+                      className="bg-white text-black min-h-[100px] text-sm sm:text-base"
                       placeholder="Any additional information you'd like to share..."
                     />
                   </div>
@@ -1937,7 +2625,7 @@ export const VisaCheckout = () => {
                   <div className="flex justify-end pt-4">
                     <Button
                       onClick={handleNext}
-                      className="bg-gold-medium hover:bg-gold-light text-black"
+                      className="bg-gold-medium hover:bg-gold-light text-black w-full sm:w-auto min-h-[44px] px-4 sm:px-6 py-2 sm:py-3"
                     >
                       Continue
                       <ChevronRight className="w-4 h-4 ml-2" />
@@ -1951,27 +2639,27 @@ export const VisaCheckout = () => {
             {currentStep === 2 && (
               <Card className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30">
                 <CardHeader>
-                  <CardTitle className="text-white">Step 2: Documents & Selfie</CardTitle>
+                  <CardTitle className="text-white text-lg sm:text-xl">Step 2: Documents & Selfie</CardTitle>
                 </CardHeader>
                 <CardContent>
                   {hasExistingContract && existingContractData ? (
                     <div className="space-y-4">
-                      <div className="bg-green-500/10 border border-green-500/50 text-green-300 p-4 rounded-md">
-                        <p className="font-semibold mb-2">Reusing Previous Contract</p>
-                        <p className="text-sm">
+                      <div className="bg-green-500/10 border border-green-500/50 text-green-300 p-3 sm:p-4 rounded-md">
+                        <p className="font-semibold mb-2 text-sm sm:text-base">Reusing Previous Contract</p>
+                        <p className="text-xs sm:text-sm">
                           You already have a signed contract from the Selection Process payment. We will reuse that contract for this payment.
                         </p>
                         {existingContractData.contract_signed_at && (
-                          <p className="text-xs mt-2 opacity-75">
+                          <p className="text-[10px] sm:text-xs mt-2 opacity-75">
                             Contract signed on: {new Date(existingContractData.contract_signed_at).toLocaleString()}
                           </p>
                         )}
                       </div>
-                      <div className="flex justify-between pt-4">
+                      <div className="flex flex-col sm:flex-row justify-between pt-4 gap-2 sm:gap-0">
                         <Button
                           variant="outline"
                           onClick={handlePrev}
-                          className="border-gold-medium/50 bg-black/50 text-gold-light hover:bg-gold-medium/30 hover:text-gold-light"
+                          className="border-gold-medium/50 bg-black/50 text-gold-light hover:bg-gold-medium/30 hover:text-gold-light w-full sm:w-auto min-h-[44px]"
                         >
                           <ChevronLeft className="w-4 h-4 mr-2" />
                           Back
@@ -1987,7 +2675,7 @@ export const VisaCheckout = () => {
                             setDocumentsUploaded(true);
                             handleNext();
                           }}
-                          className="bg-gold-medium hover:bg-gold-light text-black"
+                          className="bg-gold-medium hover:bg-gold-light text-black w-full sm:w-auto min-h-[44px]"
                         >
                           Continue with Existing Contract
                           <ChevronRight className="w-4 h-4 ml-2" />
@@ -1996,26 +2684,45 @@ export const VisaCheckout = () => {
                     </div>
                   ) : (
                     <>
-                      <DocumentUpload
-                        onComplete={(files) => {
-                          setDocumentFiles(files);
-                          setDocumentsUploaded(true);
-                        }}
-                        onCancel={handlePrev}
-                      />
+                      <div data-document-upload>
+                        <DocumentUpload
+                          onComplete={(files) => {
+                            setDocumentFiles(files);
+                            setDocumentsUploaded(true);
+                            setStep2Errors({});
+                          }}
+                          onCancel={handlePrev}
+                        />
+                        {(step2Errors.documentFront || step2Errors.documentBack || step2Errors.selfie || step2Errors.documents) && (
+                          <div className="mt-4 space-y-2">
+                            {step2Errors.documents && (
+                              <p className="text-red-400 text-xs sm:text-sm break-words">{step2Errors.documents}</p>
+                            )}
+                            {step2Errors.documentFront && (
+                              <p className="text-red-400 text-xs sm:text-sm break-words">• Document Front: {step2Errors.documentFront}</p>
+                            )}
+                            {step2Errors.documentBack && (
+                              <p className="text-red-400 text-xs sm:text-sm break-words">• Document Back: {step2Errors.documentBack}</p>
+                            )}
+                            {step2Errors.selfie && (
+                              <p className="text-red-400 text-xs sm:text-sm break-words">• Selfie: {step2Errors.selfie}</p>
+                            )}
+                          </div>
+                        )}
+                      </div>
                       {documentsUploaded && (
-                        <div className="mt-4 flex justify-between">
+                        <div className="mt-4 flex flex-col sm:flex-row justify-between gap-2 sm:gap-0">
                           <Button
                             variant="outline"
                             onClick={handlePrev}
-                            className="border-gold-medium/50 bg-black/50 text-gold-light hover:bg-gold-medium/30 hover:text-gold-light"
+                            className="border-gold-medium/50 bg-black/50 text-gold-light hover:bg-gold-medium/30 hover:text-gold-light w-full sm:w-auto min-h-[44px]"
                           >
                             <ChevronLeft className="w-4 h-4 mr-2" />
                             Back
                           </Button>
                           <Button
                             onClick={handleNext}
-                            className="bg-gold-medium hover:bg-gold-light text-black"
+                            className="bg-gold-medium hover:bg-gold-light text-black w-full sm:w-auto min-h-[44px]"
                           >
                             Continue
                             <ChevronRight className="w-4 h-4 ml-2" />
@@ -2034,29 +2741,29 @@ export const VisaCheckout = () => {
                 {/* Terms & Conditions */}
                 <Card className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30">
                   <CardHeader>
-                    <CardTitle className="text-white">Step 3: Terms & Payment</CardTitle>
+                    <CardTitle className="text-white text-lg sm:text-xl">Step 3: Terms & Payment</CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-4">
                     {/* Contract Terms & Conditions */}
-                    <div className="p-4 bg-blue-900/20 border border-blue-500/30 rounded-md">
-                      <h3 className="text-white font-semibold mb-2">Terms & Conditions</h3>
+                    <div className="p-3 sm:p-4 bg-blue-900/20 border border-blue-500/30 rounded-md">
+                      <h3 className="text-white font-semibold mb-2 text-sm sm:text-base">Terms & Conditions</h3>
                       {isAnnexRequired(productSlug) ? (
                         // Show ANNEX I for scholarship and i20-control products
                         <div 
-                          className="text-sm text-gray-300 space-y-2 max-h-96 overflow-y-auto prose prose-invert max-w-none"
+                          className="text-xs sm:text-sm text-gray-300 space-y-2 max-h-96 overflow-y-auto prose prose-invert max-w-none"
                           dangerouslySetInnerHTML={{ __html: ANNEX_I_HTML }}
                         />
                       ) : loadingTemplate ? (
                         <div className="flex items-center justify-center py-8">
-                          <div className="text-gray-400">Loading contract terms...</div>
+                          <div className="text-gray-400 text-sm sm:text-base">Loading contract terms...</div>
                         </div>
                       ) : contractTemplate ? (
                         <div 
-                          className="text-sm text-gray-300 space-y-2 max-h-96 overflow-y-auto prose prose-invert max-w-none"
+                          className="text-xs sm:text-sm text-gray-300 space-y-2 max-h-96 overflow-y-auto prose prose-invert max-w-none"
                           dangerouslySetInnerHTML={{ __html: contractTemplate.content }}
                         />
                       ) : (
-                        <div className="text-sm text-gray-400 space-y-2">
+                        <div className="text-xs sm:text-sm text-gray-400 space-y-2">
                           <p>No specific contract template found for this service.</p>
                           <p className="font-semibold text-yellow-300 mt-4">
                             By proceeding with payment, you acknowledge that chargebacks or payment disputes may result in legal action and 
@@ -2067,13 +2774,23 @@ export const VisaCheckout = () => {
                     </div>
 
                     <div className="space-y-4">
-                      <div className="flex items-start space-x-2">
+                      <div className="flex items-start space-x-2 sm:space-x-3">
                         <Checkbox
-                          id="terms"
+                          id="terms-checkbox"
                           checked={termsAccepted}
-                          onCheckedChange={(checked) => setTermsAccepted(checked === true)}
+                          onCheckedChange={(checked) => {
+                            setTermsAccepted(checked === true);
+                            if (step3Errors.termsAccepted) {
+                              setStep3Errors(prev => {
+                                const newErrors = { ...prev };
+                                delete newErrors.termsAccepted;
+                                return newErrors;
+                              });
+                            }
+                          }}
+                          className={`min-w-[20px] min-h-[20px] ${step3Errors.termsAccepted ? 'border-2 border-red-500' : ''}`}
                         />
-                        <Label htmlFor="terms" className="text-white cursor-pointer">
+                        <Label htmlFor="terms-checkbox" className="text-white cursor-pointer text-sm sm:text-base break-words flex-1">
                           {isAnnexRequired(productSlug) ? (
                             <>I have read and agree to the ANNEX I – Payment Authorization & Non-Dispute Agreement above. *</>
                           ) : contractTemplate ? (
@@ -2089,49 +2806,84 @@ export const VisaCheckout = () => {
                           )}
                         </Label>
                       </div>
+                      {step3Errors.termsAccepted && (
+                        <p className="text-red-400 text-xs sm:text-sm ml-6 sm:ml-8">{step3Errors.termsAccepted}</p>
+                      )}
 
-                      <div className="flex items-start space-x-2">
+                      <div className="flex items-start space-x-2 sm:space-x-3">
                         <Checkbox
-                          id="data-authorization"
+                          id="data-auth-checkbox"
                           checked={dataAuthorization}
-                          onCheckedChange={(checked) => setDataAuthorization(checked === true)}
+                          onCheckedChange={(checked) => {
+                            setDataAuthorization(checked === true);
+                            if (step3Errors.dataAuthorization) {
+                              setStep3Errors(prev => {
+                                const newErrors = { ...prev };
+                                delete newErrors.dataAuthorization;
+                                return newErrors;
+                              });
+                            }
+                          }}
+                          className={`min-w-[20px] min-h-[20px] ${step3Errors.dataAuthorization ? 'border-2 border-red-500' : ''}`}
                         />
-                        <Label htmlFor="data-authorization" className="text-white cursor-pointer text-sm">
+                        <Label htmlFor="data-auth-checkbox" className="text-white cursor-pointer text-xs sm:text-sm break-words flex-1">
                           I authorize the use of my data and images for anti-fraud validation and payment authorization proof. *
                         </Label>
                       </div>
+                      {step3Errors.dataAuthorization && (
+                        <p className="text-red-400 text-xs sm:text-sm ml-6 sm:ml-8">{step3Errors.dataAuthorization}</p>
+                      )}
                     </div>
 
                     {/* Digital Signature - Only show after terms are accepted */}
                     {termsAccepted && (
-                      <div className="space-y-4 pt-4 border-t border-gold-medium/30">
-                        <SignaturePadComponent
-                          onSignatureChange={(dataUrl) => {
-                            if (dataUrl) {
+                      <div className="space-y-4 pt-4 border-t border-gold-medium/30" data-signature-pad>
+                        <div className="w-full max-w-full sm:max-w-[600px]">
+                          <SignaturePadComponent
+                            onSignatureChange={(dataUrl) => {
+                              if (dataUrl) {
+                                setSignatureImageDataUrl(dataUrl);
+                                if (step3Errors.signature) {
+                                  setStep3Errors(prev => {
+                                    const newErrors = { ...prev };
+                                    delete newErrors.signature;
+                                    return newErrors;
+                                  });
+                                }
+                              } else {
+                                setSignatureImageDataUrl(null);
+                              }
+                            }}
+                            onSignatureConfirm={(dataUrl) => {
                               setSignatureImageDataUrl(dataUrl);
-                            } else {
-                              setSignatureImageDataUrl(null);
-                            }
-                          }}
-                          onSignatureConfirm={(dataUrl) => {
-                            setSignatureImageDataUrl(dataUrl);
-                            setSignatureConfirmed(true);
-                          }}
-                          savedSignature={signatureImageDataUrl}
-                          isConfirmed={signatureConfirmed}
-                          label="Digital Signature"
-                          required={true}
-                          width={600}
-                          height={200}
-                        />
+                              setSignatureConfirmed(true);
+                              if (step3Errors.signature) {
+                                setStep3Errors(prev => {
+                                  const newErrors = { ...prev };
+                                  delete newErrors.signature;
+                                  return newErrors;
+                                });
+                              }
+                            }}
+                            savedSignature={signatureImageDataUrl}
+                            isConfirmed={signatureConfirmed}
+                            label="Digital Signature"
+                            required={true}
+                            width={typeof window !== 'undefined' && window.innerWidth > 640 ? 600 : Math.min(typeof window !== 'undefined' ? window.innerWidth - 32 : 600, 600)}
+                            height={typeof window !== 'undefined' && window.innerWidth > 640 ? 200 : 150}
+                          />
+                        </div>
+                        {step3Errors.signature && (
+                          <p className="text-red-400 text-xs sm:text-sm mt-1">{step3Errors.signature}</p>
+                        )}
                       </div>
                     )}
 
                     {/* Payment Method Selection */}
                     <div className="space-y-4 pt-4 border-t border-gold-medium/30">
-                      <Label className="text-white">Payment Method</Label>
+                      <Label className="text-white text-sm sm:text-base">Payment Method</Label>
                       <Select value={paymentMethod} onValueChange={(value: any) => setPaymentMethod(value)}>
-                        <SelectTrigger className="bg-white text-black">
+                        <SelectTrigger className="bg-white text-black min-h-[44px] w-full">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -2142,20 +2894,24 @@ export const VisaCheckout = () => {
                       </Select>
 
                       {paymentMethod === 'zelle' && (
-                        <div className="space-y-4 mt-4 p-4 bg-yellow-900/20 border border-yellow-500/30 rounded-md">
+                        <div className="space-y-4 mt-4 p-3 sm:p-4 bg-yellow-900/20 border border-yellow-500/30 rounded-md">
                           <div className="space-y-3">
                             <div className="bg-black/30 p-3 rounded-md border border-gold-medium/20">
-                              <p className="text-sm font-semibold text-yellow-200 mb-2">Zelle Payment Instructions:</p>
-                              <ol className="text-sm text-yellow-100 space-y-2 list-decimal list-inside">
+                              <p className="text-xs sm:text-sm font-semibold text-yellow-200 mb-2">Zelle Payment Instructions:</p>
+                              <ol className="text-xs sm:text-sm text-yellow-100 space-y-2 list-decimal list-inside">
                                 <li>Transfer the total amount to our Zelle account</li>
-                                <li className="font-semibold text-gold-light">Zelle Key: <span className="font-mono">adm@migmainc.com</span></li>
+                                <li className="font-semibold text-gold-light">Zelle Key: <span className="font-mono break-all">adm@migmainc.com</span></li>
                                 <li>After completing the transfer, take a screenshot or photo of the payment confirmation</li>
                                 <li>Upload the payment receipt below</li>
                               </ol>
                             </div>
                             <div className="space-y-2">
-                              <Label htmlFor="zelle-receipt" className="text-white">Upload Payment Receipt *</Label>
-                              <div className="border-2 border-dashed border-gold-medium/50 rounded-md p-4 text-center hover:bg-white/10 transition cursor-pointer">
+                              <Label htmlFor="zelle-receipt" className="text-white text-sm sm:text-base">Upload Payment Receipt *</Label>
+                              <div className={`border-2 border-dashed rounded-md p-3 sm:p-4 text-center hover:bg-white/10 transition cursor-pointer min-h-[120px] sm:min-h-[100px] flex flex-col items-center justify-center ${
+                                step3Errors.zelleReceipt 
+                                  ? 'border-red-500 bg-red-500/10' 
+                                  : 'border-gold-medium/50'
+                              }`}>
                                 <input
                                   type="file"
                                   id="zelle-receipt"
@@ -2164,19 +2920,29 @@ export const VisaCheckout = () => {
                                     const file = e.target.files?.[0];
                                     if (file) {
                                       setZelleReceipt(file);
+                                      if (step3Errors.zelleReceipt) {
+                                        setStep3Errors(prev => {
+                                          const newErrors = { ...prev };
+                                          delete newErrors.zelleReceipt;
+                                          return newErrors;
+                                        });
+                                      }
                                     }
                                   }}
                                   className="hidden"
                                 />
-                                <label htmlFor="zelle-receipt" className="cursor-pointer">
-                                  <Upload className="h-8 w-8 text-gold-light mx-auto mb-2" />
+                                <label htmlFor="zelle-receipt" className="cursor-pointer w-full">
+                                  <Upload className="h-6 w-6 sm:h-8 sm:w-8 text-gold-light mx-auto mb-2" />
                                   {zelleReceipt ? (
-                                    <p className="text-sm text-gold-light">✓ {zelleReceipt.name}</p>
+                                    <p className="text-xs sm:text-sm text-gold-light break-words">✓ {zelleReceipt.name}</p>
                                   ) : (
-                                    <p className="text-sm text-white">Click to upload receipt</p>
+                                    <p className="text-xs sm:text-sm text-white">Click to upload receipt</p>
                                   )}
                                 </label>
                               </div>
+                              {step3Errors.zelleReceipt && (
+                                <p className="text-red-400 text-xs sm:text-sm mt-1">{step3Errors.zelleReceipt}</p>
+                              )}
                             </div>
                           </div>
                         </div>
@@ -2188,7 +2954,7 @@ export const VisaCheckout = () => {
                       <Button
                         variant="outline"
                         onClick={handlePrev}
-                        className="border-gold-medium/50 bg-black/50 text-gold-light hover:bg-gold-medium/30 hover:text-gold-light"
+                        className="border-gold-medium/50 bg-black/50 text-gold-light hover:bg-gold-medium/30 hover:text-gold-light w-full sm:w-auto min-h-[44px]"
                       >
                         <ChevronLeft className="w-4 h-4 mr-2" />
                         Back
@@ -2204,20 +2970,20 @@ export const VisaCheckout = () => {
           {/* Order Summary - Only show on step 3 */}
           {currentStep === 3 && (
             <div className="lg:col-span-1">
-              <Card className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30 sticky top-4">
+              <Card className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30 lg:sticky lg:top-4">
                 <CardHeader>
-                  <CardTitle className="text-white">Order Summary</CardTitle>
+                  <CardTitle className="text-white text-lg sm:text-xl">Order Summary</CardTitle>
                 </CardHeader>
-                <CardContent className="space-y-4">
+                <CardContent className="space-y-4 p-4 sm:p-6">
                   <div className="space-y-2">
                     {product.calculation_type === 'base_plus_units' && (
                       <>
-                        <div className="flex justify-between text-sm">
+                        <div className="flex justify-between text-xs sm:text-sm">
                           <span className="text-gray-400">Base Price</span>
                           <span className="text-white">US$ {parseFloat(product.base_price_usd).toFixed(2)}</span>
                         </div>
                         {extraUnits > 0 && product.allow_extra_units && (
-                          <div className="flex justify-between text-sm">
+                          <div className="flex justify-between text-xs sm:text-sm">
                             <span className="text-gray-400">{product.extra_unit_label} ({extraUnits})</span>
                             <span className="text-white">US$ {(extraUnits * parseFloat(product.extra_unit_price)).toFixed(2)}</span>
                           </div>
@@ -2225,7 +2991,7 @@ export const VisaCheckout = () => {
                       </>
                     )}
                     {product.calculation_type === 'units_only' && (
-                      <div className="flex justify-between text-sm">
+                      <div className="flex justify-between text-xs sm:text-sm">
                         <span className="text-gray-400">Number of applicants ({extraUnits})</span>
                         <span className="text-white">US$ {(extraUnits * parseFloat(product.extra_unit_price)).toFixed(2)}</span>
                       </div>
@@ -2233,8 +2999,8 @@ export const VisaCheckout = () => {
 
                     <div className="border-t border-gold-medium/30 pt-2 mt-2">
                       <div className="flex justify-between">
-                        <span className="text-white font-bold">Total</span>
-                        <span className="text-2xl font-bold text-gold-light">
+                        <span className="text-white font-bold text-sm sm:text-base">Total</span>
+                        <span className="text-xl sm:text-2xl font-bold text-gold-light">
                           {paymentMethod === 'pix' && exchangeRate ? (
                             <>R$ {totalWithFees.toFixed(2)}</>
                           ) : (
@@ -2243,17 +3009,17 @@ export const VisaCheckout = () => {
                         </span>
                       </div>
                       {paymentMethod === 'pix' && exchangeRate && (
-                        <p className="text-xs text-gray-400 mt-1 text-right">
+                        <p className="text-[10px] sm:text-xs text-gray-400 mt-1 text-right">
                           Includes processing fee
                         </p>
                       )}
                       {paymentMethod === 'card' && (
-                        <p className="text-xs text-gray-400 mt-1 text-right">
+                        <p className="text-[10px] sm:text-xs text-gray-400 mt-1 text-right">
                           Includes Stripe processing fee
                         </p>
                       )}
                       {paymentMethod === 'zelle' && (
-                        <p className="text-xs text-gray-400 mt-1 text-right">
+                        <p className="text-[10px] sm:text-xs text-gray-400 mt-1 text-right">
                           No processing fees
                         </p>
                       )}
@@ -2266,7 +3032,7 @@ export const VisaCheckout = () => {
                         <Button
                           onClick={() => handleStripeCheckout('card')}
                           disabled={submitting || !termsAccepted || !dataAuthorization || !signatureConfirmed || !documentsUploaded}
-                          className="w-full bg-gradient-to-b from-gold-light via-gold-medium to-gold-light text-black font-bold hover:from-gold-medium hover:via-gold-light hover:to-gold-medium"
+                          className="w-full bg-gradient-to-b from-gold-light via-gold-medium to-gold-light text-black font-bold hover:from-gold-medium hover:via-gold-light hover:to-gold-medium min-h-[48px] sm:min-h-[44px] text-sm sm:text-base px-6 sm:px-8 py-3 sm:py-2"
                         >
                           <CreditCard className="w-4 h-4 mr-2" />
                           {submitting ? 'Processing...' : 'Pay with Card'}
@@ -2276,14 +3042,14 @@ export const VisaCheckout = () => {
                         <Button
                           onClick={() => handleStripeCheckout('pix')}
                           disabled={submitting || !termsAccepted || !dataAuthorization || !signatureConfirmed || !documentsUploaded}
-                          className="w-full bg-gradient-to-b from-gold-light via-gold-medium to-gold-light text-black font-bold hover:from-gold-medium hover:via-gold-light hover:to-gold-medium"
+                          className="w-full bg-gradient-to-b from-gold-light via-gold-medium to-gold-light text-black font-bold hover:from-gold-medium hover:via-gold-light hover:to-gold-medium min-h-[48px] sm:min-h-[44px] text-sm sm:text-base px-6 sm:px-8 py-3 sm:py-2"
                         >
                           <DollarSign className="w-4 h-4 mr-2" />
                           {submitting ? 'Processing...' : 'Pay with PIX'}
                         </Button>
                       )}
                       {(!termsAccepted || !dataAuthorization) && (
-                        <p className="text-xs text-yellow-400 text-center">
+                        <p className="text-xs sm:text-sm text-yellow-400 text-center">
                           Please accept both terms and conditions
                         </p>
                       )}
@@ -2293,23 +3059,23 @@ export const VisaCheckout = () => {
                       <Button
                         onClick={handleZellePayment}
                         disabled={submitting || !termsAccepted || !dataAuthorization || !signatureConfirmed || !zelleReceipt || !documentsUploaded}
-                        className="w-full bg-gradient-to-b from-gold-light via-gold-medium to-gold-light text-black font-bold hover:from-gold-medium hover:via-gold-light hover:to-gold-medium"
+                        className="w-full bg-gradient-to-b from-gold-light via-gold-medium to-gold-light text-black font-bold hover:from-gold-medium hover:via-gold-light hover:to-gold-medium min-h-[48px] sm:min-h-[44px] text-sm sm:text-base px-6 sm:px-8 py-3 sm:py-2"
                       >
                         <Upload className="w-4 h-4 mr-2" />
                         {submitting ? 'Submitting...' : 'Submit Zelle Payment'}
                       </Button>
                       {(!termsAccepted || !dataAuthorization) && (
-                        <p className="text-xs text-yellow-400 text-center">
+                        <p className="text-xs sm:text-sm text-yellow-400 text-center">
                           Please accept both terms and conditions
                         </p>
                       )}
                       {(!signatureConfirmed) && (
-                        <p className="text-xs text-yellow-400 text-center">
+                        <p className="text-xs sm:text-sm text-yellow-400 text-center">
                           Please draw and confirm your digital signature
                         </p>
                       )}
                       {!zelleReceipt && (
-                        <p className="text-xs text-yellow-400 text-center">
+                        <p className="text-xs sm:text-sm text-yellow-400 text-center">
                           Please upload Zelle receipt
                         </p>
                       )}
@@ -2325,6 +3091,21 @@ export const VisaCheckout = () => {
           )}
         </div>
       </div>
+
+      {/* Zelle Payment Processing Loading Overlay */}
+      {isZelleProcessing && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-md">
+          <div className="flex flex-col items-center justify-center space-y-6">
+            <div className="loader-gold"></div>
+            <p className="text-gold-light text-lg font-semibold tracking-tight">
+              Processing Zelle payment...
+            </p>
+            <p className="text-gray-400 text-sm">
+              Please wait while we validate your receipt
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
