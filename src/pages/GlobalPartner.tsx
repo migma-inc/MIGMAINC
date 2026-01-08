@@ -791,7 +791,7 @@ const countryPhoneCodes: Record<string, string> = {
 const STORAGE_KEY = 'migma_application_form';
 
 interface ApplicationWizardProps {
-    cardRef?: React.RefObject<HTMLDivElement>;
+    cardRef?: React.RefObject<HTMLDivElement | null>;
 }
 
 const ApplicationWizard = ({ cardRef }: ApplicationWizardProps) => {

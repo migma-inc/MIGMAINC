@@ -1497,6 +1497,10 @@ export const VisaCheckout = () => {
     }
 
       // Save terms acceptance
+      if (!serviceRequestId) {
+        setError('Service request ID is required');
+        return;
+      }
       const result = await saveStep3Data(
         serviceRequestId, 
         termsAccepted, 
@@ -1539,6 +1543,12 @@ export const VisaCheckout = () => {
       let n8nConfidence: number | null = null;
 
       // Get user ID from service request if available
+      if (!serviceRequestId) {
+        throw new Error('Service request ID is required');
+      }
+      if (!zelleReceipt) {
+        throw new Error('Zelle receipt is required');
+      }
       const { data: serviceRequest } = await supabase
         .from('service_requests')
         .select('client_id')
@@ -1882,6 +1892,9 @@ export const VisaCheckout = () => {
       fetch('http://127.0.0.1:7242/ingest/b0c11d9c-30ac-43ca-8975-359f75c28b34',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'VisaCheckout.tsx:1706',message:'Status validation before insert',data:{zellePaymentStatus,zellePaymentStatusType:typeof zellePaymentStatus,zellePaymentStatusValue:JSON.stringify(zellePaymentStatus),validStatus,validStatusType:typeof validStatus,validStatusValue:JSON.stringify(validStatus),isApproved:zellePaymentStatus==='approved'},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'status-check'})}).catch(()=>{});
       // #endregion
       
+      if (!serviceRequestId) {
+        throw new Error('Service request ID is required');
+      }
       const insertData: {
         payment_id: string;
         order_id: string;
