@@ -22,4 +22,3 @@ CREATE INDEX IF NOT EXISTS idx_scheduled_meetings_created_at ON scheduled_meetin
 
 -- Add comment to table
 COMMENT ON TABLE scheduled_meetings IS 'Stores meetings scheduled by admins and sent directly to users via email';
-

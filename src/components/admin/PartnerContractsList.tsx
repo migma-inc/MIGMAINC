@@ -236,14 +236,14 @@ export function PartnerContractsList({
 
                 {/* Action Buttons */}
                 {hasDocuments && (
-                  <div className="flex flex-col sm:flex-row gap-2 pt-2 border-t border-gold-medium/20">
+                  <div className="flex gap-2 pt-2 border-t border-gold-medium/20">
                     {onApprove && (
                       <Button
                         onClick={() => onApprove(contract)}
-                        className="flex-1 bg-green-600 hover:bg-green-700 text-white text-xs sm:text-sm"
+                        className="flex-1 bg-green-600 hover:bg-green-700 text-white"
                         size="sm"
                       >
-                        <CheckCircle className="w-3 h-3 sm:w-4 sm:h-4 mr-2" />
+                        <CheckCircle className="w-4 h-4 mr-2" />
                         Approve
                       </Button>
                     )}
@@ -251,10 +251,10 @@ export function PartnerContractsList({
                       <Button
                         onClick={() => onReject(contract)}
                         variant="destructive"
-                        className="flex-1 text-xs sm:text-sm"
+                        className="flex-1"
                         size="sm"
                       >
-                        <XCircle className="w-3 h-3 sm:w-4 sm:h-4 mr-2" />
+                        <XCircle className="w-4 h-4 mr-2" />
                         Reject
                       </Button>
                     )}

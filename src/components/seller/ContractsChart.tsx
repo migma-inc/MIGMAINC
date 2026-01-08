@@ -46,7 +46,14 @@ export function ContractsChart({ data }: ContractsChartProps) {
     // Preparar dados para o donut
     const totalContracts = data.reduce((sum, p) => sum + p.contracts, 0);
     const colors = ['#F3E196', '#D4AF37', '#CE9F48', '#B8860B', '#9A7A3A', '#8E6E2F'];
-    const chartData = data.map((point, index) => ({
+    type ChartSlice = {
+      category: string;
+      value: number;
+      percentage: number;
+      fill: am5.Color;
+    };
+
+    const chartData: ChartSlice[] = data.map((point, index) => ({
       category: new Date(point.date).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }),
       value: point.contracts,
       percentage: totalContracts > 0 ? (point.contracts / totalContracts) * 100 : 0,
@@ -64,9 +71,12 @@ export function ContractsChart({ data }: ContractsChartProps) {
     // Aplicar cores dos dados
     series.slices.template.adapters.add('fill', (fill, target) => {
       const dataItem = target.dataItem;
-      if (dataItem && dataItem.dataContext) {
-        return dataItem.dataContext.fill || fill;
+      const dataContext = dataItem?.dataContext as ChartSlice | undefined;
+
+      if (dataContext?.fill) {
+        return dataContext.fill;
       }
+
       return fill;
     });
 

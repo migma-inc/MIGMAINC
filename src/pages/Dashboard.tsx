@@ -146,54 +146,38 @@ function DashboardLayout() {
 
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col">
-        {/* Mobile Menu Button */}
-        <div className="lg:hidden sticky top-0 z-30 bg-black/80 backdrop-blur-sm border-b border-gold-medium/30 p-4">
-          <div className="flex items-center justify-between">
-            <Button
-              onClick={() => setIsMobileMenuOpen(true)}
-              variant="outline"
-              size="sm"
-              className="border-gold-medium/50 bg-black/50 text-gold-light hover:bg-gold-medium/20"
-            >
-              <Menu className="w-5 h-5 mr-2" />
-              Menu
-            </Button>
-            <div className="flex items-center gap-2">
-              <div className="text-right">
-                <h1 className="text-lg font-bold migma-gold-text">Admin Dashboard</h1>
-                {user && (
-                  <p className="text-xs text-gray-400 truncate max-w-[150px]">{user.email}</p>
-                )}
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleSignOut}
-                className="border-gold-medium/50 bg-black/50 text-white hover:bg-gold-medium/30 hover:text-gold-light"
-              >
-                <LogOut className="w-4 h-4" />
-              </Button>
-            </div>
-          </div>
-        </div>
-
-        {/* Header - Desktop */}
-        <header className="hidden lg:block bg-black/95 shadow-sm border-b border-gold-medium/30">
+        {/* Header */}
+        <header className="bg-black/95 shadow-sm border-b border-gold-medium/30 relative z-30">
           <div className="px-4 sm:px-6 lg:px-8">
             <div className="flex justify-between items-center h-16">
-              <div>
-                <h1 className="text-2xl font-bold migma-gold-text">MIGMA Admin Dashboard</h1>
-                {user && (
-                  <p className="text-sm text-gray-400">Logged in as {user.email}</p>
-                )}
+              <div className="flex items-center gap-3">
+                {/* Mobile Menu Button */}
+                <Button
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setIsMobileMenuOpen(true);
+                  }}
+                  variant="outline"
+                  size="sm"
+                  className="lg:hidden border-gold-medium/50 bg-black/50 text-gold-light hover:bg-gold-medium/20 z-50"
+                >
+                  <Menu className="w-5 h-5" />
+                </Button>
+                <div>
+                  <h1 className="text-xl sm:text-2xl font-bold migma-gold-text">MIGMA Admin Dashboard</h1>
+                  {user && (
+                    <p className="text-xs sm:text-sm text-gray-400 truncate max-w-[200px] sm:max-w-none">Logged in as {user.email}</p>
+                  )}
+                </div>
               </div>
               <Button
                 variant="outline"
                 onClick={handleSignOut}
-                className="flex items-center gap-2 border-gold-medium/50 bg-black/50 text-white hover:bg-gold-medium/30 hover:text-gold-light"
+                className="flex items-center gap-2 border-gold-medium/50 bg-black/50 text-white hover:bg-gold-medium/30 hover:text-gold-light text-xs sm:text-sm"
               >
                 <LogOut className="w-4 h-4" />
-                Sign Out
+                <span className="hidden sm:inline">Sign Out</span>
               </Button>
             </div>
           </div>
@@ -736,7 +720,7 @@ export function DashboardContent() {
       )}
 
       {/* Filters */}
-      <div className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 rounded-lg shadow p-4 mb-4 sm:mb-6 border border-gold-medium/30">
+      <div className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 rounded-lg shadow p-3 sm:p-4 mb-4 sm:mb-6 border border-gold-medium/30">
         <div className="flex flex-wrap items-center gap-3">
           <Filter className="w-4 h-4 sm:w-5 sm:h-5 text-gold-light shrink-0" />
           <label className="text-xs sm:text-sm font-medium text-white whitespace-nowrap">Filter by Status:</label>
@@ -744,7 +728,7 @@ export function DashboardContent() {
             value={statusFilter || 'all'}
             onValueChange={(value) => setStatusFilter(value === 'all' ? undefined : value as 'pending' | 'approved' | 'approved_for_meeting' | 'approved_for_contract' | 'rejected')}
           >
-            <SelectTrigger className="w-full sm:w-40 bg-black/50 border-gold-medium/50 text-white">
+            <SelectTrigger className="w-full sm:w-40 bg-black/50 border-gold-medium/50 text-white text-xs sm:text-sm">
               <SelectValue />
             </SelectTrigger>
             <SelectContent className="bg-black border-gold-medium/50">
@@ -761,8 +745,8 @@ export function DashboardContent() {
 
       {/* Pending Partner Contracts List */}
       {pendingPartnerContracts > 0 && (
-        <div className="bg-gradient-to-br from-blue-500/10 via-blue-500/5 to-blue-500/10 rounded-lg shadow p-4 sm:p-6 border border-blue-500/30 mb-4 sm:mb-6">
-          <h2 className="text-lg sm:text-xl font-semibold mb-4 text-blue-300">Partner Contracts Pending Verification</h2>
+        <div className="bg-gradient-to-br from-blue-500/10 via-blue-500/5 to-blue-500/10 rounded-lg shadow p-6 border border-blue-500/30 mb-6">
+          <h2 className="text-xl font-semibold mb-4 text-blue-300">Partner Contracts Pending Verification</h2>
           <PartnerContractsList
             onApprove={handleApprovePartnerContract}
             onReject={handleRejectPartnerContract}
@@ -773,7 +757,7 @@ export function DashboardContent() {
 
       {/* Applications List */}
       <div className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 rounded-lg shadow p-4 sm:p-6 border border-gold-medium/30">
-        <h2 className="text-lg sm:text-xl font-semibold mb-4 migma-gold-text">Global Partner Applications</h2>
+        <h2 className="text-lg sm:text-xl font-semibold mb-3 sm:mb-4 migma-gold-text">Global Partner Applications</h2>
         <ApplicationsList
           onApprove={handleApprove}
           onReject={handleReject}

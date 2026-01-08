@@ -302,7 +302,7 @@ export const VisaOrderDetailPage = () => {
           </Link>
           <div className="flex justify-between items-start">
             <div>
-              <h1 className="text-3xl font-bold migma-gold-text">Order Details</h1>
+              <h1 className="text-2xl sm:text-3xl font-bold migma-gold-text">Order Details</h1>
               <p className="text-gray-400 mt-1">Order #{order.order_number}</p>
             </div>
             <div className="flex gap-2 items-center">
@@ -341,7 +341,7 @@ export const VisaOrderDetailPage = () => {
               )}
               <div className="border-t border-gold-medium/30 pt-3 mt-3 flex justify-between">
                 <span className="text-white font-bold">Total:</span>
-                <span className="text-2xl font-bold text-gold-light">${parseFloat(order.total_price_usd).toFixed(2)}</span>
+                <span className="text-xl sm:text-2xl font-bold text-gold-light">${parseFloat(order.total_price_usd).toFixed(2)}</span>
               </div>
             </CardContent>
           </Card>

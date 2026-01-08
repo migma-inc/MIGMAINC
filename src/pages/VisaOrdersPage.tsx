@@ -80,22 +80,24 @@ export const VisaOrdersPage = () => {
   }
 
   return (
-    <div className="min-h-screen bg-black py-8 px-4">
+    <div className="p-4 sm:p-6 lg:p-8">
       <div className="max-w-7xl mx-auto">
-        <h1 className="text-3xl font-bold migma-gold-text mb-8">Visa Orders</h1>
+        <h1 className="text-2xl sm:text-3xl font-bold migma-gold-text mb-4 sm:mb-8">Visa Orders</h1>
 
         <Card className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30">
           <CardHeader>
-            <CardTitle className="text-white">All Orders</CardTitle>
+            <CardTitle className="text-lg sm:text-xl text-white">All Orders</CardTitle>
           </CardHeader>
           <CardContent>
             {orders.length === 0 ? (
               <div className="text-center py-12">
-                <p className="text-gray-400">No orders found</p>
+                <p className="text-gray-400 text-sm sm:text-base">No orders found</p>
               </div>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full">
+              <>
+                {/* Desktop Table */}
+                <div className="hidden md:block overflow-x-auto">
+                  <table className="w-full">
                   <thead>
                     <tr className="border-b border-gold-medium/30">
                       <th className="text-left py-3 px-4 text-sm text-gray-400 font-semibold">Order #</th>
@@ -173,6 +175,81 @@ export const VisaOrdersPage = () => {
                   </tbody>
                 </table>
               </div>
+
+                {/* Mobile Cards */}
+                <div className="md:hidden space-y-4">
+                  {orders.map((order) => {
+                    const isAnnexProduct = order.product_slug?.endsWith('-scholarship') || order.product_slug?.endsWith('-i20-control');
+                    const pdfUrl = isAnnexProduct ? order.annex_pdf_url : order.contract_pdf_url;
+                    const pdfTitle = isAnnexProduct ? `ANNEX I - ${order.order_number}` : `Contract - ${order.order_number}`;
+                    
+                    return (
+                      <Card key={order.id} className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30">
+                        <CardContent className="p-4 space-y-3">
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-mono text-gold-light font-semibold">{order.order_number}</p>
+                              <p className="text-base font-semibold text-white mt-1 break-words">{order.client_name}</p>
+                              <p className="text-xs text-gray-400 truncate">{order.client_email}</p>
+                            </div>
+                            <div className="ml-2">
+                              {getStatusBadge(order.payment_status)}
+                            </div>
+                          </div>
+                          
+                          <div className="grid grid-cols-2 gap-2 text-xs sm:text-sm">
+                            <div>
+                              <p className="text-gray-400">Product</p>
+                              <p className="text-white break-words">{order.product_slug}</p>
+                            </div>
+                            <div>
+                              <p className="text-gray-400">Total</p>
+                              <p className="text-gold-light font-bold">${parseFloat(order.total_price_usd).toFixed(2)}</p>
+                            </div>
+                            <div>
+                              <p className="text-gray-400">Seller</p>
+                              <p className="text-white">{order.seller_id || '-'}</p>
+                            </div>
+                            <div>
+                              <p className="text-gray-400">Date</p>
+                              <p className="text-white">{new Date(order.created_at).toLocaleDateString()}</p>
+                            </div>
+                          </div>
+
+                          <div className="flex flex-col gap-2 pt-2 border-t border-gold-medium/20">
+                            {pdfUrl ? (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  setSelectedPdfUrl(pdfUrl);
+                                  setSelectedPdfTitle(pdfTitle);
+                                }}
+                                className="w-full flex items-center justify-center gap-2 border-gold-medium/50 bg-black/50 text-gold-light hover:bg-black hover:border-gold-medium hover:text-gold-medium text-xs"
+                              >
+                                <FileText className="w-3 h-3" />
+                                View PDF
+                              </Button>
+                            ) : (
+                              <p className="text-gray-500 text-xs text-center">Contract not generated</p>
+                            )}
+                            <Link to={`/dashboard/visa-orders/${order.id}`} className="w-full">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="w-full flex items-center justify-center gap-2 border-gold-medium/50 bg-black/50 text-white hover:bg-gold-medium/30 hover:text-gold-light text-xs"
+                              >
+                                <Eye className="w-3 h-3" />
+                                View Details
+                              </Button>
+                            </Link>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
+                </div>
+              </>
             )}
           </CardContent>
         </Card>

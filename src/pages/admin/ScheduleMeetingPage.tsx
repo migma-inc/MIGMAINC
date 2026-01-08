@@ -1,5 +1,5 @@
 /**
- * Admin page for scheduling meetings and sending emails directly to users
+ * Schedule Meeting Page - Admin can schedule meetings and send emails directly to users
  */
 
 import { useState, useEffect } from 'react';
@@ -11,8 +11,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ScheduledMeetingsList } from '@/components/admin/ScheduledMeetingsList';
 import { AlertModal } from '@/components/ui/alert-modal';
-import { MeetingScheduleModal } from '@/components/admin/MeetingScheduleModal';
-import { Calendar, Plus, Filter } from 'lucide-react';
+import { Calendar, Plus, Loader2 } from 'lucide-react';
 import { scheduleMeeting, updateScheduledMeeting, type ScheduledMeeting } from '@/lib/meetings';
 import { getCurrentUser } from '@/lib/auth';
 
@@ -109,27 +108,27 @@ export function ScheduleMeetingPage() {
     setShowEditModal(true);
   };
 
-  const handleEditConfirm = async (data: {
-    meetingDate: string;
-    meetingTime: string;
-    meetingLink: string;
-    scheduledBy?: string;
-  }) => {
+  const handleEditSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
     if (!editingMeeting) return;
 
     setIsSubmitting(true);
     try {
+      const formData = new FormData(e.target as HTMLFormElement);
       const result = await updateScheduledMeeting(editingMeeting.id, {
-        meeting_date: data.meetingDate,
-        meeting_time: data.meetingTime,
-        meeting_link: data.meetingLink,
-        scheduled_by: data.scheduledBy,
+        email: formData.get('email') as string,
+        full_name: formData.get('full_name') as string,
+        meeting_date: formData.get('meeting_date') as string,
+        meeting_time: formData.get('meeting_time') as string,
+        meeting_link: formData.get('meeting_link') as string,
+        scheduled_by: formData.get('scheduled_by') as string || undefined,
+        notes: formData.get('notes') as string || undefined,
       });
 
       if (result.success) {
         setAlertData({
           title: 'Success',
-          message: result.error || 'Meeting updated successfully! Email sent.',
+          message: 'Meeting updated successfully! Email sent.',
           variant: 'success',
         });
         setShowAlert(true);
@@ -241,6 +240,7 @@ export function ScheduleMeetingPage() {
                     type="text"
                     value={meetingTime}
                     onChange={(e) => setMeetingTime(e.target.value)}
+                    placeholder="e.g., 15:00 or 3:00 PM"
                     className="bg-white text-black"
                     disabled={isSubmitting}
                     required
@@ -248,7 +248,7 @@ export function ScheduleMeetingPage() {
                 </div>
 
                 {/* Meeting Link */}
-                <div className="md:col-span-2">
+                <div>
                   <Label htmlFor="meeting-link" className="text-white mb-2 block">
                     Meeting Link <span className="text-red-500">*</span>
                   </Label>
@@ -257,13 +257,14 @@ export function ScheduleMeetingPage() {
                     type="url"
                     value={meetingLink}
                     onChange={(e) => setMeetingLink(e.target.value)}
+                    placeholder="https://meet.google.com/..."
                     className="bg-white text-black"
                     disabled={isSubmitting}
                     required
                   />
                 </div>
 
-                {/* Scheduled By */}
+                {/* Scheduled By (Optional) */}
                 <div>
                   <Label htmlFor="scheduled-by" className="text-white mb-2 block">
                     Scheduled By (Optional)
@@ -278,7 +279,7 @@ export function ScheduleMeetingPage() {
                   />
                 </div>
 
-                {/* Notes */}
+                {/* Notes (Optional) */}
                 <div className="md:col-span-2">
                   <Label htmlFor="notes" className="text-white mb-2 block">
                     Notes (Optional)
@@ -287,37 +288,49 @@ export function ScheduleMeetingPage() {
                     id="notes"
                     value={notes}
                     onChange={(e) => setNotes(e.target.value)}
-                    className="bg-white text-black min-h-[100px]"
+                    className="bg-white text-black min-h-[80px]"
                     disabled={isSubmitting}
                   />
                 </div>
               </div>
 
-              <div className="flex justify-end gap-3 pt-4">
+              <div className="flex justify-end mt-6">
                 <Button
                   type="submit"
                   disabled={isSubmitting}
-                  className="bg-green-600 hover:bg-green-700 text-white"
+                  className="bg-gold-medium hover:bg-gold-light text-black flex items-center gap-2"
                 >
-                  {isSubmitting ? 'Scheduling...' : 'Schedule Meeting & Send Email'}
+                  {isSubmitting ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Scheduling...
+                    </>
+                  ) : (
+                    <>
+                      <Calendar className="w-4 h-4" />
+                      Schedule Meeting & Send Email
+                    </>
+                  )}
                 </Button>
               </div>
             </form>
           </CardContent>
         </Card>
 
-        {/* Meetings List */}
+        {/* Filter and List of Scheduled Meetings */}
         <Card className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30">
           <CardHeader>
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-              <CardTitle className="text-white">Scheduled Meetings</CardTitle>
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <CardTitle className="text-white flex items-center gap-2">
+                <Calendar className="w-5 h-5" />
+                Scheduled Meetings
+              </CardTitle>
               <div className="flex items-center gap-3">
-                <Filter className="w-4 h-4 text-gray-400" />
-                <Select
-                  value={filterDate}
-                  onValueChange={(value) => setFilterDate(value as 'upcoming' | 'past' | 'all')}
-                >
-                  <SelectTrigger className="w-[140px] sm:w-[180px] bg-black/50 border-gold-medium/50 text-white hover:bg-black/70">
+                <Label htmlFor="filter-date" className="text-white text-sm whitespace-nowrap">
+                  Filter:
+                </Label>
+                <Select value={filterDate} onValueChange={(value) => setFilterDate(value as 'upcoming' | 'past' | 'all')}>
+                  <SelectTrigger id="filter-date" className="w-full sm:w-[160px] bg-black/50 border-gold-medium/50 text-white hover:bg-black/70">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -330,49 +343,161 @@ export function ScheduleMeetingPage() {
             </div>
           </CardHeader>
           <CardContent>
-            <ScheduledMeetingsList
-              onEdit={handleEdit}
-              refreshKey={refreshKey}
-              filterDate={filterDate}
-            />
+            <ScheduledMeetingsList filterDate={filterDate} refreshKey={refreshKey} onEdit={handleEdit} />
           </CardContent>
         </Card>
+
+        {/* Edit Meeting Modal */}
+        {editingMeeting && showEditModal && (
+          <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+            <Card className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+              <CardHeader>
+                <CardTitle className="text-white">Edit Meeting</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <form onSubmit={handleEditSubmit} className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="edit-full-name" className="text-white mb-2 block">
+                        Full Name <span className="text-red-500">*</span>
+                      </Label>
+                      <Input
+                        id="edit-full-name"
+                        name="full_name"
+                        type="text"
+                        defaultValue={editingMeeting.full_name}
+                        className="bg-white text-black"
+                        disabled={isSubmitting}
+                        required
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="edit-email" className="text-white mb-2 block">
+                        Email <span className="text-red-500">*</span>
+                      </Label>
+                      <Input
+                        id="edit-email"
+                        name="email"
+                        type="email"
+                        defaultValue={editingMeeting.email}
+                        className="bg-white text-black"
+                        disabled={isSubmitting}
+                        required
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="edit-meeting-date" className="text-white mb-2 block">
+                        Meeting Date <span className="text-red-500">*</span>
+                      </Label>
+                      <Input
+                        id="edit-meeting-date"
+                        name="meeting_date"
+                        type="date"
+                        defaultValue={editingMeeting.meeting_date}
+                        className="bg-white text-black"
+                        disabled={isSubmitting}
+                        required
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="edit-meeting-time" className="text-white mb-2 block">
+                        Meeting Time <span className="text-red-500">*</span>
+                      </Label>
+                      <Input
+                        id="edit-meeting-time"
+                        name="meeting_time"
+                        type="text"
+                        defaultValue={editingMeeting.meeting_time}
+                        className="bg-white text-black"
+                        disabled={isSubmitting}
+                        required
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="edit-meeting-link" className="text-white mb-2 block">
+                        Meeting Link <span className="text-red-500">*</span>
+                      </Label>
+                      <Input
+                        id="edit-meeting-link"
+                        name="meeting_link"
+                        type="url"
+                        defaultValue={editingMeeting.meeting_link}
+                        className="bg-white text-black"
+                        disabled={isSubmitting}
+                        required
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="edit-scheduled-by" className="text-white mb-2 block">
+                        Scheduled By
+                      </Label>
+                      <Input
+                        id="edit-scheduled-by"
+                        name="scheduled_by"
+                        type="text"
+                        defaultValue={editingMeeting.scheduled_by || ''}
+                        className="bg-white text-black"
+                        disabled={isSubmitting}
+                      />
+                    </div>
+                    <div className="md:col-span-2">
+                      <Label htmlFor="edit-notes" className="text-white mb-2 block">
+                        Notes
+                      </Label>
+                      <Textarea
+                        id="edit-notes"
+                        name="notes"
+                        defaultValue={editingMeeting.notes || ''}
+                        className="bg-white text-black min-h-[80px]"
+                        disabled={isSubmitting}
+                      />
+                    </div>
+                  </div>
+                  <div className="flex justify-end gap-2 mt-6">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => {
+                        setShowEditModal(false);
+                        setEditingMeeting(null);
+                      }}
+                      disabled={isSubmitting}
+                      className="border-gold-medium/50 bg-black/50 text-white hover:bg-gold-medium/30"
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      type="submit"
+                      disabled={isSubmitting}
+                      className="bg-gold-medium hover:bg-gold-light text-black"
+                    >
+                      {isSubmitting ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                          Updating...
+                        </>
+                      ) : (
+                        'Update Meeting'
+                      )}
+                    </Button>
+                  </div>
+                </form>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {/* Alert Modal */}
+        {alertData && (
+          <AlertModal
+            isOpen={showAlert}
+            onClose={() => setShowAlert(false)}
+            title={alertData.title}
+            message={alertData.message}
+            variant={alertData.variant}
+          />
+        )}
       </div>
-
-      {/* Edit Modal */}
-      {editingMeeting && (
-        <MeetingScheduleModal
-          isOpen={showEditModal}
-          onClose={() => {
-            setShowEditModal(false);
-            setEditingMeeting(null);
-          }}
-          onConfirm={handleEditConfirm}
-          isLoading={isSubmitting}
-          initialData={{
-            meetingDate: editingMeeting.meeting_date,
-            meetingTime: editingMeeting.meeting_time,
-            meetingLink: editingMeeting.meeting_link,
-            scheduledBy: editingMeeting.scheduled_by || undefined,
-          }}
-          isEditMode={true}
-        />
-      )}
-
-      {/* Alert Modal */}
-      {alertData && (
-        <AlertModal
-          isOpen={showAlert}
-          onClose={() => {
-            setShowAlert(false);
-            setAlertData(null);
-          }}
-          title={alertData.title}
-          message={alertData.message}
-          variant={alertData.variant}
-        />
-      )}
     </div>
   );
 }
-

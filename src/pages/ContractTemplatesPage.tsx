@@ -302,7 +302,7 @@ export function ContractTemplatesPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
         <div>
-          <h1 className="text-3xl font-bold text-white flex items-center gap-2">
+          <h1 className="text-2xl sm:text-3xl font-bold text-white flex items-center gap-2">
             <FileText className="w-8 h-8" />
             Contract Templates
           </h1>
@@ -410,7 +410,7 @@ export function ContractTemplatesPage() {
         <Card className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30">
           <CardContent className="p-12 text-center">
             <FileText className="w-16 h-16 text-gray-500 mx-auto mb-4" />
-            <h3 className="text-xl font-semibold text-white mb-2">No Templates Found</h3>
+            <h3 className="text-lg sm:text-xl font-semibold text-white mb-2">No Templates Found</h3>
             <p className="text-gray-400 mb-6">
               {filter === 'all'
                 ? 'Create your first contract template to get started'
@@ -425,7 +425,7 @@ export function ContractTemplatesPage() {
           </CardContent>
         </Card>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
           {filteredTemplates.map((template) => (
             <Card
               key={template.id}

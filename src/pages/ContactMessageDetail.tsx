@@ -313,7 +313,7 @@ export function ContactMessageDetail() {
         <Card className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30">
           <CardContent className="p-12 text-center">
             <AlertCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
-            <h2 className="text-2xl font-bold text-white mb-2">Ticket Not Found</h2>
+            <h2 className="text-xl sm:text-2xl font-bold text-white mb-2">Ticket Not Found</h2>
             <p className="text-gray-400 mb-6">The ticket you are looking for does not exist.</p>
             <Link to="/dashboard/contact-messages">
               <Button className="btn btn-primary">Back to Tickets</Button>
@@ -336,7 +336,7 @@ export function ContactMessageDetail() {
         Back to Tickets
       </Button>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
         {/* Main Content - Ticket & Chat */}
         <div className="lg:col-span-2 space-y-6">
           {/* Ticket Header */}
@@ -345,7 +345,7 @@ export function ContactMessageDetail() {
               <div className="flex items-start justify-between mb-4">
                 <div className="flex-1">
                   <div className="flex items-center gap-3 mb-3 flex-wrap">
-                    <CardTitle className="text-white text-2xl">{ticket.subject}</CardTitle>
+                    <CardTitle className="text-white text-lg sm:text-2xl break-words">{ticket.subject}</CardTitle>
                     {getStatusBadge(ticket.status)}
                     {getPriorityBadge(ticket.priority)}
                   </div>

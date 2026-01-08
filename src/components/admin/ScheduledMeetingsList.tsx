@@ -10,6 +10,7 @@ import { Calendar, Clock, Mail, Pencil, Trash2, ExternalLink, User, AtSign } fro
 import type { ScheduledMeeting } from '@/lib/meetings';
 import { getScheduledMeetings, deleteScheduledMeeting, resendMeetingEmail } from '@/lib/meetings';
 import { AlertModal } from '@/components/ui/alert-modal';
+import { ConfirmModal } from '@/components/ui/confirm-modal';
 
 interface ScheduledMeetingsListProps {
   onEdit?: (meeting: ScheduledMeeting) => void;
@@ -27,6 +28,9 @@ export function ScheduledMeetingsList({
   const [error, setError] = useState<string | null>(null);
   const [showAlert, setShowAlert] = useState(false);
   const [alertData, setAlertData] = useState<{ title: string; message: string; variant: 'success' | 'error' | 'warning' | 'info' } | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [meetingToDelete, setMeetingToDelete] = useState<{ id: string; date: string } | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const loadMeetings = async () => {
     setLoading(true);
@@ -61,13 +65,17 @@ export function ScheduledMeetingsList({
     }
   }, [refreshKey]);
 
-  const handleDelete = async (meetingId: string, meetingDate: string) => {
-    if (!confirm(`Are you sure you want to delete the meeting scheduled for ${meetingDate}?`)) {
-      return;
-    }
+  const handleDelete = (meetingId: string, meetingDate: string) => {
+    setMeetingToDelete({ id: meetingId, date: meetingDate });
+    setShowDeleteConfirm(true);
+  };
 
+  const confirmDelete = async () => {
+    if (!meetingToDelete) return;
+
+    setIsDeleting(true);
     try {
-      const result = await deleteScheduledMeeting(meetingId);
+      const result = await deleteScheduledMeeting(meetingToDelete.id);
       if (result.success) {
         setAlertData({
           title: 'Success',
@@ -75,6 +83,8 @@ export function ScheduledMeetingsList({
           variant: 'success',
         });
         setShowAlert(true);
+        setShowDeleteConfirm(false);
+        setMeetingToDelete(null);
         loadMeetings();
       } else {
         setAlertData({
@@ -92,6 +102,8 @@ export function ScheduledMeetingsList({
         variant: 'error',
       });
       setShowAlert(true);
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -306,7 +318,22 @@ export function ScheduledMeetingsList({
           variant={alertData.variant}
         />
       )}
+
+      {/* Delete Confirmation Modal */}
+      <ConfirmModal
+        isOpen={showDeleteConfirm}
+        onClose={() => {
+          setShowDeleteConfirm(false);
+          setMeetingToDelete(null);
+        }}
+        onConfirm={confirmDelete}
+        title="Delete Meeting"
+        message={meetingToDelete ? `Are you sure you want to delete the meeting scheduled for ${formatDate(meetingToDelete.date)}? This action cannot be undone.` : ''}
+        confirmText="Delete"
+        cancelText="Cancel"
+        variant="danger"
+        isLoading={isDeleting}
+      />
     </>
   );
 }
-

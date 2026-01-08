@@ -56,6 +56,11 @@ export function TrendsChart({ data, trends }: TrendsChartProps) {
     const maxValue = Math.max(currentRevenue, projectedRevenue) * 1.2; // 20% acima do maior valor
     const percentage = Math.min(100, (currentRevenue / maxValue) * 100);
 
+    type GaugeSlice = {
+      category: 'Atual' | 'Restante';
+      value: number;
+    };
+
     const series = chart.series.push(
       am5percent.PieSeries.new(root, {
         valueField: 'value',
@@ -67,7 +72,7 @@ export function TrendsChart({ data, trends }: TrendsChartProps) {
     );
 
     // Dados do gauge - semicírculo
-    const gaugeData = [
+    const gaugeData: GaugeSlice[] = [
       {
         category: 'Atual',
         value: currentRevenue,
@@ -83,12 +88,16 @@ export function TrendsChart({ data, trends }: TrendsChartProps) {
     // Configurar cores
     series.slices.template.adapters.add('fill', (fill, target) => {
       const dataItem = target.dataItem;
-      if (dataItem) {
-        const category = dataItem.dataContext?.category;
-        return category === 'Atual' 
-          ? am5.color('#F3E196')
-          : am5.color('#333333');
+      const dataContext = dataItem?.dataContext as GaugeSlice | undefined;
+
+      if (dataContext?.category === 'Atual') {
+        return am5.color('#F3E196');
       }
+
+      if (dataContext?.category === 'Restante') {
+        return am5.color('#333333');
+      }
+
       return fill;
     });
 
@@ -103,7 +112,7 @@ export function TrendsChart({ data, trends }: TrendsChartProps) {
     series.ticks.template.set('visible', false);
 
     // Adicionar label central com valor
-    const label = chart.seriesContainer.children.push(
+    chart.seriesContainer.children.push(
       am5.Label.new(root, {
         text: `$${currentRevenue.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}\n${percentage.toFixed(0)}%`,
         fontSize: 24,
@@ -116,7 +125,7 @@ export function TrendsChart({ data, trends }: TrendsChartProps) {
     );
 
     // Adicionar label de meta
-    const targetLabel = chart.seriesContainer.children.push(
+    chart.seriesContainer.children.push(
       am5.Label.new(root, {
         text: `Meta: $${projectedRevenue.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`,
         fontSize: 12,

@@ -284,9 +284,9 @@ export const ZelleApprovalPage = () => {
   }
 
   return (
-    <div className="p-6">
+    <div className="p-4 sm:p-6 lg:p-8">
       <div className="mb-6">
-        <h1 className="text-3xl font-bold migma-gold-text mb-2">Zelle Payment Approval</h1>
+        <h1 className="text-2xl sm:text-3xl font-bold migma-gold-text mb-2">Zelle Payment Approval</h1>
         <p className="text-gray-400">Review and approve pending Zelle payments</p>
       </div>
 
@@ -306,20 +306,22 @@ export const ZelleApprovalPage = () => {
               className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30"
             >
               <CardHeader>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle className="text-white">Order {order.order_number}</CardTitle>
-                    <p className="text-sm text-gray-400 mt-1">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-base sm:text-lg text-white break-words">Order {order.order_number}</CardTitle>
+                    <p className="text-xs sm:text-sm text-gray-400 mt-1 break-words">
                       {order.client_name} • {order.client_email}
                     </p>
                   </div>
-                  <Badge className="bg-yellow-500/20 text-yellow-300 border-yellow-500/50">
-                    Pending Approval
-                  </Badge>
+                  <div className="flex justify-start sm:justify-end">
+                    <Badge className="bg-yellow-500/20 text-yellow-300 border-yellow-500/50 text-xs">
+                      Pending Approval
+                    </Badge>
+                  </div>
                 </div>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="grid grid-cols-2 gap-4 text-sm">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 text-xs sm:text-sm">
                   <div>
                     <span className="text-gray-400">Product:</span>
                     <span className="text-white ml-2">{order.product_slug}</span>
@@ -381,28 +383,28 @@ export const ZelleApprovalPage = () => {
                   </div>
                 )}
 
-                <div className="border-t border-gold-medium/30 pt-4 flex gap-3">
+                <div className="border-t border-gold-medium/30 pt-4 flex flex-col sm:flex-row gap-2 sm:gap-3">
                   <Button
                     onClick={() => handleApprove(order)}
                     disabled={isProcessing}
-                    className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white"
+                    className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 text-white text-xs sm:text-sm"
                   >
-                    <CheckCircle className="w-4 h-4" />
+                    <CheckCircle className="w-3 h-3 sm:w-4 sm:h-4" />
                     Approve Payment
                   </Button>
                   <Button
                     onClick={() => handleReject(order)}
                     disabled={isProcessing}
                     variant="destructive"
-                    className="flex items-center gap-2"
+                    className="flex-1 sm:flex-none flex items-center justify-center gap-2 text-xs sm:text-sm"
                   >
-                    <XCircle className="w-4 h-4" />
+                    <XCircle className="w-3 h-3 sm:w-4 sm:h-4" />
                     Reject Payment
                   </Button>
-                  <Link to={`/dashboard/visa-orders`}>
+                  <Link to={`/dashboard/visa-orders`} className="flex-1 sm:flex-none">
                     <Button
                       variant="outline"
-                      className="border-gold-medium/50 bg-black/50 text-white hover:bg-gold-medium/20"
+                      className="w-full sm:w-auto flex items-center justify-center border-gold-medium/50 bg-black/50 text-white hover:bg-gold-medium/20 text-xs sm:text-sm"
                     >
                       View All Orders
                     </Button>

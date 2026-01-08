@@ -1,10 +1,10 @@
 import { Link, useLocation } from 'react-router-dom';
-import { LayoutDashboard, TrendingUp, ShoppingCart, Link as LinkIcon, Users, LogOut, BarChart3, Menu, X } from 'lucide-react';
+import { LayoutDashboard, TrendingUp, ShoppingCart, Link as LinkIcon, Users, LogOut, BarChart3, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/lib/supabase';
 import { useNavigate } from 'react-router-dom';
-import { useState, useEffect } from 'react';
+import { useEffect } from 'react';
 
 interface SellerSidebarProps {
   className?: string;

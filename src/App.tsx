@@ -32,7 +32,6 @@ import { SellerFunnel } from './pages/seller/SellerFunnel';
 import { SellerOrders } from './pages/seller/SellerOrders';
 import { SellerLinks } from './pages/seller/SellerLinks';
 import { SellerLeads } from './pages/seller/SellerLeads';
-import { SellerAnalytics } from './pages/seller/SellerAnalytics';
 import { SellerOrderDetail } from './pages/SellerOrderDetail';
 import { SellerRoute } from './components/seller/SellerRoute';
 import { VisaOrdersPage } from './pages/VisaOrdersPage';
@@ -74,7 +73,6 @@ function App() {
         <Route path="/seller/register" element={<SellerRegister />} />
         <Route path="/seller/dashboard" element={<SellerRoute><SellerDashboardLayout /></SellerRoute>}>
           <Route index element={<SellerOverview />} />
-          <Route path="analytics" element={<SellerAnalytics />} />
           <Route path="funnel" element={<SellerFunnel />} />
           <Route path="orders" element={<SellerOrders />} />
           <Route path="links" element={<SellerLinks />} />

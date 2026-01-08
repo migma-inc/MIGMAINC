@@ -200,19 +200,18 @@ export function ContractsPage() {
       <CardHeader>
         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
           <div className="flex-1 min-w-0">
-            <CardTitle className="text-lg sm:text-xl mb-2 text-white break-words">
+            <CardTitle className="text-base sm:text-xl mb-2 text-white break-words">
               {contract.application?.full_name || 'Unknown Partner'}
             </CardTitle>
-            <div className="flex flex-wrap gap-1 sm:gap-2 text-xs sm:text-sm text-gray-400">
-              <span className="flex items-center gap-1 break-words">
+            <div className="flex flex-wrap gap-2 text-xs sm:text-sm text-gray-400">
+              <span className="flex items-center gap-1">
                 <User className="w-3 h-3 sm:w-4 sm:h-4 shrink-0" />
                 <span className="truncate">{contract.application?.email}</span>
               </span>
-              <span className="hidden sm:inline">•</span>
+              <span>•</span>
               <span>{contract.application?.country}</span>
-              <span className="hidden sm:inline">•</span>
-              <span className="hidden sm:inline">Accepted: {formatDate(contract.accepted_at)}</span>
-              <span className="sm:hidden block w-full text-xs mt-1">Accepted: {formatDate(contract.accepted_at)}</span>
+              <span>•</span>
+              <span>Accepted: {formatDate(contract.accepted_at)}</span>
             </div>
           </div>
           <div className="flex justify-start sm:justify-end">
@@ -228,7 +227,7 @@ export function ContractsPage() {
               <FileCode className="w-4 h-4" />
               Legal Records
             </h4>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3 text-xs sm:text-sm">
               {contract.contract_version && (
                 <div className="flex items-start gap-2">
                   <FileCode className="w-4 h-4 text-gold-medium mt-0.5 flex-shrink-0" />
@@ -288,9 +287,9 @@ export function ContractsPage() {
                 size="sm"
                 onClick={() => handleApproveContract(contract)}
                 disabled={isProcessing}
-                className="flex items-center justify-center gap-2 border-green-500/50 bg-green-900/20 text-green-300 hover:bg-green-800/30 hover:text-green-200 text-xs sm:text-sm"
+                className="flex items-center gap-2 border-green-500/50 bg-green-900/20 text-green-300 hover:bg-green-800/30 hover:text-green-200"
               >
-                <Check className="w-3 h-3 sm:w-4 sm:h-4" />
+                <Check className="w-4 h-4" />
                 Approve
               </Button>
               <Button
@@ -298,9 +297,9 @@ export function ContractsPage() {
                 size="sm"
                 onClick={() => handleRejectContract(contract)}
                 disabled={isProcessing}
-                className="flex items-center justify-center gap-2 border-red-500/50 bg-red-900/20 text-red-300 hover:bg-red-800/30 hover:text-red-200 text-xs sm:text-sm"
+                className="flex items-center gap-2 border-red-500/50 bg-red-900/20 text-red-300 hover:bg-red-800/30 hover:text-red-200"
               >
-                <X className="w-3 h-3 sm:w-4 sm:h-4" />
+                <X className="w-4 h-4" />
                 Reject
               </Button>
             </>
@@ -311,7 +310,7 @@ export function ContractsPage() {
                 variant="outline"
                 size="sm"
                 onClick={() => handleViewContract(contract)}
-                className="flex items-center justify-center gap-2 border-gold-medium/50 bg-black/50 text-white hover:bg-gold-medium/30 hover:text-gold-light text-xs sm:text-sm"
+                className="flex-1 sm:flex-none flex items-center justify-center gap-2 border-gold-medium/50 bg-black/50 text-white hover:bg-gold-medium/30 hover:text-gold-light text-xs sm:text-sm"
               >
                 <Eye className="w-3 h-3 sm:w-4 sm:h-4" />
                 <span className="hidden sm:inline">View Contract</span>
@@ -321,7 +320,7 @@ export function ContractsPage() {
                 variant="outline"
                 size="sm"
                 onClick={() => handleDownloadContract(contract)}
-                className="flex items-center justify-center gap-2 border-gold-medium/50 bg-black/50 text-white hover:bg-gold-medium/30 hover:text-gold-light text-xs sm:text-sm"
+                className="flex-1 sm:flex-none flex items-center justify-center gap-2 border-gold-medium/50 bg-black/50 text-white hover:bg-gold-medium/30 hover:text-gold-light text-xs sm:text-sm"
               >
                 <Download className="w-3 h-3 sm:w-4 sm:h-4" />
                 <span className="hidden sm:inline">Download Contract</span>
@@ -335,19 +334,21 @@ export function ContractsPage() {
                 variant="outline"
                 size="sm"
                 onClick={() => handleViewCv(contract)}
-                className="flex items-center justify-center gap-2 border-gold-medium/50 bg-black/50 text-white hover:bg-gold-medium/30 hover:text-gold-light text-xs sm:text-sm"
+                className="flex-1 sm:flex-none flex items-center justify-center gap-2 border-gold-medium/50 bg-black/50 text-white hover:bg-gold-medium/30 hover:text-gold-light text-xs sm:text-sm"
               >
                 <Eye className="w-3 h-3 sm:w-4 sm:h-4" />
-                View CV
+                <span className="hidden sm:inline">View CV</span>
+                <span className="sm:hidden">View CV</span>
               </Button>
               <Button
                 variant="outline"
                 size="sm"
                 onClick={() => handleDownloadCv(contract)}
-                className="flex items-center justify-center gap-2 border-gold-medium/50 bg-black/50 text-white hover:bg-gold-medium/30 hover:text-gold-light text-xs sm:text-sm"
+                className="flex-1 sm:flex-none flex items-center justify-center gap-2 border-gold-medium/50 bg-black/50 text-white hover:bg-gold-medium/30 hover:text-gold-light text-xs sm:text-sm"
               >
                 <FileDown className="w-3 h-3 sm:w-4 sm:h-4" />
-                Download CV
+                <span className="hidden sm:inline">Download CV</span>
+                <span className="sm:hidden">Download</span>
               </Button>
             </>
           )}
@@ -539,14 +540,14 @@ export function ContractsPage() {
   }
 
   return (
-    <div className="p-4 sm:p-6">
+    <div className="p-4 sm:p-6 lg:p-8">
       <div className="mb-4 sm:mb-6">
         <h1 className="text-2xl sm:text-3xl font-bold migma-gold-text mb-2">Accepted Contracts</h1>
         <p className="text-sm sm:text-base text-gray-400">View and manage all accepted partner contracts</p>
         
         {/* Statistics */}
         {stats && (
-          <div className="mt-3 sm:mt-4 flex flex-wrap gap-2 sm:gap-4 text-xs sm:text-sm">
+          <div className="mt-3 sm:mt-4 flex flex-wrap gap-3 sm:gap-4 text-xs sm:text-sm">
             <span className="text-gray-400">Total: <span className="text-white font-semibold">{stats.total}</span></span>
             <span className="text-gray-400">Pending: <span className="text-yellow-300 font-semibold">{stats.pending}</span></span>
             <span className="text-gray-400">Approved: <span className="text-green-300 font-semibold">{stats.approved}</span></span>
@@ -575,8 +576,8 @@ export function ContractsPage() {
       </div>
 
       {/* Tabs for filtering */}
-        <Tabs value={statusFilter} onValueChange={(value) => handleStatusFilterChange(value as 'all' | 'pending' | 'approved' | 'rejected')} className="mb-4 sm:mb-6">
-        <TabsList className="grid w-full grid-cols-4 bg-black/50 border border-gold-medium/30 text-xs sm:text-sm">
+        <Tabs value={statusFilter} onValueChange={(value) => handleStatusFilterChange(value as 'all' | 'pending' | 'approved' | 'rejected')} className="mb-6">
+        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 bg-black/50 border border-gold-medium/30 text-xs sm:text-sm">
           <TabsTrigger 
             value="all"
             className="data-[state=active]:bg-gold-medium data-[state=active]:text-black data-[state=inactive]:text-gray-400 data-[state=inactive]:hover:text-gold-light border-r border-gold-medium/30"
