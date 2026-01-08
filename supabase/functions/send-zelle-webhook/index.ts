@@ -342,6 +342,29 @@ Deno.serve(async (req: Request) => {
       payment_status: order.payment_status,
     });
 
+    // Check zelle_payments record for n8n validation info
+    const { data: zellePayment } = await supabase
+      .from("zelle_payments")
+      .select("*")
+      .eq("order_id", order.id)
+      .maybeSingle();
+
+    if (zellePayment) {
+      console.log("[Zelle Webhook] Zelle payment record found:", {
+        payment_id: zellePayment.payment_id,
+        status: zellePayment.status,
+        n8n_confidence: zellePayment.n8n_confidence,
+        n8n_validated_at: zellePayment.n8n_validated_at,
+      });
+
+      // If zelle_payment status is not approved, log warning
+      if (zellePayment.status !== 'approved') {
+        console.warn("[Zelle Webhook] Warning: zelle_payment status is not 'approved':", zellePayment.status);
+      }
+    } else {
+      console.log("[Zelle Webhook] No zelle_payment record found for this order (legacy payment)");
+    }
+
     // Update payment record if exists
     if (order.service_request_id) {
       // Try to find payment record by service_request_id and order_id

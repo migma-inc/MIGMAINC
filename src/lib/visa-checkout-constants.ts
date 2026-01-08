@@ -4,14 +4,25 @@ export const TERMS_VERSION = 'v1.0-2025-01-15';
 // localStorage key for draft
 export const DRAFT_STORAGE_KEY = 'visa_checkout_draft';
 
-// Lista de países
-export const countries = [
-  'Brazil', 'Portugal', 'Angola', 'Mozambique', 'Cape Verde', 'United States', 'United Kingdom',
-  'Canada', 'Australia', 'Germany', 'France', 'Spain', 'Italy', 'Netherlands', 'Belgium',
-  'Switzerland', 'Austria', 'Sweden', 'Norway', 'Denmark', 'Finland', 'Poland', 'Czech Republic',
-  'Ireland', 'New Zealand', 'Japan', 'South Korea', 'Singapore', 'Hong Kong', 'Mexico', 'Argentina',
-  'Chile', 'Colombia', 'Peru', 'Ecuador', 'Uruguay', 'Paraguay', 'Venezuela', 'Other'
+// Lista de países (sem "Other") - já ordenada alfabeticamente
+const countriesList = [
+  'Angola', 'Argentina', 'Australia', 'Austria', 'Belgium', 'Brazil', 'Canada', 'Cape Verde',
+  'Chile', 'Colombia', 'Czech Republic', 'Denmark', 'Ecuador', 'Finland', 'France', 'Germany',
+  'Hong Kong', 'Ireland', 'Italy', 'Japan', 'Mexico', 'Mozambique', 'Netherlands', 'New Zealand',
+  'Norway', 'Paraguay', 'Peru', 'Poland', 'Portugal', 'Singapore', 'South Korea', 'Spain',
+  'Sweden', 'Switzerland', 'United Kingdom', 'United States', 'Uruguay', 'Venezuela'
 ];
+
+/**
+ * Retorna lista de países ordenada alfabeticamente com "Other" sempre por último
+ * @returns Array de países ordenado
+ */
+export function getSortedCountries(): string[] {
+  return [...countriesList, 'Other'];
+}
+
+// Lista de países ordenada (com "Other" no final)
+export const countries = getSortedCountries();
 
 // Mapeamento de países para códigos de telefone
 export const countryPhoneCodes: Record<string, string> = {

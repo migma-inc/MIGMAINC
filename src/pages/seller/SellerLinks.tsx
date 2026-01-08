@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { getSortedCountries, getPhoneCodeFromCountry } from '@/lib/visa-checkout-constants';
 
 interface SellerInfo {
   id: string;
@@ -49,57 +50,14 @@ interface PrefillFormData {
   clientObservations: string;
 }
 
-// Lista de países
-const countries = [
-  'Brazil', 'Portugal', 'Angola', 'Mozambique', 'Cape Verde', 'United States', 'United Kingdom',
-  'Canada', 'Australia', 'Germany', 'France', 'Spain', 'Italy', 'Netherlands', 'Belgium',
-  'Switzerland', 'Austria', 'Sweden', 'Norway', 'Denmark', 'Finland', 'Poland', 'Czech Republic',
-  'Ireland', 'New Zealand', 'Japan', 'South Korea', 'Singapore', 'Hong Kong', 'Mexico', 'Argentina',
-  'Chile', 'Colombia', 'Peru', 'Ecuador', 'Uruguay', 'Paraguay', 'Venezuela', 'Other'
-];
+interface PrefillValidationResult {
+  valid: boolean;
+  errors?: Record<string, string>;
+  firstErrorField?: string;
+}
 
-// Mapeamento de países para códigos de telefone
-const countryPhoneCodes: Record<string, string> = {
-  'Brazil': '+55',
-  'Portugal': '+351',
-  'Angola': '+244',
-  'Mozambique': '+258',
-  'Cape Verde': '+238',
-  'United States': '+1',
-  'United Kingdom': '+44',
-  'Canada': '+1',
-  'Australia': '+61',
-  'Germany': '+49',
-  'France': '+33',
-  'Spain': '+34',
-  'Italy': '+39',
-  'Netherlands': '+31',
-  'Belgium': '+32',
-  'Switzerland': '+41',
-  'Austria': '+43',
-  'Sweden': '+46',
-  'Norway': '+47',
-  'Denmark': '+45',
-  'Finland': '+358',
-  'Poland': '+48',
-  'Czech Republic': '+420',
-  'Ireland': '+353',
-  'New Zealand': '+64',
-  'Japan': '+81',
-  'South Korea': '+82',
-  'Singapore': '+65',
-  'Hong Kong': '+852',
-  'Mexico': '+52',
-  'Argentina': '+54',
-  'Chile': '+56',
-  'Colombia': '+57',
-  'Peru': '+51',
-  'Ecuador': '+593',
-  'Uruguay': '+598',
-  'Paraguay': '+595',
-  'Venezuela': '+58',
-  'Other': '+',
-};
+// Lista de países ordenada alfabeticamente com "Other" por último
+const countries = getSortedCountries();
 
 const PRODUCTS_CACHE_KEY = 'seller_products_cache';
 const PRODUCTS_CACHE_TIMESTAMP_KEY = 'seller_products_cache_timestamp';
@@ -184,8 +142,199 @@ export function SellerLinks() {
   });
   const [generatedPrefillLink, setGeneratedPrefillLink] = useState<string | null>(null);
   const [prefillError, setPrefillError] = useState('');
+  const [prefillFieldErrors, setPrefillFieldErrors] = useState<Record<string, string>>({});
   const [prefillFormExpanded, setPrefillFormExpanded] = useState(false);
   const [prefillFormStep, setPrefillFormStep] = useState(1);
+
+  // Scroll helper for first field with error
+  function scrollToPrefillFirstError(fieldName: string) {
+    const fieldIdMap: Record<string, string> = {
+      productSlug: 'prefill-product',
+      extraUnits: 'prefill-extra-units',
+      dependentNames: 'prefill-dependent-name-0',
+      clientName: 'prefill-name',
+      clientEmail: 'prefill-email',
+      dateOfBirth: 'prefill-dob',
+      documentType: 'prefill-doc-type',
+      documentNumber: 'prefill-doc-number',
+      addressLine: 'prefill-address',
+      city: 'prefill-city',
+      state: 'prefill-state',
+      postalCode: 'prefill-postal',
+      clientCountry: 'prefill-country',
+      clientNationality: 'prefill-nationality',
+      clientWhatsApp: 'prefill-whatsapp',
+      maritalStatus: 'prefill-marital',
+    };
+
+    setTimeout(() => {
+      const elementId = fieldIdMap[fieldName] || fieldName;
+      const element = document.getElementById(elementId);
+      if (element) {
+        element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        if (element.tagName === 'INPUT' || element.tagName === 'SELECT' || element.tagName === 'TEXTAREA') {
+          (element as HTMLElement).focus();
+        }
+      }
+    }, 100);
+  }
+
+  // Step 1 validation (basic info)
+  function validatePrefillStep1(formData: PrefillFormData): PrefillValidationResult {
+    const errors: Record<string, string> = {};
+
+    if (!formData.productSlug.trim()) {
+      errors.productSlug = 'Please select a product';
+    }
+
+    if (!formData.clientName.trim()) {
+      errors.clientName = 'Full name is required';
+    }
+
+    const email = formData.clientEmail.trim();
+    if (!email) {
+      errors.clientEmail = 'Email is required';
+    } else if (email.includes(' ')) {
+      errors.clientEmail = 'Email cannot contain spaces';
+    } else if (!email.includes('@')) {
+      errors.clientEmail = 'Email must contain @';
+    } else {
+      const emailParts = email.split('@');
+      if (emailParts.length !== 2) {
+        errors.clientEmail = 'Invalid email format';
+      } else {
+        const [localPart, domainPart] = emailParts;
+        if (!localPart || localPart.length === 0) {
+          errors.clientEmail = 'Email must have characters before @';
+        } else if (!domainPart || domainPart.length === 0) {
+          errors.clientEmail = 'Email must have characters after @';
+        } else if (!domainPart.includes('.')) {
+          errors.clientEmail = 'Email must have a dot after @';
+        } else {
+          const domainParts = domainPart.split('.');
+          const lastPart = domainParts[domainParts.length - 1];
+          if (!lastPart || lastPart.length === 0) {
+            errors.clientEmail = 'Email must have characters after the dot';
+          }
+        }
+      }
+    }
+
+    if (!formData.dateOfBirth) {
+      errors.dateOfBirth = 'Date of birth is required';
+    } else {
+      const birthDate = new Date(formData.dateOfBirth);
+      if (isNaN(birthDate.getTime())) {
+        errors.dateOfBirth = 'Invalid date of birth';
+      } else {
+        const year = birthDate.getFullYear();
+        if (year < 1900) {
+          errors.dateOfBirth = 'Date of birth year must be 1900 or later';
+        } else {
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+          const birthDateNormalized = new Date(birthDate);
+          birthDateNormalized.setHours(0, 0, 0, 0);
+          if (birthDateNormalized >= today) {
+            errors.dateOfBirth = 'Date of birth must be in the past';
+          }
+        }
+      }
+    }
+
+    if (!formData.documentType) {
+      errors.documentType = 'Document type is required';
+    }
+
+    if (!formData.documentNumber.trim() || formData.documentNumber.length < 5) {
+      errors.documentNumber = 'Document number is required (minimum 5 characters)';
+    }
+
+    // Dependent names if extraUnits > 0
+    if (formData.extraUnits > 0) {
+      if (formData.dependentNames.length !== formData.extraUnits) {
+        errors.dependentNames = 'Please provide names for all dependents';
+      } else {
+        const emptyNames = formData.dependentNames.filter(name => !name || name.trim() === '');
+        if (emptyNames.length > 0) {
+          errors.dependentNames = 'All dependent names must be filled';
+        }
+      }
+    }
+
+    const valid = Object.keys(errors).length === 0;
+    return {
+      valid,
+      errors: valid ? undefined : errors,
+      firstErrorField: valid ? undefined : Object.keys(errors)[0],
+    };
+  }
+
+  // Full validation (all steps)
+  function validatePrefillForm(formData: PrefillFormData): PrefillValidationResult {
+    // First validate basic info
+    const step1Result = validatePrefillStep1(formData);
+    if (!step1Result.valid) {
+      return step1Result;
+    }
+
+    const errors: Record<string, string> = {};
+
+    // Address
+    if (!formData.addressLine.trim()) {
+      errors.addressLine = 'Address is required';
+    }
+
+    const city = formData.city.trim();
+    if (!city) {
+      errors.city = 'City is required';
+    } else {
+      const cityRegex = /^[a-zA-Z\s\-']+$/;
+      if (!cityRegex.test(city)) {
+        errors.city = 'City must contain only letters, spaces, hyphens, and apostrophes';
+      }
+    }
+
+    const state = formData.state.trim();
+    if (!state) {
+      errors.state = 'State is required';
+    } else {
+      const stateRegex = /^[a-zA-Z\s\-']+$/;
+      if (!stateRegex.test(state)) {
+        errors.state = 'State must contain only letters, spaces, hyphens, and apostrophes';
+      }
+    }
+
+    if (!formData.postalCode.trim()) {
+      errors.postalCode = 'Postal code is required';
+    }
+
+    if (!formData.clientCountry.trim()) {
+      errors.clientCountry = 'Country is required';
+    }
+
+    if (!formData.clientNationality.trim()) {
+      errors.clientNationality = 'Nationality is required';
+    }
+
+    const whatsapp = formData.clientWhatsApp.trim();
+    if (!whatsapp) {
+      errors.clientWhatsApp = 'WhatsApp with country code (e.g., +1) is required';
+    } else if (!whatsapp.startsWith('+')) {
+      errors.clientWhatsApp = 'WhatsApp must start with country code (e.g., +1)';
+    }
+
+    if (!formData.maritalStatus) {
+      errors.maritalStatus = 'Marital status is required';
+    }
+
+    const valid = Object.keys(errors).length === 0;
+    return {
+      valid,
+      errors: valid ? undefined : errors,
+      firstErrorField: valid ? undefined : Object.keys(errors)[0],
+    };
+  }
 
   useEffect(() => {
     // Se já temos produtos no estado e já carregou, não precisa fazer nada
@@ -418,9 +567,21 @@ export function SellerLinks() {
                     <Label htmlFor="prefill-product" className="text-white text-sm">Select Product *</Label>
                     <Select
                       value={prefillFormData.productSlug}
-                      onValueChange={(value) => setPrefillFormData({ ...prefillFormData, productSlug: value })}
+                      onValueChange={(value) => {
+                        setPrefillFormData({ ...prefillFormData, productSlug: value });
+                        if (prefillFieldErrors.productSlug) {
+                          setPrefillFieldErrors(prev => {
+                            const next = { ...prev };
+                            delete next.productSlug;
+                            return next;
+                          });
+                        }
+                      }}
                     >
-                      <SelectTrigger className="bg-white text-black h-9 text-sm">
+                      <SelectTrigger
+                        id="prefill-product"
+                        className={`bg-white text-black h-9 text-sm ${prefillFieldErrors.productSlug ? 'border-2 border-red-500' : ''}`}
+                      >
                         <SelectValue placeholder="Select a product" />
                       </SelectTrigger>
                       <SelectContent>
@@ -431,6 +592,9 @@ export function SellerLinks() {
                         ))}
                       </SelectContent>
                     </Select>
+                    {prefillFieldErrors.productSlug && (
+                      <p className="text-red-400 text-xs mt-1">{prefillFieldErrors.productSlug}</p>
+                    )}
                   </div>
 
                   {/* Dependents & Full Name */}
@@ -444,15 +608,12 @@ export function SellerLinks() {
                           onValueChange={(value) => {
                             const newExtraUnits = parseInt(value);
                             setPrefillFormData((prev) => {
-                              // Ajustar array de nomes quando quantidade muda
                               let newDependentNames = prev.dependentNames;
                               if (newExtraUnits === 0) {
                                 newDependentNames = [];
                               } else if (newExtraUnits < prev.dependentNames.length) {
-                                // Diminuir: remover nomes excedentes
                                 newDependentNames = prev.dependentNames.slice(0, newExtraUnits);
                               } else if (newExtraUnits > prev.dependentNames.length) {
-                                // Aumentar: adicionar slots vazios
                                 newDependentNames = [...prev.dependentNames];
                                 while (newDependentNames.length < newExtraUnits) {
                                   newDependentNames.push('');
@@ -460,9 +621,19 @@ export function SellerLinks() {
                               }
                               return { ...prev, extraUnits: newExtraUnits, dependentNames: newDependentNames };
                             });
+                            if (prefillFieldErrors.dependentNames) {
+                              setPrefillFieldErrors(prev => {
+                                const next = { ...prev };
+                                delete next.dependentNames;
+                                return next;
+                              });
+                            }
                           }}
                         >
-                          <SelectTrigger className="bg-white text-black h-9 text-sm">
+                          <SelectTrigger
+                            id="prefill-extra-units"
+                            className="bg-white text-black h-9 text-sm"
+                          >
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
@@ -495,9 +666,22 @@ export function SellerLinks() {
                       <Input
                         id="prefill-name"
                         value={prefillFormData.clientName}
-                        onChange={(e) => setPrefillFormData({ ...prefillFormData, clientName: e.target.value })}
-                        className="bg-white text-black h-9 text-sm"
+                        onChange={(e) => {
+                          setPrefillFormData({ ...prefillFormData, clientName: e.target.value });
+                          if (prefillFieldErrors.clientName) {
+                            setPrefillFieldErrors(prev => {
+                              const next = { ...prev };
+                              delete next.clientName;
+                              return next;
+                            });
+                          }
+                        }}
+                        className={`bg-white text-black h-9 text-sm ${prefillFieldErrors.clientName ? 'border-2 border-red-500' : ''}`}
+                        required
                       />
+                      {prefillFieldErrors.clientName && (
+                        <p className="text-red-400 text-xs mt-1">{prefillFieldErrors.clientName}</p>
+                      )}
                     </div>
                   </div>
 
@@ -516,12 +700,22 @@ export function SellerLinks() {
                               const newNames = [...prefillFormData.dependentNames];
                               newNames[i] = e.target.value;
                               setPrefillFormData({ ...prefillFormData, dependentNames: newNames });
+                              if (prefillFieldErrors.dependentNames) {
+                                setPrefillFieldErrors(prev => {
+                                  const next = { ...prev };
+                                  delete next.dependentNames;
+                                  return next;
+                                });
+                              }
                             }}
                             className="bg-white text-black h-9 text-sm"
                             required
                           />
                         </div>
                       ))}
+                      {prefillFieldErrors.dependentNames && (
+                        <p className="text-red-400 text-xs mt-1">{prefillFieldErrors.dependentNames}</p>
+                      )}
                     </div>
                   )}
 
@@ -534,9 +728,23 @@ export function SellerLinks() {
                         id="prefill-email"
                         type="email"
                         value={prefillFormData.clientEmail}
-                        onChange={(e) => setPrefillFormData({ ...prefillFormData, clientEmail: e.target.value })}
-                        className="bg-white text-black h-9 text-sm"
+                        onChange={(e) => {
+                          const value = e.target.value.replace(/\s/g, '');
+                          setPrefillFormData({ ...prefillFormData, clientEmail: value });
+                          if (prefillFieldErrors.clientEmail) {
+                            setPrefillFieldErrors(prev => {
+                              const next = { ...prev };
+                              delete next.clientEmail;
+                              return next;
+                            });
+                          }
+                        }}
+                        className={`bg-white text-black h-9 text-sm ${prefillFieldErrors.clientEmail ? 'border-2 border-red-500' : ''}`}
+                        required
                       />
+                      {prefillFieldErrors.clientEmail && (
+                        <p className="text-red-400 text-xs mt-1">{prefillFieldErrors.clientEmail}</p>
+                      )}
                     </div>
 
                     {/* Date of Birth */}
@@ -545,10 +753,24 @@ export function SellerLinks() {
                       <Input
                         id="prefill-dob"
                         type="date"
+                        min="1900-01-01"
                         value={prefillFormData.dateOfBirth}
-                        onChange={(e) => setPrefillFormData({ ...prefillFormData, dateOfBirth: e.target.value })}
-                        className="bg-white text-black h-9 text-sm"
+                        onChange={(e) => {
+                          setPrefillFormData({ ...prefillFormData, dateOfBirth: e.target.value });
+                          if (prefillFieldErrors.dateOfBirth) {
+                            setPrefillFieldErrors(prev => {
+                              const next = { ...prev };
+                              delete next.dateOfBirth;
+                              return next;
+                            });
+                          }
+                        }}
+                        className={`bg-white text-black h-9 text-sm ${prefillFieldErrors.dateOfBirth ? 'border-2 border-red-500' : ''}`}
+                        required
                       />
+                      {prefillFieldErrors.dateOfBirth && (
+                        <p className="text-red-400 text-xs mt-1">{prefillFieldErrors.dateOfBirth}</p>
+                      )}
                     </div>
                   </div>
 
@@ -558,9 +780,21 @@ export function SellerLinks() {
                       <Label htmlFor="prefill-doc-type" className="text-white text-sm">Document Type *</Label>
                       <Select
                         value={prefillFormData.documentType}
-                        onValueChange={(value: any) => setPrefillFormData({ ...prefillFormData, documentType: value })}
+                        onValueChange={(value: any) => {
+                          setPrefillFormData({ ...prefillFormData, documentType: value });
+                          if (prefillFieldErrors.documentType) {
+                            setPrefillFieldErrors(prev => {
+                              const next = { ...prev };
+                              delete next.documentType;
+                              return next;
+                            });
+                          }
+                        }}
                       >
-                        <SelectTrigger className="bg-white text-black h-9 text-sm">
+                        <SelectTrigger
+                          id="prefill-doc-type"
+                          className={`bg-white text-black h-9 text-sm ${prefillFieldErrors.documentType ? 'border-2 border-red-500' : ''}`}
+                        >
                           <SelectValue placeholder="Select type" />
                         </SelectTrigger>
                         <SelectContent>
@@ -569,22 +803,50 @@ export function SellerLinks() {
                           <SelectItem value="driver_license">Driver's License</SelectItem>
                         </SelectContent>
                       </Select>
+                      {prefillFieldErrors.documentType && (
+                        <p className="text-red-400 text-xs mt-1">{prefillFieldErrors.documentType}</p>
+                      )}
                     </div>
                     <div className="space-y-1.5">
                       <Label htmlFor="prefill-doc-number" className="text-white text-sm">Document Number *</Label>
                       <Input
                         id="prefill-doc-number"
                         value={prefillFormData.documentNumber}
-                        onChange={(e) => setPrefillFormData({ ...prefillFormData, documentNumber: e.target.value })}
-                        className="bg-white text-black h-9 text-sm"
+                        onChange={(e) => {
+                          setPrefillFormData({ ...prefillFormData, documentNumber: e.target.value });
+                          if (prefillFieldErrors.documentNumber) {
+                            setPrefillFieldErrors(prev => {
+                              const next = { ...prev };
+                              delete next.documentNumber;
+                              return next;
+                            });
+                          }
+                        }}
+                        className={`bg-white text-black h-9 text-sm ${prefillFieldErrors.documentNumber ? 'border-2 border-red-500' : ''}`}
+                        required
                       />
+                      {prefillFieldErrors.documentNumber && (
+                        <p className="text-red-400 text-xs mt-1">{prefillFieldErrors.documentNumber}</p>
+                      )}
                     </div>
                   </div>
 
                   {/* Navigation */}
                   <div className="flex justify-end pt-2">
                     <Button
-                      onClick={() => setPrefillFormStep(2)}
+                      onClick={() => {
+                        setPrefillError('');
+                        const result = validatePrefillStep1(prefillFormData);
+                        if (!result.valid && result.errors) {
+                          setPrefillFieldErrors(result.errors);
+                          if (result.firstErrorField) {
+                            scrollToPrefillFirstError(result.firstErrorField);
+                          }
+                          return;
+                        }
+                        setPrefillFieldErrors({});
+                        setPrefillFormStep(2);
+                      }}
                       className="bg-gold-medium hover:bg-gold-light text-black h-9 text-sm"
                     >
                       Next: Address & Details
@@ -603,9 +865,21 @@ export function SellerLinks() {
                     <Input
                       id="prefill-address"
                       value={prefillFormData.addressLine}
-                      onChange={(e) => setPrefillFormData({ ...prefillFormData, addressLine: e.target.value })}
-                      className="bg-white text-black h-9 text-sm"
+                      onChange={(e) => {
+                        setPrefillFormData({ ...prefillFormData, addressLine: e.target.value });
+                        if (prefillFieldErrors.addressLine) {
+                          setPrefillFieldErrors(prev => {
+                            const next = { ...prev };
+                            delete next.addressLine;
+                            return next;
+                          });
+                        }
+                      }}
+                      className={`bg-white text-black h-9 text-sm ${prefillFieldErrors.addressLine ? 'border-2 border-red-500' : ''}`}
                     />
+                    {prefillFieldErrors.addressLine && (
+                      <p className="text-red-400 text-xs mt-1">{prefillFieldErrors.addressLine}</p>
+                    )}
                   </div>
 
                   {/* City, State, Postal Code */}
@@ -615,27 +889,68 @@ export function SellerLinks() {
                       <Input
                         id="prefill-city"
                         value={prefillFormData.city}
-                        onChange={(e) => setPrefillFormData({ ...prefillFormData, city: e.target.value })}
-                        className="bg-white text-black h-9 text-sm"
+                        onChange={(e) => {
+                          const value = e.target.value.replace(/[^a-zA-Z\s\-']/g, '');
+                          setPrefillFormData({ ...prefillFormData, city: value });
+                          if (prefillFieldErrors.city) {
+                            setPrefillFieldErrors(prev => {
+                              const next = { ...prev };
+                              delete next.city;
+                              return next;
+                            });
+                          }
+                        }}
+                        className={`bg-white text-black h-9 text-sm ${prefillFieldErrors.city ? 'border-2 border-red-500' : ''}`}
+                        required
                       />
+                      {prefillFieldErrors.city && (
+                        <p className="text-red-400 text-xs mt-1">{prefillFieldErrors.city}</p>
+                      )}
                     </div>
                     <div className="space-y-1.5">
                       <Label htmlFor="prefill-state" className="text-white text-sm">State *</Label>
                       <Input
                         id="prefill-state"
                         value={prefillFormData.state}
-                        onChange={(e) => setPrefillFormData({ ...prefillFormData, state: e.target.value })}
-                        className="bg-white text-black h-9 text-sm"
+                        onChange={(e) => {
+                          const value = e.target.value.replace(/[^a-zA-Z\s\-']/g, '');
+                          setPrefillFormData({ ...prefillFormData, state: value });
+                          if (prefillFieldErrors.state) {
+                            setPrefillFieldErrors(prev => {
+                              const next = { ...prev };
+                              delete next.state;
+                              return next;
+                            });
+                          }
+                        }}
+                        className={`bg-white text-black h-9 text-sm ${prefillFieldErrors.state ? 'border-2 border-red-500' : ''}`}
+                        required
                       />
+                      {prefillFieldErrors.state && (
+                        <p className="text-red-400 text-xs mt-1">{prefillFieldErrors.state}</p>
+                      )}
                     </div>
                     <div className="space-y-1.5">
                       <Label htmlFor="prefill-postal" className="text-white text-sm">Postal Code *</Label>
                       <Input
                         id="prefill-postal"
                         value={prefillFormData.postalCode}
-                        onChange={(e) => setPrefillFormData({ ...prefillFormData, postalCode: e.target.value })}
-                        className="bg-white text-black h-9 text-sm"
+                        onChange={(e) => {
+                          setPrefillFormData({ ...prefillFormData, postalCode: e.target.value });
+                          if (prefillFieldErrors.postalCode) {
+                            setPrefillFieldErrors(prev => {
+                              const next = { ...prev };
+                              delete next.postalCode;
+                              return next;
+                            });
+                          }
+                        }}
+                        className={`bg-white text-black h-9 text-sm ${prefillFieldErrors.postalCode ? 'border-2 border-red-500' : ''}`}
+                        required
                       />
+                      {prefillFieldErrors.postalCode && (
+                        <p className="text-red-400 text-xs mt-1">{prefillFieldErrors.postalCode}</p>
+                      )}
                     </div>
                   </div>
 
@@ -646,11 +961,9 @@ export function SellerLinks() {
                       <Select
                         value={prefillFormData.clientCountry}
                         onValueChange={(value) => {
-                          const phoneCode = countryPhoneCodes[value] || '+';
-                          // Se o WhatsApp já tem um código de país, substituir; senão, adicionar o novo código
+                          const phoneCode = getPhoneCodeFromCountry(value);
                           let newWhatsApp = prefillFormData.clientWhatsApp;
                           if (newWhatsApp) {
-                            // Remove qualquer código de país existente (começa com +)
                             const withoutCode = newWhatsApp.replace(/^\+\d{1,4}\s*/, '');
                             newWhatsApp = phoneCode + (withoutCode ? ' ' + withoutCode : '');
                           } else {
@@ -661,9 +974,19 @@ export function SellerLinks() {
                             clientCountry: value,
                             clientWhatsApp: newWhatsApp
                           });
+                          if (prefillFieldErrors.clientCountry) {
+                            setPrefillFieldErrors(prev => {
+                              const next = { ...prev };
+                              delete next.clientCountry;
+                              return next;
+                            });
+                          }
                         }}
                       >
-                        <SelectTrigger className="bg-white text-black h-9 text-sm">
+                        <SelectTrigger
+                          id="prefill-country"
+                          className={`bg-white text-black h-9 text-sm ${prefillFieldErrors.clientCountry ? 'border-2 border-red-500' : ''}`}
+                        >
                           <SelectValue placeholder="Select country" />
                         </SelectTrigger>
                         <SelectContent>
@@ -674,14 +997,29 @@ export function SellerLinks() {
                           ))}
                         </SelectContent>
                       </Select>
+                      {prefillFieldErrors.clientCountry && (
+                        <p className="text-red-400 text-xs mt-1">{prefillFieldErrors.clientCountry}</p>
+                      )}
                     </div>
                     <div className="space-y-1.5">
                       <Label htmlFor="prefill-nationality" className="text-white text-sm">Nationality *</Label>
                       <Select
                         value={prefillFormData.clientNationality}
-                        onValueChange={(value) => setPrefillFormData({ ...prefillFormData, clientNationality: value })}
+                        onValueChange={(value) => {
+                          setPrefillFormData({ ...prefillFormData, clientNationality: value });
+                          if (prefillFieldErrors.clientNationality) {
+                            setPrefillFieldErrors(prev => {
+                              const next = { ...prev };
+                              delete next.clientNationality;
+                              return next;
+                            });
+                          }
+                        }}
                       >
-                        <SelectTrigger className="bg-white text-black h-9 text-sm">
+                        <SelectTrigger
+                          id="prefill-nationality"
+                          className={`bg-white text-black h-9 text-sm ${prefillFieldErrors.clientNationality ? 'border-2 border-red-500' : ''}`}
+                        >
                           <SelectValue placeholder="Select nationality" />
                         </SelectTrigger>
                         <SelectContent>
@@ -692,6 +1030,9 @@ export function SellerLinks() {
                           ))}
                         </SelectContent>
                       </Select>
+                      {prefillFieldErrors.clientNationality && (
+                        <p className="text-red-400 text-xs mt-1">{prefillFieldErrors.clientNationality}</p>
+                      )}
                     </div>
                   </div>
 
@@ -704,17 +1045,42 @@ export function SellerLinks() {
                         type="tel"
                         placeholder="+55 11 98765 4321"
                         value={prefillFormData.clientWhatsApp}
-                        onChange={(e) => setPrefillFormData({ ...prefillFormData, clientWhatsApp: e.target.value })}
-                        className="bg-white text-black h-9 text-sm"
+                        onChange={(e) => {
+                          setPrefillFormData({ ...prefillFormData, clientWhatsApp: e.target.value });
+                          if (prefillFieldErrors.clientWhatsApp) {
+                            setPrefillFieldErrors(prev => {
+                              const next = { ...prev };
+                              delete next.clientWhatsApp;
+                              return next;
+                            });
+                          }
+                        }}
+                        className={`bg-white text-black h-9 text-sm ${prefillFieldErrors.clientWhatsApp ? 'border-2 border-red-500' : ''}`}
+                        required
                       />
+                      {prefillFieldErrors.clientWhatsApp && (
+                        <p className="text-red-400 text-xs mt-1">{prefillFieldErrors.clientWhatsApp}</p>
+                      )}
                     </div>
                     <div className="space-y-1.5">
                       <Label htmlFor="prefill-marital" className="text-white text-sm">Marital Status *</Label>
                       <Select
                         value={prefillFormData.maritalStatus}
-                        onValueChange={(value: any) => setPrefillFormData({ ...prefillFormData, maritalStatus: value })}
+                        onValueChange={(value: any) => {
+                          setPrefillFormData({ ...prefillFormData, maritalStatus: value });
+                          if (prefillFieldErrors.maritalStatus) {
+                            setPrefillFieldErrors(prev => {
+                              const next = { ...prev };
+                              delete next.maritalStatus;
+                              return next;
+                            });
+                          }
+                        }}
                       >
-                        <SelectTrigger className="bg-white text-black h-9 text-sm">
+                        <SelectTrigger
+                          id="prefill-marital"
+                          className={`bg-white text-black h-9 text-sm ${prefillFieldErrors.maritalStatus ? 'border-2 border-red-500' : ''}`}
+                        >
                           <SelectValue placeholder="Select status" />
                         </SelectTrigger>
                         <SelectContent>
@@ -725,6 +1091,9 @@ export function SellerLinks() {
                           <SelectItem value="other">Other</SelectItem>
                         </SelectContent>
                       </Select>
+                      {prefillFieldErrors.maritalStatus && (
+                        <p className="text-red-400 text-xs mt-1">{prefillFieldErrors.maritalStatus}</p>
+                      )}
                     </div>
                   </div>
 
@@ -802,17 +1171,17 @@ export function SellerLinks() {
               {prefillFormStep === 2 && (
                 <Button
                   onClick={async () => {
-                    // Validate required fields
-                    if (!prefillFormData.productSlug) {
-                      setPrefillError('Please select a product');
-                      return;
-                    }
-                    if (!prefillFormData.clientName || !prefillFormData.clientEmail) {
-                      setPrefillError('Please fill in at least client name and email');
+                    const validation = validatePrefillForm(prefillFormData);
+                    if (!validation.valid) {
+                      setPrefillFieldErrors(validation.errors || {});
+                      if (validation.firstErrorField) {
+                        scrollToPrefillFirstError(validation.firstErrorField);
+                      }
                       return;
                     }
 
                     setPrefillError('');
+                    setPrefillFieldErrors({});
                     
                     // Generate token and create prefill record
                     try {
