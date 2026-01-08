@@ -145,9 +145,9 @@ export const SellersPage = () => {
   }
 
   return (
-    <div className="min-h-screen bg-black py-8 px-4">
+    <div className="p-4 sm:p-6 lg:p-8">
       <div className="max-w-7xl mx-auto">
-        <h1 className="text-3xl font-bold migma-gold-text mb-8">Sellers & Sales</h1>
+        <h1 className="text-2xl sm:text-3xl font-bold migma-gold-text mb-4 sm:mb-8">Sellers & Sales</h1>
 
         {sellersStats.length === 0 ? (
           <Card className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30">
@@ -166,25 +166,25 @@ export const SellersPage = () => {
                   className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30"
                 >
                   <CardHeader>
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-2 sm:gap-4 flex-1 min-w-0">
                         <Button
                           variant="ghost"
                           size="sm"
                           onClick={() => toggleSeller(stats.seller.id)}
-                          className="p-1 h-auto text-gold-light hover:text-gold-medium"
+                          className="p-1 h-auto text-gold-light hover:text-gold-medium shrink-0"
                         >
                           {isExpanded ? (
-                            <ChevronDown className="w-5 h-5" />
+                            <ChevronDown className="w-4 h-4 sm:w-5 sm:h-5" />
                           ) : (
-                            <ChevronRight className="w-5 h-5" />
+                            <ChevronRight className="w-4 h-4 sm:w-5 sm:h-5" />
                           )}
                         </Button>
-                        <div>
-                          <CardTitle className="text-white text-xl">
+                        <div className="flex-1 min-w-0">
+                          <CardTitle className="text-white text-base sm:text-xl break-words">
                             {stats.seller.full_name || stats.seller.email}
                           </CardTitle>
-                          <p className="text-sm text-gray-400 mt-1">
+                          <p className="text-xs sm:text-sm text-gray-400 mt-1 break-words">
                             ID: {stats.seller.seller_id_public} | {stats.seller.email}
                           </p>
                         </div>
@@ -193,34 +193,34 @@ export const SellersPage = () => {
                   </CardHeader>
                   <CardContent>
                     {/* Statistics */}
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
-                      <div className="bg-black/30 rounded-lg p-4 border border-gold-medium/20">
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 mb-4">
+                      <div className="bg-black/30 rounded-lg p-3 sm:p-4 border border-gold-medium/20">
                         <div className="flex items-center gap-2 mb-2">
-                          <ShoppingCart className="w-4 h-4 text-gold-light" />
-                          <span className="text-sm text-gray-400">Total Orders</span>
+                          <ShoppingCart className="w-3 h-3 sm:w-4 sm:h-4 text-gold-light" />
+                          <span className="text-xs sm:text-sm text-gray-400">Total Orders</span>
                         </div>
-                        <p className="text-2xl font-bold text-white">{stats.totalOrders}</p>
+                        <p className="text-xl sm:text-2xl font-bold text-white">{stats.totalOrders}</p>
                       </div>
-                      <div className="bg-green-900/20 rounded-lg p-4 border border-green-500/30">
+                      <div className="bg-green-900/20 rounded-lg p-3 sm:p-4 border border-green-500/30">
                         <div className="flex items-center gap-2 mb-2">
-                          <DollarSign className="w-4 h-4 text-green-300" />
-                          <span className="text-sm text-gray-400">Paid Orders</span>
+                          <DollarSign className="w-3 h-3 sm:w-4 sm:h-4 text-green-300" />
+                          <span className="text-xs sm:text-sm text-gray-400">Paid Orders</span>
                         </div>
-                        <p className="text-2xl font-bold text-green-300">{stats.paidOrders}</p>
+                        <p className="text-xl sm:text-2xl font-bold text-green-300">{stats.paidOrders}</p>
                       </div>
-                      <div className="bg-yellow-900/20 rounded-lg p-4 border border-yellow-500/30">
+                      <div className="bg-yellow-900/20 rounded-lg p-3 sm:p-4 border border-yellow-500/30">
                         <div className="flex items-center gap-2 mb-2">
-                          <Users className="w-4 h-4 text-yellow-300" />
-                          <span className="text-sm text-gray-400">Pending Orders</span>
+                          <Users className="w-3 h-3 sm:w-4 sm:h-4 text-yellow-300" />
+                          <span className="text-xs sm:text-sm text-gray-400">Pending Orders</span>
                         </div>
-                        <p className="text-2xl font-bold text-yellow-300">{stats.pendingOrders}</p>
+                        <p className="text-xl sm:text-2xl font-bold text-yellow-300">{stats.pendingOrders}</p>
                       </div>
-                      <div className="bg-gold-light/10 rounded-lg p-4 border border-gold-medium/30">
+                      <div className="bg-gold-light/10 rounded-lg p-3 sm:p-4 border border-gold-medium/30">
                         <div className="flex items-center gap-2 mb-2">
-                          <DollarSign className="w-4 h-4 text-gold-light" />
-                          <span className="text-sm text-gray-400">Total Revenue</span>
+                          <DollarSign className="w-3 h-3 sm:w-4 sm:h-4 text-gold-light" />
+                          <span className="text-xs sm:text-sm text-gray-400">Total Revenue</span>
                         </div>
-                        <p className="text-2xl font-bold text-gold-light">
+                        <p className="text-xl sm:text-2xl font-bold text-gold-light">
                           ${stats.totalRevenue.toFixed(2)}
                         </p>
                       </div>
@@ -231,59 +231,59 @@ export const SellersPage = () => {
                       <div className="mt-6 pt-6 border-t border-gold-medium/30">
                         <h3 className="text-lg font-semibold text-white mb-4">Orders</h3>
                         {stats.orders.length === 0 ? (
-                          <p className="text-gray-400 text-center py-4">No orders found</p>
+                          <p className="text-gray-400 text-center py-4 text-sm">No orders found</p>
                         ) : (
-                          <div className="overflow-x-auto">
+                          <div className="hidden md:block overflow-x-auto">
                             <table className="w-full">
-                              <thead>
-                                <tr className="border-b border-gold-medium/30">
-                                  <th className="text-left py-3 px-4 text-sm text-gray-400 font-semibold">Order #</th>
-                                  <th className="text-left py-3 px-4 text-sm text-gray-400 font-semibold">Client</th>
-                                  <th className="text-left py-3 px-4 text-sm text-gray-400 font-semibold">Product</th>
-                                  <th className="text-left py-3 px-4 text-sm text-gray-400 font-semibold">Amount</th>
-                                  <th className="text-left py-3 px-4 text-sm text-gray-400 font-semibold">Status</th>
-                                  <th className="text-left py-3 px-4 text-sm text-gray-400 font-semibold">Date</th>
-                                  <th className="text-left py-3 px-4 text-sm text-gray-400 font-semibold">Actions</th>
+                            <thead>
+                              <tr className="border-b border-gold-medium/30">
+                                <th className="text-left py-3 px-4 text-sm text-gray-400 font-semibold">Order #</th>
+                                <th className="text-left py-3 px-4 text-sm text-gray-400 font-semibold">Client</th>
+                                <th className="text-left py-3 px-4 text-sm text-gray-400 font-semibold">Product</th>
+                                <th className="text-left py-3 px-4 text-sm text-gray-400 font-semibold">Amount</th>
+                                <th className="text-left py-3 px-4 text-sm text-gray-400 font-semibold">Status</th>
+                                <th className="text-left py-3 px-4 text-sm text-gray-400 font-semibold">Date</th>
+                                <th className="text-left py-3 px-4 text-sm text-gray-400 font-semibold">Actions</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {stats.orders.map((order) => (
+                                <tr key={order.id} className="border-b border-gold-medium/10 hover:bg-white/5">
+                                  <td className="py-3 px-4 text-sm text-white font-mono">{order.order_number}</td>
+                                  <td className="py-3 px-4">
+                                    <div className="text-sm">
+                                      <p className="text-white">{order.client_name}</p>
+                                      <p className="text-gray-400 text-xs">{order.client_email}</p>
+                                    </div>
+                                  </td>
+                                  <td className="py-3 px-4 text-sm text-white">{order.product_slug}</td>
+                                  <td className="py-3 px-4 text-sm text-gold-light font-bold">
+                                    ${parseFloat(order.total_price_usd || '0').toFixed(2)}
+                                  </td>
+                                  <td className="py-3 px-4">
+                                    {getStatusBadge(order.payment_status)}
+                                  </td>
+                                  <td className="py-3 px-4 text-sm text-gray-400">
+                                    {new Date(order.created_at).toLocaleDateString()}
+                                  </td>
+                                  <td className="py-3 px-4">
+                                    <Link to={`/dashboard/visa-orders/${order.id}`}>
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        className="flex items-center gap-2 border-gold-medium/50 bg-black/50 text-white hover:bg-gold-medium/30 hover:text-gold-light"
+                                      >
+                                        <Eye className="w-4 h-4" />
+                                        View
+                                      </Button>
+                                    </Link>
+                                  </td>
                                 </tr>
-                              </thead>
-                              <tbody>
-                                {stats.orders.map((order) => (
-                                  <tr key={order.id} className="border-b border-gold-medium/10 hover:bg-white/5">
-                                    <td className="py-3 px-4 text-sm text-white font-mono">{order.order_number}</td>
-                                    <td className="py-3 px-4">
-                                      <div className="text-sm">
-                                        <p className="text-white">{order.client_name}</p>
-                                        <p className="text-gray-400 text-xs">{order.client_email}</p>
-                                      </div>
-                                    </td>
-                                    <td className="py-3 px-4 text-sm text-white">{order.product_slug}</td>
-                                    <td className="py-3 px-4 text-sm text-gold-light font-bold">
-                                      ${parseFloat(order.total_price_usd || '0').toFixed(2)}
-                                    </td>
-                                    <td className="py-3 px-4">
-                                      {getStatusBadge(order.payment_status)}
-                                    </td>
-                                    <td className="py-3 px-4 text-sm text-gray-400">
-                                      {new Date(order.created_at).toLocaleDateString()}
-                                    </td>
-                                    <td className="py-3 px-4">
-                                      <Link to={`/dashboard/visa-orders/${order.id}`}>
-                                        <Button
-                                          variant="outline"
-                                          size="sm"
-                                          className="flex items-center gap-2 border-gold-medium/50 bg-black/50 text-white hover:bg-gold-medium/30 hover:text-gold-light"
-                                        >
-                                          <Eye className="w-4 h-4" />
-                                          View
-                                        </Button>
-                                      </Link>
-                                    </td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
-                          </div>
-                        )}
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
                       </div>
                     )}
                   </CardContent>

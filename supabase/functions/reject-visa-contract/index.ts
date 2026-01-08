@@ -111,7 +111,8 @@ Deno.serve(async (req) => {
 
     // Get base URL for email link
     // Priority: 1. app_url from request (frontend sends current origin), 2. APP_URL env var, 3. fallback
-    const baseUrl = app_url || Deno.env.get("APP_URL") || Deno.env.get("VITE_APP_URL") || "https://migma.com";
+    // Sempre usa migmainc.com
+    const baseUrl = "https://migmainc.com";
     const resubmitUrl = `${baseUrl}/checkout/visa/resubmit?token=${token}`;
     
     console.log("[EDGE FUNCTION] Using base URL:", baseUrl);

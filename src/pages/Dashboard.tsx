@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { LogOut, Filter, FileText, AlertCircle } from 'lucide-react';
+import { LogOut, Filter, FileText, AlertCircle, Menu } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { ApplicationsList } from '@/components/admin/ApplicationsList';
 import { PartnerContractsList } from '@/components/admin/PartnerContractsList';
@@ -117,6 +117,7 @@ function LoginForm({ onLoginSuccess }: { onLoginSuccess: () => void }) {
 
 function DashboardLayout() {
   const [user, setUser] = useState<{ email: string; role: string } | null>(null);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   useEffect(() => {
     async function loadUser() {
@@ -138,27 +139,45 @@ function DashboardLayout() {
   return (
     <div className="min-h-screen bg-gradient-to-b from-black via-[#1a1a1a] to-black flex">
       {/* Sidebar */}
-      <Sidebar />
+      <Sidebar 
+        isMobileOpen={isMobileMenuOpen}
+        onMobileClose={() => setIsMobileMenuOpen(false)}
+      />
 
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col">
         {/* Header */}
-        <header className="bg-black/95 shadow-sm border-b border-gold-medium/30">
+        <header className="bg-black/95 shadow-sm border-b border-gold-medium/30 relative z-30">
           <div className="px-4 sm:px-6 lg:px-8">
             <div className="flex justify-between items-center h-16">
-              <div>
-                <h1 className="text-2xl font-bold migma-gold-text">MIGMA Admin Dashboard</h1>
-                {user && (
-                  <p className="text-sm text-gray-400">Logged in as {user.email}</p>
-                )}
+              <div className="flex items-center gap-3">
+                {/* Mobile Menu Button */}
+                <Button
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setIsMobileMenuOpen(true);
+                  }}
+                  variant="outline"
+                  size="sm"
+                  className="lg:hidden border-gold-medium/50 bg-black/50 text-gold-light hover:bg-gold-medium/20 z-50"
+                >
+                  <Menu className="w-5 h-5" />
+                </Button>
+                <div>
+                  <h1 className="text-xl sm:text-2xl font-bold migma-gold-text">MIGMA Admin Dashboard</h1>
+                  {user && (
+                    <p className="text-xs sm:text-sm text-gray-400 truncate max-w-[200px] sm:max-w-none">Logged in as {user.email}</p>
+                  )}
+                </div>
               </div>
               <Button
                 variant="outline"
                 onClick={handleSignOut}
-                className="flex items-center gap-2 border-gold-medium/50 bg-black/50 text-white hover:bg-gold-medium/30 hover:text-gold-light"
+                className="flex items-center gap-2 border-gold-medium/50 bg-black/50 text-white hover:bg-gold-medium/30 hover:text-gold-light text-xs sm:text-sm"
               >
                 <LogOut className="w-4 h-4" />
-                Sign Out
+                <span className="hidden sm:inline">Sign Out</span>
               </Button>
             </div>
           </div>
@@ -627,27 +646,27 @@ export function DashboardContent() {
   };
 
   return (
-    <div className="p-6">
+    <div className="p-4 sm:p-6 lg:p-8">
       {/* Pending Contract Approvals Alert */}
       {pendingContractApprovals > 0 && (
-        <Card className="bg-gradient-to-br from-yellow-500/20 via-yellow-500/10 to-yellow-500/20 border-2 border-yellow-500/50 mb-6">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <div className="p-3 bg-yellow-500/20 rounded-lg">
-                  <AlertCircle className="w-8 h-8 text-yellow-400" />
+        <Card className="bg-gradient-to-br from-yellow-500/20 via-yellow-500/10 to-yellow-500/20 border-2 border-yellow-500/50 mb-4 sm:mb-6">
+          <CardContent className="p-4 sm:p-6">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              <div className="flex items-center gap-3 sm:gap-4">
+                <div className="p-2 sm:p-3 bg-yellow-500/20 rounded-lg shrink-0">
+                  <AlertCircle className="w-6 h-6 sm:w-8 sm:h-8 text-yellow-400" />
                 </div>
                 <div>
-                  <h3 className="text-lg font-bold text-yellow-300 mb-1">
+                  <h3 className="text-base sm:text-lg font-bold text-yellow-300 mb-1">
                     {pendingContractApprovals} {pendingContractApprovals === 1 ? 'Contract' : 'Contracts'} Pending Approval
                   </h3>
-                  <p className="text-sm text-yellow-200/80">
+                  <p className="text-xs sm:text-sm text-yellow-200/80">
                     There {pendingContractApprovals === 1 ? 'is' : 'are'} {pendingContractApprovals} visa service {pendingContractApprovals === 1 ? 'contract' : 'contracts'} waiting for review
                   </p>
                 </div>
               </div>
-              <Link to="/dashboard/visa-orders">
-                <Button className="bg-yellow-600 hover:bg-yellow-700 text-white">
+              <Link to="/dashboard/visa-orders" className="w-full sm:w-auto">
+                <Button className="w-full sm:w-auto bg-yellow-600 hover:bg-yellow-700 text-white text-sm">
                   <FileText className="w-4 h-4 mr-2" />
                   Review Contracts
                 </Button>
@@ -659,21 +678,19 @@ export function DashboardContent() {
 
       {/* Pending Partner Contracts Alert */}
       {pendingPartnerContracts > 0 && (
-        <Card className="bg-gradient-to-br from-blue-500/20 via-blue-500/10 to-blue-500/20 border-2 border-blue-500/50 mb-6">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <div className="p-3 bg-blue-500/20 rounded-lg">
-                  <AlertCircle className="w-8 h-8 text-blue-400" />
-                </div>
-                <div>
-                  <h3 className="text-lg font-bold text-blue-300 mb-1">
-                    {pendingPartnerContracts} {pendingPartnerContracts === 1 ? 'Partner Contract' : 'Partner Contracts'} Pending Verification
-                  </h3>
-                  <p className="text-sm text-blue-200/80">
-                    There {pendingPartnerContracts === 1 ? 'is' : 'are'} {pendingPartnerContracts} Global Partner {pendingPartnerContracts === 1 ? 'contract' : 'contracts'} waiting for document verification
-                  </p>
-                </div>
+        <Card className="bg-gradient-to-br from-blue-500/20 via-blue-500/10 to-blue-500/20 border-2 border-blue-500/50 mb-4 sm:mb-6">
+          <CardContent className="p-4 sm:p-6">
+            <div className="flex items-center gap-3 sm:gap-4">
+              <div className="p-2 sm:p-3 bg-blue-500/20 rounded-lg shrink-0">
+                <AlertCircle className="w-6 h-6 sm:w-8 sm:h-8 text-blue-400" />
+              </div>
+              <div>
+                <h3 className="text-base sm:text-lg font-bold text-blue-300 mb-1">
+                  {pendingPartnerContracts} {pendingPartnerContracts === 1 ? 'Partner Contract' : 'Partner Contracts'} Pending Verification
+                </h3>
+                <p className="text-xs sm:text-sm text-blue-200/80">
+                  There {pendingPartnerContracts === 1 ? 'is' : 'are'} {pendingPartnerContracts} Global Partner {pendingPartnerContracts === 1 ? 'contract' : 'contracts'} waiting for document verification
+                </p>
               </div>
             </div>
           </CardContent>
@@ -682,36 +699,36 @@ export function DashboardContent() {
 
       {/* Statistics */}
       {stats && (
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-          <div className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 rounded-lg shadow p-4 border border-gold-medium/30">
-            <p className="text-sm text-gray-300">Total</p>
-            <p className="text-2xl font-bold text-white">{stats.total}</p>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 mb-4 sm:mb-6">
+          <div className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 rounded-lg shadow p-3 sm:p-4 border border-gold-medium/30">
+            <p className="text-xs sm:text-sm text-gray-300">Total</p>
+            <p className="text-xl sm:text-2xl font-bold text-white">{stats.total}</p>
           </div>
-          <div className="bg-gradient-to-br from-gold-light/20 via-gold-medium/10 to-gold-dark/20 rounded-lg shadow p-4 border border-gold-medium/50">
-            <p className="text-sm text-gray-300">Pending</p>
-            <p className="text-2xl font-bold text-white">{stats.pending}</p>
+          <div className="bg-gradient-to-br from-gold-light/20 via-gold-medium/10 to-gold-dark/20 rounded-lg shadow p-3 sm:p-4 border border-gold-medium/50">
+            <p className="text-xs sm:text-sm text-gray-300">Pending</p>
+            <p className="text-xl sm:text-2xl font-bold text-white">{stats.pending}</p>
           </div>
-          <div className="bg-gradient-to-br from-green-900/30 via-green-800/20 to-green-900/30 rounded-lg shadow p-4 border border-green-500/50">
-            <p className="text-sm text-green-400">Approved</p>
-            <p className="text-2xl font-bold text-green-300">{stats.approved}</p>
+          <div className="bg-gradient-to-br from-green-900/30 via-green-800/20 to-green-900/30 rounded-lg shadow p-3 sm:p-4 border border-green-500/50">
+            <p className="text-xs sm:text-sm text-green-400">Approved</p>
+            <p className="text-xl sm:text-2xl font-bold text-green-300">{stats.approved}</p>
           </div>
-          <div className="bg-gradient-to-br from-red-900/30 via-red-800/20 to-red-900/30 rounded-lg shadow p-4 border border-red-500/50">
-            <p className="text-sm text-red-400">Rejected</p>
-            <p className="text-2xl font-bold text-red-300">{stats.rejected}</p>
+          <div className="bg-gradient-to-br from-red-900/30 via-red-800/20 to-red-900/30 rounded-lg shadow p-3 sm:p-4 border border-red-500/50">
+            <p className="text-xs sm:text-sm text-red-400">Rejected</p>
+            <p className="text-xl sm:text-2xl font-bold text-red-300">{stats.rejected}</p>
           </div>
         </div>
       )}
 
       {/* Filters */}
-      <div className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 rounded-lg shadow p-4 mb-6 border border-gold-medium/30">
-        <div className="flex items-center gap-4">
-          <Filter className="w-5 h-5 text-gold-light" />
-          <label className="text-sm font-medium text-white">Filter by Status:</label>
+      <div className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 rounded-lg shadow p-3 sm:p-4 mb-4 sm:mb-6 border border-gold-medium/30">
+        <div className="flex flex-wrap items-center gap-3">
+          <Filter className="w-4 h-4 sm:w-5 sm:h-5 text-gold-light shrink-0" />
+          <label className="text-xs sm:text-sm font-medium text-white whitespace-nowrap">Filter by Status:</label>
           <Select
             value={statusFilter || 'all'}
             onValueChange={(value) => setStatusFilter(value === 'all' ? undefined : value as 'pending' | 'approved' | 'approved_for_meeting' | 'approved_for_contract' | 'rejected')}
           >
-            <SelectTrigger className="w-40 bg-black/50 border-gold-medium/50 text-white">
+            <SelectTrigger className="w-full sm:w-40 bg-black/50 border-gold-medium/50 text-white text-xs sm:text-sm">
               <SelectValue />
             </SelectTrigger>
             <SelectContent className="bg-black border-gold-medium/50">
@@ -739,8 +756,8 @@ export function DashboardContent() {
       )}
 
       {/* Applications List */}
-      <div className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 rounded-lg shadow p-6 border border-gold-medium/30">
-        <h2 className="text-xl font-semibold mb-4 migma-gold-text">Global Partner Applications</h2>
+      <div className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 rounded-lg shadow p-4 sm:p-6 border border-gold-medium/30">
+        <h2 className="text-lg sm:text-xl font-semibold mb-3 sm:mb-4 migma-gold-text">Global Partner Applications</h2>
         <ApplicationsList
           onApprove={handleApprove}
           onReject={handleReject}

@@ -2135,12 +2135,12 @@ export const VisaCheckout = () => {
                         </p>
                       )}
                       <div className="relative">
-                        <Select
-                          value={extraUnits.toString()}
-                          onValueChange={(value) => {
-                            const newExtraUnits = parseInt(value);
-                            setExtraUnits(newExtraUnits);
-                            // Ajustar array de nomes quando quantidade muda
+                      <Select
+                        value={extraUnits.toString()}
+                        onValueChange={(value) => {
+                          const newExtraUnits = parseInt(value);
+                          setExtraUnits(newExtraUnits);
+                          // Ajustar array de nomes quando quantidade muda
                             const isUnitsOnly = product.calculation_type === 'units_only';
                             // For units_only: we need (extraUnits - 1) inputs (client is the first)
                             // For base_plus_units: we need extraUnits inputs (dependents only)
@@ -2149,13 +2149,13 @@ export const VisaCheckout = () => {
                               : newExtraUnits;
                             
                             if (requiredNamesCount === 0) {
-                              setDependentNames([]);
+                            setDependentNames([]);
                             } else if (requiredNamesCount < dependentNames.length) {
-                              // Diminuir: remover nomes excedentes
+                            // Diminuir: remover nomes excedentes
                               setDependentNames(dependentNames.slice(0, requiredNamesCount));
                             } else if (requiredNamesCount > dependentNames.length) {
-                              // Aumentar: adicionar slots vazios
-                              const newNames = [...dependentNames];
+                            // Aumentar: adicionar slots vazios
+                            const newNames = [...dependentNames];
                               while (newNames.length < requiredNamesCount) {
                                 newNames.push('');
                               }
@@ -2206,7 +2206,7 @@ export const VisaCheckout = () => {
                     if (numberOfInputs <= 0) return null;
                     
                     return (
-                      <div className="space-y-2">
+                    <div className="space-y-2">
                         {Array.from({ length: numberOfInputs }, (_, i) => (
                           <div key={i} className="space-y-2">
                             <Label htmlFor={`dependent-name-${i}`} className="text-white text-sm sm:text-base">

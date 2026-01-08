@@ -169,12 +169,12 @@ export function PartnerContractsList({
         return (
           <Card key={contract.id} className="bg-gradient-to-br from-gold-light/5 via-gold-medium/5 to-gold-dark/5 border-gold-medium/30">
             <CardHeader>
-              <div className="flex items-start justify-between">
-                <div className="flex-1">
-                  <CardTitle className="text-lg text-white mb-2">
+              <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+                <div className="flex-1 min-w-0">
+                  <CardTitle className="text-base sm:text-lg text-white mb-2 break-words">
                     {application?.full_name || contract.full_legal_name || 'Unknown Partner'}
                   </CardTitle>
-                  <div className="flex items-center gap-2 flex-wrap">
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-2 flex-wrap">
                     <VerificationStatusBadge status={contract.verification_status} />
                     <span className="text-xs text-gray-400 flex items-center gap-1">
                       <Clock className="w-3 h-3" />
@@ -182,10 +182,11 @@ export function PartnerContractsList({
                     </span>
                   </div>
                 </div>
-                <Link to={`/dashboard/applications/${contract.application_id}`}>
-                  <Button variant="outline" size="sm" className="border-gold-medium/50 bg-black/50 text-white hover:bg-gold-medium/30 hover:text-gold-light">
-                    <Eye className="w-4 h-4 mr-2" />
-                    View Details
+                <Link to={`/dashboard/applications/${contract.application_id}`} className="w-full sm:w-auto">
+                  <Button variant="outline" size="sm" className="w-full sm:w-auto flex items-center justify-center gap-2 border-gold-medium/50 bg-black/50 text-white hover:bg-gold-medium/30 hover:text-gold-light text-xs sm:text-sm">
+                    <Eye className="w-3 h-3 sm:w-4 sm:h-4" />
+                    <span className="hidden sm:inline">View Details</span>
+                    <span className="sm:hidden">View</span>
                   </Button>
                 </Link>
               </div>
@@ -193,16 +194,16 @@ export function PartnerContractsList({
             <CardContent>
               <div className="space-y-4">
                 {/* Contact Information */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3 text-xs sm:text-sm">
                   {application?.email && (
                     <div className="flex items-center gap-2 text-gray-300">
-                      <Mail className="w-4 h-4 text-gold-medium" />
-                      <span>{application.email}</span>
+                      <Mail className="w-3 h-3 sm:w-4 sm:h-4 text-gold-medium shrink-0" />
+                      <span className="truncate">{application.email}</span>
                     </div>
                   )}
                   {application?.phone && (
                     <div className="flex items-center gap-2 text-gray-300">
-                      <Phone className="w-4 h-4 text-gold-medium" />
+                      <Phone className="w-3 h-3 sm:w-4 sm:h-4 text-gold-medium shrink-0" />
                       <span>{application.phone}</span>
                     </div>
                   )}

@@ -45,6 +45,7 @@ import { SupportTicket } from './pages/SupportTicket';
 import { VisaContractResubmit } from './pages/VisaContractResubmit';
 import { ContractTemplatesPage } from './pages/ContractTemplatesPage';
 import { ViewSignedContract } from './pages/ViewSignedContract';
+import { ScheduleMeetingPage } from './pages/admin/ScheduleMeetingPage';
 
 function App() {
   return (
@@ -98,6 +99,7 @@ function App() {
           <Route path="contact-messages" element={<ContactMessagesPage />} />
           <Route path="contact-messages/:id" element={<ContactMessageDetail />} />
           <Route path="contract-templates" element={<ContractTemplatesPage />} />
+          <Route path="schedule-meeting" element={<ScheduleMeetingPage />} />
         </Route>
       </Routes>
     </Router>

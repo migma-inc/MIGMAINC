@@ -122,20 +122,8 @@ export async function approveCandidateAndSendTermsLink(
 
         // Enviar email com link
         // Get base URL from environment or current origin
+        // Sempre usa migmainc.com
         const getBaseUrl = (): string => {
-            // Try environment variable first (for production builds)
-            const envUrl = import.meta.env.VITE_APP_URL;
-            if (envUrl) {
-                // Remove trailing slash and return
-                return envUrl.trim().replace(/\/+$/, '');
-            }
-            
-            // If in browser, use current origin
-            if (typeof window !== 'undefined' && window.location.origin) {
-                return window.location.origin;
-            }
-            
-            // Fallback (should be set via VITE_APP_URL in production)
             return 'https://migmainc.com';
         };
         
@@ -246,40 +234,8 @@ export async function resendContractTermsEmail(
             tokenToUse = tokenResult.token;
         }
 
-        // Get base URL - forçar produção se solicitado
+        // Sempre usa migmainc.com
         const getBaseUrl = (): string => {
-            // Se forceProductionUrl, sempre usar produção
-            if (forceProductionUrl) {
-                const envUrl = import.meta.env.VITE_APP_URL;
-                console.log('[RESEND EMAIL] Environment variable check:', {
-                    VITE_APP_URL: envUrl,
-                    exists: !!envUrl,
-                    isLocalhost: envUrl?.includes('localhost') || envUrl?.includes('127.0.0.1'),
-                    type: typeof envUrl
-                });
-                
-                if (envUrl && !envUrl.includes('localhost') && !envUrl.includes('127.0.0.1')) {
-                    // Remove trailing slash and return
-                    const normalizedUrl = envUrl.trim().replace(/\/+$/, '');
-                    console.log('[RESEND EMAIL] Using environment variable:', normalizedUrl);
-                    return normalizedUrl;
-                }
-                // Fallback para produção
-                console.log('[RESEND EMAIL] Using fallback URL: https://migmainc.com');
-                return 'https://migmainc.com';
-            }
-            
-            // Caso contrário, usar lógica normal
-            const envUrl = import.meta.env.VITE_APP_URL;
-            if (envUrl) {
-                // Remove trailing slash and return
-                return envUrl.trim().replace(/\/+$/, '');
-            }
-            
-            if (typeof window !== 'undefined' && window.location.origin) {
-                return window.location.origin;
-            }
-            
             return 'https://migmainc.com';
         };
         

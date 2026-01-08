@@ -150,8 +150,8 @@ Deno.serve(async (req) => {
     if (emailToSend) {
       // If we have a new token, send approval email with new contract link
       if (newToken) {
-        // Get base URL from environment or use default
-        const appUrl = Deno.env.get("VITE_APP_URL") || "https://migma.com";
+        // Get base URL - sempre usa migmainc.com
+        const appUrl = "https://migmainc.com";
         const termsUrl = `${appUrl}/partner-terms?token=${newToken}`;
 
         const { error: emailError } = await supabase.functions.invoke('send-email', {

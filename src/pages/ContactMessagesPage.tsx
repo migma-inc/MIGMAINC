@@ -213,7 +213,7 @@ export function ContactMessagesPage() {
   return (
     <div className="px-4 sm:px-6 lg:px-8 pt-6 sm:pt-8 lg:pt-12">
       <div className="mb-8">
-        <h1 className="text-3xl font-bold migma-gold-text mb-2">Support Tickets</h1>
+        <h1 className="text-2xl sm:text-3xl font-bold migma-gold-text mb-2">Support Tickets</h1>
         <p className="text-gray-400">Manage and respond to customer support tickets</p>
       </div>
 

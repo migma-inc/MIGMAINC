@@ -15,8 +15,7 @@ import { useContentProtection } from '@/hooks/useContentProtection';
 import { getActiveContractVersion, generateContractHash, getGeolocationFromIP } from '@/lib/contracts';
 import { getContractTemplate } from '@/lib/contract-templates';
 import { formatContractTextToHtml } from '@/lib/contract-formatter';
-import { sendTermsAcceptanceConfirmationEmail, sendContractViewLinkEmail } from '@/lib/emails';
-import { generateContractViewToken } from '@/lib/contract-view';
+import { sendTermsAcceptanceConfirmationEmail } from '@/lib/emails';
 import { countries } from '@/lib/visa-checkout-constants';
 import { SignaturePadComponent } from '@/components/ui/signature-pad';
 import { AlertModal } from '@/components/ui/alert-modal';
@@ -965,60 +964,9 @@ export const PartnerTerms = () => {
                 }
             }
 
-            // ETAPA 10: Gerar token de visualização e enviar email com link
-            if (updatedAcceptance?.id) {
-                try {
-                    console.log('[PARTNER TERMS] Generating contract view token for acceptance:', updatedAcceptance.id);
-                    
-                    // Gerar token de visualização
-                    const tokenResult = await generateContractViewToken(updatedAcceptance.id, 90);
-                    
-                    if (tokenResult && tokenData?.application_id) {
-                        // Buscar dados da aplicação para email
-                        const { data: application, error: appError } = await supabase
-                            .from('global_partner_applications')
-                            .select('email, full_name')
-                            .eq('id', tokenData.application_id)
-                            .single();
-
-                        if (!appError && application?.email && application?.full_name) {
-                            // Get base URL
-                            const getBaseUrl = (): string => {
-                                const envUrl = import.meta.env.VITE_APP_URL;
-                                if (envUrl) return envUrl;
-                                if (typeof window !== 'undefined' && window.location.origin) {
-                                    return window.location.origin;
-                                }
-                                return 'https://migma.com';
-                            };
-
-                            const baseUrl = getBaseUrl();
-                            
-                            // Enviar email com link de visualização
-                            console.log('[PARTNER TERMS] Sending contract view link email to:', application.email);
-                            const viewEmailSent = await sendContractViewLinkEmail(
-                                application.email,
-                                application.full_name,
-                                tokenResult.token,
-                                baseUrl
-                            );
-
-                            if (viewEmailSent) {
-                                console.log('[PARTNER TERMS] Contract view link email sent successfully');
-                            } else {
-                                console.warn('[PARTNER TERMS] Failed to send contract view link email (non-critical)');
-                            }
-                        } else {
-                            console.warn('[PARTNER TERMS] Could not fetch application data for view link email:', appError);
-                        }
-                    } else {
-                        console.warn('[PARTNER TERMS] Failed to generate contract view token (non-critical)');
-                    }
-                } catch (viewTokenError) {
-                    console.warn('[PARTNER TERMS] Error generating token/sending view link email (non-critical):', viewTokenError);
-                    // Não bloquear - email é secundário e não deve impedir o fluxo
-                }
-            }
+            // ETAPA 10: Token de visualização será gerado e email será enviado apenas quando o admin aprovar o contrato
+            // O email com o link de visualização será enviado pela Edge Function approve-partner-contract
+            // após a aprovação do admin, não imediatamente após a assinatura
 
             // Limpar dados salvos do localStorage após submissão bem-sucedida
             clearFormData();

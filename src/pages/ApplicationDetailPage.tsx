@@ -472,7 +472,7 @@ function ApplicationDetailContent() {
 
   if (error || !application) {
     return (
-      <div className="p-6">
+      <div className="p-4 sm:p-6 lg:p-8">
         <Card className="w-full max-w-md mx-auto bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30">
           <CardContent className="p-6 text-center">
             <p className="text-red-300 mb-4">{error || 'Application not found'}</p>
@@ -486,20 +486,24 @@ function ApplicationDetailContent() {
   }
 
   return (
-    <div className="p-6">
+    <div className="p-4 sm:p-6 lg:p-8">
       {/* Header */}
-      <div className="mb-6">
-        <div className="flex items-center gap-4 mb-2">
-          <Link to="/dashboard">
-            <Button variant="ghost" size="icon" className="text-white hover:text-white hover:bg-transparent">
-              <ArrowLeft className="w-5 h-5" />
-            </Button>
-          </Link>
-          <div className="flex-1">
-            <h1 className="text-2xl font-bold migma-gold-text">Application Details</h1>
-            <p className="text-sm text-gray-400">ID: {application.id.substring(0, 8)}...</p>
+      <div className="mb-4 sm:mb-6">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 mb-2">
+          <div className="flex items-center gap-3 sm:gap-4">
+            <Link to="/dashboard">
+              <Button variant="ghost" size="icon" className="text-white hover:text-white hover:bg-transparent">
+                <ArrowLeft className="w-5 h-5" />
+              </Button>
+            </Link>
+            <div className="flex-1 min-w-0">
+              <h1 className="text-xl sm:text-2xl font-bold migma-gold-text">Application Details</h1>
+              <p className="text-xs sm:text-sm text-gray-400 truncate">ID: {application.id.substring(0, 8)}...</p>
+            </div>
           </div>
-          <StatusBadge status={application.status} />
+          <div className="flex justify-start sm:justify-end">
+            <StatusBadge status={application.status} />
+          </div>
         </div>
       </div>
 
@@ -511,10 +515,10 @@ function ApplicationDetailContent() {
               <CardTitle className="text-white">Personal Information</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
                 <div>
                   <p className="text-sm text-gray-400 mb-1">Full Name</p>
-                  <p className="font-medium text-lg text-gray-200">{application.full_name}</p>
+                  <p className="font-medium text-base sm:text-lg text-gray-200 break-words">{application.full_name}</p>
                 </div>
                 <div>
                   <p className="text-sm text-gray-400 mb-1">Email</p>
@@ -556,7 +560,7 @@ function ApplicationDetailContent() {
               <CardTitle className="text-white">Business Information</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
                 <div>
                   <p className="text-sm text-gray-400 mb-1">Has Business Registration</p>
                   <p className="font-medium text-gray-200">{application.has_business_registration}</p>
@@ -595,7 +599,7 @@ function ApplicationDetailContent() {
               <CardTitle className="text-white">Professional Information</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
                 {application.current_occupation && (
                   <div>
                     <p className="text-sm text-gray-400 mb-1">Current Occupation</p>
@@ -726,7 +730,7 @@ function ApplicationDetailContent() {
               <CardTitle className="text-white">Consent & Verification</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
                 <div>
                   <p className="text-sm text-gray-400 mb-1">Information Accurate</p>
                   <p className="font-medium text-gray-200">{application.info_accurate ? '✓ Confirmed' : '✗ Not confirmed'}</p>
@@ -848,7 +852,7 @@ function ApplicationDetailContent() {
               <CardTitle className="text-white">Timestamps</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
                 <div>
                   <p className="text-sm text-gray-400 mb-1">Created At</p>
                   <p className="font-medium text-gray-200">
@@ -891,7 +895,7 @@ function ApplicationDetailContent() {
                       size="sm"
                       onClick={() => setShowMeetingModal(true)}
                       disabled={isProcessing}
-                      className="flex items-center gap-2 border-yellow-500/50 bg-yellow-900/20 text-yellow-300 hover:bg-yellow-800/30 hover:text-yellow-200"
+                      className="flex items-center justify-center gap-2 border-yellow-500/50 bg-yellow-900/20 text-yellow-300 hover:bg-yellow-800/30 hover:text-yellow-200 text-xs sm:text-sm"
                     >
                       <Pencil className="w-4 h-4" />
                       Edit Meeting
@@ -900,7 +904,7 @@ function ApplicationDetailContent() {
                 </div>
               </CardHeader>
               <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
                   <div className="flex items-start gap-3">
                     <Calendar className="w-5 h-5 text-gold-medium mt-0.5" />
                     <div>
@@ -1045,9 +1049,9 @@ function ApplicationDetailContent() {
                       }
                     }}
                     disabled={isProcessing}
-                    className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white"
+                    className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 text-white text-xs sm:text-sm"
                   >
-                    <CheckCircle className="w-4 h-4" />
+                    <CheckCircle className="w-3 h-3 sm:w-4 sm:h-4" />
                     Approve Contract
                   </Button>
                   <Button
@@ -1057,9 +1061,9 @@ function ApplicationDetailContent() {
                       setShowRejectPrompt(true);
                     }}
                     disabled={isProcessing}
-                    className="flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white"
+                    className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-red-600 hover:bg-red-700 text-white text-xs sm:text-sm"
                   >
-                    <XCircle className="w-4 h-4" />
+                    <XCircle className="w-3 h-3 sm:w-4 sm:h-4" />
                     Reject Contract
                   </Button>
                 </div>

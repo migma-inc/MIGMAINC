@@ -109,16 +109,18 @@ export function ApplicationsList({
       {applications.map((application) => (
         <Card key={application.id} className="hover:shadow-md transition-shadow bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30">
           <CardHeader>
-            <div className="flex justify-between items-start">
-              <div>
-                <CardTitle className="text-lg text-white">{application.full_name}</CardTitle>
-                <p className="text-sm text-gray-400 mt-1">{application.email}</p>
+            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-3">
+              <div className="flex-1 min-w-0">
+                <CardTitle className="text-base sm:text-lg text-white break-words">{application.full_name}</CardTitle>
+                <p className="text-xs sm:text-sm text-gray-400 mt-1 break-words">{application.email}</p>
               </div>
-              <StatusBadge status={application.status} />
+              <div className="flex justify-start sm:justify-end">
+                <StatusBadge status={application.status} />
+              </div>
             </div>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4 mb-4">
               <div>
                 <p className="text-xs text-gray-400">Country</p>
                 <p className="font-medium text-gray-300">{application.country}</p>
@@ -191,15 +193,16 @@ export function ApplicationsList({
               </div>
             )}
 
-            <div className="flex gap-2 flex-wrap">
-              <Link to={`/dashboard/applications/${application.id}`}>
+            <div className="flex flex-wrap gap-2">
+              <Link to={`/dashboard/applications/${application.id}`} className="flex-1 sm:flex-none">
                 <Button
                   variant="outline"
                   size="sm"
-                  className="flex items-center gap-2 border-gold-medium/50 bg-black/50 text-white hover:bg-gold-medium/30 hover:text-gold-light"
+                  className="w-full sm:w-auto flex items-center justify-center gap-2 border-gold-medium/50 bg-black/50 text-white hover:bg-gold-medium/30 hover:text-gold-light text-xs sm:text-sm"
                 >
-                  <Eye className="w-4 h-4" />
-                  View Details
+                  <Eye className="w-3 h-3 sm:w-4 sm:h-4" />
+                  <span className="hidden sm:inline">View Details</span>
+                  <span className="sm:hidden">View</span>
                 </Button>
               </Link>
               {application.status === 'pending' && (
@@ -209,9 +212,9 @@ export function ApplicationsList({
                       variant="default"
                       size="sm"
                       onClick={() => onApprove(application)}
-                      className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white"
+                      className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 text-white text-xs sm:text-sm"
                     >
-                      <CheckCircle className="w-4 h-4" />
+                      <CheckCircle className="w-3 h-3 sm:w-4 sm:h-4" />
                       Approve
                     </Button>
                   )}
@@ -220,9 +223,9 @@ export function ApplicationsList({
                       variant="destructive"
                       size="sm"
                       onClick={() => onReject(application)}
-                      className="flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white"
+                      className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-red-600 hover:bg-red-700 text-white text-xs sm:text-sm"
                     >
-                      <XCircle className="w-4 h-4" />
+                      <XCircle className="w-3 h-3 sm:w-4 sm:h-4" />
                       Reject
                     </Button>
                   )}
