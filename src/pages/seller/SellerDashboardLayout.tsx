@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { Outlet, Navigate } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import { SellerSidebar } from '@/components/seller/SellerSidebar';
+import { Menu } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 
 interface SellerInfo {
   id: string;
@@ -60,6 +62,7 @@ export function SellerDashboardLayout() {
   const cachedSeller = getCachedSeller();
   const [seller, setSeller] = useState<SellerInfo | null>(cachedSeller);
   const [loading, setLoading] = useState(!cachedSeller);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   useEffect(() => {
     async function loadSeller() {
@@ -134,9 +137,25 @@ export function SellerDashboardLayout() {
 
   return (
     <div className="min-h-screen bg-black flex">
-      <SellerSidebar sellerName={seller.full_name} />
+      <SellerSidebar 
+        sellerName={seller.full_name} 
+        isMobileOpen={isMobileMenuOpen}
+        onMobileClose={() => setIsMobileMenuOpen(false)}
+      />
       <main className="flex-1 overflow-auto bg-gradient-to-b from-black via-[#1a1a1a] to-black">
-        <div className="p-8">
+        {/* Mobile Menu Button */}
+        <div className="lg:hidden sticky top-0 z-30 bg-black/80 backdrop-blur-sm border-b border-gold-medium/30 p-4">
+          <Button
+            onClick={() => setIsMobileMenuOpen(true)}
+            variant="outline"
+            size="sm"
+            className="border-gold-medium/50 bg-black/50 text-gold-light hover:bg-gold-medium/20"
+          >
+            <Menu className="w-5 h-5 mr-2" />
+            Menu
+          </Button>
+        </div>
+        <div className="p-4 sm:p-6 lg:p-8">
           <Outlet context={{ seller }} />
         </div>
       </main>

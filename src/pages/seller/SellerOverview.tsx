@@ -4,7 +4,9 @@ import { supabase } from '@/lib/supabase';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
-import { ShoppingCart, CheckCircle, Clock, DollarSign, FileText, AlertCircle } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Label } from '@/components/ui/label';
+import { ShoppingCart, CheckCircle, Clock, DollarSign } from 'lucide-react';
 
 interface SellerInfo {
   id: string;
@@ -19,66 +21,58 @@ interface Stats {
   completedSales: number;
   pendingSales: number;
   totalRevenue: number;
-  pendingApprovals: number;
 }
 
 export function SellerOverview() {
   const { seller } = useOutletContext<{ seller: SellerInfo }>();
+  const [periodFilter, setPeriodFilter] = useState<'month' | 'all'>('month');
   const [stats, setStats] = useState<Stats>({
     totalSales: 0,
     completedSales: 0,
     pendingSales: 0,
     totalRevenue: 0,
-    pendingApprovals: 0,
   });
   const [loading, setLoading] = useState(true);
+
+  // Função para calcular data de início do mês quando necessário
+  const getStartDate = (): string | null => {
+    if (periodFilter === 'month') {
+      const now = new Date();
+      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+      return startOfMonth.toISOString();
+    }
+    return null; // 'all' - não filtra por data
+  };
 
   useEffect(() => {
     const loadStats = async () => {
       if (!seller) return;
 
       try {
-        const { data: ordersData } = await supabase
+        // Construir query base
+        const startDate = getStartDate();
+        let query = supabase
           .from('visa_orders')
           .select('*')
-          .eq('seller_id', seller.seller_id_public)
-          .order('created_at', { ascending: false });
+          .eq('seller_id', seller.seller_id_public);
+
+        // Adicionar filtro de data se necessário
+        if (startDate) {
+          query = query.gte('created_at', startDate);
+        }
+
+        const { data: ordersData } = await query.order('created_at', { ascending: false });
 
         if (ordersData) {
           const completed = ordersData.filter(o => o.payment_status === 'completed' || o.payment_status === 'paid');
           const pending = ordersData.filter(o => o.payment_status === 'pending');
           const revenue = completed.reduce((sum, o) => sum + parseFloat(o.total_price_usd || '0'), 0);
-          
-          // Count pending approvals:
-          // 1. Orders with contract_approval_status = 'pending'
-          // 2. Orders with contract_approval_status = null/undefined (old orders before migration)
-          // 3. Only count orders that are paid/completed (not payment pending)
-          const pendingApprovals = ordersData.filter(o => {
-            const isPaid = o.payment_status === 'completed' || o.payment_status === 'paid';
-            const needsApproval = 
-              o.contract_approval_status === 'pending' || 
-              o.contract_approval_status === null ||
-              o.contract_approval_status === undefined ||
-              !('contract_approval_status' in o);
-            return isPaid && needsApproval;
-          }).length;
-
-          console.log('[SellerOverview] Pending approvals:', pendingApprovals, 'out of', ordersData.length, 'orders');
-          if (ordersData.length > 0) {
-            console.log('[SellerOverview] Sample approval statuses:', ordersData.slice(0, 3).map(o => ({
-              order: o.order_number,
-              payment_status: o.payment_status,
-              approval_status: o.contract_approval_status,
-              has_field: 'contract_approval_status' in o
-            })));
-          }
 
           setStats({
             totalSales: ordersData.length,
             completedSales: completed.length,
             pendingSales: pending.length,
             totalRevenue: revenue,
-            pendingApprovals: pendingApprovals,
           });
         }
       } catch (err) {
@@ -89,7 +83,7 @@ export function SellerOverview() {
     };
 
     loadStats();
-  }, [seller]);
+  }, [seller, periodFilter]);
 
   if (loading) {
     return (
@@ -139,102 +133,98 @@ export function SellerOverview() {
 
   return (
     <div>
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold migma-gold-text mb-2">Dashboard Overview</h1>
-        <p className="text-gray-400">Welcome back, {seller.full_name}</p>
-        <p className="text-sm text-gold-light mt-1">Seller ID: {seller.seller_id_public}</p>
+      <div className="mb-6 sm:mb-8">
+        <div className="flex flex-col gap-4 mb-4">
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-bold migma-gold-text mb-2">Dashboard Overview</h1>
+            <p className="text-sm sm:text-base text-gray-400">Welcome back, {seller.full_name}</p>
+            <p className="text-xs sm:text-sm text-gold-light mt-1">Seller ID: {seller.seller_id_public}</p>
+          </div>
+          <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
+            <Label htmlFor="period-filter" className="text-white text-sm whitespace-nowrap">
+              Período:
+            </Label>
+            <Select
+              value={periodFilter}
+              onValueChange={(value) => setPeriodFilter(value as 'month' | 'all')}
+            >
+              <SelectTrigger 
+                id="period-filter"
+                className="w-full sm:w-[160px] bg-black/50 border-gold-medium/50 text-white hover:bg-black/70"
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="month">Este Mês</SelectItem>
+                <SelectItem value="all">Acumulado</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6 sm:mb-8">
         <Card className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30">
-          <CardContent className="p-6">
+          <CardContent className="p-4 sm:p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-400">Total Sales</p>
-                <p className="text-3xl font-bold text-white">{stats.totalSales}</p>
+                <p className="text-xs sm:text-sm text-gray-400">Total Sales</p>
+                <p className="text-2xl sm:text-3xl font-bold text-white">{stats.totalSales}</p>
               </div>
-              <ShoppingCart className="w-10 h-10 text-gold-light" />
+              <ShoppingCart className="w-8 h-8 sm:w-10 sm:h-10 text-gold-light shrink-0" />
             </div>
           </CardContent>
         </Card>
 
         <Card className="bg-gradient-to-br from-green-500/10 via-green-500/5 to-green-500/10 border border-green-500/30">
-          <CardContent className="p-6">
+          <CardContent className="p-4 sm:p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-400">Completed</p>
-                <p className="text-3xl font-bold text-green-300">{stats.completedSales}</p>
+                <p className="text-xs sm:text-sm text-gray-400">Completed</p>
+                <p className="text-2xl sm:text-3xl font-bold text-green-300">{stats.completedSales}</p>
               </div>
-              <CheckCircle className="w-10 h-10 text-green-400" />
+              <CheckCircle className="w-8 h-8 sm:w-10 sm:h-10 text-green-400 shrink-0" />
             </div>
           </CardContent>
         </Card>
 
         <Card className="bg-gradient-to-br from-yellow-500/10 via-yellow-500/5 to-yellow-500/10 border border-yellow-500/30">
-          <CardContent className="p-6">
+          <CardContent className="p-4 sm:p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-400">Pending</p>
-                <p className="text-3xl font-bold text-yellow-300">{stats.pendingSales}</p>
+                <p className="text-xs sm:text-sm text-gray-400">Pending</p>
+                <p className="text-2xl sm:text-3xl font-bold text-yellow-300">{stats.pendingSales}</p>
               </div>
-              <Clock className="w-10 h-10 text-yellow-400" />
+              <Clock className="w-8 h-8 sm:w-10 sm:h-10 text-yellow-400 shrink-0" />
             </div>
           </CardContent>
         </Card>
 
         <Card className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30">
-          <CardContent className="p-6">
+          <CardContent className="p-4 sm:p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-400">Total Revenue</p>
-                <p className="text-2xl font-bold text-gold-light">
+                <p className="text-xs sm:text-sm text-gray-400">Total Revenue</p>
+                <p className="text-xl sm:text-2xl font-bold text-gold-light">
                   ${stats.totalRevenue.toFixed(2)}
                 </p>
               </div>
-              <DollarSign className="w-10 h-10 text-gold-light" />
+              <DollarSign className="w-8 h-8 sm:w-10 sm:h-10 text-gold-light shrink-0" />
             </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Pending Approvals Alert */}
-      {stats.pendingApprovals > 0 && (
-        <Card className="bg-gradient-to-br from-yellow-500/20 via-yellow-500/10 to-yellow-500/20 border-2 border-yellow-500/50 mb-8">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <div className="p-3 bg-yellow-500/20 rounded-lg">
-                  <AlertCircle className="w-8 h-8 text-yellow-400" />
-                </div>
-                <div>
-                  <h3 className="text-lg font-bold text-yellow-300 mb-1">
-                    {stats.pendingApprovals} {stats.pendingApprovals === 1 ? 'Contract' : 'Contracts'} Pending Approval
-                  </h3>
-                  <p className="text-sm text-yellow-200/80">
-                    You have {stats.pendingApprovals} {stats.pendingApprovals === 1 ? 'contract' : 'contracts'} waiting for your review
-                  </p>
-                </div>
-              </div>
-              <Link to="/seller/dashboard/orders">
-                <Button className="bg-yellow-600 hover:bg-yellow-700 text-white">
-                  <FileText className="w-4 h-4 mr-2" />
-                  Review Contracts
-                </Button>
-              </Link>
-            </div>
-          </CardContent>
-        </Card>
-      )}
 
 
       {/* Quick Actions */}
       <Card className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30">
         <CardHeader>
-          <CardTitle className="text-white">Quick Actions</CardTitle>
+          <CardTitle className="text-white text-lg sm:text-xl">Quick Actions</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
             <Link
               to="/seller/dashboard/funnel"
               className="p-4 bg-black/50 rounded-lg border border-gold-medium/20 hover:bg-gold-medium/10 transition block"

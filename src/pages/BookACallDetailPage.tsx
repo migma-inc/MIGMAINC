@@ -78,18 +78,19 @@ function BookACallDetailContent() {
 
   if (error || !submission) {
     return (
-      <div className="space-y-4">
+      <div className="p-4 sm:p-6 space-y-4">
         <Link to="/dashboard/book-a-call">
-          <Button variant="ghost" className="text-gold-light hover:text-gold-medium hover:bg-gold-medium/10">
+          <Button variant="ghost" className="text-gold-light hover:text-gold-medium hover:bg-gold-medium/10 text-sm sm:text-base">
             <ArrowLeft className="w-4 h-4 mr-2" />
-            Back to Book a Call Submissions
+            <span className="hidden sm:inline">Back to Book a Call Submissions</span>
+            <span className="sm:hidden">Back</span>
           </Button>
         </Link>
         <Card className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border-gold-medium/30">
-          <CardContent className="p-6">
-            <div className="text-center py-8">
-              <p className="text-red-300 text-lg font-semibold">Error</p>
-              <p className="text-gray-400 mt-2">{error || 'Submission not found'}</p>
+          <CardContent className="p-4 sm:p-6">
+            <div className="text-center py-6 sm:py-8">
+              <p className="text-red-300 text-base sm:text-lg font-semibold">Error</p>
+              <p className="text-sm sm:text-base text-gray-400 mt-2">{error || 'Submission not found'}</p>
             </div>
           </CardContent>
         </Card>
@@ -98,56 +99,57 @@ function BookACallDetailContent() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
       <div className="flex items-center justify-between">
         <Link to="/dashboard/book-a-call">
-          <Button variant="ghost" className="text-gold-light hover:text-gold-medium hover:bg-gold-medium/10">
+          <Button variant="ghost" className="text-gold-light hover:text-gold-medium hover:bg-gold-medium/10 text-sm sm:text-base">
             <ArrowLeft className="w-4 h-4 mr-2" />
-            Back to Book a Call Submissions
+            <span className="hidden sm:inline">Back to Book a Call Submissions</span>
+            <span className="sm:hidden">Back</span>
           </Button>
         </Link>
       </div>
 
       <Card className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border-gold-medium/30">
         <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-2xl migma-gold-text flex items-center gap-2">
-              <Building2 className="w-6 h-6" />
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <CardTitle className="text-xl sm:text-2xl migma-gold-text flex items-center gap-2">
+              <Building2 className="w-5 h-5 sm:w-6 sm:h-6" />
               {submission.company_name}
             </CardTitle>
-            <div className="text-sm text-gray-400 flex items-center gap-2">
+            <div className="text-xs sm:text-sm text-gray-400 flex items-center gap-2">
               <Calendar className="w-4 h-4" />
               {formatDate(submission.created_at)}
             </div>
           </div>
         </CardHeader>
-        <CardContent className="space-y-6">
+        <CardContent className="space-y-4 sm:space-y-6">
           {/* Company Information */}
           <div>
-            <h3 className="text-lg font-semibold text-gold-light mb-4">Company Information</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <h3 className="text-base sm:text-lg font-semibold text-gold-light mb-3 sm:mb-4">Company Information</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
               <div className="space-y-1">
-                <p className="text-sm text-gray-400">Company Name</p>
-                <p className="text-white font-medium">{submission.company_name}</p>
+                <p className="text-xs sm:text-sm text-gray-400">Company Name</p>
+                <p className="text-sm sm:text-base text-white font-medium">{submission.company_name}</p>
               </div>
               {submission.website && (
                 <div className="space-y-1">
-                  <p className="text-sm text-gray-400">Website</p>
+                  <p className="text-xs sm:text-sm text-gray-400">Website</p>
                   <a
                     href={submission.website}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-gold-medium hover:text-gold-light flex items-center gap-1"
+                    className="text-sm sm:text-base text-gold-medium hover:text-gold-light flex items-center gap-1 break-words"
                   >
                     {submission.website}
-                    <ExternalLink className="w-3 h-3" />
+                    <ExternalLink className="w-3 h-3 shrink-0" />
                   </a>
                 </div>
               )}
               <div className="space-y-1">
-                <p className="text-sm text-gray-400">Country</p>
-                <p className="text-white font-medium flex items-center gap-2">
-                  <Globe className="w-4 h-4 text-gold-medium" />
+                <p className="text-xs sm:text-sm text-gray-400">Country</p>
+                <p className="text-sm sm:text-base text-white font-medium flex items-center gap-2">
+                  <Globe className="w-4 h-4 text-gold-medium shrink-0" />
                   {submission.country}
                 </p>
               </div>
@@ -156,29 +158,29 @@ function BookACallDetailContent() {
 
           {/* Contact Information */}
           <div>
-            <h3 className="text-lg font-semibold text-gold-light mb-4">Contact Information</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <h3 className="text-base sm:text-lg font-semibold text-gold-light mb-3 sm:mb-4">Contact Information</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
               <div className="space-y-1">
-                <p className="text-sm text-gray-400">Contact Name</p>
-                <p className="text-white font-medium">{submission.contact_name}</p>
+                <p className="text-xs sm:text-sm text-gray-400">Contact Name</p>
+                <p className="text-sm sm:text-base text-white font-medium">{submission.contact_name}</p>
               </div>
               <div className="space-y-1">
-                <p className="text-sm text-gray-400">Email</p>
+                <p className="text-xs sm:text-sm text-gray-400">Email</p>
                 <a
                   href={`mailto:${submission.email}`}
-                  className="text-gold-medium hover:text-gold-light flex items-center gap-2"
+                  className="text-sm sm:text-base text-gold-medium hover:text-gold-light flex items-center gap-2 break-words"
                 >
-                  <Mail className="w-4 h-4" />
+                  <Mail className="w-4 h-4 shrink-0" />
                   {submission.email}
                 </a>
               </div>
               <div className="space-y-1">
-                <p className="text-sm text-gray-400">Phone / WhatsApp</p>
+                <p className="text-xs sm:text-sm text-gray-400">Phone / WhatsApp</p>
                 <a
                   href={`tel:${submission.phone}`}
-                  className="text-gold-medium hover:text-gold-light flex items-center gap-2"
+                  className="text-sm sm:text-base text-gold-medium hover:text-gold-light flex items-center gap-2"
                 >
-                  <Phone className="w-4 h-4" />
+                  <Phone className="w-4 h-4 shrink-0" />
                   {submission.phone}
                 </a>
               </div>
@@ -187,15 +189,15 @@ function BookACallDetailContent() {
 
           {/* Business Details */}
           <div>
-            <h3 className="text-lg font-semibold text-gold-light mb-4">Business Details</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <h3 className="text-base sm:text-lg font-semibold text-gold-light mb-3 sm:mb-4">Business Details</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
               <div className="space-y-1">
-                <p className="text-sm text-gray-400">Type of Business</p>
-                <p className="text-white font-medium">{submission.type_of_business}</p>
+                <p className="text-xs sm:text-sm text-gray-400">Type of Business</p>
+                <p className="text-sm sm:text-base text-white font-medium">{submission.type_of_business}</p>
               </div>
               <div className="space-y-1">
-                <p className="text-sm text-gray-400">Lead Volume</p>
-                <p className="text-white font-medium">{submission.lead_volume}</p>
+                <p className="text-xs sm:text-sm text-gray-400">Lead Volume</p>
+                <p className="text-sm sm:text-base text-white font-medium">{submission.lead_volume}</p>
               </div>
             </div>
           </div>
@@ -203,23 +205,23 @@ function BookACallDetailContent() {
           {/* Challenges */}
           {submission.challenges && (
             <div>
-              <h3 className="text-lg font-semibold text-gold-light mb-4 flex items-center gap-2">
-                <FileText className="w-5 h-5" />
+              <h3 className="text-base sm:text-lg font-semibold text-gold-light mb-3 sm:mb-4 flex items-center gap-2">
+                <FileText className="w-4 h-4 sm:w-5 sm:h-5" />
                 Challenges
               </h3>
-              <div className="bg-black/50 p-4 rounded-lg border border-gold-medium/20">
-                <p className="text-gray-300 whitespace-pre-wrap">{submission.challenges}</p>
+              <div className="bg-black/50 p-3 sm:p-4 rounded-lg border border-gold-medium/20">
+                <p className="text-sm sm:text-base text-gray-300 whitespace-pre-wrap">{submission.challenges}</p>
               </div>
             </div>
           )}
 
           {/* Additional Information */}
           <div>
-            <h3 className="text-lg font-semibold text-gold-light mb-4">Additional Information</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <h3 className="text-base sm:text-lg font-semibold text-gold-light mb-3 sm:mb-4">Additional Information</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
               <div className="space-y-1">
-                <p className="text-sm text-gray-400">Confirmation Accepted</p>
-                <p className="text-white font-medium">
+                <p className="text-xs sm:text-sm text-gray-400">Confirmation Accepted</p>
+                <p className="text-sm sm:text-base text-white font-medium">
                   {submission.confirmation_accepted ? (
                     <span className="text-green-300">Yes</span>
                   ) : (
@@ -229,8 +231,8 @@ function BookACallDetailContent() {
               </div>
               {submission.ip_address && (
                 <div className="space-y-1">
-                  <p className="text-sm text-gray-400">IP Address</p>
-                  <p className="text-white font-medium text-sm">{submission.ip_address}</p>
+                  <p className="text-xs sm:text-sm text-gray-400">IP Address</p>
+                  <p className="text-sm sm:text-base text-white font-medium">{submission.ip_address}</p>
                 </div>
               )}
             </div>
@@ -244,6 +246,9 @@ function BookACallDetailContent() {
 export function BookACallDetailPage() {
   return <BookACallDetailContent />;
 }
+
+
+
 
 
 

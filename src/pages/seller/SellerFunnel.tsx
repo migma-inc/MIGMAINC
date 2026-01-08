@@ -350,9 +350,9 @@ export function SellerFunnel() {
 
   return (
     <div>
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold migma-gold-text mb-2">Conversion Funnel</h1>
-        <p className="text-gray-400">Track your sales funnel performance</p>
+      <div className="mb-6 sm:mb-8">
+        <h1 className="text-2xl sm:text-3xl font-bold migma-gold-text mb-2">Conversion Funnel</h1>
+        <p className="text-sm sm:text-base text-gray-400">Track your sales funnel performance</p>
       </div>
 
       <Card className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30 mb-8">
@@ -377,15 +377,15 @@ export function SellerFunnel() {
             <div className="space-y-4">
               {/* Step 1: Link Clicks */}
               <div className="bg-blue-500/10 rounded-lg border border-blue-500/30 overflow-hidden">
-                <div className="flex items-center justify-between p-4">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 gap-3 sm:gap-4">
                   <div className="flex items-center gap-3">
-                    <MousePointerClick className="w-6 h-6 text-blue-400" />
+                    <MousePointerClick className="w-5 h-5 sm:w-6 sm:h-6 text-blue-400 shrink-0" />
                     <div>
-                      <p className="text-white font-semibold">Link Clicks</p>
+                      <p className="text-white font-semibold text-sm sm:text-base">Link Clicks</p>
                       <p className="text-xs text-gray-400">Users who clicked your checkout link</p>
                     </div>
                   </div>
-                  <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-3 sm:gap-4 w-full sm:w-auto justify-between sm:justify-end">
                     <div className="text-right">
                       <p className="text-2xl font-bold text-blue-300">{funnelStats.linkClicks}</p>
                       <p className="text-xs text-gray-500">100%</p>
@@ -418,7 +418,7 @@ export function SellerFunnel() {
                       {stepDetails.link_click.events.map((event) => (
                         <div key={event.id} className="p-3 bg-black/50 rounded border border-blue-500/20">
                           {event.order ? (
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                               <div>
                                 <p className="text-gray-400 text-xs mb-2 flex items-center gap-1">
                                   <User className="w-3 h-3" />
@@ -440,7 +440,7 @@ export function SellerFunnel() {
                                 </div>
                                 <p className="text-gold-light font-bold">${parseFloat(event.order.total_price_usd).toFixed(2)}</p>
                               </div>
-                              <div className="md:col-span-2 flex gap-2 items-center">
+                              <div className="sm:col-span-2 flex gap-2 items-center flex-wrap">
                                 <Link to={`/seller/orders/${event.order.id}`}>
                                   <Button
                                     size="sm"
@@ -458,7 +458,7 @@ export function SellerFunnel() {
                               </div>
                             </div>
                           ) : (
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 text-sm">
                               <div>
                                 <p className="text-gray-400 text-xs mb-1">Date & Time</p>
                                 <p className="text-white">{new Date(event.created_at).toLocaleString()}</p>
@@ -481,13 +481,13 @@ export function SellerFunnel() {
                                 </div>
                               )}
                               {event.referer && (
-                                <div className="md:col-span-3">
+                                <div className="sm:col-span-2 lg:col-span-3">
                                   <p className="text-gray-400 text-xs mb-1">Referer</p>
                                   <p className="text-white text-xs truncate">{event.referer}</p>
                                 </div>
                               )}
                               {event.user_agent && (
-                                <div className="md:col-span-3">
+                                <div className="sm:col-span-2 lg:col-span-3">
                                   <p className="text-gray-400 text-xs mb-1">User Agent</p>
                                   <p className="text-white text-xs truncate">{event.user_agent}</p>
                                 </div>
@@ -503,15 +503,15 @@ export function SellerFunnel() {
 
               {/* Step 2: Form Started */}
               <div className="bg-purple-500/10 rounded-lg border border-purple-500/30 overflow-hidden">
-                <div className="flex items-center justify-between p-4">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 gap-3 sm:gap-4">
                   <div className="flex items-center gap-3">
-                    <FileEdit className="w-6 h-6 text-purple-400" />
+                    <FileEdit className="w-5 h-5 sm:w-6 sm:h-6 text-purple-400 shrink-0" />
                     <div>
-                      <p className="text-white font-semibold">Form Started</p>
+                      <p className="text-white font-semibold text-sm sm:text-base">Form Started</p>
                       <p className="text-xs text-gray-400">Users who started filling the form</p>
                     </div>
                   </div>
-                  <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-3 sm:gap-4 w-full sm:w-auto justify-between sm:justify-end">
                     <div className="text-right">
                       <p className="text-2xl font-bold text-purple-300">{funnelStats.formStarted}</p>
                       <p className="text-xs text-gray-500">
@@ -548,7 +548,7 @@ export function SellerFunnel() {
                       {stepDetails.form_started.events.map((event) => (
                         <div key={event.id} className="p-3 bg-black/50 rounded border border-purple-500/20">
                           {event.order ? (
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                               <div>
                                 <p className="text-gray-400 text-xs mb-2 flex items-center gap-1">
                                   <User className="w-3 h-3" />
@@ -570,7 +570,7 @@ export function SellerFunnel() {
                                 </div>
                                 <p className="text-gold-light font-bold">${parseFloat(event.order.total_price_usd).toFixed(2)}</p>
                               </div>
-                              <div className="md:col-span-2 flex gap-2 items-center">
+                              <div className="sm:col-span-2 flex gap-2 items-center flex-wrap">
                                 <Link to={`/seller/orders/${event.order.id}`}>
                                   <Button
                                     size="sm"
@@ -588,7 +588,7 @@ export function SellerFunnel() {
                               </div>
                             </div>
                           ) : (
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 text-sm">
                               <div>
                                 <p className="text-gray-400 text-xs mb-1">Date & Time</p>
                                 <p className="text-white">{new Date(event.created_at).toLocaleString()}</p>
@@ -621,15 +621,15 @@ export function SellerFunnel() {
 
               {/* Step 3: Form Completed */}
               <div className="bg-indigo-500/10 rounded-lg border border-indigo-500/30 overflow-hidden">
-                <div className="flex items-center justify-between p-4">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 gap-3 sm:gap-4">
                   <div className="flex items-center gap-3">
-                    <CheckCircle className="w-6 h-6 text-indigo-400" />
+                    <CheckCircle className="w-5 h-5 sm:w-6 sm:h-6 text-indigo-400 shrink-0" />
                     <div>
-                      <p className="text-white font-semibold">Form Completed</p>
+                      <p className="text-white font-semibold text-sm sm:text-base">Form Completed</p>
                       <p className="text-xs text-gray-400">Users who completed the form</p>
                     </div>
                   </div>
-                  <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-3 sm:gap-4 w-full sm:w-auto justify-between sm:justify-end">
                     <div className="text-right">
                       <p className="text-2xl font-bold text-indigo-300">{funnelStats.formCompleted}</p>
                       <p className="text-xs text-gray-500">
@@ -666,7 +666,7 @@ export function SellerFunnel() {
                       {stepDetails.form_completed.events.map((event) => (
                         <div key={event.id} className="p-3 bg-black/50 rounded border border-indigo-500/20">
                           {event.order ? (
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                               <div>
                                 <p className="text-gray-400 text-xs mb-2 flex items-center gap-1">
                                   <User className="w-3 h-3" />
@@ -688,7 +688,7 @@ export function SellerFunnel() {
                                 </div>
                                 <p className="text-gold-light font-bold">${parseFloat(event.order.total_price_usd).toFixed(2)}</p>
                               </div>
-                              <div className="md:col-span-2 flex gap-2 items-center">
+                              <div className="sm:col-span-2 flex gap-2 items-center flex-wrap">
                                 <Link to={`/seller/orders/${event.order.id}`}>
                                   <Button
                                     size="sm"
@@ -706,7 +706,7 @@ export function SellerFunnel() {
                               </div>
                             </div>
                           ) : (
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 text-sm">
                               <div>
                                 <p className="text-gray-400 text-xs mb-1">Date & Time</p>
                                 <p className="text-white">{new Date(event.created_at).toLocaleString()}</p>
@@ -739,15 +739,15 @@ export function SellerFunnel() {
 
               {/* Step 4: Payment Started */}
               <div className="bg-orange-500/10 rounded-lg border border-orange-500/30 overflow-hidden">
-                <div className="flex items-center justify-between p-4">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 gap-3 sm:gap-4">
                   <div className="flex items-center gap-3">
-                    <CreditCard className="w-6 h-6 text-orange-400" />
+                    <CreditCard className="w-5 h-5 sm:w-6 sm:h-6 text-orange-400 shrink-0" />
                     <div>
-                      <p className="text-white font-semibold">Payment Started</p>
+                      <p className="text-white font-semibold text-sm sm:text-base">Payment Started</p>
                       <p className="text-xs text-gray-400">Users who initiated payment</p>
                     </div>
                   </div>
-                  <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-3 sm:gap-4 w-full sm:w-auto justify-between sm:justify-end">
                     <div className="text-right">
                       <p className="text-2xl font-bold text-orange-300">{funnelStats.paymentStarted}</p>
                       <p className="text-xs text-gray-500">
@@ -814,7 +814,7 @@ export function SellerFunnel() {
                                   </p>
                                 )}
                               </div>
-                              <div className="md:col-span-2 flex gap-2 items-center">
+                              <div className="sm:col-span-2 flex gap-2 items-center">
                                 <Link to={`/seller/orders/${event.order.id}`}>
                                   <Button
                                     size="sm"
@@ -876,7 +876,7 @@ export function SellerFunnel() {
                               </div>
                             </div>
                           ) : (
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 text-sm">
                               <div>
                                 <p className="text-gray-400 text-xs mb-1">Date & Time</p>
                                 <p className="text-white">{new Date(event.created_at).toLocaleString()}</p>
@@ -908,15 +908,15 @@ export function SellerFunnel() {
 
               {/* Step 5: Payment Completed */}
               <div className="bg-green-500/10 rounded-lg border border-green-500/30 overflow-hidden">
-                <div className="flex items-center justify-between p-4">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 gap-3 sm:gap-4">
                   <div className="flex items-center gap-3">
-                    <DollarSign className="w-6 h-6 text-green-400" />
+                    <DollarSign className="w-5 h-5 sm:w-6 sm:h-6 text-green-400 shrink-0" />
                     <div>
-                      <p className="text-white font-semibold">Payment Completed</p>
+                      <p className="text-white font-semibold text-sm sm:text-base">Payment Completed</p>
                       <p className="text-xs text-gray-400">Successful payments</p>
                     </div>
                   </div>
-                  <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-3 sm:gap-4 w-full sm:w-auto justify-between sm:justify-end">
                     <div className="text-right">
                       <p className="text-2xl font-bold text-green-300">{funnelStats.paymentCompleted}</p>
                       <p className="text-xs text-gray-500">
@@ -975,7 +975,7 @@ export function SellerFunnel() {
                                 </div>
                                 <p className="text-gold-light font-bold">${parseFloat(event.order.total_price_usd).toFixed(2)}</p>
                               </div>
-                              <div className="md:col-span-2 flex gap-2">
+                              <div className="sm:col-span-2 flex gap-2">
                                 <Link to={`/seller/orders/${event.order.id}`}>
                                   <Button
                                     size="sm"
@@ -993,7 +993,7 @@ export function SellerFunnel() {
                               </div>
                             </div>
                           ) : (
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 text-sm">
                               <div>
                                 <p className="text-gray-400 text-xs mb-1">Date & Time</p>
                                 <p className="text-white">{new Date(event.created_at).toLocaleString()}</p>

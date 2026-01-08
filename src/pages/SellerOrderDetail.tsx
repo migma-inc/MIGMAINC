@@ -6,9 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { PdfModal } from '@/components/ui/pdf-modal';
 import { ImageModal } from '@/components/ui/image-modal';
-import { ArrowLeft, FileText, CheckCircle2, XCircle, Shield, CheckCircle, X, Eye, Loader2, AlertCircle } from 'lucide-react';
-import { approveVisaContract, rejectVisaContract } from '@/lib/visa-contracts';
-import { PromptModal } from '@/components/ui/prompt-modal';
+import { ArrowLeft, FileText, CheckCircle2, XCircle, Shield, Eye, AlertCircle } from 'lucide-react';
 import { AlertModal } from '@/components/ui/alert-modal';
 
 interface Order {
@@ -73,10 +71,6 @@ export const SellerOrderDetail = () => {
   const [identityFiles, setIdentityFiles] = useState<IdentityFile[]>([]);
   const [loading, setLoading] = useState(true);
   const [_seller, setSeller] = useState<any>(null);
-  const [showRejectModal, setShowRejectModal] = useState(false);
-  const [rejectionReason, setRejectionReason] = useState('');
-  const [processing, setProcessing] = useState(false);
-  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [showAlert, setShowAlert] = useState(false);
   const [alertData, setAlertData] = useState<{ title: string; message: string; variant: 'success' | 'error' | 'warning' | 'info' } | null>(null);
   
@@ -95,7 +89,6 @@ export const SellerOrderDetail = () => {
           return;
         }
 
-        setCurrentUserId(user.id);
 
         // Get seller info
         const { data: sellerData, error: sellerError } = await supabase
@@ -189,93 +182,6 @@ export const SellerOrderDetail = () => {
     }
   };
 
-  const handleApprove = async () => {
-    if (!order || !currentUserId) return;
-
-    setProcessing(true);
-    try {
-      const result = await approveVisaContract(order.id, currentUserId);
-      if (result.success) {
-        // Reload order data
-        const { data: orderData } = await supabase
-          .from('visa_orders')
-          .select('*')
-          .eq('id', order.id)
-          .single();
-        if (orderData) {
-          setOrder(orderData);
-        }
-        setAlertData({
-          title: 'Success',
-          message: 'Contract approved successfully!',
-          variant: 'success',
-        });
-        setShowAlert(true);
-      } else {
-        setAlertData({
-          title: 'Error',
-          message: 'Failed to approve contract: ' + (result.error || 'Unknown error'),
-          variant: 'error',
-        });
-        setShowAlert(true);
-      }
-    } catch (err) {
-      console.error('Error approving contract:', err);
-      setAlertData({
-        title: 'Error',
-        message: 'An error occurred while approving the contract',
-        variant: 'error',
-      });
-      setShowAlert(true);
-    } finally {
-      setProcessing(false);
-    }
-  };
-
-  const handleReject = async (reason?: string) => {
-    if (!order || !currentUserId) return;
-
-    setProcessing(true);
-    try {
-      const result = await rejectVisaContract(order.id, currentUserId, reason || undefined);
-      if (result.success) {
-        // Reload order data
-        const { data: orderData } = await supabase
-          .from('visa_orders')
-          .select('*')
-          .eq('id', order.id)
-          .single();
-        if (orderData) {
-          setOrder(orderData);
-        }
-        setShowRejectModal(false);
-        setRejectionReason('');
-        setAlertData({
-          title: 'Contract Rejected',
-          message: 'Contract rejected. An email has been sent to the client with instructions to resubmit documents.',
-          variant: 'success',
-        });
-        setShowAlert(true);
-      } else {
-        setAlertData({
-          title: 'Error',
-          message: 'Failed to reject contract: ' + (result.error || 'Unknown error'),
-          variant: 'error',
-        });
-        setShowAlert(true);
-      }
-    } catch (err) {
-      console.error('Error rejecting contract:', err);
-      setAlertData({
-        title: 'Error',
-        message: 'An error occurred while rejecting the contract',
-        variant: 'error',
-      });
-      setShowAlert(true);
-    } finally {
-      setProcessing(false);
-    }
-  };
 
   const getDocumentUrl = (filePath: string): string => {
     if (filePath.startsWith('http')) return filePath;
@@ -533,11 +439,11 @@ export const SellerOrderDetail = () => {
             </Card>
           )}
 
-          {/* Contract Approval Actions */}
-          {order.contract_approval_status !== 'approved' && (
+          {/* Contract Approval Status (Read-only) */}
+          {order.contract_approval_status && order.contract_approval_status !== 'approved' && (
             <Card className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30">
               <CardHeader>
-                <CardTitle className="text-white">Contract Approval</CardTitle>
+                <CardTitle className="text-white">Contract Approval Status</CardTitle>
               </CardHeader>
               <CardContent>
                 {order.contract_approval_status === 'rejected' ? (
@@ -570,41 +476,16 @@ export const SellerOrderDetail = () => {
                     )}
                   </div>
                 ) : (
-                  <>
-                    <div className="flex gap-4">
-                      <Button
-                        onClick={handleApprove}
-                        disabled={processing}
-                        className="flex-1 bg-green-600 hover:bg-green-700 text-white"
-                      >
-                        {processing ? (
-                          <>
-                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                            Processing...
-                          </>
-                        ) : (
-                          <>
-                            <CheckCircle className="w-4 h-4 mr-2" />
-                            Approve Contract
-                          </>
-                        )}
-                      </Button>
-                      <Button
-                        onClick={() => setShowRejectModal(true)}
-                        disabled={processing}
-                        variant="destructive"
-                        className="flex-1 bg-red-600 hover:bg-red-700"
-                      >
-                        <X className="w-4 h-4 mr-2" />
-                        Reject Contract
-                      </Button>
-                    </div>
+                  <div className="space-y-2">
+                    <p className="text-gray-300 text-sm">
+                      This contract is pending approval by an administrator.
+                    </p>
                     {order.contract_approval_reviewed_at && (
-                      <p className="text-xs text-gray-400 mt-4">
+                      <p className="text-xs text-gray-400">
                         Last reviewed: {new Date(order.contract_approval_reviewed_at).toLocaleString()}
                       </p>
                     )}
-                  </>
+                  </div>
                 )}
               </CardContent>
             </Card>
@@ -696,26 +577,6 @@ export const SellerOrderDetail = () => {
         />
       )}
 
-      {/* Reject Contract Modal */}
-      <PromptModal
-        isOpen={showRejectModal}
-        onClose={() => {
-          setShowRejectModal(false);
-          setRejectionReason('');
-        }}
-        onConfirm={(reason) => {
-          setRejectionReason(reason);
-          handleReject(reason);
-        }}
-        title="Reject Contract"
-        message="Are you sure you want to reject this contract? An email will be sent to the client with instructions to resubmit documents."
-        placeholder="e.g., Document photos are unclear, missing information, etc."
-        confirmText="Reject Contract"
-        cancelText="Cancel"
-        variant="danger"
-        isLoading={processing}
-        defaultValue={rejectionReason}
-      />
 
       {/* Alert Modal */}
       {alertData && (

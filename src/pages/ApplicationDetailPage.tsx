@@ -486,57 +486,61 @@ function ApplicationDetailContent() {
   }
 
   return (
-    <div className="p-6">
+    <div className="p-4 sm:p-6">
       {/* Header */}
-      <div className="mb-6">
-        <div className="flex items-center gap-4 mb-2">
-          <Link to="/dashboard">
-            <Button variant="ghost" size="icon" className="text-white hover:text-white hover:bg-transparent">
-              <ArrowLeft className="w-5 h-5" />
-            </Button>
-          </Link>
-          <div className="flex-1">
-            <h1 className="text-2xl font-bold migma-gold-text">Application Details</h1>
-            <p className="text-sm text-gray-400">ID: {application.id.substring(0, 8)}...</p>
+      <div className="mb-4 sm:mb-6">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 mb-2">
+          <div className="flex items-center gap-3">
+            <Link to="/dashboard">
+              <Button variant="ghost" size="icon" className="text-white hover:text-white hover:bg-transparent">
+                <ArrowLeft className="w-5 h-5" />
+              </Button>
+            </Link>
+            <div className="flex-1">
+              <h1 className="text-xl sm:text-2xl font-bold migma-gold-text">Application Details</h1>
+              <p className="text-xs sm:text-sm text-gray-400">ID: {application.id.substring(0, 8)}...</p>
+            </div>
           </div>
-          <StatusBadge status={application.status} />
+          <div className="flex justify-start sm:justify-end">
+            <StatusBadge status={application.status} />
+          </div>
         </div>
       </div>
 
       {/* Main Content */}
-      <div className="space-y-6">
+      <div className="space-y-4 sm:space-y-6">
           {/* Personal Information */}
           <Card className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30">
             <CardHeader>
               <CardTitle className="text-white">Personal Information</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
                 <div>
-                  <p className="text-sm text-gray-400 mb-1">Full Name</p>
-                  <p className="font-medium text-lg text-gray-200">{application.full_name}</p>
+                  <p className="text-xs sm:text-sm text-gray-400 mb-1">Full Name</p>
+                  <p className="font-medium text-base sm:text-lg text-gray-200">{application.full_name}</p>
                 </div>
                 <div>
-                  <p className="text-sm text-gray-400 mb-1">Email</p>
-                  <p className="font-medium text-gray-200">{application.email}</p>
+                  <p className="text-xs sm:text-sm text-gray-400 mb-1">Email</p>
+                  <p className="font-medium text-sm sm:text-base text-gray-200 break-words">{application.email}</p>
                 </div>
                 <div>
-                  <p className="text-sm text-gray-400 mb-1">Phone</p>
-                  <p className="font-medium text-gray-200">{application.phone}</p>
+                  <p className="text-xs sm:text-sm text-gray-400 mb-1">Phone</p>
+                  <p className="font-medium text-sm sm:text-base text-gray-200">{application.phone}</p>
                 </div>
                 <div>
-                  <p className="text-sm text-gray-400 mb-1">Country</p>
-                  <p className="font-medium text-gray-200">{application.country}</p>
+                  <p className="text-xs sm:text-sm text-gray-400 mb-1">Country</p>
+                  <p className="font-medium text-sm sm:text-base text-gray-200">{application.country}</p>
                 </div>
                 {application.city && (
                   <div>
-                    <p className="text-sm text-gray-400 mb-1">City</p>
-                    <p className="font-medium text-gray-200">{application.city}</p>
+                    <p className="text-xs sm:text-sm text-gray-400 mb-1">City</p>
+                    <p className="font-medium text-sm sm:text-base text-gray-200">{application.city}</p>
                   </div>
                 )}
                 <div>
-                  <p className="text-sm text-gray-400 mb-1">Submitted</p>
-                  <p className="font-medium text-gray-200">
+                  <p className="text-xs sm:text-sm text-gray-400 mb-1">Submitted</p>
+                  <p className="font-medium text-sm sm:text-base text-gray-200">
                     {new Date(application.created_at).toLocaleString('en-US', {
                       year: 'numeric',
                       month: 'long',
@@ -556,33 +560,33 @@ function ApplicationDetailContent() {
               <CardTitle className="text-white">Business Information</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
                 <div>
-                  <p className="text-sm text-gray-400 mb-1">Has Business Registration</p>
-                  <p className="font-medium text-gray-200">{application.has_business_registration}</p>
+                  <p className="text-xs sm:text-sm text-gray-400 mb-1">Has Business Registration</p>
+                  <p className="font-medium text-sm sm:text-base text-gray-200">{application.has_business_registration}</p>
                 </div>
                 {application.business_name && (
                   <div>
-                    <p className="text-sm text-gray-400 mb-1">Business Name</p>
-                    <p className="font-medium text-gray-200">{application.business_name}</p>
+                    <p className="text-xs sm:text-sm text-gray-400 mb-1">Business Name</p>
+                    <p className="font-medium text-sm sm:text-base text-gray-200">{application.business_name}</p>
                   </div>
                 )}
                 {application.business_id && (
                   <div>
-                    <p className="text-sm text-gray-400 mb-1">Business ID (CNPJ/NIF)</p>
-                    <p className="font-medium text-gray-200">{application.business_id}</p>
+                    <p className="text-xs sm:text-sm text-gray-400 mb-1">Business ID (CNPJ/NIF)</p>
+                    <p className="font-medium text-sm sm:text-base text-gray-200 break-words">{application.business_id}</p>
                   </div>
                 )}
                 {application.tax_id && (
                   <div>
-                    <p className="text-sm text-gray-400 mb-1">Tax ID</p>
-                    <p className="font-medium text-gray-200">{application.tax_id}</p>
+                    <p className="text-xs sm:text-sm text-gray-400 mb-1">Tax ID</p>
+                    <p className="font-medium text-sm sm:text-base text-gray-200 break-words">{application.tax_id}</p>
                   </div>
                 )}
                 {application.registration_type && (
                   <div>
-                    <p className="text-sm text-gray-400 mb-1">Registration Type</p>
-                    <p className="font-medium text-gray-200">{application.registration_type}</p>
+                    <p className="text-xs sm:text-sm text-gray-400 mb-1">Registration Type</p>
+                    <p className="font-medium text-sm sm:text-base text-gray-200">{application.registration_type}</p>
                   </div>
                 )}
               </div>
@@ -595,20 +599,20 @@ function ApplicationDetailContent() {
               <CardTitle className="text-white">Professional Information</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
                 {application.current_occupation && (
                   <div>
-                    <p className="text-sm text-gray-400 mb-1">Current Occupation</p>
-                    <p className="font-medium text-gray-200">{application.current_occupation}</p>
+                    <p className="text-xs sm:text-sm text-gray-400 mb-1">Current Occupation</p>
+                    <p className="font-medium text-sm sm:text-base text-gray-200">{application.current_occupation}</p>
                   </div>
                 )}
                 <div className="md:col-span-2">
-                  <p className="text-sm text-gray-400 mb-2">Area of Expertise</p>
+                  <p className="text-xs sm:text-sm text-gray-400 mb-2">Area of Expertise</p>
                   <div className="flex flex-wrap gap-2">
                     {application.area_of_expertise.map((area, idx) => (
                       <span
                         key={idx}
-                        className="px-3 py-1 bg-gold-medium/30 text-white border border-gold-medium/50 rounded-full text-sm font-medium"
+                        className="px-2 sm:px-3 py-1 bg-gold-medium/30 text-white border border-gold-medium/50 rounded-full text-xs sm:text-sm font-medium"
                       >
                         {area}
                       </span>
@@ -617,12 +621,12 @@ function ApplicationDetailContent() {
                 </div>
                 {application.interested_roles && application.interested_roles.length > 0 && (
                   <div className="md:col-span-2">
-                    <p className="text-sm text-gray-400 mb-2">Interested Roles</p>
+                    <p className="text-xs sm:text-sm text-gray-400 mb-2">Interested Roles</p>
                     <div className="flex flex-wrap gap-2">
                       {application.interested_roles.map((role, idx) => (
                         <span
                           key={idx}
-                          className="px-3 py-1 bg-purple-500/30 text-white border border-purple-500/50 rounded-full text-sm font-medium"
+                          className="px-2 sm:px-3 py-1 bg-purple-500/30 text-white border border-purple-500/50 rounded-full text-xs sm:text-sm font-medium"
                         >
                           {role}
                         </span>
@@ -631,30 +635,30 @@ function ApplicationDetailContent() {
                   </div>
                 )}
                 <div>
-                  <p className="text-sm text-gray-400 mb-1">Years of Experience</p>
-                  <p className="font-medium text-gray-200">{application.years_of_experience}</p>
+                  <p className="text-xs sm:text-sm text-gray-400 mb-1">Years of Experience</p>
+                  <p className="font-medium text-sm sm:text-base text-gray-200">{application.years_of_experience}</p>
                 </div>
                 {application.visa_experience && (
                   <div>
-                    <p className="text-sm text-gray-400 mb-1">U.S. Visa Experience</p>
-                    <p className="font-medium text-gray-200">{application.visa_experience}</p>
+                    <p className="text-xs sm:text-sm text-gray-400 mb-1">U.S. Visa Experience</p>
+                    <p className="font-medium text-sm sm:text-base text-gray-200">{application.visa_experience}</p>
                   </div>
                 )}
                 <div>
-                  <p className="text-sm text-gray-400 mb-1">English Level</p>
-                  <p className="font-medium text-gray-200">{application.english_level}</p>
+                  <p className="text-xs sm:text-sm text-gray-400 mb-1">English Level</p>
+                  <p className="font-medium text-sm sm:text-base text-gray-200">{application.english_level}</p>
                 </div>
                 <div>
-                  <p className="text-sm text-gray-400 mb-1">Client Experience</p>
-                  <p className="font-medium text-gray-200">{application.client_experience}</p>
+                  <p className="text-xs sm:text-sm text-gray-400 mb-1">Client Experience</p>
+                  <p className="font-medium text-sm sm:text-base text-gray-200">{application.client_experience}</p>
                 </div>
                 <div>
-                  <p className="text-sm text-gray-400 mb-1">Weekly Availability</p>
-                  <p className="font-medium text-gray-200">{application.weekly_availability}</p>
+                  <p className="text-xs sm:text-sm text-gray-400 mb-1">Weekly Availability</p>
+                  <p className="font-medium text-sm sm:text-base text-gray-200">{application.weekly_availability}</p>
                 </div>
                 {application.client_experience_description && (
                   <div className="md:col-span-2">
-                    <p className="text-sm text-gray-400 mb-1">Client Experience Description</p>
+                    <p className="text-xs sm:text-sm text-gray-400 mb-1">Client Experience Description</p>
                     <p className="font-medium text-gray-200 whitespace-pre-wrap">{application.client_experience_description}</p>
                   </div>
                 )}
@@ -668,16 +672,16 @@ function ApplicationDetailContent() {
               <CardTitle className="text-white">Additional Information</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="space-y-6">
+              <div className="space-y-4 sm:space-y-6">
                 <div>
-                  <p className="text-sm text-gray-400 mb-2">Why MIGMA?</p>
-                  <p className="font-medium whitespace-pre-wrap bg-black/30 border border-gold-medium/30 p-4 rounded-lg text-gray-200">
+                  <p className="text-xs sm:text-sm text-gray-400 mb-2">Why MIGMA?</p>
+                  <p className="font-medium whitespace-pre-wrap bg-black/30 border border-gold-medium/30 p-3 sm:p-4 rounded-lg text-sm sm:text-base text-gray-200">
                     {application.why_migma}
                   </p>
                 </div>
                 {application.linkedin_url && (
                   <div>
-                    <p className="text-sm text-gray-400 mb-1">LinkedIn</p>
+                    <p className="text-xs sm:text-sm text-gray-400 mb-1">LinkedIn</p>
                     <a
                       href={application.linkedin_url}
                       target="_blank"
@@ -691,7 +695,7 @@ function ApplicationDetailContent() {
                 )}
                 {application.other_links && (
                   <div>
-                    <p className="text-sm text-gray-400 mb-1">Other Links</p>
+                    <p className="text-xs sm:text-sm text-gray-400 mb-1">Other Links</p>
                     <a
                       href={application.other_links}
                       target="_blank"
@@ -726,22 +730,22 @@ function ApplicationDetailContent() {
               <CardTitle className="text-white">Consent & Verification</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
                 <div>
-                  <p className="text-sm text-gray-400 mb-1">Information Accurate</p>
-                  <p className="font-medium text-gray-200">{application.info_accurate ? '✓ Confirmed' : '✗ Not confirmed'}</p>
+                  <p className="text-xs sm:text-sm text-gray-400 mb-1">Information Accurate</p>
+                  <p className="font-medium text-sm sm:text-base text-gray-200">{application.info_accurate ? '✓ Confirmed' : '✗ Not confirmed'}</p>
                 </div>
                 <div>
-                  <p className="text-sm text-gray-400 mb-1">Marketing Consent</p>
-                  <p className="font-medium text-gray-200">{application.marketing_consent ? '✓ Agreed' : '✗ Not agreed'}</p>
+                  <p className="text-xs sm:text-sm text-gray-400 mb-1">Marketing Consent</p>
+                  <p className="font-medium text-sm sm:text-base text-gray-200">{application.marketing_consent ? '✓ Agreed' : '✗ Not agreed'}</p>
                 </div>
                 <div>
-                  <p className="text-sm text-gray-400 mb-1">Comfortable with Model</p>
-                  <p className="font-medium text-gray-200">{application.comfortable_model ? '✓ Yes' : '✗ No'}</p>
+                  <p className="text-xs sm:text-sm text-gray-400 mb-1">Comfortable with Model</p>
+                  <p className="font-medium text-sm sm:text-base text-gray-200">{application.comfortable_model ? '✓ Yes' : '✗ No'}</p>
                 </div>
                 {application.ip_address && (
                   <div>
-                    <p className="text-sm text-gray-400 mb-1">IP Address</p>
+                    <p className="text-xs sm:text-sm text-gray-400 mb-1">IP Address</p>
                     <p className="font-medium font-mono text-sm text-gray-200">{application.ip_address}</p>
                   </div>
                 )}
@@ -848,10 +852,10 @@ function ApplicationDetailContent() {
               <CardTitle className="text-white">Timestamps</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
                 <div>
-                  <p className="text-sm text-gray-400 mb-1">Created At</p>
-                  <p className="font-medium text-gray-200">
+                  <p className="text-xs sm:text-sm text-gray-400 mb-1">Created At</p>
+                  <p className="font-medium text-sm sm:text-base text-gray-200">
                     {new Date(application.created_at).toLocaleString('en-US', {
                       year: 'numeric',
                       month: 'long',
@@ -863,8 +867,8 @@ function ApplicationDetailContent() {
                   </p>
                 </div>
                 <div>
-                  <p className="text-sm text-gray-400 mb-1">Last Updated</p>
-                  <p className="font-medium text-gray-200">
+                  <p className="text-xs sm:text-sm text-gray-400 mb-1">Last Updated</p>
+                  <p className="font-medium text-sm sm:text-base text-gray-200">
                     {new Date(application.updated_at).toLocaleString('en-US', {
                       year: 'numeric',
                       month: 'long',
@@ -891,10 +895,11 @@ function ApplicationDetailContent() {
                       size="sm"
                       onClick={() => setShowMeetingModal(true)}
                       disabled={isProcessing}
-                      className="flex items-center gap-2 border-yellow-500/50 bg-yellow-900/20 text-yellow-300 hover:bg-yellow-800/30 hover:text-yellow-200"
+                      className="flex items-center gap-2 border-yellow-500/50 bg-yellow-900/20 text-yellow-300 hover:bg-yellow-800/30 hover:text-yellow-200 text-xs sm:text-sm"
                     >
-                      <Pencil className="w-4 h-4" />
-                      Edit Meeting
+                      <Pencil className="w-3 h-3 sm:w-4 sm:h-4" />
+                      <span className="hidden sm:inline">Edit Meeting</span>
+                      <span className="sm:hidden">Edit</span>
                     </Button>
                   )}
                 </div>
@@ -904,8 +909,8 @@ function ApplicationDetailContent() {
                   <div className="flex items-start gap-3">
                     <Calendar className="w-5 h-5 text-gold-medium mt-0.5" />
                     <div>
-                      <p className="text-sm text-gray-400 mb-1">Meeting Date</p>
-                      <p className="font-medium text-gray-200">
+                      <p className="text-xs sm:text-sm text-gray-400 mb-1">Meeting Date</p>
+                      <p className="font-medium text-sm sm:text-base text-gray-200">
                         {(() => {
                           // Parse date in local timezone to avoid timezone conversion issues
                           const [year, month, day] = application.meeting_date.split('-').map(Number);
@@ -924,8 +929,8 @@ function ApplicationDetailContent() {
                     <div className="flex items-start gap-3">
                       <Clock className="w-5 h-5 text-gold-medium mt-0.5" />
                       <div>
-                        <p className="text-sm text-gray-400 mb-1">Meeting Time</p>
-                        <p className="font-medium text-gray-200">{application.meeting_time}</p>
+                        <p className="text-xs sm:text-sm text-gray-400 mb-1">Meeting Time</p>
+                        <p className="font-medium text-sm sm:text-base text-gray-200">{application.meeting_time}</p>
                       </div>
                     </div>
                   )}
@@ -933,7 +938,7 @@ function ApplicationDetailContent() {
                     <div className="flex items-start gap-3 md:col-span-2">
                       <LinkIcon className="w-5 h-5 text-gold-medium mt-0.5" />
                       <div className="flex-1">
-                        <p className="text-sm text-gray-400 mb-1">Meeting Link</p>
+                        <p className="text-xs sm:text-sm text-gray-400 mb-1">Meeting Link</p>
                         <a
                           href={application.meeting_link}
                           target="_blank"
@@ -947,8 +952,8 @@ function ApplicationDetailContent() {
                   )}
                   {application.meeting_scheduled_at && (
                     <div>
-                      <p className="text-sm text-gray-400 mb-1">Scheduled At</p>
-                      <p className="font-medium text-gray-200">
+                      <p className="text-xs sm:text-sm text-gray-400 mb-1">Scheduled At</p>
+                      <p className="font-medium text-sm sm:text-base text-gray-200">
                         {new Date(application.meeting_scheduled_at).toLocaleString('en-US', {
                           year: 'numeric',
                           month: 'long',
@@ -961,8 +966,8 @@ function ApplicationDetailContent() {
                   )}
                   {application.meeting_scheduled_by && (
                     <div>
-                      <p className="text-sm text-gray-400 mb-1">Scheduled By</p>
-                      <p className="font-medium text-gray-200">{application.meeting_scheduled_by}</p>
+                      <p className="text-xs sm:text-sm text-gray-400 mb-1">Scheduled By</p>
+                      <p className="font-medium text-sm sm:text-base text-gray-200">{application.meeting_scheduled_by}</p>
                     </div>
                   )}
                 </div>
@@ -1045,7 +1050,7 @@ function ApplicationDetailContent() {
                       }
                     }}
                     disabled={isProcessing}
-                    className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white"
+                    className="flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 text-white text-sm sm:text-base"
                   >
                     <CheckCircle className="w-4 h-4" />
                     Approve Contract
@@ -1057,7 +1062,7 @@ function ApplicationDetailContent() {
                       setShowRejectPrompt(true);
                     }}
                     disabled={isProcessing}
-                    className="flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white"
+                    className="flex items-center justify-center gap-2 bg-red-600 hover:bg-red-700 text-white text-sm sm:text-base"
                   >
                     <XCircle className="w-4 h-4" />
                     Reject Contract
@@ -1074,11 +1079,11 @@ function ApplicationDetailContent() {
                 <CardTitle className="text-white">Actions</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="flex gap-4">
+                <div className="flex flex-col sm:flex-row gap-2 sm:gap-4">
                   <Button
                     onClick={handleApprove}
                     disabled={isProcessing}
-                    className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white"
+                    className="flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 text-white text-sm sm:text-base"
                   >
                     <CheckCircle className="w-4 h-4" />
                     {application.status === 'pending' 
@@ -1090,7 +1095,7 @@ function ApplicationDetailContent() {
                       variant="destructive"
                       onClick={handleReject}
                       disabled={isProcessing}
-                      className="flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white"
+                      className="flex items-center justify-center gap-2 bg-red-600 hover:bg-red-700 text-white text-sm sm:text-base"
                     >
                       <XCircle className="w-4 h-4" />
                       Reject Application
@@ -1111,12 +1116,12 @@ function ApplicationDetailContent() {
                   <Button
                     onClick={handleResendEmail}
                     disabled={isProcessing}
-                    className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white"
+                    className="flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-sm sm:text-base w-full sm:w-auto"
                   >
                     <Mail className="w-4 h-4" />
                     Resend Contract Email
                   </Button>
-                  <p className="text-sm text-gray-400">
+                  <p className="text-xs sm:text-sm text-gray-400">
                     Resend the contract terms link email. The email will be sent with the production URL (not localhost).
                   </p>
                 </div>

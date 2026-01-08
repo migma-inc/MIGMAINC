@@ -32,6 +32,7 @@ import { SellerFunnel } from './pages/seller/SellerFunnel';
 import { SellerOrders } from './pages/seller/SellerOrders';
 import { SellerLinks } from './pages/seller/SellerLinks';
 import { SellerLeads } from './pages/seller/SellerLeads';
+import { SellerAnalytics } from './pages/seller/SellerAnalytics';
 import { SellerOrderDetail } from './pages/SellerOrderDetail';
 import { SellerRoute } from './components/seller/SellerRoute';
 import { VisaOrdersPage } from './pages/VisaOrdersPage';
@@ -44,6 +45,7 @@ import { SupportTicket } from './pages/SupportTicket';
 import { VisaContractResubmit } from './pages/VisaContractResubmit';
 import { ContractTemplatesPage } from './pages/ContractTemplatesPage';
 import { ViewSignedContract } from './pages/ViewSignedContract';
+import { ScheduleMeetingPage } from './pages/admin/ScheduleMeetingPage';
 
 function App() {
   return (
@@ -72,6 +74,7 @@ function App() {
         <Route path="/seller/register" element={<SellerRegister />} />
         <Route path="/seller/dashboard" element={<SellerRoute><SellerDashboardLayout /></SellerRoute>}>
           <Route index element={<SellerOverview />} />
+          <Route path="analytics" element={<SellerAnalytics />} />
           <Route path="funnel" element={<SellerFunnel />} />
           <Route path="orders" element={<SellerOrders />} />
           <Route path="links" element={<SellerLinks />} />
@@ -96,6 +99,7 @@ function App() {
           <Route path="contact-messages" element={<ContactMessagesPage />} />
           <Route path="contact-messages/:id" element={<ContactMessageDetail />} />
           <Route path="contract-templates" element={<ContractTemplatesPage />} />
+          <Route path="schedule-meeting" element={<ScheduleMeetingPage />} />
         </Route>
       </Routes>
     </Router>

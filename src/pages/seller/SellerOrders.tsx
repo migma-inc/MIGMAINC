@@ -186,9 +186,9 @@ export function SellerOrders() {
 
   return (
     <div>
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold migma-gold-text mb-2">Your Orders</h1>
-        <p className="text-gray-400">View and manage all your sales</p>
+      <div className="mb-6 sm:mb-8">
+        <h1 className="text-2xl sm:text-3xl font-bold migma-gold-text mb-2">Your Orders</h1>
+        <p className="text-sm sm:text-base text-gray-400">View and manage all your sales</p>
       </div>
 
       <Card className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30">
@@ -298,81 +298,151 @@ export function SellerOrders() {
               </Button>
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-gold-medium/30">
-                    <th className="text-left py-3 px-4 text-sm text-gray-400 font-semibold">Order #</th>
-                    <th className="text-left py-3 px-4 text-sm text-gray-400 font-semibold">Client</th>
-                    <th className="text-left py-3 px-4 text-sm text-gray-400 font-semibold">Product</th>
-                    <th className="text-left py-3 px-4 text-sm text-gray-400 font-semibold">Total</th>
-                    <th className="text-left py-3 px-4 text-sm text-gray-400 font-semibold">Status</th>
-                    <th className="text-left py-3 px-4 text-sm text-gray-400 font-semibold">Date</th>
-                    <th className="text-left py-3 px-4 text-sm text-gray-400 font-semibold">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {paginatedOrders.map((order) => (
-                    <tr key={order.id} className="border-b border-gold-medium/10 hover:bg-white/5">
-                      <td className="py-3 px-4 text-sm text-white font-mono">{order.order_number}</td>
-                      <td className="py-3 px-4">
-                        <div className="text-sm">
+            <>
+              {/* Desktop Table View */}
+              <div className="hidden md:block overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-gold-medium/30">
+                      <th className="text-left py-3 px-4 text-sm text-gray-400 font-semibold">Order #</th>
+                      <th className="text-left py-3 px-4 text-sm text-gray-400 font-semibold">Client</th>
+                      <th className="text-left py-3 px-4 text-sm text-gray-400 font-semibold">Product</th>
+                      <th className="text-left py-3 px-4 text-sm text-gray-400 font-semibold">Total</th>
+                      <th className="text-left py-3 px-4 text-sm text-gray-400 font-semibold">Status</th>
+                      <th className="text-left py-3 px-4 text-sm text-gray-400 font-semibold">Date</th>
+                      <th className="text-left py-3 px-4 text-sm text-gray-400 font-semibold">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {paginatedOrders.map((order) => (
+                      <tr key={order.id} className="border-b border-gold-medium/10 hover:bg-white/5">
+                        <td className="py-3 px-4 text-sm text-white font-mono">{order.order_number}</td>
+                        <td className="py-3 px-4">
+                          <div className="text-sm">
+                            <p className="text-white">{order.client_name}</p>
+                            <p className="text-gray-400 text-xs">{order.client_email}</p>
+                          </div>
+                        </td>
+                        <td className="py-3 px-4">
+                          <div className="text-sm">
+                            <p className="text-white">{order.product_slug}</p>
+                            {order.extra_units > 0 && (
+                              <p className="text-gray-400 text-xs">+{order.extra_units} extra units</p>
+                            )}
+                          </div>
+                        </td>
+                        <td className="py-3 px-4 text-sm text-gold-light font-bold">
+                          ${parseFloat(order.total_price_usd || '0').toFixed(2)}
+                        </td>
+                        <td className="py-3 px-4">
+                          {getStatusBadge(order.payment_status)}
+                        </td>
+                        <td className="py-3 px-4 text-sm text-gray-400">
+                          {new Date(order.created_at).toLocaleDateString()}
+                        </td>
+                        <td className="py-3 px-4">
+                          <div className="flex gap-2">
+                            <Link to={`/seller/orders/${order.id}`}>
+                              <Button size="sm" variant="outline" className="text-xs border-gold-medium/50 bg-black/50 text-gold-light hover:bg-black hover:border-gold-medium hover:text-gold-medium">
+                                <Eye className="w-3 h-3 mr-1" />
+                                View
+                              </Button>
+                            </Link>
+                            {(() => {
+                              const isAnnexProduct = order.product_slug?.endsWith('-scholarship') || order.product_slug?.endsWith('-i20-control');
+                              const pdfUrl = isAnnexProduct ? order.annex_pdf_url : order.contract_pdf_url;
+                              const pdfTitle = isAnnexProduct ? `ANNEX I - ${order.order_number}` : `Contract - ${order.order_number}`;
+                              
+                              return pdfUrl && (
+                                <Button 
+                                  size="sm" 
+                                  variant="outline" 
+                                  onClick={() => {
+                                    setSelectedPdfUrl(pdfUrl);
+                                    setSelectedPdfTitle(pdfTitle);
+                                  }}
+                                  className="text-xs border-gold-medium/50 bg-black/50 text-gold-light hover:bg-black hover:border-gold-medium hover:text-gold-medium"
+                                  title={isAnnexProduct ? "View ANNEX I PDF" : "View Contract PDF"}
+                                >
+                                  <FileText className="w-3 h-3" />
+                                </Button>
+                              );
+                            })()}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Mobile Card View */}
+              <div className="md:hidden space-y-3">
+                {paginatedOrders.map((order) => {
+                  const isAnnexProduct = order.product_slug?.endsWith('-scholarship') || order.product_slug?.endsWith('-i20-control');
+                  const pdfUrl = isAnnexProduct ? order.annex_pdf_url : order.contract_pdf_url;
+                  const pdfTitle = isAnnexProduct ? `ANNEX I - ${order.order_number}` : `Contract - ${order.order_number}`;
+                  
+                  return (
+                    <div key={order.id} className="p-4 bg-black/50 rounded-lg border border-gold-medium/20">
+                      <div className="flex items-start justify-between mb-3">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-2">
+                            <p className="text-sm text-white font-mono font-semibold">{order.order_number}</p>
+                            {getStatusBadge(order.payment_status)}
+                          </div>
+                          <p className="text-lg font-bold text-gold-light mb-1">
+                            ${parseFloat(order.total_price_usd || '0').toFixed(2)}
+                          </p>
+                        </div>
+                      </div>
+                      
+                      <div className="space-y-2 mb-3 text-sm">
+                        <div>
+                          <p className="text-xs text-gray-400 mb-1">Client</p>
                           <p className="text-white">{order.client_name}</p>
                           <p className="text-gray-400 text-xs">{order.client_email}</p>
                         </div>
-                      </td>
-                      <td className="py-3 px-4">
-                        <div className="text-sm">
+                        <div>
+                          <p className="text-xs text-gray-400 mb-1">Product</p>
                           <p className="text-white">{order.product_slug}</p>
                           {order.extra_units > 0 && (
                             <p className="text-gray-400 text-xs">+{order.extra_units} extra units</p>
                           )}
                         </div>
-                      </td>
-                      <td className="py-3 px-4 text-sm text-gold-light font-bold">
-                        ${parseFloat(order.total_price_usd || '0').toFixed(2)}
-                      </td>
-                      <td className="py-3 px-4">
-                        {getStatusBadge(order.payment_status)}
-                      </td>
-                      <td className="py-3 px-4 text-sm text-gray-400">
-                        {new Date(order.created_at).toLocaleDateString()}
-                      </td>
-                      <td className="py-3 px-4">
-                        <div className="flex gap-2">
-                          <Link to={`/seller/orders/${order.id}`}>
-                            <Button size="sm" variant="outline" className="text-xs border-gold-medium/50 bg-black/50 text-gold-light hover:bg-black hover:border-gold-medium hover:text-gold-medium">
-                              <Eye className="w-3 h-3 mr-1" />
-                              View
-                            </Button>
-                          </Link>
-                          {(() => {
-                            const isAnnexProduct = order.product_slug?.endsWith('-scholarship') || order.product_slug?.endsWith('-i20-control');
-                            const pdfUrl = isAnnexProduct ? order.annex_pdf_url : order.contract_pdf_url;
-                            const pdfTitle = isAnnexProduct ? `ANNEX I - ${order.order_number}` : `Contract - ${order.order_number}`;
-                            
-                            return pdfUrl && (
-                              <Button 
-                                size="sm" 
-                                variant="outline" 
-                                onClick={() => {
-                                  setSelectedPdfUrl(pdfUrl);
-                                  setSelectedPdfTitle(pdfTitle);
-                                }}
-                                className="text-xs border-gold-medium/50 bg-black/50 text-gold-light hover:bg-black hover:border-gold-medium hover:text-gold-medium"
-                                title={isAnnexProduct ? "View ANNEX I PDF" : "View Contract PDF"}
-                              >
-                                <FileText className="w-3 h-3" />
-                              </Button>
-                            );
-                          })()}
+                        <div>
+                          <p className="text-xs text-gray-400 mb-1">Date</p>
+                          <p className="text-gray-400">{new Date(order.created_at).toLocaleDateString()}</p>
                         </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                      </div>
+
+                      <div className="flex gap-2 pt-3 border-t border-gold-medium/20">
+                        <Link to={`/seller/orders/${order.id}`} className="flex-1">
+                          <Button size="sm" variant="outline" className="w-full text-xs border-gold-medium/50 bg-black/50 text-gold-light hover:bg-black hover:border-gold-medium hover:text-gold-medium">
+                            <Eye className="w-3 h-3 mr-1" />
+                            View
+                          </Button>
+                        </Link>
+                        {pdfUrl && (
+                          <Button 
+                            size="sm" 
+                            variant="outline" 
+                            onClick={() => {
+                              setSelectedPdfUrl(pdfUrl);
+                              setSelectedPdfTitle(pdfTitle);
+                            }}
+                            className="text-xs border-gold-medium/50 bg-black/50 text-gold-light hover:bg-black hover:border-gold-medium hover:text-gold-medium"
+                            title={isAnnexProduct ? "View ANNEX I PDF" : "View Contract PDF"}
+                          >
+                            <FileText className="w-3 h-3" />
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </>
           )}
           {filteredOrders.length > 0 && (
             <Pagination

@@ -343,9 +343,9 @@ export function SellerLinks() {
 
   return (
     <div>
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold migma-gold-text mb-2">Sales Links</h1>
-        <p className="text-gray-400">Generate and copy your personalized checkout links</p>
+      <div className="mb-6 sm:mb-8">
+        <h1 className="text-2xl sm:text-3xl font-bold migma-gold-text mb-2">Sales Links</h1>
+        <p className="text-sm sm:text-base text-gray-400">Generate and copy your personalized checkout links</p>
       </div>
 
       {/* Quick Client Setup Form */}
@@ -434,7 +434,7 @@ export function SellerLinks() {
                   </div>
 
                   {/* Dependents & Full Name */}
-                  <div className="grid gap-3 md:grid-cols-2">
+                  <div className="grid gap-3 sm:grid-cols-2">
                     {/* Number of Dependents */}
                     <div className="space-y-1.5">
                       <Label htmlFor="prefill-extra-units" className="text-white text-sm">Number of Dependents</Label>
@@ -526,7 +526,7 @@ export function SellerLinks() {
                   )}
 
                   {/* Email & Date of Birth */}
-                  <div className="grid gap-3 md:grid-cols-2">
+                  <div className="grid gap-3 sm:grid-cols-2">
                     {/* Email */}
                     <div className="space-y-1.5">
                       <Label htmlFor="prefill-email" className="text-white text-sm">Email *</Label>
@@ -553,7 +553,7 @@ export function SellerLinks() {
                   </div>
 
                   {/* Document Type and Number */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div className="space-y-1.5">
                       <Label htmlFor="prefill-doc-type" className="text-white text-sm">Document Type *</Label>
                       <Select
@@ -609,7 +609,7 @@ export function SellerLinks() {
                   </div>
 
                   {/* City, State, Postal Code */}
-                  <div className="grid grid-cols-3 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <div className="space-y-1.5">
                       <Label htmlFor="prefill-city" className="text-white text-sm">City *</Label>
                       <Input
@@ -640,7 +640,7 @@ export function SellerLinks() {
                   </div>
 
                   {/* Country and Nationality */}
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div className="space-y-1.5">
                       <Label htmlFor="prefill-country" className="text-white text-sm">Country of Residence *</Label>
                       <Select
@@ -696,7 +696,7 @@ export function SellerLinks() {
                   </div>
 
                   {/* WhatsApp and Marital Status */}
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div className="space-y-1.5">
                       <Label htmlFor="prefill-whatsapp" className="text-white text-sm">WhatsApp (with country code) *</Label>
                       <Input
@@ -963,8 +963,8 @@ export function SellerLinks() {
                                   key={product.slug}
                                   className="p-4 bg-black/50 rounded-lg border border-gold-medium/20 hover:border-gold-medium/40 transition-colors"
                                 >
-                                  <div className="flex items-start justify-between gap-4">
-                                    <div className="flex-1 space-y-2">
+                                  <div className="flex flex-col sm:flex-row items-start justify-between gap-4">
+                                    <div className="flex-1 space-y-2 w-full">
                                       {/* Payment Label with Number */}
                                       <div className="flex items-center gap-2">
                                         <span className="text-xs font-semibold text-gold-light bg-gold-medium/20 px-2 py-1 rounded">
@@ -1049,8 +1049,8 @@ export function SellerLinks() {
                             key={product.slug}
                             className="p-5 bg-black/50 rounded-lg border border-gold-medium/20 hover:border-gold-medium/40 transition-colors"
                           >
-                            <div className="flex items-start justify-between gap-4">
-                              <div className="flex-1 space-y-3">
+                            <div className="flex flex-col sm:flex-row items-start justify-between gap-4">
+                              <div className="flex-1 space-y-3 w-full">
                                 {/* Nome do Produto */}
                                 <div>
                                   <h3 className="text-white font-semibold text-lg mb-1">{product.name}</h3>

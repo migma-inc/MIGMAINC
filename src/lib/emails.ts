@@ -148,37 +148,9 @@ export async function sendApprovalEmail(
     token: string,
     baseUrl?: string
 ): Promise<boolean> {
-    // Get base URL from:
-    // 1. Explicit baseUrl parameter (if provided)
-    // 2. Environment variable VITE_APP_URL (for production)
-    // 3. window.location.origin (if in browser)
-    // 4. Fallback to production URL
+    // Sempre usa migmainc.com
     const getBaseUrl = (): string => {
         if (baseUrl) return baseUrl;
-        
-        // Try environment variable first (for production builds)
-        const envUrl = import.meta.env.VITE_APP_URL;
-        console.log('[EMAIL DEBUG] Environment variable check:', {
-            VITE_APP_URL: envUrl,
-            exists: !!envUrl,
-            type: typeof envUrl
-        });
-        
-        if (envUrl) {
-            // Remove trailing slash and return
-            const normalizedUrl = envUrl.trim().replace(/\/+$/, '');
-            console.log('[EMAIL DEBUG] Using environment variable:', normalizedUrl);
-            return normalizedUrl;
-        }
-        
-        // If in browser, use current origin
-        if (typeof window !== 'undefined' && window.location.origin) {
-            console.log('[EMAIL DEBUG] Using browser origin:', window.location.origin);
-            return window.location.origin;
-        }
-        
-        // Fallback (should be set via VITE_APP_URL in production)
-        console.log('[EMAIL DEBUG] Using fallback URL: https://migmainc.com');
         return 'https://migmainc.com';
     };
     
@@ -458,8 +430,275 @@ export async function sendMeetingInvitationEmail(
 }
 
 /**
+ * Email: Direct meeting invitation (not related to Global Partner application)
+ * Sent when admin schedules a meeting directly for a user
+ */
+export async function sendScheduledMeetingEmail(
+    email: string,
+    fullName: string,
+    meetingDate: string,
+    meetingTime: string,
+    meetingLink: string
+): Promise<boolean> {
+    // Format date for display - parse in local timezone to avoid timezone conversion issues
+    const [year, month, day] = meetingDate.split('-').map(Number);
+    const dateObj = new Date(year, month - 1, day);
+    const formattedDate = dateObj.toLocaleDateString('en-US', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+    });
+
+    const html = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+        </head>
+        <body style="margin: 0; padding: 0; font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #000000;">
+    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background-color: #000000;">
+        <tr>
+            <td align="center" style="padding: 40px 20px;">
+                <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="600" style="max-width: 600px; background-color: #000000; border-radius: 8px;">
+                    <!-- Logo Header -->
+                    <tr>
+                        <td align="center" style="padding: 40px 20px 30px; background-color: #000000;">
+                            <img src="https://ekxftwrjvxtpnqbraszv.supabase.co/storage/v1/object/public/logo/logo2.png" alt="MIGMA Logo" width="200" style="display: block; max-width: 200px; height: auto;">
+                        </td>
+                    </tr>
+                    <!-- Main Content -->
+                    <tr>
+                        <td style="padding: 0 40px 40px; background-color: #000000;">
+                            <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
+                                <tr>
+                                    <td style="padding: 30px; background: linear-gradient(135deg, #1a1a1a 0%, #000000 100%); border-radius: 8px; border: 1px solid #CE9F48;">
+                                        <h1 style="margin: 0 0 20px 0; font-size: 28px; font-weight: bold; color: #F3E196; text-align: center; background: linear-gradient(180deg, #8E6E2F 0%, #F3E196 25%, #CE9F48 50%, #F3E196 75%, #8E6E2F 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">
+                                            Meeting Invitation
+                                        </h1>
+                                        <p style="margin: 0 0 20px 0; font-size: 16px; line-height: 1.6; color: #e0e0e0;">
+                                            Dear ${fullName},
+                                        </p>
+                                        <p style="margin: 0 0 30px 0; font-size: 16px; line-height: 1.6; color: #e0e0e0;">
+                                            We would like to invite you to a meeting with our team. We have scheduled a meeting for you:
+                                        </p>
+                                        <!-- Meeting Details Card -->
+                                        <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
+                                            <tr>
+                                                <td style="padding: 25px; background-color: #1a1a1a; border: 2px solid #CE9F48; border-radius: 8px; margin: 20px 0;">
+                                                    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
+                                                        <tr>
+                                                            <td style="padding-bottom: 15px;">
+                                                                <p style="margin: 0 0 8px 0; font-size: 14px; color: #999999; text-transform: uppercase; letter-spacing: 0.5px;">Meeting Date</p>
+                                                                <p style="margin: 0; font-size: 20px; font-weight: bold; color: #F3E196;">${formattedDate}</p>
+                                                            </td>
+                                                        </tr>
+                                                        <tr>
+                                                            <td style="padding-bottom: 15px;">
+                                                                <p style="margin: 0 0 8px 0; font-size: 14px; color: #999999; text-transform: uppercase; letter-spacing: 0.5px;">Meeting Time</p>
+                                                                <p style="margin: 0; font-size: 20px; font-weight: bold; color: #F3E196;">${meetingTime}</p>
+                                                            </td>
+                                                        </tr>
+                                                        <tr>
+                                                            <td style="padding-top: 15px; border-top: 1px solid #333333;">
+                                                                <p style="margin: 0 0 15px 0; font-size: 14px; color: #999999; text-transform: uppercase; letter-spacing: 0.5px;">Meeting Link</p>
+                                                                <a href="${meetingLink}" style="display: inline-block; padding: 14px 32px; background: linear-gradient(180deg, #F3E196 0%, #CE9F48 50%, #F3E196 100%); color: #000000; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 16px; box-shadow: 0 4px 12px rgba(206, 159, 72, 0.4); margin-bottom: 10px;">
+                                                                    Join Meeting
+                                                                </a>
+                                                                <p style="margin: 10px 0 0 0; font-size: 12px; color: #999999; word-break: break-all;">
+                                                                    ${meetingLink}
+                                                                </p>
+                                                            </td>
+                                                        </tr>
+                                                    </table>
+                                                </td>
+                                            </tr>
+                                        </table>
+                                        <p style="margin: 30px 0 20px 0; font-size: 16px; line-height: 1.6; color: #e0e0e0;">
+                                            Please make sure to:
+                                        </p>
+                                        <ul style="margin: 0 0 30px 0; padding-left: 20px; color: #e0e0e0; font-size: 16px; line-height: 1.8;">
+                                            <li style="margin-bottom: 10px;">Test your internet connection before the meeting</li>
+                                            <li style="margin-bottom: 10px;">Have a quiet environment ready</li>
+                                            <li style="margin-bottom: 10px;">Join the meeting a few minutes early</li>
+                                        </ul>
+                                        <p style="margin: 30px 0 0 0; font-size: 16px; line-height: 1.6; color: #e0e0e0;">
+                                            We look forward to meeting with you!
+                                        </p>
+                                        <p style="margin: 20px 0 0 0; font-size: 16px; line-height: 1.6; color: #e0e0e0;">
+                                            Best regards,<br>
+                                            <strong style="color: #CE9F48;">The MIGMA Team</strong>
+                                        </p>
+                                    </td>
+                                </tr>
+                            </table>
+                        </td>
+                    </tr>
+                    <!-- Footer -->
+                    <tr>
+                        <td align="center" style="padding: 20px 40px; background-color: #000000;">
+                            <p style="margin: 0 0 10px 0; font-size: 11px; color: #999999; line-height: 1.5; font-style: italic;">
+                                This is an automated message. Please do not reply to this email.
+                            </p>
+                            <p style="margin: 0; font-size: 12px; color: #666666; line-height: 1.5;">
+                                © 2025 MIGMA. All rights reserved.
+                            </p>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+        </body>
+        </html>
+    `;
+
+    return sendEmail({
+        to: email,
+        subject: 'Meeting Invitation - MIGMA',
+        html: html,
+    });
+}
+
+/**
+ * Email: Scheduled meeting update notification
+ * Sent when a directly scheduled meeting information is updated
+ */
+export async function sendScheduledMeetingUpdateEmail(
+    email: string,
+    fullName: string,
+    meetingDate: string,
+    meetingTime: string,
+    meetingLink: string
+): Promise<boolean> {
+    // Format date for display - parse in local timezone to avoid timezone conversion issues
+    const [year, month, day] = meetingDate.split('-').map(Number);
+    const dateObj = new Date(year, month - 1, day);
+    const formattedDate = dateObj.toLocaleDateString('en-US', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+    });
+
+    const html = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+        </head>
+        <body style="margin: 0; padding: 0; font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #000000;">
+    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background-color: #000000;">
+        <tr>
+            <td align="center" style="padding: 40px 20px;">
+                <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="600" style="max-width: 600px; background-color: #000000; border-radius: 8px;">
+                    <!-- Logo Header -->
+                    <tr>
+                        <td align="center" style="padding: 40px 20px 30px; background-color: #000000;">
+                            <img src="https://ekxftwrjvxtpnqbraszv.supabase.co/storage/v1/object/public/logo/logo2.png" alt="MIGMA Logo" width="200" style="display: block; max-width: 200px; height: auto;">
+                        </td>
+                    </tr>
+                    <!-- Main Content -->
+                    <tr>
+                        <td style="padding: 0 40px 40px; background-color: #000000;">
+                            <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
+                                <tr>
+                                    <td style="padding: 30px; background: linear-gradient(135deg, #1a1a1a 0%, #000000 100%); border-radius: 8px; border: 1px solid #CE9F48;">
+                                        <h1 style="margin: 0 0 20px 0; font-size: 28px; font-weight: bold; color: #F3E196; text-align: center; background: linear-gradient(180deg, #8E6E2F 0%, #F3E196 25%, #CE9F48 50%, #F3E196 75%, #8E6E2F 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">
+                                            Meeting Details Updated
+                                        </h1>
+                                        <p style="margin: 0 0 20px 0; font-size: 16px; line-height: 1.6; color: #e0e0e0;">
+                                            Dear ${fullName},
+                                        </p>
+                                        <p style="margin: 0 0 30px 0; font-size: 16px; line-height: 1.6; color: #e0e0e0;">
+                                            We would like to inform you that your meeting details have been <strong style="color: #CE9F48;">updated</strong>. Please review the new meeting information below:
+                                        </p>
+                                        <!-- Meeting Details Card -->
+                                        <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
+                                            <tr>
+                                                <td style="padding: 25px; background-color: #1a1a1a; border: 2px solid #CE9F48; border-radius: 8px; margin: 20px 0;">
+                                                    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
+                                                        <tr>
+                                                            <td style="padding-bottom: 15px;">
+                                                                <p style="margin: 0 0 8px 0; font-size: 14px; color: #999999; text-transform: uppercase; letter-spacing: 0.5px;">Meeting Date</p>
+                                                                <p style="margin: 0; font-size: 20px; font-weight: bold; color: #F3E196;">${formattedDate}</p>
+                                                            </td>
+                                                        </tr>
+                                                        <tr>
+                                                            <td style="padding-bottom: 15px;">
+                                                                <p style="margin: 0 0 8px 0; font-size: 14px; color: #999999; text-transform: uppercase; letter-spacing: 0.5px;">Meeting Time</p>
+                                                                <p style="margin: 0; font-size: 20px; font-weight: bold; color: #F3E196;">${meetingTime}</p>
+                                                            </td>
+                                                        </tr>
+                                                        <tr>
+                                                            <td style="padding-top: 15px; border-top: 1px solid #333333;">
+                                                                <p style="margin: 0 0 15px 0; font-size: 14px; color: #999999; text-transform: uppercase; letter-spacing: 0.5px;">Meeting Link</p>
+                                                                <a href="${meetingLink}" style="display: inline-block; padding: 14px 32px; background: linear-gradient(180deg, #F3E196 0%, #CE9F48 50%, #F3E196 100%); color: #000000; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 16px; box-shadow: 0 4px 12px rgba(206, 159, 72, 0.4); margin-bottom: 10px;">
+                                                                    Join Meeting
+                                                                </a>
+                                                                <p style="margin: 10px 0 0 0; font-size: 12px; color: #999999; word-break: break-all;">
+                                                                    ${meetingLink}
+                                                                </p>
+                                                            </td>
+                                                        </tr>
+                                                    </table>
+                                                </td>
+                                            </tr>
+                                        </table>
+                                        <p style="margin: 30px 0 20px 0; font-size: 16px; line-height: 1.6; color: #e0e0e0;">
+                                            Please make sure to:
+                                        </p>
+                                        <ul style="margin: 0 0 30px 0; padding-left: 20px; color: #e0e0e0; font-size: 16px; line-height: 1.8;">
+                                            <li style="margin-bottom: 10px;">Update your calendar with the new meeting details</li>
+                                            <li style="margin-bottom: 10px;">Test your internet connection before the meeting</li>
+                                            <li style="margin-bottom: 10px;">Have a quiet environment ready</li>
+                                            <li style="margin-bottom: 10px;">Join the meeting a few minutes early</li>
+                                        </ul>
+                                        <p style="margin: 30px 0 0 0; font-size: 16px; line-height: 1.6; color: #e0e0e0;">
+                                            We apologize for any inconvenience and look forward to meeting with you!
+                                        </p>
+                                        <p style="margin: 20px 0 0 0; font-size: 16px; line-height: 1.6; color: #e0e0e0;">
+                                            Best regards,<br>
+                                            <strong style="color: #CE9F48;">The MIGMA Team</strong>
+                                        </p>
+                                    </td>
+                                </tr>
+                            </table>
+                        </td>
+                    </tr>
+                    <!-- Footer -->
+                    <tr>
+                        <td align="center" style="padding: 20px 40px; background-color: #000000;">
+                            <p style="margin: 0 0 10px 0; font-size: 11px; color: #999999; line-height: 1.5; font-style: italic;">
+                                This is an automated message. Please do not reply to this email.
+                            </p>
+                            <p style="margin: 0; font-size: 12px; color: #666666; line-height: 1.5;">
+                                © 2025 MIGMA. All rights reserved.
+                            </p>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+        </body>
+        </html>
+    `;
+
+    return sendEmail({
+        to: email,
+        subject: 'Meeting Details Updated - MIGMA',
+        html: html,
+    });
+}
+
+/**
  * Email: Meeting details update notification
- * Sent when meeting information is updated
+ * Sent when meeting information is updated (for Global Partner applications)
  */
 export async function sendMeetingUpdateEmail(
     email: string,
@@ -745,27 +984,9 @@ export async function sendContractRejectionEmail(
     rejectionReason?: string,
     baseUrl?: string
 ): Promise<boolean> {
-    // Get base URL from:
-    // 1. Explicit baseUrl parameter (if provided)
-    // 2. Environment variable VITE_APP_URL (for production)
-    // 3. window.location.origin (if in browser)
-    // 4. Fallback to production URL
+    // Sempre usa migmainc.com
     const getBaseUrl = (): string => {
         if (baseUrl) return baseUrl;
-        
-        // Try environment variable first (for production builds)
-        const envUrl = import.meta.env.VITE_APP_URL;
-        if (envUrl) {
-            // Remove trailing slash and return
-            return envUrl.trim().replace(/\/+$/, '');
-        }
-        
-        // If in browser, use current origin
-        if (typeof window !== 'undefined' && window.location.origin) {
-            return window.location.origin;
-        }
-        
-        // Fallback (should be set via VITE_APP_URL in production)
         return 'https://migmainc.com';
     };
     
@@ -898,24 +1119,10 @@ export async function sendAdminNewApplicationNotification(
     },
     baseUrl?: string
 ): Promise<boolean> {
-    // Get base URL
+    // Sempre usa migmainc.com
     const getBaseUrl = (): string => {
         if (baseUrl) return baseUrl;
-        
-        // Try environment variable first (for production builds)
-        const envUrl = import.meta.env.VITE_APP_URL;
-        if (envUrl) {
-            // Remove trailing slash and return
-            return envUrl.trim().replace(/\/+$/, '');
-        }
-        
-        // If in browser, use current origin
-        if (typeof window !== 'undefined' && window.location.origin) {
-            return window.location.origin;
-        }
-        
-        // Fallback
-        return 'https://migma.com';
+        return 'https://migmainc.com';
     };
     
     const origin = getBaseUrl();
@@ -1095,7 +1302,7 @@ export async function sendContactMessageAccessLink(
             return window.location.origin;
         }
         
-        return 'https://migma.com';
+        return 'https://migmainc.com';
     };
     
     const origin = getBaseUrl();
@@ -1210,15 +1417,10 @@ export async function sendContractViewLinkEmail(
     token: string,
     baseUrl?: string
 ): Promise<boolean> {
-    // Get base URL
+    // Sempre usa migmainc.com
     const getBaseUrl = (): string => {
         if (baseUrl) return baseUrl;
-        const envUrl = import.meta.env.VITE_APP_URL;
-        if (envUrl) return envUrl;
-        if (typeof window !== 'undefined' && window.location.origin) {
-            return window.location.origin;
-        }
-        return 'https://migma.com';
+        return 'https://migmainc.com';
     };
 
     const appBaseUrl = getBaseUrl();
@@ -1341,7 +1543,7 @@ export async function sendAdminReplyNotification(
             return window.location.origin;
         }
         
-        return 'https://migma.com';
+        return 'https://migmainc.com';
     };
     
     const origin = getBaseUrl();

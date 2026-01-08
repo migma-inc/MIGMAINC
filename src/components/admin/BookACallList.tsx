@@ -77,30 +77,30 @@ export function BookACallList({ refreshKey }: BookACallListProps) {
           key={submission.id}
           className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border-gold-medium/30 hover:border-gold-medium/50 transition-colors"
         >
-          <CardContent className="p-6">
-            <div className="flex items-start justify-between">
-              <div className="flex-1 space-y-3">
-                <div className="flex items-center gap-3">
-                  <Building2 className="w-5 h-5 text-gold-medium" />
-                  <h3 className="text-lg font-bold text-white">{submission.company_name}</h3>
+          <CardContent className="p-4 sm:p-6">
+            <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+              <div className="flex-1 space-y-3 min-w-0">
+                <div className="flex items-center gap-2 sm:gap-3">
+                  <Building2 className="w-4 h-4 sm:w-5 sm:h-5 text-gold-medium shrink-0" />
+                  <h3 className="text-base sm:text-lg font-bold text-white break-words">{submission.company_name}</h3>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm text-gray-300">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3 text-xs sm:text-sm text-gray-300">
                   <div className="flex items-center gap-2">
-                    <Mail className="w-4 h-4 text-gold-medium" />
-                    <span>{submission.email}</span>
+                    <Mail className="w-3 h-3 sm:w-4 sm:h-4 text-gold-medium shrink-0" />
+                    <span className="truncate">{submission.email}</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <Phone className="w-4 h-4 text-gold-medium" />
+                    <Phone className="w-3 h-3 sm:w-4 sm:h-4 text-gold-medium shrink-0" />
                     <span>{submission.phone}</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <Globe className="w-4 h-4 text-gold-medium" />
+                    <Globe className="w-3 h-3 sm:w-4 sm:h-4 text-gold-medium shrink-0" />
                     <span>{submission.country}</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <Calendar className="w-4 h-4 text-gold-medium" />
-                    <span>{formatDate(submission.created_at)}</span>
+                    <Calendar className="w-3 h-3 sm:w-4 sm:h-4 text-gold-medium shrink-0" />
+                    <span className="truncate">{formatDate(submission.created_at)}</span>
                   </div>
                 </div>
 
@@ -114,13 +114,13 @@ export function BookACallList({ refreshKey }: BookACallListProps) {
                 </div>
               </div>
 
-              <div className="ml-4">
-                <Link to={`/dashboard/book-a-call/${submission.id}`}>
+              <div className="flex justify-start sm:justify-end sm:ml-4">
+                <Link to={`/dashboard/book-a-call/${submission.id}`} className="w-full sm:w-auto">
                   <Button
                     variant="outline"
-                    className="border-gold-medium/50 bg-black/50 text-white hover:bg-gold-medium/30 hover:text-gold-light"
+                    className="w-full sm:w-auto flex items-center justify-center gap-2 border-gold-medium/50 bg-black/50 text-white hover:bg-gold-medium/30 hover:text-gold-light text-xs sm:text-sm"
                   >
-                    <Eye className="w-4 h-4 mr-2" />
+                    <Eye className="w-3 h-3 sm:w-4 sm:h-4" />
                     View
                   </Button>
                 </Link>

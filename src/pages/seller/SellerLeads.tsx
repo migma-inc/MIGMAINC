@@ -363,9 +363,9 @@ export function SellerLeads() {
 
   return (
     <div>
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold migma-gold-text mb-2">Leads & Users</h1>
-        <p className="text-gray-400">Detailed information about users who filled out forms</p>
+      <div className="mb-6 sm:mb-8">
+        <h1 className="text-2xl sm:text-3xl font-bold migma-gold-text mb-2">Leads & Users</h1>
+        <p className="text-sm sm:text-base text-gray-400">Detailed information about users who filled out forms</p>
       </div>
 
       <Card className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30">
@@ -395,7 +395,7 @@ export function SellerLeads() {
               <Filter className="w-4 h-4 text-gold-light" />
               <h3 className="text-sm font-semibold text-white">Filters</h3>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
               {/* Search */}
               <div className="lg:col-span-2">
                 <Label htmlFor="search" className="text-xs text-gray-400 mb-2 block">
@@ -616,7 +616,7 @@ export function SellerLeads() {
                           <FileText className="w-3 h-3" />
                           Additional Form Data
                         </p>
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-sm">
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-sm">
                           {lead.form_data.client.date_of_birth && (
                             <div>
                               <p className="text-gray-500 text-xs">Date of Birth</p>
