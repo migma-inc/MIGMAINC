@@ -17,10 +17,8 @@ import {
   XCircle, 
   DollarSign, 
   User, 
-  Mail, 
   Calendar,
   AlertCircle,
-  Upload,
   FileText
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
@@ -55,7 +53,6 @@ export function PaymentRequestDetailModal({
   const [rejectionReason, setRejectionReason] = useState('');
   const [proofUrl, setProofUrl] = useState('');
   const [proofFile, setProofFile] = useState<File | null>(null);
-  const [uploading, setUploading] = useState(false);
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState<string>('');
 

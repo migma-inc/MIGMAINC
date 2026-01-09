@@ -7,15 +7,15 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Tabs, TabsContent } from '@/components/ui/tabs';
 import { Coins, DollarSign, Clock, CheckCircle, XCircle, Wallet, AlertCircle, CreditCard, RefreshCw } from 'lucide-react';
-import { getSellerCommissions, getSellerCommissionStats, type SellerCommission } from '@/lib/seller-commissions';
+import { getSellerCommissionStats, type SellerCommission } from '@/lib/seller-commissions';
 import { 
   getSellerBalance, 
   getSellerPaymentRequests, 
-  createPaymentRequest,
-  type SellerPaymentRequest 
+  createPaymentRequest
 } from '@/lib/seller-payment-requests';
+import type { SellerPaymentRequest } from '@/types/seller';
 import { PaymentRequestTimer } from '@/components/seller/PaymentRequestTimer';
 import { PaymentRequestForm } from '@/components/seller/PaymentRequestForm';
 import { PendingBalanceCard } from '@/components/seller/PendingBalanceCard';
@@ -34,13 +34,13 @@ export function SellerCommissions() {
   const [activeTab, setActiveTab] = useState<'commissions' | 'payment-request'>('commissions');
   const [periodFilter, setPeriodFilter] = useState<'month' | 'all'>('month');
   const [commissions, setCommissions] = useState<SellerCommission[]>([]);
-  const [stats, setStats] = useState({
+  const [_stats, setStats] = useState({
     currentMonth: 0,
     totalPending: 0,
     totalPaid: 0,
     totalAmount: 0,
   });
-  const [totalReceived, setTotalReceived] = useState(0); // Total from completed payment requests
+  const [totalReceived, _setTotalReceived] = useState(0); // Total from completed payment requests
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
   
@@ -293,21 +293,26 @@ export function SellerCommissions() {
   const handleRefresh = async () => {
     if (!seller) return;
 
-    // Clear cache
-    localStorage.removeItem(getCacheKey('balance'));
-    localStorage.removeItem(getCacheKey('payment_requests'));
-    localStorage.removeItem(getCacheKey(`stats_${periodFilter}`));
+    setRefreshing(true);
+    try {
+      // Clear cache
+      localStorage.removeItem(getCacheKey('balance'));
+      localStorage.removeItem(getCacheKey('payment_requests'));
+      localStorage.removeItem(getCacheKey(`stats_${periodFilter}`));
 
-    // Reload all data
-    await Promise.all([
-      loadBalanceData(),
-      loadPaymentRequests(),
-      (async () => {
-        const commissionStats = await getSellerCommissionStats(seller.seller_id_public, periodFilter);
-        setStats(commissionStats);
-        saveToCache(getCacheKey(`stats_${periodFilter}`), commissionStats);
-      })(),
-    ]);
+      // Reload all data
+      await Promise.all([
+        loadBalanceData(),
+        loadPaymentRequests(),
+        (async () => {
+          const commissionStats = await getSellerCommissionStats(seller.seller_id_public, periodFilter);
+          setStats(commissionStats);
+          saveToCache(getCacheKey(`stats_${periodFilter}`), commissionStats);
+        })(),
+      ]);
+    } finally {
+      setRefreshing(false);
+    }
   };
   
   const getPaymentRequestStatusBadge = (status: string) => {

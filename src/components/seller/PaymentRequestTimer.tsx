@@ -16,14 +16,12 @@ export function PaymentRequestTimer({
   firstSaleDate,
 }: PaymentRequestTimerProps) {
   const [timeLeft, setTimeLeft] = useState<string>('');
-  const [daysLeft, setDaysLeft] = useState<number>(0);
   const [isAvailable, setIsAvailable] = useState<boolean>(canRequest);
 
   useEffect(() => {
     if (canRequest) {
       setIsAvailable(true);
       setTimeLeft('Disponível agora');
-      setDaysLeft(0);
       return;
     }
 
@@ -41,7 +39,6 @@ export function PaymentRequestTimer({
           if (diff <= 0) {
             setIsAvailable(true);
             setTimeLeft('Disponível agora');
-            setDaysLeft(0);
             return;
           }
           
@@ -49,8 +46,6 @@ export function PaymentRequestTimer({
           const days = Math.floor(diff / (1000 * 60 * 60 * 24));
           const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
           const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-          
-          setDaysLeft(days);
           
           if (days > 0) {
             setTimeLeft(`${days} dia${days > 1 ? 's' : ''}, ${hours}h ${minutes}m`);
@@ -62,7 +57,6 @@ export function PaymentRequestTimer({
           return;
         } else {
           setTimeLeft('Aguardando primeira venda');
-          setDaysLeft(0);
           setIsAvailable(false);
           return;
         }
@@ -79,7 +73,6 @@ export function PaymentRequestTimer({
       if (diff <= 0) {
         setIsAvailable(true);
         setTimeLeft('Disponível agora');
-        setDaysLeft(0);
         return;
       }
 
@@ -87,8 +80,6 @@ export function PaymentRequestTimer({
       const days = Math.floor(diff / (1000 * 60 * 60 * 24));
       const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
       const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-
-      setDaysLeft(days);
 
       // Format like Lus American: "Available in X days, Yh Zm"
       if (days > 0) {
@@ -161,25 +152,6 @@ export function PaymentRequestTimer({
   }
 
   // Estado: Aguardando período
-  const getNextAvailableDate = () => {
-    if (lastRequestDate) {
-      // Se já solicitou, calcula 30 dias desde a última solicitação
-      const lastDate = new Date(lastRequestDate);
-      const nextDate = new Date(lastDate);
-      nextDate.setDate(nextDate.getDate() + 30);
-      return nextDate;
-    } else if (firstSaleDate) {
-      // Se nunca solicitou, calcula 30 dias desde a primeira venda
-      const firstSale = new Date(firstSaleDate);
-      const nextDate = new Date(firstSale);
-      nextDate.setDate(nextDate.getDate() + 30);
-      return nextDate;
-    }
-    return null;
-  };
-
-  const nextAvailableDate = getNextAvailableDate();
-
   return (
     <Card className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30">
       <CardContent className="p-6">

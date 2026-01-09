@@ -1,18 +1,16 @@
 import { useState, useEffect } from 'react';
 import { useOutletContext } from 'react-router-dom';
-import { supabase } from '@/lib/supabase';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { DollarSign, Clock, CheckCircle, XCircle, AlertCircle, RefreshCw } from 'lucide-react';
+import { DollarSign, Clock, CheckCircle, AlertCircle } from 'lucide-react';
 import { 
   getSellerBalance, 
   getSellerPaymentRequests, 
-  createPaymentRequest,
-  type SellerPaymentRequest 
+  createPaymentRequest
 } from '@/lib/seller-payment-requests';
+import type { SellerPaymentRequest } from '@/types/seller';
 import { PaymentRequestTimer } from '@/components/seller/PaymentRequestTimer';
 import { PaymentRequestForm } from '@/components/seller/PaymentRequestForm';
 import type { SellerBalance } from '@/types/seller';
@@ -62,16 +60,6 @@ export function SellerPaymentRequests() {
       loadData();
     }
   }, [seller]);
-
-  const handleRefresh = async () => {
-    if (!seller) return;
-    setRefreshing(true);
-    try {
-      await loadData();
-    } finally {
-      setRefreshing(false);
-    }
-  };
 
   const handleSubmitRequest = async (formData: any) => {
     if (!seller) return;

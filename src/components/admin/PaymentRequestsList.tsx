@@ -1,6 +1,6 @@
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Eye, CheckCircle, XCircle, DollarSign } from 'lucide-react';
+import { Eye, DollarSign } from 'lucide-react';
 import type { SellerPaymentRequest } from '@/types/seller';
 
 interface PaymentRequestsListProps {

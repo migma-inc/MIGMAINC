@@ -1705,7 +1705,7 @@ export async function sendPaymentRequestCreatedEmail(
     email: string,
     sellerName: string,
     amount: number,
-    requestId: string
+    _requestId: string
 ): Promise<boolean> {
     const html = `
         <!DOCTYPE html>
@@ -1783,7 +1783,7 @@ export async function sendPaymentRequestApprovedEmail(
     email: string,
     sellerName: string,
     amount: number,
-    requestId: string
+    _requestId: string
 ): Promise<boolean> {
     const html = `
         <!DOCTYPE html>
@@ -1871,7 +1871,7 @@ export async function sendPaymentRequestRejectedEmail(
     sellerName: string,
     amount: number,
     reason: string,
-    requestId: string
+    _requestId: string
 ): Promise<boolean> {
     const html = `
         <!DOCTYPE html>
@@ -1953,7 +1953,7 @@ export async function sendPaymentRequestCompletedEmail(
     email: string,
     sellerName: string,
     amount: number,
-    requestId: string,
+    _requestId: string,
     proofUrl?: string
 ): Promise<boolean> {
     const proofSection = proofUrl ? `
@@ -2050,7 +2050,7 @@ export async function sendNewPaymentRequestNotification(
     sellerId: string,
     amount: number,
     paymentMethod: string,
-    requestId: string
+    _requestId: string
 ): Promise<boolean> {
     const html = `
         <!DOCTYPE html>
