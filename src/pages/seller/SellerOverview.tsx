@@ -6,7 +6,8 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
-import { ShoppingCart, CheckCircle, Clock, DollarSign, FileText, AlertCircle } from 'lucide-react';
+import { ShoppingCart, CheckCircle, Clock, DollarSign, FileText, AlertCircle, Coins } from 'lucide-react';
+import { getSellerCommissionStats, calculateNetAmount, type CommissionStats } from '@/lib/seller-commissions';
 
 interface SellerInfo {
   id: string;
@@ -33,6 +34,12 @@ export function SellerOverview() {
     pendingSales: 0,
     totalRevenue: 0,
     pendingApprovals: 0,
+  });
+  const [commissionStats, setCommissionStats] = useState<CommissionStats>({
+    currentMonth: 0,
+    totalPending: 0,
+    totalPaid: 0,
+    totalAmount: 0,
   });
   const [loading, setLoading] = useState(true);
 
@@ -68,7 +75,11 @@ export function SellerOverview() {
         if (ordersData) {
           const completed = ordersData.filter(o => o.payment_status === 'completed' || o.payment_status === 'paid');
           const pending = ordersData.filter(o => o.payment_status === 'pending');
-          const revenue = completed.reduce((sum, o) => sum + parseFloat(o.total_price_usd || '0'), 0);
+          // Calculate revenue using net amount (total_price_usd - fee_amount)
+          const revenue = completed.reduce((sum, o) => {
+            const netAmount = calculateNetAmount(o);
+            return sum + netAmount;
+          }, 0);
           
           // Count pending approvals:
           // 1. Orders with contract_approval_status = 'pending'
@@ -102,6 +113,19 @@ export function SellerOverview() {
             pendingApprovals: pendingApprovals,
           });
         }
+
+        // Load commission stats
+        const loadCommissionStats = async () => {
+          if (!seller) return;
+          try {
+            const commissionData = await getSellerCommissionStats(seller.seller_id_public, periodFilter);
+            setCommissionStats(commissionData);
+          } catch (err) {
+            console.error('Error loading commission stats:', err);
+          }
+        };
+
+        loadCommissionStats();
       } catch (err) {
         console.error('Error loading stats:', err);
       } finally {
@@ -122,8 +146,8 @@ export function SellerOverview() {
         </div>
 
         {/* Stats Cards Skeleton */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-          {[1, 2, 3, 4].map((i) => (
+        <div className="grid grid-cols-1 md:grid-cols-4 lg:grid-cols-5 gap-4 mb-8">
+          {[1, 2, 3, 4, 5].map((i) => (
             <Card key={i} className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30">
               <CardContent className="p-6">
                 <div className="flex items-center justify-between">
@@ -191,7 +215,7 @@ export function SellerOverview() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6 sm:mb-8">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4 mb-6 sm:mb-8">
         <Card className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30">
           <CardContent className="p-4 sm:p-6">
             <div className="flex items-center justify-between">
@@ -241,6 +265,25 @@ export function SellerOverview() {
             </div>
           </CardContent>
         </Card>
+
+        <Link to="/seller/dashboard/commissions">
+          <Card className="bg-gradient-to-br from-purple-500/10 via-purple-500/5 to-purple-500/10 border border-purple-500/30 hover:border-purple-500/50 transition cursor-pointer">
+            <CardContent className="p-4 sm:p-6">
+              <div className="flex items-center justify-between">
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs sm:text-sm text-gray-400">Commission</p>
+                  <p className="text-xl sm:text-2xl font-bold text-purple-300">
+                    ${commissionStats.currentMonth.toFixed(2)}
+                  </p>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Available: ${commissionStats.totalPending.toFixed(2)}
+                  </p>
+                </div>
+                <Coins className="w-8 h-8 sm:w-10 sm:h-10 text-purple-400 shrink-0" />
+              </div>
+            </CardContent>
+          </Card>
+        </Link>
       </div>
 
       {/* Pending Approvals Alert */}

@@ -267,7 +267,17 @@ Deno.serve(async (req: Request) => {
     }
     
     // Validate final amount (must be at least $0.50 USD or equivalent)
-    const finalAmountUSD = finalAmount / 100;
+    // For PIX, convert BRL to USD for validation
+    let finalAmountUSD: number;
+    if (isPixOnly) {
+      // finalAmount is in BRL cents, convert to USD
+      const finalAmountBRL = finalAmount / 100;
+      finalAmountUSD = finalAmountBRL / exchangeRate;
+    } else {
+      // finalAmount is already in USD cents
+      finalAmountUSD = finalAmount / 100;
+    }
+    
     if (finalAmountUSD < 0.50) {
       console.error("[Checkout] Final amount too small:", {
         totalBeforeFees,
@@ -287,6 +297,37 @@ Deno.serve(async (req: Request) => {
       );
     }
     
+    // Stripe test mode limit: $3,000 USD maximum
+    // Note: This limit applies to the GROSS amount (what customer pays), not net amount
+    const STRIPE_TEST_MODE_LIMIT_USD = 3000;
+    
+    // Check if we're in test mode by detecting environment
+    const envInfo = detectEnvironment(req);
+    const isTestMode = !envInfo.isProduction;
+    
+    if (finalAmountUSD > STRIPE_TEST_MODE_LIMIT_USD && isTestMode) {
+      console.error("[Checkout] Amount exceeds Stripe test mode limit:", {
+        finalAmountUSD,
+        netAmountUSD: totalBeforeFees,
+        limit: STRIPE_TEST_MODE_LIMIT_USD,
+        currency,
+        finalAmount,
+        exchangeRate: isPixOnly ? exchangeRate : undefined,
+        environment: envInfo.environment
+      });
+      return new Response(
+        JSON.stringify({ 
+          error: `Valor muito alto para modo de teste do Stripe. Limite máximo: $${STRIPE_TEST_MODE_LIMIT_USD.toFixed(2)} USD. Valor calculado: $${finalAmountUSD.toFixed(2)} USD (valor líquido: $${totalBeforeFees.toFixed(2)} USD). Para processar valores acima de $3,000 USD, é necessário usar o modo de produção do Stripe. Entre em contato com o suporte.`,
+          code: "STRIPE_TEST_MODE_LIMIT_EXCEEDED",
+          limit: STRIPE_TEST_MODE_LIMIT_USD,
+          calculatedAmount: finalAmountUSD,
+          netAmount: totalBeforeFees
+        }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+    // In production mode, we allow higher amounts (Stripe production has much higher limits)
+    
     console.log("[Checkout] Price calculation:", {
       basePrice,
       extraUnitPrice,
@@ -295,7 +336,8 @@ Deno.serve(async (req: Request) => {
       totalBeforeFees,
       finalAmount,
       finalAmountUSD,
-      currency
+      currency,
+      exchangeRate: isPixOnly ? exchangeRate : undefined
     });
 
     // Generate unique order number
@@ -308,7 +350,72 @@ Deno.serve(async (req: Request) => {
     // but the frontend should have already created the service_request
     // This is a fallback for backward compatibility
 
-    // Create payment record first
+    // Anti-chargeback metadata (prepare before creating order)
+    const antiChargebackMetadata = {
+      product_slug: product_slug,
+      seller_id: seller_id || "",
+      extra_units: extraUnitsNum.toString(),
+      calculation_type: product.calculation_type,
+      terms_accepted: "true",
+      terms_version: "v1.0-2025-01-15",
+      data_authorization: "true",
+      ip_address: ip_address || "",
+      service_request_id: serviceRequestIdToUse || "",
+      anti_chargeback: "enabled",
+    };
+
+    // Create Stripe checkout session FIRST (before creating order)
+    // This way, if Stripe fails, we don't create an order
+    let session;
+    try {
+      session = await stripe.checkout.sessions.create({
+        payment_method_types: isPixOnly ? ["pix"] : ["card"],
+        line_items: [
+          {
+            price_data: {
+              currency: currency,
+              product_data: {
+                name: product.name,
+                description: `${product.description}${extraUnitsNum > 0 && product.allow_extra_units ? ` (${extraUnitsNum} ${product.extra_unit_label.toLowerCase()})` : ''}`,
+              },
+              unit_amount: finalAmount,
+            },
+            quantity: 1,
+          },
+        ],
+        mode: "payment",
+        success_url: `${siteUrl}/checkout/success?session_id={CHECKOUT_SESSION_ID}`,
+        cancel_url: `${siteUrl}/checkout/cancel`,
+        customer_email: client_email,
+        metadata: antiChargebackMetadata,
+        // Basic anti-fraud settings (work automatically, no dashboard config needed)
+        billing_address_collection: "required", // Require billing address
+        phone_number_collection: {
+          enabled: true, // Collect phone number for verification
+        },
+      });
+    } catch (stripeError: any) {
+      console.error("[Checkout] Stripe session creation failed:", stripeError);
+      
+      // Return user-friendly error message
+      let errorMessage = "Failed to create checkout session. We were unable to redirect you to Stripe. Please try again later or contact support.";
+      
+      if (stripeError.code === "amount_too_large") {
+        errorMessage = `Amount too large for test mode. Maximum is $3,000.00 USD. Your order amount is $${finalAmountUSD.toFixed(2)} USD. Please contact support or use a different payment method.`;
+      } else if (stripeError.message) {
+        errorMessage = stripeError.message;
+      }
+      
+      return new Response(
+        JSON.stringify({ 
+          error: errorMessage,
+          details: stripeError.code || stripeError.type || "unknown_error"
+        }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Now create payment record (after Stripe session is created)
     const { data: paymentData, error: paymentError } = await supabase
       .from("payments")
       .insert({
@@ -316,6 +423,7 @@ Deno.serve(async (req: Request) => {
         amount: totalBeforeFees,
         currency: currency.toUpperCase(),
         status: "pending",
+        external_payment_id: session.id,
       })
       .select()
       .single();
@@ -325,14 +433,14 @@ Deno.serve(async (req: Request) => {
       // Continue anyway - payment record is not critical for order creation
     }
 
-    // Create order in database
+    // Create order in database (AFTER Stripe session is successfully created)
     const { data: order, error: orderError } = await supabase
       .from("visa_orders")
       .insert({
         order_number: orderNumber,
         product_slug: product_slug,
         seller_id: seller_id || null,
-        service_request_id: serviceRequestIdToUse || null, // NEW: Link to service_request
+        service_request_id: serviceRequestIdToUse || null,
         base_price_usd: basePrice,
         price_per_dependent_usd: extraUnitPrice,
         number_of_dependents: extraUnitsNum,
@@ -350,6 +458,7 @@ Deno.serve(async (req: Request) => {
         client_observations: client_observations || null,
         payment_method: isPixOnly ? "stripe_pix" : "stripe_card",
         payment_status: "pending",
+        stripe_session_id: session.id, // Set session ID immediately
         contract_document_url: contract_document_url || null,
         contract_selfie_url: contract_selfie_url || null,
         signature_image_url: signature_image_url || null,
@@ -366,69 +475,50 @@ Deno.serve(async (req: Request) => {
           extra_units: extraUnitsNum,
           calculation_type: product.calculation_type,
           ip_address: ip_address || null,
-          payment_id: paymentData?.id || null, // NEW: Link to payment record
+          payment_id: paymentData?.id || null,
         },
       })
       .select()
       .single();
 
     if (orderError || !order) {
-      console.error("[Checkout] Error creating order:", orderError);
+      console.error("[Checkout] Error creating order after Stripe session:", orderError);
+      // Try to expire the Stripe session since order creation failed
+      try {
+        await stripe.checkout.sessions.expire(session.id);
+      } catch (expireError) {
+        console.error("[Checkout] Error expiring Stripe session:", expireError);
+      }
       return new Response(
         JSON.stringify({ error: "Failed to create order" }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    // Anti-chargeback metadata
-    const antiChargebackMetadata = {
-      order_id: order.id,
-      order_number: orderNumber,
-      product_slug: product_slug,
-      seller_id: seller_id || "",
-      extra_units: extraUnitsNum.toString(),
-      calculation_type: product.calculation_type,
-      terms_accepted: "true",
-      terms_version: "v1.0-2025-01-15",
-      data_authorization: "true",
-      ip_address: ip_address || "",
-      service_request_id: serviceRequestIdToUse || "",
-      anti_chargeback: "enabled",
-    };
-
-    // Create Stripe checkout session with anti-chargeback metadata
-    const session = await stripe.checkout.sessions.create({
-      payment_method_types: isPixOnly ? ["pix"] : ["card"],
-      line_items: [
-        {
-          price_data: {
-            currency: currency,
-            product_data: {
-              name: product.name,
-              description: `${product.description}${extraUnitsNum > 0 && product.allow_extra_units ? ` (${extraUnitsNum} ${product.extra_unit_label.toLowerCase()})` : ''}`,
-            },
-            unit_amount: finalAmount,
-          },
-          quantity: 1,
+    // Update Stripe session metadata with order_id and order_number (now that we have them)
+    try {
+      await stripe.checkout.sessions.update(session.id, {
+        metadata: {
+          ...antiChargebackMetadata,
+          order_id: order.id,
+          order_number: orderNumber,
         },
-      ],
-      mode: "payment",
-      success_url: `${siteUrl}/checkout/success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${siteUrl}/checkout/cancel?order_id=${order.id}`,
-      customer_email: client_email,
-      metadata: antiChargebackMetadata,
-      // Basic anti-fraud settings (work automatically, no dashboard config needed)
-      billing_address_collection: "required", // Require billing address
-      phone_number_collection: {
-        enabled: true, // Collect phone number for verification
-      },
-    });
+      });
+    } catch (updateError) {
+      console.error("[Checkout] Error updating Stripe session metadata:", updateError);
+      // Non-critical, continue
+    }
 
-    // Update order with Stripe session ID
-    await supabase
-      .from("visa_orders")
-      .update({ stripe_session_id: session.id })
-      .eq("id", order.id);
+    // Update payment record with external payment ID (Stripe session ID)
+    if (paymentData?.id) {
+      await supabase
+        .from("payments")
+        .update({ 
+          external_payment_id: session.id,
+          raw_webhook_log: { session_id: session.id, created_at: new Date().toISOString() }
+        })
+        .eq("id", paymentData.id);
+    }
 
     // Update payment record with external payment ID (Stripe session ID)
     if (paymentData?.id) {

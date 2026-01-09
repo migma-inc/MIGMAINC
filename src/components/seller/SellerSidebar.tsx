@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
-import { LayoutDashboard, TrendingUp, ShoppingCart, Link as LinkIcon, Users, LogOut, BarChart3, X } from 'lucide-react';
+import { LayoutDashboard, TrendingUp, ShoppingCart, Link as LinkIcon, Users, LogOut, BarChart3, X, Coins, DollarSign } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/lib/supabase';
@@ -33,6 +33,18 @@ export function SellerSidebar({ className, sellerName, isMobileOpen = false, onM
       title: 'Analytics',
       icon: BarChart3,
       path: '/seller/dashboard/analytics',
+      exact: false,
+    },
+    {
+      title: 'Commissions',
+      icon: Coins,
+      path: '/seller/dashboard/commissions',
+      exact: false,
+    },
+    {
+      title: 'Payment Requests',
+      icon: DollarSign,
+      path: '/seller/dashboard/payment-requests',
       exact: false,
     },
     {

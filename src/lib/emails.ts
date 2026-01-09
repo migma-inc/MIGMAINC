@@ -1697,3 +1697,442 @@ export async function sendScheduledMeetingUpdateEmail(
         html: html,
     });
 }
+
+/**
+ * Email: Payment request created notification (to seller)
+ */
+export async function sendPaymentRequestCreatedEmail(
+    email: string,
+    sellerName: string,
+    amount: number,
+    _requestId: string
+): Promise<boolean> {
+    const html = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+        </head>
+        <body style="margin: 0; padding: 0; font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #000000;">
+    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background-color: #000000;">
+        <tr>
+            <td align="center" style="padding: 40px 20px;">
+                <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="600" style="max-width: 600px; background-color: #000000; border-radius: 8px;">
+                    <tr>
+                        <td align="center" style="padding: 40px 20px 30px; background-color: #000000;">
+                            <img src="https://ekxftwrjvxtpnqbraszv.supabase.co/storage/v1/object/public/logo/logo2.png" alt="MIGMA Logo" width="200" style="display: block; max-width: 200px; height: auto;">
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 0 40px 40px; background-color: #000000;">
+                            <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
+                                <tr>
+                                    <td style="padding: 30px; background: linear-gradient(135deg, #1a1a1a 0%, #000000 100%); border-radius: 8px; border: 1px solid #CE9F48;">
+                                        <h1 style="margin: 0 0 20px 0; font-size: 28px; font-weight: bold; color: #F3E196; text-align: center; background: linear-gradient(180deg, #8E6E2F 0%, #F3E196 25%, #CE9F48 50%, #F3E196 75%, #8E6E2F 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">
+                                            Solicitação de Pagamento Criada
+                                        </h1>
+                                        <p style="margin: 0 0 20px 0; font-size: 16px; line-height: 1.6; color: #e0e0e0;">
+                                            Olá ${sellerName},
+                                        </p>
+                                        <p style="margin: 0 0 20px 0; font-size: 16px; line-height: 1.6; color: #e0e0e0;">
+                                            Sua solicitação de pagamento no valor de <strong style="color: #CE9F48;">$${amount.toFixed(2)} USD</strong> foi criada com sucesso e está aguardando aprovação.
+                                        </p>
+                                        <p style="margin: 0 0 20px 0; font-size: 16px; line-height: 1.6; color: #e0e0e0;">
+                                            Você receberá uma notificação assim que sua solicitação for processada.
+                                        </p>
+                                        <p style="margin: 0; font-size: 16px; line-height: 1.6; color: #e0e0e0;">
+                                            Atenciosamente,<br>
+                                            <strong style="color: #CE9F48;">Equipe MIGMA</strong>
+                                        </p>
+                                    </td>
+                                </tr>
+                            </table>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td align="center" style="padding: 20px 40px; background-color: #000000;">
+                            <p style="margin: 0 0 10px 0; font-size: 11px; color: #999999; line-height: 1.5; font-style: italic;">
+                                Esta é uma mensagem automática. Por favor, não responda a este email.
+                            </p>
+                            <p style="margin: 0; font-size: 12px; color: #666666; line-height: 1.5;">
+                                © 2025 MIGMA. All rights reserved.
+                            </p>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+        </body>
+        </html>
+    `;
+
+    return sendEmail({
+        to: email,
+        subject: 'Solicitação de Pagamento Criada - MIGMA',
+        html: html,
+    });
+}
+
+/**
+ * Email: Payment request approved notification (to seller)
+ */
+export async function sendPaymentRequestApprovedEmail(
+    email: string,
+    sellerName: string,
+    amount: number,
+    _requestId: string
+): Promise<boolean> {
+    const html = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+        </head>
+        <body style="margin: 0; padding: 0; font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #000000;">
+    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background-color: #000000;">
+        <tr>
+            <td align="center" style="padding: 40px 20px;">
+                <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="600" style="max-width: 600px; background-color: #000000; border-radius: 8px;">
+                    <tr>
+                        <td align="center" style="padding: 40px 20px 30px; background-color: #000000;">
+                            <img src="https://ekxftwrjvxtpnqbraszv.supabase.co/storage/v1/object/public/logo/logo2.png" alt="MIGMA Logo" width="200" style="display: block; max-width: 200px; height: auto;">
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 0 40px 20px;">
+                            <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
+                                <tr>
+                                    <td style="padding: 25px; background: linear-gradient(135deg, #8E6E2F 0%, #CE9F48 50%, #8E6E2F 100%); border-radius: 8px; text-align: center;">
+                                        <h1 style="margin: 0 0 10px 0; font-size: 32px; font-weight: bold; color: #000000;">Aprovado!</h1>
+                                        <p style="margin: 0; font-size: 18px; color: #000000; font-weight: 600;">Sua solicitação foi aprovada</p>
+                                    </td>
+                                </tr>
+                            </table>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 0 40px 40px; background-color: #000000;">
+                            <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
+                                <tr>
+                                    <td style="padding: 30px; background: linear-gradient(135deg, #1a1a1a 0%, #000000 100%); border-radius: 8px; border: 1px solid #CE9F48;">
+                                        <p style="margin: 0 0 20px 0; font-size: 16px; line-height: 1.6; color: #e0e0e0;">
+                                            Olá ${sellerName},
+                                        </p>
+                                        <p style="margin: 0 0 20px 0; font-size: 16px; line-height: 1.6; color: #e0e0e0;">
+                                            Sua solicitação de pagamento no valor de <strong style="color: #CE9F48;">$${amount.toFixed(2)} USD</strong> foi <strong style="color: #F3E196;">aprovada</strong>!
+                                        </p>
+                                        <p style="margin: 0 0 20px 0; font-size: 16px; line-height: 1.6; color: #e0e0e0;">
+                                            O pagamento será processado em breve. Você receberá uma notificação quando o pagamento for concluído.
+                                        </p>
+                                        <p style="margin: 0; font-size: 16px; line-height: 1.6; color: #e0e0e0;">
+                                            Atenciosamente,<br>
+                                            <strong style="color: #CE9F48;">Equipe MIGMA</strong>
+                                        </p>
+                                    </td>
+                                </tr>
+                            </table>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td align="center" style="padding: 20px 40px; background-color: #000000;">
+                            <p style="margin: 0 0 10px 0; font-size: 11px; color: #999999; line-height: 1.5; font-style: italic;">
+                                Esta é uma mensagem automática. Por favor, não responda a este email.
+                            </p>
+                            <p style="margin: 0; font-size: 12px; color: #666666; line-height: 1.5;">
+                                © 2025 MIGMA. All rights reserved.
+                            </p>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+        </body>
+        </html>
+    `;
+
+    return sendEmail({
+        to: email,
+        subject: 'Solicitação de Pagamento Aprovada - MIGMA',
+        html: html,
+    });
+}
+
+/**
+ * Email: Payment request rejected notification (to seller)
+ */
+export async function sendPaymentRequestRejectedEmail(
+    email: string,
+    sellerName: string,
+    amount: number,
+    reason: string,
+    _requestId: string
+): Promise<boolean> {
+    const html = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+        </head>
+        <body style="margin: 0; padding: 0; font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #000000;">
+    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background-color: #000000;">
+        <tr>
+            <td align="center" style="padding: 40px 20px;">
+                <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="600" style="max-width: 600px; background-color: #000000; border-radius: 8px;">
+                    <tr>
+                        <td align="center" style="padding: 40px 20px 30px; background-color: #000000;">
+                            <img src="https://ekxftwrjvxtpnqbraszv.supabase.co/storage/v1/object/public/logo/logo2.png" alt="MIGMA Logo" width="200" style="display: block; max-width: 200px; height: auto;">
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 0 40px 40px; background-color: #000000;">
+                            <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
+                                <tr>
+                                    <td style="padding: 30px; background: linear-gradient(135deg, #1a1a1a 0%, #000000 100%); border-radius: 8px; border: 1px solid #CE9F48;">
+                                        <h1 style="margin: 0 0 20px 0; font-size: 28px; font-weight: bold; color: #F3E196; text-align: center; background: linear-gradient(180deg, #8E6E2F 0%, #F3E196 25%, #CE9F48 50%, #F3E196 75%, #8E6E2F 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">
+                                            Solicitação de Pagamento Rejeitada
+                                        </h1>
+                                        <p style="margin: 0 0 20px 0; font-size: 16px; line-height: 1.6; color: #e0e0e0;">
+                                            Olá ${sellerName},
+                                        </p>
+                                        <p style="margin: 0 0 20px 0; font-size: 16px; line-height: 1.6; color: #e0e0e0;">
+                                            Infelizmente, sua solicitação de pagamento no valor de <strong style="color: #CE9F48;">$${amount.toFixed(2)} USD</strong> foi rejeitada.
+                                        </p>
+                                        <div style="padding: 15px; background-color: #1a1a1a; border-left: 3px solid #CE9F48; margin: 20px 0; border-radius: 4px;">
+                                            <p style="margin: 0 0 8px 0; font-size: 14px; color: #999999; text-transform: uppercase; letter-spacing: 0.5px;">Motivo da Rejeição</p>
+                                            <p style="margin: 0; font-size: 16px; color: #e0e0e0;">${reason}</p>
+                                        </div>
+                                        <p style="margin: 0 0 20px 0; font-size: 16px; line-height: 1.6; color: #e0e0e0;">
+                                            O valor foi devolvido ao seu saldo disponível. Se você tiver dúvidas, entre em contato conosco.
+                                        </p>
+                                        <p style="margin: 0; font-size: 16px; line-height: 1.6; color: #e0e0e0;">
+                                            Atenciosamente,<br>
+                                            <strong style="color: #CE9F48;">Equipe MIGMA</strong>
+                                        </p>
+                                    </td>
+                                </tr>
+                            </table>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td align="center" style="padding: 20px 40px; background-color: #000000;">
+                            <p style="margin: 0 0 10px 0; font-size: 11px; color: #999999; line-height: 1.5; font-style: italic;">
+                                Esta é uma mensagem automática. Por favor, não responda a este email.
+                            </p>
+                            <p style="margin: 0; font-size: 12px; color: #666666; line-height: 1.5;">
+                                © 2025 MIGMA. All rights reserved.
+                            </p>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+        </body>
+        </html>
+    `;
+
+    return sendEmail({
+        to: email,
+        subject: 'Solicitação de Pagamento Rejeitada - MIGMA',
+        html: html,
+    });
+}
+
+/**
+ * Email: Payment request completed notification (to seller)
+ */
+export async function sendPaymentRequestCompletedEmail(
+    email: string,
+    sellerName: string,
+    amount: number,
+    _requestId: string,
+    proofUrl?: string
+): Promise<boolean> {
+    const proofSection = proofUrl ? `
+        <p style="margin: 20px 0; font-size: 16px; line-height: 1.6; color: #e0e0e0;">
+            <a href="${proofUrl}" style="color: #CE9F48; text-decoration: underline;">Ver comprovante de pagamento</a>
+        </p>
+    ` : '';
+
+    const html = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+        </head>
+        <body style="margin: 0; padding: 0; font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #000000;">
+    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background-color: #000000;">
+        <tr>
+            <td align="center" style="padding: 40px 20px;">
+                <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="600" style="max-width: 600px; background-color: #000000; border-radius: 8px;">
+                    <tr>
+                        <td align="center" style="padding: 40px 20px 30px; background-color: #000000;">
+                            <img src="https://ekxftwrjvxtpnqbraszv.supabase.co/storage/v1/object/public/logo/logo2.png" alt="MIGMA Logo" width="200" style="display: block; max-width: 200px; height: auto;">
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 0 40px 20px;">
+                            <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
+                                <tr>
+                                    <td style="padding: 25px; background: linear-gradient(135deg, #8E6E2F 0%, #CE9F48 50%, #8E6E2F 100%); border-radius: 8px; text-align: center;">
+                                        <h1 style="margin: 0 0 10px 0; font-size: 32px; font-weight: bold; color: #000000;">Pagamento Concluído!</h1>
+                                        <p style="margin: 0; font-size: 18px; color: #000000; font-weight: 600;">Seu pagamento foi processado</p>
+                                    </td>
+                                </tr>
+                            </table>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 0 40px 40px; background-color: #000000;">
+                            <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
+                                <tr>
+                                    <td style="padding: 30px; background: linear-gradient(135deg, #1a1a1a 0%, #000000 100%); border-radius: 8px; border: 1px solid #CE9F48;">
+                                        <p style="margin: 0 0 20px 0; font-size: 16px; line-height: 1.6; color: #e0e0e0;">
+                                            Olá ${sellerName},
+                                        </p>
+                                        <p style="margin: 0 0 20px 0; font-size: 16px; line-height: 1.6; color: #e0e0e0;">
+                                            Sua solicitação de pagamento no valor de <strong style="color: #CE9F48;">$${amount.toFixed(2)} USD</strong> foi <strong style="color: #F3E196;">paga com sucesso</strong>!
+                                        </p>
+                                        ${proofSection}
+                                        <p style="margin: 0 0 20px 0; font-size: 16px; line-height: 1.6; color: #e0e0e0;">
+                                            O valor deve estar disponível em sua conta em breve, dependendo do método de pagamento utilizado.
+                                        </p>
+                                        <p style="margin: 0; font-size: 16px; line-height: 1.6; color: #e0e0e0;">
+                                            Atenciosamente,<br>
+                                            <strong style="color: #CE9F48;">Equipe MIGMA</strong>
+                                        </p>
+                                    </td>
+                                </tr>
+                            </table>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td align="center" style="padding: 20px 40px; background-color: #000000;">
+                            <p style="margin: 0 0 10px 0; font-size: 11px; color: #999999; line-height: 1.5; font-style: italic;">
+                                Esta é uma mensagem automática. Por favor, não responda a este email.
+                            </p>
+                            <p style="margin: 0; font-size: 12px; color: #666666; line-height: 1.5;">
+                                © 2025 MIGMA. All rights reserved.
+                            </p>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+        </body>
+        </html>
+    `;
+
+    return sendEmail({
+        to: email,
+        subject: 'Pagamento Concluído - MIGMA',
+        html: html,
+    });
+}
+
+/**
+ * Email: New payment request notification (to admin)
+ */
+export async function sendNewPaymentRequestNotification(
+    adminEmail: string,
+    sellerName: string,
+    sellerId: string,
+    amount: number,
+    paymentMethod: string,
+    _requestId: string
+): Promise<boolean> {
+    const html = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+        </head>
+        <body style="margin: 0; padding: 0; font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #000000;">
+    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background-color: #000000;">
+        <tr>
+            <td align="center" style="padding: 40px 20px;">
+                <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="600" style="max-width: 600px; background-color: #000000; border-radius: 8px;">
+                    <tr>
+                        <td align="center" style="padding: 40px 20px 30px; background-color: #000000;">
+                            <img src="https://ekxftwrjvxtpnqbraszv.supabase.co/storage/v1/object/public/logo/logo2.png" alt="MIGMA Logo" width="200" style="display: block; max-width: 200px; height: auto;">
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 0 40px 40px; background-color: #000000;">
+                            <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
+                                <tr>
+                                    <td style="padding: 30px; background: linear-gradient(135deg, #1a1a1a 0%, #000000 100%); border-radius: 8px; border: 1px solid #CE9F48;">
+                                        <h1 style="margin: 0 0 20px 0; font-size: 28px; font-weight: bold; color: #F3E196; text-align: center; background: linear-gradient(180deg, #8E6E2F 0%, #F3E196 25%, #CE9F48 50%, #F3E196 75%, #8E6E2F 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">
+                                            Nova Solicitação de Pagamento
+                                        </h1>
+                                        <p style="margin: 0 0 20px 0; font-size: 16px; line-height: 1.6; color: #e0e0e0;">
+                                            Uma nova solicitação de pagamento foi criada e requer sua atenção.
+                                        </p>
+                                        <div style="padding: 20px; background-color: #1a1a1a; border-radius: 8px; margin: 20px 0;">
+                                            <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
+                                                <tr>
+                                                    <td style="padding-bottom: 10px;">
+                                                        <p style="margin: 0 0 5px 0; font-size: 14px; color: #999999;">Seller</p>
+                                                        <p style="margin: 0; font-size: 18px; font-weight: bold; color: #F3E196;">${sellerName}</p>
+                                                        <p style="margin: 5px 0 0 0; font-size: 14px; color: #999999;">ID: ${sellerId}</p>
+                                                    </td>
+                                                </tr>
+                                                <tr>
+                                                    <td style="padding: 15px 0 10px; border-top: 1px solid #333;">
+                                                        <p style="margin: 0 0 5px 0; font-size: 14px; color: #999999;">Valor</p>
+                                                        <p style="margin: 0; font-size: 24px; font-weight: bold; color: #CE9F48;">$${amount.toFixed(2)} USD</p>
+                                                    </td>
+                                                </tr>
+                                                <tr>
+                                                    <td style="padding: 15px 0 0; border-top: 1px solid #333;">
+                                                        <p style="margin: 0 0 5px 0; font-size: 14px; color: #999999;">Método de Pagamento</p>
+                                                        <p style="margin: 0; font-size: 16px; color: #e0e0e0; text-transform: capitalize;">${paymentMethod}</p>
+                                                    </td>
+                                                </tr>
+                                            </table>
+                                        </div>
+                                        <p style="margin: 20px 0 0 0; font-size: 16px; line-height: 1.6; color: #e0e0e0;">
+                                            Por favor, acesse o painel administrativo para revisar e processar esta solicitação.
+                                        </p>
+                                    </td>
+                                </tr>
+                            </table>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td align="center" style="padding: 20px 40px; background-color: #000000;">
+                            <p style="margin: 0 0 10px 0; font-size: 11px; color: #999999; line-height: 1.5; font-style: italic;">
+                                Esta é uma mensagem automática. Por favor, não responda a este email.
+                            </p>
+                            <p style="margin: 0; font-size: 12px; color: #666666; line-height: 1.5;">
+                                © 2025 MIGMA. All rights reserved.
+                            </p>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+        </body>
+        </html>
+    `;
+
+    return sendEmail({
+        to: adminEmail,
+        subject: `Nova Solicitação de Pagamento - ${sellerName} - $${amount.toFixed(2)}`,
+        html: html,
+    });
+}
