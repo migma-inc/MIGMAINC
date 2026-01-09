@@ -23,6 +23,7 @@ import { BookACallDetailPage } from './pages/BookACallDetailPage';
 import { VisaCheckout } from './pages/VisaCheckout';
 import { CheckoutSuccess } from './pages/CheckoutSuccess';
 import { CheckoutCancel } from './pages/CheckoutCancel';
+import { ZellePaymentProcessing } from './pages/ZellePaymentProcessing';
 import { VisaServiceTerms } from './pages/VisaServiceTerms';
 import { SellerLogin } from './pages/SellerLogin';
 import { SellerRegister } from './pages/SellerRegister';
@@ -71,6 +72,7 @@ function App() {
         <Route path="/checkout/visa/resubmit" element={<VisaContractResubmit />} />
         <Route path="/checkout/success" element={<CheckoutSuccess />} />
         <Route path="/checkout/cancel" element={<CheckoutCancel />} />
+        <Route path="/checkout/zelle/processing" element={<ZellePaymentProcessing />} />
         
         {/* Seller Routes */}
         <Route path="/seller/login" element={<SellerLogin />} />

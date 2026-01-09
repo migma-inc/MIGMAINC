@@ -86,7 +86,7 @@ export function TrendsChart({ data, trends }: TrendsChartProps) {
     series.data.setAll(gaugeData);
 
     // Configurar cores
-    series.slices.template.adapters.add('fill', (fill, target) => {
+    series.slices.template.adapters.add('fill', (fill: any, target: any) => {
       const dataItem = target.dataItem;
       const dataContext = dataItem?.dataContext as GaugeSlice | undefined;
 

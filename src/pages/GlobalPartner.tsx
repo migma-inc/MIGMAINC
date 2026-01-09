@@ -133,6 +133,7 @@ type FormData = z.infer<typeof formSchema>;
 
 export const GlobalPartner = () => {
     const heroRef = useRef(null);
+    const cardRef = React.useRef<HTMLDivElement>(null);
     const [isScrolled, setIsScrolled] = useState(false);
     const { scrollYProgress } = useScroll({
         target: heroRef,
@@ -482,9 +483,9 @@ export const GlobalPartner = () => {
                             Tell us more about you, your experience and why you want to work with MIGMA. If your profile matches what we are looking for, you will receive an email to schedule an interview.
                         </p>
                     </div>
-                    <Card className="border-gold-medium/30 shadow-2xl bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 backdrop-blur-sm">
+                    <Card ref={cardRef} className="border-gold-medium/30 shadow-2xl bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 backdrop-blur-sm">
                         <CardContent className="p-8 sm:p-12">
-                            <ApplicationWizard />
+                            <ApplicationWizard cardRef={cardRef} />
                         </CardContent>
                     </Card>
                 </div>
@@ -789,7 +790,11 @@ const countryPhoneCodes: Record<string, string> = {
 
 const STORAGE_KEY = 'migma_application_form';
 
-const ApplicationWizard = () => {
+interface ApplicationWizardProps {
+    cardRef?: React.RefObject<HTMLDivElement | null>;
+}
+
+const ApplicationWizard = ({ cardRef }: ApplicationWizardProps) => {
     // Função para mostrar aviso visual (similar ao useContentProtection)
     const showWarning = (message: string) => {
         // Adicionar estilos de animação se não existirem
@@ -930,11 +935,22 @@ const ApplicationWizard = () => {
         
         // Small delay to ensure DOM is updated and step content is rendered
         const timer = setTimeout(() => {
-            // First try to scroll to the form ref (the ApplicationWizard container)
-            if (formRef.current) {
+            // Priorizar cardRef se disponível (aponta para o Card)
+            if (cardRef?.current) {
+                const element = cardRef.current;
+                const rect = element.getBoundingClientRect();
+                const elementTop = rect.top + window.scrollY;
+                
+                // Sempre fazer scroll para o topo do Card quando o step muda
+                // Calcular a posição absoluta do elemento e fazer scroll manual
+                // Isso garante que o scroll aconteça mesmo quando rect.top está próximo de 0
+                const targetScroll = elementTop - 120; // 120px de offset do topo para melhor visualização
+                window.scrollTo({ top: targetScroll, behavior: 'smooth' });
+            } else if (formRef.current) {
+                // Fallback para formRef (div interno)
                 formRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
             } else {
-                // Fallback: scroll to application-form section
+                // Fallback final: section application-form
                 const formElement = document.getElementById('application-form');
                 if (formElement) {
                     formElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -943,7 +959,7 @@ const ApplicationWizard = () => {
         }, 100); // Small delay to ensure step animation starts
         
         return () => clearTimeout(timer);
-    }, [step]);
+    }, [step, cardRef]);
 
     // Load saved form data from localStorage
     const loadSavedFormData = (): Partial<FormData> => {

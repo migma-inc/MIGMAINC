@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { PdfModal } from '@/components/ui/pdf-modal';
 import { ImageModal } from '@/components/ui/image-modal';
-import { CheckCircle, XCircle, Eye, Clock } from 'lucide-react';
+import { CheckCircle, XCircle, Eye, Clock, Brain } from 'lucide-react';
 import { ConfirmModal } from '@/components/ui/confirm-modal';
 import { AlertModal } from '@/components/ui/alert-modal';
 
@@ -24,10 +24,29 @@ interface ZelleOrder {
   contract_pdf_url: string | null;
   created_at: string;
   updated_at: string;
+  payment_metadata?: {
+    n8n_validation?: {
+      response?: string;
+      confidence?: number;
+      status?: string;
+    };
+  };
+}
+
+interface ZellePayment {
+  id: string;
+  payment_id: string;
+  order_id: string;
+  status: 'pending_verification' | 'approved' | 'rejected';
+  n8n_response: any;
+  n8n_confidence: number | null;
+  n8n_validated_at: string | null;
+  admin_notes: string | null;
 }
 
 export const ZelleApprovalPage = () => {
   const [orders, setOrders] = useState<ZelleOrder[]>([]);
+  const [zellePayments, setZellePayments] = useState<Record<string, ZellePayment>>({});
   const [loading, setLoading] = useState(true);
   const [selectedOrder, setSelectedOrder] = useState<ZelleOrder | null>(null);
   const [selectedPdfUrl, setSelectedPdfUrl] = useState<string | null>(null);
@@ -37,6 +56,7 @@ export const ZelleApprovalPage = () => {
   const [showApproveConfirm, setShowApproveConfirm] = useState(false);
   const [showRejectConfirm, setShowRejectConfirm] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [processingAction, setProcessingAction] = useState<'approve' | 'reject' | null>(null);
   const [alertData, setAlertData] = useState<{ title: string; message: string; variant: 'success' | 'error' } | null>(null);
   const [showAlert, setShowAlert] = useState(false);
 
@@ -46,15 +66,16 @@ export const ZelleApprovalPage = () => {
 
   const loadOrders = async () => {
     try {
-      const { data, error } = await supabase
+      // Load orders
+      const { data: ordersData, error: ordersError } = await supabase
         .from('visa_orders')
         .select('*')
         .eq('payment_method', 'zelle')
         .eq('payment_status', 'pending')
         .order('created_at', { ascending: false });
 
-      if (error) {
-        console.error('Error loading Zelle orders:', error);
+      if (ordersError) {
+        console.error('Error loading Zelle orders:', ordersError);
         setAlertData({
           title: 'Error',
           message: 'Failed to load orders',
@@ -64,7 +85,24 @@ export const ZelleApprovalPage = () => {
         return;
       }
 
-      setOrders(data || []);
+      setOrders(ordersData || []);
+
+      // Load zelle_payments for these orders
+      if (ordersData && ordersData.length > 0) {
+        const orderIds = ordersData.map(o => o.id);
+        const { data: paymentsData, error: paymentsError } = await supabase
+          .from('zelle_payments')
+          .select('*')
+          .in('order_id', orderIds);
+
+        if (!paymentsError && paymentsData) {
+          const paymentsMap: Record<string, ZellePayment> = {};
+          paymentsData.forEach((payment: any) => {
+            paymentsMap[payment.order_id] = payment;
+          });
+          setZellePayments(paymentsMap);
+        }
+      }
     } catch (err) {
       console.error('Error:', err);
       setAlertData({
@@ -88,6 +126,7 @@ export const ZelleApprovalPage = () => {
 
     setShowApproveConfirm(false);
     setIsProcessing(true);
+    setProcessingAction('approve');
 
     try {
       // Update order status to completed
@@ -101,6 +140,20 @@ export const ZelleApprovalPage = () => {
 
       if (updateError) {
         throw updateError;
+      }
+
+      // Update zelle_payment status if exists
+      const zellePayment = zellePayments[selectedOrder.id];
+      if (zellePayment) {
+        await supabase
+          .from('zelle_payments')
+          .update({
+            status: 'approved',
+            admin_approved_at: new Date().toISOString(),
+            admin_notes: 'Approved manually by admin',
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', zellePayment.id);
       }
 
       // Track payment completed in funnel
@@ -182,6 +235,7 @@ export const ZelleApprovalPage = () => {
       setShowAlert(true);
     } finally {
       setIsProcessing(false);
+      setProcessingAction(null);
       setSelectedOrder(null);
     }
   };
@@ -196,6 +250,7 @@ export const ZelleApprovalPage = () => {
 
     setShowRejectConfirm(false);
     setIsProcessing(true);
+    setProcessingAction('reject');
 
     try {
       // Update order status to failed
@@ -209,6 +264,19 @@ export const ZelleApprovalPage = () => {
 
       if (updateError) {
         throw updateError;
+      }
+
+      // Update zelle_payment status if exists
+      const zellePayment = zellePayments[selectedOrder.id];
+      if (zellePayment) {
+        await supabase
+          .from('zelle_payments')
+          .update({
+            status: 'rejected',
+            admin_notes: 'Rejected manually by admin',
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', zellePayment.id);
       }
 
       // Send rejection email to client
@@ -313,10 +381,35 @@ export const ZelleApprovalPage = () => {
                       {order.client_name} • {order.client_email}
                     </p>
                   </div>
-                  <div className="flex justify-start sm:justify-end">
-                    <Badge className="bg-yellow-500/20 text-yellow-300 border-yellow-500/50 text-xs">
-                      Pending Approval
-                    </Badge>
+                  <div className="flex items-center gap-2">
+                    {(() => {
+                      const zellePayment = zellePayments[order.id];
+                      const n8nData = zellePayment?.n8n_response || order.payment_metadata?.n8n_validation;
+                      const confidence = zellePayment?.n8n_confidence || n8nData?.confidence;
+                      
+                      if (confidence !== null && confidence !== undefined) {
+                        const confidencePercent = Math.round(confidence * 100);
+                        return (
+                          <Badge 
+                            className={`${
+                              confidence >= 0.7 
+                                ? 'bg-green-500/20 text-green-300 border-green-500/50' 
+                                : confidence >= 0.4
+                                ? 'bg-yellow-500/20 text-yellow-300 border-yellow-500/50'
+                                : 'bg-red-500/20 text-red-300 border-red-500/50'
+                            } flex items-center gap-1`}
+                          >
+                            <Brain className="w-3 h-3" />
+                            {confidencePercent}% Confidence
+                          </Badge>
+                        );
+                      }
+                      return (
+                        <Badge className="bg-yellow-500/20 text-yellow-300 border-yellow-500/50">
+                          Pending Approval
+                        </Badge>
+                      );
+                    })()}
                   </div>
                 </div>
               </CardHeader>
@@ -345,6 +438,49 @@ export const ZelleApprovalPage = () => {
                     </span>
                   </div>
                 </div>
+
+                {(() => {
+                  const zellePayment = zellePayments[order.id];
+                  const n8nData = zellePayment?.n8n_response || order.payment_metadata?.n8n_validation;
+                  
+                  if (n8nData || zellePayment?.n8n_response) {
+                    const response = n8nData?.response || zellePayment?.n8n_response?.response;
+                    const confidence = zellePayment?.n8n_confidence || n8nData?.confidence;
+                    
+                    return (
+                      <div className="border-t border-gold-medium/30 pt-4">
+                        <div className="flex items-start gap-2 mb-2">
+                          <Brain className="w-4 h-4 text-gold-light mt-0.5" />
+                          <div className="flex-1">
+                            <p className="text-sm font-semibold text-gold-light mb-1">n8n Validation</p>
+                            {response && (
+                              <p className="text-xs text-gray-400 mb-1">{response}</p>
+                            )}
+                            {confidence !== null && confidence !== undefined && (
+                              <div className="flex items-center gap-2 mt-2">
+                                <span className="text-xs text-gray-400">Confidence:</span>
+                                <div className="flex-1 bg-gray-700 rounded-full h-2">
+                                  <div 
+                                    className={`h-2 rounded-full ${
+                                      confidence >= 0.7 ? 'bg-green-500' :
+                                      confidence >= 0.4 ? 'bg-yellow-500' : 'bg-red-500'
+                                    }`}
+                                    style={{ width: `${confidence * 100}%` }}
+                                  />
+                                </div>
+                                <span className="text-xs text-gray-300">{Math.round(confidence * 100)}%</span>
+                              </div>
+                            )}
+                            {!response && !confidence && (
+                              <p className="text-xs text-gray-500">No n8n validation data available</p>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  }
+                  return null;
+                })()}
 
                 {order.zelle_proof_url && (
                   <div className="border-t border-gold-medium/30 pt-4">
@@ -418,10 +554,17 @@ export const ZelleApprovalPage = () => {
 
       {/* Processing Overlay */}
       {isProcessing && (
-        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
-          <div className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 rounded-lg p-6 border border-gold-medium/30">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gold-medium mx-auto"></div>
-            <p className="mt-4 text-white">Processing...</p>
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-md">
+          <div className="flex flex-col items-center justify-center space-y-6">
+            <div className="loader-gold"></div>
+            <p className="text-gold-light text-lg font-semibold tracking-tight">
+              {processingAction === 'reject' 
+                ? 'Rejecting payment...' 
+                : 'Processing payment approval...'}
+            </p>
+            <p className="text-gray-400 text-sm">
+              This may take a moment, please wait
+            </p>
           </div>
         </div>
       )}
