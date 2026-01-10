@@ -449,7 +449,7 @@ Deno.serve(async (req: Request) => {
         extra_unit_label: product.extra_unit_label,
         extra_unit_price_usd: extraUnitPrice,
         calculation_type: product.calculation_type,
-        total_price_usd: totalBeforeFees,
+        total_price_usd: finalAmountUSD, // Use final amount WITH fees (customer pays this)
         client_name: client_name,
         client_email: client_email,
         client_whatsapp: client_whatsapp || null,

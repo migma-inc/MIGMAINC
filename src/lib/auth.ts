@@ -3,23 +3,11 @@
  * Uses Supabase Auth with role-based access control
  */
 
-import { createClient } from '@supabase/supabase-js';
 import { supabase } from './supabase';
 
-// Create a separate Supabase client for admin with session persistence
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-
-// Admin client with session persistence enabled
-const adminSupabase = supabaseUrl && supabaseAnonKey
-  ? createClient(supabaseUrl, supabaseAnonKey, {
-      auth: {
-        persistSession: true, // Enable session persistence for admin
-        autoRefreshToken: true,
-        detectSessionInUrl: true,
-      },
-    })
-  : supabase; // Fallback to regular client if env vars not available
+// Reuse the existing Supabase client instance to avoid multiple GoTrueClient instances
+// The supabase client from './supabase' already has session persistence enabled
+const adminSupabase = supabase;
 
 export interface AdminUser {
   id: string;

@@ -22,6 +22,9 @@ export async function getSellerBalance(sellerId: string): Promise<SellerBalance>
         next_withdrawal_date: null,
         can_request: false,
         last_request_date: null,
+        next_request_window_start: null,
+        next_request_window_end: null,
+        is_in_request_window: false,
       };
     }
 
@@ -44,6 +47,9 @@ export async function getSellerBalance(sellerId: string): Promise<SellerBalance>
         next_withdrawal_date: null,
         can_request: false,
         last_request_date: null,
+        next_request_window_start: null,
+        next_request_window_end: null,
+        is_in_request_window: false,
       };
     }
 
@@ -53,6 +59,9 @@ export async function getSellerBalance(sellerId: string): Promise<SellerBalance>
       next_withdrawal_date: result.next_withdrawal_date || null,
       can_request: result.can_request || false,
       last_request_date: result.last_request_date || null,
+      next_request_window_start: result.next_request_window_start || null,
+      next_request_window_end: result.next_request_window_end || null,
+      is_in_request_window: result.is_in_request_window || false,
     };
   } catch (error) {
     console.error('[PAYMENT_REQUESTS] Exception fetching balance:', error);
@@ -68,10 +77,11 @@ export async function getSellerBalance(sellerId: string): Promise<SellerBalance>
 
 /**
  * Check if seller can request payment
+ * No frequency limit - only checks if there's available balance
  */
 export async function canRequestPayment(sellerId: string): Promise<boolean> {
   const balance = await getSellerBalance(sellerId);
-  return balance.can_request && balance.available_balance > 0;
+  return balance.available_balance > 0;
 }
 
 /**
@@ -137,13 +147,6 @@ export async function createPaymentRequest(
       return { success: false, error: 'Email is required' };
     }
 
-    // Get seller info for email
-    const { data: sellerData } = await supabase
-      .from('sellers')
-      .select('full_name, email')
-      .eq('seller_id_public', sellerId)
-      .single();
-
     // Build payment_details JSONB
     const paymentDetails: any = {
       email: formData.email.trim(),
@@ -169,38 +172,14 @@ export async function createPaymentRequest(
       };
     }
 
-    // Send notification emails
-    try {
-      // Email to seller
-      if (sellerData?.email) {
-        const { sendPaymentRequestCreatedEmail } = await import('@/lib/emails');
-        await sendPaymentRequestCreatedEmail(
-          sellerData.email,
-          sellerData.full_name || sellerId,
-          formData.amount,
-          data
-        );
-      }
-
-      // Email to admins
-      const { sendNewPaymentRequestNotification } = await import('@/lib/emails');
-      const { getAllAdminEmails } = await import('@/lib/auth');
-      const adminEmails = await getAllAdminEmails();
-      
-      for (const adminEmail of adminEmails) {
-        await sendNewPaymentRequestNotification(
-          adminEmail,
-          sellerData?.full_name || sellerId,
-          sellerId,
-          formData.amount,
-          formData.payment_method,
-          data
-        );
-      }
-    } catch (emailError) {
-      console.error('[PAYMENT_REQUESTS] Error sending notification emails:', emailError);
-      // Don't fail the request creation if emails fail
-    }
+    // Send notification emails asynchronously via Edge Function (non-blocking)
+    // This prevents the UI from freezing while emails are being sent
+    supabase.functions.invoke('send-payment-request-notifications', {
+      body: { requestId: data },
+    }).catch((emailError) => {
+      console.error('[PAYMENT_REQUESTS] Error triggering email notifications:', emailError);
+      // Don't fail the request creation if email trigger fails
+    });
 
     return { success: true, requestId: data };
   } catch (error: any) {

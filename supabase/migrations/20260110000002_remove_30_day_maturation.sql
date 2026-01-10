@@ -1,8 +1,8 @@
--- Migration: Update commission calculation to monthly accumulated method
--- Changes from individual per-sale to accumulated monthly total
+-- Migration: Remove 30-day maturation period
+-- Comissions now become available on the 1st day of the next month (no 30-day wait)
+-- Seller can only request payments from days 1-5 of each month
 
--- Function: Recalculate all commissions for a seller in the current month
--- This is called when a new sale is completed to update all commissions based on new monthly total
+-- Update recalculate_monthly_commissions to set available_for_withdrawal_at to first day of next month
 CREATE OR REPLACE FUNCTION recalculate_monthly_commissions(
   p_seller_id TEXT,
   p_month_date DATE DEFAULT CURRENT_DATE
@@ -18,10 +18,14 @@ DECLARE
   v_net_amount DECIMAL(10, 2);
   v_commission_amount DECIMAL(10, 2);
   v_commission_id UUID;
+  v_available_date TIMESTAMPTZ; -- First day of next month
 BEGIN
   -- Calculate start and end of month
   v_start_of_month := date_trunc('month', p_month_date::TIMESTAMPTZ);
   v_end_of_month := (date_trunc('month', p_month_date::TIMESTAMPTZ) + INTERVAL '1 month' - INTERVAL '1 day')::TIMESTAMPTZ + INTERVAL '23 hours 59 minutes 59 seconds';
+  
+  -- Calculate when commissions become available: first day of next month
+  v_available_date := (date_trunc('month', p_month_date::TIMESTAMPTZ) + INTERVAL '1 month')::TIMESTAMPTZ;
   
   -- Get all completed orders for this seller in the current month
   -- Calculate total net amount for the month
@@ -51,10 +55,16 @@ BEGIN
   -- Get commission percentage based on total monthly net amount (progressive tiers)
   v_commission_percentage := get_commission_percentage(v_total_net_amount);
   
-  RAISE NOTICE 'Recalculating commissions for seller % in month %: total_net=%, percentage=%', 
-    p_seller_id, p_month_date, v_total_net_amount, v_commission_percentage;
+  RAISE NOTICE 'Recalculating commissions for seller % in month %: total_net=%, percentage=%, available_at=%', 
+    p_seller_id, p_month_date, v_total_net_amount, v_commission_percentage, v_available_date;
   
-  -- Loop through all completed orders of the month and update/create commissions
+  -- Delete existing commissions for this month (will recreate them)
+  DELETE FROM seller_commissions
+  WHERE seller_id = p_seller_id
+    AND created_at >= v_start_of_month
+    AND created_at <= v_end_of_month;
+  
+  -- Loop through all completed orders of the month and create commissions
   FOR v_order_record IN
     SELECT 
       id,
@@ -83,50 +93,39 @@ BEGIN
     -- Calculate commission amount using monthly percentage
     v_commission_amount := ROUND(v_net_amount * v_commission_percentage / 100.0, 2);
     
-    -- Check if commission already exists
-    SELECT id INTO v_commission_id
-    FROM seller_commissions
-    WHERE order_id = v_order_record.id;
-    
-    IF v_commission_id IS NOT NULL THEN
-      -- Update existing commission
-      UPDATE seller_commissions
-      SET 
-        net_amount_usd = v_net_amount,
-        commission_percentage = v_commission_percentage,
-        commission_amount_usd = v_commission_amount,
-        calculation_method = 'monthly_accumulated',
-        updated_at = NOW()
-      WHERE id = v_commission_id;
-    ELSE
-      -- Insert new commission
-      INSERT INTO seller_commissions (
-        seller_id,
-        order_id,
-        net_amount_usd,
-        commission_percentage,
-        commission_amount_usd,
-        calculation_method,
-        created_at,
-        updated_at
-      ) VALUES (
-        p_seller_id,
-        v_order_record.id,
-        v_net_amount,
-        v_commission_percentage,
-        v_commission_amount,
-        'monthly_accumulated',
-        NOW(),
-        NOW()
-      );
-    END IF;
+    -- Insert commission with available date = first day of next month
+    INSERT INTO seller_commissions (
+      seller_id,
+      order_id,
+      net_amount_usd,
+      commission_percentage,
+      commission_amount_usd,
+      calculation_method,
+      available_for_withdrawal_at,
+      withdrawn_amount,
+      reserved_amount,
+      created_at,
+      updated_at
+    ) VALUES (
+      p_seller_id,
+      v_order_record.id,
+      v_net_amount,
+      v_commission_percentage,
+      v_commission_amount,
+      'monthly_accumulated',
+      v_available_date, -- First day of next month (no 30-day wait)
+      0,
+      0,
+      NOW(),
+      NOW()
+    );
   END LOOP;
   
   RAISE NOTICE 'Commissions recalculated for seller % in month %', p_seller_id, p_month_date;
 END;
 $$ LANGUAGE plpgsql;
 
--- Update the main commission calculation function to use monthly accumulated method
+-- Update calculate_seller_commission to use next month's first day
 CREATE OR REPLACE FUNCTION calculate_seller_commission(
   p_order_id UUID,
   p_calculation_method TEXT DEFAULT 'monthly_accumulated'
@@ -175,12 +174,12 @@ BEGIN
     RETURN v_commission_id;
   ELSE
     -- Individual method (legacy, kept for backward compatibility)
-    -- This is the old logic - kept in case needed
     DECLARE
       v_net_amount DECIMAL(10, 2);
       v_commission_percentage DECIMAL(5, 2);
       v_commission_amount DECIMAL(10, 2);
       v_order_json JSONB;
+      v_available_date TIMESTAMPTZ;
     BEGIN
       -- Check if commission already exists
       SELECT id INTO v_commission_id
@@ -194,7 +193,8 @@ BEGIN
       -- Get full order data
       SELECT 
         total_price_usd,
-        payment_metadata
+        payment_metadata,
+        created_at
       INTO v_order
       FROM visa_orders
       WHERE id = p_order_id;
@@ -218,6 +218,9 @@ BEGIN
       -- Calculate commission amount
       v_commission_amount := ROUND(v_net_amount * v_commission_percentage / 100.0, 2);
       
+      -- Calculate available date: first day of next month
+      v_available_date := (DATE_TRUNC('month', v_order.created_at) + INTERVAL '1 month')::TIMESTAMPTZ;
+      
       -- Insert commission
       INSERT INTO seller_commissions (
         seller_id,
@@ -226,6 +229,9 @@ BEGIN
         commission_percentage,
         commission_amount_usd,
         calculation_method,
+        available_for_withdrawal_at,
+        withdrawn_amount,
+        reserved_amount,
         created_at,
         updated_at
       ) VALUES (
@@ -235,6 +241,9 @@ BEGIN
         v_commission_percentage,
         v_commission_amount,
         'individual',
+        v_available_date, -- First day of next month (no 30-day wait)
+        0,
+        0,
         NOW(),
         NOW()
       )
@@ -246,24 +255,12 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- Update trigger to use monthly_accumulated method
-CREATE OR REPLACE FUNCTION trigger_calculate_seller_commission()
-RETURNS TRIGGER AS $$
-BEGIN
-  -- Only process if payment_status changed to 'completed'
-  IF NEW.payment_status = 'completed' AND 
-     (OLD.payment_status IS NULL OR OLD.payment_status != 'completed') AND
-     NEW.seller_id IS NOT NULL AND
-     NEW.seller_id != '' THEN
-    
-    -- Calculate commission using monthly accumulated method
-    PERFORM calculate_seller_commission(NEW.id, 'monthly_accumulated');
-  END IF;
-  
-  RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
+-- Update existing commissions to use first day of next month instead of 30 days
+-- For each commission, set available_for_withdrawal_at to the first day of the month after created_at
+UPDATE seller_commissions
+SET available_for_withdrawal_at = (DATE_TRUNC('month', created_at) + INTERVAL '1 month')::TIMESTAMPTZ
+WHERE available_for_withdrawal_at IS NOT NULL
+  AND available_for_withdrawal_at != (DATE_TRUNC('month', created_at) + INTERVAL '1 month')::TIMESTAMPTZ;
 
 -- Update comment
-COMMENT ON FUNCTION recalculate_monthly_commissions(TEXT, DATE) IS 'Recalculates all commissions for a seller in a given month based on accumulated total';
-COMMENT ON FUNCTION calculate_seller_commission(UUID, TEXT) IS 'Calculates seller commission. Uses monthly_accumulated method by default (recalculates all month commissions based on total)';
+COMMENT ON COLUMN seller_commissions.available_for_withdrawal_at IS 'Date when commission becomes available for withdrawal (first day of next month after order creation)';

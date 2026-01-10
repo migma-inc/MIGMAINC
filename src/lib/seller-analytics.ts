@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { calculateNetAmount } from './seller-commissions';
 
 export interface ChartDataPoint {
   date: string;
@@ -33,6 +34,23 @@ export interface TrendsData {
   };
 }
 
+export interface CommissionSummary {
+  totalCommissions: number;
+  availableCommissions: number;
+  pendingCommissions: number;
+  paidCommissions: number;
+  commissionRate: number; // Average commission rate (%)
+}
+
+export interface CommissionByProduct {
+  productSlug: string;
+  productName: string;
+  totalCommissions: number;
+  sales: number;
+  avgCommission: number;
+  percentage: number;
+}
+
 export interface AnalyticsData {
   period: { start: Date; end: Date };
   summary: {
@@ -42,9 +60,11 @@ export interface AnalyticsData {
     pendingOrders: number;
     commission: number;
   };
+  commissionSummary?: CommissionSummary;
   comparison?: PeriodComparison;
   chartData: ChartDataPoint[];
   productMetrics: ProductMetric[];
+  commissionByProduct?: CommissionByProduct[];
   trends: TrendsData;
 }
 
@@ -165,13 +185,13 @@ export async function getSellerChartData(
       };
 
       const isCompleted = order.payment_status === 'completed' || order.payment_status === 'paid';
-      const revenue = parseFloat(order.total_price_usd || '0');
+      // Calculate revenue using net amount (total_price_usd - fee_amount)
+      const revenue = isCompleted ? calculateNetAmount(order) : 0;
 
-      existing.revenue += isCompleted ? revenue : 0;
+      existing.revenue += revenue;
       existing.contracts += 1;
-      // Comissão será calculada separadamente quando o sistema estiver implementado
-      // Por enquanto, assumir 10% como padrão
-      existing.commission += isCompleted ? revenue * 0.1 : 0;
+    // Commission will be calculated from actual commission records
+    existing.commission += 0; // Will be populated by getCommissionChartData
 
       grouped.set(key, existing);
     });
@@ -227,7 +247,8 @@ export async function getProductMetrics(
       const existing = productStats.get(slug) || { sales: 0, revenue: 0 };
       
       const isCompleted = order.payment_status === 'completed' || order.payment_status === 'paid';
-      const revenue = parseFloat(order.total_price_usd || '0');
+      // Calculate revenue using net amount (total_price_usd - fee_amount)
+      const revenue = calculateNetAmount(order);
 
       existing.sales += 1;
       existing.revenue += isCompleted ? revenue : 0;
@@ -284,12 +305,21 @@ export async function getPeriodComparison(
     const currentStats = calculateStats(currentOrders || []);
     const previousStats = calculateStats(previousOrders || []);
 
+    // Get commission summaries for both periods
+    const [currentCommissionSummary, previousCommissionSummary] = await Promise.all([
+      getCommissionSummary(sellerId, currentPeriod),
+      getCommissionSummary(sellerId, previousPeriod),
+    ]);
+
     return {
       previousPeriod,
       revenueChange: calculatePercentageChange(currentStats.totalRevenue, previousStats.totalRevenue),
       salesChange: calculatePercentageChange(currentStats.totalSales, previousStats.totalSales),
       completedOrdersChange: calculatePercentageChange(currentStats.completedOrders, previousStats.completedOrders),
-      commissionChange: calculatePercentageChange(currentStats.commission, previousStats.commission),
+      commissionChange: calculatePercentageChange(
+        currentCommissionSummary.totalCommissions,
+        previousCommissionSummary.totalCommissions
+      ),
     };
   } catch (error) {
     console.error('[Analytics] Error in getPeriodComparison:', error);
@@ -337,7 +367,8 @@ export async function getTrends(
       if (order.payment_status === 'completed' || order.payment_status === 'paid') {
         const date = new Date(order.created_at);
         const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-        const revenue = parseFloat(order.total_price_usd || '0');
+        // Calculate revenue using net amount (total_price_usd - fee_amount)
+      const revenue = calculateNetAmount(order);
         monthlyRevenue.set(monthKey, (monthlyRevenue.get(monthKey) || 0) + revenue);
       }
     });
@@ -413,21 +444,35 @@ export async function getAnalyticsData(
   const summary = calculateStats(orders || []);
 
   // Buscar dados em paralelo
-  const [chartData, productMetrics, trends, comparison] = await Promise.all([
+  const [chartData, productMetrics, trends, comparison, commissionSummary, commissionByProduct, commissionChartData] = await Promise.all([
     getSellerChartData(sellerId, period, 'day'),
     getProductMetrics(sellerId, period),
     getTrends(sellerId, period),
     enableComparison
       ? getPeriodComparison(sellerId, period, getPreviousPeriod(period.start, period.end))
       : Promise.resolve(undefined),
+    getCommissionSummary(sellerId, period),
+    getCommissionByProduct(sellerId, period),
+    getCommissionChartData(sellerId, period, 'day'),
   ]);
+
+  // Merge commission data into chart data
+  const mergedChartData = chartData.map(point => {
+    const commissionPoint = commissionChartData.find(c => c.date === point.date);
+    return {
+      ...point,
+      commission: commissionPoint?.commission || 0,
+    };
+  });
 
   return {
     period,
     summary,
+    commissionSummary,
     comparison,
-    chartData,
+    chartData: mergedChartData,
     productMetrics,
+    commissionByProduct,
     trends,
   };
 }
@@ -446,13 +491,14 @@ function calculateStats(orders: any[]): {
   );
   const pending = orders.filter(o => o.payment_status === 'pending');
   
+  // Calculate revenue using net amount (total_price_usd - fee_amount)
   const revenue = completed.reduce(
-    (sum, o) => sum + parseFloat(o.total_price_usd || '0'),
+    (sum, o) => sum + calculateNetAmount(o),
     0
   );
   
-  // Assumir 10% de comissão (será substituído quando sistema de comissão estiver implementado)
-  const commission = revenue * 0.1;
+  // Commission will be calculated from actual commission records
+  const commission = 0;
 
   return {
     totalRevenue: revenue,
@@ -468,5 +514,256 @@ function calculatePercentageChange(current: number, previous: number): number {
     return current > 0 ? 100 : 0;
   }
   return ((current - previous) / previous) * 100;
+}
+
+/**
+ * Get commission chart data grouped by period
+ */
+export async function getCommissionChartData(
+  sellerId: string,
+  period: { start: Date; end: Date },
+  granularity: 'day' | 'week' | 'month' = 'day'
+): Promise<ChartDataPoint[]> {
+  try {
+    // Get commissions for the period
+    const { data: commissions, error } = await supabase
+      .from('seller_commissions')
+      .select('*')
+      .eq('seller_id', sellerId)
+      .gte('created_at', period.start.toISOString())
+      .lte('created_at', period.end.toISOString())
+      .order('created_at', { ascending: true });
+
+    if (error) {
+      console.error('[Analytics] Error fetching commissions:', error);
+      return [];
+    }
+
+    if (!commissions || commissions.length === 0) {
+      return [];
+    }
+
+    // Group by period according to granularity
+    const grouped = new Map<string, ChartDataPoint>();
+
+    commissions.forEach((commission) => {
+      const commissionDate = new Date(commission.created_at);
+      let key: string;
+
+      if (granularity === 'day') {
+        key = commissionDate.toISOString().split('T')[0]; // YYYY-MM-DD
+      } else if (granularity === 'week') {
+        const weekStart = new Date(commissionDate);
+        weekStart.setDate(commissionDate.getDate() - commissionDate.getDay());
+        key = weekStart.toISOString().split('T')[0];
+      } else {
+        // month
+        key = `${commissionDate.getFullYear()}-${String(commissionDate.getMonth() + 1).padStart(2, '0')}`;
+      }
+
+      const existing = grouped.get(key) || {
+        date: key,
+        revenue: 0,
+        contracts: 0,
+        commission: 0,
+      };
+
+      const commissionAmount = parseFloat(commission.commission_amount_usd || '0');
+      existing.commission += commissionAmount;
+
+      grouped.set(key, existing);
+    });
+
+    // Convert to array and sort by date
+    return Array.from(grouped.values()).sort((a, b) => a.date.localeCompare(b.date));
+  } catch (error) {
+    console.error('[Analytics] Error in getCommissionChartData:', error);
+    return [];
+  }
+}
+
+/**
+ * Get commission metrics summary for a period
+ */
+export async function getCommissionSummary(
+  sellerId: string,
+  period: { start: Date; end: Date }
+): Promise<CommissionSummary> {
+  try {
+    // Get all commissions for the period
+    const { data: commissions, error } = await supabase
+      .from('seller_commissions')
+      .select('commission_amount_usd, withdrawn_amount, available_for_withdrawal_at')
+      .eq('seller_id', sellerId)
+      .gte('created_at', period.start.toISOString())
+      .lte('created_at', period.end.toISOString());
+
+    if (error) {
+      console.error('[Analytics] Error fetching commissions for summary:', error);
+      return {
+        totalCommissions: 0,
+        availableCommissions: 0,
+        pendingCommissions: 0,
+        paidCommissions: 0,
+        commissionRate: 0,
+      };
+    }
+
+    if (!commissions || commissions.length === 0) {
+      return {
+        totalCommissions: 0,
+        availableCommissions: 0,
+        pendingCommissions: 0,
+        paidCommissions: 0,
+        commissionRate: 0,
+      };
+    }
+
+    // Calculate totals
+    let totalCommissions = 0;
+    let availableCommissions = 0;
+    let pendingCommissions = 0;
+    let paidCommissions = 0;
+
+    commissions.forEach((c) => {
+      const total = parseFloat(c.commission_amount_usd || '0');
+      const withdrawn = parseFloat(c.withdrawn_amount || '0');
+      const remaining = total - withdrawn;
+
+      totalCommissions += total;
+      paidCommissions += withdrawn;
+
+      if (c.available_for_withdrawal_at) {
+        const availableDate = new Date(c.available_for_withdrawal_at);
+        if (availableDate <= new Date()) {
+          availableCommissions += remaining;
+        } else {
+          pendingCommissions += remaining;
+        }
+      } else {
+        pendingCommissions += remaining;
+      }
+    });
+
+    // Get orders to calculate average commission rate
+    const { data: orders } = await supabase
+      .from('visa_orders')
+      .select('total_price_usd, payment_status, payment_metadata')
+      .eq('seller_id', sellerId)
+      .gte('created_at', period.start.toISOString())
+      .lte('created_at', period.end.toISOString());
+
+    // Calculate revenue using net amount (total_price_usd - fee_amount)
+    const totalRevenue = (orders || [])
+      .filter(o => o.payment_status === 'completed' || o.payment_status === 'paid')
+      .reduce((sum, o) => sum + calculateNetAmount(o), 0);
+
+    const commissionRate = totalRevenue > 0 ? (totalCommissions / totalRevenue) * 100 : 0;
+
+    return {
+      totalCommissions: Math.round(totalCommissions * 100) / 100,
+      availableCommissions: Math.round(availableCommissions * 100) / 100,
+      pendingCommissions: Math.round(pendingCommissions * 100) / 100,
+      paidCommissions: Math.round(paidCommissions * 100) / 100,
+      commissionRate: Math.round(commissionRate * 100) / 100,
+    };
+  } catch (error) {
+    console.error('[Analytics] Error in getCommissionSummary:', error);
+    return {
+      totalCommissions: 0,
+      availableCommissions: 0,
+      pendingCommissions: 0,
+      paidCommissions: 0,
+      commissionRate: 0,
+    };
+  }
+}
+
+/**
+ * Get commissions grouped by product
+ */
+export async function getCommissionByProduct(
+  sellerId: string,
+  period: { start: Date; end: Date }
+): Promise<CommissionByProduct[]> {
+  try {
+    // Get commissions for the period
+    const { data: commissions, error } = await supabase
+      .from('seller_commissions')
+      .select('order_id, commission_amount_usd')
+      .eq('seller_id', sellerId)
+      .gte('created_at', period.start.toISOString())
+      .lte('created_at', period.end.toISOString());
+
+    if (error) {
+      console.error('[Analytics] Error fetching commissions for products:', error);
+      return [];
+    }
+
+    if (!commissions || commissions.length === 0) {
+      return [];
+    }
+
+    // Get order IDs
+    const orderIds = commissions.map(c => c.order_id);
+
+    // Get orders with product info
+    const { data: orders } = await supabase
+      .from('visa_orders')
+      .select('id, product_slug')
+      .in('id', orderIds);
+
+    if (!orders) {
+      return [];
+    }
+
+    // Create order map
+    const orderMap = new Map(orders.map(o => [o.id, o.product_slug]));
+
+    // Get product names
+    const productSlugs = [...new Set(Array.from(orderMap.values()).filter(Boolean))];
+    const { data: products } = await supabase
+      .from('visa_products')
+      .select('slug, name')
+      .in('slug', productSlugs);
+
+    const productNameMap = new Map(
+      (products || []).map(p => [p.slug, p.name])
+    );
+
+    // Group commissions by product
+    const productStats = new Map<string, { commissions: number; sales: number }>();
+
+    commissions.forEach((commission) => {
+      const orderId = commission.order_id;
+      const productSlug = orderMap.get(orderId) || 'unknown';
+      const existing = productStats.get(productSlug) || { commissions: 0, sales: 0 };
+
+      existing.commissions += parseFloat(commission.commission_amount_usd || '0');
+      existing.sales += 1;
+
+      productStats.set(productSlug, existing);
+    });
+
+    // Calculate total for percentages
+    const totalCommissions = Array.from(productStats.values())
+      .reduce((sum, stat) => sum + stat.commissions, 0);
+
+    // Convert to array
+    const result: CommissionByProduct[] = Array.from(productStats.entries()).map(([slug, stats]) => ({
+      productSlug: slug,
+      productName: productNameMap.get(slug) || slug,
+      totalCommissions: Math.round(stats.commissions * 100) / 100,
+      sales: stats.sales,
+      avgCommission: stats.sales > 0 ? Math.round((stats.commissions / stats.sales) * 100) / 100 : 0,
+      percentage: totalCommissions > 0 ? Math.round((stats.commissions / totalCommissions) * 100 * 100) / 100 : 0,
+    }));
+
+    // Sort by total commissions (highest first)
+    return result.sort((a, b) => b.totalCommissions - a.totalCommissions);
+  } catch (error) {
+    console.error('[Analytics] Error in getCommissionByProduct:', error);
+    return [];
+  }
 }
 

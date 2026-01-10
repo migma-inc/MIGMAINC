@@ -3,11 +3,11 @@ import { useOutletContext, Link } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
-import { ShoppingCart, CheckCircle, Clock, DollarSign, FileText, AlertCircle, Coins } from 'lucide-react';
-import { getSellerCommissionStats, calculateNetAmount, type CommissionStats } from '@/lib/seller-commissions';
+import { ShoppingCart, CheckCircle, Clock, DollarSign, Coins } from 'lucide-react';
+import { calculateNetAmount } from '@/lib/seller-commissions';
+import { useSellerStats } from '@/hooks/useSellerStats';
 
 interface SellerInfo {
   id: string;
@@ -22,7 +22,6 @@ interface Stats {
   completedSales: number;
   pendingSales: number;
   totalRevenue: number;
-  pendingApprovals: number;
 }
 
 export function SellerOverview() {
@@ -33,15 +32,11 @@ export function SellerOverview() {
     completedSales: 0,
     pendingSales: 0,
     totalRevenue: 0,
-    pendingApprovals: 0,
-  });
-  const [commissionStats, setCommissionStats] = useState<CommissionStats>({
-    currentMonth: 0,
-    totalPending: 0,
-    totalPaid: 0,
-    totalAmount: 0,
   });
   const [loading, setLoading] = useState(true);
+  
+  // Use shared hook for commission stats and balance
+  const { balance, refresh: refreshStats } = useSellerStats(seller?.seller_id_public);
 
   // Função para calcular data de início do mês quando necessário
   const getStartDate = (): string | null => {
@@ -80,52 +75,14 @@ export function SellerOverview() {
             const netAmount = calculateNetAmount(o);
             return sum + netAmount;
           }, 0);
-          
-          // Count pending approvals:
-          // 1. Orders with contract_approval_status = 'pending'
-          // 2. Orders with contract_approval_status = null/undefined (old orders before migration)
-          // 3. Only count orders that are paid/completed (not payment pending)
-          const pendingApprovals = ordersData.filter(o => {
-            const isPaid = o.payment_status === 'completed' || o.payment_status === 'paid';
-            const needsApproval = 
-              o.contract_approval_status === 'pending' || 
-              o.contract_approval_status === null ||
-              o.contract_approval_status === undefined ||
-              !('contract_approval_status' in o);
-            return isPaid && needsApproval;
-          }).length;
-
-          console.log('[SellerOverview] Pending approvals:', pendingApprovals, 'out of', ordersData.length, 'orders');
-          if (ordersData.length > 0) {
-            console.log('[SellerOverview] Sample approval statuses:', ordersData.slice(0, 3).map(o => ({
-              order: o.order_number,
-              payment_status: o.payment_status,
-              approval_status: o.contract_approval_status,
-              has_field: 'contract_approval_status' in o
-            })));
-          }
 
           setStats({
             totalSales: ordersData.length,
             completedSales: completed.length,
             pendingSales: pending.length,
             totalRevenue: revenue,
-            pendingApprovals: pendingApprovals,
           });
         }
-
-        // Load commission stats
-        const loadCommissionStats = async () => {
-          if (!seller) return;
-          try {
-            const commissionData = await getSellerCommissionStats(seller.seller_id_public, periodFilter);
-            setCommissionStats(commissionData);
-          } catch (err) {
-            console.error('Error loading commission stats:', err);
-          }
-        };
-
-        loadCommissionStats();
       } catch (err) {
         console.error('Error loading stats:', err);
       } finally {
@@ -135,6 +92,13 @@ export function SellerOverview() {
 
     loadStats();
   }, [seller, periodFilter]);
+  
+  // Refresh shared stats when period filter changes
+  useEffect(() => {
+    if (seller) {
+      refreshStats();
+    }
+  }, [seller, periodFilter, refreshStats]);
 
   if (loading) {
     return (
@@ -273,10 +237,10 @@ export function SellerOverview() {
                 <div className="flex-1 min-w-0">
                   <p className="text-xs sm:text-sm text-gray-400">Commission</p>
                   <p className="text-xl sm:text-2xl font-bold text-purple-300">
-                    ${commissionStats.currentMonth.toFixed(2)}
+                    ${(balance.available_balance + balance.pending_balance).toFixed(2)}
                   </p>
                   <p className="text-xs text-gray-500 mt-1">
-                    Available: ${commissionStats.totalPending.toFixed(2)}
+                    Available: ${balance.available_balance.toFixed(2)} • Pending: ${balance.pending_balance.toFixed(2)}
                   </p>
                 </div>
                 <Coins className="w-8 h-8 sm:w-10 sm:h-10 text-purple-400 shrink-0" />
@@ -285,36 +249,6 @@ export function SellerOverview() {
           </Card>
         </Link>
       </div>
-
-      {/* Pending Approvals Alert */}
-      {stats.pendingApprovals > 0 && (
-        <Card className="bg-gradient-to-br from-yellow-500/20 via-yellow-500/10 to-yellow-500/20 border-2 border-yellow-500/50 mb-6 sm:mb-8">
-          <CardContent className="p-4 sm:p-6">
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-              <div className="flex items-center gap-3 sm:gap-4">
-                <div className="p-2 sm:p-3 bg-yellow-500/20 rounded-lg shrink-0">
-                  <AlertCircle className="w-6 h-6 sm:w-8 sm:h-8 text-yellow-400" />
-                </div>
-                <div>
-                  <h3 className="text-base sm:text-lg font-bold text-yellow-300 mb-1">
-                    {stats.pendingApprovals} {stats.pendingApprovals === 1 ? 'Contract' : 'Contracts'} Pending Approval
-                  </h3>
-                  <p className="text-xs sm:text-sm text-yellow-200/80">
-                    You have {stats.pendingApprovals} {stats.pendingApprovals === 1 ? 'contract' : 'contracts'} waiting for your review
-                  </p>
-                </div>
-              </div>
-              <Link to="/seller/dashboard/orders" className="w-full sm:w-auto">
-                <Button className="w-full sm:w-auto bg-yellow-600 hover:bg-yellow-700 text-white text-sm">
-                  <FileText className="w-4 h-4 mr-2" />
-                  Review Contracts
-                </Button>
-              </Link>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
 
       {/* Quick Actions */}
       <Card className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30">

@@ -5,13 +5,11 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent } from '@/components/ui/tabs';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Coins, DollarSign, Clock, CheckCircle, XCircle, Wallet, AlertCircle, CreditCard, RefreshCw } from 'lucide-react';
-import { getSellerCommissionStats, type SellerCommission } from '@/lib/seller-commissions';
+import { type SellerCommission } from '@/lib/seller-commissions';
 import { 
-  getSellerBalance, 
   getSellerPaymentRequests, 
   createPaymentRequest
 } from '@/lib/seller-payment-requests';
@@ -19,7 +17,7 @@ import type { SellerPaymentRequest } from '@/types/seller';
 import { PaymentRequestTimer } from '@/components/seller/PaymentRequestTimer';
 import { PaymentRequestForm } from '@/components/seller/PaymentRequestForm';
 import { PendingBalanceCard } from '@/components/seller/PendingBalanceCard';
-import type { SellerBalance } from '@/types/seller';
+import { useSellerStats } from '@/hooks/useSellerStats';
 
 interface SellerInfo {
   id: string;
@@ -32,29 +30,73 @@ interface SellerInfo {
 export function SellerCommissions() {
   const { seller } = useOutletContext<{ seller: SellerInfo }>();
   const [activeTab, setActiveTab] = useState<'commissions' | 'payment-request'>('commissions');
-  const [periodFilter, setPeriodFilter] = useState<'month' | 'all'>('month');
+  // PAYMENT REQUEST - COMENTADO: Sempre mostrar apenas a aba de commissions
+  // const [activeTab, setActiveTab] = useState<'commissions' | 'payment-request'>('commissions');
   const [commissions, setCommissions] = useState<SellerCommission[]>([]);
-  const [_stats, setStats] = useState({
-    currentMonth: 0,
-    totalPending: 0,
-    totalPaid: 0,
-    totalAmount: 0,
-  });
-  const [totalReceived, _setTotalReceived] = useState(0); // Total from completed payment requests
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
   
+  // Use shared hook for stats
+  const { balance, totalReceived, refresh: refreshStats } = useSellerStats(seller?.seller_id_public);
+  
+  // Auto-refresh when window status might change
+  useEffect(() => {
+    if (!seller) return;
+    
+    // Listen for window status change events from PaymentRequestTimer
+    const handleWindowStatusChange = () => {
+      console.log('[SellerCommissions] Window status changed, refreshing...');
+      refreshStats();
+    };
+    
+    window.addEventListener('requestWindowStatusChange', handleWindowStatusChange);
+    
+    // Determine refresh interval based on current day
+    const getRefreshInterval = () => {
+      const now = new Date();
+      const currentDay = now.getDate();
+      
+      // On boundary days (1, 5, 6), refresh more frequently
+      if (currentDay === 1 || currentDay === 5 || currentDay === 6) {
+        return 30000; // 30 seconds on boundary days
+      }
+      return 60000; // 1 minute normally
+    };
+    
+    // Check and refresh function
+    const checkAndRefresh = () => {
+      refreshStats();
+    };
+    
+    // Check immediately
+    checkAndRefresh();
+    
+    // Set up interval with dynamic refresh rate
+    let interval: ReturnType<typeof setInterval>;
+    const setupInterval = () => {
+      if (interval) clearInterval(interval);
+      const refreshInterval = getRefreshInterval();
+      interval = setInterval(checkAndRefresh, refreshInterval);
+    };
+    
+    setupInterval();
+    
+    // Re-setup interval every hour to adjust for day changes
+    const hourInterval = setInterval(setupInterval, 3600000); // Every hour
+    
+    return () => {
+      if (interval) clearInterval(interval);
+      clearInterval(hourInterval);
+      window.removeEventListener('requestWindowStatusChange', handleWindowStatusChange);
+    };
+  }, [seller, refreshStats]);
+  
   // Payment request state
-  const [balance, setBalance] = useState<SellerBalance>({
-    available_balance: 0,
-    pending_balance: 0,
-    next_withdrawal_date: null,
-    can_request: false,
-    last_request_date: null,
-  });
   const [paymentRequests, setPaymentRequests] = useState<SellerPaymentRequest[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [firstSaleDate, setFirstSaleDate] = useState<string | null>(null);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [successAmount, setSuccessAmount] = useState<number | null>(null);
   
   // Cache keys
   const getCacheKey = (key: string) => `seller_commissions_${seller?.seller_id_public}_${key}`;
@@ -94,26 +136,17 @@ export function SellerCommissions() {
       if (!seller) return;
 
       // Check cache first
-      const cacheKey = getCacheKey(`commissions_${periodFilter}`);
+      const cacheKey = getCacheKey('commissions');
       const cachedCommissions = loadCachedData(cacheKey);
-      const cachedStats = loadCachedData(getCacheKey(`stats_${periodFilter}`));
 
-      if (cachedCommissions && cachedStats) {
+      if (cachedCommissions) {
         setCommissions(cachedCommissions);
-        setStats(cachedStats);
         setLoading(false);
       } else {
         setLoading(true);
       }
 
       try {
-        // Load commission stats (only if not cached)
-        if (!cachedStats) {
-          const commissionStats = await getSellerCommissionStats(seller.seller_id_public, periodFilter);
-          setStats(commissionStats);
-          saveToCache(getCacheKey(`stats_${periodFilter}`), commissionStats);
-        }
-
         // Load commission list (only if not cached)
         if (!cachedCommissions) {
           const { data: commissionsData, error: commissionsError } = await supabase
@@ -126,19 +159,9 @@ export function SellerCommissions() {
             console.error('Error loading commissions:', commissionsError);
             setCommissions([]);
           } else {
-            // Filter by period if needed
-            let filteredCommissions = commissionsData || [];
-            if (periodFilter === 'month') {
-              const now = new Date();
-              const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-              filteredCommissions = filteredCommissions.filter(
-                (c: any) => new Date(c.created_at) >= startOfMonth
-              );
-            }
-
             // Load order details for each commission
-            if (filteredCommissions.length > 0) {
-              const orderIds = filteredCommissions.map((c: any) => c.order_id);
+            if (commissionsData && commissionsData.length > 0) {
+              const orderIds = commissionsData.map((c: any) => c.order_id);
               const { data: ordersData, error: ordersError } = await supabase
                 .from('visa_orders')
                 .select('id, order_number, product_slug, client_name, total_price_usd')
@@ -152,7 +175,7 @@ export function SellerCommissions() {
                   (ordersData || []).map((order: any) => [order.id, order])
                 );
                 
-                const commissionsWithOrders = filteredCommissions.map((commission: any) => ({
+                const commissionsWithOrders = commissionsData.map((commission: any) => ({
                   ...commission,
                   visa_orders: ordersMap.get(commission.order_id) || null
                 }));
@@ -174,93 +197,87 @@ export function SellerCommissions() {
     };
 
     loadCommissions();
-  }, [seller, periodFilter]);
+  }, [seller]);
   
-  const handleSubmitPaymentRequest = async (formData: any) => {
-    if (!seller) return;
-
-    setSubmitting(true);
-    try {
-      const result = await createPaymentRequest(seller.seller_id_public, formData);
-      
-      if (!result.success) {
-        throw new Error(result.error || 'Failed to create payment request');
-      }
-
-      // Reload data and update cache
-      const [balanceData, requestsData, firstCommission] = await Promise.all([
-        getSellerBalance(seller.seller_id_public),
-        getSellerPaymentRequests(seller.seller_id_public),
-        supabase
-          .from('seller_commissions')
-          .select('created_at')
-          .eq('seller_id', seller.seller_id_public)
-          .order('created_at', { ascending: true })
-          .limit(1)
-          .single(),
-      ]);
-
-      setBalance(balanceData);
-      setPaymentRequests(requestsData);
-      setFirstSaleDate(firstCommission?.data?.created_at || null);
-      
-      // Update cache
-      saveToCache(getCacheKey('balance'), balanceData);
-      saveToCache(getCacheKey('payment_requests'), requestsData);
-      
-      // Invalidate commissions cache to refresh stats
-      localStorage.removeItem(getCacheKey(`stats_${periodFilter}`));
-    } catch (error: any) {
-      throw error;
-    } finally {
-      setSubmitting(false);
-    }
+  // PAYMENT REQUEST - COMENTADO TEMPORARIAMENTE
+  const handleSubmitPaymentRequest = async (_formData: any) => {
+    // Função temporária para evitar erros de compilação
+    return Promise.resolve();
   };
+  // const handleSubmitPaymentRequest = async (formData: any) => {
+  //   if (!seller) return;
+
+  //   setSubmitting(true);
+  //   try {
+  //     const result = await createPaymentRequest(seller.seller_id_public, formData);
+      
+  //     if (!result.success) {
+  //       throw new Error(result.error || 'Failed to create payment request');
+  //     }
+
+  //     // Reload data and update cache
+  //     const [requestsData, firstCommission] = await Promise.all([
+  //       getSellerPaymentRequests(seller.seller_id_public),
+  //       supabase
+  //         .from('seller_commissions')
+  //         .select('created_at')
+  //         .eq('seller_id', seller.seller_id_public)
+  //         .order('created_at', { ascending: true })
+  //         .limit(1)
+  //         .single(),
+  //     ]);
+
+  //     setPaymentRequests(requestsData);
+  //     setFirstSaleDate(firstCommission?.data?.created_at || null);
+      
+  //     // Update cache
+  //     saveToCache(getCacheKey('payment_requests'), requestsData);
+      
+  //     // Refresh shared stats (balance, commission stats, total received)
+  //     await refreshStats();
+      
+  //     // Invalidate commissions cache to refresh stats
+  //     localStorage.removeItem(getCacheKey('stats'));
+      
+  //     // Show success modal
+  //     setSuccessAmount(formData.amount);
+  //     setShowSuccessModal(true);
+  //   } catch (error: any) {
+  //     throw error;
+  //   } finally {
+  //     setSubmitting(false);
+  //   }
+  // };
   
-  // Load payment request data (balance and first sale) - Always load for stats cards
-  const loadBalanceData = async () => {
-    if (!seller) return;
-
-    const cachedBalance = loadCachedData(getCacheKey('balance'));
-    const cachedFirstSale = loadCachedData(getCacheKey('first_sale_date'));
-
-    if (cachedBalance) {
-      setBalance(cachedBalance);
-    }
-    if (cachedFirstSale) {
-      setFirstSaleDate(cachedFirstSale);
-    }
-
-    // Always load balance and first sale for stats cards
-    try {
-      const [balanceData, firstCommission] = await Promise.all([
-        getSellerBalance(seller.seller_id_public),
-        supabase
-          .from('seller_commissions')
-          .select('created_at')
-          .eq('seller_id', seller.seller_id_public)
-          .order('created_at', { ascending: true })
-          .limit(1)
-          .single(),
-      ]);
-
-      console.log('[SellerCommissions] Balance loaded:', balanceData);
-      console.log('[SellerCommissions] First commission:', firstCommission);
-      setBalance(balanceData);
-      setFirstSaleDate(firstCommission?.data?.created_at || null);
-      saveToCache(getCacheKey('balance'), balanceData);
-      if (firstCommission?.data?.created_at) {
-        saveToCache(getCacheKey('first_sale_date'), firstCommission.data.created_at);
-      }
-    } catch (err) {
-      console.error('[SellerCommissions] Error loading balance:', err);
-    }
-  };
-
+  // Load first sale date for timer
   useEffect(() => {
-    if (seller) {
-      loadBalanceData();
-    }
+    const loadFirstSaleDate = async () => {
+      if (!seller) return;
+
+      const cachedFirstSale = loadCachedData(getCacheKey('first_sale_date'));
+      if (cachedFirstSale) {
+        setFirstSaleDate(cachedFirstSale);
+      }
+
+      try {
+        const { data: firstCommission } = await supabase
+          .from('seller_commissions')
+          .select('created_at')
+          .eq('seller_id', seller.seller_id_public)
+          .order('created_at', { ascending: true })
+          .limit(1)
+          .single();
+
+        if (firstCommission?.created_at) {
+          setFirstSaleDate(firstCommission.created_at);
+          saveToCache(getCacheKey('first_sale_date'), firstCommission.created_at);
+        }
+      } catch (err) {
+        console.error('[SellerCommissions] Error loading first sale date:', err);
+      }
+    };
+
+    loadFirstSaleDate();
   }, [seller]);
 
   // Load payment requests only when switching to payment-request tab
@@ -297,74 +314,62 @@ export function SellerCommissions() {
     try {
       // Clear cache
       localStorage.removeItem(getCacheKey('balance'));
-      localStorage.removeItem(getCacheKey('payment_requests'));
-      localStorage.removeItem(getCacheKey(`stats_${periodFilter}`));
+      // PAYMENT REQUEST - COMENTADO: localStorage.removeItem(getCacheKey('payment_requests'));
+      localStorage.removeItem(getCacheKey('stats'));
 
       // Reload all data
       await Promise.all([
-        loadBalanceData(),
-        loadPaymentRequests(),
-        (async () => {
-          const commissionStats = await getSellerCommissionStats(seller.seller_id_public, periodFilter);
-          setStats(commissionStats);
-          saveToCache(getCacheKey(`stats_${periodFilter}`), commissionStats);
-        })(),
+        refreshStats(), // Refresh shared stats
+        // PAYMENT REQUEST - COMENTADO: loadPaymentRequests(),
       ]);
     } finally {
       setRefreshing(false);
     }
   };
   
-  const getPaymentRequestStatusBadge = (status: string) => {
-    switch (status) {
-      case 'completed':
-        return (
-          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-500/20 text-green-300 border border-green-500/50">
-            <CheckCircle className="w-3 h-3" />
-            Pago
-          </span>
-        );
-      case 'approved':
-        return (
-          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-gold-medium/20 text-gold-light border border-gold-medium/50">
-            <CheckCircle className="w-3 h-3" />
-            Aprovado
-          </span>
-        );
-      case 'pending':
-        return (
-          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-500/20 text-yellow-300 border border-yellow-500/50">
-            <Clock className="w-3 h-3" />
-            Pendente
-          </span>
-        );
-      case 'rejected':
-        return (
-          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-500/20 text-red-300 border border-red-500/50">
-            <XCircle className="w-3 h-3" />
-            Rejeitado
-          </span>
-        );
-      default:
-        return <Badge>{status}</Badge>;
-    }
+  // PAYMENT REQUEST - COMENTADO TEMPORARIAMENTE
+  const getPaymentRequestStatusBadge = (_status: string) => {
+    // Função temporária para evitar erros de compilação
+    return <Badge>N/A</Badge>;
   };
+  // const getPaymentRequestStatusBadge = (status: string) => {
+  //   switch (status) {
+  //     case 'completed':
+  //       return (
+  //         <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-500/20 text-green-300 border border-green-500/50">
+  //           <CheckCircle className="w-3 h-3" />
+  //           Paid
+  //         </span>
+  //       );
+  //     case 'approved':
+  //       return (
+  //         <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-gold-medium/20 text-gold-light border border-gold-medium/50">
+  //           <CheckCircle className="w-3 h-3" />
+  //           Approved
+  //         </span>
+  //       );
+  //     case 'pending':
+  //       return (
+  //         <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-500/20 text-yellow-300 border border-yellow-500/50">
+  //           <Clock className="w-3 h-3" />
+  //           Pending
+  //         </span>
+  //       );
+  //     case 'rejected':
+  //       return (
+  //         <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-500/20 text-red-300 border border-red-500/50">
+  //           <XCircle className="w-3 h-3" />
+  //           Rejected
+  //         </span>
+  //       );
+  //     default:
+  //       return <Badge>{status}</Badge>;
+  //   }
+  // };
 
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'paid':
-        return <Badge className="bg-green-500/20 text-green-300 border-green-500/50">Paid</Badge>;
-      case 'pending':
-        return <Badge className="bg-yellow-500/20 text-yellow-300 border-yellow-500/50">Pending</Badge>;
-      case 'cancelled':
-        return <Badge className="bg-red-500/20 text-red-300 border-red-500/50">Cancelled</Badge>;
-      default:
-        return <Badge>{status}</Badge>;
-    }
-  };
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('pt-BR', {
+    return new Date(dateString).toLocaleDateString('en-US', {
       year: 'numeric',
       month: 'short',
       day: 'numeric',
@@ -374,7 +379,7 @@ export function SellerCommissions() {
   };
   
   const formatDateShort = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('pt-BR', {
+    return new Date(dateString).toLocaleDateString('en-US', {
       day: '2-digit',
       month: '2-digit',
       year: 'numeric'
@@ -434,30 +439,10 @@ export function SellerCommissions() {
                 className="bg-black border border-gold-medium/50 text-gold-light hover:bg-gold-medium/10"
               >
                 <RefreshCw className={`w-4 h-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
-                {refreshing ? 'Atualizando...' : 'Atualizar'}
+                {refreshing ? 'Updating...' : 'Refresh'}
               </Button>
             </div>
             <p className="text-sm sm:text-base text-gray-400">View your commission history and available balance</p>
-          </div>
-          <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
-            <Label htmlFor="period-filter" className="text-white text-sm whitespace-nowrap">
-              Período:
-            </Label>
-            <Select
-              value={periodFilter}
-              onValueChange={(value) => setPeriodFilter(value as 'month' | 'all')}
-            >
-              <SelectTrigger 
-                id="period-filter"
-                className="w-full sm:w-[160px] bg-black/50 border-gold-medium/50 text-white hover:bg-black/70"
-              >
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="month">Este Mês</SelectItem>
-                <SelectItem value="all">Acumulado</SelectItem>
-              </SelectContent>
-            </Select>
           </div>
         </div>
       </div>
@@ -471,19 +456,22 @@ export function SellerCommissions() {
                 <DollarSign className="w-6 h-6 text-gold-light" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-xs font-medium text-gray-400 mb-1">Saldo Disponível</p>
+                <p className="text-xs font-medium text-gray-400 mb-1">Available Balance</p>
                 <p className="text-xl font-bold text-gold-light">
                   ${balance.available_balance.toFixed(2)}
                 </p>
-                <p className="text-xs text-gray-500 mt-1">Pronto para saque</p>
+                <p className="text-xs text-gray-500 mt-1">Ready to withdraw</p>
               </div>
             </div>
           </CardContent>
         </Card>
 
-        <PendingBalanceCard 
+        <PendingBalanceCard
           pendingBalance={balance.pending_balance}
           nextWithdrawalDate={balance.next_withdrawal_date}
+          nextRequestWindowStart={balance.next_request_window_start}
+          nextRequestWindowEnd={balance.next_request_window_end}
+          isInRequestWindow={balance.is_in_request_window}
         />
 
         <Card className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30">
@@ -493,11 +481,11 @@ export function SellerCommissions() {
                 <CheckCircle className="w-6 h-6 text-gold-light" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-xs font-medium text-gray-400 mb-1">Total Recebido</p>
+                <p className="text-xs font-medium text-gray-400 mb-1">Total Received</p>
                 <p className="text-xl font-bold text-gold-light">
                   ${totalReceived.toFixed(2)}
                 </p>
-                <p className="text-xs text-gray-500 mt-1">Comissões pagas</p>
+                <p className="text-xs text-gray-500 mt-1">Paid commissions</p>
               </div>
             </div>
           </CardContent>
@@ -510,11 +498,11 @@ export function SellerCommissions() {
                 <Wallet className="w-6 h-6 text-gold-light" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-xs font-medium text-gray-400 mb-1">Total Acumulado</p>
+                <p className="text-xs font-medium text-gray-400 mb-1">Total Accumulated</p>
                 <p className="text-xl font-bold text-gold-light">
                   ${(balance.available_balance + balance.pending_balance).toFixed(2)}
                 </p>
-                <p className="text-xs text-gray-500 mt-1">Disponível + Pendente</p>
+                <p className="text-xs text-gray-500 mt-1">Available + Pending</p>
               </div>
             </div>
           </CardContent>
@@ -536,9 +524,10 @@ export function SellerCommissions() {
               `}
             >
               <Coins className="w-4 h-4 shrink-0" />
-              <span>Comissões</span>
+              <span>Commissions</span>
             </button>
-            <button
+            {/* PAYMENT REQUEST - COMENTADO TEMPORARIAMENTE */}
+            {/* <button
               onClick={() => setActiveTab('payment-request')}
               className={`
                 flex items-center gap-2 px-6 py-3 rounded-lg text-sm font-semibold transition-all
@@ -549,8 +538,8 @@ export function SellerCommissions() {
               `}
             >
               <Wallet className="w-4 h-4 shrink-0" />
-              <span>Solicitar Pagamento</span>
-            </button>
+              <span>Request Payment</span>
+            </button> */}
           </div>
         </div>
 
@@ -560,7 +549,7 @@ export function SellerCommissions() {
             <CardHeader className="pb-4">
               <CardTitle className="text-white text-lg sm:text-xl flex items-center gap-2">
                 <Coins className="w-5 h-5" />
-                Histórico de Comissões
+                Commission History
               </CardTitle>
             </CardHeader>
             <CardContent className="pt-0">
@@ -569,9 +558,7 @@ export function SellerCommissions() {
               <Coins className="w-16 h-16 text-gray-500 mx-auto mb-4" />
               <p className="text-gray-400 text-lg">No commissions found</p>
               <p className="text-gray-500 text-sm mt-2">
-                {periodFilter === 'month' 
-                  ? 'No commissions for this month yet'
-                  : 'You don\'t have any commissions yet'}
+                You don't have any commissions yet
               </p>
             </div>
           ) : (
@@ -586,7 +573,6 @@ export function SellerCommissions() {
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                       <div className="flex-1">
                         <div className="flex items-center gap-3 mb-2">
-                          {getStatusBadge(commission.commission_status)}
                           {order?.order_number && (
                             <span className="text-xs text-gold-light font-mono">
                               {order.order_number}
@@ -630,9 +616,9 @@ export function SellerCommissions() {
                             </span>
                           </div>
                         </div>
-                        {commission.payment_date && (
+                        {commission.withdrawn_amount > 0 && (
                           <div className="mt-2 text-xs text-gray-500">
-                            Paid on: {formatDate(commission.payment_date)}
+                            Withdrawn: ${commission.withdrawn_amount.toFixed(2)} of ${commission.commission_amount_usd.toFixed(2)}
                           </div>
                         )}
                       </div>
@@ -646,15 +632,19 @@ export function SellerCommissions() {
           </Card>
         </TabsContent>
 
+        {/* PAYMENT REQUEST - COMENTADO TEMPORARIAMENTE */}
+        {false && (
         <TabsContent value="payment-request" className="mt-0 space-y-0">
           {/* Payment Request Section - Inspired by Lus American Design */}
           <div className="space-y-6">
             {/* Timer - Inspired by WithdrawalTimer from Lus American */}
             <PaymentRequestTimer
               canRequest={balance.can_request}
-              lastRequestDate={balance.last_request_date}
               nextWithdrawalDate={balance.next_withdrawal_date}
               firstSaleDate={firstSaleDate}
+              nextRequestWindowStart={balance.next_request_window_start}
+              nextRequestWindowEnd={balance.next_request_window_end}
+              isInRequestWindow={balance.is_in_request_window}
             />
 
             {/* Main Content Card - Inspired by Lus American Tab Container */}
@@ -665,43 +655,19 @@ export function SellerCommissions() {
                   <div>
                     <CardTitle className="text-white text-lg sm:text-xl flex items-center gap-2">
                       <Wallet className="w-5 h-5" />
-                      Solicitações de Pagamento
+                      Payment Requests
                     </CardTitle>
                     <p className="text-sm text-gray-400 mt-1">
-                      Gerencie suas solicitações de saque
+                      Manage your withdrawal requests
                     </p>
                   </div>
-                  {balance.available_balance > 0 && balance.can_request && (
-                    <Button
-                      onClick={() => {
-                        // Scroll to form
-                        const formElement = document.getElementById('payment-request-form');
-                        if (formElement) {
-                          formElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                        }
-                      }}
-                      className="flex items-center gap-2 px-4 py-2 bg-gold-medium hover:bg-gold-light text-black font-semibold rounded-lg"
-                    >
-                      <Wallet className="w-4 h-4" />
-                      Nova Solicitação
-                    </Button>
-                  )}
-                  {(!balance.available_balance || !balance.can_request) && (
-                    <Button
-                      disabled
-                      className="flex items-center gap-2 px-4 py-2 bg-gray-300 text-gray-500 rounded-lg cursor-not-allowed"
-                    >
-                      <Wallet className="w-4 h-4" />
-                      Nova Solicitação
-                    </Button>
-                  )}
                 </div>
               </CardHeader>
               
               <CardContent className="p-6">
                 {/* Request Form Section */}
                 <div id="payment-request-form" className="mb-8">
-                  {balance.available_balance > 0 && balance.can_request ? (
+                  {balance.can_request ? (
                     <PaymentRequestForm
                       availableBalance={balance.available_balance}
                       onSubmit={handleSubmitPaymentRequest}
@@ -711,18 +677,14 @@ export function SellerCommissions() {
                     <div className="bg-black/50 rounded-lg p-8 text-center border border-gold-medium/30">
                       <AlertCircle className="w-16 h-16 text-gold-light mx-auto mb-4 bg-gold-medium/20 rounded-full p-4" />
                       <h3 className="text-lg font-medium text-white mb-2">
-                        {balance.available_balance <= 0 
-                          ? 'Sem saldo disponível'
-                          : 'Aguarde o período de 30 dias'}
+                        No available balance
                       </h3>
                       <p className="text-gray-400 text-sm">
-                        {balance.available_balance <= 0 
-                          ? 'Você não tem saldo disponível no momento para solicitar pagamento.'
-                          : 'Você precisa aguardar 30 dias desde sua última solicitação aprovada para fazer uma nova.'}
+                        You don't have available balance at the moment to request payment.
                       </p>
                       {balance.pending_balance > 0 && (
                         <p className="text-gray-500 text-xs mt-3">
-                          Você tem ${balance.pending_balance.toFixed(2)} aguardando liberação
+                          You have ${balance.pending_balance.toFixed(2)} awaiting release
                         </p>
                       )}
                     </div>
@@ -733,16 +695,16 @@ export function SellerCommissions() {
                 <div className="border-t border-gold-medium/20 pt-6">
                   <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
                     <Clock className="w-5 h-5" />
-                    Histórico de Solicitações
+                    Request History
                   </h3>
                   {paymentRequests.length === 0 ? (
                     <div className="bg-black/50 rounded-lg p-8 text-center border border-gold-medium/30">
                       <Clock className="w-16 h-16 text-gold-light mx-auto mb-4 bg-gold-medium/20 rounded-full p-4" />
                       <h3 className="text-lg font-medium text-white mb-2">
-                        Nenhuma solicitação encontrada
+                        No requests found
                       </h3>
                       <p className="text-gray-400 text-sm">
-                        Suas solicitações de pagamento aparecerão aqui
+                        Your payment requests will appear here
                       </p>
                     </div>
                   ) : (
@@ -751,19 +713,19 @@ export function SellerCommissions() {
                         <thead>
                           <tr className="bg-black/50 border-b border-gold-medium/30">
                             <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
-                              Valor
+                              Amount
                             </th>
                             <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
-                              Método
+                              Method
                             </th>
                             <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
-                              Detalhes
+                              Details
                             </th>
                             <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
                               Status
                             </th>
                             <th className="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
-                              Data
+                              Date
                             </th>
                           </tr>
                         </thead>
@@ -799,7 +761,7 @@ export function SellerCommissions() {
                                       {formatDateShort(request.requested_at)}
                                     </span>
                                     <span className="text-xs text-gray-500">
-                                      {new Date(request.requested_at).toLocaleTimeString('pt-BR', {
+                                      {new Date(request.requested_at).toLocaleTimeString('en-US', {
                                         hour: '2-digit',
                                         minute: '2-digit'
                                       })}
@@ -814,7 +776,7 @@ export function SellerCommissions() {
                                       {formatDateShort(request.approved_at)}
                                     </span>
                                     <span className="text-xs text-gray-500">
-                                      {new Date(request.approved_at).toLocaleTimeString('pt-BR', {
+                                      {new Date(request.approved_at).toLocaleTimeString('en-US', {
                                         hour: '2-digit',
                                         minute: '2-digit'
                                       })}
@@ -843,14 +805,14 @@ export function SellerCommissions() {
                                       {formatDateShort(request.completed_at)}
                                     </span>
                                     <span className="text-xs text-green-500">
-                                      {new Date(request.completed_at).toLocaleTimeString('pt-BR', {
+                                      {new Date(request.completed_at).toLocaleTimeString('en-US', {
                                         hour: '2-digit',
                                         minute: '2-digit'
                                       })}
                                     </span>
                                   </div>
                                 ) : (
-                                  <span className="text-sm text-gray-500">Pendente</span>
+                                  <span className="text-sm text-gray-500">Pending</span>
                                 )}
                               </td>
                             </tr>
@@ -864,7 +826,45 @@ export function SellerCommissions() {
             </Card>
           </div>
         </TabsContent>
+        )}
       </Tabs>
+
+      {/* PAYMENT REQUEST - COMENTADO TEMPORARIAMENTE */}
+      {/* Success Modal */}
+      {false && (
+      <Dialog open={showSuccessModal} onOpenChange={setShowSuccessModal}>
+        <DialogContent className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30">
+          <DialogHeader>
+            <div className="flex items-center justify-center mb-4">
+              <div className="w-16 h-16 bg-green-500/20 rounded-full flex items-center justify-center">
+                <CheckCircle className="w-8 h-8 text-green-400" />
+              </div>
+            </div>
+            <DialogTitle className="text-2xl font-bold text-gold-light text-center">
+              Request Sent Successfully!
+            </DialogTitle>
+            <DialogDescription className="text-center text-gray-300 mt-4">
+              Your payment request for{' '}
+              <span className="font-bold text-gold-light text-lg">
+                ${successAmount?.toFixed(2) || '0.00'} USD
+              </span>{' '}
+              has been created successfully and is awaiting approval.
+            </DialogDescription>
+            <DialogDescription className="text-center text-gray-400 mt-2 text-sm">
+              You will receive an email notification once your request is processed.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="mt-6">
+            <Button
+              onClick={() => setShowSuccessModal(false)}
+              className="w-full bg-gold-medium hover:bg-gold-light text-black font-semibold"
+            >
+              Got it
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      )}
     </div>
   );
 }

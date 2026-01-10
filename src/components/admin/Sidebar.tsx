@@ -62,12 +62,13 @@ export function Sidebar({ className, isMobileOpen = false, onMobileClose }: Side
       path: '/dashboard/sellers',
       exact: false,
     },
-    {
-      title: 'Payment Requests',
-      icon: Wallet,
-      path: '/dashboard/payment-requests',
-      exact: false,
-    },
+    // PAYMENT REQUEST - COMENTADO TEMPORARIAMENTE
+    // {
+    //   title: 'Payment Requests',
+    //   icon: Wallet,
+    //   path: '/dashboard/payment-requests',
+    //   exact: false,
+    // },
     {
       title: 'Contact Messages',
       icon: Mail,

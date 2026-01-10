@@ -4,12 +4,13 @@ import { supabase } from '@/lib/supabase';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { LinkIcon, Copy, CheckCircle, DollarSign, Users, Info, ChevronDown, ChevronUp, FileEdit, ChevronLeft, ChevronRight } from 'lucide-react';
+import { LinkIcon, Copy, CheckCircle, DollarSign, Users, Info, ChevronDown, ChevronUp, FileEdit, ChevronLeft, ChevronRight, FileText, AlertCircle } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { getSortedCountries, getPhoneCodeFromCountry } from '@/lib/visa-checkout-constants';
+import { getProductsWithContracts } from '@/lib/contract-templates';
 
 interface SellerInfo {
   id: string;
@@ -108,6 +109,7 @@ export function SellerLinks() {
     }
     return [];
   });
+  const [productsWithContracts, setProductsWithContracts] = useState<Set<string>>(new Set());
   const [copiedLink, setCopiedLink] = useState<string | null>(null);
   const [loading, setLoading] = useState(!hasCachedProducts);
   const hasLoadedRef = useRef(hasCachedProducts);
@@ -179,50 +181,42 @@ export function SellerLinks() {
     }, 100);
   }
 
-  // Step 1 validation (basic info)
+  // Step 1 validation (basic info) - All fields are now optional
   function validatePrefillStep1(formData: PrefillFormData): PrefillValidationResult {
     const errors: Record<string, string> = {};
 
-    if (!formData.productSlug.trim()) {
-      errors.productSlug = 'Please select a product';
-    }
-
-    if (!formData.clientName.trim()) {
-      errors.clientName = 'Full name is required';
-    }
-
+    // Validate email format only if provided
     const email = formData.clientEmail.trim();
-    if (!email) {
-      errors.clientEmail = 'Email is required';
-    } else if (email.includes(' ')) {
-      errors.clientEmail = 'Email cannot contain spaces';
-    } else if (!email.includes('@')) {
-      errors.clientEmail = 'Email must contain @';
-    } else {
-      const emailParts = email.split('@');
-      if (emailParts.length !== 2) {
-        errors.clientEmail = 'Invalid email format';
+    if (email) {
+      if (email.includes(' ')) {
+        errors.clientEmail = 'Email cannot contain spaces';
+      } else if (!email.includes('@')) {
+        errors.clientEmail = 'Email must contain @';
       } else {
-        const [localPart, domainPart] = emailParts;
-        if (!localPart || localPart.length === 0) {
-          errors.clientEmail = 'Email must have characters before @';
-        } else if (!domainPart || domainPart.length === 0) {
-          errors.clientEmail = 'Email must have characters after @';
-        } else if (!domainPart.includes('.')) {
-          errors.clientEmail = 'Email must have a dot after @';
+        const emailParts = email.split('@');
+        if (emailParts.length !== 2) {
+          errors.clientEmail = 'Invalid email format';
         } else {
-          const domainParts = domainPart.split('.');
-          const lastPart = domainParts[domainParts.length - 1];
-          if (!lastPart || lastPart.length === 0) {
-            errors.clientEmail = 'Email must have characters after the dot';
+          const [localPart, domainPart] = emailParts;
+          if (!localPart || localPart.length === 0) {
+            errors.clientEmail = 'Email must have characters before @';
+          } else if (!domainPart || domainPart.length === 0) {
+            errors.clientEmail = 'Email must have characters after @';
+          } else if (!domainPart.includes('.')) {
+            errors.clientEmail = 'Email must have a dot after @';
+          } else {
+            const domainParts = domainPart.split('.');
+            const lastPart = domainParts[domainParts.length - 1];
+            if (!lastPart || lastPart.length === 0) {
+              errors.clientEmail = 'Email must have characters after the dot';
+            }
           }
         }
       }
     }
 
-    if (!formData.dateOfBirth) {
-      errors.dateOfBirth = 'Date of birth is required';
-    } else {
+    // Validate date of birth format only if provided
+    if (formData.dateOfBirth) {
       const birthDate = new Date(formData.dateOfBirth);
       if (isNaN(birthDate.getTime())) {
         errors.dateOfBirth = 'Invalid date of birth';
@@ -242,22 +236,18 @@ export function SellerLinks() {
       }
     }
 
-    if (!formData.documentType) {
-      errors.documentType = 'Document type is required';
+    // Validate document number format only if provided
+    if (formData.documentNumber.trim() && formData.documentNumber.length < 5) {
+      errors.documentNumber = 'Document number must have at least 5 characters';
     }
 
-    if (!formData.documentNumber.trim() || formData.documentNumber.length < 5) {
-      errors.documentNumber = 'Document number is required (minimum 5 characters)';
-    }
-
-    // Dependent names if extraUnits > 0
+    // Dependent names validation - only if extraUnits > 0 and names are provided
     if (formData.extraUnits > 0) {
       if (formData.dependentNames.length !== formData.extraUnits) {
-        errors.dependentNames = 'Please provide names for all dependents';
-      } else {
-        const emptyNames = formData.dependentNames.filter(name => !name || name.trim() === '');
-        if (emptyNames.length > 0) {
-          errors.dependentNames = 'All dependent names must be filled';
+        // Only error if some names are provided but not all
+        const providedNames = formData.dependentNames.filter(name => name && name.trim() !== '').length;
+        if (providedNames > 0 && providedNames < formData.extraUnits) {
+          errors.dependentNames = 'Please provide names for all dependents or leave all empty';
         }
       }
     }
@@ -270,9 +260,9 @@ export function SellerLinks() {
     };
   }
 
-  // Full validation (all steps)
+  // Full validation (all steps) - All fields are now optional
   function validatePrefillForm(formData: PrefillFormData): PrefillValidationResult {
-    // First validate basic info
+    // First validate basic info (format only)
     const step1Result = validatePrefillStep1(formData);
     if (!step1Result.valid) {
       return step1Result;
@@ -280,52 +270,28 @@ export function SellerLinks() {
 
     const errors: Record<string, string> = {};
 
-    // Address
-    if (!formData.addressLine.trim()) {
-      errors.addressLine = 'Address is required';
-    }
-
+    // Validate city format only if provided
     const city = formData.city.trim();
-    if (!city) {
-      errors.city = 'City is required';
-    } else {
+    if (city) {
       const cityRegex = /^[a-zA-Z\s\-']+$/;
       if (!cityRegex.test(city)) {
         errors.city = 'City must contain only letters, spaces, hyphens, and apostrophes';
       }
     }
 
+    // Validate state format only if provided
     const state = formData.state.trim();
-    if (!state) {
-      errors.state = 'State is required';
-    } else {
+    if (state) {
       const stateRegex = /^[a-zA-Z\s\-']+$/;
       if (!stateRegex.test(state)) {
         errors.state = 'State must contain only letters, spaces, hyphens, and apostrophes';
       }
     }
 
-    if (!formData.postalCode.trim()) {
-      errors.postalCode = 'Postal code is required';
-    }
-
-    if (!formData.clientCountry.trim()) {
-      errors.clientCountry = 'Country is required';
-    }
-
-    if (!formData.clientNationality.trim()) {
-      errors.clientNationality = 'Nationality is required';
-    }
-
+    // Validate WhatsApp format only if provided
     const whatsapp = formData.clientWhatsApp.trim();
-    if (!whatsapp) {
-      errors.clientWhatsApp = 'WhatsApp with country code (e.g., +1) is required';
-    } else if (!whatsapp.startsWith('+')) {
+    if (whatsapp && !whatsapp.startsWith('+')) {
       errors.clientWhatsApp = 'WhatsApp must start with country code (e.g., +1)';
-    }
-
-    if (!formData.maritalStatus) {
-      errors.maritalStatus = 'Marital status is required';
     }
 
     const valid = Object.keys(errors).length === 0;
@@ -387,15 +353,36 @@ export function SellerLinks() {
       try {
         setLoading(true);
         
-        const { data: productsData, error } = await supabase
+        // Load products and contract templates in parallel
+        console.log('[SellerLinks] Starting to load products and contracts...');
+        
+        let contractsResult: Set<string> = new Set();
+        try {
+          console.log('[SellerLinks] Calling getProductsWithContracts...');
+          contractsResult = await getProductsWithContracts();
+          console.log('[SellerLinks] getProductsWithContracts returned:', contractsResult);
+        } catch (contractError) {
+          console.error('[SellerLinks] Error calling getProductsWithContracts:', contractError);
+          contractsResult = new Set();
+        }
+        
+        const productsResult = await supabase
           .from('visa_products')
           .select('slug, name, description, base_price_usd, extra_unit_price, extra_unit_label, calculation_type, allow_extra_units')
           .eq('is_active', true)
           .order('name');
 
+        const { data: productsData, error } = productsResult;
+
         if (error) {
           console.error('[SellerLinks] Error loading products:', error);
         }
+
+        console.log('[SellerLinks] Products loaded:', productsData?.length || 0);
+        console.log('[SellerLinks] Contracts result type:', typeof contractsResult);
+        console.log('[SellerLinks] Contracts result:', contractsResult);
+        console.log('[SellerLinks] Contracts result size:', contractsResult?.size || 0);
+        console.log('[SellerLinks] Contracts result values:', contractsResult ? Array.from(contractsResult) : []);
 
         // SEMPRE salva no cache, mesmo se desmontado
         if (productsData && productsData.length > 0) {
@@ -408,6 +395,19 @@ export function SellerLinks() {
             setProducts(productsData);
             hasLoadedRef.current = true;
           }
+          
+          // Ensure contractsResult is a Set
+          const contractsSet = contractsResult instanceof Set ? contractsResult : new Set<string>();
+          console.log('[SellerLinks] Setting contracts Set:', contractsSet);
+          console.log('[SellerLinks] Contracts Set size before setState:', contractsSet.size);
+          console.log('[SellerLinks] Contracts Set values before setState:', Array.from(contractsSet));
+          setProductsWithContracts(contractsSet);
+          
+          // Log after a small delay to see if state was updated
+          setTimeout(() => {
+            console.log('[SellerLinks] State should be updated now. Check productsWithContracts in next render.');
+          }, 100);
+          
           setLoading(false);
         } else {
           // Mesmo desmontado, marca como carregado para próxima montagem
@@ -564,7 +564,7 @@ export function SellerLinks() {
                 <>
                   {/* Product Selection - full width row */}
                   <div className="space-y-1.5">
-                    <Label htmlFor="prefill-product" className="text-white text-sm">Select Product *</Label>
+                    <Label htmlFor="prefill-product" className="text-white text-sm">Select Product</Label>
                     <Select
                       value={prefillFormData.productSlug}
                       onValueChange={(value) => {
@@ -585,11 +585,60 @@ export function SellerLinks() {
                         <SelectValue placeholder="Select a product" />
                       </SelectTrigger>
                       <SelectContent>
-                        {products.map((product) => (
-                          <SelectItem key={product.slug} value={product.slug}>
-                            {product.name}
-                          </SelectItem>
-                        ))}
+                        {products.map((product) => {
+                          // Debug: log contracts set on first render
+                          if (products.length > 0 && productsWithContracts.size > 0 && product.slug === products[0].slug) {
+                            console.log('[SellerLinks] Render - Contracts Set size:', productsWithContracts.size);
+                            console.log('[SellerLinks] Render - Contracts Set values:', Array.from(productsWithContracts));
+                          }
+                          
+                          const hasContract = productsWithContracts.has(product.slug);
+                          
+                          // Debug log for specific products
+                          if (product.slug === 'cos-selection-process' || product.slug === 'transfer-selection-process') {
+                            console.log(`[SellerLinks] Product ${product.slug}: hasContract=${hasContract}, contractsSet has:`, productsWithContracts.has(product.slug));
+                          }
+                          
+                          // Check if this is a scholarship or i20-control product that inherits from selection-process
+                          const isScholarshipOrI20 = product.slug.includes('-scholarship') || product.slug.includes('-i20-control');
+                          let inheritsContract = false;
+                          
+                          if (isScholarshipOrI20 && hasContract) {
+                            // Extract the prefix (initial, cos, or transfer)
+                            const prefix = product.slug.split('-')[0];
+                            const selectionProcessSlug = `${prefix}-selection-process`;
+                            // If selection-process also has contract, this product inherits it
+                            inheritsContract = productsWithContracts.has(selectionProcessSlug);
+                          }
+                          
+                          return (
+                            <SelectItem key={product.slug} value={product.slug}>
+                              <div className="flex items-center justify-between w-full pr-6">
+                                <span className="flex-1">{product.name}</span>
+                                {hasContract ? (
+                                  <div className="flex items-center gap-1.5 ml-2 flex-shrink-0">
+                                    {inheritsContract ? (
+                                      <>
+                                        <Info className="w-4 h-4 text-blue-500" />
+                                        <span className="text-xs text-gray-600 dark:text-gray-400" title="Inherits contract from Selection Process">Inherits contract</span>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <FileText className="w-4 h-4 text-green-500" />
+                                        <span className="text-xs text-gray-600 dark:text-gray-400" title="Has contract template">Contract</span>
+                                      </>
+                                    )}
+                                  </div>
+                                ) : (
+                                  <div className="flex items-center gap-1.5 ml-2 flex-shrink-0">
+                                    <AlertCircle className="w-4 h-4 text-yellow-500" />
+                                    <span className="text-xs text-gray-600 dark:text-gray-400">No contract yet</span>
+                                  </div>
+                                )}
+                              </div>
+                            </SelectItem>
+                          );
+                        })}
                       </SelectContent>
                     </Select>
                     {prefillFieldErrors.productSlug && (
@@ -662,7 +711,7 @@ export function SellerLinks() {
 
                     {/* Client Name */}
                     <div className="space-y-1.5">
-                      <Label htmlFor="prefill-name" className="text-white text-sm">Full Name *</Label>
+                      <Label htmlFor="prefill-name" className="text-white text-sm">Full Name</Label>
                       <Input
                         id="prefill-name"
                         value={prefillFormData.clientName}
@@ -677,7 +726,6 @@ export function SellerLinks() {
                           }
                         }}
                         className={`bg-white text-black h-9 text-sm ${prefillFieldErrors.clientName ? 'border-2 border-red-500' : ''}`}
-                        required
                       />
                       {prefillFieldErrors.clientName && (
                         <p className="text-red-400 text-xs mt-1">{prefillFieldErrors.clientName}</p>
@@ -691,7 +739,7 @@ export function SellerLinks() {
                       {Array.from({ length: prefillFormData.extraUnits }, (_, i) => (
                         <div key={i} className="space-y-1.5">
                           <Label htmlFor={`prefill-dependent-name-${i}`} className="text-white text-sm">
-                            Dependent Name {i + 1} *
+                            Dependent Name {i + 1}
                           </Label>
                           <Input
                             id={`prefill-dependent-name-${i}`}
@@ -723,7 +771,7 @@ export function SellerLinks() {
                   <div className="grid gap-3 sm:grid-cols-2">
                     {/* Email */}
                     <div className="space-y-1.5">
-                      <Label htmlFor="prefill-email" className="text-white text-sm">Email *</Label>
+                      <Label htmlFor="prefill-email" className="text-white text-sm">Email</Label>
                       <Input
                         id="prefill-email"
                         type="email"
@@ -740,7 +788,6 @@ export function SellerLinks() {
                           }
                         }}
                         className={`bg-white text-black h-9 text-sm ${prefillFieldErrors.clientEmail ? 'border-2 border-red-500' : ''}`}
-                        required
                       />
                       {prefillFieldErrors.clientEmail && (
                         <p className="text-red-400 text-xs mt-1">{prefillFieldErrors.clientEmail}</p>
@@ -749,7 +796,7 @@ export function SellerLinks() {
 
                     {/* Date of Birth */}
                     <div className="space-y-1.5">
-                      <Label htmlFor="prefill-dob" className="text-white text-sm">Date of Birth *</Label>
+                      <Label htmlFor="prefill-dob" className="text-white text-sm">Date of Birth</Label>
                       <Input
                         id="prefill-dob"
                         type="date"
@@ -766,7 +813,6 @@ export function SellerLinks() {
                           }
                         }}
                         className={`bg-white text-black h-9 text-sm ${prefillFieldErrors.dateOfBirth ? 'border-2 border-red-500' : ''}`}
-                        required
                       />
                       {prefillFieldErrors.dateOfBirth && (
                         <p className="text-red-400 text-xs mt-1">{prefillFieldErrors.dateOfBirth}</p>
@@ -777,7 +823,7 @@ export function SellerLinks() {
                   {/* Document Type and Number */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div className="space-y-1.5">
-                      <Label htmlFor="prefill-doc-type" className="text-white text-sm">Document Type *</Label>
+                      <Label htmlFor="prefill-doc-type" className="text-white text-sm">Document Type</Label>
                       <Select
                         value={prefillFormData.documentType}
                         onValueChange={(value: any) => {
@@ -808,7 +854,7 @@ export function SellerLinks() {
                       )}
                     </div>
                     <div className="space-y-1.5">
-                      <Label htmlFor="prefill-doc-number" className="text-white text-sm">Document Number *</Label>
+                      <Label htmlFor="prefill-doc-number" className="text-white text-sm">Document Number</Label>
                       <Input
                         id="prefill-doc-number"
                         value={prefillFormData.documentNumber}
@@ -823,7 +869,6 @@ export function SellerLinks() {
                           }
                         }}
                         className={`bg-white text-black h-9 text-sm ${prefillFieldErrors.documentNumber ? 'border-2 border-red-500' : ''}`}
-                        required
                       />
                       {prefillFieldErrors.documentNumber && (
                         <p className="text-red-400 text-xs mt-1">{prefillFieldErrors.documentNumber}</p>
@@ -836,6 +881,7 @@ export function SellerLinks() {
                     <Button
                       onClick={() => {
                         setPrefillError('');
+                        // Only validate format, not required fields
                         const result = validatePrefillStep1(prefillFormData);
                         if (!result.valid && result.errors) {
                           setPrefillFieldErrors(result.errors);
@@ -861,7 +907,7 @@ export function SellerLinks() {
                 <>
                   {/* Address */}
                   <div className="space-y-1.5">
-                    <Label htmlFor="prefill-address" className="text-white text-sm">Address Line *</Label>
+                    <Label htmlFor="prefill-address" className="text-white text-sm">Address Line</Label>
                     <Input
                       id="prefill-address"
                       value={prefillFormData.addressLine}
@@ -885,7 +931,7 @@ export function SellerLinks() {
                   {/* City, State, Postal Code */}
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <div className="space-y-1.5">
-                      <Label htmlFor="prefill-city" className="text-white text-sm">City *</Label>
+                      <Label htmlFor="prefill-city" className="text-white text-sm">City</Label>
                       <Input
                         id="prefill-city"
                         value={prefillFormData.city}
@@ -901,14 +947,13 @@ export function SellerLinks() {
                           }
                         }}
                         className={`bg-white text-black h-9 text-sm ${prefillFieldErrors.city ? 'border-2 border-red-500' : ''}`}
-                        required
                       />
                       {prefillFieldErrors.city && (
                         <p className="text-red-400 text-xs mt-1">{prefillFieldErrors.city}</p>
                       )}
                     </div>
                     <div className="space-y-1.5">
-                      <Label htmlFor="prefill-state" className="text-white text-sm">State *</Label>
+                      <Label htmlFor="prefill-state" className="text-white text-sm">State</Label>
                       <Input
                         id="prefill-state"
                         value={prefillFormData.state}
@@ -924,14 +969,13 @@ export function SellerLinks() {
                           }
                         }}
                         className={`bg-white text-black h-9 text-sm ${prefillFieldErrors.state ? 'border-2 border-red-500' : ''}`}
-                        required
                       />
                       {prefillFieldErrors.state && (
                         <p className="text-red-400 text-xs mt-1">{prefillFieldErrors.state}</p>
                       )}
                     </div>
                     <div className="space-y-1.5">
-                      <Label htmlFor="prefill-postal" className="text-white text-sm">Postal Code *</Label>
+                      <Label htmlFor="prefill-postal" className="text-white text-sm">Postal Code</Label>
                       <Input
                         id="prefill-postal"
                         value={prefillFormData.postalCode}
@@ -946,7 +990,6 @@ export function SellerLinks() {
                           }
                         }}
                         className={`bg-white text-black h-9 text-sm ${prefillFieldErrors.postalCode ? 'border-2 border-red-500' : ''}`}
-                        required
                       />
                       {prefillFieldErrors.postalCode && (
                         <p className="text-red-400 text-xs mt-1">{prefillFieldErrors.postalCode}</p>
@@ -957,7 +1000,7 @@ export function SellerLinks() {
                   {/* Country and Nationality */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div className="space-y-1.5">
-                      <Label htmlFor="prefill-country" className="text-white text-sm">Country of Residence *</Label>
+                      <Label htmlFor="prefill-country" className="text-white text-sm">Country of Residence</Label>
                       <Select
                         value={prefillFormData.clientCountry}
                         onValueChange={(value) => {
@@ -1039,7 +1082,7 @@ export function SellerLinks() {
                   {/* WhatsApp and Marital Status */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div className="space-y-1.5">
-                      <Label htmlFor="prefill-whatsapp" className="text-white text-sm">WhatsApp (with country code) *</Label>
+                      <Label htmlFor="prefill-whatsapp" className="text-white text-sm">WhatsApp (with country code)</Label>
                       <Input
                         id="prefill-whatsapp"
                         type="tel"
@@ -1056,14 +1099,13 @@ export function SellerLinks() {
                           }
                         }}
                         className={`bg-white text-black h-9 text-sm ${prefillFieldErrors.clientWhatsApp ? 'border-2 border-red-500' : ''}`}
-                        required
                       />
                       {prefillFieldErrors.clientWhatsApp && (
                         <p className="text-red-400 text-xs mt-1">{prefillFieldErrors.clientWhatsApp}</p>
                       )}
                     </div>
                     <div className="space-y-1.5">
-                      <Label htmlFor="prefill-marital" className="text-white text-sm">Marital Status *</Label>
+                      <Label htmlFor="prefill-marital" className="text-white text-sm">Marital Status</Label>
                       <Select
                         value={prefillFormData.maritalStatus}
                         onValueChange={(value: any) => {
@@ -1171,6 +1213,14 @@ export function SellerLinks() {
               {prefillFormStep === 2 && (
                 <Button
                   onClick={async () => {
+                    // Check if product is selected (required for URL)
+                    if (!prefillFormData.productSlug.trim()) {
+                      setPrefillError('Please select a product to generate the link');
+                      setPrefillFieldErrors({ productSlug: 'Product is required to generate link' });
+                      return;
+                    }
+
+                    // Only validate format, not required fields
                     const validation = validatePrefillForm(prefillFormData);
                     if (!validation.valid) {
                       setPrefillFieldErrors(validation.errors || {});

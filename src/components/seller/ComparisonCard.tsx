@@ -47,7 +47,7 @@ export function ComparisonCard({
                 {isPositive ? '+' : ''}{change.toFixed(1)}%
               </span>
               <span className="text-xs text-gray-500">
-                ({isPositive ? '+' : ''}{formatValue(changeAbs)} vs período anterior)
+                ({isPositive ? '+' : ''}{formatValue(changeAbs)} vs previous period)
               </span>
             </div>
           </div>

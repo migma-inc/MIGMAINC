@@ -192,6 +192,80 @@ export async function getContractTemplateByProductSlug(
 }
 
 /**
+ * Get all product slugs that have active contract templates
+ * Returns a Set of product slugs for quick lookup
+ * This function uses the regular supabase client (not admin) so it can be used by sellers
+ */
+export async function getProductsWithContracts(): Promise<Set<string>> {
+  try {
+    console.log('[CONTRACT_TEMPLATES] Starting getProductsWithContracts...');
+    // Import supabase dynamically to avoid circular dependencies
+    const { supabase } = await import('./supabase');
+    console.log('[CONTRACT_TEMPLATES] Supabase imported, calling RPC...');
+    
+    // Use RPC function to get products with contracts
+    // This function uses SECURITY DEFINER so sellers can access it
+    const { data, error } = await supabase
+      .rpc('get_products_with_contracts');
+
+    console.log('[CONTRACT_TEMPLATES] RPC call completed');
+    console.log('[CONTRACT_TEMPLATES] Error:', error);
+    console.log('[CONTRACT_TEMPLATES] Data:', data);
+
+    if (error) {
+      console.error('[CONTRACT_TEMPLATES] Error fetching products with contracts:', error);
+      console.error('[CONTRACT_TEMPLATES] Error details:', {
+        code: error.code,
+        message: error.message,
+        details: error.details,
+        hint: error.hint
+      });
+      return new Set();
+    }
+
+    console.log('[CONTRACT_TEMPLATES] Raw RPC response:', data);
+    console.log('[CONTRACT_TEMPLATES] Is array?', Array.isArray(data));
+    console.log('[CONTRACT_TEMPLATES] Data type:', typeof data);
+
+    if (!data) {
+      console.warn('[CONTRACT_TEMPLATES] No data returned from RPC');
+      return new Set();
+    }
+
+    // Handle both array and single object responses
+    let dataArray: any[] = [];
+    if (Array.isArray(data)) {
+      dataArray = data;
+    } else if (typeof data === 'object' && data !== null) {
+      // If it's a single object, wrap it in an array
+      dataArray = [data];
+    } else {
+      console.warn('[CONTRACT_TEMPLATES] Unexpected data format:', data);
+      return new Set();
+    }
+
+    // Extract product_slug from the result array
+    const productSlugs = dataArray
+      .map((item: any) => {
+        // Handle both { product_slug: "..." } and direct string responses
+        if (typeof item === 'string') {
+          return item;
+        }
+        return item?.product_slug;
+      })
+      .filter((slug): slug is string => slug !== null && slug !== undefined && slug !== '');
+
+    console.log('[CONTRACT_TEMPLATES] Products with contracts:', productSlugs);
+    console.log('[CONTRACT_TEMPLATES] Products with contracts Set:', new Set(productSlugs));
+
+    return new Set(productSlugs);
+  } catch (error) {
+    console.error('[CONTRACT_TEMPLATES] Exception fetching products with contracts:', error);
+    return new Set();
+  }
+}
+
+/**
  * Get a single contract template by ID
  */
 export async function getContractTemplate(id: string): Promise<ContractTemplate | null> {

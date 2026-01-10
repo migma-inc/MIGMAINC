@@ -92,7 +92,6 @@ BEGIN
     net_amount_usd,
     commission_percentage,
     commission_amount_usd,
-    commission_status,
     calculation_method,
     available_for_withdrawal_at,
     withdrawn_amount,
@@ -105,7 +104,6 @@ BEGIN
     v_net_amount,
     v_commission_percentage,
     v_commission_amount,
-    'pending',
     p_calculation_method,
     NOW() + INTERVAL '30 days', -- Maturation period: 30 days
     0, -- No amount withdrawn yet
@@ -216,7 +214,6 @@ BEGIN
       net_amount_usd,
       commission_percentage,
       commission_amount_usd,
-      commission_status,
       calculation_method,
       available_for_withdrawal_at,
       withdrawn_amount,
@@ -229,7 +226,6 @@ BEGIN
       v_net_amount,
       v_commission_percentage,
       v_commission_amount,
-      'pending',
       'monthly_accumulated',
       v_order.created_at + INTERVAL '30 days', -- Maturation: 30 days from order creation
       0,

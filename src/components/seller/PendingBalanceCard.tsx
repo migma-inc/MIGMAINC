@@ -5,27 +5,74 @@ import { Card, CardContent } from '@/components/ui/card';
 interface PendingBalanceCardProps {
   pendingBalance: number;
   nextWithdrawalDate: string | null;
+  nextRequestWindowStart?: string | null;
+  nextRequestWindowEnd?: string | null;
+  isInRequestWindow?: boolean;
 }
 
 export function PendingBalanceCard({
   pendingBalance,
   nextWithdrawalDate,
+  nextRequestWindowStart,
+  nextRequestWindowEnd,
+  isInRequestWindow = false,
 }: PendingBalanceCardProps) {
   const [timeLeft, setTimeLeft] = useState<string>('');
 
   useEffect(() => {
-    if (!nextWithdrawalDate) {
-      setTimeLeft('Aguardando liberação');
-      return;
-    }
-
     const updateTimer = () => {
-      const nextDate = new Date(nextWithdrawalDate);
       const now = new Date();
-      const diff = nextDate.getTime() - now.getTime();
+      
+      // Calculate when next request window opens
+      const windowStartDate = nextRequestWindowStart ? new Date(nextRequestWindowStart) : null;
+      
+      // New logic: Commissions become available on day 1 of next month
+      // Seller can only request from days 1-5 of each month
+      // So we only need to check when the next window opens
+      
+      if (pendingBalance <= 0) {
+        setTimeLeft('No pending balance');
+        return;
+      }
+      
+      // If we're in the request window and have pending balance
+      if (isInRequestWindow) {
+        setTimeLeft('Available in current window');
+        return;
+      }
+      
+      // Calculate next window if not provided
+      if (!windowStartDate) {
+        const currentDay = now.getDate();
+        const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+        const actualAvailableDate = nextMonth;
+        
+        const diff = actualAvailableDate.getTime() - now.getTime();
+        
+        if (diff <= 0) {
+          setTimeLeft('Available in next window');
+          return;
+        }
 
+        const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+        const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+        const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+
+        if (days > 0) {
+          setTimeLeft(`Available in ${days} day${days > 1 ? 's' : ''}, ${hours}h ${minutes}m`);
+        } else if (hours > 0) {
+          setTimeLeft(`Available in ${hours}h ${minutes}m`);
+        } else {
+          setTimeLeft(`Available in ${minutes} min`);
+        }
+        return;
+      }
+      
+      // Use provided window start date
+      const diff = windowStartDate.getTime() - now.getTime();
+      
       if (diff <= 0) {
-        setTimeLeft('Disponível agora');
+        setTimeLeft('Available in next window');
         return;
       }
 
@@ -33,13 +80,13 @@ export function PendingBalanceCard({
       const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
       const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
 
-      // Format like Lus American: "Available in X days, Yh Zm"
+      // Format: "Available in X days, Yh Zm"
       if (days > 0) {
-        setTimeLeft(`Disponível em ${days} dia${days > 1 ? 's' : ''}, ${hours}h ${minutes}m`);
+        setTimeLeft(`Available in ${days} day${days > 1 ? 's' : ''}, ${hours}h ${minutes}m`);
       } else if (hours > 0) {
-        setTimeLeft(`Disponível em ${hours}h ${minutes}m`);
+        setTimeLeft(`Available in ${hours}h ${minutes}m`);
       } else {
-        setTimeLeft(`Disponível em ${minutes} min`);
+        setTimeLeft(`Available in ${minutes} min`);
       }
     };
 
@@ -47,7 +94,7 @@ export function PendingBalanceCard({
     const interval = setInterval(updateTimer, 60000); // Update every minute
 
     return () => clearInterval(interval);
-  }, [nextWithdrawalDate]);
+  }, [pendingBalance, nextRequestWindowStart, isInRequestWindow]);
 
   return (
     <Card className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30">
@@ -57,7 +104,7 @@ export function PendingBalanceCard({
             <Clock className="w-6 h-6 text-gold-light" />
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-xs font-medium text-gray-400 mb-1">Saldo Pendente</p>
+            <p className="text-xs font-medium text-gray-400 mb-1">Pending Balance</p>
             <p className="text-xl font-bold text-gold-light">
               ${pendingBalance.toFixed(2)}
             </p>

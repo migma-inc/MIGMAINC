@@ -4,124 +4,98 @@ import { Card, CardContent } from '@/components/ui/card';
 
 interface PaymentRequestTimerProps {
   canRequest: boolean;
-  lastRequestDate: string | null;
   nextWithdrawalDate: string | null;
   firstSaleDate?: string | null; // Data da primeira venda/comissão
+  nextRequestWindowStart?: string | null;
+  nextRequestWindowEnd?: string | null;
+  isInRequestWindow?: boolean;
 }
 
 export function PaymentRequestTimer({
   canRequest,
-  lastRequestDate,
   nextWithdrawalDate,
   firstSaleDate,
+  nextRequestWindowStart,
+  nextRequestWindowEnd,
+  isInRequestWindow = false,
 }: PaymentRequestTimerProps) {
   const [timeLeft, setTimeLeft] = useState<string>('');
   const [isAvailable, setIsAvailable] = useState<boolean>(canRequest);
+  const [windowTimeLeft, setWindowTimeLeft] = useState<string>('');
 
   useEffect(() => {
+    // Update availability based on canRequest (which checks both balance and window)
+    setIsAvailable(canRequest);
+    
     if (canRequest) {
-      setIsAvailable(true);
-      setTimeLeft('Disponível agora');
-      return;
-    }
+      setTimeLeft('Available now');
+    } else if (!isInRequestWindow && nextRequestWindowStart) {
+      // Calculate time until next request window
+      const updateWindowTimer = () => {
+        const windowStart = new Date(nextRequestWindowStart!);
+        const now = new Date();
+        const diff = windowStart.getTime() - now.getTime();
 
-    const updateTimer = () => {
-      // Se nunca solicitou, precisa esperar 30 dias desde a primeira venda
-      if (!lastRequestDate) {
-        if (firstSaleDate) {
-          const firstSale = new Date(firstSaleDate);
-          const nextAvailableDate = new Date(firstSale);
-          nextAvailableDate.setDate(nextAvailableDate.getDate() + 30);
-          
-          const now = new Date();
-          const diff = nextAvailableDate.getTime() - now.getTime();
-          
-          if (diff <= 0) {
-            setIsAvailable(true);
-            setTimeLeft('Disponível agora');
-            return;
+        if (diff <= 0) {
+          setWindowTimeLeft('Window opening soon...');
+          // Trigger parent to refresh data when window opens
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('requestWindowStatusChange'));
           }
-          
-          setIsAvailable(false);
-          const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-          const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-          const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-          
-          if (days > 0) {
-            setTimeLeft(`${days} dia${days > 1 ? 's' : ''}, ${hours}h ${minutes}m`);
-          } else if (hours > 0) {
-            setTimeLeft(`${hours}h ${minutes}m`);
-          } else {
-            setTimeLeft(`${minutes} min`);
-          }
-          return;
-        } else {
-          setTimeLeft('Aguardando primeira venda');
-          setIsAvailable(false);
           return;
         }
-      }
 
-      // Se já solicitou, calcula 30 dias desde a última solicitação aprovada
-      const lastDate = new Date(lastRequestDate);
-      const nextAvailableDate = new Date(lastDate);
-      nextAvailableDate.setDate(nextAvailableDate.getDate() + 30);
+        const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+        const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+        const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
 
+        if (days > 0) {
+          setWindowTimeLeft(`${days}d ${hours}h until next request window`);
+        } else if (hours > 0) {
+          setWindowTimeLeft(`${hours}h ${minutes}m until next request window`);
+        } else {
+          setWindowTimeLeft(`${minutes}m until next request window`);
+        }
+      };
+
+      updateWindowTimer();
+      
+      // Determine update interval based on time remaining
+      const windowStart = new Date(nextRequestWindowStart!);
       const now = new Date();
-      const diff = nextAvailableDate.getTime() - now.getTime();
-
-      if (diff <= 0) {
-        setIsAvailable(true);
-        setTimeLeft('Disponível agora');
-        return;
-      }
-
-      setIsAvailable(false);
-      const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-      const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-      const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-
-      // Format like Lus American: "Available in X days, Yh Zm"
-      if (days > 0) {
-        setTimeLeft(`${days} dia${days > 1 ? 's' : ''}, ${hours}h ${minutes}m`);
-      } else if (hours > 0) {
-        setTimeLeft(`${hours}h ${minutes}m`);
-      } else {
-        setTimeLeft(`${minutes} min`);
-      }
-    };
-
-    updateTimer();
-    const interval = setInterval(updateTimer, 60000); // Update every minute
-
-    return () => clearInterval(interval);
-  }, [canRequest, lastRequestDate, nextWithdrawalDate, firstSaleDate]);
-
-  // Estado: Sem primeira solicitação - mas pode ter primeira venda
-  if (!lastRequestDate) {
-    if (!firstSaleDate) {
-      return (
-        <Card className="bg-black/50 border border-gold-medium/30">
-          <CardContent className="p-6">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 bg-gold-medium/20 rounded-full flex items-center justify-center shrink-0">
-                <AlertCircle className="w-6 h-6 text-gold-light" />
-              </div>
-              <div className="flex-1">
-                <p className="text-base font-semibold text-white mb-1">
-                  Sem vendas ainda
-                </p>
-                <p className="text-sm text-gray-400">
-                  Faça sua primeira venda para começar a ganhar comissões
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      );
+      const diff = windowStart.getTime() - now.getTime();
+      
+      // If we're within the last hour before window opens, update more frequently
+      const updateInterval = diff < 3600000 ? 10000 : 60000; // 10 seconds if < 1 hour, else 1 minute
+      
+      const interval = setInterval(updateWindowTimer, updateInterval);
+      return () => clearInterval(interval);
+    } else {
+      setTimeLeft('Awaiting available balance');
     }
-    // Tem primeira venda mas ainda não pode solicitar (aguardando 30 dias)
-    // O timer já foi calculado no useEffect, então só renderiza o estado de aguardando
+  }, [canRequest, isInRequestWindow, nextRequestWindowStart]);
+
+  // Estado: Sem vendas ainda
+  if (!firstSaleDate) {
+    return (
+      <Card className="bg-black/50 border border-gold-medium/30">
+        <CardContent className="p-6">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 bg-gold-medium/20 rounded-full flex items-center justify-center shrink-0">
+              <AlertCircle className="w-6 h-6 text-gold-light" />
+            </div>
+            <div className="flex-1">
+              <p className="text-base font-semibold text-white mb-1">
+                No sales yet
+              </p>
+              <p className="text-sm text-gray-400">
+                Make your first sale to start earning commissions
+              </p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    );
   }
 
   // Estado: Disponível
@@ -135,15 +109,15 @@ export function PaymentRequestTimer({
             </div>
             <div className="flex-1">
               <p className="text-base font-semibold text-gold-light mb-1">
-                Saque Disponível
+                Withdrawal Available
               </p>
               <p className="text-sm text-gray-400">
-                Você pode fazer uma nova solicitação agora
+                You can make a new request now
               </p>
             </div>
             <div className="flex items-center gap-2">
               <div className="w-2 h-2 bg-gold-light rounded-full animate-pulse"></div>
-              <span className="text-sm font-medium text-gold-light">Pronto</span>
+              <span className="text-sm font-medium text-gold-light">Ready</span>
             </div>
           </div>
         </CardContent>
@@ -151,7 +125,7 @@ export function PaymentRequestTimer({
     );
   }
 
-  // Estado: Aguardando período
+  // Estado: Aguardando saldo disponível ou fora da janela
   return (
     <Card className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30">
       <CardContent className="p-6">
@@ -160,33 +134,52 @@ export function PaymentRequestTimer({
             <Clock className="w-6 h-6 text-gold-light" />
           </div>
           <div className="flex-1">
-            <p className="text-base font-semibold text-gold-light mb-1">
-              Saque Não Disponível
-            </p>
-            <p className="text-sm text-gray-400 mb-2">
-              {timeLeft} restante
-            </p>
-            {lastRequestDate ? (
-              <p className="text-xs text-gray-500">
-                Última solicitação: {new Date(lastRequestDate).toLocaleDateString('pt-BR', {
-                  day: 'numeric',
-                  month: 'long',
-                  year: 'numeric',
-                  hour: '2-digit',
-                  minute: '2-digit'
-                })}
-              </p>
-            ) : firstSaleDate ? (
-              <p className="text-xs text-gray-500">
-                Primeira venda: {new Date(firstSaleDate).toLocaleDateString('pt-BR', {
-                  day: 'numeric',
-                  month: 'long',
-                  year: 'numeric',
-                  hour: '2-digit',
-                  minute: '2-digit'
-                })}
-              </p>
-            ) : null}
+            {!isInRequestWindow && nextRequestWindowStart ? (
+              <>
+                <p className="text-base font-semibold text-gold-light mb-1">
+                  Request Window Closed
+                </p>
+                <p className="text-sm text-gray-400 mb-2">
+                  Payment requests can only be made from the 1st to the 5th day of each month
+                </p>
+                <p className="text-xs text-gold-light font-medium mb-1">
+                  {windowTimeLeft || 'Calculating...'}
+                </p>
+                {nextRequestWindowEnd && (
+                  <p className="text-xs text-gray-500">
+                    Next window: {new Date(nextRequestWindowStart).toLocaleDateString('en-US', {
+                      day: 'numeric',
+                      month: 'long',
+                      year: 'numeric'
+                    })} to {new Date(nextRequestWindowEnd).toLocaleDateString('en-US', {
+                      day: 'numeric',
+                      month: 'long',
+                      year: 'numeric'
+                    })}
+                  </p>
+                )}
+              </>
+            ) : (
+              <>
+                <p className="text-base font-semibold text-gold-light mb-1">
+                  Awaiting Available Balance
+                </p>
+                <p className="text-sm text-gray-400 mb-2">
+                  {timeLeft}
+                </p>
+                {nextWithdrawalDate && (
+                  <p className="text-xs text-gray-500">
+                    Next commission available: {new Date(nextWithdrawalDate).toLocaleDateString('en-US', {
+                      day: 'numeric',
+                      month: 'long',
+                      year: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit'
+                    })}
+                  </p>
+                )}
+              </>
+            )}
           </div>
         </div>
       </CardContent>
