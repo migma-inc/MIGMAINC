@@ -9,11 +9,15 @@ import { PeriodFilter, type PeriodOption } from '@/components/seller/PeriodFilte
 import { RevenueChart } from '@/components/seller/RevenueChart';
 import { ContractsChart } from '@/components/seller/ContractsChart';
 import { ProductMetricsChart } from '@/components/seller/ProductMetricsChart';
+import { CommissionChart } from '@/components/seller/CommissionChart';
+import { CommissionByProductChart } from '@/components/seller/CommissionByProductChart';
+import { CommissionConversionCard } from '@/components/seller/CommissionConversionCard';
 import { ComparisonCard } from '@/components/seller/ComparisonCard';
 import { ExportButton } from '@/components/seller/ExportButton';
-import { getAnalyticsData, getPreviousPeriod } from '@/lib/seller-analytics';
+import { getAnalyticsData, getPreviousPeriod, getCommissionChartData } from '@/lib/seller-analytics';
 import type { AnalyticsData } from '@/lib/seller-analytics';
-import { ShoppingCart, CheckCircle, DollarSign, BarChart3 } from 'lucide-react';
+import { useSellerStats } from '@/hooks/useSellerStats';
+import { ShoppingCart, CheckCircle, DollarSign, BarChart3, Coins, Wallet } from 'lucide-react';
 
 interface SellerInfo {
   id: string;
@@ -30,6 +34,9 @@ export function SellerAnalytics() {
   const [enableComparison, setEnableComparison] = useState(true);
   const [analyticsData, setAnalyticsData] = useState<AnalyticsData | null>(null);
   const [loading, setLoading] = useState(true);
+  
+  // Use shared hook for commission stats
+  const { balance } = useSellerStats(seller?.seller_id_public);
 
   useEffect(() => {
     const loadAnalytics = async () => {
@@ -51,12 +58,14 @@ export function SellerAnalytics() {
 
   // Buscar dados de comparação separadamente para gráficos
   const [comparisonChartData, setComparisonChartData] = useState<any[]>([]);
+  const [comparisonCommissionData, setComparisonCommissionData] = useState<any[]>([]);
   const [loadingComparison, setLoadingComparison] = useState(false);
 
   useEffect(() => {
     const loadComparisonData = async () => {
       if (!seller || !enableComparison || !analyticsData) {
         setComparisonChartData([]);
+        setComparisonCommissionData([]);
         setLoadingComparison(false);
         return;
       }
@@ -64,12 +73,16 @@ export function SellerAnalytics() {
       setLoadingComparison(true);
       try {
         const previousPeriod = getPreviousPeriod(analyticsData.period.start, analyticsData.period.end);
-        const { getSellerChartData } = await import('@/lib/seller-analytics');
-        const prevData = await getSellerChartData(seller.seller_id_public, previousPeriod, granularity);
+        const [prevData, prevCommissionData] = await Promise.all([
+          (await import('@/lib/seller-analytics')).getSellerChartData(seller.seller_id_public, previousPeriod, granularity),
+          getCommissionChartData(seller.seller_id_public, previousPeriod, granularity),
+        ]);
         setComparisonChartData(prevData);
+        setComparisonCommissionData(prevCommissionData);
       } catch (error) {
         console.error('[SellerAnalytics] Error loading comparison data:', error);
         setComparisonChartData([]);
+        setComparisonCommissionData([]);
       } finally {
         setLoadingComparison(false);
       }
@@ -78,20 +91,28 @@ export function SellerAnalytics() {
     loadComparisonData();
   }, [seller, enableComparison, analyticsData, granularity]);
 
-  const periodLabel = periodFilter === 'thismonth' ? 'Este Mês' :
-    periodFilter === 'lastmonth' ? 'Mês Passado' :
-    periodFilter === 'last7days' ? 'Últimos 7 dias' :
-    periodFilter === 'last30days' ? 'Últimos 30 dias' :
-    periodFilter === 'last3months' ? 'Últimos 3 meses' :
-    periodFilter === 'last6months' ? 'Últimos 6 meses' :
-    periodFilter === 'lastyear' ? 'Último ano' : 'Período';
+  const periodLabel = periodFilter === 'thismonth' ? 'This Month' :
+    periodFilter === 'lastmonth' ? 'Last Month' :
+    periodFilter === 'last7days' ? 'Last 7 Days' :
+    periodFilter === 'last30days' ? 'Last 30 Days' :
+    periodFilter === 'last3months' ? 'Last 3 Months' :
+    periodFilter === 'last6months' ? 'Last 6 Months' :
+    periodFilter === 'lastyear' ? 'Last Year' : 'Period';
 
   // Calcular valores do período anterior para comparação
   const previousSummary = analyticsData?.comparison ? {
     revenue: analyticsData.summary.totalRevenue - (analyticsData.summary.totalRevenue * analyticsData.comparison.revenueChange / 100),
     sales: analyticsData.summary.totalSales - Math.round((analyticsData.summary.totalSales * analyticsData.comparison.salesChange / 100)),
     completedOrders: analyticsData.summary.completedOrders - Math.round((analyticsData.summary.completedOrders * analyticsData.comparison.completedOrdersChange / 100)),
+    commissions: analyticsData.commissionSummary?.totalCommissions 
+      ? analyticsData.commissionSummary.totalCommissions - (analyticsData.commissionSummary.totalCommissions * analyticsData.comparison.commissionChange / 100)
+      : 0,
   } : null;
+  
+  // Calculate previous commission rate
+  const previousCommissionRate = previousSummary && analyticsData?.commissionSummary
+    ? (previousSummary.commissions / (previousSummary.revenue || 1)) * 100
+    : undefined;
 
   return (
     <div>
@@ -103,7 +124,7 @@ export function SellerAnalytics() {
               <BarChart3 className="w-5 h-5 sm:w-6 sm:h-6" />
               Analytics
             </h1>
-            <p className="text-gray-400 text-xs sm:text-sm mt-1">Performance de vendas</p>
+            <p className="text-gray-400 text-xs sm:text-sm mt-1">Sales and commission performance</p>
           </div>
           {analyticsData && (
             <div className="w-full sm:w-auto">
@@ -118,7 +139,7 @@ export function SellerAnalytics() {
           
           <div className="flex items-center gap-2">
             <Label htmlFor="granularity" className="text-gray-400 text-xs whitespace-nowrap">
-              Agrupar:
+              Group by:
             </Label>
             <Select
               value={granularity}
@@ -131,9 +152,9 @@ export function SellerAnalytics() {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="day">Diária</SelectItem>
-                <SelectItem value="week">Semanal</SelectItem>
-                <SelectItem value="month">Mensal</SelectItem>
+                <SelectItem value="day">Daily</SelectItem>
+                <SelectItem value="week">Weekly</SelectItem>
+                <SelectItem value="month">Monthly</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -146,7 +167,7 @@ export function SellerAnalytics() {
               className="h-4 w-4 shrink-0"
             />
             <Label htmlFor="comparison" className="text-gray-400 text-xs cursor-pointer">
-              Comparar período anterior
+              Compare previous period
             </Label>
           </div>
         </div>
@@ -157,14 +178,14 @@ export function SellerAnalytics() {
         {loading ? (
           // Skeletons apenas nos cards
           <>
-            {[1, 2, 3].map((i) => (
+            {[1, 2, 3, 4, 5, 6].map((i) => (
               <Skeleton key={i} className="h-32" />
             ))}
           </>
         ) : !analyticsData ? (
           // Erro
           <div className="col-span-3 text-center py-12">
-            <p className="text-gray-400 text-lg">Erro ao carregar dados de analytics</p>
+            <p className="text-gray-400 text-lg">Error loading analytics data</p>
           </div>
         ) : previousSummary ? (
           <>
@@ -187,6 +208,30 @@ export function SellerAnalytics() {
               previousValue={previousSummary.completedOrders}
               icon={<CheckCircle className="w-5 h-5 text-green-400" />}
             />
+            {analyticsData.commissionSummary && (
+              <>
+                <ComparisonCard
+                  title="Total Commissions"
+                  currentValue={analyticsData.commissionSummary.totalCommissions}
+                  previousValue={previousSummary.commissions}
+                  formatValue={(v) => `$${v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+                  icon={<Coins className="w-5 h-5 text-gold-light" />}
+                />
+                <ComparisonCard
+                  title="Available Balance"
+                  currentValue={balance.available_balance}
+                  previousValue={0}
+                  formatValue={(v) => `$${v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+                  icon={<Wallet className="w-5 h-5 text-gold-light" />}
+                />
+                <CommissionConversionCard
+                  currentRate={analyticsData.commissionSummary.commissionRate}
+                  previousRate={previousCommissionRate}
+                  currentRevenue={analyticsData.summary.totalRevenue}
+                  currentCommissions={analyticsData.commissionSummary.totalCommissions}
+                />
+              </>
+            )}
           </>
         ) : (
           <>
@@ -225,6 +270,42 @@ export function SellerAnalytics() {
                 </div>
               </CardContent>
             </Card>
+            {analyticsData.commissionSummary && (
+              <>
+                <Card className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30">
+                  <CardContent className="p-4 sm:p-6">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-xs sm:text-sm text-gray-400">Total Commissions</p>
+                        <p className="text-xl sm:text-2xl font-bold text-gold-light">
+                          ${analyticsData.commissionSummary.totalCommissions.toFixed(2)}
+                        </p>
+                      </div>
+                      <Coins className="w-8 h-8 sm:w-10 sm:h-10 text-gold-light shrink-0" />
+                    </div>
+                  </CardContent>
+                </Card>
+                <Card className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30">
+                  <CardContent className="p-4 sm:p-6">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-xs sm:text-sm text-gray-400">Available Balance</p>
+                        <p className="text-xl sm:text-2xl font-bold text-gold-light">
+                          ${balance.available_balance.toFixed(2)}
+                        </p>
+                      </div>
+                      <Wallet className="w-8 h-8 sm:w-10 sm:h-10 text-gold-light shrink-0" />
+                    </div>
+                  </CardContent>
+                </Card>
+                <CommissionConversionCard
+                  currentRate={analyticsData.commissionSummary.commissionRate}
+                  previousRate={previousCommissionRate}
+                  currentRevenue={analyticsData.summary.totalRevenue}
+                  currentCommissions={analyticsData.commissionSummary.totalCommissions}
+                />
+              </>
+            )}
           </>
         )}
       </div>
@@ -241,9 +322,9 @@ export function SellerAnalytics() {
             <Skeleton className="h-[350px] sm:h-[400px]" />
           </>
         ) : !analyticsData ? (
-          // Erro
+          // Error
           <div className="text-center py-8 sm:py-12">
-            <p className="text-gray-400 text-base sm:text-lg">Erro ao carregar gráficos</p>
+            <p className="text-gray-400 text-base sm:text-lg">Error loading charts</p>
           </div>
         ) : (
           <>
@@ -261,8 +342,24 @@ export function SellerAnalytics() {
               <ContractsChart data={analyticsData.chartData} />
             </div>
 
-            {/* Segunda Linha: Produtos (Full Width) */}
-            <ProductMetricsChart data={analyticsData.productMetrics} chartType="bar" />
+            {/* Segunda Linha: Commissions Chart */}
+            {loadingComparison && enableComparison ? (
+              <Skeleton className="h-[350px]" />
+            ) : (
+              <CommissionChart
+                data={analyticsData.chartData}
+                comparisonData={enableComparison ? comparisonCommissionData : undefined}
+                showComparison={enableComparison}
+              />
+            )}
+
+            {/* Terceira Linha: Produtos e Comissões por Produto */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
+              <ProductMetricsChart data={analyticsData.productMetrics} chartType="bar" />
+              {analyticsData.commissionByProduct && analyticsData.commissionByProduct.length > 0 && (
+                <CommissionByProductChart data={analyticsData.commissionByProduct} />
+              )}
+            </div>
           </>
         )}
       </div>

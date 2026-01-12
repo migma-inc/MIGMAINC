@@ -17,8 +17,6 @@ export interface SellerCommission {
   net_amount_usd: number;
   commission_percentage: number;
   commission_amount_usd: number;
-  commission_status: 'pending' | 'paid' | 'cancelled';
-  payment_date: string | null;
   calculation_method: 'individual' | 'monthly_accumulated';
   available_for_withdrawal_at: string | null;
   withdrawn_amount: number;
@@ -69,4 +67,7 @@ export interface SellerBalance {
   next_withdrawal_date: string | null;
   can_request: boolean;
   last_request_date: string | null;
+  next_request_window_start?: string | null;
+  next_request_window_end?: string | null;
+  is_in_request_window?: boolean;
 }

@@ -17,10 +17,23 @@ interface VisaOrder {
   total_price_usd: string;
   payment_status: string;
   payment_method: string;
+  payment_metadata?: any; // Include payment_metadata to access fee_amount
   contract_pdf_url: string | null;
   annex_pdf_url: string | null;
   created_at: string;
 }
+
+// Helper function to calculate net amount and fee
+const calculateNetAmountAndFee = (order: VisaOrder) => {
+  const totalPrice = parseFloat(order.total_price_usd || '0');
+  const metadata = order.payment_metadata as any;
+  const feeAmount = metadata?.fee_amount ? parseFloat(metadata.fee_amount) : 0;
+  const netAmount = totalPrice - feeAmount;
+  return {
+    netAmount: Math.max(netAmount, 0),
+    feeAmount: feeAmount,
+  };
+};
 
 export const VisaOrdersPage = () => {
   const [orders, setOrders] = useState<VisaOrder[]>([]);
@@ -104,7 +117,9 @@ export const VisaOrdersPage = () => {
                       <th className="text-left py-3 px-4 text-sm text-gray-400 font-semibold">Client</th>
                       <th className="text-left py-3 px-4 text-sm text-gray-400 font-semibold">Product</th>
                       <th className="text-left py-3 px-4 text-sm text-gray-400 font-semibold">Seller</th>
-                      <th className="text-left py-3 px-4 text-sm text-gray-400 font-semibold">Total</th>
+                      <th className="text-left py-3 px-4 text-sm text-gray-400 font-semibold">Total (with fee)</th>
+                      <th className="text-left py-3 px-4 text-sm text-gray-400 font-semibold">Net Amount</th>
+                      <th className="text-left py-3 px-4 text-sm text-gray-400 font-semibold">Stripe Fee</th>
                       <th className="text-left py-3 px-4 text-sm text-gray-400 font-semibold">Status</th>
                       <th className="text-left py-3 px-4 text-sm text-gray-400 font-semibold">Date</th>
                       <th className="text-left py-3 px-4 text-sm text-gray-400 font-semibold">Contract</th>
@@ -112,7 +127,9 @@ export const VisaOrdersPage = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {orders.map((order) => (
+                    {orders.map((order) => {
+                      const { netAmount, feeAmount } = calculateNetAmountAndFee(order);
+                      return (
                       <tr key={order.id} className="border-b border-gold-medium/10 hover:bg-white/5">
                         <td className="py-3 px-4 text-sm text-white font-mono">{order.order_number}</td>
                         <td className="py-3 px-4">
@@ -125,6 +142,16 @@ export const VisaOrdersPage = () => {
                         <td className="py-3 px-4 text-sm text-gray-400">{order.seller_id || '-'}</td>
                         <td className="py-3 px-4 text-sm text-gold-light font-bold">
                           ${parseFloat(order.total_price_usd).toFixed(2)}
+                        </td>
+                        <td className="py-3 px-4 text-sm text-white font-semibold">
+                          ${netAmount.toFixed(2)}
+                        </td>
+                        <td className="py-3 px-4 text-sm text-gray-400">
+                          {feeAmount > 0 ? (
+                            <span className="text-red-400">-${feeAmount.toFixed(2)}</span>
+                          ) : (
+                            <span className="text-gray-500">$0.00</span>
+                          )}
                         </td>
                         <td className="py-3 px-4">
                           {getStatusBadge(order.payment_status)}
@@ -171,7 +198,8 @@ export const VisaOrdersPage = () => {
                           </Link>
                         </td>
                       </tr>
-                    ))}
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -203,8 +231,22 @@ export const VisaOrdersPage = () => {
                               <p className="text-white break-words">{order.product_slug}</p>
                             </div>
                             <div>
-                              <p className="text-gray-400">Total</p>
+                              <p className="text-gray-400">Total (with fee)</p>
                               <p className="text-gold-light font-bold">${parseFloat(order.total_price_usd).toFixed(2)}</p>
+                            </div>
+                            <div>
+                              <p className="text-gray-400">Net Amount</p>
+                              <p className="text-white font-semibold">${(() => {
+                                const { netAmount } = calculateNetAmountAndFee(order);
+                                return netAmount.toFixed(2);
+                              })()}</p>
+                            </div>
+                            <div>
+                              <p className="text-gray-400">Stripe Fee</p>
+                              <p className="text-red-400">${(() => {
+                                const { feeAmount } = calculateNetAmountAndFee(order);
+                                return feeAmount > 0 ? `-${feeAmount.toFixed(2)}` : '0.00';
+                              })()}</p>
                             </div>
                             <div>
                               <p className="text-gray-400">Seller</p>

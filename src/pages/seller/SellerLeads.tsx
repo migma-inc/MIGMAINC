@@ -21,19 +21,19 @@ interface SellerInfo {
 }
 
 interface Lead {
-  order_id: string;
-  order_number: string;
+  order_id: string | null; // Can be null if no order created yet
+  order_number: string | null; // Can be null if no order created yet
+  service_request_id: string;
   client_name: string;
   client_email: string;
   client_whatsapp: string | null;
   client_country: string | null;
   client_nationality: string | null;
   product_slug: string;
-  payment_status: string;
+  payment_status: string; // From order if exists, or from service_request status
   created_at: string;
   contract_pdf_url: string | null;
   // Form data from service_requests
-  service_request_id: string | null;
   form_data: any;
 }
 
@@ -60,8 +60,27 @@ export function SellerLeads() {
       if (!seller) return;
 
       try {
-        // Load orders with service request data
-        const { data: ordersData, error: ordersError } = await supabase
+        // Load ALL service requests for this seller (including those without orders)
+        const { data: serviceRequestsData, error: serviceRequestsError } = await supabase
+          .from('service_requests')
+          .select(`
+            id,
+            client_id,
+            service_id,
+            dependents_count,
+            status,
+            created_at
+          `)
+          .eq('seller_id', seller.seller_id_public)
+          .order('created_at', { ascending: false });
+
+        if (serviceRequestsError) {
+          console.error('Error loading service requests:', serviceRequestsError);
+          return;
+        }
+
+        // Load orders to get payment status and order details
+        const { data: ordersData } = await supabase
           .from('visa_orders')
           .select(`
             id,
@@ -77,95 +96,129 @@ export function SellerLeads() {
             contract_pdf_url,
             service_request_id
           `)
-          .eq('seller_id', seller.seller_id_public)
-          .order('created_at', { ascending: false });
+          .eq('seller_id', seller.seller_id_public);
 
-        if (ordersError) {
-          console.error('Error loading orders:', ordersError);
-          return;
-        }
+        // Create a map of orders by service_request_id
+        const ordersMap = new Map(
+          (ordersData || [])
+            .filter(o => o.service_request_id)
+            .map(o => [o.service_request_id, o])
+        );
 
-        // Load service requests for additional form data
-        const serviceRequestIds = ordersData
-          ?.filter(o => o.service_request_id)
-          .map(o => o.service_request_id) || [];
+        // Get all client IDs from service requests
+        const clientIds = (serviceRequestsData || [])
+          .map(sr => sr.client_id)
+          .filter(Boolean) || [];
 
-        let serviceRequestsMap: Record<string, any> = {};
-        
-        if (serviceRequestIds.length > 0) {
-          const { data: serviceRequests } = await supabase
-            .from('service_requests')
-            .select('id, dependents_count, status')
-            .in('id', serviceRequestIds);
+        // Load client data
+        let clientsMap: Record<string, any> = {};
+        if (clientIds.length > 0) {
+          const { data: clientsData } = await supabase
+            .from('clients')
+            .select('*')
+            .in('id', clientIds);
 
-          if (serviceRequests) {
-            serviceRequestsMap = serviceRequests.reduce((acc, sr) => {
-              acc[sr.id] = sr;
+          if (clientsData) {
+            clientsMap = clientsData.reduce((acc, client) => {
+              acc[client.id] = client;
               return acc;
             }, {} as Record<string, any>);
           }
         }
 
-        // Load client data from clients table
-        const orderIds = ordersData?.map(o => o.id) || [];
-        let clientsMap: Record<string, any> = {};
+        // Combine service requests with order data (if exists)
+        const allLeads: Lead[] = (serviceRequestsData || []).map(serviceRequest => {
+          const order = ordersMap.get(serviceRequest.id);
+          const client = clientsMap[serviceRequest.client_id];
 
-        if (orderIds.length > 0) {
-          // Get client IDs from service_requests
-          const { data: serviceRequestsForClients } = await supabase
-            .from('service_requests')
-            .select('id, client_id')
-            .in('id', serviceRequestIds);
+          // Use order data if exists, otherwise use client data
+          const clientName = order?.client_name || client?.full_name || 'N/A';
+          const clientEmail = order?.client_email || client?.email || 'N/A';
+          const clientWhatsapp = order?.client_whatsapp || client?.phone || null;
+          const clientCountry = order?.client_country || client?.country || null;
+          const clientNationality = order?.client_nationality || client?.nationality || null;
 
-          const clientIds = serviceRequestsForClients
-            ?.map(sr => sr.client_id)
-            .filter(Boolean) || [];
-
-          if (clientIds.length > 0) {
-            const { data: clientsData } = await supabase
-              .from('clients')
-              .select('*')
-              .in('id', clientIds);
-
-            if (clientsData) {
-              clientsMap = clientsData.reduce((acc, client) => {
-                acc[client.id] = client;
-                return acc;
-              }, {} as Record<string, any>);
+          // Payment status: use order payment_status if order exists, otherwise map service_request status
+          let paymentStatus = 'pending';
+          if (order) {
+            paymentStatus = order.payment_status;
+          } else {
+            // Map service_request status to payment_status
+            switch (serviceRequest.status) {
+              case 'paid':
+                paymentStatus = 'paid';
+                break;
+              case 'pending_payment':
+                paymentStatus = 'pending';
+                break;
+              case 'cancelled':
+                paymentStatus = 'cancelled';
+                break;
+              case 'onboarding':
+              default:
+                paymentStatus = 'pending';
+                break;
             }
           }
-        }
-
-        // Combine data
-        const leadsData: Lead[] = (ordersData || []).map(order => {
-          const serviceRequest = order.service_request_id 
-            ? serviceRequestsMap[order.service_request_id] 
-            : null;
-          
-          // Find client data (if available)
-          const clientData = serviceRequest?.client_id 
-            ? clientsMap[serviceRequest.client_id]
-            : null;
 
           return {
-            order_id: order.id,
-            order_number: order.order_number,
-            client_name: order.client_name,
-            client_email: order.client_email,
-            client_whatsapp: order.client_whatsapp,
-            client_country: order.client_country,
-            client_nationality: order.client_nationality,
-            product_slug: order.product_slug,
-            payment_status: order.payment_status,
-            created_at: order.created_at,
-            contract_pdf_url: order.contract_pdf_url,
-            service_request_id: order.service_request_id,
+            order_id: order?.id || null,
+            order_number: order?.order_number || null,
+            service_request_id: serviceRequest.id,
+            client_name: clientName,
+            client_email: clientEmail,
+            client_whatsapp: clientWhatsapp,
+            client_country: clientCountry,
+            client_nationality: clientNationality,
+            product_slug: serviceRequest.service_id || order?.product_slug || 'N/A',
+            payment_status: paymentStatus,
+            created_at: serviceRequest.created_at,
+            contract_pdf_url: order?.contract_pdf_url || null,
             form_data: {
               service_request: serviceRequest,
-              client: clientData,
+              client: client,
             },
           };
         });
+
+        // Group leads by client email to avoid duplicates
+        // If same client has multiple service requests, keep the most recent one
+        // and update payment status if any order was paid
+        const leadsMap = new Map<string, Lead>();
+        
+        for (const lead of allLeads) {
+          const key = lead.client_email.toLowerCase().trim();
+          const existingLead = leadsMap.get(key);
+          
+          if (!existingLead) {
+            // First time seeing this client
+            leadsMap.set(key, lead);
+          } else {
+            // Client already exists - update if:
+            // 1. This lead has a paid order and existing doesn't
+            // 2. This lead is more recent
+            const existingIsPaid = existingLead.payment_status === 'paid' || existingLead.payment_status === 'completed';
+            const currentIsPaid = lead.payment_status === 'paid' || lead.payment_status === 'completed';
+            const currentIsNewer = new Date(lead.created_at) > new Date(existingLead.created_at);
+            
+            if (currentIsPaid && !existingIsPaid) {
+              // Update to paid version
+              leadsMap.set(key, lead);
+            } else if (currentIsNewer && !existingIsPaid) {
+              // Update to newer version if existing is not paid
+              leadsMap.set(key, lead);
+            } else if (currentIsPaid && existingIsPaid && currentIsNewer) {
+              // Both paid, use newer
+              leadsMap.set(key, lead);
+            }
+            // Otherwise keep existing
+          }
+        }
+
+        // Convert map to array and sort by created_at (most recent first)
+        const leadsData = Array.from(leadsMap.values()).sort((a, b) => 
+          new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+        );
 
         setLeads(leadsData);
       } catch (err) {
@@ -256,7 +309,7 @@ export function SellerLeads() {
       filtered = filtered.filter(lead => 
         lead.client_name.toLowerCase().includes(query) ||
         lead.client_email.toLowerCase().includes(query) ||
-        lead.order_number.toLowerCase().includes(query) ||
+        (lead.order_number && lead.order_number.toLowerCase().includes(query)) ||
         (lead.client_whatsapp && lead.client_whatsapp.toLowerCase().includes(query))
       );
     }
@@ -555,13 +608,26 @@ export function SellerLeads() {
                       <p className="text-sm text-gray-400">Product: {lead.product_slug}</p>
                     </div>
                     <div className="flex gap-2">
-                      <Link to={`/seller/orders/${lead.order_id}`}>
-                        <Button size="sm" variant="outline" className="border-gold-medium/50 bg-black/50 text-gold-light hover:bg-black hover:border-gold-medium hover:text-gold-medium">
+                      {lead.order_id ? (
+                        <Link to={`/seller/orders/${lead.order_id}`}>
+                          <Button size="sm" variant="outline" className="border-gold-medium/50 bg-black/50 text-gold-light hover:bg-black hover:border-gold-medium hover:text-gold-medium">
+                            <Eye className="w-4 h-4 mr-1" />
+                            View Details
+                          </Button>
+                        </Link>
+                      ) : (
+                        <Button 
+                          size="sm" 
+                          variant="outline" 
+                          disabled
+                          className="border-gold-medium/30 bg-black/30 text-gray-500 cursor-not-allowed"
+                          title="Order not created yet"
+                        >
                           <Eye className="w-4 h-4 mr-1" />
-                          View Details
+                          No Order
                         </Button>
-                      </Link>
-                      {lead.contract_pdf_url && (
+                      )}
+                      {lead.contract_pdf_url && lead.order_number && (
                         <Button 
                           size="sm" 
                           variant="outline" 

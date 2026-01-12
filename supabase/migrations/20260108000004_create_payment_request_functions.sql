@@ -18,11 +18,12 @@ DECLARE
   v_can_request BOOLEAN := false;
 BEGIN
   -- Calculate available balance (matured commissions - withdrawn - reserved)
+  -- A commission is available if it's matured and not fully withdrawn
   SELECT COALESCE(SUM(
     CASE 
       WHEN available_for_withdrawal_at IS NOT NULL 
        AND available_for_withdrawal_at <= NOW()
-       AND commission_status = 'pending'
+       AND (commission_amount_usd - COALESCE(withdrawn_amount, 0) - COALESCE(reserved_amount, 0)) > 0
       THEN commission_amount_usd - COALESCE(withdrawn_amount, 0) - COALESCE(reserved_amount, 0)
       ELSE 0
     END
@@ -36,7 +37,7 @@ BEGIN
     CASE 
       WHEN available_for_withdrawal_at IS NOT NULL 
        AND available_for_withdrawal_at > NOW()
-       AND commission_status = 'pending'
+       AND (commission_amount_usd - COALESCE(withdrawn_amount, 0) - COALESCE(reserved_amount, 0)) > 0
       THEN commission_amount_usd - COALESCE(withdrawn_amount, 0) - COALESCE(reserved_amount, 0)
       ELSE 0
     END
@@ -51,7 +52,6 @@ BEGIN
   FROM seller_commissions
   WHERE seller_id = p_seller_id
     AND available_for_withdrawal_at > NOW()
-    AND commission_status = 'pending'
     AND (commission_amount_usd - COALESCE(withdrawn_amount, 0) - COALESCE(reserved_amount, 0)) > 0;
 
   -- Get last approved/completed request date
@@ -153,6 +153,7 @@ BEGIN
     payment_method,
     payment_details,
     status,
+    request_month,
     requested_at
   ) VALUES (
     p_seller_id,
@@ -160,6 +161,7 @@ BEGIN
     p_payment_method,
     p_payment_details,
     'pending',
+    DATE_TRUNC('month', NOW())::DATE,
     NOW()
   )
   RETURNING id INTO v_request_id;
@@ -174,7 +176,6 @@ BEGIN
     WHERE seller_id = p_seller_id
       AND available_for_withdrawal_at IS NOT NULL
       AND available_for_withdrawal_at <= NOW()
-      AND commission_status = 'pending'
       AND (commission_amount_usd - COALESCE(withdrawn_amount, 0) - COALESCE(reserved_amount, 0)) > 0
     ORDER BY created_at ASC
   LOOP

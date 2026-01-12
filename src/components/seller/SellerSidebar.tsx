@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
-import { LayoutDashboard, TrendingUp, ShoppingCart, Link as LinkIcon, Users, LogOut, BarChart3, X, Coins, DollarSign } from 'lucide-react';
+import { LayoutDashboard, TrendingUp, ShoppingCart, Link as LinkIcon, Users, LogOut, BarChart3, X, Coins } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/lib/supabase';
@@ -30,30 +30,6 @@ export function SellerSidebar({ className, sellerName, isMobileOpen = false, onM
       exact: true,
     },
     {
-      title: 'Analytics',
-      icon: BarChart3,
-      path: '/seller/dashboard/analytics',
-      exact: false,
-    },
-    {
-      title: 'Commissions',
-      icon: Coins,
-      path: '/seller/dashboard/commissions',
-      exact: false,
-    },
-    {
-      title: 'Payment Requests',
-      icon: DollarSign,
-      path: '/seller/dashboard/payment-requests',
-      exact: false,
-    },
-    {
-      title: 'Conversion Funnel',
-      icon: TrendingUp,
-      path: '/seller/dashboard/funnel',
-      exact: false,
-    },
-    {
       title: 'Orders',
       icon: ShoppingCart,
       path: '/seller/dashboard/orders',
@@ -69,6 +45,24 @@ export function SellerSidebar({ className, sellerName, isMobileOpen = false, onM
       title: 'Leads & Users',
       icon: Users,
       path: '/seller/dashboard/leads',
+      exact: false,
+    },
+    {
+      title: 'Commissions',
+      icon: Coins,
+      path: '/seller/dashboard/commissions',
+      exact: false,
+    },
+    {
+      title: 'Analytics',
+      icon: BarChart3,
+      path: '/seller/dashboard/analytics',
+      exact: false,
+    },
+    {
+      title: 'Conversion Funnel',
+      icon: TrendingUp,
+      path: '/seller/dashboard/funnel',
       exact: false,
     },
   ];

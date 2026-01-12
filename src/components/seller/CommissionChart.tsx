@@ -8,14 +8,17 @@ import am5themes_Animated from '@amcharts/amcharts5/themes/Animated';
 
 interface CommissionChartProps {
   data: ChartDataPoint[];
+  comparisonData?: ChartDataPoint[];
+  showComparison?: boolean;
 }
 
-export function CommissionChart({ data }: CommissionChartProps) {
+export function CommissionChart({ data, comparisonData, showComparison = false }: CommissionChartProps) {
   const chartRef = useRef<HTMLDivElement>(null);
   const rootRef = useRef<am5.Root | null>(null);
 
   useEffect(() => {
     if (!chartRef.current || !data || data.length === 0) {
+      // Clear existing root if any
       if (rootRef.current) {
         rootRef.current.dispose();
         rootRef.current = null;
@@ -23,6 +26,7 @@ export function CommissionChart({ data }: CommissionChartProps) {
       return;
     }
 
+    // Clear previous root if exists
     if (rootRef.current) {
       rootRef.current.dispose();
       rootRef.current = null;
@@ -32,7 +36,7 @@ export function CommissionChart({ data }: CommissionChartProps) {
     rootRef.current = root;
     root.setThemes([am5themes_Animated.new(root)]);
 
-    // Configurar cores do tema para texto branco
+    // Configure theme colors for white text
     root.interfaceColors.set('text', am5.color('#ffffff'));
     root.interfaceColors.set('grid', am5.color('#333333'));
 
@@ -47,14 +51,14 @@ export function CommissionChart({ data }: CommissionChartProps) {
       })
     );
 
+    // Prepare data
     const chartData = data.map((point) => ({
-      date: new Date(point.date).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }),
-      commission: point.commission,
-      cumulative: data
-        .filter(p => new Date(p.date) <= new Date(point.date))
-        .reduce((sum, p) => sum + p.commission, 0),
+      date: new Date(point.date).toLocaleDateString('en-US', { day: '2-digit', month: 'short' }),
+      commission: point.commission || 0,
+      previousCommission: comparisonData?.find(c => c.date === point.date)?.commission || 0,
     }));
 
+    // X Axis
     const xAxis = chart.xAxes.push(
       am5xy.CategoryAxis.new(root, {
         categoryField: 'date',
@@ -72,6 +76,7 @@ export function CommissionChart({ data }: CommissionChartProps) {
       fontSize: 11,
     });
 
+    // Y Axis
     const yAxis = chart.yAxes.push(
       am5xy.ValueAxis.new(root, {
         renderer: am5xy.AxisRendererY.new(root, {
@@ -90,10 +95,10 @@ export function CommissionChart({ data }: CommissionChartProps) {
       strokeOpacity: 0.3,
     });
 
-    // Gráfico de Barras Simples e Claro
-    const series = chart.series.push(
+    // Current Period Series
+    const currentSeries = chart.series.push(
       am5xy.ColumnSeries.new(root, {
-        name: 'Comissão',
+        name: 'Current Period',
         xAxis: xAxis,
         yAxis: yAxis,
         valueYField: 'commission',
@@ -101,8 +106,7 @@ export function CommissionChart({ data }: CommissionChartProps) {
       })
     );
 
-    // Gradiente simples e claro
-    const gradient = am5.LinearGradient.new(root, {
+    const currentGradient = am5.LinearGradient.new(root, {
       rotation: 90,
       stops: [
         { color: am5.color('#F3E196'), offset: 0 },
@@ -110,17 +114,17 @@ export function CommissionChart({ data }: CommissionChartProps) {
       ],
     });
 
-    series.columns.template.setAll({
-      fillGradient: gradient,
+    currentSeries.columns.template.setAll({
+      fillGradient: currentGradient,
       stroke: am5.color('#D4AF37'),
       strokeWidth: 2,
       cornerRadiusTL: 6,
       cornerRadiusTR: 6,
-      tooltipText: '{categoryX}: ${valueY}',
+      tooltipText: 'Current Period: ${valueY}',
     });
 
-    // Adicionar labels nas barras
-    series.bullets.push(() => {
+    // Labels on top of bars
+    currentSeries.bullets.push(() => {
       return am5.Bullet.new(root, {
         locationY: 1,
         sprite: am5.Label.new(root, {
@@ -135,9 +139,55 @@ export function CommissionChart({ data }: CommissionChartProps) {
       });
     });
 
-    series.data.setAll(chartData);
+    currentSeries.data.setAll(chartData);
 
+    // Comparison series (if enabled)
+    if (showComparison && comparisonData && chartData.some(d => d.previousCommission > 0)) {
+      const previousSeries = chart.series.push(
+        am5xy.ColumnSeries.new(root, {
+          name: 'Previous Period',
+          xAxis: xAxis,
+          yAxis: yAxis,
+          valueYField: 'previousCommission',
+          categoryXField: 'date',
+        })
+      );
+
+      const previousGradient = am5.LinearGradient.new(root, {
+        rotation: 90,
+        stops: [
+          { color: am5.color('#666666'), offset: 0 },
+          { color: am5.color('#444444'), offset: 1 },
+        ],
+      });
+
+      previousSeries.columns.template.setAll({
+        fillGradient: previousGradient,
+        stroke: am5.color('#555555'),
+        strokeWidth: 2,
+        cornerRadiusTL: 6,
+        cornerRadiusTR: 6,
+        tooltipText: 'Previous Period: ${valueY}',
+      });
+
+      previousSeries.data.setAll(chartData);
+    }
+
+    // Cursor
     chart.set('cursor', am5xy.XYCursor.new(root, {}));
+
+    // Legend (only if comparison is enabled)
+    if (showComparison && comparisonData && chart.series.length > 1) {
+      const legend = chart.children.push(
+        am5.Legend.new(root, {
+          centerX: am5.p50,
+          x: am5.p50,
+          marginTop: 15,
+          marginBottom: 15,
+        })
+      );
+      legend.data.setAll(chart.series.values);
+    }
 
     return () => {
       if (rootRef.current) {
@@ -145,7 +195,7 @@ export function CommissionChart({ data }: CommissionChartProps) {
         rootRef.current = null;
       }
     };
-  }, [data]);
+  }, [data, comparisonData, showComparison]);
 
   if (!data || data.length === 0) {
     return (
@@ -155,19 +205,19 @@ export function CommissionChart({ data }: CommissionChartProps) {
             <div className="p-2 bg-gold-medium/20 rounded-lg">
               <Coins className="w-5 h-5 text-gold-light" />
             </div>
-            Comissão
+            Commissions
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="h-[280px] flex items-center justify-center text-gray-400">
-            <p>Nenhum dado disponível</p>
+          <div className="h-[250px] sm:h-[280px] flex items-center justify-center text-gray-400">
+            <p>No data available</p>
           </div>
         </CardContent>
       </Card>
     );
   }
 
-  const totalCommission = data.reduce((sum, p) => sum + p.commission, 0);
+  const totalCommissions = data.reduce((sum, p) => sum + (p.commission || 0), 0);
 
   return (
     <Card className="bg-black/40 border border-gold-medium/20 backdrop-blur-sm hover:border-gold-medium/40 transition-all">
@@ -177,18 +227,18 @@ export function CommissionChart({ data }: CommissionChartProps) {
             <div className="p-2 bg-gold-medium/20 rounded-lg">
               <Coins className="w-5 h-5 text-gold-light" />
             </div>
-            Comissão
+            Commissions
           </CardTitle>
           <div className="text-right">
             <p className="text-xs text-gray-400">Total</p>
             <p className="text-gold-light font-bold text-lg">
-              ${totalCommission.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              ${totalCommissions.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </p>
           </div>
         </div>
       </CardHeader>
       <CardContent>
-        <div ref={chartRef} style={{ width: '100%', height: '280px' }}></div>
+        <div ref={chartRef} className="w-full h-[250px] sm:h-[280px]"></div>
       </CardContent>
     </Card>
   );

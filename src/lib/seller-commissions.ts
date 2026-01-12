@@ -11,9 +11,10 @@ export interface SellerCommission {
   net_amount_usd: number;
   commission_percentage: number;
   commission_amount_usd: number;
-  commission_status: 'pending' | 'paid' | 'cancelled';
-  payment_date: string | null;
   calculation_method: 'individual' | 'monthly_accumulated';
+  available_for_withdrawal_at: string | null;
+  withdrawn_amount: number;
+  reserved_amount: number;
   created_at: string;
   updated_at: string;
 }
@@ -100,7 +101,7 @@ export async function getSellerCommissionStats(
     // Build query for current month commissions
     let monthQuery = supabase
       .from('seller_commissions')
-      .select('commission_amount_usd, commission_status')
+      .select('commission_amount_usd')
       .eq('seller_id', sellerId);
 
     if (startDate) {
@@ -125,10 +126,10 @@ export async function getSellerCommissionStats(
       0
     );
 
-    // Get all commissions for pending/paid stats
+    // Get all commissions for stats
     const { data: allData, error: allError } = await supabase
       .from('seller_commissions')
-      .select('commission_amount_usd, commission_status')
+      .select('commission_amount_usd, withdrawn_amount, available_for_withdrawal_at')
       .eq('seller_id', sellerId);
 
     if (allError) {
@@ -141,14 +142,22 @@ export async function getSellerCommissionStats(
       };
     }
 
-    // Calculate pending and paid totals
+    // Calculate pending (not withdrawn) and paid (withdrawn) totals
     const totalPending = (allData || [])
-      .filter(c => c.commission_status === 'pending')
-      .reduce((sum, c) => sum + parseFloat(c.commission_amount_usd || '0'), 0);
+      .filter(c => {
+        const withdrawn = parseFloat(c.withdrawn_amount || '0');
+        const total = parseFloat(c.commission_amount_usd || '0');
+        return withdrawn < total; // Not fully withdrawn
+      })
+      .reduce((sum, c) => {
+        const withdrawn = parseFloat(c.withdrawn_amount || '0');
+        const total = parseFloat(c.commission_amount_usd || '0');
+        return sum + (total - withdrawn); // Remaining amount
+      }, 0);
 
     const totalPaid = (allData || [])
-      .filter(c => c.commission_status === 'paid')
-      .reduce((sum, c) => sum + parseFloat(c.commission_amount_usd || '0'), 0);
+      .filter(c => parseFloat(c.withdrawn_amount || '0') > 0)
+      .reduce((sum, c) => sum + parseFloat(c.withdrawn_amount || '0'), 0);
 
     const totalAmount = (allData || []).reduce(
       (sum, c) => sum + parseFloat(c.commission_amount_usd || '0'),

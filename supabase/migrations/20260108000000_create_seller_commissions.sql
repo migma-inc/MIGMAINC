@@ -9,8 +9,6 @@ CREATE TABLE IF NOT EXISTS seller_commissions (
   net_amount_usd DECIMAL(10, 2) NOT NULL,
   commission_percentage DECIMAL(5, 2) NOT NULL,
   commission_amount_usd DECIMAL(10, 2) NOT NULL,
-  commission_status TEXT NOT NULL DEFAULT 'pending' CHECK (commission_status IN ('pending', 'paid', 'cancelled')),
-  payment_date TIMESTAMPTZ,
   calculation_method TEXT NOT NULL DEFAULT 'individual' CHECK (calculation_method IN ('individual', 'monthly_accumulated')),
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -19,7 +17,6 @@ CREATE TABLE IF NOT EXISTS seller_commissions (
 -- Create indexes for better query performance
 CREATE INDEX IF NOT EXISTS idx_seller_commissions_seller_id ON seller_commissions(seller_id);
 CREATE INDEX IF NOT EXISTS idx_seller_commissions_order_id ON seller_commissions(order_id);
-CREATE INDEX IF NOT EXISTS idx_seller_commissions_status ON seller_commissions(commission_status);
 CREATE INDEX IF NOT EXISTS idx_seller_commissions_created_at ON seller_commissions(created_at DESC);
 
 -- Add foreign key constraint (optional, for referential integrity)
@@ -167,7 +164,6 @@ BEGIN
     net_amount_usd,
     commission_percentage,
     commission_amount_usd,
-    commission_status,
     calculation_method,
     created_at,
     updated_at
@@ -177,7 +173,6 @@ BEGIN
     v_net_amount,
     v_commission_percentage,
     v_commission_amount,
-    'pending',
     p_calculation_method,
     NOW(),
     NOW()

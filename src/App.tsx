@@ -31,7 +31,6 @@ import { SellerDashboardLayout } from './pages/seller/SellerDashboardLayout';
 import { SellerOverview } from './pages/seller/SellerOverview';
 import { SellerAnalytics } from './pages/seller/SellerAnalytics';
 import { SellerCommissions } from './pages/seller/SellerCommissions';
-import { SellerPaymentRequests } from './pages/seller/SellerPaymentRequests';
 import { SellerFunnel } from './pages/seller/SellerFunnel';
 import { SellerOrders } from './pages/seller/SellerOrders';
 import { SellerLinks } from './pages/seller/SellerLinks';
@@ -49,7 +48,8 @@ import { VisaContractResubmit } from './pages/VisaContractResubmit';
 import { ContractTemplatesPage } from './pages/ContractTemplatesPage';
 import { ViewSignedContract } from './pages/ViewSignedContract';
 import { ScheduleMeetingPage } from './pages/admin/ScheduleMeetingPage';
-import { AdminPaymentRequests } from './pages/admin/AdminPaymentRequests';
+// PAYMENT REQUEST - COMENTADO TEMPORARIAMENTE
+// import { AdminPaymentRequests } from './pages/admin/AdminPaymentRequests';
 
 function App() {
   return (
@@ -81,7 +81,6 @@ function App() {
           <Route index element={<SellerOverview />} />
           <Route path="analytics" element={<SellerAnalytics />} />
           <Route path="commissions" element={<SellerCommissions />} />
-          <Route path="payment-requests" element={<SellerPaymentRequests />} />
           <Route path="funnel" element={<SellerFunnel />} />
           <Route path="orders" element={<SellerOrders />} />
           <Route path="links" element={<SellerLinks />} />
@@ -103,7 +102,8 @@ function App() {
           <Route path="visa-orders/:id" element={<VisaOrderDetailPage />} />
           <Route path="zelle-approval" element={<ZelleApprovalPage />} />
           <Route path="sellers" element={<SellersPage />} />
-          <Route path="payment-requests" element={<AdminPaymentRequests />} />
+          {/* PAYMENT REQUEST - COMENTADO TEMPORARIAMENTE */}
+          {/* <Route path="payment-requests" element={<AdminPaymentRequests />} /> */}
           <Route path="contact-messages" element={<ContactMessagesPage />} />
           <Route path="contact-messages/:id" element={<ContactMessageDetail />} />
           <Route path="contract-templates" element={<ContractTemplatesPage />} />

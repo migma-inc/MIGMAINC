@@ -29,11 +29,24 @@ interface Order {
   total_price_usd: string;
   payment_status: string;
   payment_method: string;
+  payment_metadata?: any; // Include payment_metadata to access fee_amount
   extra_units: number;
   contract_pdf_url: string | null;
   annex_pdf_url: string | null;
   created_at: string;
 }
+
+// Helper function to calculate net amount and fee
+const calculateNetAmountAndFee = (order: Order) => {
+  const totalPrice = parseFloat(order.total_price_usd || '0');
+  const metadata = order.payment_metadata as any;
+  const feeAmount = metadata?.fee_amount ? parseFloat(metadata.fee_amount) : 0;
+  const netAmount = totalPrice - feeAmount;
+  return {
+    netAmount: Math.max(netAmount, 0),
+    feeAmount: feeAmount,
+  };
+};
 
 const ITEMS_PER_PAGE = 10;
 
@@ -58,7 +71,7 @@ export function SellerOrders() {
       try {
         const { data: ordersData } = await supabase
           .from('visa_orders')
-          .select('*')
+          .select('*, payment_metadata')
           .eq('seller_id', seller.seller_id_public)
           .order('created_at', { ascending: false });
 
@@ -307,14 +320,18 @@ export function SellerOrders() {
                     <th className="text-left py-3 px-4 text-sm text-gray-400 font-semibold">Order #</th>
                     <th className="text-left py-3 px-4 text-sm text-gray-400 font-semibold">Client</th>
                     <th className="text-left py-3 px-4 text-sm text-gray-400 font-semibold">Product</th>
-                    <th className="text-left py-3 px-4 text-sm text-gray-400 font-semibold">Total</th>
+                    <th className="text-left py-3 px-4 text-sm text-gray-400 font-semibold">Total (with fee)</th>
+                    <th className="text-left py-3 px-4 text-sm text-gray-400 font-semibold">Net Amount</th>
+                    <th className="text-left py-3 px-4 text-sm text-gray-400 font-semibold">Stripe Fee</th>
                     <th className="text-left py-3 px-4 text-sm text-gray-400 font-semibold">Status</th>
                     <th className="text-left py-3 px-4 text-sm text-gray-400 font-semibold">Date</th>
                     <th className="text-left py-3 px-4 text-sm text-gray-400 font-semibold">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {paginatedOrders.map((order) => (
+                  {paginatedOrders.map((order) => {
+                    const { netAmount, feeAmount } = calculateNetAmountAndFee(order);
+                    return (
                     <tr key={order.id} className="border-b border-gold-medium/10 hover:bg-white/5">
                       <td className="py-3 px-4 text-sm text-white font-mono">{order.order_number}</td>
                       <td className="py-3 px-4">
@@ -333,6 +350,16 @@ export function SellerOrders() {
                       </td>
                       <td className="py-3 px-4 text-sm text-gold-light font-bold">
                         ${parseFloat(order.total_price_usd || '0').toFixed(2)}
+                      </td>
+                      <td className="py-3 px-4 text-sm text-white font-semibold">
+                        ${netAmount.toFixed(2)}
+                      </td>
+                      <td className="py-3 px-4 text-sm text-gray-400">
+                        {feeAmount > 0 ? (
+                          <span className="text-red-400">-${feeAmount.toFixed(2)}</span>
+                        ) : (
+                          <span className="text-gray-500">$0.00</span>
+                        )}
                       </td>
                       <td className="py-3 px-4">
                         {getStatusBadge(order.payment_status)}
@@ -371,7 +398,8 @@ export function SellerOrders() {
                         </div>
                       </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -382,6 +410,7 @@ export function SellerOrders() {
                   const isAnnexProduct = order.product_slug?.endsWith('-scholarship') || order.product_slug?.endsWith('-i20-control');
                   const pdfUrl = isAnnexProduct ? order.annex_pdf_url : order.contract_pdf_url;
                   const pdfTitle = isAnnexProduct ? `ANNEX I - ${order.order_number}` : `Contract - ${order.order_number}`;
+                  const { netAmount, feeAmount } = calculateNetAmountAndFee(order);
                   
                   return (
                     <div key={order.id} className="p-4 bg-black/50 rounded-lg border border-gold-medium/20">
@@ -409,6 +438,18 @@ export function SellerOrders() {
                           {order.extra_units > 0 && (
                             <p className="text-gray-400 text-xs">+{order.extra_units} extra units</p>
                           )}
+                        </div>
+                        <div className="grid grid-cols-2 gap-2 pt-2 border-t border-gold-medium/20">
+                          <div>
+                            <p className="text-xs text-gray-400 mb-1">Net Amount</p>
+                            <p className="text-white font-semibold">${netAmount.toFixed(2)}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-gray-400 mb-1">Stripe Fee</p>
+                            <p className={feeAmount > 0 ? "text-red-400 font-semibold" : "text-gray-500"}>
+                              {feeAmount > 0 ? `-$${feeAmount.toFixed(2)}` : '$0.00'}
+                            </p>
+                          </div>
                         </div>
                         <div>
                           <p className="text-xs text-gray-400 mb-1">Date</p>

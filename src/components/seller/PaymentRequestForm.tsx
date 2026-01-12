@@ -66,7 +66,7 @@ export function PaymentRequestForm({
         email: '',
       });
     } catch (error: any) {
-      setSubmitError(error.message || 'Erro ao criar solicitação. Tente novamente.');
+      setSubmitError(error.message || 'Error creating request. Please try again.');
     }
   };
 
@@ -94,11 +94,11 @@ export function PaymentRequestForm({
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs font-medium text-gray-400 mb-1">Saldo Pendente</p>
+                <p className="text-xs font-medium text-gray-400 mb-1">Pending Balance</p>
                 <p className="text-2xl font-bold text-gold-light">
                   $0.00
                 </p>
-                <p className="text-xs text-gray-500 mt-1">Aguardando liberação</p>
+                <p className="text-xs text-gray-500 mt-1">Awaiting release</p>
               </div>
               <div className="w-12 h-12 bg-gold-medium/20 rounded-full flex items-center justify-center">
                 <Clock className="w-6 h-6 text-gold-light" />
@@ -113,7 +113,7 @@ export function PaymentRequestForm({
         <CardHeader className="border-b border-gold-medium/20 pb-4">
           <CardTitle className="text-lg font-semibold text-white flex items-center gap-2">
             <DollarSign className="w-5 h-5" />
-            Nova Solicitação de Pagamento
+            New Payment Request
           </CardTitle>
         </CardHeader>
         <CardContent className="pt-6">
@@ -153,7 +153,7 @@ export function PaymentRequestForm({
               <p className="text-sm text-red-400">{errors.amount}</p>
             )}
             <p className="text-xs text-gray-400">
-              Máximo disponível: ${availableBalance.toFixed(2)}
+              Maximum available: ${availableBalance.toFixed(2)}
             </p>
           </div>
 
@@ -190,7 +190,7 @@ export function PaymentRequestForm({
 
           <div className="space-y-2">
             <Label htmlFor="email" className="block text-sm font-medium text-white">
-              Email da Conta
+              Account Email
             </Label>
             <Input
               id="email"
@@ -202,7 +202,6 @@ export function PaymentRequestForm({
                   ? 'border-red-500 bg-red-500/10' 
                   : 'focus:ring-2 focus:ring-gold-medium focus:border-gold-medium'
               }`}
-              placeholder="example@email.com"
             />
             {errors.email && (
               <p className="text-sm text-red-400">{errors.email}</p>
@@ -223,15 +222,18 @@ export function PaymentRequestForm({
               }}
               className="px-4 py-2 bg-black border border-gold-medium/50 text-white rounded-lg hover:bg-gold-medium/10"
             >
-              Cancelar
+              Cancel
             </Button>
             <Button
               type="submit"
               disabled={isLoading || availableBalance <= 0}
               className="px-6 py-2 bg-gold-medium hover:bg-gold-light text-black font-semibold rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {isLoading ? 'Enviando...' : 'Solicitar Pagamento'}
+              {isLoading ? 'Sending...' : 'Request Payment'}
             </Button>
+            <p className="text-xs text-gray-500 mt-2 text-center">
+              Payment requests can only be made from the 1st to the 5th day of each month
+            </p>
           </div>
         </form>
         </CardContent>

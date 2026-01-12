@@ -44,11 +44,16 @@ interface FunnelEvent {
     total_price_usd: string;
     payment_status: string;
   };
-  // Client info from form or metadata
+  // Client info from form, metadata, or service_requests
   clientInfo?: {
     name: string;
     email: string;
     whatsapp?: string | null;
+    country?: string | null;
+    nationality?: string | null;
+    date_of_birth?: string | null;
+    service_request_id?: string;
+    service_request_status?: string;
   };
 }
 
@@ -199,12 +204,81 @@ export function SellerFunnel() {
             }
           }
 
-          // Try to enrich with client info from form_completed events (same session_id)
-          const formCompletedEvents = eventsByType.form_completed;
+          // Enrich with client info from service_requests and clients tables
+          // Get all service_request_ids from metadata
+          const allServiceRequestIds: string[] = [];
+          funnelData.forEach((event: any) => {
+            if (event.metadata?.service_request_id) {
+              allServiceRequestIds.push(event.metadata.service_request_id);
+            }
+          });
+
+          // Load service_requests and clients data
+          let serviceRequestsMap: Record<string, any> = {};
+          let clientsMap: Record<string, any> = {};
           const sessionIdToClientInfoMap: Record<string, any> = {};
 
+          if (allServiceRequestIds.length > 0) {
+            // Load service_requests
+            const { data: serviceRequestsData } = await supabase
+              .from('service_requests')
+              .select('id, client_id, service_id, status, created_at')
+              .in('id', allServiceRequestIds);
+
+            if (serviceRequestsData) {
+              serviceRequestsMap = serviceRequestsData.reduce((acc, sr) => {
+                acc[sr.id] = sr;
+                return acc;
+              }, {} as Record<string, any>);
+
+              // Get client IDs
+              const clientIds = serviceRequestsData
+                .map(sr => sr.client_id)
+                .filter(Boolean);
+
+              if (clientIds.length > 0) {
+                // Load clients
+                const { data: clientsData } = await supabase
+                  .from('clients')
+                  .select('*')
+                  .in('id', clientIds);
+
+                if (clientsData) {
+                  clientsMap = clientsData.reduce((acc, client) => {
+                    acc[client.id] = client;
+                    return acc;
+                  }, {} as Record<string, any>);
+                }
+              }
+            }
+          }
+
+          // Map session_id to client info from service_requests
+          funnelData.forEach((event: any) => {
+            if (event.metadata?.service_request_id) {
+              const serviceRequest = serviceRequestsMap[event.metadata.service_request_id];
+              if (serviceRequest?.client_id) {
+                const client = clientsMap[serviceRequest.client_id];
+                if (client && event.session_id) {
+                  sessionIdToClientInfoMap[event.session_id] = {
+                    name: client.full_name,
+                    email: client.email,
+                    whatsapp: client.phone,
+                    country: client.country,
+                    nationality: client.nationality,
+                    date_of_birth: client.date_of_birth,
+                    service_request_id: serviceRequest.id,
+                    service_request_status: serviceRequest.status,
+                  };
+                }
+              }
+            }
+          });
+
+          // Also enrich form_completed events with metadata
+          const formCompletedEvents = eventsByType.form_completed;
           formCompletedEvents.forEach(event => {
-            if (event.session_id && event.metadata) {
+            if (event.session_id && event.metadata && !sessionIdToClientInfoMap[event.session_id]) {
               const clientInfo: any = {};
               if (event.metadata.client_name || event.metadata.name) {
                 clientInfo.name = event.metadata.client_name || event.metadata.name;
@@ -247,12 +321,12 @@ export function SellerFunnel() {
               }
             }
 
-            // If no order found, try to get client info from form_completed (same session)
+            // Try to get client info from service_requests/clients (same session)
             if (!event.order && event.session_id && sessionIdToClientInfoMap[event.session_id]) {
               event.clientInfo = sessionIdToClientInfoMap[event.session_id];
             }
 
-            // Also try to get client info from metadata if available
+            // Also try to get client info from metadata if available (fallback)
             if (!event.order && !event.clientInfo && event.metadata) {
               const clientInfo: any = {};
               if (event.metadata.client_name || event.metadata.name) {
@@ -457,6 +531,56 @@ export function SellerFunnel() {
                                 </div>
                               </div>
                             </div>
+                          ) : event.clientInfo ? (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                              <div>
+                                <p className="text-gray-400 text-xs mb-2 flex items-center gap-1">
+                                  <User className="w-3 h-3" />
+                                  Client Information
+                                </p>
+                                {event.clientInfo.name && (
+                                  <p className="text-white font-semibold">{event.clientInfo.name}</p>
+                                )}
+                                {event.clientInfo.email && (
+                                  <p className="text-gray-400 text-sm">{event.clientInfo.email}</p>
+                                )}
+                                {event.clientInfo.whatsapp && (
+                                  <p className="text-gray-400 text-xs mt-1">WhatsApp: {event.clientInfo.whatsapp}</p>
+                                )}
+                                {event.clientInfo.country && (
+                                  <p className="text-gray-400 text-xs mt-1">Country: {event.clientInfo.country}</p>
+                                )}
+                                {event.clientInfo.nationality && (
+                                  <p className="text-gray-400 text-xs">Nationality: {event.clientInfo.nationality}</p>
+                                )}
+                              </div>
+                              <div>
+                                <p className="text-gray-400 text-xs mb-2 flex items-center gap-1">
+                                  <Calendar className="w-3 h-3" />
+                                  Event Details
+                                </p>
+                                <div className="text-xs text-gray-500 flex items-center gap-1 mb-2">
+                                  <Calendar className="w-3 h-3" />
+                                  {new Date(event.created_at).toLocaleString()}
+                                </div>
+                                {event.product_slug && (
+                                  <div className="mb-2">
+                                    <p className="text-gray-400 text-xs mb-1">Product</p>
+                                    <Badge className="bg-blue-500/20 text-blue-300 border-blue-500/50 text-xs">
+                                      {event.product_slug}
+                                    </Badge>
+                                  </div>
+                                )}
+                                {event.clientInfo.service_request_status && (
+                                  <div>
+                                    <p className="text-gray-400 text-xs mb-1">Status</p>
+                                    <Badge className="bg-blue-500/20 text-blue-300 border-blue-500/50 text-xs">
+                                      {event.clientInfo.service_request_status}
+                                    </Badge>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
                           ) : (
                             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 text-sm">
                               <div>
@@ -587,6 +711,42 @@ export function SellerFunnel() {
                                 </div>
                               </div>
                             </div>
+                          ) : event.clientInfo ? (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                              <div>
+                                <p className="text-gray-400 text-xs mb-2 flex items-center gap-1">
+                                  <User className="w-3 h-3" />
+                                  Client Information
+                                </p>
+                                {event.clientInfo.name && (
+                                  <p className="text-white font-semibold">{event.clientInfo.name}</p>
+                                )}
+                                {event.clientInfo.email && (
+                                  <p className="text-gray-400 text-sm">{event.clientInfo.email}</p>
+                                )}
+                                {event.clientInfo.whatsapp && (
+                                  <p className="text-gray-400 text-xs mt-1">WhatsApp: {event.clientInfo.whatsapp}</p>
+                                )}
+                              </div>
+                              <div>
+                                <p className="text-gray-400 text-xs mb-2 flex items-center gap-1">
+                                  <Calendar className="w-3 h-3" />
+                                  Event Details
+                                </p>
+                                <div className="text-xs text-gray-500 flex items-center gap-1 mb-2">
+                                  <Calendar className="w-3 h-3" />
+                                  {new Date(event.created_at).toLocaleString()}
+                                </div>
+                                {event.product_slug && (
+                                  <div>
+                                    <p className="text-gray-400 text-xs mb-1">Product</p>
+                                    <Badge className="bg-purple-500/20 text-purple-300 border-purple-500/50 text-xs">
+                                      {event.product_slug}
+                                    </Badge>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
                           ) : (
                             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 text-sm">
                               <div>
@@ -703,6 +863,56 @@ export function SellerFunnel() {
                                   <Calendar className="w-3 h-3" />
                                   Completed: {new Date(event.created_at).toLocaleString()}
                                 </div>
+                              </div>
+                            </div>
+                          ) : event.clientInfo ? (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                              <div>
+                                <p className="text-gray-400 text-xs mb-2 flex items-center gap-1">
+                                  <User className="w-3 h-3" />
+                                  Client Information
+                                </p>
+                                {event.clientInfo.name && (
+                                  <p className="text-white font-semibold">{event.clientInfo.name}</p>
+                                )}
+                                {event.clientInfo.email && (
+                                  <p className="text-gray-400 text-sm">{event.clientInfo.email}</p>
+                                )}
+                                {event.clientInfo.whatsapp && (
+                                  <p className="text-gray-400 text-xs mt-1">WhatsApp: {event.clientInfo.whatsapp}</p>
+                                )}
+                                {event.clientInfo.country && (
+                                  <p className="text-gray-400 text-xs mt-1">Country: {event.clientInfo.country}</p>
+                                )}
+                                {event.clientInfo.date_of_birth && (
+                                  <p className="text-gray-400 text-xs">DOB: {event.clientInfo.date_of_birth}</p>
+                                )}
+                              </div>
+                              <div>
+                                <p className="text-gray-400 text-xs mb-2 flex items-center gap-1">
+                                  <Calendar className="w-3 h-3" />
+                                  Form Details
+                                </p>
+                                <div className="text-xs text-gray-500 flex items-center gap-1 mb-2">
+                                  <Calendar className="w-3 h-3" />
+                                  {new Date(event.created_at).toLocaleString()}
+                                </div>
+                                {event.product_slug && (
+                                  <div className="mb-2">
+                                    <p className="text-gray-400 text-xs mb-1">Product</p>
+                                    <Badge className="bg-indigo-500/20 text-indigo-300 border-indigo-500/50 text-xs">
+                                      {event.product_slug}
+                                    </Badge>
+                                  </div>
+                                )}
+                                {event.clientInfo.service_request_status && (
+                                  <div>
+                                    <p className="text-gray-400 text-xs mb-1">Status</p>
+                                    <Badge className="bg-indigo-500/20 text-indigo-300 border-indigo-500/50 text-xs">
+                                      {event.clientInfo.service_request_status}
+                                    </Badge>
+                                  </div>
+                                )}
                               </div>
                             </div>
                           ) : (

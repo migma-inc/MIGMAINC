@@ -1307,6 +1307,10 @@ export const VisaCheckout = () => {
         await trackFormCompleted(sellerId, productSlug, {
           extra_units: extraUnits,
           payment_method: method,
+          service_request_id: serviceRequestId || undefined,
+          client_name: clientName,
+          client_email: clientEmail,
+          client_whatsapp: clientWhatsApp,
         });
       }
 
@@ -1315,6 +1319,7 @@ export const VisaCheckout = () => {
         await trackPaymentStarted(sellerId, productSlug, method, {
           total_amount: totalWithFees,
           extra_units: extraUnits,
+          service_request_id: serviceRequestId || undefined,
         });
       }
 
@@ -1520,6 +1525,10 @@ export const VisaCheckout = () => {
         await trackFormCompleted(sellerId, productSlug, {
           extra_units: extraUnits,
           payment_method: 'zelle',
+          service_request_id: serviceRequestId || undefined,
+          client_name: clientName,
+          client_email: clientEmail,
+          client_whatsapp: clientWhatsApp,
         });
       }
 
@@ -1528,6 +1537,7 @@ export const VisaCheckout = () => {
         await trackPaymentStarted(sellerId, productSlug, 'zelle', {
           total_amount: baseTotal, // Zelle uses base total (no fees)
           extra_units: extraUnits,
+          service_request_id: serviceRequestId || undefined,
         });
       }
 
