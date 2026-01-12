@@ -5,7 +5,7 @@ interface VisaProduct {
   allow_extra_units: boolean;
 }
 
-type PaymentMethod = 'card' | 'pix' | 'zelle';
+type PaymentMethod = 'card' | 'pix' | 'zelle' | 'wise' | 'parcelow';
 
 // Stripe fee constants (matching backend)
 const CARD_FEE_PERCENTAGE = 0.039; // 3.9%

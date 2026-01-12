@@ -105,7 +105,7 @@ export const VisaCheckout = () => {
   const [dataAuthorization, setDataAuthorization] = useState(false);
   const [contractTemplate, setContractTemplate] = useState<ContractTemplate | null>(null);
   const [loadingTemplate, setLoadingTemplate] = useState(false);
-  const [paymentMethod, setPaymentMethod] = useState<'card' | 'pix' | 'zelle'>('card');
+  const [paymentMethod, setPaymentMethod] = useState<'card' | 'pix' | 'zelle' | 'wise' | 'parcelow'>('card');
   const [zelleReceipt, setZelleReceipt] = useState<File | null>(null);
   const [exchangeRate, setExchangeRate] = useState<number | null>(null);
   
@@ -2026,6 +2026,375 @@ export const VisaCheckout = () => {
     }
   };
 
+  // Handle Wise payment
+  const handleWisePayment = async () => {
+    setStep3Errors({});
+    setError('');
+    
+    const errors: Record<string, string> = {};
+    
+    if (!termsAccepted) {
+      errors.termsAccepted = 'You must accept the terms and conditions';
+    }
+    
+    if (!dataAuthorization) {
+      errors.dataAuthorization = 'You must accept the data authorization';
+    }
+
+    // Validate signature
+    if (!signatureImageDataUrl || !signatureConfirmed) {
+      errors.signature = 'Please draw and confirm your digital signature before proceeding with payment';
+    }
+
+    if (!serviceRequestId) {
+      errors.serviceRequest = 'Please complete all steps first';
+    }
+    
+    if (Object.keys(errors).length > 0) {
+      setStep3Errors(errors);
+      setTimeout(() => {
+        const firstErrorField = Object.keys(errors)[0];
+        if (firstErrorField === 'termsAccepted') {
+          const element = document.getElementById('terms-checkbox');
+          if (element) {
+            element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }
+        } else if (firstErrorField === 'dataAuthorization') {
+          const element = document.getElementById('data-auth-checkbox');
+          if (element) {
+            element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }
+        } else if (firstErrorField === 'signature') {
+          const element = document.querySelector('[data-signature-pad]');
+          if (element) {
+            element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }
+        }
+      }, 100);
+      return;
+    }
+
+    // Save terms acceptance
+    if (!serviceRequestId) {
+      setError('Service request ID is required');
+      return;
+    }
+    const result = await saveStep3Data(
+      serviceRequestId, 
+      termsAccepted, 
+      dataAuthorization,
+      contractTemplate?.id || null
+    );
+    if (!result.success) {
+      setError(result.error || 'Failed to save terms acceptance');
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      // Track form completed
+      if (sellerId && productSlug) {
+        await trackFormCompleted(sellerId, productSlug, {
+          extra_units: extraUnits,
+          payment_method: 'wise',
+          service_request_id: serviceRequestId || undefined,
+          client_name: clientName,
+          client_email: clientEmail,
+          client_whatsapp: clientWhatsApp,
+        });
+      }
+
+      // Track payment started
+      if (sellerId && productSlug) {
+        await trackPaymentStarted(sellerId, productSlug, 'wise', {
+          total_amount: totalWithFees,
+          extra_units: extraUnits,
+          service_request_id: serviceRequestId || undefined,
+        });
+      }
+
+      // Get client IP
+      const clientIP = await getClientIP();
+
+      // Upload signature image
+      let signatureImageUrl: string | null = null;
+      try {
+        signatureImageUrl = await uploadSignatureImage();
+      } catch (sigError) {
+        setError('Error uploading signature. Please try again.');
+        setSubmitting(false);
+        return;
+      }
+
+      // Get document URLs from documentFiles or existing contract
+      const documentFrontUrl = hasExistingContract && existingContractData
+        ? existingContractData.contract_document_url
+        : documentFiles?.documentFront?.url || '';
+      const selfieUrl = hasExistingContract && existingContractData
+        ? existingContractData.contract_selfie_url
+        : documentFiles?.selfie?.url || '';
+
+      // Create order first (before calling Wise API)
+      const orderNumber = `ORD-${new Date().toISOString().split('T')[0].replace(/-/g, '')}-${Math.floor(Math.random() * 10000).toString().padStart(4, '0')}`;
+      
+      const { data: order, error: orderError } = await supabase
+        .from('visa_orders')
+        .insert({
+          order_number: orderNumber,
+          product_slug: productSlug,
+          seller_id: sellerId || null,
+          service_request_id: serviceRequestId,
+          base_price_usd: parseFloat(product!.base_price_usd),
+          price_per_dependent_usd: parseFloat(product!.price_per_dependent_usd),
+          number_of_dependents: extraUnits,
+          extra_units: extraUnits,
+          dependent_names: extraUnits > 0 ? dependentNames : null,
+          extra_unit_label: product!.extra_unit_label,
+          extra_unit_price_usd: parseFloat(product!.extra_unit_price),
+          calculation_type: product!.calculation_type,
+          total_price_usd: totalWithFees,
+          client_name: clientName,
+          client_email: clientEmail,
+          client_whatsapp: clientWhatsApp || null,
+          client_country: clientCountry || null,
+          client_nationality: clientNationality || null,
+          client_observations: clientObservations || null,
+          payment_method: 'wise',
+          payment_status: 'pending',
+          contract_document_url: documentFrontUrl,
+          contract_selfie_url: selfieUrl,
+          signature_image_url: signatureImageUrl,
+          contract_accepted: true,
+          contract_signed_at: new Date().toISOString(),
+          ip_address: clientIP,
+          payment_metadata: {
+            base_amount: parseFloat(product!.base_price_usd).toFixed(2),
+            final_amount: totalWithFees.toFixed(2),
+            extra_units: extraUnits,
+            calculation_type: product!.calculation_type,
+            ip_address: clientIP,
+          },
+        })
+        .select()
+        .single();
+
+      if (orderError) {
+        throw orderError;
+      }
+
+      // Call Wise checkout Edge Function
+      const { data: wiseCheckout, error: wiseError } = await supabase.functions.invoke(
+        'create-wise-checkout',
+        {
+          body: {
+            order_id: order.id,
+            client_currency: 'USD', // Can be made dynamic later
+          },
+        }
+      );
+
+      if (wiseError || !wiseCheckout?.success) {
+        console.error('[Wise] Error creating checkout:', wiseError || wiseCheckout);
+        throw new Error(wiseError?.message || 'Failed to create Wise checkout');
+      }
+
+      // Redirect to Wise payment page
+      if (wiseCheckout.payment_url) {
+        window.location.href = wiseCheckout.payment_url;
+      } else {
+        throw new Error('Payment URL not provided by Wise');
+      }
+    } catch (err) {
+      console.error('[Wise] Error:', err);
+      setError(err instanceof Error ? err.message : 'Failed to process Wise payment. Please try again.');
+      setSubmitting(false);
+    }
+  };
+
+  const handleParcelowPayment = async () => {
+    setStep3Errors({});
+    setError('');
+    
+    const errors: Record<string, string> = {};
+    
+    if (!termsAccepted) {
+      errors.termsAccepted = 'You must accept the terms and conditions';
+    }
+    
+    if (!dataAuthorization) {
+      errors.dataAuthorization = 'You must accept the data authorization';
+    }
+
+    // Validate signature
+    if (!signatureImageDataUrl || !signatureConfirmed) {
+      errors.signature = 'Please draw and confirm your digital signature before proceeding with payment';
+    }
+
+    if (!serviceRequestId) {
+      errors.serviceRequest = 'Please complete all steps first';
+    }
+    
+    if (Object.keys(errors).length > 0) {
+      setStep3Errors(errors);
+      setTimeout(() => {
+        const firstErrorField = Object.keys(errors)[0];
+        if (firstErrorField === 'termsAccepted') {
+          const element = document.getElementById('terms-checkbox');
+          if (element) {
+            element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }
+        } else if (firstErrorField === 'dataAuthorization') {
+          const element = document.getElementById('data-auth-checkbox');
+          if (element) {
+            element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }
+        } else if (firstErrorField === 'signature') {
+          const element = document.querySelector('[data-signature-pad]');
+          if (element) {
+            element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }
+        }
+      }, 100);
+      return;
+    }
+
+    // Save terms acceptance
+    if (!serviceRequestId) {
+      setError('Service request ID is required');
+      return;
+    }
+    const result = await saveStep3Data(
+      serviceRequestId, 
+      termsAccepted, 
+      dataAuthorization,
+      contractTemplate?.id || null
+    );
+    if (!result.success) {
+      setError(result.error || 'Failed to save terms acceptance');
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      // Track form completed
+      if (sellerId && productSlug) {
+        await trackFormCompleted(sellerId, productSlug, {
+          extra_units: extraUnits,
+          payment_method: 'parcelow',
+          service_request_id: serviceRequestId || undefined,
+          client_name: clientName,
+          client_email: clientEmail,
+          client_whatsapp: clientWhatsApp,
+        });
+      }
+
+      // Track payment started
+      if (sellerId && productSlug) {
+        await trackPaymentStarted(sellerId, productSlug, 'parcelow', {
+          total_amount: totalWithFees,
+          extra_units: extraUnits,
+          service_request_id: serviceRequestId || undefined,
+        });
+      }
+
+      // Get client IP
+      const clientIP = await getClientIP();
+
+      // Upload signature image
+      let signatureImageUrl: string | null = null;
+      try {
+        signatureImageUrl = await uploadSignatureImage();
+      } catch (sigError) {
+        setError('Error uploading signature. Please try again.');
+        setSubmitting(false);
+        return;
+      }
+
+      // Get document URLs from documentFiles or existing contract
+      const documentFrontUrl = hasExistingContract && existingContractData
+        ? existingContractData.contract_document_url
+        : documentFiles?.documentFront?.url || '';
+      const selfieUrl = hasExistingContract && existingContractData
+        ? existingContractData.contract_selfie_url
+        : documentFiles?.selfie?.url || '';
+
+      // Create order first (before calling Parcelow API)
+      const orderNumber = `ORD-${new Date().toISOString().split('T')[0].replace(/-/g, '')}-${Math.floor(Math.random() * 10000).toString().padStart(4, '0')}`;
+      
+      const { data: order, error: orderError } = await supabase
+        .from('visa_orders')
+        .insert({
+          order_number: orderNumber,
+          product_slug: productSlug,
+          seller_id: sellerId || null,
+          service_request_id: serviceRequestId,
+          base_price_usd: parseFloat(product!.base_price_usd),
+          price_per_dependent_usd: parseFloat(product!.price_per_dependent_usd),
+          number_of_dependents: extraUnits,
+          extra_units: extraUnits,
+          dependent_names: extraUnits > 0 ? dependentNames : null,
+          extra_unit_label: product!.extra_unit_label,
+          extra_unit_price_usd: parseFloat(product!.extra_unit_price),
+          calculation_type: product!.calculation_type,
+          total_price_usd: totalWithFees,
+          client_name: clientName,
+          client_email: clientEmail,
+          client_whatsapp: clientWhatsApp || null,
+          client_country: clientCountry || null,
+          client_nationality: clientNationality || null,
+          client_observations: clientObservations || null,
+          payment_method: 'parcelow',
+          payment_status: 'pending',
+          contract_document_url: documentFrontUrl,
+          contract_selfie_url: selfieUrl,
+          signature_image_url: signatureImageUrl,
+          contract_accepted: true,
+          contract_signed_at: new Date().toISOString(),
+          ip_address: clientIP,
+          payment_metadata: {
+            base_amount: parseFloat(product!.base_price_usd).toFixed(2),
+            final_amount: totalWithFees.toFixed(2),
+            extra_units: extraUnits,
+            calculation_type: product!.calculation_type,
+            ip_address: clientIP,
+          },
+        })
+        .select()
+        .single();
+
+      if (orderError) {
+        throw orderError;
+      }
+
+      // Call Parcelow checkout Edge Function
+      const { data: parcelowCheckout, error: parcelowError } = await supabase.functions.invoke(
+        'create-parcelow-checkout',
+        {
+          body: {
+            order_id: order.id,
+            currency: 'USD', // Can be made dynamic later (USD or BRL)
+          },
+        }
+      );
+
+      if (parcelowError || !parcelowCheckout?.success) {
+        console.error('[Parcelow] Error creating checkout:', parcelowError || parcelowCheckout);
+        throw new Error(parcelowError?.message || 'Failed to create Parcelow checkout');
+      }
+
+      // Redirect to Parcelow checkout page
+      if (parcelowCheckout.checkout_url) {
+        window.location.href = parcelowCheckout.checkout_url;
+      } else {
+        throw new Error('Checkout URL not provided by Parcelow');
+      }
+    } catch (err) {
+      console.error('[Parcelow] Error:', err);
+      setError(err instanceof Error ? err.message : 'Failed to process Parcelow payment. Please try again.');
+      setSubmitting(false);
+    }
+  };
+
   // Show loading only when product is loading initially
   if (loading) {
     return (
@@ -2900,6 +3269,8 @@ export const VisaCheckout = () => {
                           <SelectItem value="card">Credit/Debit Card (Stripe)</SelectItem>
                           <SelectItem value="pix">PIX (Stripe - BRL)</SelectItem>
                           <SelectItem value="zelle">Zelle</SelectItem>
+                          <SelectItem value="wise">Wise (International Transfer)</SelectItem>
+                          <SelectItem value="parcelow">Parcelow (Parcelamento em BRL)</SelectItem>
                         </SelectContent>
                       </Select>
 
@@ -2954,6 +3325,44 @@ export const VisaCheckout = () => {
                                 <p className="text-red-400 text-xs sm:text-sm mt-1">{step3Errors.zelleReceipt}</p>
                               )}
                             </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {paymentMethod === 'wise' && (
+                        <div className="space-y-4 mt-4 p-3 sm:p-4 bg-blue-900/20 border border-blue-500/30 rounded-md">
+                          <div className="bg-black/30 p-3 rounded-md border border-gold-medium/20">
+                            <p className="text-xs sm:text-sm font-semibold text-blue-200 mb-2">Wise Payment Instructions:</p>
+                            <ol className="text-xs sm:text-sm text-blue-100 space-y-2 list-decimal list-inside">
+                              <li>Click "Pay with Wise" below to proceed</li>
+                              <li>You will be redirected to Wise to complete your payment</li>
+                              <li>Complete the payment on the Wise platform</li>
+                              <li>You will be redirected back to our site after payment</li>
+                              <li>Your order will be confirmed automatically once payment is received</li>
+                            </ol>
+                            <p className="text-xs sm:text-sm text-blue-200 mt-3">
+                              <span className="font-semibold">Note:</span> Wise offers competitive exchange rates and low fees for international transfers.
+                            </p>
+                          </div>
+                        </div>
+                      )}
+
+                      {paymentMethod === 'parcelow' && (
+                        <div className="space-y-4 mt-4 p-3 sm:p-4 bg-green-900/20 border border-green-500/30 rounded-md">
+                          <div className="bg-black/30 p-3 rounded-md border border-gold-medium/20">
+                            <p className="text-xs sm:text-sm font-semibold text-green-200 mb-2">Parcelow Payment Instructions:</p>
+                            <ol className="text-xs sm:text-sm text-green-100 space-y-2 list-decimal list-inside">
+                              <li>Click "Pay with Parcelow" below to proceed</li>
+                              <li>You will be redirected to Parcelow checkout</li>
+                              <li>Choose your payment method (Credit Card or PIX)</li>
+                              <li>Select installment options if paying with credit card</li>
+                              <li>Complete the payment on the Parcelow platform</li>
+                              <li>You will be redirected back to our site after payment</li>
+                              <li>Your order will be confirmed automatically once payment is received</li>
+                            </ol>
+                            <p className="text-xs sm:text-sm text-green-200 mt-3">
+                              <span className="font-semibold">Note:</span> Parcelow allows you to pay in Brazilian Reais (BRL) with installment options for credit card payments.
+                            </p>
                           </div>
                         </div>
                       )}
@@ -3033,6 +3442,16 @@ export const VisaCheckout = () => {
                           No processing fees
                         </p>
                       )}
+                      {paymentMethod === 'wise' && (
+                        <p className="text-[10px] sm:text-xs text-gray-400 mt-1 text-right">
+                          Wise fees included
+                        </p>
+                      )}
+                      {paymentMethod === 'parcelow' && (
+                        <p className="text-[10px] sm:text-xs text-gray-400 mt-1 text-right">
+                          Parcelow fees included
+                        </p>
+                      )}
                     </div>
                   </div>
 
@@ -3056,6 +3475,26 @@ export const VisaCheckout = () => {
                         >
                           <DollarSign className="w-4 h-4 mr-2" />
                           {submitting ? 'Processing...' : 'Pay with PIX'}
+                        </Button>
+                      )}
+                      {paymentMethod === 'wise' && (
+                        <Button
+                          onClick={handleWisePayment}
+                          disabled={submitting || !termsAccepted || !dataAuthorization || !signatureConfirmed || !documentsUploaded}
+                          className="w-full bg-gradient-to-b from-blue-500 via-blue-600 to-blue-500 text-white font-bold hover:from-blue-600 hover:via-blue-700 hover:to-blue-600 min-h-[48px] sm:min-h-[44px] text-sm sm:text-base px-6 sm:px-8 py-3 sm:py-2"
+                        >
+                          <DollarSign className="w-4 h-4 mr-2" />
+                          {submitting ? 'Processing...' : 'Pay with Wise'}
+                        </Button>
+                      )}
+                      {paymentMethod === 'parcelow' && (
+                        <Button
+                          onClick={handleParcelowPayment}
+                          disabled={submitting || !termsAccepted || !dataAuthorization || !signatureConfirmed || !documentsUploaded}
+                          className="w-full bg-gradient-to-b from-green-500 via-green-600 to-green-500 text-white font-bold hover:from-green-600 hover:via-green-700 hover:to-green-600 min-h-[48px] sm:min-h-[44px] text-sm sm:text-base px-6 sm:px-8 py-3 sm:py-2"
+                        >
+                          <DollarSign className="w-4 h-4 mr-2" />
+                          {submitting ? 'Processing...' : 'Pay with Parcelow'}
                         </Button>
                       )}
                       {(!termsAccepted || !dataAuthorization) && (
