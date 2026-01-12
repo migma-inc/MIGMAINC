@@ -70,8 +70,31 @@ export interface AnalyticsData {
 
 /**
  * Calcula a data de início e fim de um período baseado em uma opção pré-definida
+ * @param period - Opção de período pré-definido ou objeto com datas customizadas
+ * @param customRange - Opcional: objeto com start e end como strings ISO (YYYY-MM-DD)
  */
-export function getPeriodDates(period: string): { start: Date; end: Date } {
+export function getPeriodDates(
+  period: string | { start: string; end: string },
+  customRange?: { start: string; end: string }
+): { start: Date; end: Date } {
+  // Se for um objeto, tratar como datas customizadas
+  if (typeof period === 'object' && period.start && period.end) {
+    const start = new Date(period.start);
+    start.setHours(0, 0, 0, 0);
+    const end = new Date(period.end);
+    end.setHours(23, 59, 59, 999);
+    return { start, end };
+  }
+
+  // Se for 'custom' e tiver customRange, usar as datas customizadas
+  if (period === 'custom' && customRange) {
+    const start = new Date(customRange.start);
+    start.setHours(0, 0, 0, 0);
+    const end = new Date(customRange.end);
+    end.setHours(23, 59, 59, 999);
+    return { start, end };
+  }
+
   const now = new Date();
   const end = new Date(now);
   end.setHours(23, 59, 59, 999);
@@ -111,8 +134,13 @@ export function getPeriodDates(period: string): { start: Date; end: Date } {
       start = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate());
       start.setHours(0, 0, 0, 0);
       break;
+    case 'custom':
+      // Se for custom mas não tiver customRange, usar último ano como padrão
+      start = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate());
+      start.setHours(0, 0, 0, 0);
+      break;
     default:
-      // Custom - retornar período padrão (este mês)
+      // Período padrão (este mês)
       start = new Date(now.getFullYear(), now.getMonth(), 1);
       start.setHours(0, 0, 0, 0);
   }
@@ -428,10 +456,13 @@ export async function getTrends(
  */
 export async function getAnalyticsData(
   sellerId: string,
-  periodOption: string,
-  enableComparison: boolean = false
+  periodOption: string | { start: string; end: string },
+  enableComparison: boolean = false,
+  customRange?: { start: string; end: string }
 ): Promise<AnalyticsData> {
-  const period = getPeriodDates(periodOption);
+  const period = typeof periodOption === 'object' 
+    ? getPeriodDates(periodOption)
+    : getPeriodDates(periodOption, customRange);
   
   // Buscar pedidos do período
   const { data: orders } = await supabase

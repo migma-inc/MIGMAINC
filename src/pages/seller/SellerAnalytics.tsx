@@ -5,7 +5,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
-import { PeriodFilter, type PeriodOption } from '@/components/seller/PeriodFilter';
+import { PeriodFilter, type PeriodOption, type CustomDateRange } from '@/components/seller/PeriodFilter';
 import { RevenueChart } from '@/components/seller/RevenueChart';
 import { ContractsChart } from '@/components/seller/ContractsChart';
 import { ProductMetricsChart } from '@/components/seller/ProductMetricsChart';
@@ -30,6 +30,16 @@ interface SellerInfo {
 export function SellerAnalytics() {
   const { seller } = useOutletContext<{ seller: SellerInfo }>();
   const [periodFilter, setPeriodFilter] = useState<PeriodOption>('thismonth');
+  const [customDateRange, setCustomDateRange] = useState<CustomDateRange>(() => {
+    // Default: últimos 30 dias
+    const end = new Date();
+    const start = new Date();
+    start.setDate(start.getDate() - 30);
+    return {
+      start: start.toISOString().split('T')[0],
+      end: end.toISOString().split('T')[0],
+    };
+  });
   const [granularity, setGranularity] = useState<'day' | 'week' | 'month'>('day');
   const [enableComparison, setEnableComparison] = useState(true);
   const [analyticsData, setAnalyticsData] = useState<AnalyticsData | null>(null);
@@ -44,7 +54,13 @@ export function SellerAnalytics() {
 
       setLoading(true);
       try {
-        const data = await getAnalyticsData(seller.seller_id_public, periodFilter, enableComparison);
+        // Se for período customizado, passar as datas customizadas
+        const data = await getAnalyticsData(
+          seller.seller_id_public, 
+          periodFilter === 'custom' ? 'custom' : periodFilter, 
+          enableComparison,
+          periodFilter === 'custom' ? customDateRange : undefined
+        );
         setAnalyticsData(data);
       } catch (error) {
         console.error('[SellerAnalytics] Error loading analytics:', error);
@@ -54,7 +70,7 @@ export function SellerAnalytics() {
     };
 
     loadAnalytics();
-  }, [seller, periodFilter, enableComparison]);
+  }, [seller, periodFilter, customDateRange, enableComparison]);
 
   // Buscar dados de comparação separadamente para gráficos
   const [comparisonChartData, setComparisonChartData] = useState<any[]>([]);
@@ -97,7 +113,8 @@ export function SellerAnalytics() {
     periodFilter === 'last30days' ? 'Last 30 Days' :
     periodFilter === 'last3months' ? 'Last 3 Months' :
     periodFilter === 'last6months' ? 'Last 6 Months' :
-    periodFilter === 'lastyear' ? 'Last Year' : 'Period';
+    periodFilter === 'lastyear' ? 'Last Year' :
+    periodFilter === 'custom' ? `${customDateRange.start} to ${customDateRange.end}` : 'Period';
 
   // Calcular valores do período anterior para comparação
   const previousSummary = analyticsData?.comparison ? {
@@ -135,7 +152,13 @@ export function SellerAnalytics() {
 
         {/* Filtros Compactos */}
         <div className="flex flex-col sm:flex-row sm:flex-wrap items-stretch sm:items-center gap-2 sm:gap-3 p-3 bg-black/20 rounded-lg border border-gold-medium/10">
-          <PeriodFilter value={periodFilter} onChange={setPeriodFilter} showLabel={true} />
+          <PeriodFilter 
+            value={periodFilter} 
+            onChange={setPeriodFilter} 
+            showLabel={true}
+            customDateRange={customDateRange}
+            onCustomDateRangeChange={setCustomDateRange}
+          />
           
           <div className="flex items-center gap-2">
             <Label htmlFor="granularity" className="text-gray-400 text-xs whitespace-nowrap">

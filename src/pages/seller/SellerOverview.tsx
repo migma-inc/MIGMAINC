@@ -3,11 +3,10 @@ import { useOutletContext, Link } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Label } from '@/components/ui/label';
 import { ShoppingCart, CheckCircle, Clock, DollarSign, Coins } from 'lucide-react';
 import { calculateNetAmount } from '@/lib/seller-commissions';
-import { useSellerStats } from '@/hooks/useSellerStats';
+import { PeriodFilter, type PeriodOption, type CustomDateRange } from '@/components/seller/PeriodFilter';
+import { getPeriodDates, getCommissionSummary } from '@/lib/seller-analytics';
 
 interface SellerInfo {
   id: string;
@@ -26,26 +25,45 @@ interface Stats {
 
 export function SellerOverview() {
   const { seller } = useOutletContext<{ seller: SellerInfo }>();
-  const [periodFilter, setPeriodFilter] = useState<'month' | 'all'>('month');
+  const [periodFilter, setPeriodFilter] = useState<PeriodOption>('thismonth');
+  const [customDateRange, setCustomDateRange] = useState<CustomDateRange>(() => {
+    // Default: últimos 30 dias
+    const end = new Date();
+    const start = new Date();
+    start.setDate(start.getDate() - 30);
+    return {
+      start: start.toISOString().split('T')[0],
+      end: end.toISOString().split('T')[0],
+    };
+  });
   const [stats, setStats] = useState<Stats>({
     totalSales: 0,
     completedSales: 0,
     pendingSales: 0,
     totalRevenue: 0,
   });
+  const [commissionBalance, setCommissionBalance] = useState({
+    available: 0,
+    pending: 0,
+    total: 0,
+  });
   const [loading, setLoading] = useState(true);
-  
-  // Use shared hook for commission stats and balance
-  const { balance, refresh: refreshStats } = useSellerStats(seller?.seller_id_public);
 
-  // Função para calcular data de início do mês quando necessário
-  const getStartDate = (): string | null => {
-    if (periodFilter === 'month') {
-      const now = new Date();
-      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-      return startOfMonth.toISOString();
+  // Função para calcular range de datas do período selecionado
+  const getPeriodRange = () => {
+    if (periodFilter === 'custom') {
+      // Para custom, usar as datas selecionadas pelo usuário
+      const startDate = new Date(customDateRange.start);
+      startDate.setHours(0, 0, 0, 0);
+      const endDate = new Date(customDateRange.end);
+      endDate.setHours(23, 59, 59, 999);
+      return { 
+        start: startDate.toISOString(), 
+        end: endDate.toISOString() 
+      };
     }
-    return null; // 'all' - não filtra por data
+    const { start, end } = getPeriodDates(periodFilter);
+    return { start: start.toISOString(), end: end.toISOString() };
   };
 
   useEffect(() => {
@@ -53,23 +71,38 @@ export function SellerOverview() {
       if (!seller) return;
 
       try {
+        setLoading(true);
+        
         // Construir query base
-        const startDate = getStartDate();
-        let query = supabase
-          .from('visa_orders')
-          .select('*')
-          .eq('seller_id', seller.seller_id_public);
+        const { start, end } = getPeriodRange();
+        const period = {
+          start: new Date(start),
+          end: new Date(end),
+        };
+        
+        // Buscar pedidos e comissões em paralelo
+        const [ordersResult, commissionResult] = await Promise.all([
+          (async () => {
+            let query = supabase
+              .from('visa_orders')
+              .select('*')
+              .eq('seller_id', seller.seller_id_public);
 
-        // Adicionar filtro de data se necessário
-        if (startDate) {
-          query = query.gte('created_at', startDate);
-        }
+            // Adicionar filtro de data se necessário
+            if (start && end) {
+              query = query.gte('created_at', start).lte('created_at', end);
+            }
 
-        const { data: ordersData } = await query.order('created_at', { ascending: false });
+            const { data: ordersData } = await query.order('created_at', { ascending: false });
+            return ordersData || [];
+          })(),
+          getCommissionSummary(seller.seller_id_public, period),
+        ]);
 
-        if (ordersData) {
-          const completed = ordersData.filter(o => o.payment_status === 'completed' || o.payment_status === 'paid');
-          const pending = ordersData.filter(o => o.payment_status === 'pending');
+        // Processar pedidos
+        if (ordersResult) {
+          const completed = ordersResult.filter(o => o.payment_status === 'completed' || o.payment_status === 'paid');
+          const pending = ordersResult.filter(o => o.payment_status === 'pending');
           // Calculate revenue using net amount (total_price_usd - fee_amount)
           const revenue = completed.reduce((sum, o) => {
             const netAmount = calculateNetAmount(o);
@@ -77,12 +110,19 @@ export function SellerOverview() {
           }, 0);
 
           setStats({
-            totalSales: ordersData.length,
+            totalSales: ordersResult.length,
             completedSales: completed.length,
             pendingSales: pending.length,
             totalRevenue: revenue,
           });
         }
+
+        // Processar comissões
+        setCommissionBalance({
+          available: commissionResult.availableCommissions,
+          pending: commissionResult.pendingCommissions,
+          total: commissionResult.totalCommissions,
+        });
       } catch (err) {
         console.error('Error loading stats:', err);
       } finally {
@@ -91,14 +131,7 @@ export function SellerOverview() {
     };
 
     loadStats();
-  }, [seller, periodFilter]);
-  
-  // Refresh shared stats when period filter changes
-  useEffect(() => {
-    if (seller) {
-      refreshStats();
-    }
-  }, [seller, periodFilter, refreshStats]);
+  }, [seller, periodFilter, customDateRange]);
 
   if (loading) {
     return (
@@ -155,26 +188,13 @@ export function SellerOverview() {
             <p className="text-sm sm:text-base text-gray-400">Welcome back, {seller.full_name}</p>
             <p className="text-xs sm:text-sm text-gold-light mt-1">Seller ID: {seller.seller_id_public}</p>
           </div>
-          <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
-            <Label htmlFor="period-filter" className="text-white text-sm whitespace-nowrap">
-              Período:
-            </Label>
-            <Select
-              value={periodFilter}
-              onValueChange={(value) => setPeriodFilter(value as 'month' | 'all')}
-            >
-              <SelectTrigger 
-                id="period-filter"
-                className="w-full sm:w-[160px] bg-black/50 border-gold-medium/50 text-white hover:bg-black/70"
-              >
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="month">Este Mês</SelectItem>
-                <SelectItem value="all">Acumulado</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+          <PeriodFilter 
+            value={periodFilter} 
+            onChange={setPeriodFilter} 
+            showLabel={true}
+            customDateRange={customDateRange}
+            onCustomDateRangeChange={setCustomDateRange}
+          />
         </div>
       </div>
 
@@ -237,10 +257,10 @@ export function SellerOverview() {
                 <div className="flex-1 min-w-0">
                   <p className="text-xs sm:text-sm text-gray-400">Commission</p>
                   <p className="text-xl sm:text-2xl font-bold text-purple-300">
-                    ${(balance.available_balance + balance.pending_balance).toFixed(2)}
+                    ${commissionBalance.total.toFixed(2)}
                   </p>
                   <p className="text-xs text-gray-500 mt-1">
-                    Available: ${balance.available_balance.toFixed(2)} • Pending: ${balance.pending_balance.toFixed(2)}
+                    Available: ${commissionBalance.available.toFixed(2)} • Pending: ${commissionBalance.pending.toFixed(2)}
                   </p>
                 </div>
                 <Coins className="w-8 h-8 sm:w-10 sm:h-10 text-purple-400 shrink-0" />
