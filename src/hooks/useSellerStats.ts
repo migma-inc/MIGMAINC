@@ -7,7 +7,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { getSellerBalance } from '@/lib/seller-payment-requests';
 import { getSellerCommissionStats } from '@/lib/seller-commissions';
-import { getSellerPaymentRequests } from '@/lib/seller-payment-requests';
+// PAYMENT REQUEST - COMENTADO TEMPORARIAMENTE
+// import { getSellerPaymentRequests } from '@/lib/seller-payment-requests';
 import type { SellerBalance } from '@/types/seller';
 import type { CommissionStats } from '@/lib/seller-commissions';
 

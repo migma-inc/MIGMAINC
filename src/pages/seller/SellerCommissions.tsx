@@ -7,12 +7,13 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
-import { Coins, DollarSign, Clock, CheckCircle, XCircle, Wallet, AlertCircle, CreditCard, RefreshCw } from 'lucide-react';
+import { Coins, DollarSign, Clock, CheckCircle, Wallet, AlertCircle, CreditCard, RefreshCw } from 'lucide-react';
 import { type SellerCommission } from '@/lib/seller-commissions';
-import { 
-  getSellerPaymentRequests, 
-  createPaymentRequest
-} from '@/lib/seller-payment-requests';
+// PAYMENT REQUEST - COMENTADO TEMPORARIAMENTE
+// import { 
+//   getSellerPaymentRequests, 
+//   createPaymentRequest
+// } from '@/lib/seller-payment-requests';
 import type { SellerPaymentRequest } from '@/types/seller';
 import { PaymentRequestTimer } from '@/components/seller/PaymentRequestTimer';
 import { PaymentRequestForm } from '@/components/seller/PaymentRequestForm';
@@ -91,12 +92,13 @@ export function SellerCommissions() {
     };
   }, [seller, refreshStats]);
   
-  // Payment request state
-  const [paymentRequests, setPaymentRequests] = useState<SellerPaymentRequest[]>([]);
-  const [submitting, setSubmitting] = useState(false);
-  const [firstSaleDate, setFirstSaleDate] = useState<string | null>(null);
-  const [showSuccessModal, setShowSuccessModal] = useState(false);
-  const [successAmount, setSuccessAmount] = useState<number | null>(null);
+  // PAYMENT REQUEST - COMENTADO TEMPORARIAMENTE
+  // Payment request state - Variáveis temporárias para evitar erros de compilação
+  const [paymentRequests, _setPaymentRequests] = useState<SellerPaymentRequest[]>([]);
+  const [submitting, _setSubmitting] = useState(false);
+  const [firstSaleDate, _setFirstSaleDate] = useState<string | null>(null);
+  const [showSuccessModal, _setShowSuccessModal] = useState(false);
+  const [successAmount, _setSuccessAmount] = useState<number | null>(null);
   
   // Cache keys
   const getCacheKey = (key: string) => `seller_commissions_${seller?.seller_id_public}_${key}`;
@@ -249,62 +251,64 @@ export function SellerCommissions() {
   //   }
   // };
   
+  // PAYMENT REQUEST - COMENTADO TEMPORARIAMENTE
   // Load first sale date for timer
-  useEffect(() => {
-    const loadFirstSaleDate = async () => {
-      if (!seller) return;
+  // useEffect(() => {
+  //   const loadFirstSaleDate = async () => {
+  //     if (!seller) return;
 
-      const cachedFirstSale = loadCachedData(getCacheKey('first_sale_date'));
-      if (cachedFirstSale) {
-        setFirstSaleDate(cachedFirstSale);
-      }
+  //     const cachedFirstSale = loadCachedData(getCacheKey('first_sale_date'));
+  //     if (cachedFirstSale) {
+  //       _setFirstSaleDate(cachedFirstSale);
+  //     }
 
-      try {
-        const { data: firstCommission } = await supabase
-          .from('seller_commissions')
-          .select('created_at')
-          .eq('seller_id', seller.seller_id_public)
-          .order('created_at', { ascending: true })
-          .limit(1)
-          .single();
+  //     try {
+  //       const { data: firstCommission } = await supabase
+  //         .from('seller_commissions')
+  //         .select('created_at')
+  //         .eq('seller_id', seller.seller_id_public)
+  //         .order('created_at', { ascending: true })
+  //         .limit(1)
+  //         .single();
 
-        if (firstCommission?.created_at) {
-          setFirstSaleDate(firstCommission.created_at);
-          saveToCache(getCacheKey('first_sale_date'), firstCommission.created_at);
-        }
-      } catch (err) {
-        console.error('[SellerCommissions] Error loading first sale date:', err);
-      }
-    };
+  //       if (firstCommission?.created_at) {
+  //         _setFirstSaleDate(firstCommission.created_at);
+  //         saveToCache(getCacheKey('first_sale_date'), firstCommission.created_at);
+  //       }
+  //     } catch (err) {
+  //       console.error('[SellerCommissions] Error loading first sale date:', err);
+  //     }
+  //   };
 
-    loadFirstSaleDate();
-  }, [seller]);
+  //   loadFirstSaleDate();
+  // }, [seller]);
 
+  // PAYMENT REQUEST - COMENTADO TEMPORARIAMENTE
   // Load payment requests only when switching to payment-request tab
-  const loadPaymentRequests = async () => {
-    if (!seller) return;
+  // const loadPaymentRequests = async () => {
+  //   if (!seller) return;
 
-    try {
-      const requestsData = await getSellerPaymentRequests(seller.seller_id_public);
-      setPaymentRequests(requestsData);
-      saveToCache(getCacheKey('payment_requests'), requestsData);
-    } catch (err) {
-      console.error('Error loading payment requests:', err);
-    }
-  };
+  //   try {
+  //     const requestsData = await getSellerPaymentRequests(seller.seller_id_public);
+  //     _setPaymentRequests(requestsData);
+  //     saveToCache(getCacheKey('payment_requests'), requestsData);
+  //   } catch (err) {
+  //     console.error('Error loading payment requests:', err);
+  //   }
+  // };
 
-  useEffect(() => {
-    if (activeTab === 'payment-request' && seller) {
-      const cachedRequests = loadCachedData(getCacheKey('payment_requests'));
+  // useEffect(() => {
+  //   if (activeTab === 'payment-request' && seller) {
+  //     const cachedRequests = loadCachedData(getCacheKey('payment_requests'));
 
-      if (cachedRequests) {
-        setPaymentRequests(cachedRequests);
-      }
+  //     if (cachedRequests) {
+  //       _setPaymentRequests(cachedRequests);
+  //     }
 
-      // Load immediately
-      loadPaymentRequests();
-    }
-  }, [activeTab, seller]);
+  //     // Load immediately
+  //     loadPaymentRequests();
+  //   }
+  // }, [activeTab, seller]);
 
   // Refresh function to reload all data
   const handleRefresh = async () => {
@@ -830,9 +834,10 @@ export function SellerCommissions() {
       </Tabs>
 
       {/* PAYMENT REQUEST - COMENTADO TEMPORARIAMENTE */}
+      {/* PAYMENT REQUEST - COMENTADO TEMPORARIAMENTE */}
       {/* Success Modal */}
       {false && (
-      <Dialog open={showSuccessModal} onOpenChange={setShowSuccessModal}>
+      <Dialog open={showSuccessModal} onOpenChange={_setShowSuccessModal}>
         <DialogContent className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30">
           <DialogHeader>
             <div className="flex items-center justify-center mb-4">
@@ -856,7 +861,7 @@ export function SellerCommissions() {
           </DialogHeader>
           <DialogFooter className="mt-6">
             <Button
-              onClick={() => setShowSuccessModal(false)}
+              onClick={() => _setShowSuccessModal(false)}
               className="w-full bg-gold-medium hover:bg-gold-light text-black font-semibold"
             >
               Got it

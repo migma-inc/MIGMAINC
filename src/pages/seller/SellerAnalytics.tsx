@@ -36,7 +36,7 @@ export function SellerAnalytics() {
   const [loading, setLoading] = useState(true);
   
   // Use shared hook for commission stats
-  const { balance, commissionStats, totalReceived } = useSellerStats(seller?.seller_id_public);
+  const { balance } = useSellerStats(seller?.seller_id_public);
 
   useEffect(() => {
     const loadAnalytics = async () => {

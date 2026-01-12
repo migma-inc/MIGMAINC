@@ -12,9 +12,9 @@ interface PendingBalanceCardProps {
 
 export function PendingBalanceCard({
   pendingBalance,
-  nextWithdrawalDate,
+  nextWithdrawalDate: _nextWithdrawalDate,
   nextRequestWindowStart,
-  nextRequestWindowEnd,
+  nextRequestWindowEnd: _nextRequestWindowEnd,
   isInRequestWindow = false,
 }: PendingBalanceCardProps) {
   const [timeLeft, setTimeLeft] = useState<string>('');
@@ -43,7 +43,6 @@ export function PendingBalanceCard({
       
       // Calculate next window if not provided
       if (!windowStartDate) {
-        const currentDay = now.getDate();
         const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
         const actualAvailableDate = nextMonth;
         

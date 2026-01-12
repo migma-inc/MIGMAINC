@@ -22,7 +22,7 @@ export function SignaturePadComponent({
   label = 'Digital Signature',
   required = false,
   className = '',
-  width = 600,
+  width: _width = 600,
   height = 200,
   savedSignature = null,
   isConfirmed = false,
