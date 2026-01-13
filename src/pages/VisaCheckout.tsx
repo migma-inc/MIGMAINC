@@ -16,7 +16,7 @@ import { DRAFT_STORAGE_KEY, countries, getPhoneCodeFromCountry } from '@/lib/vis
 import { getClientIP, calculateBaseTotal, calculateTotalWithFees } from '@/lib/visa-checkout-utils';
 import { validateStep1, type Step1FormData } from '@/lib/visa-checkout-validation';
 import { saveStep1Data, saveStep2Data, saveStep3Data } from '@/lib/visa-checkout-service';
-import { getContractTemplateByProductSlug, type ContractTemplate } from '@/lib/contract-templates';
+import { getContractTemplateByProductSlug, getChargebackAnnexTemplate, type ContractTemplate } from '@/lib/contract-templates';
 import { SignaturePadComponent } from '@/components/ui/signature-pad';
 import { ANNEX_I_HTML } from '@/lib/annex-text';
 import { processZellePaymentWithN8n } from '@/lib/zelle-n8n-integration';
@@ -104,7 +104,9 @@ export const VisaCheckout = () => {
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [dataAuthorization, setDataAuthorization] = useState(false);
   const [contractTemplate, setContractTemplate] = useState<ContractTemplate | null>(null);
+  const [chargebackAnnexTemplate, setChargebackAnnexTemplate] = useState<ContractTemplate | null>(null);
   const [loadingTemplate, setLoadingTemplate] = useState(false);
+  const [loadingAnnexTemplate, setLoadingAnnexTemplate] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<'card' | 'pix' | 'zelle' | 'wise' | 'parcelow'>('card');
   const [zelleReceipt, setZelleReceipt] = useState<File | null>(null);
   const [exchangeRate, setExchangeRate] = useState<number | null>(null);
@@ -720,32 +722,33 @@ export const VisaCheckout = () => {
   }, [productSlug, sellerId]);
 
   // Helper function to check if ANNEX I is required
-  // ANNEX I is required for: scholarship, i20-control, and selection-process products (COS and Transfer)
+  // ANNEX I is now REQUIRED for ALL products (universal payment authorization)
   const isAnnexRequired = (slug: string | undefined): boolean => {
-    if (!slug) return false;
-    return (
-      slug.endsWith('-scholarship') || 
-      slug.endsWith('-i20-control') ||
-      slug === 'cos-selection-process' ||
-      slug === 'transfer-selection-process'
-    );
+    // ANNEX I is now mandatory for all products
+    return !!slug;
   };
 
-  // Load contract template when productSlug is available and user is on step 3
-  // Skip loading template if ANNEX I is required
+  // Load templates when productSlug is available and user is on step 3
+  // ANNEX I is now required for ALL products, but we also load regular contract template if available
   useEffect(() => {
-    const loadContractTemplate = async () => {
+    const loadTemplates = async () => {
       if (!productSlug || currentStep !== 3) {
         return;
       }
 
-      // Don't load template if ANNEX I is required
-      if (isAnnexRequired(productSlug)) {
-        setContractTemplate(null);
-        setLoadingTemplate(false);
-        return;
+      // Always load chargeback annex template (required for all products)
+      setLoadingAnnexTemplate(true);
+      try {
+        const annexTemplate = await getChargebackAnnexTemplate(productSlug);
+        setChargebackAnnexTemplate(annexTemplate);
+      } catch (err) {
+        console.error('[VisaCheckout] Error loading chargeback annex template:', err);
+        setChargebackAnnexTemplate(null);
+      } finally {
+        setLoadingAnnexTemplate(false);
       }
 
+      // Also try to load regular contract template (optional, for additional terms)
       setLoadingTemplate(true);
       try {
         const template = await getContractTemplateByProductSlug(productSlug);
@@ -758,7 +761,7 @@ export const VisaCheckout = () => {
       }
     };
 
-    loadContractTemplate();
+    loadTemplates();
   }, [productSlug, currentStep]);
 
   // Check for existing signed contract
@@ -3123,34 +3126,43 @@ export const VisaCheckout = () => {
                     <CardTitle className="text-white text-lg sm:text-xl">Step 3: Terms & Payment</CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-4">
-                    {/* Contract Terms & Conditions */}
-                    <div className="p-3 sm:p-4 bg-blue-900/20 border border-blue-500/30 rounded-md">
-                      <h3 className="text-white font-semibold mb-2 text-sm sm:text-base">Terms & Conditions</h3>
-                      {isAnnexRequired(productSlug) ? (
-                        // Show ANNEX I for scholarship and i20-control products
+                    {/* ANNEX I - Universal Payment Authorization (Required for ALL products) */}
+                    <div className="p-3 sm:p-4 bg-blue-900/20 border border-blue-500/30 rounded-md mb-4">
+                      <h3 className="text-white font-semibold mb-2 text-sm sm:text-base">ANNEX I - Payment Authorization & Anti-Fraud Agreement</h3>
+                      {loadingAnnexTemplate ? (
+                        <div className="flex items-center justify-center py-8">
+                          <div className="text-gray-400 text-sm sm:text-base">Loading payment authorization terms...</div>
+                        </div>
+                      ) : chargebackAnnexTemplate ? (
+                        <div 
+                          className="text-xs sm:text-sm text-gray-300 space-y-2 max-h-96 overflow-y-auto prose prose-invert max-w-none"
+                          dangerouslySetInnerHTML={{ __html: chargebackAnnexTemplate.content }}
+                        />
+                      ) : (
+                        // Fallback to static ANNEX I if no template found in database
                         <div 
                           className="text-xs sm:text-sm text-gray-300 space-y-2 max-h-96 overflow-y-auto prose prose-invert max-w-none"
                           dangerouslySetInnerHTML={{ __html: ANNEX_I_HTML }}
                         />
-                      ) : loadingTemplate ? (
-                        <div className="flex items-center justify-center py-8">
-                          <div className="text-gray-400 text-sm sm:text-base">Loading contract terms...</div>
-                        </div>
-                      ) : contractTemplate ? (
-                        <div 
-                          className="text-xs sm:text-sm text-gray-300 space-y-2 max-h-96 overflow-y-auto prose prose-invert max-w-none"
-                          dangerouslySetInnerHTML={{ __html: contractTemplate.content }}
-                        />
-                      ) : (
-                        <div className="text-xs sm:text-sm text-gray-400 space-y-2">
-                          <p>No specific contract template found for this service.</p>
-                          <p className="font-semibold text-yellow-300 mt-4">
-                            By proceeding with payment, you acknowledge that chargebacks or payment disputes may result in legal action and 
-                            additional fees. All transactions are final and non-refundable except as explicitly stated in our refund policy.
-                          </p>
-                        </div>
                       )}
                     </div>
+
+                    {/* Additional Contract Terms (Optional - if template exists) */}
+                    {contractTemplate && (
+                      <div className="p-3 sm:p-4 bg-blue-900/20 border border-blue-500/30 rounded-md">
+                        <h3 className="text-white font-semibold mb-2 text-sm sm:text-base">Additional Terms & Conditions</h3>
+                        {loadingTemplate ? (
+                          <div className="flex items-center justify-center py-8">
+                            <div className="text-gray-400 text-sm sm:text-base">Loading contract terms...</div>
+                          </div>
+                        ) : (
+                          <div 
+                            className="text-xs sm:text-sm text-gray-300 space-y-2 max-h-96 overflow-y-auto prose prose-invert max-w-none"
+                            dangerouslySetInnerHTML={{ __html: contractTemplate.content }}
+                          />
+                        )}
+                      </div>
+                    )}
 
                     <div className="space-y-4">
                       <div className="flex items-start space-x-2 sm:space-x-3">
@@ -3170,17 +3182,14 @@ export const VisaCheckout = () => {
                           className={`min-w-[20px] min-h-[20px] ${step3Errors.termsAccepted ? 'border-2 border-red-500' : ''}`}
                         />
                         <Label htmlFor="terms-checkbox" className="text-white cursor-pointer text-sm sm:text-base break-words flex-1">
-                          {isAnnexRequired(productSlug) ? (
-                            <>I have read and agree to the ANNEX I – Payment Authorization & Non-Dispute Agreement above. *</>
-                          ) : contractTemplate ? (
-                            <>I have read and agree to the Terms & Conditions above. *</>
+                          {contractTemplate ? (
+                            <>
+                              I have read and agree to the ANNEX I – Universal Payment Authorization & Anti-Fraud Agreement above{' '}
+                              and the Additional Terms & Conditions. *
+                            </>
                           ) : (
                             <>
-                              I have read and agree to the Terms & Conditions above and the{' '}
-                              <Link to="/legal/visa-service-terms" target="_blank" className="text-gold-light hover:text-gold-medium underline">
-                                Visa Service Terms & Conditions
-                              </Link>
-                              {' '}and the Payment Terms & Anti-Chargeback Policy. *
+                              I have read and agree to the ANNEX I – Universal Payment Authorization & Anti-Fraud Agreement above. *
                             </>
                           )}
                         </Label>

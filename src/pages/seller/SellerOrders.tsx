@@ -376,9 +376,9 @@ export function SellerOrders() {
                             </Button>
                           </Link>
                           {(() => {
-                            const isAnnexProduct = order.product_slug?.endsWith('-scholarship') || order.product_slug?.endsWith('-i20-control');
-                            const pdfUrl = isAnnexProduct ? order.annex_pdf_url : order.contract_pdf_url;
-                            const pdfTitle = isAnnexProduct ? `ANNEX I - ${order.order_number}` : `Contract - ${order.order_number}`;
+                            // ANNEX I is now required for ALL products - prioritize annex_pdf_url if available
+                            const pdfUrl = order.annex_pdf_url || order.contract_pdf_url;
+                            const pdfTitle = order.annex_pdf_url ? `ANNEX I - ${order.order_number}` : `Contract - ${order.order_number}`;
                             
                             return pdfUrl && (
                               <Button 
@@ -389,7 +389,7 @@ export function SellerOrders() {
                                   setSelectedPdfTitle(pdfTitle);
                                 }}
                                 className="text-xs border-gold-medium/50 bg-black/50 text-gold-light hover:bg-black hover:border-gold-medium hover:text-gold-medium"
-                                title={isAnnexProduct ? "View ANNEX I PDF" : "View Contract PDF"}
+                                title={order.annex_pdf_url ? "View ANNEX I PDF" : "View Contract PDF"}
                               >
                                 <FileText className="w-3 h-3" />
                               </Button>

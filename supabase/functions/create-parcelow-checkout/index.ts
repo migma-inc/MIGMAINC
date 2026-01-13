@@ -73,11 +73,14 @@ class ParcelowClient {
     const response = await fetch(url, {
       method,
       headers: {
-        'Authorization': `Bearer ${token.substring(0, 10)}...`, // Log only first 10 chars for security
+        'Authorization': `Bearer ${token}`, // Use full token in request
         'Content-Type': 'application/json',
       },
       body: data ? JSON.stringify(data) : undefined,
     });
+    
+    // Log only first 10 chars for security
+    console.log(`[Parcelow API] Using token: ${token.substring(0, 10)}...`);
 
     console.log(`[Parcelow API] Response status: ${response.status} ${response.statusText}`);
 
@@ -198,6 +201,37 @@ Deno.serve(async (req: Request) => {
 
     console.log("[Parcelow Checkout] ✅ Order found:", order.order_number);
     console.log("[Parcelow Checkout] Order total_price_usd:", order.total_price_usd);
+    console.log("[Parcelow Checkout] Service Request ID:", order.service_request_id);
+
+    // Try to get client CPF from service_request -> client relationship
+    let clientCpf: string | null = null;
+    let clientBirthdate: string | null = null;
+    
+    if (order.service_request_id) {
+      try {
+        const { data: serviceRequest, error: srError } = await supabase
+          .from("service_requests")
+          .select("client_id")
+          .eq("id", order.service_request_id)
+          .single();
+        
+        if (!srError && serviceRequest?.client_id) {
+          const { data: client, error: clientError } = await supabase
+            .from("clients")
+            .select("document_number, date_of_birth")
+            .eq("id", serviceRequest.client_id)
+            .single();
+          
+          if (!clientError && client) {
+            clientCpf = client.document_number || null;
+            clientBirthdate = client.date_of_birth || null;
+            console.log("[Parcelow Checkout] ✅ Found client CPF from clients table");
+          }
+        }
+      } catch (error: any) {
+        console.warn("[Parcelow Checkout] ⚠️ Could not fetch client data:", error.message);
+      }
+    }
 
     // Check if order already has a Parcelow order
     if (order.parcelow_order_id) {
@@ -218,12 +252,26 @@ Deno.serve(async (req: Request) => {
     console.log("[Parcelow Checkout] Parcelow client initialized for environment:", parcelowEnvironment);
 
     // Prepare client data
+    // CPF is required by Parcelow - if not available, we'll need to handle this
+    const clientCpfToUse = clientCpf || order.client_cpf || '';
+    
+    if (!clientCpfToUse) {
+      console.error("[Parcelow Checkout] ❌ CPF is required but not found");
+      return new Response(
+        JSON.stringify({ 
+          error: "CPF is required for Parcelow payment. Please ensure client document is provided.",
+          details: "CPF not found in order or client data"
+        }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     const clientData = {
-      cpf: order.client_cpf || '', // Required - might need to be collected in frontend
+      cpf: clientCpfToUse,
       name: order.client_name,
       email: order.client_email,
       phone: order.client_whatsapp || '',
-      birthdate: order.client_birthdate, // Format: "YYYY-MM-DD" - might need to be collected
+      birthdate: clientBirthdate || order.client_birthdate || undefined, // Format: "YYYY-MM-DD"
       cep: order.client_cep,
       address_street: order.client_address_street,
       address_number: order.client_address_number,
@@ -232,6 +280,13 @@ Deno.serve(async (req: Request) => {
       address_state: order.client_address_state,
       address_complement: order.client_address_complement,
     };
+    
+    console.log("[Parcelow Checkout] Client data prepared:", {
+      cpf: clientCpfToUse.substring(0, 3) + "***", // Log only first 3 digits for security
+      name: clientData.name,
+      email: clientData.email,
+      hasBirthdate: !!clientData.birthdate,
+    });
 
     // Prepare order items
     const amountInCents = Math.round(parseFloat(order.total_price_usd) * 100);
@@ -343,11 +398,15 @@ Deno.serve(async (req: Request) => {
     console.error("[Parcelow Checkout] ========== ❌ ERROR OCCURRED ==========");
     console.error("[Parcelow Checkout] Error message:", error.message);
     console.error("[Parcelow Checkout] Error stack:", error.stack);
+    console.error("[Parcelow Checkout] Error name:", error.name);
+    console.error("[Parcelow Checkout] Full error:", JSON.stringify(error, null, 2));
     
+    // Return more detailed error for debugging
     return new Response(
       JSON.stringify({ 
         error: error.message || "Failed to create Parcelow checkout",
-        details: error.stack 
+        details: process.env.NODE_ENV === 'development' ? error.stack : undefined,
+        type: error.name || 'UnknownError'
       }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );

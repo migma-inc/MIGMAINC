@@ -161,11 +161,9 @@ export const VisaOrdersPage = () => {
                         </td>
                         <td className="py-3 px-4">
                           {(() => {
-                            // For scholarship and i20-control products, check annex_pdf_url
-                            // For other products, check contract_pdf_url
-                            const isAnnexProduct = order.product_slug?.endsWith('-scholarship') || order.product_slug?.endsWith('-i20-control');
-                            const pdfUrl = isAnnexProduct ? order.annex_pdf_url : order.contract_pdf_url;
-                            const pdfTitle = isAnnexProduct ? `ANNEX I - ${order.order_number}` : `Contract - ${order.order_number}`;
+                            // ANNEX I is now required for ALL products - prioritize annex_pdf_url if available
+                            const pdfUrl = order.annex_pdf_url || order.contract_pdf_url;
+                            const pdfTitle = order.annex_pdf_url ? `ANNEX I - ${order.order_number}` : `Contract - ${order.order_number}`;
                             
                             return pdfUrl ? (
                               <Button
@@ -207,9 +205,9 @@ export const VisaOrdersPage = () => {
                 {/* Mobile Cards */}
                 <div className="md:hidden space-y-4">
                   {orders.map((order) => {
-                    const isAnnexProduct = order.product_slug?.endsWith('-scholarship') || order.product_slug?.endsWith('-i20-control');
-                    const pdfUrl = isAnnexProduct ? order.annex_pdf_url : order.contract_pdf_url;
-                    const pdfTitle = isAnnexProduct ? `ANNEX I - ${order.order_number}` : `Contract - ${order.order_number}`;
+                    // ANNEX I is now required for ALL products - prioritize annex_pdf_url if available
+                    const pdfUrl = order.annex_pdf_url || order.contract_pdf_url;
+                    const pdfTitle = order.annex_pdf_url ? `ANNEX I - ${order.order_number}` : `Contract - ${order.order_number}`;
                     
                     return (
                       <Card key={order.id} className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30">

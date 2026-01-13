@@ -631,9 +631,9 @@ export const VisaOrderDetailPage = () => {
                 </div>
               )}
               {(() => {
-                const isAnnexProduct = order.product_slug?.endsWith('-scholarship') || order.product_slug?.endsWith('-i20-control');
-                const pdfUrl = isAnnexProduct ? order.annex_pdf_url : order.contract_pdf_url;
-                const pdfTitle = isAnnexProduct ? 'ANNEX I PDF' : 'Contract PDF';
+                // ANNEX I is now required for ALL products - prioritize annex_pdf_url if available
+                const pdfUrl = order.annex_pdf_url || order.contract_pdf_url;
+                const pdfTitle = order.annex_pdf_url ? 'ANNEX I PDF' : 'Contract PDF';
                 
                 return pdfUrl && (
                   <div className="pt-3 border-t border-gold-medium/30">
@@ -660,9 +660,9 @@ export const VisaOrderDetailPage = () => {
 
       {/* PDF Modal */}
       {(() => {
-        const isAnnexProduct = order?.product_slug?.endsWith('-scholarship') || order?.product_slug?.endsWith('-i20-control');
-        const pdfUrl = isAnnexProduct ? order?.annex_pdf_url : order?.contract_pdf_url;
-        const pdfTitle = isAnnexProduct ? `ANNEX I - ${order?.order_number}` : `Contract - ${order?.order_number}`;
+        // ANNEX I is now required for ALL products - prioritize annex_pdf_url if available
+        const pdfUrl = order?.annex_pdf_url || order?.contract_pdf_url;
+        const pdfTitle = order?.annex_pdf_url ? `ANNEX I - ${order?.order_number}` : `Contract - ${order?.order_number}`;
         
         return pdfUrl && (
           <PdfModal

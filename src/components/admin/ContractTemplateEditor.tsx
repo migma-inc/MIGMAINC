@@ -50,7 +50,8 @@ export function ContractTemplateEditor({
         setPlainTextContent(formatHtmlToContractText(template.content));
         setIsActive(template.is_active);
         setTemplateType((template.template_type || 'global_partner') as ContractTemplateType);
-        setProductSlug(template.product_slug || '');
+        // Use "__global__" as special value for null product_slug (for chargeback_annex)
+        setProductSlug(template.product_slug || (template.template_type === 'chargeback_annex' ? '__global__' : ''));
         setEditMode('text'); // Default to text mode for easier editing
       } else {
         // Create mode - use defaultTemplateType prop
@@ -60,16 +61,17 @@ export function ContractTemplateEditor({
         setHtmlContent('');
         setIsActive(true);
         setTemplateType(defaultTemplateType);
-        setProductSlug('');
+        // For chargeback_annex, default to "__global__" for global template
+        setProductSlug(defaultTemplateType === 'chargeback_annex' ? '__global__' : '');
         setEditMode('text');
       }
       setErrors({});
     }
   }, [isOpen, template]);
 
-  // Load visa products when template type is visa_service
+  // Load visa products when template type is visa_service or chargeback_annex
   useEffect(() => {
-    if (isOpen && templateType === 'visa_service') {
+    if (isOpen && (templateType === 'visa_service' || templateType === 'chargeback_annex')) {
       loadVisaProducts();
     } else {
       setVisaProducts([]);
@@ -123,6 +125,7 @@ export function ContractTemplateEditor({
     if (templateType === 'visa_service' && !productSlug.trim()) {
       newErrors.product_slug = 'Product selection is required for Visa Service templates';
     }
+    // chargeback_annex can have product_slug (optional) or be global (null)
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -144,7 +147,11 @@ export function ContractTemplateEditor({
       content: finalHtmlContent.trim(),
       is_active: isActive,
       template_type: templateType,
-      product_slug: templateType === 'visa_service' ? productSlug.trim() : undefined,
+      product_slug: templateType === 'visa_service' 
+        ? productSlug.trim() 
+        : templateType === 'chargeback_annex'
+        ? (productSlug.trim() === '__global__' || productSlug.trim() === '' ? undefined : productSlug.trim())
+        : undefined,
     };
 
     await onSave(data);
@@ -227,6 +234,7 @@ export function ContractTemplateEditor({
               onValueChange={(value) => {
                 setTemplateType(value as ContractTemplateType);
                 // Clear product_slug when switching to global_partner
+                // chargeback_annex can have product_slug (optional), so keep it
                 if (value === 'global_partner') {
                   setProductSlug('');
                 }
@@ -243,11 +251,15 @@ export function ContractTemplateEditor({
             </Select>
           </div>
 
-          {/* Product Slug (only for visa_service) */}
-          {templateType === 'visa_service' && (
+          {/* Product Slug (for visa_service - required, for chargeback_annex - optional) */}
+          {(templateType === 'visa_service' || templateType === 'chargeback_annex') && (
             <div>
               <Label htmlFor="product-slug" className="text-white mb-2 block">
-                Visa Service Product <span className="text-red-500">*</span>
+                {templateType === 'visa_service' ? (
+                  <>Visa Service Product <span className="text-red-500">*</span></>
+                ) : (
+                  <>Product (Optional - leave empty for global template)</>
+                )}
               </Label>
               {loadingProducts ? (
                 <div className="flex items-center gap-2 text-gray-400 py-2">
@@ -256,16 +268,19 @@ export function ContractTemplateEditor({
                 </div>
               ) : (
                 <Select
-                  value={productSlug}
-                  onValueChange={setProductSlug}
+                  value={productSlug || (templateType === 'chargeback_annex' ? '__global__' : '')}
+                  onValueChange={(value) => setProductSlug(value)}
                   disabled={isLoading || loadingProducts}
                 >
                   <SelectTrigger className="bg-white text-black">
-                    <SelectValue placeholder="Select a visa service product..." />
+                    <SelectValue placeholder={templateType === 'chargeback_annex' ? "Select a product or leave as Global..." : "Select a visa service product..."} />
                   </SelectTrigger>
                   <SelectContent>
+                    {templateType === 'chargeback_annex' && (
+                      <SelectItem value="__global__">Global (All Products)</SelectItem>
+                    )}
                     {visaProducts.length === 0 ? (
-                      <SelectItem value="" disabled>
+                      <SelectItem value="__no_products__" disabled>
                           No active products found
                       </SelectItem>
                     ) : (
@@ -282,7 +297,9 @@ export function ContractTemplateEditor({
                 <p className="text-red-500 text-sm mt-1">{errors.product_slug}</p>
               )}
               <p className="text-xs text-gray-400 mt-1">
-                Select the visa service product this template will be used for in the checkout Step 3.
+                {templateType === 'visa_service' 
+                  ? 'Select the visa service product this template will be used for in the checkout Step 3.'
+                  : 'Select a specific product for this chargeback annex template, or leave empty to create a global template used for all products.'}
               </p>
             </div>
           )}

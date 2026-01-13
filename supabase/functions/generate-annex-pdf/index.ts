@@ -15,63 +15,112 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-// ANNEX I text (plain text version for PDF)
-const ANNEX_I_TEXT = `ANNEX I – PAYMENT AUTHORIZATION & NON-DISPUTE AGREEMENT
+// Helper function to convert HTML to plain text for PDF
+const convertHtmlToText = (html: string): string => {
+  if (!html) return '';
+  
+  // Remove script and style tags and their content
+  let text = html.replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '');
+  text = text.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '');
+  
+  // Replace common HTML tags with appropriate text formatting
+  text = text.replace(/<h[1-6][^>]*>/gi, '\n\n');
+  text = text.replace(/<\/h[1-6]>/gi, '\n');
+  text = text.replace(/<p[^>]*>/gi, '\n');
+  text = text.replace(/<\/p>/gi, '\n');
+  text = text.replace(/<br[^>]*>/gi, '\n');
+  text = text.replace(/<li[^>]*>/gi, '\n• ');
+  text = text.replace(/<\/li>/gi, '');
+  text = text.replace(/<ul[^>]*>/gi, '\n');
+  text = text.replace(/<\/ul>/gi, '\n');
+  text = text.replace(/<ol[^>]*>/gi, '\n');
+  text = text.replace(/<\/ol>/gi, '\n');
+  text = text.replace(/<strong[^>]*>/gi, '');
+  text = text.replace(/<\/strong>/gi, '');
+  text = text.replace(/<b[^>]*>/gi, '');
+  text = text.replace(/<\/b>/gi, '');
+  text = text.replace(/<em[^>]*>/gi, '');
+  text = text.replace(/<\/em>/gi, '');
+  text = text.replace(/<i[^>]*>/gi, '');
+  text = text.replace(/<\/i>/gi, '');
+  text = text.replace(/<section[^>]*>/gi, '\n');
+  text = text.replace(/<\/section>/gi, '\n');
+  text = text.replace(/<div[^>]*>/gi, '\n');
+  text = text.replace(/<\/div>/gi, '\n');
+  
+  // Remove all remaining HTML tags
+  text = text.replace(/<[^>]+>/g, '');
+  
+  // Decode HTML entities
+  text = text.replace(/&nbsp;/g, ' ');
+  text = text.replace(/&amp;/g, '&');
+  text = text.replace(/&lt;/g, '<');
+  text = text.replace(/&gt;/g, '>');
+  text = text.replace(/&quot;/g, '"');
+  text = text.replace(/&#39;/g, "'");
+  
+  // Clean up multiple newlines
+  text = text.replace(/\n{3,}/g, '\n\n');
+  
+  // Trim whitespace
+  text = text.trim();
+  
+  return text;
+};
 
-This Annex is an integral part of the Educational Services Agreement entered into between MIGMA INC. and the CLIENT.
+// Fallback ANNEX I text (if template not found in database)
+const FALLBACK_ANNEX_I_TEXT = `ANNEX I — UNIVERSAL PAYMENT AUTHORIZATION & ANTI-FRAUD AGREEMENT
+(PAYMENT TERMS & NON-DISPUTE COMMITMENT)
 
-1. CLIENT IDENTIFICATION
+This Annex is an integral and inseparable part of any and all service agreements entered into between MIGMA INC. and the CLIENT. By proceeding with the payment, the CLIENT acknowledges and accepts these terms.
 
-The individual identified at the end of this Agreement ("CLIENT").
+1. SCOPE OF AUTHORIZATION
 
-2. PAYMENT AUTHORIZATION
+The CLIENT expressly authorizes the charge(s) related to the contracted educational, mentorship, or operational services. This authorization applies to:
 
-The CLIENT expressly declares that:
+- Initial Fees: Selection process fees, academic matching, or onboarding fees.
+- Service Balances: Remaining payments for full service packages.
+- Extra Operational Fees: Document corrections, rescheduling, or additional support.
+- Dependent Fees: Charges for family members or additional applicants.
 
-a) All payments made to MIGMA INC. are voluntary, informed, and authorized;
-b) The CLIENT is fully aware of the service contracted, its nature, scope, and limitations;
-c) Payments may be processed through international or intermediary platforms;
-d) The total amount charged may include administrative processing fees (e.g., credit card fees) as agreed in the main Agreement.
+2. NATURE OF SERVICES & COMMENCEMENT
 
-3. NATURE OF SERVICES & NO CHARGEBACK BASIS
+The CLIENT acknowledges that MIGMA INC. provides intangible, intellectual, and personalized services.
+
+- Execution of the services (profile analysis, portal access, institutional contact, or document review) begins immediately upon payment confirmation.
+- The CLIENT understands that MIGMA INC. is an educational consultancy, not a law firm, and cannot guarantee outcomes dependent on third parties (e.g., U.S. Consulates, USCIS, or Universities).
+
+3. IRREVOCABLE NON-DISPUTE COMMITMENT
+
+The CLIENT irrevocably agrees not to initiate chargebacks, payment disputes, or reversals with their bank or card issuer based on the following:
+
+- Subjective Dissatisfaction: Dissatisfaction with decisions made by government authorities or educational institutions (e.g., visa denials or admission rejections).
+- External Delays: Changes in processing times or policies imposed by third parties.
+- Financial Surcharges: Applied taxes (IOF), currency exchange fluctuations, or credit card interest/installment fees.
+- Transaction Recognition: Claims of "unrecognized transaction" when the CLIENT has signed the main agreement or accessed the service portal.
+
+4. MANDATORY PRE-DISPUTE RESOLUTION
+
+Before initiating any formal dispute with a financial institution, the CLIENT is contractually obligated to contact MIGMA INC. via official support channels to seek an internal resolution. Initiating a chargeback without prior written contact with the COMPANY constitutes a material breach of contract.
+
+5. EVIDENCE FOR DISPUTE DEFENSE
+
+In the event of a chargeback attempt, the CLIENT expressly authorizes MIGMA INC. to submit the following evidence to banks and payment processors:
+
+- Logs: IP address, device metadata, date/time stamps of the transaction, and portal login records.
+- Identity: Electronic signatures and any uploaded identification documents (Selfie/ID).
+- Engagement: Records of communications (WhatsApp/Email) and proof of digital delivery of the services (e.g., school lists, DS-160 drafts, or mentorship materials).
+
+6. INTERNATIONAL PROCESSING & CURRENCY
 
 The CLIENT acknowledges that:
 
-a) The services are personalized, intellectual, and initiated immediately upon payment;
-b) The COMPANY provides educational mentorship and academic guidance, not legal services;
-c) Once services commence, payments are non-refundable, except as expressly stated in the main Agreement.
+- Charges may appear on statements under the name MIGMA INC. or the name of the Payment Processor (e.g., Parcelow, Wise, Stripe, etc.).
+- MIGMA INC. is a U.S. corporation; therefore, all local taxes and conversion fees are the sole responsibility of the CLIENT. The COMPANY must receive the net USD amount agreed upon.
 
-4. NON-DISPUTE COMMITMENT
+7. FINAL DECLARATION
 
-The CLIENT agrees that they will not initiate chargebacks, payment disputes, or claims based on:
-
-- alleged lack of recognition of the transaction;
-- dissatisfaction with outcomes dependent on third parties;
-- discrepancies related to currency exchange rates, local taxes (IOF), or credit card processing fees;
-- processing times of institutions or authorities;
-- misunderstanding of service scope already clarified in the Agreement.
-
-5. PRIOR INTERNAL RESOLUTION
-
-Before initiating any bank or platform dispute, the CLIENT agrees to first contact MIGMA INC. through official support channels for resolution.
-
-6. EVIDENCE AUTHORIZATION
-
-In case of a payment dispute, the CLIENT authorizes MIGMA INC. to use the following as evidence:
-
-- electronic signature
-- selfie holding identification document (if applicable)
-- IP address, date, and time logs
-- signed Agreement and Annex
-- communication records related to service delivery
-
-7. INTERNATIONAL PROCESSING & CURRENCY CONSENT
-
-The CLIENT acknowledges that charges may appear under different corporate or platform descriptors due to international payment processing. Furthermore, if paying in a currency other than USD, the CLIENT accepts sole responsibility for exchange rates and conversion fees applied by their bank or card issuer.
-
-8. FINAL DECLARATION
-
-The CLIENT declares that they have read, understood, and voluntarily accepted this Payment Authorization and Non-Dispute Agreement.`;
+The CLIENT declares they have read this Annex, understand its legal implications regarding the prevention of payment fraud and unjustified chargebacks, and voluntarily proceed with this transaction.`;
 
 Deno.serve(async (req) => {
   // Handle CORS
@@ -121,8 +170,57 @@ Deno.serve(async (req) => {
       console.error("[EDGE FUNCTION] Error fetching product:", productError);
     }
 
+    // Fetch chargeback annex template from database
+    // First try product-specific, then fall back to global template
+    let annexTemplateContent: string | null = null;
+    try {
+      // Try product-specific template first
+      if (order.product_slug) {
+        const { data: productSpecificTemplate, error: productTemplateError } = await supabase
+          .from('contract_templates')
+          .select('content')
+          .eq('template_type', 'chargeback_annex')
+          .eq('product_slug', order.product_slug)
+          .eq('is_active', true)
+          .maybeSingle();
+
+        if (!productTemplateError && productSpecificTemplate) {
+          annexTemplateContent = productSpecificTemplate.content;
+          console.log("[EDGE FUNCTION] Found product-specific chargeback annex template");
+        }
+      }
+
+      // If no product-specific template, try global template
+      if (!annexTemplateContent) {
+        const { data: globalTemplate, error: globalTemplateError } = await supabase
+          .from('contract_templates')
+          .select('content')
+          .eq('template_type', 'chargeback_annex')
+          .is('product_slug', null)
+          .eq('is_active', true)
+          .maybeSingle();
+
+        if (!globalTemplateError && globalTemplate) {
+          annexTemplateContent = globalTemplate.content;
+          console.log("[EDGE FUNCTION] Found global chargeback annex template");
+        }
+      }
+
+      if (!annexTemplateContent) {
+        console.log("[EDGE FUNCTION] No chargeback annex template found in database, using fallback");
+      }
+    } catch (templateError) {
+      console.error("[EDGE FUNCTION] Error fetching chargeback annex template:", templateError);
+    }
+
+    // Convert HTML template to plain text for PDF, or use fallback
+    const annexText = annexTemplateContent 
+      ? convertHtmlToText(annexTemplateContent)
+      : FALLBACK_ANNEX_I_TEXT;
+
     // Fetch identity files
     // For scholarship and i20-control products, we need to get documents from the previous selection-process order
+    // For other products, use current order's documents
     let identityFiles: { document_front: string | null; document_back: string | null; selfie_doc: string | null } = {
       document_front: null,
       document_back: null,
@@ -131,7 +229,7 @@ Deno.serve(async (req) => {
 
     let serviceRequestIdToUse: string | null = null;
 
-    // Check if this is a scholarship or i20-control product
+    // Check if this is a scholarship or i20-control product (these need documents from previous order)
     const isAnnexProduct = order.product_slug?.endsWith('-scholarship') || order.product_slug?.endsWith('-i20-control');
     
     if (isAnnexProduct) {
@@ -457,7 +555,7 @@ Deno.serve(async (req) => {
     pdf.setFontSize(10);
     pdf.setFont('helvetica', 'normal');
     currentY = addWrappedText(
-      ANNEX_I_TEXT,
+      annexText,
       margin,
       currentY,
       pageWidth - margin * 2,

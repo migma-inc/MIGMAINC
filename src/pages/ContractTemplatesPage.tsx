@@ -307,7 +307,7 @@ export function ContractTemplatesPage() {
             Contract Templates
           </h1>
           <p className="text-gray-400 mt-1">
-            Manage reusable contract templates for partner applications
+            Manage reusable contract templates for partner applications, visa services, and chargeback terms
           </p>
         </div>
         <Button onClick={handleCreate} className="btn btn-primary">
@@ -330,6 +330,12 @@ export function ContractTemplatesPage() {
             className="data-[state=active]:bg-gold-medium/20 data-[state=active]:text-gold-light"
           >
             Visa Services
+          </TabsTrigger>
+          <TabsTrigger 
+            value="chargeback_annex"
+            className="data-[state=active]:bg-gold-medium/20 data-[state=active]:text-gold-light"
+          >
+            Chargeback Annex
           </TabsTrigger>
         </TabsList>
 
@@ -354,6 +360,11 @@ export function ContractTemplatesPage() {
 
         {/* Visa Services Templates */}
         <TabsContent value="visa_service">
+          {renderTemplatesList()}
+        </TabsContent>
+
+        {/* Chargeback Annex Templates */}
+        <TabsContent value="chargeback_annex">
           {renderTemplatesList()}
         </TabsContent>
       </Tabs>
@@ -438,15 +449,27 @@ export function ContractTemplatesPage() {
                     {template.description && (
                       <p className="text-sm text-gray-400 mb-2">{template.description}</p>
                     )}
-                    <Badge
-                      className={
-                        template.is_active
-                          ? 'bg-green-500/20 text-green-300 border-green-500/50'
-                          : 'bg-gray-500/20 text-gray-300 border-gray-500/50'
-                      }
-                    >
-                      {template.is_active ? 'Active' : 'Inactive'}
-                    </Badge>
+                    <div className="flex flex-wrap gap-2 mb-2">
+                      <Badge
+                        className={
+                          template.is_active
+                            ? 'bg-green-500/20 text-green-300 border-green-500/50'
+                            : 'bg-gray-500/20 text-gray-300 border-gray-500/50'
+                        }
+                      >
+                        {template.is_active ? 'Active' : 'Inactive'}
+                      </Badge>
+                      {(template.template_type === 'visa_service' || template.template_type === 'chargeback_annex') && template.product_slug && (
+                        <Badge className="bg-blue-500/20 text-blue-300 border-blue-500/50">
+                          {template.product_slug}
+                        </Badge>
+                      )}
+                      {template.template_type === 'chargeback_annex' && !template.product_slug && (
+                        <Badge className="bg-purple-500/20 text-purple-300 border-purple-500/50">
+                          Global
+                        </Badge>
+                      )}
+                    </div>
                   </div>
                 </div>
               </CardHeader>

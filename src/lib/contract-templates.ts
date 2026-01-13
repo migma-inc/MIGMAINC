@@ -5,7 +5,7 @@
 
 import { adminSupabase } from './auth';
 
-export type ContractTemplateType = 'global_partner' | 'visa_service';
+export type ContractTemplateType = 'global_partner' | 'visa_service' | 'chargeback_annex';
 
 export interface ContractTemplate {
   id: string;
@@ -140,7 +140,7 @@ export async function getContractTemplatesByType(
 
       return filtered;
     } else {
-      // For visa_service, only get templates with that specific type
+      // For visa_service and chargeback_annex, only get templates with that specific type
       const { data, error } = await adminSupabase
         .from('contract_templates')
         .select('*')
@@ -187,6 +187,62 @@ export async function getContractTemplateByProductSlug(
     return data;
   } catch (error) {
     console.error('[CONTRACT_TEMPLATES] Exception fetching template by product slug:', error);
+    return null;
+  }
+}
+
+/**
+ * Get chargeback annex template (ANNEX I)
+ * First tries to find a product-specific template, then falls back to global template
+ * @param productSlug - Optional product slug for product-specific annex
+ */
+export async function getChargebackAnnexTemplate(
+  productSlug?: string
+): Promise<ContractTemplate | null> {
+  try {
+    // First, try to find product-specific annex template
+    if (productSlug) {
+      const { data: productSpecific, error: productError } = await adminSupabase
+        .from('contract_templates')
+        .select('*')
+        .eq('template_type', 'chargeback_annex')
+        .eq('product_slug', productSlug)
+        .eq('is_active', true)
+        .maybeSingle();
+
+      if (!productError && productSpecific) {
+        console.log('[CONTRACT_TEMPLATES] Found product-specific chargeback annex for:', productSlug);
+        return productSpecific;
+      }
+    }
+
+    // Fall back to global chargeback annex template (product_slug is NULL)
+    const { data: globalTemplate, error: globalError } = await adminSupabase
+      .from('contract_templates')
+      .select('*')
+      .eq('template_type', 'chargeback_annex')
+      .is('product_slug', null)
+      .eq('is_active', true)
+      .maybeSingle();
+
+    if (globalError) {
+      // Not found is not an error, just return null
+      if (globalError.code === 'PGRST116') {
+        console.log('[CONTRACT_TEMPLATES] No chargeback annex template found');
+        return null;
+      }
+      console.error('[CONTRACT_TEMPLATES] Error fetching chargeback annex template:', globalError);
+      return null;
+    }
+
+    if (globalTemplate) {
+      console.log('[CONTRACT_TEMPLATES] Found global chargeback annex template');
+      return globalTemplate;
+    }
+
+    return null;
+  } catch (error) {
+    console.error('[CONTRACT_TEMPLATES] Exception fetching chargeback annex template:', error);
     return null;
   }
 }
@@ -306,8 +362,16 @@ export async function createContractTemplate(
     // Default to 'global_partner' if not specified (backward compatibility)
     const templateType = data.template_type || 'global_partner';
 
-    // If global_partner, ensure product_slug is null
-    const productSlug = templateType === 'global_partner' ? null : data.product_slug || null;
+    // Handle product_slug based on template type
+    let productSlug: string | null = null;
+    if (templateType === 'global_partner') {
+      productSlug = null;
+    } else if (templateType === 'visa_service') {
+      productSlug = data.product_slug || null;
+    } else if (templateType === 'chargeback_annex') {
+      // chargeback_annex can have product_slug (specific) or null (global)
+      productSlug = data.product_slug || null;
+    }
 
     // If creating an active visa_service template, check if there's already an active one
     const willBeActive = data.is_active !== undefined ? data.is_active : true;
@@ -406,7 +470,7 @@ export async function updateContractTemplate(
     
     updateData.template_type = newTemplateType;
 
-    // Validate: if template_type is 'visa_service', product_slug must be provided
+    // Handle product_slug based on template type
     if (newTemplateType === 'visa_service') {
       const newProductSlug = data.product_slug !== undefined 
         ? data.product_slug 
@@ -419,9 +483,14 @@ export async function updateContractTemplate(
         };
       }
       updateData.product_slug = newProductSlug;
-    } else {
+    } else if (newTemplateType === 'global_partner') {
       // If global_partner, ensure product_slug is null
       updateData.product_slug = null;
+    } else if (newTemplateType === 'chargeback_annex') {
+      // chargeback_annex can have product_slug (specific) or null (global)
+      updateData.product_slug = data.product_slug !== undefined 
+        ? data.product_slug 
+        : currentTemplate.product_slug || null;
     }
 
     const { data: template, error } = await adminSupabase
