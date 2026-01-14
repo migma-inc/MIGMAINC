@@ -204,7 +204,7 @@ export interface ParcelowWebhookEvent {
 }
 
 export interface ParcelowClientConfig {
-  clientId: number;
+  clientId: number | string; // Can be numeric ID or hex string
   clientSecret: string;
   environment: 'staging' | 'production';
   webhookUrl?: string;
