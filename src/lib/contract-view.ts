@@ -3,39 +3,40 @@ import { supabase } from './supabase';
 /**
  * Gera um token único para visualização de contrato assinado
  * @param acceptanceId - ID do aceite de termos (contrato assinado)
- * @param expiresInDays - Dias até o token expirar (padrão: 90 dias)
+ * @param expiresInDays - Dias até o token expirar (null = infinito, padrão: null)
  * @returns Token único gerado ou null se houver erro
  */
 export async function generateContractViewToken(
   acceptanceId: string,
-  expiresInDays: number = 90
-): Promise<{ token: string; expiresAt: Date } | null> {
+  expiresInDays: number | null = null
+): Promise<{ token: string; expiresAt: Date | null } | null> {
   try {
     // Verificar se já existe token para este contrato
     const { data: existingToken } = await supabase
       .from('partner_contract_view_tokens')
-      .select('id, expires_at')
+      .select('id, expires_at, token')
       .eq('acceptance_id', acceptanceId)
       .single();
 
-    // Se existe token válido, retornar o existente
+    // Se existe token válido (não expirado ou infinito), retornar o existente
     if (existingToken) {
+      // Se expires_at é NULL, token é infinito - sempre válido
+      if (existingToken.expires_at === null) {
+        return {
+          token: existingToken.token,
+          expiresAt: null,
+        };
+      }
+      
+      // Se tem expiração, verificar se ainda é válido
       const expiresAt = new Date(existingToken.expires_at);
       const now = new Date();
       if (now < expiresAt) {
-        // Token ainda válido, buscar o token completo
-        const { data: tokenData } = await supabase
-          .from('partner_contract_view_tokens')
-          .select('token, expires_at')
-          .eq('id', existingToken.id)
-          .single();
-        
-        if (tokenData) {
-          return {
-            token: tokenData.token,
-            expiresAt: new Date(tokenData.expires_at),
-          };
-        }
+        // Token ainda válido
+        return {
+          token: existingToken.token,
+          expiresAt: expiresAt,
+        };
       } else {
         // Token expirado, deletar e criar novo
         await supabase
@@ -48,17 +49,20 @@ export async function generateContractViewToken(
     // Gerar token único
     const token = `view_${Date.now()}_${Math.random().toString(36).substring(2, 15)}_${Math.random().toString(36).substring(2, 15)}`;
     
-    // Calcular data de expiração
-    const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + expiresInDays);
+    // Calcular data de expiração (null = infinito)
+    let expiresAt: Date | null = null;
+    if (expiresInDays !== null) {
+      expiresAt = new Date();
+      expiresAt.setDate(expiresAt.getDate() + expiresInDays);
+    }
 
-    // Inserir token no banco
+    // Inserir token no banco (expires_at pode ser NULL para tokens infinitos)
     const { error } = await supabase
       .from('partner_contract_view_tokens')
       .insert({
         acceptance_id: acceptanceId,
         token: token,
-        expires_at: expiresAt.toISOString(),
+        expires_at: expiresAt ? expiresAt.toISOString() : null,
       });
 
     if (error) {
@@ -92,13 +96,16 @@ export async function validateContractViewToken(token: string) {
       return null;
     }
 
-    // Verificar se expirou
-    const now = new Date();
-    const expiresAt = new Date(tokenData.expires_at);
-    if (now > expiresAt) {
-      console.log('[CONTRACT_VIEW] Token expired');
-      return null;
+    // Verificar se expirou (NULL = infinito, nunca expira)
+    if (tokenData.expires_at !== null) {
+      const now = new Date();
+      const expiresAt = new Date(tokenData.expires_at);
+      if (now > expiresAt) {
+        console.log('[CONTRACT_VIEW] Token expired');
+        return null;
+      }
     }
+    // Se expires_at é NULL, token é infinito - sempre válido
 
     // Fetch the acceptance
     const { data: acceptance, error: acceptanceError } = await supabase

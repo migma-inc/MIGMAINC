@@ -120,6 +120,7 @@ export function SellerAnalytics() {
   const previousSummary = analyticsData?.comparison ? {
     revenue: analyticsData.summary.totalRevenue - (analyticsData.summary.totalRevenue * analyticsData.comparison.revenueChange / 100),
     sales: analyticsData.summary.totalSales - Math.round((analyticsData.summary.totalSales * analyticsData.comparison.salesChange / 100)),
+    soldContracts: analyticsData.summary.soldContracts - Math.round((analyticsData.summary.soldContracts * analyticsData.comparison.salesChange / 100)),
     completedOrders: analyticsData.summary.completedOrders - Math.round((analyticsData.summary.completedOrders * analyticsData.comparison.completedOrdersChange / 100)),
     commissions: analyticsData.commissionSummary?.totalCommissions 
       ? analyticsData.commissionSummary.totalCommissions - (analyticsData.commissionSummary.totalCommissions * analyticsData.comparison.commissionChange / 100)
@@ -220,15 +221,17 @@ export function SellerAnalytics() {
               icon={<DollarSign className="w-5 h-5 text-gold-light" />}
             />
             <ComparisonCard
-              title="Total Sales"
-              currentValue={analyticsData.summary.totalSales}
-              previousValue={previousSummary.sales}
+              title="Contratos Vendidos"
+              currentValue={analyticsData.summary.soldContracts}
+              previousValue={previousSummary.soldContracts}
+              formatValue={(v) => Math.round(v).toLocaleString('en-US')}
               icon={<ShoppingCart className="w-5 h-5 text-gold-light" />}
             />
             <ComparisonCard
               title="Completed Orders"
               currentValue={analyticsData.summary.completedOrders}
               previousValue={previousSummary.completedOrders}
+              formatValue={(v) => Math.round(v).toLocaleString('en-US')}
               icon={<CheckCircle className="w-5 h-5 text-green-400" />}
             />
             {analyticsData.commissionSummary && (
@@ -275,8 +278,8 @@ export function SellerAnalytics() {
               <CardContent className="p-4 sm:p-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-xs sm:text-sm text-gray-400">Total Sales</p>
-                    <p className="text-2xl sm:text-3xl font-bold text-white">{analyticsData.summary.totalSales}</p>
+                    <p className="text-xs sm:text-sm text-gray-400">Contratos Vendidos</p>
+                    <p className="text-2xl sm:text-3xl font-bold text-white">{Math.round(analyticsData.summary.soldContracts).toLocaleString('en-US')}</p>
                   </div>
                   <ShoppingCart className="w-8 h-8 sm:w-10 sm:h-10 text-gold-light shrink-0" />
                 </div>
@@ -287,7 +290,7 @@ export function SellerAnalytics() {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-xs sm:text-sm text-gray-400">Completed Orders</p>
-                    <p className="text-2xl sm:text-3xl font-bold text-green-300">{analyticsData.summary.completedOrders}</p>
+                    <p className="text-2xl sm:text-3xl font-bold text-green-300">{Math.round(analyticsData.summary.completedOrders).toLocaleString('en-US')}</p>
                   </div>
                   <CheckCircle className="w-8 h-8 sm:w-10 sm:h-10 text-green-400 shrink-0" />
                 </div>

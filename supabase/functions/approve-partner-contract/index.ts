@@ -116,41 +116,45 @@ Deno.serve(async (req) => {
         let viewToken: string | null = null;
 
         if (existingToken) {
-          // Verificar se o token ainda é válido
-          const expiresAt = new Date(existingToken.expires_at);
-          const now = new Date();
-          if (now < expiresAt) {
+          // Se expires_at é NULL, token é infinito - sempre válido
+          if (existingToken.expires_at === null) {
             viewToken = existingToken.token;
-            console.log("[EDGE FUNCTION] Using existing valid view token");
+            console.log("[EDGE FUNCTION] Using existing infinite view token");
           } else {
-            // Token expirado, deletar e gerar novo
-            await supabase
-              .from('partner_contract_view_tokens')
-              .delete()
-              .eq('id', existingToken.id);
-            console.log("[EDGE FUNCTION] Existing token expired, generating new one");
+            // Verificar se o token ainda é válido (se tem expiração)
+            const expiresAt = new Date(existingToken.expires_at);
+            const now = new Date();
+            if (now < expiresAt) {
+              viewToken = existingToken.token;
+              console.log("[EDGE FUNCTION] Using existing valid view token");
+            } else {
+              // Token expirado, deletar e gerar novo (sem expiração)
+              await supabase
+                .from('partner_contract_view_tokens')
+                .delete()
+                .eq('id', existingToken.id);
+              console.log("[EDGE FUNCTION] Existing token expired, generating new infinite one");
+            }
           }
         }
 
-        // Gerar novo token se não existe ou expirou
+        // Gerar novo token se não existe ou expirou (sem expiração = infinito)
         if (!viewToken) {
           const token = `view_${Date.now()}_${Math.random().toString(36).substring(2, 15)}_${Math.random().toString(36).substring(2, 15)}`;
-          const expiresAt = new Date();
-          expiresAt.setDate(expiresAt.getDate() + 90); // 90 dias
-
+          // expires_at = NULL significa token infinito (nunca expira)
           const { error: tokenError } = await supabase
             .from('partner_contract_view_tokens')
             .insert({
               acceptance_id: acceptance_id,
               token: token,
-              expires_at: expiresAt.toISOString(),
+              expires_at: null, // NULL = infinito, nunca expira
             });
 
           if (tokenError) {
             console.error("[EDGE FUNCTION] Error generating view token:", tokenError);
           } else {
             viewToken = token;
-            console.log("[EDGE FUNCTION] Generated new view token");
+            console.log("[EDGE FUNCTION] Generated new infinite view token (never expires)");
           }
         }
 
@@ -216,7 +220,7 @@ Deno.serve(async (req) => {
                                                 <tr>
                                                     <td style="padding: 20px; background-color: #1a1a1a; border-left: 4px solid #CE9F48; border-radius: 4px; margin: 20px 0;">
                                                         <p style="margin: 0; color: #F3E196; font-size: 14px; line-height: 1.6;">
-                                                            <strong style="color: #CE9F48;">Note:</strong> This document is protected and available for viewing only. Downloading, copying, or printing is disabled for security purposes. The link will expire in 90 days.
+                                                            <strong style="color: #CE9F48;">Note:</strong> This document is protected and available for viewing only. Downloading, copying, or printing is disabled for security purposes. The link never expires and can be accessed at any time.
                                                         </p>
                                                     </td>
                                                 </tr>

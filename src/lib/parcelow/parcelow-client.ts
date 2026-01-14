@@ -13,7 +13,7 @@ import type {
 } from './parcelow-types';
 
 export class ParcelowClient {
-  private clientId: number;
+  private clientId: number | string; // Support both numeric and string IDs
   private clientSecret: string;
   private baseUrl: string;
   private accessToken: string | null = null;

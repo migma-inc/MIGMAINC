@@ -137,7 +137,7 @@ function addSummarySection(
   // Dados do resumo
   const summaryData = [
     { label: 'Total Revenue', value: summary.totalRevenue, format: 'currency' },
-    { label: 'Total Sales', value: summary.totalSales, format: 'number' },
+    { label: 'Contratos Vendidos', value: summary.soldContracts, format: 'number' },
     { label: 'Completed Orders', value: summary.completedOrders, format: 'number' },
     { label: 'Pending Orders', value: summary.pendingOrders, format: 'number' },
     { label: 'Commission', value: summary.commission, format: 'currency' }
@@ -489,7 +489,7 @@ function addComparisonSection(
   // Dados de comparação
   const comparisonData = [
     { label: 'Revenue Change', value: comparison.revenueChange },
-    { label: 'Sales Change', value: comparison.salesChange },
+    { label: 'Contratos Vendidos Change', value: comparison.salesChange },
     { label: 'Completed Orders Change', value: comparison.completedOrdersChange },
     { label: 'Commission Change', value: comparison.commissionChange }
   ];

@@ -1,141 +1,135 @@
 /**
- * ANNEX I – PAYMENT AUTHORIZATION & NON-DISPUTE AGREEMENT
+ * ANNEX I — UNIVERSAL PAYMENT AUTHORIZATION & ANTI-FRAUD AGREEMENT
  * 
- * This Annex is an integral part of the Educational Services Agreement
+ * This Annex is an integral and inseparable part of any and all service agreements
  * entered into between MIGMA INC. and the CLIENT.
+ * 
+ * NOTE: This is a fallback static version. The system now uses dynamic templates from the database.
+ * This file is kept for backward compatibility and as a fallback if no template is found.
  */
 
-// HTML version for frontend display
+// HTML version for frontend display (FALLBACK - prefer database template)
 export const ANNEX_I_HTML = `
 <div class="annex-i-content">
-  <h2 style="font-size: 1.25rem; font-weight: bold; margin-bottom: 1rem;">ANNEX I – PAYMENT AUTHORIZATION & NON-DISPUTE AGREEMENT</h2>
+  <h2 style="font-size: 1.25rem; font-weight: bold; margin-bottom: 1rem;">ANNEX I — UNIVERSAL PAYMENT AUTHORIZATION & ANTI-FRAUD AGREEMENT</h2>
+  <p style="font-size: 0.9rem; font-weight: 600; margin-bottom: 1rem;">(PAYMENT TERMS & NON-DISPUTE COMMITMENT)</p>
   
   <p style="margin-bottom: 1rem;">
-    This Annex is an integral part of the Educational Services Agreement entered into between MIGMA INC. and the CLIENT.
+    This Annex is an integral and inseparable part of any and all service agreements entered into between MIGMA INC. and the CLIENT. By proceeding with the payment, the CLIENT acknowledges and accepts these terms.
   </p>
 
   <section style="margin-bottom: 1.5rem;">
-    <h3 style="font-size: 1.2rem; font-weight: bold; margin-bottom: 0.75rem;">1. CLIENT IDENTIFICATION</h3>
-    <p>The individual identified at the end of this Agreement ("CLIENT").</p>
-  </section>
-
-  <section style="margin-bottom: 1.5rem;">
-    <h3 style="font-size: 1.2rem; font-weight: bold; margin-bottom: 0.75rem;">2. PAYMENT AUTHORIZATION</h3>
-    <p style="margin-bottom: 0.5rem;">The CLIENT expressly declares that:</p>
-    <ul style="list-style-type: lower-alpha; margin-left: 1.5rem; margin-bottom: 0.5rem;">
-      <li style="margin-bottom: 0.25rem;">All payments made to MIGMA INC. are voluntary, informed, and authorized;</li>
-      <li style="margin-bottom: 0.25rem;">The CLIENT is fully aware of the service contracted, its nature, scope, and limitations;</li>
-      <li style="margin-bottom: 0.25rem;">Payments may be processed through international or intermediary platforms;</li>
-      <li style="margin-bottom: 0.25rem;">The total amount charged may include administrative processing fees (e.g., credit card fees) as agreed in the main Agreement.</li>
+    <h3 style="font-size: 1.2rem; font-weight: bold; margin-bottom: 0.75rem;">1. SCOPE OF AUTHORIZATION</h3>
+    <p style="margin-bottom: 0.5rem;">The CLIENT expressly authorizes the charge(s) related to the contracted educational, mentorship, or operational services. This authorization applies to:</p>
+    <ul style="list-style-type: disc; margin-left: 1.5rem; margin-bottom: 0.5rem;">
+      <li style="margin-bottom: 0.25rem;"><strong>Initial Fees:</strong> Selection process fees, academic matching, or onboarding fees.</li>
+      <li style="margin-bottom: 0.25rem;"><strong>Service Balances:</strong> Remaining payments for full service packages.</li>
+      <li style="margin-bottom: 0.25rem;"><strong>Extra Operational Fees:</strong> Document corrections, rescheduling, or additional support.</li>
+      <li style="margin-bottom: 0.25rem;"><strong>Dependent Fees:</strong> Charges for family members or additional applicants.</li>
     </ul>
   </section>
 
   <section style="margin-bottom: 1.5rem;">
-    <h3 style="font-size: 1.2rem; font-weight: bold; margin-bottom: 0.75rem;">3. NATURE OF SERVICES & NO CHARGEBACK BASIS</h3>
+    <h3 style="font-size: 1.2rem; font-weight: bold; margin-bottom: 0.75rem;">2. NATURE OF SERVICES & COMMENCEMENT</h3>
+    <p style="margin-bottom: 0.5rem;">The CLIENT acknowledges that MIGMA INC. provides intangible, intellectual, and personalized services.</p>
+    <ul style="list-style-type: disc; margin-left: 1.5rem; margin-bottom: 0.5rem;">
+      <li style="margin-bottom: 0.25rem;">Execution of the services (profile analysis, portal access, institutional contact, or document review) begins immediately upon payment confirmation.</li>
+      <li style="margin-bottom: 0.25rem;">The CLIENT understands that MIGMA INC. is an educational consultancy, not a law firm, and cannot guarantee outcomes dependent on third parties (e.g., U.S. Consulates, USCIS, or Universities).</li>
+    </ul>
+  </section>
+
+  <section style="margin-bottom: 1.5rem;">
+    <h3 style="font-size: 1.2rem; font-weight: bold; margin-bottom: 0.75rem;">3. IRREVOCABLE NON-DISPUTE COMMITMENT</h3>
+    <p style="margin-bottom: 0.5rem;">The CLIENT irrevocably agrees not to initiate chargebacks, payment disputes, or reversals with their bank or card issuer based on the following:</p>
+    <ul style="list-style-type: disc; margin-left: 1.5rem; margin-bottom: 0.5rem;">
+      <li style="margin-bottom: 0.25rem;"><strong>Subjective Dissatisfaction:</strong> Dissatisfaction with decisions made by government authorities or educational institutions (e.g., visa denials or admission rejections).</li>
+      <li style="margin-bottom: 0.25rem;"><strong>External Delays:</strong> Changes in processing times or policies imposed by third parties.</li>
+      <li style="margin-bottom: 0.25rem;"><strong>Financial Surcharges:</strong> Applied taxes (IOF), currency exchange fluctuations, or credit card interest/installment fees.</li>
+      <li style="margin-bottom: 0.25rem;"><strong>Transaction Recognition:</strong> Claims of "unrecognized transaction" when the CLIENT has signed the main agreement or accessed the service portal.</li>
+    </ul>
+  </section>
+
+  <section style="margin-bottom: 1.5rem;">
+    <h3 style="font-size: 1.2rem; font-weight: bold; margin-bottom: 0.75rem;">4. MANDATORY PRE-DISPUTE RESOLUTION</h3>
+    <p>Before initiating any formal dispute with a financial institution, the CLIENT is contractually obligated to contact MIGMA INC. via official support channels to seek an internal resolution. Initiating a chargeback without prior written contact with the COMPANY constitutes a material breach of contract.</p>
+  </section>
+
+  <section style="margin-bottom: 1.5rem;">
+    <h3 style="font-size: 1.2rem; font-weight: bold; margin-bottom: 0.75rem;">5. EVIDENCE FOR DISPUTE DEFENSE</h3>
+    <p style="margin-bottom: 0.5rem;">In the event of a chargeback attempt, the CLIENT expressly authorizes MIGMA INC. to submit the following evidence to banks and payment processors:</p>
+    <ul style="list-style-type: disc; margin-left: 1.5rem; margin-bottom: 0.5rem;">
+      <li style="margin-bottom: 0.25rem;"><strong>Logs:</strong> IP address, device metadata, date/time stamps of the transaction, and portal login records.</li>
+      <li style="margin-bottom: 0.25rem;"><strong>Identity:</strong> Electronic signatures and any uploaded identification documents (Selfie/ID).</li>
+      <li style="margin-bottom: 0.25rem;"><strong>Engagement:</strong> Records of communications (WhatsApp/Email) and proof of digital delivery of the services (e.g., school lists, DS-160 drafts, or mentorship materials).</li>
+    </ul>
+  </section>
+
+  <section style="margin-bottom: 1.5rem;">
+    <h3 style="font-size: 1.2rem; font-weight: bold; margin-bottom: 0.75rem;">6. INTERNATIONAL PROCESSING & CURRENCY</h3>
     <p style="margin-bottom: 0.5rem;">The CLIENT acknowledges that:</p>
-    <ul style="list-style-type: lower-alpha; margin-left: 1.5rem; margin-bottom: 0.5rem;">
-      <li style="margin-bottom: 0.25rem;">The services are personalized, intellectual, and initiated immediately upon payment;</li>
-      <li style="margin-bottom: 0.25rem;">The COMPANY provides educational mentorship and academic guidance, not legal services;</li>
-      <li style="margin-bottom: 0.25rem;">Once services commence, payments are non-refundable, except as expressly stated in the main Agreement.</li>
-    </ul>
-  </section>
-
-  <section style="margin-bottom: 1.5rem;">
-    <h3 style="font-size: 1.2rem; font-weight: bold; margin-bottom: 0.75rem;">4. NON-DISPUTE COMMITMENT</h3>
-    <p style="margin-bottom: 0.5rem;">The CLIENT agrees that they will not initiate chargebacks, payment disputes, or claims based on:</p>
     <ul style="list-style-type: disc; margin-left: 1.5rem; margin-bottom: 0.5rem;">
-      <li style="margin-bottom: 0.25rem;">alleged lack of recognition of the transaction;</li>
-      <li style="margin-bottom: 0.25rem;">dissatisfaction with outcomes dependent on third parties;</li>
-      <li style="margin-bottom: 0.25rem;">discrepancies related to currency exchange rates, local taxes (IOF), or credit card processing fees;</li>
-      <li style="margin-bottom: 0.25rem;">processing times of institutions or authorities;</li>
-      <li style="margin-bottom: 0.25rem;">misunderstanding of service scope already clarified in the Agreement.</li>
+      <li style="margin-bottom: 0.25rem;">Charges may appear on statements under the name MIGMA INC. or the name of the Payment Processor (e.g., Parcelow, Wise, Stripe, etc.).</li>
+      <li style="margin-bottom: 0.25rem;">MIGMA INC. is a U.S. corporation; therefore, all local taxes and conversion fees are the sole responsibility of the CLIENT. The COMPANY must receive the net USD amount agreed upon.</li>
     </ul>
   </section>
 
   <section style="margin-bottom: 1.5rem;">
-    <h3 style="font-size: 1.2rem; font-weight: bold; margin-bottom: 0.75rem;">5. PRIOR INTERNAL RESOLUTION</h3>
-    <p>Before initiating any bank or platform dispute, the CLIENT agrees to first contact MIGMA INC. through official support channels for resolution.</p>
-  </section>
-
-  <section style="margin-bottom: 1.5rem;">
-    <h3 style="font-size: 1.2rem; font-weight: bold; margin-bottom: 0.75rem;">6. EVIDENCE AUTHORIZATION</h3>
-    <p style="margin-bottom: 0.5rem;">In case of a payment dispute, the CLIENT authorizes MIGMA INC. to use the following as evidence:</p>
-    <ul style="list-style-type: disc; margin-left: 1.5rem; margin-bottom: 0.5rem;">
-      <li style="margin-bottom: 0.25rem;">electronic signature</li>
-      <li style="margin-bottom: 0.25rem;">selfie holding identification document (if applicable)</li>
-      <li style="margin-bottom: 0.25rem;">IP address, date, and time logs</li>
-      <li style="margin-bottom: 0.25rem;">signed Agreement and Annex</li>
-      <li style="margin-bottom: 0.25rem;">communication records related to service delivery</li>
-    </ul>
-  </section>
-
-  <section style="margin-bottom: 1.5rem;">
-    <h3 style="font-size: 1.2rem; font-weight: bold; margin-bottom: 0.75rem;">7. INTERNATIONAL PROCESSING & CURRENCY CONSENT</h3>
-    <p>The CLIENT acknowledges that charges may appear under different corporate or platform descriptors due to international payment processing. Furthermore, if paying in a currency other than USD, the CLIENT accepts sole responsibility for exchange rates and conversion fees applied by their bank or card issuer.</p>
-  </section>
-
-  <section style="margin-bottom: 1.5rem;">
-    <h3 style="font-size: 1.2rem; font-weight: bold; margin-bottom: 0.75rem;">8. FINAL DECLARATION</h3>
-    <p>The CLIENT declares that they have read, understood, and voluntarily accepted this Payment Authorization and Non-Dispute Agreement.</p>
+    <h3 style="font-size: 1.2rem; font-weight: bold; margin-bottom: 0.75rem;">7. FINAL DECLARATION</h3>
+    <p>The CLIENT declares they have read this Annex, understand its legal implications regarding the prevention of payment fraud and unjustified chargebacks, and voluntarily proceed with this transaction.</p>
   </section>
 </div>
 `;
 
-// Plain text version for PDF generation
-export const ANNEX_I_TEXT = `ANNEX I – PAYMENT AUTHORIZATION & NON-DISPUTE AGREEMENT
+// Plain text version for PDF generation (FALLBACK - prefer database template)
+export const ANNEX_I_TEXT = `ANNEX I — UNIVERSAL PAYMENT AUTHORIZATION & ANTI-FRAUD AGREEMENT
+(PAYMENT TERMS & NON-DISPUTE COMMITMENT)
 
-This Annex is an integral part of the Educational Services Agreement entered into between MIGMA INC. and the CLIENT.
+This Annex is an integral and inseparable part of any and all service agreements entered into between MIGMA INC. and the CLIENT. By proceeding with the payment, the CLIENT acknowledges and accepts these terms.
 
-1. CLIENT IDENTIFICATION
+1. SCOPE OF AUTHORIZATION
 
-The individual identified at the end of this Agreement ("CLIENT").
+The CLIENT expressly authorizes the charge(s) related to the contracted educational, mentorship, or operational services. This authorization applies to:
 
-2. PAYMENT AUTHORIZATION
+- Initial Fees: Selection process fees, academic matching, or onboarding fees.
+- Service Balances: Remaining payments for full service packages.
+- Extra Operational Fees: Document corrections, rescheduling, or additional support.
+- Dependent Fees: Charges for family members or additional applicants.
 
-The CLIENT expressly declares that:
+2. NATURE OF SERVICES & COMMENCEMENT
 
-a) All payments made to MIGMA INC. are voluntary, informed, and authorized;
-b) The CLIENT is fully aware of the service contracted, its nature, scope, and limitations;
-c) Payments may be processed through international or intermediary platforms;
-d) The total amount charged may include administrative processing fees (e.g., credit card fees) as agreed in the main Agreement.
+The CLIENT acknowledges that MIGMA INC. provides intangible, intellectual, and personalized services.
 
-3. NATURE OF SERVICES & NO CHARGEBACK BASIS
+- Execution of the services (profile analysis, portal access, institutional contact, or document review) begins immediately upon payment confirmation.
+- The CLIENT understands that MIGMA INC. is an educational consultancy, not a law firm, and cannot guarantee outcomes dependent on third parties (e.g., U.S. Consulates, USCIS, or Universities).
+
+3. IRREVOCABLE NON-DISPUTE COMMITMENT
+
+The CLIENT irrevocably agrees not to initiate chargebacks, payment disputes, or reversals with their bank or card issuer based on the following:
+
+- Subjective Dissatisfaction: Dissatisfaction with decisions made by government authorities or educational institutions (e.g., visa denials or admission rejections).
+- External Delays: Changes in processing times or policies imposed by third parties.
+- Financial Surcharges: Applied taxes (IOF), currency exchange fluctuations, or credit card interest/installment fees.
+- Transaction Recognition: Claims of "unrecognized transaction" when the CLIENT has signed the main agreement or accessed the service portal.
+
+4. MANDATORY PRE-DISPUTE RESOLUTION
+
+Before initiating any formal dispute with a financial institution, the CLIENT is contractually obligated to contact MIGMA INC. via official support channels to seek an internal resolution. Initiating a chargeback without prior written contact with the COMPANY constitutes a material breach of contract.
+
+5. EVIDENCE FOR DISPUTE DEFENSE
+
+In the event of a chargeback attempt, the CLIENT expressly authorizes MIGMA INC. to submit the following evidence to banks and payment processors:
+
+- Logs: IP address, device metadata, date/time stamps of the transaction, and portal login records.
+- Identity: Electronic signatures and any uploaded identification documents (Selfie/ID).
+- Engagement: Records of communications (WhatsApp/Email) and proof of digital delivery of the services (e.g., school lists, DS-160 drafts, or mentorship materials).
+
+6. INTERNATIONAL PROCESSING & CURRENCY
 
 The CLIENT acknowledges that:
 
-a) The services are personalized, intellectual, and initiated immediately upon payment;
-b) The COMPANY provides educational mentorship and academic guidance, not legal services;
-c) Once services commence, payments are non-refundable, except as expressly stated in the main Agreement.
+- Charges may appear on statements under the name MIGMA INC. or the name of the Payment Processor (e.g., Parcelow, Wise, Stripe, etc.).
+- MIGMA INC. is a U.S. corporation; therefore, all local taxes and conversion fees are the sole responsibility of the CLIENT. The COMPANY must receive the net USD amount agreed upon.
 
-4. NON-DISPUTE COMMITMENT
+7. FINAL DECLARATION
 
-The CLIENT agrees that they will not initiate chargebacks, payment disputes, or claims based on:
-
-- alleged lack of recognition of the transaction;
-- dissatisfaction with outcomes dependent on third parties;
-- discrepancies related to currency exchange rates, local taxes (IOF), or credit card processing fees;
-- processing times of institutions or authorities;
-- misunderstanding of service scope already clarified in the Agreement.
-
-5. PRIOR INTERNAL RESOLUTION
-
-Before initiating any bank or platform dispute, the CLIENT agrees to first contact MIGMA INC. through official support channels for resolution.
-
-6. EVIDENCE AUTHORIZATION
-
-In case of a payment dispute, the CLIENT authorizes MIGMA INC. to use the following as evidence:
-
-- electronic signature
-- selfie holding identification document (if applicable)
-- IP address, date, and time logs
-- signed Agreement and Annex
-- communication records related to service delivery
-
-7. INTERNATIONAL PROCESSING & CURRENCY CONSENT
-
-The CLIENT acknowledges that charges may appear under different corporate or platform descriptors due to international payment processing. Furthermore, if paying in a currency other than USD, the CLIENT accepts sole responsibility for exchange rates and conversion fees applied by their bank or card issuer.
-
-8. FINAL DECLARATION
-
-The CLIENT declares that they have read, understood, and voluntarily accepted this Payment Authorization and Non-Dispute Agreement.`;
-
+The CLIENT declares they have read this Annex, understand its legal implications regarding the prevention of payment fraud and unjustified chargebacks, and voluntarily proceed with this transaction.`;

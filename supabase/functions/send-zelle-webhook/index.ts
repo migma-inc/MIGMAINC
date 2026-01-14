@@ -591,20 +591,18 @@ Deno.serve(async (req: Request) => {
     console.log("[Zelle Webhook] Operações críticas concluídas");
 
     // NON-CRITICAL OPERATIONS: Execute in parallel (PDF generation, email, webhook)
-    const isAnnexRequired = order.product_slug?.endsWith('-scholarship') || order.product_slug?.endsWith('-i20-control');
-    
+    // ANNEX I is now required for ALL products (universal payment authorization)
     const nonCriticalOperations: Promise<void>[] = [];
 
-    // Generate contract PDF
-    if (!isAnnexRequired) {
-      nonCriticalOperations.push(
-        invokeEdgeFunction(supabase, "generate-visa-contract-pdf", { order_id: order.id }, "gerar PDF do contrato")
-      );
-    } else {
-      nonCriticalOperations.push(
-        invokeEdgeFunction(supabase, "generate-annex-pdf", { order_id: order.id }, "gerar PDF do ANEXO I")
-      );
-    }
+    // Generate full contract PDF (optional - if template exists)
+    nonCriticalOperations.push(
+      invokeEdgeFunction(supabase, "generate-visa-contract-pdf", { order_id: order.id }, "gerar PDF do contrato")
+    );
+
+    // Generate ANNEX I PDF for ALL products (universal requirement)
+    nonCriticalOperations.push(
+      invokeEdgeFunction(supabase, "generate-annex-pdf", { order_id: order.id }, "gerar PDF do ANEXO I")
+    );
 
     // Send confirmation email
     nonCriticalOperations.push(

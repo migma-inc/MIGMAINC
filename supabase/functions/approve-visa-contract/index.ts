@@ -19,7 +19,7 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { order_id, reviewed_by } = await req.json();
+    const { order_id, reviewed_by, contract_type } = await req.json();
 
     if (!order_id) {
       return new Response(
@@ -35,21 +35,33 @@ Deno.serve(async (req) => {
       );
     }
 
-    console.log("[EDGE FUNCTION] Approving visa contract for order:", order_id);
+    // contract_type: 'annex' or 'contract' (defaults to 'contract' for backward compatibility)
+    const approvalType = contract_type === 'annex' ? 'annex' : 'contract';
+    
+    console.log(`[EDGE FUNCTION] Approving ${approvalType} for order:`, order_id);
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey, {
       auth: { autoRefreshToken: false, persistSession: false },
     });
 
-    // Update order with approval status
+    // Update order with approval status based on contract type
+    const updateData: any = {
+      updated_at: new Date().toISOString(),
+    };
+
+    if (approvalType === 'annex') {
+      updateData.annex_approval_status = 'approved';
+      updateData.annex_approval_reviewed_by = reviewed_by;
+      updateData.annex_approval_reviewed_at = new Date().toISOString();
+    } else {
+      updateData.contract_approval_status = 'approved';
+      updateData.contract_approval_reviewed_by = reviewed_by;
+      updateData.contract_approval_reviewed_at = new Date().toISOString();
+    }
+
     const { error: updateError } = await supabase
       .from('visa_orders')
-      .update({
-        contract_approval_status: 'approved',
-        contract_approval_reviewed_by: reviewed_by,
-        contract_approval_reviewed_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      })
+      .update(updateData)
       .eq('id', order_id);
 
     if (updateError) {
@@ -60,7 +72,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    console.log("[EDGE FUNCTION] Contract approved successfully");
+    console.log(`[EDGE FUNCTION] ${approvalType === 'annex' ? 'ANNEX I' : 'Contract'} approved successfully`);
 
     return new Response(
       JSON.stringify({

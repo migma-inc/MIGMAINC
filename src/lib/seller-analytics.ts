@@ -56,6 +56,7 @@ export interface AnalyticsData {
   summary: {
     totalRevenue: number;
     totalSales: number;
+    soldContracts: number;
     completedOrders: number;
     pendingOrders: number;
     commission: number;
@@ -342,7 +343,7 @@ export async function getPeriodComparison(
     return {
       previousPeriod,
       revenueChange: calculatePercentageChange(currentStats.totalRevenue, previousStats.totalRevenue),
-      salesChange: calculatePercentageChange(currentStats.totalSales, previousStats.totalSales),
+      salesChange: calculatePercentageChange(currentStats.soldContracts, previousStats.soldContracts),
       completedOrdersChange: calculatePercentageChange(currentStats.completedOrders, previousStats.completedOrders),
       commissionChange: calculatePercentageChange(
         currentCommissionSummary.totalCommissions,
@@ -510,9 +511,116 @@ export async function getAnalyticsData(
 
 // Funções auxiliares
 
+/**
+ * Lista de produtos que NÃO devem ser contabilizados como "Contrato Vendido"
+ */
+const BLACKLISTED_PRODUCTS = [
+  'consultation-brant',
+  'consultation-common',
+  'visa-retry-defense',
+  'rfe-defense',
+];
+
+/**
+ * Verifica se um produto está na blacklist (não deve contar como contrato vendido)
+ */
+function isBlacklistedProduct(productSlug: string | null | undefined): boolean {
+  if (!productSlug) return false;
+  
+  // Verificar se está na lista direta
+  if (BLACKLISTED_PRODUCTS.includes(productSlug)) {
+    return true;
+  }
+  
+  // Verificar se termina com -scholarship ou -i20-control
+  if (productSlug.endsWith('-scholarship') || productSlug.endsWith('-i20-control')) {
+    return true;
+  }
+  
+  return false;
+}
+
+/**
+ * Extrai o serviço base de um produto slug
+ * Ex: "initial-selection-process" -> "initial"
+ *     "cos-scholarship" -> "cos"
+ *     "transfer-i20-control" -> "transfer"
+ */
+function getBaseService(productSlug: string | null | undefined): string | null {
+  if (!productSlug) return null;
+  
+  // Para produtos initial, cos, transfer
+  if (productSlug.startsWith('initial-')) return 'initial';
+  if (productSlug.startsWith('cos-')) return 'cos';
+  if (productSlug.startsWith('transfer-')) return 'transfer';
+  
+  // Para outros produtos, retornar o slug completo como base
+  return productSlug;
+}
+
+/**
+ * Verifica se um pedido é o primeiro pagamento (contrato vendido)
+ * Regras:
+ * 1. Se está na blacklist, nunca é contrato vendido
+ * 2. Se é -selection-process, sempre é contrato vendido
+ * 3. Se é -scholarship ou -i20-control, verificar se já existe um -selection-process anterior do mesmo serviço
+ * 4. Para outros produtos, verificar se já existe um pedido anterior do mesmo produto
+ * 
+ * IMPORTANTE: Apenas pedidos completados/paid são considerados para verificar se é primeiro pagamento
+ */
+function isFirstPayment(order: any, allOrders: any[]): boolean {
+  // Apenas considerar pedidos completados/paid como contratos vendidos
+  if (order.payment_status !== 'completed' && order.payment_status !== 'paid') {
+    return false;
+  }
+  
+  // 1. Se está na blacklist, nunca conta
+  if (isBlacklistedProduct(order.product_slug)) {
+    return false;
+  }
+  
+  // 2. Se é -selection-process, sempre é primeiro pagamento
+  if (order.product_slug?.endsWith('-selection-process')) {
+    return true;
+  }
+  
+  // 3. Para -scholarship ou -i20-control, verificar se já existe selection-process anterior
+  if (order.product_slug?.endsWith('-scholarship') || order.product_slug?.endsWith('-i20-control')) {
+    const baseService = getBaseService(order.product_slug);
+    if (!baseService) return false;
+    
+    const selectionProcessSlug = `${baseService}-selection-process`;
+    
+    // Verificar se existe um pedido anterior do mesmo cliente com selection-process (completado/paid)
+    const hasPreviousSelectionProcess = allOrders.some((o: any) => 
+      o.id !== order.id &&
+      o.client_email === order.client_email &&
+      o.product_slug === selectionProcessSlug &&
+      (o.payment_status === 'completed' || o.payment_status === 'paid') &&
+      new Date(o.created_at) < new Date(order.created_at)
+    );
+    
+    // Se já existe selection-process anterior, este não é primeiro pagamento
+    return !hasPreviousSelectionProcess;
+  }
+  
+  // 4. Para outros produtos, verificar se já existe pedido anterior do mesmo produto (completado/paid)
+  const hasPreviousOrder = allOrders.some((o: any) => 
+    o.id !== order.id &&
+    o.client_email === order.client_email &&
+    o.product_slug === order.product_slug &&
+    (o.payment_status === 'completed' || o.payment_status === 'paid') &&
+    new Date(o.created_at) < new Date(order.created_at)
+  );
+  
+  // Se não existe pedido anterior, é primeiro pagamento
+  return !hasPreviousOrder;
+}
+
 function calculateStats(orders: any[]): {
   totalRevenue: number;
   totalSales: number;
+  soldContracts: number;
   completedOrders: number;
   pendingOrders: number;
   commission: number;
@@ -528,12 +636,23 @@ function calculateStats(orders: any[]): {
     0
   );
   
+  // Calculate sold contracts (first payments only, excluding blacklisted products)
+  // Ordenar pedidos por data para verificar corretamente quais são primeiros
+  const sortedOrders = [...orders].sort((a, b) => 
+    new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+  );
+  
+  const soldContracts = completed.filter(order => 
+    isFirstPayment(order, sortedOrders)
+  ).length;
+  
   // Commission will be calculated from actual commission records
   const commission = 0;
 
   return {
     totalRevenue: revenue,
     totalSales: orders.length,
+    soldContracts,
     completedOrders: completed.length,
     pendingOrders: pending.length,
     commission,

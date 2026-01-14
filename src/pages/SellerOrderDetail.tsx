@@ -76,6 +76,8 @@ export const SellerOrderDetail = () => {
   
   // PDF Modal
   const [showPdfModal, setShowPdfModal] = useState(false);
+  const [selectedPdfUrl, setSelectedPdfUrl] = useState<string | null>(null);
+  const [selectedPdfTitle, setSelectedPdfTitle] = useState<string>('');
   const [showZelleModal, setShowZelleModal] = useState(false);
 
   useEffect(() => {
@@ -455,25 +457,41 @@ export const SellerOrderDetail = () => {
                   </Button>
                 </div>
               )}
-              {(() => {
-                const isAnnexProduct = order.product_slug?.endsWith('-scholarship') || order.product_slug?.endsWith('-i20-control');
-                const pdfUrl = isAnnexProduct ? order.annex_pdf_url : order.contract_pdf_url;
-                const pdfTitle = isAnnexProduct ? 'ANNEX I PDF' : 'Contract PDF';
-                
-                return pdfUrl && (
-                  <div className="pt-3 border-t border-gold-medium/30">
-                    <p className="text-gray-400 mb-2">{pdfTitle}:</p>
-                    <Button
-                      variant="outline"
-                      onClick={() => setShowPdfModal(true)}
-                      className="border-gold-medium/50 bg-black/50 text-gold-light hover:bg-black hover:border-gold-medium hover:text-gold-medium"
-                    >
-                      <FileText className="w-4 h-4 mr-1" />
-                      View {pdfTitle}
-                    </Button>
+              {(order.annex_pdf_url || order.contract_pdf_url) && (
+                <div className="pt-3 border-t border-gold-medium/30">
+                  <p className="text-gray-400 mb-2">Contracts:</p>
+                  <div className="flex flex-wrap gap-2">
+                    {order.annex_pdf_url && (
+                      <Button
+                        variant="outline"
+                        onClick={() => {
+                          setSelectedPdfUrl(order.annex_pdf_url);
+                          setSelectedPdfTitle(`ANNEX I - ${order.order_number}`);
+                          setShowPdfModal(true);
+                        }}
+                        className="border-gold-medium/50 bg-black/50 text-gold-light hover:bg-black hover:border-gold-medium hover:text-gold-medium"
+                      >
+                        <FileText className="w-4 h-4 mr-1" />
+                        View ANNEX I
+                      </Button>
+                    )}
+                    {order.contract_pdf_url && (
+                      <Button
+                        variant="outline"
+                        onClick={() => {
+                          setSelectedPdfUrl(order.contract_pdf_url);
+                          setSelectedPdfTitle(`Contract - ${order.order_number}`);
+                          setShowPdfModal(true);
+                        }}
+                        className="border-gold-medium/50 bg-black/50 text-gold-light hover:bg-black hover:border-gold-medium hover:text-gold-medium"
+                      >
+                        <FileText className="w-4 h-4 mr-1" />
+                        View Contract
+                      </Button>
+                    )}
                   </div>
-                );
-              })()}
+                </div>
+              )}
               <div className="flex justify-between text-sm">
                 <span className="text-gray-400">Order Date:</span>
                 <span className="text-white">{new Date(order.created_at).toLocaleString()}</span>
@@ -485,9 +503,9 @@ export const SellerOrderDetail = () => {
 
       {/* PDF Modal */}
       {(() => {
-        const isAnnexProduct = order?.product_slug?.endsWith('-scholarship') || order?.product_slug?.endsWith('-i20-control');
-        const pdfUrl = isAnnexProduct ? order?.annex_pdf_url : order?.contract_pdf_url;
-        const pdfTitle = isAnnexProduct ? `ANNEX I - ${order?.order_number}` : `Contract - ${order?.order_number}`;
+        // ANNEX I is now required for ALL products - prioritize annex_pdf_url if available
+        const pdfUrl = order?.annex_pdf_url || order?.contract_pdf_url;
+        const pdfTitle = order?.annex_pdf_url ? `ANNEX I - ${order?.order_number}` : `Contract - ${order?.order_number}`;
         
         return pdfUrl && (
           <PdfModal

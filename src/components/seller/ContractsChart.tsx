@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import type { ChartDataPoint } from '@/lib/seller-analytics';
 import { FileText } from 'lucide-react';
 import * as am5 from '@amcharts/amcharts5';
-import * as am5percent from '@amcharts/amcharts5/percent';
+import * as am5xy from '@amcharts/amcharts5/xy';
 import am5themes_Animated from '@amcharts/amcharts5/themes/Animated';
 
 interface ContractsChartProps {
@@ -34,78 +34,110 @@ export function ContractsChart({ data }: ContractsChartProps) {
 
     // Configurar cores do tema para texto branco
     root.interfaceColors.set('text', am5.color('#ffffff'));
+    root.interfaceColors.set('grid', am5.color('#333333'));
 
-    // Gráfico Donut - Distribuição Visual
     const chart = root.container.children.push(
-      am5percent.PieChart.new(root, {
-        layout: root.verticalLayout,
-        innerRadius: am5.percent(50),
+      am5xy.XYChart.new(root, {
+        panX: false,
+        panY: false,
+        wheelX: 'none',
+        wheelY: 'none',
+        paddingLeft: 0,
+        paddingRight: 0,
       })
     );
 
-    // Preparar dados para o donut
-    const totalContracts = data.reduce((sum, p) => sum + p.contracts, 0);
-    const colors = ['#F3E196', '#D4AF37', '#CE9F48', '#B8860B', '#9A7A3A', '#8E6E2F'];
-    type ChartSlice = {
-      category: string;
-      value: number;
-      percentage: number;
-      fill: am5.Color;
-    };
-
-    const chartData: ChartSlice[] = data.map((point, index) => ({
-      category: new Date(point.date).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }),
-      value: point.contracts,
-      percentage: totalContracts > 0 ? (point.contracts / totalContracts) * 100 : 0,
-      fill: am5.color(colors[index % colors.length]),
+    // Preparar dados
+    const chartData = data.map((point) => ({
+      date: new Date(point.date).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }),
+      contracts: point.contracts,
     }));
 
-    const series = chart.series.push(
-      am5percent.PieSeries.new(root, {
-        valueField: 'value',
-        categoryField: 'category',
-        alignLabels: false,
+    // Eixo X
+    const xAxis = chart.xAxes.push(
+      am5xy.CategoryAxis.new(root, {
+        categoryField: 'date',
+        renderer: am5xy.AxisRendererX.new(root, {
+          cellStartLocation: 0.1,
+          cellEndLocation: 0.9,
+          minGridDistance: 30,
+        }),
       })
     );
 
-    // Aplicar cores dos dados
-    series.slices.template.adapters.add('fill', (fill: any, target: any) => {
-      const dataItem = target.dataItem;
-      const dataContext = dataItem?.dataContext as ChartSlice | undefined;
-
-      if (dataContext?.fill) {
-        return dataContext.fill;
-      }
-
-      return fill;
-    });
-
-    series.slices.template.setAll({
-      stroke: am5.color('#1a1a1a'),
-      strokeWidth: 2,
-      tooltipText: '{category}: {value} contratos ({valuePercentTotal.formatNumber(\'#.0\')}%)',
-    });
-
-    // Labels no donut
-    series.labels.template.setAll({
-      text: '{category}\n{value} ({valuePercentTotal.formatNumber(\'#.0\')}%)',
-      fontSize: 11,
+    xAxis.data.setAll(chartData);
+    xAxis.get('renderer').labels.template.setAll({
       fill: am5.color('#ffffff'),
-      textAlign: 'center',
+      fontSize: 11,
+    });
+
+    // Eixo Y
+    const yAxis = chart.yAxes.push(
+      am5xy.ValueAxis.new(root, {
+        renderer: am5xy.AxisRendererY.new(root, {
+          stroke: am5.color('#666666'),
+        }),
+      })
+    );
+
+    yAxis.get('renderer').labels.template.setAll({
+      fill: am5.color('#ffffff'),
+      fontSize: 11,
+    });
+
+    yAxis.get('renderer').grid.template.setAll({
+      stroke: am5.color('#333333'),
+      strokeOpacity: 0.3,
+    });
+
+    // Gráfico de Colunas
+    const series = chart.series.push(
+      am5xy.ColumnSeries.new(root, {
+        name: 'Contratos',
+        xAxis: xAxis,
+        yAxis: yAxis,
+        valueYField: 'contracts',
+        categoryXField: 'date',
+      })
+    );
+
+    const gradient = am5.LinearGradient.new(root, {
+      rotation: 90,
+      stops: [
+        { color: am5.color('#F3E196'), offset: 0 },
+        { color: am5.color('#CE9F48'), offset: 1 },
+      ],
+    });
+
+    series.columns.template.setAll({
+      fillGradient: gradient,
+      stroke: am5.color('#D4AF37'),
+      strokeWidth: 2,
+      cornerRadiusTL: 6,
+      cornerRadiusTR: 6,
+      tooltipText: '{categoryX}: {valueY} contratos',
+    });
+
+    // Labels no topo das barras
+    series.bullets.push(() => {
+      return am5.Bullet.new(root, {
+        locationY: 1,
+        sprite: am5.Label.new(root, {
+          text: '{valueY}',
+          fill: am5.color('#ffffff'),
+          centerY: am5.p100,
+          centerX: am5.p50,
+          populateText: true,
+          fontSize: 11,
+          fontWeight: 'bold',
+        }),
+      });
     });
 
     series.data.setAll(chartData);
 
-    // Legenda
-    const legend = chart.children.push(
-      am5.Legend.new(root, {
-        centerX: am5.p50,
-        x: am5.p50,
-        marginTop: 20,
-        marginBottom: 20,
-      })
-    );
-    legend.data.setAll(series.dataItems);
+    // Cursor
+    chart.set('cursor', am5xy.XYCursor.new(root, {}));
 
     return () => {
       if (rootRef.current) {

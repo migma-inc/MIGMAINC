@@ -160,30 +160,39 @@ export const VisaOrdersPage = () => {
                           {new Date(order.created_at).toLocaleDateString()}
                         </td>
                         <td className="py-3 px-4">
-                          {(() => {
-                            // For scholarship and i20-control products, check annex_pdf_url
-                            // For other products, check contract_pdf_url
-                            const isAnnexProduct = order.product_slug?.endsWith('-scholarship') || order.product_slug?.endsWith('-i20-control');
-                            const pdfUrl = isAnnexProduct ? order.annex_pdf_url : order.contract_pdf_url;
-                            const pdfTitle = isAnnexProduct ? `ANNEX I - ${order.order_number}` : `Contract - ${order.order_number}`;
-                            
-                            return pdfUrl ? (
+                          <div className="flex flex-col gap-1">
+                            {order.annex_pdf_url && (
                               <Button
                                 variant="outline"
                                 size="sm"
                                 onClick={() => {
-                                  setSelectedPdfUrl(pdfUrl);
-                                  setSelectedPdfTitle(pdfTitle);
+                                  setSelectedPdfUrl(order.annex_pdf_url);
+                                  setSelectedPdfTitle(`ANNEX I - ${order.order_number}`);
                                 }}
-                                className="border-gold-medium/50 bg-black/50 text-gold-light hover:bg-black hover:border-gold-medium hover:text-gold-medium"
+                                className="border-gold-medium/50 bg-black/50 text-gold-light hover:bg-black hover:border-gold-medium hover:text-gold-medium text-xs"
                               >
-                                <FileText className="w-4 h-4 mr-1" />
-                                View PDF
+                                <FileText className="w-3 h-3 mr-1" />
+                                ANNEX I
                               </Button>
-                            ) : (
+                            )}
+                            {order.contract_pdf_url && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  setSelectedPdfUrl(order.contract_pdf_url);
+                                  setSelectedPdfTitle(`Contract - ${order.order_number}`);
+                                }}
+                                className="border-gold-medium/50 bg-black/50 text-gold-light hover:bg-black hover:border-gold-medium hover:text-gold-medium text-xs"
+                              >
+                                <FileText className="w-3 h-3 mr-1" />
+                                Contract
+                              </Button>
+                            )}
+                            {!order.annex_pdf_url && !order.contract_pdf_url && (
                               <span className="text-gray-500 text-xs">Not generated</span>
-                            );
-                          })()}
+                            )}
+                          </div>
                         </td>
                         <td className="py-3 px-4">
                           <Link to={`/dashboard/visa-orders/${order.id}`}>
@@ -207,9 +216,7 @@ export const VisaOrdersPage = () => {
                 {/* Mobile Cards */}
                 <div className="md:hidden space-y-4">
                   {orders.map((order) => {
-                    const isAnnexProduct = order.product_slug?.endsWith('-scholarship') || order.product_slug?.endsWith('-i20-control');
-                    const pdfUrl = isAnnexProduct ? order.annex_pdf_url : order.contract_pdf_url;
-                    const pdfTitle = isAnnexProduct ? `ANNEX I - ${order.order_number}` : `Contract - ${order.order_number}`;
+                    const { netAmount, feeAmount } = calculateNetAmountAndFee(order);
                     
                     return (
                       <Card key={order.id} className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30">
@@ -236,17 +243,11 @@ export const VisaOrdersPage = () => {
                             </div>
                             <div>
                               <p className="text-gray-400">Net Amount</p>
-                              <p className="text-white font-semibold">${(() => {
-                                const { netAmount } = calculateNetAmountAndFee(order);
-                                return netAmount.toFixed(2);
-                              })()}</p>
+                              <p className="text-white font-semibold">${netAmount.toFixed(2)}</p>
                             </div>
                             <div>
                               <p className="text-gray-400">Stripe Fee</p>
-                              <p className="text-red-400">${(() => {
-                                const { feeAmount } = calculateNetAmountAndFee(order);
-                                return feeAmount > 0 ? `-${feeAmount.toFixed(2)}` : '0.00';
-                              })()}</p>
+                              <p className="text-red-400">${feeAmount > 0 ? `-${feeAmount.toFixed(2)}` : '0.00'}</p>
                             </div>
                             <div>
                               <p className="text-gray-400">Seller</p>
@@ -259,19 +260,37 @@ export const VisaOrdersPage = () => {
                           </div>
 
                           <div className="flex flex-col gap-2 pt-2 border-t border-gold-medium/20">
-                            {pdfUrl ? (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => {
-                                  setSelectedPdfUrl(pdfUrl);
-                                  setSelectedPdfTitle(pdfTitle);
-                                }}
-                                className="w-full flex items-center justify-center gap-2 border-gold-medium/50 bg-black/50 text-gold-light hover:bg-black hover:border-gold-medium hover:text-gold-medium text-xs"
-                              >
-                                <FileText className="w-3 h-3" />
-                                View PDF
-                              </Button>
+                            {(order.annex_pdf_url || order.contract_pdf_url) ? (
+                              <div className="flex gap-2">
+                                {order.annex_pdf_url && (
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => {
+                                      setSelectedPdfUrl(order.annex_pdf_url);
+                                      setSelectedPdfTitle(`ANNEX I - ${order.order_number}`);
+                                    }}
+                                    className="flex-1 flex items-center justify-center gap-2 border-gold-medium/50 bg-black/50 text-gold-light hover:bg-black hover:border-gold-medium hover:text-gold-medium text-xs"
+                                  >
+                                    <FileText className="w-3 h-3" />
+                                    ANNEX I
+                                  </Button>
+                                )}
+                                {order.contract_pdf_url && (
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => {
+                                      setSelectedPdfUrl(order.contract_pdf_url);
+                                      setSelectedPdfTitle(`Contract - ${order.order_number}`);
+                                    }}
+                                    className="flex-1 flex items-center justify-center gap-2 border-gold-medium/50 bg-black/50 text-gold-light hover:bg-black hover:border-gold-medium hover:text-gold-medium text-xs"
+                                  >
+                                    <FileText className="w-3 h-3" />
+                                    Contract
+                                  </Button>
+                                )}
+                              </div>
                             ) : (
                               <p className="text-gray-500 text-xs text-center">Contract not generated</p>
                             )}

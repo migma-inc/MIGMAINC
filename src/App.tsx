@@ -48,6 +48,8 @@ import { VisaContractResubmit } from './pages/VisaContractResubmit';
 import { ContractTemplatesPage } from './pages/ContractTemplatesPage';
 import { ViewSignedContract } from './pages/ViewSignedContract';
 import { ScheduleMeetingPage } from './pages/admin/ScheduleMeetingPage';
+import { AdminSellerAnalytics } from './pages/admin/AdminSellerAnalytics';
+import { AdminRoute } from './components/admin/AdminRoute';
 // PAYMENT REQUEST - COMENTADO TEMPORARIAMENTE
 // import { AdminPaymentRequests } from './pages/admin/AdminPaymentRequests';
 
@@ -102,6 +104,7 @@ function App() {
           <Route path="visa-orders/:id" element={<VisaOrderDetailPage />} />
           <Route path="zelle-approval" element={<ZelleApprovalPage />} />
           <Route path="sellers" element={<SellersPage />} />
+          <Route path="sellers/:sellerId/analytics" element={<AdminRoute><AdminSellerAnalytics /></AdminRoute>} />
           {/* PAYMENT REQUEST - COMENTADO TEMPORARIAMENTE */}
           {/* <Route path="payment-requests" element={<AdminPaymentRequests />} /> */}
           <Route path="contact-messages" element={<ContactMessagesPage />} />

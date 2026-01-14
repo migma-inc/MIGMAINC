@@ -1280,7 +1280,7 @@ export async function sendContractViewLinkEmail(
                                             <tr>
                                                 <td style="padding: 20px; background-color: #1a1a1a; border-left: 4px solid #CE9F48; border-radius: 4px; margin: 20px 0;">
                                                     <p style="margin: 0; color: #F3E196; font-size: 14px; line-height: 1.6;">
-                                                        <strong style="color: #CE9F48;">Note:</strong> This document is protected and available for viewing only. Downloading, copying, or printing is disabled for security purposes. The link will expire in 90 days.
+                                                        <strong style="color: #CE9F48;">Note:</strong> This document is protected and available for viewing only. Downloading, copying, or printing is disabled for security purposes. The link never expires and can be accessed at any time.
                                                     </p>
                                                 </td>
                                             </tr>

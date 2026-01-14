@@ -22,18 +22,20 @@ export interface TokenValidationResult {
 }
 
 /**
- * Approve a visa contract
+ * Approve a visa contract (main contract or ANNEX I)
  * Calls the approve-visa-contract Edge Function
  */
 export async function approveVisaContract(
   orderId: string,
-  reviewedBy: string
+  reviewedBy: string,
+  contractType: 'annex' | 'contract' = 'contract'
 ): Promise<{ success: boolean; error?: string }> {
   try {
     const { data, error } = await supabase.functions.invoke('approve-visa-contract', {
       body: {
         order_id: orderId,
         reviewed_by: reviewedBy,
+        contract_type: contractType,
       },
     });
 
@@ -58,13 +60,14 @@ export async function approveVisaContract(
 }
 
 /**
- * Reject a visa contract
+ * Reject a visa contract (main contract or ANNEX I)
  * Calls the reject-visa-contract Edge Function which generates token and sends email
  */
 export async function rejectVisaContract(
   orderId: string,
   reviewedBy: string,
-  reason?: string
+  reason?: string,
+  contractType: 'annex' | 'contract' = 'contract'
 ): Promise<{ success: boolean; token?: string; error?: string }> {
   try {
     // Get current origin (localhost in dev, production URL in prod)
@@ -94,6 +97,7 @@ export async function rejectVisaContract(
         reviewed_by: reviewedBy,
         rejection_reason: reason || null,
         app_url: appUrl, // Send current origin so Edge Function knows which URL to use
+        contract_type: contractType,
       },
     });
 
