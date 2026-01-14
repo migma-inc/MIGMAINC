@@ -19,7 +19,7 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { order_id, rejection_reason, reviewed_by, app_url } = await req.json();
+    const { order_id, rejection_reason, reviewed_by, app_url, contract_type } = await req.json();
 
     if (!order_id) {
       return new Response(
@@ -84,16 +84,28 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Update order with rejection status
+    // contract_type: 'annex' or 'contract' (defaults to 'contract' for backward compatibility)
+    const approvalType = contract_type === 'annex' ? 'annex' : 'contract';
+    
+    // Update order with rejection status based on contract type
     const updateData: any = {
-      contract_approval_status: 'rejected',
-      contract_approval_reviewed_by: reviewed_by,
-      contract_approval_reviewed_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
 
-    if (rejection_reason) {
-      updateData.contract_rejection_reason = rejection_reason;
+    if (approvalType === 'annex') {
+      updateData.annex_approval_status = 'rejected';
+      updateData.annex_approval_reviewed_by = reviewed_by;
+      updateData.annex_approval_reviewed_at = new Date().toISOString();
+      if (rejection_reason) {
+        updateData.annex_rejection_reason = rejection_reason;
+      }
+    } else {
+      updateData.contract_approval_status = 'rejected';
+      updateData.contract_approval_reviewed_by = reviewed_by;
+      updateData.contract_approval_reviewed_at = new Date().toISOString();
+      if (rejection_reason) {
+        updateData.contract_rejection_reason = rejection_reason;
+      }
     }
 
     const { error: updateError } = await supabase

@@ -38,6 +38,7 @@ interface Order {
   payment_method: string;
   extra_units: number;
   contract_pdf_url: string | null;
+  annex_pdf_url: string | null;
   created_at: string;
 }
 
@@ -1009,6 +1010,20 @@ export const SellerDashboard = () => {
                                 View
                               </Button>
                             </Link>
+                            {order.annex_pdf_url && (
+                              <Button 
+                                size="sm" 
+                                variant="outline" 
+                                onClick={() => {
+                                  setSelectedPdfUrl(order.annex_pdf_url);
+                                  setSelectedPdfTitle(`ANNEX I - ${order.order_number}`);
+                                }}
+                                className="text-xs border-gold-medium/50 bg-black/50 text-gold-light hover:bg-black hover:border-gold-medium hover:text-gold-medium"
+                                title="View ANNEX I PDF"
+                              >
+                                <FileText className="w-3 h-3" />
+                              </Button>
+                            )}
                             {order.contract_pdf_url && (
                               <Button 
                                 size="sm" 

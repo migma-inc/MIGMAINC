@@ -375,26 +375,34 @@ export function SellerOrders() {
                               View
                             </Button>
                           </Link>
-                          {(() => {
-                            // ANNEX I is now required for ALL products - prioritize annex_pdf_url if available
-                            const pdfUrl = order.annex_pdf_url || order.contract_pdf_url;
-                            const pdfTitle = order.annex_pdf_url ? `ANNEX I - ${order.order_number}` : `Contract - ${order.order_number}`;
-                            
-                            return pdfUrl && (
-                              <Button 
-                                size="sm" 
-                                variant="outline" 
-                                onClick={() => {
-                                  setSelectedPdfUrl(pdfUrl);
-                                  setSelectedPdfTitle(pdfTitle);
-                                }}
-                                className="text-xs border-gold-medium/50 bg-black/50 text-gold-light hover:bg-black hover:border-gold-medium hover:text-gold-medium"
-                                title={order.annex_pdf_url ? "View ANNEX I PDF" : "View Contract PDF"}
-                              >
-                                <FileText className="w-3 h-3" />
-                              </Button>
-                            );
-                          })()}
+                          {order.annex_pdf_url && (
+                            <Button 
+                              size="sm" 
+                              variant="outline" 
+                              onClick={() => {
+                                setSelectedPdfUrl(order.annex_pdf_url);
+                                setSelectedPdfTitle(`ANNEX I - ${order.order_number}`);
+                              }}
+                              className="text-xs border-gold-medium/50 bg-black/50 text-gold-light hover:bg-black hover:border-gold-medium hover:text-gold-medium"
+                              title="View ANNEX I PDF"
+                            >
+                              <FileText className="w-3 h-3" />
+                            </Button>
+                          )}
+                          {order.contract_pdf_url && (
+                            <Button 
+                              size="sm" 
+                              variant="outline" 
+                              onClick={() => {
+                                setSelectedPdfUrl(order.contract_pdf_url);
+                                setSelectedPdfTitle(`Contract - ${order.order_number}`);
+                              }}
+                              className="text-xs border-gold-medium/50 bg-black/50 text-gold-light hover:bg-black hover:border-gold-medium hover:text-gold-medium"
+                              title="View Contract PDF"
+                            >
+                              <FileText className="w-3 h-3" />
+                            </Button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -407,9 +415,6 @@ export function SellerOrders() {
               {/* Mobile Card View */}
               <div className="md:hidden space-y-3">
                 {paginatedOrders.map((order) => {
-                  const isAnnexProduct = order.product_slug?.endsWith('-scholarship') || order.product_slug?.endsWith('-i20-control');
-                  const pdfUrl = isAnnexProduct ? order.annex_pdf_url : order.contract_pdf_url;
-                  const pdfTitle = isAnnexProduct ? `ANNEX I - ${order.order_number}` : `Contract - ${order.order_number}`;
                   const { netAmount, feeAmount } = calculateNetAmountAndFee(order);
                   
                   return (
@@ -457,27 +462,43 @@ export function SellerOrders() {
                         </div>
                       </div>
 
-                      <div className="flex gap-2 pt-3 border-t border-gold-medium/20">
-                        <Link to={`/seller/orders/${order.id}`} className="flex-1">
-                          <Button size="sm" variant="outline" className="w-full text-xs border-gold-medium/50 bg-black/50 text-gold-light hover:bg-black hover:border-gold-medium hover:text-gold-medium">
-                            <Eye className="w-3 h-3 mr-1" />
-                            View
-                          </Button>
-                        </Link>
-                        {pdfUrl && (
-                          <Button 
-                            size="sm" 
-                            variant="outline" 
-                            onClick={() => {
-                              setSelectedPdfUrl(pdfUrl);
-                              setSelectedPdfTitle(pdfTitle);
-                            }}
-                            className="text-xs border-gold-medium/50 bg-black/50 text-gold-light hover:bg-black hover:border-gold-medium hover:text-gold-medium"
-                            title={isAnnexProduct ? "View ANNEX I PDF" : "View Contract PDF"}
-                          >
-                            <FileText className="w-3 h-3" />
-                          </Button>
-                        )}
+                      <div className="flex flex-col gap-2 pt-3 border-t border-gold-medium/20">
+                        <div className="flex gap-2">
+                          <Link to={`/seller/orders/${order.id}`} className="flex-1">
+                            <Button size="sm" variant="outline" className="w-full text-xs border-gold-medium/50 bg-black/50 text-gold-light hover:bg-black hover:border-gold-medium hover:text-gold-medium">
+                              <Eye className="w-3 h-3 mr-1" />
+                              View
+                            </Button>
+                          </Link>
+                          {order.annex_pdf_url && (
+                            <Button 
+                              size="sm" 
+                              variant="outline" 
+                              onClick={() => {
+                                setSelectedPdfUrl(order.annex_pdf_url);
+                                setSelectedPdfTitle(`ANNEX I - ${order.order_number}`);
+                              }}
+                              className="text-xs border-gold-medium/50 bg-black/50 text-gold-light hover:bg-black hover:border-gold-medium hover:text-gold-medium"
+                              title="View ANNEX I PDF"
+                            >
+                              <FileText className="w-3 h-3" />
+                            </Button>
+                          )}
+                          {order.contract_pdf_url && (
+                            <Button 
+                              size="sm" 
+                              variant="outline" 
+                              onClick={() => {
+                                setSelectedPdfUrl(order.contract_pdf_url);
+                                setSelectedPdfTitle(`Contract - ${order.order_number}`);
+                              }}
+                              className="text-xs border-gold-medium/50 bg-black/50 text-gold-light hover:bg-black hover:border-gold-medium hover:text-gold-medium"
+                              title="View Contract PDF"
+                            >
+                              <FileText className="w-3 h-3" />
+                            </Button>
+                          )}
+                        </div>
                       </div>
                     </div>
                   );

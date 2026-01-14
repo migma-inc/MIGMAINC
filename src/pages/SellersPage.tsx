@@ -468,7 +468,17 @@ export const SellersPage = () => {
                             {index + 1}
                           </div>
                           <div className="flex-1 min-w-0">
-                            <p className="text-white font-semibold truncate">{stats.seller.full_name || stats.seller.email}</p>
+                            <p 
+                              className="text-white font-semibold truncate cursor-pointer hover:text-gold-light transition-colors"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                const url = `/dashboard/sellers/${stats.seller.seller_id_public}/analytics`;
+                                window.open(url, '_blank', 'width=1400,height=900,resizable=yes,scrollbars=yes');
+                              }}
+                              title="Click to view seller analytics in new window"
+                            >
+                              {stats.seller.full_name || stats.seller.email}
+                            </p>
                             <p className="text-xs text-gray-400 truncate">{stats.seller.seller_id_public}</p>
                           </div>
                         </div>
@@ -506,7 +516,17 @@ export const SellersPage = () => {
                             {index + 1}
                           </div>
                           <div className="flex-1 min-w-0">
-                            <p className="text-white font-semibold truncate">{stats.seller.full_name || stats.seller.email}</p>
+                            <p 
+                              className="text-white font-semibold truncate cursor-pointer hover:text-purple-300 transition-colors"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                const url = `/dashboard/sellers/${stats.seller.seller_id_public}/analytics`;
+                                window.open(url, '_blank', 'width=1400,height=900,resizable=yes,scrollbars=yes');
+                              }}
+                              title="Click to view seller analytics in new window"
+                            >
+                              {stats.seller.full_name || stats.seller.email}
+                            </p>
                             <p className="text-xs text-gray-400 truncate">{stats.seller.seller_id_public}</p>
                           </div>
                         </div>
@@ -559,7 +579,15 @@ export const SellersPage = () => {
                           )}
                         </Button>
                         <div className="flex-1 min-w-0">
-                          <CardTitle className="text-white text-base sm:text-xl break-words">
+                          <CardTitle 
+                            className="text-white text-base sm:text-xl break-words cursor-pointer hover:text-gold-light transition-colors"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const url = `/dashboard/sellers/${stats.seller.seller_id_public}/analytics`;
+                              window.open(url, '_blank', 'width=1400,height=900,resizable=yes,scrollbars=yes');
+                            }}
+                            title="Click to view seller analytics in new window"
+                          >
                             {stats.seller.full_name || stats.seller.email}
                           </CardTitle>
                           <p className="text-xs sm:text-sm text-gray-400 mt-1 break-words">

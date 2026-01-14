@@ -45,6 +45,10 @@ interface Order {
   contract_approval_reviewed_by?: string | null;
   contract_approval_reviewed_at?: string | null;
   contract_rejection_reason?: string | null;
+  annex_approval_status?: string | null;
+  annex_approval_reviewed_by?: string | null;
+  annex_approval_reviewed_at?: string | null;
+  annex_rejection_reason?: string | null;
 }
 
 interface IdentityFile {
@@ -72,8 +76,11 @@ export const VisaOrderDetailPage = () => {
   const [identityFiles, setIdentityFiles] = useState<IdentityFile[]>([]);
   const [loading, setLoading] = useState(true);
   const [showPdfModal, setShowPdfModal] = useState(false);
+  const [selectedPdfUrl, setSelectedPdfUrl] = useState<string | null>(null);
+  const [selectedPdfTitle, setSelectedPdfTitle] = useState<string>('');
   const [showZelleModal, setShowZelleModal] = useState(false);
   const [showRejectModal, setShowRejectModal] = useState(false);
+  const [rejectingContractType, setRejectingContractType] = useState<'annex' | 'contract'>('contract');
   const [rejectionReason, setRejectionReason] = useState('');
   const [processing, setProcessing] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
@@ -168,12 +175,12 @@ export const VisaOrderDetailPage = () => {
     }
   };
 
-  const handleApprove = async () => {
+  const handleApprove = async (contractType: 'annex' | 'contract') => {
     if (!order || !currentUserId) return;
 
     setProcessing(true);
     try {
-      const result = await approveVisaContract(order.id, currentUserId);
+      const result = await approveVisaContract(order.id, currentUserId, contractType);
       if (result.success) {
         // Reload order data
         const { data: orderData } = await supabase
@@ -186,23 +193,23 @@ export const VisaOrderDetailPage = () => {
         }
         setAlertData({
           title: 'Success',
-          message: 'Contract approved successfully!',
+          message: `${contractType === 'annex' ? 'ANNEX I' : 'Contract'} approved successfully!`,
           variant: 'success',
         });
         setShowAlert(true);
       } else {
         setAlertData({
           title: 'Error',
-          message: 'Failed to approve contract: ' + (result.error || 'Unknown error'),
+          message: `Failed to approve ${contractType === 'annex' ? 'ANNEX I' : 'Contract'}: ` + (result.error || 'Unknown error'),
           variant: 'error',
         });
         setShowAlert(true);
       }
     } catch (err) {
-      console.error('Error approving contract:', err);
+      console.error(`Error approving ${contractType}:`, err);
       setAlertData({
         title: 'Error',
-        message: 'An error occurred while approving the contract',
+        message: `An error occurred while approving the ${contractType === 'annex' ? 'ANNEX I' : 'Contract'}`,
         variant: 'error',
       });
       setShowAlert(true);
@@ -211,12 +218,12 @@ export const VisaOrderDetailPage = () => {
     }
   };
 
-  const handleReject = async (reason?: string) => {
+  const handleReject = async (contractType: 'annex' | 'contract', reason?: string) => {
     if (!order || !currentUserId) return;
 
     setProcessing(true);
     try {
-      const result = await rejectVisaContract(order.id, currentUserId, reason || undefined);
+      const result = await rejectVisaContract(order.id, currentUserId, reason || undefined, contractType);
       if (result.success) {
         // Reload order data
         const { data: orderData } = await supabase
@@ -230,24 +237,24 @@ export const VisaOrderDetailPage = () => {
         setShowRejectModal(false);
         setRejectionReason('');
         setAlertData({
-          title: 'Contract Rejected',
-          message: 'Contract rejected. An email has been sent to the client with instructions to resubmit documents.',
+          title: `${contractType === 'annex' ? 'ANNEX I' : 'Contract'} Rejected`,
+          message: `${contractType === 'annex' ? 'ANNEX I' : 'Contract'} rejected. An email has been sent to the client with instructions to resubmit documents.`,
           variant: 'success',
         });
         setShowAlert(true);
       } else {
         setAlertData({
           title: 'Error',
-          message: 'Failed to reject contract: ' + (result.error || 'Unknown error'),
+          message: `Failed to reject ${contractType === 'annex' ? 'ANNEX I' : 'Contract'}: ` + (result.error || 'Unknown error'),
           variant: 'error',
         });
         setShowAlert(true);
       }
     } catch (err) {
-      console.error('Error rejecting contract:', err);
+      console.error(`Error rejecting ${contractType}:`, err);
       setAlertData({
         title: 'Error',
-        message: 'An error occurred while rejecting the contract',
+        message: `An error occurred while rejecting the ${contractType === 'annex' ? 'ANNEX I' : 'Contract'}`,
         variant: 'error',
       });
       setShowAlert(true);
@@ -305,9 +312,10 @@ export const VisaOrderDetailPage = () => {
               <h1 className="text-2xl sm:text-3xl font-bold migma-gold-text">Order Details</h1>
               <p className="text-gray-400 mt-1">Order #{order.order_number}</p>
             </div>
-            <div className="flex gap-2 items-center">
+            <div className="flex gap-2 items-center flex-wrap">
               {getStatusBadge(order.payment_status)}
-              {getApprovalStatusBadge(order.contract_approval_status)}
+              {order.annex_pdf_url && getApprovalStatusBadge(order.annex_approval_status)}
+              {order.contract_pdf_url && getApprovalStatusBadge(order.contract_approval_status)}
             </div>
           </div>
         </div>
@@ -522,81 +530,167 @@ export const VisaOrderDetailPage = () => {
           )}
 
           {/* Contract Approval Actions */}
-          {order.contract_approval_status !== 'approved' && (
-            <Card className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30">
-              <CardHeader>
-                <CardTitle className="text-white">Contract Approval</CardTitle>
-              </CardHeader>
-              <CardContent>
-                {order.contract_approval_status === 'rejected' ? (
-                  <div className="space-y-4">
-                    <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-4">
-                      <div className="flex items-start gap-3">
-                        <AlertCircle className="w-5 h-5 text-yellow-400 flex-shrink-0 mt-0.5" />
-                        <div className="flex-1">
-                          <h4 className="text-yellow-300 font-semibold mb-1">Awaiting Document Resubmission</h4>
-                          <p className="text-gray-300 text-sm">
-                            This contract was rejected and a resubmission link has been sent to the client. 
-                            The contract will return to pending status once the client resubmits their documents.
-                          </p>
-                          {order.contract_rejection_reason && (
-                            <div className="mt-3 pt-3 border-t border-yellow-500/20">
-                              <p className="text-xs text-gray-400 mb-1">Rejection Reason:</p>
-                              <p className="text-yellow-200 text-sm">{order.contract_rejection_reason}</p>
-                            </div>
-                          )}
+          <div className="space-y-4">
+            {/* ANNEX I Approval */}
+            {order.annex_pdf_url && order.annex_approval_status !== 'approved' && (
+              <Card className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30">
+                <CardHeader>
+                  <CardTitle className="text-white">ANNEX I Approval</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {order.annex_approval_status === 'rejected' ? (
+                    <div className="space-y-4">
+                      <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-4">
+                        <div className="flex items-start gap-3">
+                          <AlertCircle className="w-5 h-5 text-yellow-400 flex-shrink-0 mt-0.5" />
+                          <div className="flex-1">
+                            <h4 className="text-yellow-300 font-semibold mb-1">Awaiting Document Resubmission</h4>
+                            <p className="text-gray-300 text-sm">
+                              ANNEX I was rejected and a resubmission link has been sent to the client. 
+                              The document will return to pending status once the client resubmits.
+                            </p>
+                            {order.annex_rejection_reason && (
+                              <div className="mt-3 pt-3 border-t border-yellow-500/20">
+                                <p className="text-xs text-gray-400 mb-1">Rejection Reason:</p>
+                                <p className="text-yellow-200 text-sm">{order.annex_rejection_reason}</p>
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </div>
+                      {order.annex_approval_reviewed_at && (
+                        <p className="text-xs text-gray-400">
+                          Rejected on: {new Date(order.annex_approval_reviewed_at).toLocaleString()}
+                          {order.annex_approval_reviewed_by && (
+                            <span className="ml-2">by {order.annex_approval_reviewed_by}</span>
+                          )}
+                        </p>
+                      )}
                     </div>
-                    {order.contract_approval_reviewed_at && (
-                      <p className="text-xs text-gray-400">
-                        Rejected on: {new Date(order.contract_approval_reviewed_at).toLocaleString()}
-                        {order.contract_approval_reviewed_by && (
-                          <span className="ml-2">by {order.contract_approval_reviewed_by}</span>
-                        )}
-                      </p>
-                    )}
-                  </div>
-                ) : (
-                  <>
-                    <div className="flex gap-4">
-                      <Button
-                        onClick={handleApprove}
-                        disabled={processing}
-                        className="flex-1 bg-green-600 hover:bg-green-700 text-white"
-                      >
-                        {processing ? (
-                          <>
-                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                            Processing...
-                          </>
-                        ) : (
-                          <>
-                            <CheckCircle className="w-4 h-4 mr-2" />
-                            Approve Contract
-                          </>
-                        )}
-                      </Button>
-                      <Button
-                        onClick={() => setShowRejectModal(true)}
-                        disabled={processing}
-                        variant="destructive"
-                        className="flex-1 bg-red-600 hover:bg-red-700"
-                      >
-                        <X className="w-4 h-4 mr-2" />
-                        Reject Contract
-                      </Button>
+                  ) : (
+                    <>
+                      <div className="flex gap-4">
+                        <Button
+                          onClick={() => handleApprove('annex')}
+                          disabled={processing}
+                          className="flex-1 bg-green-600 hover:bg-green-700 text-white"
+                        >
+                          {processing ? (
+                            <>
+                              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                              Processing...
+                            </>
+                          ) : (
+                            <>
+                              <CheckCircle className="w-4 h-4 mr-2" />
+                              Approve ANNEX I
+                            </>
+                          )}
+                        </Button>
+                        <Button
+                          onClick={() => {
+                            setRejectingContractType('annex');
+                            setShowRejectModal(true);
+                          }}
+                          disabled={processing}
+                          variant="destructive"
+                          className="flex-1 bg-red-600 hover:bg-red-700"
+                        >
+                          <X className="w-4 h-4 mr-2" />
+                          Reject ANNEX I
+                        </Button>
+                      </div>
+                      {order.annex_approval_reviewed_at && (
+                        <p className="text-xs text-gray-400 mt-4">
+                          Last reviewed: {new Date(order.annex_approval_reviewed_at).toLocaleString()}
+                        </p>
+                      )}
+                    </>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Contract Approval */}
+            {order.contract_pdf_url && order.contract_approval_status !== 'approved' && (
+              <Card className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30">
+                <CardHeader>
+                  <CardTitle className="text-white">Contract Approval</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {order.contract_approval_status === 'rejected' ? (
+                    <div className="space-y-4">
+                      <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-4">
+                        <div className="flex items-start gap-3">
+                          <AlertCircle className="w-5 h-5 text-yellow-400 flex-shrink-0 mt-0.5" />
+                          <div className="flex-1">
+                            <h4 className="text-yellow-300 font-semibold mb-1">Awaiting Document Resubmission</h4>
+                            <p className="text-gray-300 text-sm">
+                              This contract was rejected and a resubmission link has been sent to the client. 
+                              The contract will return to pending status once the client resubmits their documents.
+                            </p>
+                            {order.contract_rejection_reason && (
+                              <div className="mt-3 pt-3 border-t border-yellow-500/20">
+                                <p className="text-xs text-gray-400 mb-1">Rejection Reason:</p>
+                                <p className="text-yellow-200 text-sm">{order.contract_rejection_reason}</p>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                      {order.contract_approval_reviewed_at && (
+                        <p className="text-xs text-gray-400">
+                          Rejected on: {new Date(order.contract_approval_reviewed_at).toLocaleString()}
+                          {order.contract_approval_reviewed_by && (
+                            <span className="ml-2">by {order.contract_approval_reviewed_by}</span>
+                          )}
+                        </p>
+                      )}
                     </div>
-                    {order.contract_approval_reviewed_at && (
-                      <p className="text-xs text-gray-400 mt-4">
-                        Last reviewed: {new Date(order.contract_approval_reviewed_at).toLocaleString()}
-                      </p>
-                    )}
-                  </>
-                )}
-              </CardContent>
-            </Card>
-          )}
+                  ) : (
+                    <>
+                      <div className="flex gap-4">
+                        <Button
+                          onClick={() => handleApprove('contract')}
+                          disabled={processing}
+                          className="flex-1 bg-green-600 hover:bg-green-700 text-white"
+                        >
+                          {processing ? (
+                            <>
+                              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                              Processing...
+                            </>
+                          ) : (
+                            <>
+                              <CheckCircle className="w-4 h-4 mr-2" />
+                              Approve Contract
+                            </>
+                          )}
+                        </Button>
+                        <Button
+                          onClick={() => {
+                            setRejectingContractType('contract');
+                            setShowRejectModal(true);
+                          }}
+                          disabled={processing}
+                          variant="destructive"
+                          className="flex-1 bg-red-600 hover:bg-red-700"
+                        >
+                          <X className="w-4 h-4 mr-2" />
+                          Reject Contract
+                        </Button>
+                      </div>
+                      {order.contract_approval_reviewed_at && (
+                        <p className="text-xs text-gray-400 mt-4">
+                          Last reviewed: {new Date(order.contract_approval_reviewed_at).toLocaleString()}
+                        </p>
+                      )}
+                    </>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+          </div>
 
           {/* Payment Information */}
           <Card className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30">
@@ -630,25 +724,41 @@ export const VisaOrderDetailPage = () => {
                   </Button>
                 </div>
               )}
-              {(() => {
-                // ANNEX I is now required for ALL products - prioritize annex_pdf_url if available
-                const pdfUrl = order.annex_pdf_url || order.contract_pdf_url;
-                const pdfTitle = order.annex_pdf_url ? 'ANNEX I PDF' : 'Contract PDF';
-                
-                return pdfUrl && (
-                  <div className="pt-3 border-t border-gold-medium/30">
-                    <p className="text-gray-400 mb-2">{pdfTitle}:</p>
-                    <Button
-                      variant="outline"
-                      onClick={() => setShowPdfModal(true)}
-                      className="border-gold-medium/50 bg-black/50 text-gold-light hover:bg-black hover:border-gold-medium hover:text-gold-medium"
-                    >
-                      <FileText className="w-4 h-4 mr-1" />
-                      View {pdfTitle}
-                    </Button>
+              {(order.annex_pdf_url || order.contract_pdf_url) && (
+                <div className="pt-3 border-t border-gold-medium/30">
+                  <p className="text-gray-400 mb-2">Contracts:</p>
+                  <div className="flex flex-wrap gap-2">
+                    {order.annex_pdf_url && (
+                      <Button
+                        variant="outline"
+                        onClick={() => {
+                          setSelectedPdfUrl(order.annex_pdf_url);
+                          setSelectedPdfTitle(`ANNEX I - ${order.order_number}`);
+                          setShowPdfModal(true);
+                        }}
+                        className="border-gold-medium/50 bg-black/50 text-gold-light hover:bg-black hover:border-gold-medium hover:text-gold-medium"
+                      >
+                        <FileText className="w-4 h-4 mr-1" />
+                        View ANNEX I
+                      </Button>
+                    )}
+                    {order.contract_pdf_url && (
+                      <Button
+                        variant="outline"
+                        onClick={() => {
+                          setSelectedPdfUrl(order.contract_pdf_url);
+                          setSelectedPdfTitle(`Contract - ${order.order_number}`);
+                          setShowPdfModal(true);
+                        }}
+                        className="border-gold-medium/50 bg-black/50 text-gold-light hover:bg-black hover:border-gold-medium hover:text-gold-medium"
+                      >
+                        <FileText className="w-4 h-4 mr-1" />
+                        View Contract
+                      </Button>
+                    )}
                   </div>
-                );
-              })()}
+                </div>
+              )}
               <div className="flex justify-between text-sm">
                 <span className="text-gray-400">Order Date:</span>
                 <span className="text-white">{new Date(order.created_at).toLocaleString()}</span>
@@ -659,20 +769,18 @@ export const VisaOrderDetailPage = () => {
       </div>
 
       {/* PDF Modal */}
-      {(() => {
-        // ANNEX I is now required for ALL products - prioritize annex_pdf_url if available
-        const pdfUrl = order?.annex_pdf_url || order?.contract_pdf_url;
-        const pdfTitle = order?.annex_pdf_url ? `ANNEX I - ${order?.order_number}` : `Contract - ${order?.order_number}`;
-        
-        return pdfUrl && (
-          <PdfModal
-            isOpen={showPdfModal}
-            onClose={() => setShowPdfModal(false)}
-            pdfUrl={pdfUrl}
-            title={pdfTitle}
-          />
-        );
-      })()}
+      {selectedPdfUrl && (
+        <PdfModal
+          isOpen={showPdfModal}
+          onClose={() => {
+            setShowPdfModal(false);
+            setSelectedPdfUrl(null);
+            setSelectedPdfTitle('');
+          }}
+          pdfUrl={selectedPdfUrl}
+          title={selectedPdfTitle}
+        />
+      )}
 
       {/* Zelle Receipt Modal */}
       {order?.zelle_proof_url && (
@@ -693,12 +801,12 @@ export const VisaOrderDetailPage = () => {
         }}
         onConfirm={(reason) => {
           setRejectionReason(reason);
-          handleReject(reason);
+          handleReject(rejectingContractType, reason);
         }}
-        title="Reject Contract"
-        message="Are you sure you want to reject this contract? An email will be sent to the client with instructions to resubmit documents."
+        title={`Reject ${rejectingContractType === 'annex' ? 'ANNEX I' : 'Contract'}`}
+        message={`Are you sure you want to reject this ${rejectingContractType === 'annex' ? 'ANNEX I' : 'Contract'}? An email will be sent to the client with instructions to resubmit documents.`}
         placeholder="e.g., Document photos are unclear, missing information, etc."
-        confirmText="Reject Contract"
+        confirmText={`Reject ${rejectingContractType === 'annex' ? 'ANNEX I' : 'Contract'}`}
         cancelText="Cancel"
         variant="danger"
         isLoading={processing}

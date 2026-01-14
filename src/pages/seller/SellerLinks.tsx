@@ -147,6 +147,9 @@ export function SellerLinks() {
   const [prefillFieldErrors, setPrefillFieldErrors] = useState<Record<string, string>>({});
   const [prefillFormExpanded, setPrefillFormExpanded] = useState(false);
   const [prefillFormStep, setPrefillFormStep] = useState(1);
+  
+  // Estado para armazenar links gerados com prefill (associando contrato)
+  const [productGeneratedLinks, setProductGeneratedLinks] = useState<Record<string, string>>({});
 
   // Scroll helper for first field with error
   function scrollToPrefillFirstError(fieldName: string) {
@@ -1369,8 +1372,7 @@ export function SellerLinks() {
                         {isExpanded && (
                           <div className="border-t border-gold-medium/20 bg-black/30 p-4 space-y-3">
                             {sortedProducts.map((product, index) => {
-                              const link = `${window.location.origin}/checkout/visa/${product.slug}?seller=${seller.seller_id_public}`;
-                              const isCopied = copiedLink === link;
+                              const isCopied = copiedLink === productGeneratedLinks[product.slug];
                               const paymentNumber = index + 1;
                               const paymentLabel = paymentLabels[index] || `Payment ${paymentNumber}`;
                               const basePrice = parseFloat(product.base_price_usd || '0');
@@ -1413,36 +1415,107 @@ export function SellerLinks() {
                                         )}
                                       </div>
 
-                                      {/* Link */}
-                                      <div className="pt-2 border-t border-gold-medium/10">
-                                        <p className="text-xs text-gray-500 font-mono break-all">{link}</p>
-                                      </div>
                                     </div>
 
-                                    {/* Botão Copy */}
-                                    <Button
-                                      onClick={() => copyLink(product.slug)}
-                                      size="sm"
-                                      variant="outline"
-                                      className={`shrink-0 ${
-                                        isCopied
-                                          ? 'bg-green-500/20 border-green-500/50 text-green-300 hover:bg-green-500/30'
-                                          : 'bg-black/50 border-gold-medium/50 text-gold-light hover:bg-black hover:border-gold-medium hover:text-gold-medium'
-                                      }`}
-                                    >
-                                      {isCopied ? (
-                                        <>
-                                          <CheckCircle className="w-4 h-4 mr-1" />
-                                          Copied!
-                                        </>
-                                      ) : (
-                                        <>
-                                          <Copy className="w-4 h-4 mr-1" />
-                                          Copy
-                                        </>
-                                      )}
-                                    </Button>
+                                    {/* Botão Generate Link */}
+                                    <div className="flex gap-2 shrink-0">
+                                      <Button
+                                        onClick={async () => {
+                                          try {
+                                            const token = crypto.randomUUID();
+                                            const expiresAt = new Date();
+                                            expiresAt.setDate(expiresAt.getDate() + 30);
+                                            
+                                            const { error: insertError } = await supabase
+                                              .from('checkout_prefill_tokens')
+                                              .insert({
+                                                token,
+                                                seller_id: seller.seller_id_public,
+                                                product_slug: product.slug,
+                                                client_data: {},
+                                                expires_at: expiresAt.toISOString(),
+                                              });
+                                            
+                                            if (insertError) throw insertError;
+                                            
+                                            const siteUrl = window.location.origin;
+                                            const link = `${siteUrl}/checkout/visa/${product.slug}?seller=${seller.seller_id_public}&prefill=${token}`;
+                                            setProductGeneratedLinks({
+                                              ...productGeneratedLinks,
+                                              [product.slug]: link,
+                                            });
+                                            setPrefillError('');
+                                          } catch (err: any) {
+                                            console.error('Error generating prefill link:', err);
+                                            setPrefillError(err.message || 'Erro ao gerar link');
+                                          }
+                                        }}
+                                        size="sm"
+                                        variant="outline"
+                                        className="bg-gold-medium/20 border-gold-medium/50 text-gold-light hover:bg-gold-medium/30 hover:border-gold-medium"
+                                      >
+                                        <FileEdit className="w-4 h-4 mr-1" />
+                                        Generate Link
+                                      </Button>
+                                    </div>
                                   </div>
+                                  
+                                  {/* Link gerado */}
+                                  {productGeneratedLinks[product.slug] && (
+                                    <div className="mt-4 pt-4 border-t border-gold-medium/20">
+                                      <div className="p-3 bg-green-500/10 border border-green-500/30 rounded-lg">
+                                        <p className="text-sm text-green-300 font-medium mb-2">Link gerado com sucesso!</p>
+                                        <p className="text-xs text-gray-400 font-mono break-all mb-3">{productGeneratedLinks[product.slug]}</p>
+                                        <div className="flex gap-2">
+                                          <Button
+                                            onClick={() => {
+                                              navigator.clipboard.writeText(productGeneratedLinks[product.slug]);
+                                              setCopiedLink(productGeneratedLinks[product.slug]);
+                                              setTimeout(() => setCopiedLink(null), 3000);
+                                            }}
+                                            size="sm"
+                                            variant="outline"
+                                            className={`${
+                                              isCopied
+                                                ? 'bg-green-500/20 border-green-500/50 text-green-300 hover:bg-green-500/30'
+                                                : 'bg-green-500/20 border-green-500/50 text-green-300 hover:bg-green-500/30'
+                                            }`}
+                                          >
+                                            {isCopied ? (
+                                              <>
+                                                <CheckCircle className="w-4 h-4 mr-1" />
+                                                Copied!
+                                              </>
+                                            ) : (
+                                              <>
+                                                <Copy className="w-4 h-4 mr-1" />
+                                                Copy Link
+                                              </>
+                                            )}
+                                          </Button>
+                                          <Button
+                                            onClick={() => {
+                                              setProductGeneratedLinks(prev => {
+                                                const next = { ...prev };
+                                                delete next[product.slug];
+                                                return next;
+                                              });
+                                            }}
+                                            size="sm"
+                                            variant="outline"
+                                            className="bg-black/50 border-gold-medium/50 text-gold-light hover:bg-black hover:border-gold-medium"
+                                          >
+                                            Close
+                                          </Button>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  )}
+                                  {prefillError && (
+                                    <div className="mt-2">
+                                      <p className="text-xs text-red-400">{prefillError}</p>
+                                    </div>
+                                  )}
                                 </div>
                               );
                             })}
@@ -1456,8 +1529,7 @@ export function SellerLinks() {
                   return (
                     <div key={key} className="space-y-3">
                       {sortedProducts.map((product) => {
-                        const link = `${window.location.origin}/checkout/visa/${product.slug}?seller=${seller.seller_id_public}`;
-                        const isCopied = copiedLink === link;
+                        const isCopied = copiedLink === productGeneratedLinks[product.slug];
                         const basePrice = parseFloat(product.base_price_usd || '0');
                         const extraPrice = parseFloat(product.extra_unit_price || '0');
                         const hasExtraUnits = extraPrice > 0;
@@ -1508,36 +1580,107 @@ export function SellerLinks() {
                                   )}
                                 </div>
 
-                                {/* Link */}
-                                <div className="pt-2 border-t border-gold-medium/10">
-                                  <p className="text-xs text-gray-500 font-mono break-all">{link}</p>
-                                </div>
                               </div>
 
-                              {/* Botão Copy */}
-                              <Button
-                                onClick={() => copyLink(product.slug)}
-                                size="sm"
-                                variant="outline"
-                                className={`shrink-0 ${
-                                  isCopied
-                                    ? 'bg-green-500/20 border-green-500/50 text-green-300 hover:bg-green-500/30'
-                                    : 'bg-black/50 border-gold-medium/50 text-gold-light hover:bg-black hover:border-gold-medium hover:text-gold-medium'
-                                }`}
-                              >
-                                {isCopied ? (
-                                  <>
-                                    <CheckCircle className="w-4 h-4 mr-1" />
-                                    Copied!
-                                  </>
-                                ) : (
-                                  <>
-                                    <Copy className="w-4 h-4 mr-1" />
-                                    Copy
-                                  </>
-                                )}
-                              </Button>
+                              {/* Botão Generate Link */}
+                              <div className="flex gap-2 shrink-0">
+                                <Button
+                                  onClick={async () => {
+                                    try {
+                                      const token = crypto.randomUUID();
+                                      const expiresAt = new Date();
+                                      expiresAt.setDate(expiresAt.getDate() + 30);
+                                      
+                                      const { error: insertError } = await supabase
+                                        .from('checkout_prefill_tokens')
+                                        .insert({
+                                          token,
+                                          seller_id: seller.seller_id_public,
+                                          product_slug: product.slug,
+                                          client_data: {},
+                                          expires_at: expiresAt.toISOString(),
+                                        });
+                                      
+                                      if (insertError) throw insertError;
+                                      
+                                      const siteUrl = window.location.origin;
+                                      const link = `${siteUrl}/checkout/visa/${product.slug}?seller=${seller.seller_id_public}&prefill=${token}`;
+                                      setProductGeneratedLinks({
+                                        ...productGeneratedLinks,
+                                        [product.slug]: link,
+                                      });
+                                      setPrefillError('');
+                                    } catch (err: any) {
+                                      console.error('Error generating prefill link:', err);
+                                      setPrefillError(err.message || 'Erro ao gerar link');
+                                    }
+                                  }}
+                                  size="sm"
+                                  variant="outline"
+                                  className="bg-gold-medium/20 border-gold-medium/50 text-gold-light hover:bg-gold-medium/30 hover:border-gold-medium"
+                                >
+                                  <FileEdit className="w-4 h-4 mr-1" />
+                                  Generate Link
+                                </Button>
+                              </div>
                             </div>
+                            
+                            {/* Link gerado */}
+                            {productGeneratedLinks[product.slug] && (
+                              <div className="mt-4 pt-4 border-t border-gold-medium/20">
+                                <div className="p-3 bg-green-500/10 border border-green-500/30 rounded-lg">
+                                  <p className="text-sm text-green-300 font-medium mb-2">Link gerado com sucesso!</p>
+                                  <p className="text-xs text-gray-400 font-mono break-all mb-3">{productGeneratedLinks[product.slug]}</p>
+                                  <div className="flex gap-2">
+                                    <Button
+                                      onClick={() => {
+                                        navigator.clipboard.writeText(productGeneratedLinks[product.slug]);
+                                        setCopiedLink(productGeneratedLinks[product.slug]);
+                                        setTimeout(() => setCopiedLink(null), 3000);
+                                      }}
+                                      size="sm"
+                                      variant="outline"
+                                      className={`${
+                                        isCopied
+                                          ? 'bg-green-500/20 border-green-500/50 text-green-300 hover:bg-green-500/30'
+                                          : 'bg-green-500/20 border-green-500/50 text-green-300 hover:bg-green-500/30'
+                                      }`}
+                                    >
+                                      {isCopied ? (
+                                        <>
+                                          <CheckCircle className="w-4 h-4 mr-1" />
+                                          Copied!
+                                        </>
+                                      ) : (
+                                        <>
+                                          <Copy className="w-4 h-4 mr-1" />
+                                          Copy Link
+                                        </>
+                                      )}
+                                    </Button>
+                                    <Button
+                                      onClick={() => {
+                                        setProductGeneratedLinks(prev => {
+                                          const next = { ...prev };
+                                          delete next[product.slug];
+                                          return next;
+                                        });
+                                      }}
+                                      size="sm"
+                                      variant="outline"
+                                      className="bg-black/50 border-gold-medium/50 text-gold-light hover:bg-black hover:border-gold-medium"
+                                    >
+                                      Close
+                                    </Button>
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+                            {prefillError && (
+                              <div className="mt-2">
+                                <p className="text-xs text-red-400">{prefillError}</p>
+                              </div>
+                            )}
                           </div>
                         );
                       })}
