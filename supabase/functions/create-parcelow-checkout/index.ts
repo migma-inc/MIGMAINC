@@ -12,15 +12,15 @@ const corsHeaders = {
  */
 function cleanDocumentNumber(doc: string | null | undefined): string | null {
   if (!doc) return null;
-  
+
   // Remove all non-numeric characters
   const cleaned = doc.replace(/\D/g, '');
-  
+
   // CPF should have 11 digits, CNPJ should have 14 digits
   if (cleaned.length === 11 || cleaned.length === 14) {
     return cleaned;
   }
-  
+
   // For development/testing: pad with zeros if less than 11 digits
   // This allows testing with incomplete CPFs
   if (cleaned.length > 0 && cleaned.length < 11) {
@@ -28,7 +28,7 @@ function cleanDocumentNumber(doc: string | null | undefined): string | null {
     console.warn(`[Parcelow] CPF has ${cleaned.length} digits, padding to 11 digits for testing: ${padded.substring(0, 3)}***`);
     return padded;
   }
-  
+
   console.warn(`[Parcelow] Invalid document length: ${cleaned.length} (expected 11 for CPF or 14 for CNPJ)`);
   return cleaned; // Return anyway, let API validate
 }
@@ -45,7 +45,7 @@ class ParcelowClient {
     this.clientId = clientId;
     this.clientSecret = clientSecret;
     this.baseUrl = environment === 'staging'
-      ? 'https://staging.parcelow.com'
+      ? 'https://sandbox.parcelow.com'
       : 'https://app.parcelow.com'; // URL de produção (assumindo baseado na documentação)
   }
 
@@ -62,7 +62,7 @@ class ParcelowClient {
     // For string Client IDs (hex), try JSON first (as per Swagger docs)
     // For numeric Client IDs, try form-urlencoded (works for production)
     const oauthUrl = `${this.baseUrl}/oauth/token`;
-    
+
     console.log(`[Parcelow OAuth] ========== OAUTH TOKEN REQUEST ==========`);
     console.log(`[Parcelow OAuth] Base URL: ${this.baseUrl}`);
     console.log(`[Parcelow OAuth] OAuth URL: ${oauthUrl}`);
@@ -72,12 +72,12 @@ class ParcelowClient {
     console.log(`[Parcelow OAuth] Client ID length: ${this.clientId.toString().length} characters`);
     console.log(`[Parcelow OAuth] Client Secret length: ${this.clientSecret?.length || 0} characters`);
     console.log(`[Parcelow OAuth] Client Secret preview: ${this.clientSecret ? `${this.clientSecret.substring(0, 8)}...${this.clientSecret.substring(this.clientSecret.length - 4)}` : 'MISSING'}`);
-    
+
     // Determine format: JSON for string IDs (staging hex), form-urlencoded for numeric IDs (production)
     const isStringId = typeof this.clientId === 'string' && this.clientId.length > 10;
-    
+
     console.log(`[Parcelow OAuth] Client ID is string (hex): ${isStringId}`);
-    
+
     // Try multiple formats for hex Client IDs:
     // 1. JSON with string Client ID (as per Swagger docs)
     // 2. JSON with Client ID converted to number (if hex can be parsed)
@@ -85,15 +85,15 @@ class ParcelowClient {
     let requestBody: string;
     let requestHeaders: Record<string, string>;
     let useJsonFormat = false;
-    
+
     if (isStringId) {
       // Try to parse hex string as number first
       const hexAsNumber = parseInt(this.clientId, 16);
       const canParseAsHex = !isNaN(hexAsNumber) && hexAsNumber > 0;
-      
+
       console.log(`[Parcelow OAuth] Attempting to parse hex as number: ${hexAsNumber}`);
       console.log(`[Parcelow OAuth] Can parse as hex number: ${canParseAsHex}`);
-      
+
       if (canParseAsHex) {
         // Try JSON with numeric Client ID (parsed from hex)
         console.log(`[Parcelow OAuth] Using format: JSON (with hex parsed as number)`);
@@ -143,17 +143,17 @@ class ParcelowClient {
       };
       console.log(`[Parcelow OAuth] Form body preview: client_id=${this.clientId}&grant_type=client_credentials&client_secret=${this.clientSecret.substring(0, 8)}...`);
     }
-    
+
     console.log(`[Parcelow OAuth] Request body length: ${requestBody.length} characters`);
     console.log(`[Parcelow OAuth] Request headers:`, JSON.stringify(requestHeaders, null, 2));
-    
+
     // Log full request body (masked) for debugging
     if (useJsonFormat) {
       try {
         const bodyObj = JSON.parse(requestBody);
         console.log(`[Parcelow OAuth] Full JSON request (masked):`, {
-          client_id: typeof bodyObj.client_id === 'number' 
-            ? bodyObj.client_id 
+          client_id: typeof bodyObj.client_id === 'number'
+            ? bodyObj.client_id
             : `${bodyObj.client_id.substring(0, 8)}...${bodyObj.client_id.substring(bodyObj.client_id.length - 8)}`,
           client_secret: `${bodyObj.client_secret.substring(0, 8)}...${bodyObj.client_secret.substring(bodyObj.client_secret.length - 8)}`,
           grant_type: bodyObj.grant_type,
@@ -162,9 +162,9 @@ class ParcelowClient {
         console.log(`[Parcelow OAuth] Could not parse request body for logging`);
       }
     }
-    
+
     console.log(`[Parcelow OAuth] Making POST request to: ${oauthUrl}`);
-    
+
     const response = await fetch(oauthUrl, {
       method: 'POST',
       headers: requestHeaders,
@@ -174,7 +174,7 @@ class ParcelowClient {
     console.log(`[Parcelow OAuth] ========== OAUTH RESPONSE ==========`);
     console.log(`[Parcelow OAuth] Response status: ${response.status} ${response.statusText}`);
     console.log(`[Parcelow OAuth] Response OK: ${response.ok}`);
-    
+
     const responseHeaders = Object.fromEntries(response.headers.entries());
     console.log(`[Parcelow OAuth] Response headers:`, JSON.stringify(responseHeaders, null, 2));
     console.log(`[Parcelow OAuth] Content-Type: ${responseHeaders['content-type'] || 'not set'}`);
@@ -183,7 +183,7 @@ class ParcelowClient {
       const errorText = await response.text();
       console.error(`[Parcelow OAuth] ❌ Error response body length: ${errorText.length} characters`);
       console.error(`[Parcelow OAuth] ❌ Error response body (first 1000 chars):`, errorText.substring(0, 1000));
-      
+
       let errorMessage: string;
       try {
         const errorJson = JSON.parse(errorText);
@@ -207,7 +207,7 @@ class ParcelowClient {
     const responseText = await response.text();
     console.log(`[Parcelow OAuth] Response body length: ${responseText.length} characters`);
     console.log(`[Parcelow OAuth] Response body preview: ${responseText.substring(0, 200)}...`);
-    
+
     let tokenData: any;
     try {
       tokenData = JSON.parse(responseText);
@@ -222,10 +222,10 @@ class ParcelowClient {
       console.error(`[Parcelow OAuth] Response text:`, responseText);
       throw new Error(`Failed to parse token response: ${parseError}`);
     }
-    
+
     this.accessToken = tokenData.access_token;
     this.tokenExpiresAt = Date.now() + (tokenData.expires_in - 300) * 1000;
-    
+
     console.log(`[Parcelow OAuth] ✅ Token stored successfully`);
     console.log(`[Parcelow OAuth] Token expires at: ${new Date(this.tokenExpiresAt).toISOString()}`);
     console.log(`[Parcelow OAuth] =========================================`);
@@ -250,7 +250,7 @@ class ParcelowClient {
       },
       body: data ? JSON.stringify(data) : undefined,
     });
-    
+
     // Log only first 10 chars for security
     console.log(`[Parcelow API] Using token: ${token.substring(0, 10)}...`);
 
@@ -270,12 +270,26 @@ class ParcelowClient {
     }
 
     const contentType = response.headers.get('content-type');
+    console.log(`[Parcelow API] Response Content-Type: ${contentType}`);
+
     if (contentType && contentType.includes('application/json') && response.status !== 204) {
       const jsonData = await response.json();
       console.log(`[Parcelow API] ✅ Success response:`, JSON.stringify(jsonData, null, 2));
+
+      // Check if response has success: false (API validation error)
+      if (jsonData.success === false) {
+        const errorMessage = jsonData.message || 'Parcelow API returned an error';
+        console.error(`[Parcelow API] ❌ API returned success: false - ${errorMessage}`);
+        throw new Error(errorMessage);
+      }
+
       return jsonData;
+    } else {
+      // Try to read as text for debugging
+      const textData = await response.text();
+      console.log(`[Parcelow API] ⚠️ Non-JSON response (${response.status}):`, textData.substring(0, 500));
+      return {} as T;
     }
-    return {} as T;
   }
 
   async createOrderUSD(orderData: any): Promise<any> {
@@ -295,6 +309,28 @@ class ParcelowClient {
   }
 }
 
+// Environment detection function (copied from Stripe integration)
+function detectEnvironment(req: Request): { isProduction: boolean; environment: 'production' | 'staging' } {
+  const referer = req.headers.get('referer') || '';
+  const origin = req.headers.get('origin') || '';
+  const host = req.headers.get('host') || '';
+
+  const isProductionDomain =
+    referer.includes('migmainc.com') ||
+    origin.includes('migmainc.com') ||
+    host.includes('migmainc.com') ||
+    (referer.includes('vercel.app') && !referer.includes('preview')) ||
+    (origin.includes('vercel.app') && !origin.includes('preview'));
+
+  // Default to staging unless on production domain
+  const isProduction = isProductionDomain;
+
+  return {
+    isProduction,
+    environment: isProduction ? 'production' : 'staging',
+  };
+}
+
 Deno.serve(async (req: Request) => {
   // Handle CORS preflight
   if (req.method === "OPTIONS") {
@@ -306,50 +342,26 @@ Deno.serve(async (req: Request) => {
   console.log("[Parcelow Checkout] URL:", req.url);
 
   try {
-    // Get Parcelow configuration from environment
-    // Support separate credentials for staging and production (like Stripe/Wise)
-    console.log("[Parcelow Checkout] 📋 Step 1: Checking environment variables...");
-    console.log("[Parcelow Checkout] ========== ENVIRONMENT VARIABLES DEBUG ==========");
-    
-    // Check all possible environment variables
-    const envVars = {
-      PARCELOW_ENVIRONMENT: Deno.env.get("PARCELOW_ENVIRONMENT"),
-      PARCELOW_CLIENT_ID: Deno.env.get("PARCELOW_CLIENT_ID"),
-      PARCELOW_CLIENT_SECRET: Deno.env.get("PARCELOW_CLIENT_SECRET"),
-      PARCELOW_CLIENT_ID_STAGING: Deno.env.get("PARCELOW_CLIENT_ID_STAGING"),
-      PARCELOW_CLIENT_SECRET_STAGING: Deno.env.get("PARCELOW_CLIENT_SECRET_STAGING"),
-      PARCELOW_CLIENT_ID_PRODUCTION: Deno.env.get("PARCELOW_CLIENT_ID_PRODUCTION"),
-      PARCELOW_CLIENT_SECRET_PRODUCTION: Deno.env.get("PARCELOW_CLIENT_SECRET_PRODUCTION"),
-    };
-    
-    console.log("[Parcelow Checkout] All environment variables found:");
-    for (const [key, value] of Object.entries(envVars)) {
-      if (value) {
-        // Mask secrets for security
-        if (key.includes("SECRET")) {
-          console.log(`[Parcelow Checkout]   ${key}: ${value.substring(0, 8)}...${value.substring(value.length - 4)} (length: ${value.length})`);
-        } else if (key.includes("CLIENT_ID")) {
-          console.log(`[Parcelow Checkout]   ${key}: ${value.substring(0, 8)}...${value.substring(value.length - 4)} (length: ${value.length})`);
-        } else {
-          console.log(`[Parcelow Checkout]   ${key}: ${value}`);
-        }
-      } else {
-        console.log(`[Parcelow Checkout]   ${key}: (not set)`);
-      }
-    }
-    
-    const parcelowEnvironment = (Deno.env.get("PARCELOW_ENVIRONMENT") || "staging") as 'staging' | 'production';
-    console.log("[Parcelow Checkout] ================================================");
-    console.log("[Parcelow Checkout] Selected environment:", parcelowEnvironment);
-    
-    // Try environment-specific credentials first, then fallback to generic ones
+    // Detect environment dynamically
+    const envInfo = detectEnvironment(req);
+    const parcelowEnvironment = envInfo.environment;
+
+    console.log("[Parcelow Checkout] 📋 Step 1: Detecting environment...");
+    console.log("[Parcelow Checkout] Detected environment:", parcelowEnvironment);
+    console.log("[Parcelow Checkout] Is Production Domain:", envInfo.isProduction);
+
+    // Select credentials based on environment
+    // Sandbox (Staging) uses Client ID 282
+    // Production uses Client ID 1118
     const parcelowClientId = parcelowEnvironment === 'staging'
       ? (Deno.env.get("PARCELOW_CLIENT_ID_STAGING") || Deno.env.get("PARCELOW_CLIENT_ID"))
       : (Deno.env.get("PARCELOW_CLIENT_ID_PRODUCTION") || Deno.env.get("PARCELOW_CLIENT_ID"));
-    
+
     const parcelowClientSecret = parcelowEnvironment === 'staging'
       ? (Deno.env.get("PARCELOW_CLIENT_SECRET_STAGING") || Deno.env.get("PARCELOW_CLIENT_SECRET"))
       : (Deno.env.get("PARCELOW_CLIENT_SECRET_PRODUCTION") || Deno.env.get("PARCELOW_CLIENT_SECRET"));
+
+    // The original instruction had a duplicate line for parcelowClientSecret, removed it.
 
     console.log("[Parcelow Checkout] Using credentials for:", parcelowEnvironment);
     console.log("[Parcelow Checkout] Client ID found:", !!parcelowClientId);
@@ -358,16 +370,16 @@ Deno.serve(async (req: Request) => {
     console.log("[Parcelow Checkout] Client Secret found:", !!parcelowClientSecret);
     console.log("[Parcelow Checkout] Client Secret length:", parcelowClientSecret?.length || 0);
     console.log("[Parcelow Checkout] Client Secret preview:", parcelowClientSecret ? `${parcelowClientSecret.substring(0, 8)}...${parcelowClientSecret.substring(parcelowClientSecret.length - 4)}` : "MISSING");
-    
+
     // Determine which variable was used
     const clientIdSource = parcelowEnvironment === 'staging'
       ? (Deno.env.get("PARCELOW_CLIENT_ID_STAGING") ? "PARCELOW_CLIENT_ID_STAGING" : "PARCELOW_CLIENT_ID (fallback)")
       : (Deno.env.get("PARCELOW_CLIENT_ID_PRODUCTION") ? "PARCELOW_CLIENT_ID_PRODUCTION" : "PARCELOW_CLIENT_ID (fallback)");
-    
+
     const clientSecretSource = parcelowEnvironment === 'staging'
       ? (Deno.env.get("PARCELOW_CLIENT_SECRET_STAGING") ? "PARCELOW_CLIENT_SECRET_STAGING" : "PARCELOW_CLIENT_SECRET (fallback)")
       : (Deno.env.get("PARCELOW_CLIENT_SECRET_PRODUCTION") ? "PARCELOW_CLIENT_SECRET_PRODUCTION" : "PARCELOW_CLIENT_SECRET (fallback)");
-    
+
     console.log("[Parcelow Checkout] Client ID source:", clientIdSource);
     console.log("[Parcelow Checkout] Client Secret source:", clientSecretSource);
 
@@ -381,7 +393,7 @@ Deno.serve(async (req: Request) => {
         missingVars.push(parcelowEnvironment === 'staging' ? "PARCELOW_CLIENT_SECRET_STAGING (or PARCELOW_CLIENT_SECRET)" : "PARCELOW_CLIENT_SECRET_PRODUCTION (or PARCELOW_CLIENT_SECRET)");
       }
       return new Response(
-        JSON.stringify({ 
+        JSON.stringify({
           error: "Parcelow credentials not configured",
           details: `Missing: ${missingVars.join(", ")}`,
           environment: parcelowEnvironment
@@ -404,7 +416,7 @@ Deno.serve(async (req: Request) => {
     console.log("[Parcelow Checkout] 📋 Step 3: Parsing request body...");
     const body = await req.json();
     console.log("[Parcelow Checkout] Request body:", JSON.stringify(body, null, 2));
-    
+
     const {
       order_id,
       currency = "USD", // "USD" or "BRL"
@@ -444,7 +456,7 @@ Deno.serve(async (req: Request) => {
     // Try to get client CPF from service_request -> client relationship
     let clientCpf: string | null = null;
     let clientBirthdate: string | null = null;
-    
+
     if (order.service_request_id) {
       try {
         const { data: serviceRequest, error: srError } = await supabase
@@ -452,14 +464,14 @@ Deno.serve(async (req: Request) => {
           .select("client_id")
           .eq("id", order.service_request_id)
           .single();
-        
+
         if (!srError && serviceRequest?.client_id) {
           const { data: client, error: clientError } = await supabase
             .from("clients")
             .select("document_number, date_of_birth")
             .eq("id", serviceRequest.client_id)
             .single();
-          
+
           if (!clientError && client) {
             clientCpf = client.document_number || null;
             clientBirthdate = client.date_of_birth || null;
@@ -487,17 +499,17 @@ Deno.serve(async (req: Request) => {
     console.log(`[Parcelow Checkout] Client ID length: ${parcelowClientId?.length || 0}`);
     console.log(`[Parcelow Checkout] Client ID type (before conversion): ${typeof parcelowClientId}`);
     console.log(`[Parcelow Checkout] Client ID preview: ${parcelowClientId ? `${parcelowClientId.substring(0, 16)}...${parcelowClientId.substring(parcelowClientId.length - 8)}` : 'MISSING'}`);
-    
+
     // Try to parse as number first (for numeric IDs like 1118)
     // If it fails, use as string (for hex IDs like the new credentials)
     let clientIdToUse: number | string;
     const clientIdNumber = parseInt(parcelowClientId, 10);
     const isNumericId = !isNaN(clientIdNumber) && clientIdNumber.toString() === parcelowClientId.trim();
-    
+
     console.log(`[Parcelow Checkout] Attempting to parse as number: ${clientIdNumber}`);
     console.log(`[Parcelow Checkout] Is numeric ID: ${isNumericId}`);
     console.log(`[Parcelow Checkout] Parsed number equals original: ${clientIdNumber.toString() === parcelowClientId.trim()}`);
-    
+
     if (isNumericId) {
       clientIdToUse = clientIdNumber;
       console.log(`[Parcelow Checkout] ✅ Using Client ID as number: ${clientIdToUse}`);
@@ -509,14 +521,14 @@ Deno.serve(async (req: Request) => {
       clientIdToUse = parcelowClientId;
       console.log(`[Parcelow Checkout] Using Client ID as string: ${clientIdToUse.substring(0, 16)}...`);
     }
-    
+
     console.log(`[Parcelow Checkout] Final Client ID to use: ${clientIdToUse} (type: ${typeof clientIdToUse})`);
     console.log(`[Parcelow Checkout] Client ID string representation: ${clientIdToUse.toString()}`);
     console.log(`[Parcelow Checkout] Client Secret length: ${parcelowClientSecret?.length || 0}`);
     console.log(`[Parcelow Checkout] Client Secret preview: ${parcelowClientSecret ? `${parcelowClientSecret.substring(0, 8)}...${parcelowClientSecret.substring(parcelowClientSecret.length - 4)}` : 'MISSING'}`);
     console.log(`[Parcelow Checkout] Environment: ${parcelowEnvironment}`);
     console.log(`[Parcelow Checkout] ============================================`);
-    
+
     const parcelowClient = new ParcelowClient(
       clientIdToUse, // Can be number or string now
       parcelowClientSecret,
@@ -528,14 +540,14 @@ Deno.serve(async (req: Request) => {
     // CPF is required by Parcelow - if not available, we'll need to handle this
     const rawCpf = clientCpf || order.client_cpf || '';
     const clientCpfToUse = cleanDocumentNumber(rawCpf);
-    
+
     console.log(`[Parcelow Checkout] Raw CPF: ${rawCpf ? rawCpf.substring(0, 3) + '***' : 'MISSING'}`);
     console.log(`[Parcelow Checkout] Cleaned CPF length: ${clientCpfToUse?.length || 0}`);
-    
+
     if (!clientCpfToUse || clientCpfToUse.length < 11) {
       console.error("[Parcelow Checkout] ❌ CPF is required but not found or invalid");
       return new Response(
-        JSON.stringify({ 
+        JSON.stringify({
           error: "CPF is required for Parcelow payment. Please ensure client document is provided.",
           details: `CPF not found or invalid (length: ${clientCpfToUse?.length || 0}, expected 11 or 14). Raw CPF: ${rawCpf ? rawCpf.substring(0, 3) + '***' : 'MISSING'}`
         }),
@@ -557,7 +569,7 @@ Deno.serve(async (req: Request) => {
       address_state: order.client_address_state,
       address_complement: order.client_address_complement,
     };
-    
+
     console.log("[Parcelow Checkout] Client data prepared:", {
       cpf: clientCpfToUse.substring(0, 3) + "***", // Log only first 3 digits for security
       name: clientData.name,
@@ -585,7 +597,7 @@ Deno.serve(async (req: Request) => {
     // Create order
     console.log("[Parcelow Checkout] 📋 Step 6: Creating Parcelow order...");
     let parcelowResponse: any;
-    
+
     try {
       if (currency === "BRL") {
         // For BRL, we need to convert USD to BRL first
@@ -593,7 +605,7 @@ Deno.serve(async (req: Request) => {
         const amountBRL = parseFloat(order.total_price_usd) * 5; // Placeholder conversion
         const amountBRLInCents = Math.round(amountBRL * 100);
         items[0].amount = amountBRLInCents;
-        
+
         parcelowResponse = await parcelowClient.createOrderBRL({
           reference: order.order_number,
           partner_reference: order.id,
@@ -612,8 +624,18 @@ Deno.serve(async (req: Request) => {
       }
 
       console.log("[Parcelow Checkout] ✅ Parcelow order created successfully");
-      console.log("[Parcelow Checkout] Order ID:", parcelowResponse.data?.order_id);
-      console.log("[Parcelow Checkout] Checkout URL:", parcelowResponse.data?.url_checkout);
+      console.log("[Parcelow Checkout] Full response:", JSON.stringify(parcelowResponse, null, 2));
+      console.log("[Parcelow Checkout] Response has 'data' property:", !!parcelowResponse?.data);
+      console.log("[Parcelow Checkout] Order ID:", parcelowResponse?.data?.order_id || parcelowResponse?.order_id);
+      console.log("[Parcelow Checkout] Checkout URL:", parcelowResponse?.data?.url_checkout || parcelowResponse?.url_checkout);
+
+      // Validate response structure
+      if (!parcelowResponse || (!parcelowResponse.data && !parcelowResponse.order_id)) {
+        console.error("[Parcelow Checkout] ❌ Invalid response structure from Parcelow API");
+        console.error("[Parcelow Checkout] Expected: { data: { order_id, url_checkout } } or { order_id, url_checkout }");
+        console.error("[Parcelow Checkout] Received:", JSON.stringify(parcelowResponse, null, 2));
+        throw new Error("Invalid response from Parcelow API: missing order_id and url_checkout");
+      }
     } catch (error: any) {
       console.error("[Parcelow Checkout] ❌ Error creating Parcelow order:", error);
       console.error("[Parcelow Checkout] Error stack:", error.stack);
@@ -623,25 +645,37 @@ Deno.serve(async (req: Request) => {
     // Get full order details
     console.log("[Parcelow Checkout] 📋 Step 7: Fetching Parcelow order details...");
     let parcelowOrder: any;
+
+    // Extract order_id from response (handle both formats)
+    const orderId = parcelowResponse?.data?.order_id || parcelowResponse?.order_id;
+    const checkoutUrl = parcelowResponse?.data?.url_checkout || parcelowResponse?.url_checkout;
+
+    if (!orderId || !checkoutUrl) {
+      console.error("[Parcelow Checkout] ❌ Missing required fields in Parcelow response");
+      console.error("[Parcelow Checkout] order_id:", orderId);
+      console.error("[Parcelow Checkout] url_checkout:", checkoutUrl);
+      throw new Error("Parcelow API response missing order_id or url_checkout");
+    }
+
     try {
-      parcelowOrder = await parcelowClient.getOrder(parcelowResponse.data.order_id.toString());
+      parcelowOrder = await parcelowClient.getOrder(orderId.toString());
       console.log("[Parcelow Checkout] ✅ Parcelow order details fetched");
     } catch (error: any) {
       console.warn("[Parcelow Checkout] ⚠️ Could not fetch order details, using response data");
-      parcelowOrder = parcelowResponse.data;
+      parcelowOrder = parcelowResponse.data || parcelowResponse;
     }
 
     // Save Parcelow order details to database
     console.log("[Parcelow Checkout] 📋 Step 8: Saving Parcelow order details to database...");
-    
+
     const updateData = {
-      parcelow_order_id: parcelowResponse.data.order_id.toString(),
-      parcelow_checkout_url: parcelowResponse.data.url_checkout,
+      parcelow_order_id: orderId.toString(),
+      parcelow_checkout_url: checkoutUrl,
       parcelow_status: parcelowOrder?.status_text || 'Open',
       parcelow_status_code: parcelowOrder?.status || 0,
     };
     console.log("[Parcelow Checkout] Update data:", JSON.stringify(updateData, null, 2));
-    
+
     const { error: updateOrderError } = await supabase
       .from("visa_orders")
       .update(updateData)
@@ -658,15 +692,15 @@ Deno.serve(async (req: Request) => {
 
     console.log("[Parcelow Checkout] ========== ✅ CHECKOUT CREATED SUCCESSFULLY ==========");
     console.log("[Parcelow Checkout] Summary:");
-    console.log("[Parcelow Checkout] - Order ID:", parcelowResponse.data.order_id);
+    console.log("[Parcelow Checkout] - Order ID:", orderId);
     console.log("[Parcelow Checkout] - Status:", parcelowOrder?.status_text || 'Open');
-    console.log("[Parcelow Checkout] - Checkout URL:", parcelowResponse.data.url_checkout);
+    console.log("[Parcelow Checkout] - Checkout URL:", checkoutUrl);
 
     return new Response(
       JSON.stringify({
         success: true,
-        order_id: parcelowResponse.data.order_id,
-        checkout_url: parcelowResponse.data.url_checkout,
+        order_id: orderId,
+        checkout_url: checkoutUrl,
         status: parcelowOrder?.status_text || 'Open',
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -677,10 +711,10 @@ Deno.serve(async (req: Request) => {
     console.error("[Parcelow Checkout] Error stack:", error.stack);
     console.error("[Parcelow Checkout] Error name:", error.name);
     console.error("[Parcelow Checkout] Full error:", JSON.stringify(error, null, 2));
-    
+
     // Return more detailed error for debugging
     return new Response(
-      JSON.stringify({ 
+      JSON.stringify({
         error: error.message || "Failed to create Parcelow checkout",
         details: process.env.NODE_ENV === 'development' ? error.stack : undefined,
         type: error.name || 'UnknownError'
