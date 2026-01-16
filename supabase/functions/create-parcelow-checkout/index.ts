@@ -645,13 +645,33 @@ Deno.serve(async (req: Request) => {
           redirect: redirectUrls,
         });
       } else {
-        parcelowResponse = await parcelowClient.createOrderUSD({
-          reference: order.order_number,
-          partner_reference: order.id,
-          client: clientData,
-          items,
-          redirect: redirectUrls,
-        });
+        try {
+          parcelowResponse = await parcelowClient.createOrderUSD({
+            reference: order.order_number,
+            partner_reference: order.id,
+            client: clientData,
+            items,
+            redirect: redirectUrls,
+          });
+        } catch (err: any) {
+          // Handle "Customer email exists" error by aliasing the email for testing/sandbox
+          if (err.message && err.message.includes('Email do cliente existente')) {
+            console.warn('[Parcelow Checkout] ⚠️ Customer email exists, retrying with aliased email for checkout creation...');
+            const emailParts = clientData.email.split('@');
+            const aliasedEmail = `${emailParts[0]}+${Date.now()}@${emailParts[1]}`;
+            const clientDataRetry = { ...clientData, email: aliasedEmail };
+
+            parcelowResponse = await parcelowClient.createOrderUSD({
+              reference: order.order_number,
+              partner_reference: order.id,
+              client: clientDataRetry,
+              items,
+              redirect: redirectUrls,
+            });
+          } else {
+            throw err;
+          }
+        }
       }
 
       console.log("[Parcelow Checkout] ✅ Parcelow order created successfully");

@@ -248,13 +248,12 @@ export const usePaymentHandlers = (
                     client_nationality: clientNationality,
                     client_observations: clientObservations,
                     payment_method: 'parcelow',
-                    status: 'pending',
-                    total_amount_usd: totalWithFees,
+                    payment_status: 'pending',
+                    total_price_usd: totalWithFees,
                     contract_document_url: documentFrontUrl,
                     contract_selfie_url: selfieUrl,
                     contract_accepted: true,
-                    contract_signed_at: new Date().toISOString(),
-                    contract_template_id: contractTemplate?.id
+                    contract_signed_at: new Date().toISOString()
                 })
                 .select()
                 .single();
@@ -274,9 +273,11 @@ export const usePaymentHandlers = (
                 throw new Error('Failed to initiate Parcelow checkout');
             }
 
-            if (checkoutData?.url) {
-                window.location.href = checkoutData.url;
+            const redirectUrl = checkoutData?.checkout_url || checkoutData?.url || checkoutData?.url_checkout;
+            if (redirectUrl) {
+                window.location.href = redirectUrl;
             } else {
+                console.error('Missing checkout URL in data:', checkoutData);
                 throw new Error('Invalid response from payment provider');
             }
 

@@ -49,7 +49,7 @@ export const PaymentButtons: React.FC<PaymentButtonsProps> = ({
                     <Button
                         onClick={onParcelowPayment}
                         disabled={submitting || !isReady}
-                        className="bg-gold-medium text-black font-bold hover:bg-gold-light w-full"
+                        className="bg-[#22c55e] hover:bg-[#16a34a] text-white font-bold w-full"
                     >
                         {submitting ? 'Processing...' : 'Pay with Parcelow'}
                     </Button>
