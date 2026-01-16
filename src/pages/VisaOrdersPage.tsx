@@ -1,11 +1,17 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+
 import { supabase } from '@/lib/supabase';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { PdfModal } from '@/components/ui/pdf-modal';
-import { FileText, Eye } from 'lucide-react';
+import { FileText, Eye, Download, ChevronDown } from 'lucide-react';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 
 interface VisaOrder {
   id: string;
@@ -17,7 +23,7 @@ interface VisaOrder {
   total_price_usd: string;
   payment_status: string;
   payment_method: string;
-  payment_metadata?: any; // Include payment_metadata to access fee_amount
+  payment_metadata?: { fee_amount?: string | number } | null; // Include payment_metadata to access fee_amount
   contract_pdf_url: string | null;
   annex_pdf_url: string | null;
   created_at: string;
@@ -26,8 +32,8 @@ interface VisaOrder {
 // Helper function to calculate net amount and fee
 const calculateNetAmountAndFee = (order: VisaOrder) => {
   const totalPrice = parseFloat(order.total_price_usd || '0');
-  const metadata = order.payment_metadata as any;
-  const feeAmount = metadata?.fee_amount ? parseFloat(metadata.fee_amount) : 0;
+  const metadata = order.payment_metadata;
+  const feeAmount = metadata?.fee_amount ? parseFloat(metadata.fee_amount.toString()) : 0;
   const netAmount = totalPrice - feeAmount;
   return {
     netAmount: Math.max(netAmount, 0),
@@ -66,6 +72,24 @@ export const VisaOrdersPage = () => {
     loadOrders();
   }, []);
 
+  // Function updated to accept filter type
+  const handleExportExcel = async (filterType: 'all' | 'completed' | 'pending' = 'all') => {
+    try {
+      let filteredOrders = orders;
+
+      if (filterType === 'completed') {
+        filteredOrders = orders.filter(order => order.payment_status === 'completed');
+      } else if (filterType === 'pending') {
+        filteredOrders = orders.filter(order => order.payment_status === 'pending');
+      }
+
+      const { exportVisaOrdersToExcel } = await import('@/lib/visaOrdersExport');
+      await exportVisaOrdersToExcel(filteredOrders);
+    } catch (error) {
+      console.error('Failed to export excel:', error);
+    }
+  };
+
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'completed':
@@ -95,7 +119,46 @@ export const VisaOrdersPage = () => {
   return (
     <div className="p-4 sm:p-6 lg:p-8">
       <div className="max-w-7xl mx-auto">
-        <h1 className="text-2xl sm:text-3xl font-bold migma-gold-text mb-4 sm:mb-8">Visa Orders</h1>
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4 sm:mb-8">
+          <h1 className="text-2xl sm:text-3xl font-bold migma-gold-text">Visa Orders</h1>
+
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button
+                className="bg-green-600 hover:bg-green-700 text-white border-none gap-2 text-sm font-medium"
+              >
+                <Download className="w-4 h-4" />
+                Export Excel
+                <ChevronDown className="w-4 h-4 ml-1" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent align="end" className="w-56 p-2 bg-zinc-950 border border-zinc-800 rounded-lg shadow-xl">
+              <div className="flex flex-col gap-1">
+                <Button
+                  variant="ghost"
+                  className="w-full justify-start text-zinc-300 hover:text-white hover:bg-zinc-800 text-sm font-normal"
+                  onClick={() => handleExportExcel('all')}
+                >
+                  Exportar Todos
+                </Button>
+                <Button
+                  variant="ghost"
+                  className="w-full justify-start text-zinc-300 hover:text-white hover:bg-zinc-800 text-sm font-normal"
+                  onClick={() => handleExportExcel('completed')}
+                >
+                  Apenas Pagos
+                </Button>
+                <Button
+                  variant="ghost"
+                  className="w-full justify-start text-zinc-300 hover:text-white hover:bg-zinc-800 text-sm font-normal"
+                  onClick={() => handleExportExcel('pending')}
+                >
+                  Apenas Pendentes
+                </Button>
+              </div>
+            </PopoverContent>
+          </Popover>
+        </div>
 
         <Card className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30">
           <CardHeader>
@@ -111,113 +174,113 @@ export const VisaOrdersPage = () => {
                 {/* Desktop Table */}
                 <div className="hidden md:block overflow-x-auto">
                   <table className="w-full">
-                  <thead>
-                    <tr className="border-b border-gold-medium/30">
-                      <th className="text-left py-3 px-4 text-sm text-gray-400 font-semibold">Order #</th>
-                      <th className="text-left py-3 px-4 text-sm text-gray-400 font-semibold">Client</th>
-                      <th className="text-left py-3 px-4 text-sm text-gray-400 font-semibold">Product</th>
-                      <th className="text-left py-3 px-4 text-sm text-gray-400 font-semibold">Seller</th>
-                      <th className="text-left py-3 px-4 text-sm text-gray-400 font-semibold">Total (with fee)</th>
-                      <th className="text-left py-3 px-4 text-sm text-gray-400 font-semibold">Net Amount</th>
-                      <th className="text-left py-3 px-4 text-sm text-gray-400 font-semibold">Stripe Fee</th>
-                      <th className="text-left py-3 px-4 text-sm text-gray-400 font-semibold">Status</th>
-                      <th className="text-left py-3 px-4 text-sm text-gray-400 font-semibold">Date</th>
-                      <th className="text-left py-3 px-4 text-sm text-gray-400 font-semibold">Contract</th>
-                      <th className="text-left py-3 px-4 text-sm text-gray-400 font-semibold">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {orders.map((order) => {
-                      const { netAmount, feeAmount } = calculateNetAmountAndFee(order);
-                      return (
-                      <tr key={order.id} className="border-b border-gold-medium/10 hover:bg-white/5">
-                        <td className="py-3 px-4 text-sm text-white font-mono">{order.order_number}</td>
-                        <td className="py-3 px-4">
-                          <div className="text-sm">
-                            <p className="text-white">{order.client_name}</p>
-                            <p className="text-gray-400 text-xs">{order.client_email}</p>
-                          </div>
-                        </td>
-                        <td className="py-3 px-4 text-sm text-white">{order.product_slug}</td>
-                        <td className="py-3 px-4 text-sm text-gray-400">{order.seller_id || '-'}</td>
-                        <td className="py-3 px-4 text-sm text-gold-light font-bold">
-                          ${parseFloat(order.total_price_usd).toFixed(2)}
-                        </td>
-                        <td className="py-3 px-4 text-sm text-white font-semibold">
-                          ${netAmount.toFixed(2)}
-                        </td>
-                        <td className="py-3 px-4 text-sm text-gray-400">
-                          {feeAmount > 0 ? (
-                            <span className="text-red-400">-${feeAmount.toFixed(2)}</span>
-                          ) : (
-                            <span className="text-gray-500">$0.00</span>
-                          )}
-                        </td>
-                        <td className="py-3 px-4">
-                          {getStatusBadge(order.payment_status)}
-                        </td>
-                        <td className="py-3 px-4 text-sm text-gray-400">
-                          {new Date(order.created_at).toLocaleDateString()}
-                        </td>
-                        <td className="py-3 px-4">
-                          <div className="flex flex-col gap-1">
-                            {order.annex_pdf_url && (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => {
-                                  setSelectedPdfUrl(order.annex_pdf_url);
-                                  setSelectedPdfTitle(`ANNEX I - ${order.order_number}`);
-                                }}
-                                className="border-gold-medium/50 bg-black/50 text-gold-light hover:bg-black hover:border-gold-medium hover:text-gold-medium text-xs"
-                              >
-                                <FileText className="w-3 h-3 mr-1" />
-                                ANNEX I
-                              </Button>
-                            )}
-                            {order.contract_pdf_url && (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => {
-                                  setSelectedPdfUrl(order.contract_pdf_url);
-                                  setSelectedPdfTitle(`Contract - ${order.order_number}`);
-                                }}
-                                className="border-gold-medium/50 bg-black/50 text-gold-light hover:bg-black hover:border-gold-medium hover:text-gold-medium text-xs"
-                              >
-                                <FileText className="w-3 h-3 mr-1" />
-                                Contract
-                              </Button>
-                            )}
-                            {!order.annex_pdf_url && !order.contract_pdf_url && (
-                              <span className="text-gray-500 text-xs">Not generated</span>
-                            )}
-                          </div>
-                        </td>
-                        <td className="py-3 px-4">
-                          <Link to={`/dashboard/visa-orders/${order.id}`}>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="flex items-center gap-2 border-gold-medium/50 bg-black/50 text-white hover:bg-gold-medium/30 hover:text-gold-light"
-                            >
-                              <Eye className="w-4 h-4" />
-                              View Details
-                            </Button>
-                          </Link>
-                        </td>
+                    <thead>
+                      <tr className="border-b border-gold-medium/30">
+                        <th className="text-left py-3 px-4 text-sm text-gray-400 font-semibold">Order #</th>
+                        <th className="text-left py-3 px-4 text-sm text-gray-400 font-semibold">Client</th>
+                        <th className="text-left py-3 px-4 text-sm text-gray-400 font-semibold">Product</th>
+                        <th className="text-left py-3 px-4 text-sm text-gray-400 font-semibold">Seller</th>
+                        <th className="text-left py-3 px-4 text-sm text-gray-400 font-semibold">Total (with fee)</th>
+                        <th className="text-left py-3 px-4 text-sm text-gray-400 font-semibold">Net Amount</th>
+                        <th className="text-left py-3 px-4 text-sm text-gray-400 font-semibold">Stripe Fee</th>
+                        <th className="text-left py-3 px-4 text-sm text-gray-400 font-semibold">Status</th>
+                        <th className="text-left py-3 px-4 text-sm text-gray-400 font-semibold">Date</th>
+                        <th className="text-left py-3 px-4 text-sm text-gray-400 font-semibold">Contract</th>
+                        <th className="text-left py-3 px-4 text-sm text-gray-400 font-semibold">Actions</th>
                       </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
+                    </thead>
+                    <tbody>
+                      {orders.map((order) => {
+                        const { netAmount, feeAmount } = calculateNetAmountAndFee(order);
+                        return (
+                          <tr key={order.id} className="border-b border-gold-medium/10 hover:bg-white/5">
+                            <td className="py-3 px-4 text-sm text-white font-mono">{order.order_number}</td>
+                            <td className="py-3 px-4">
+                              <div className="text-sm">
+                                <p className="text-white">{order.client_name}</p>
+                                <p className="text-gray-400 text-xs">{order.client_email}</p>
+                              </div>
+                            </td>
+                            <td className="py-3 px-4 text-sm text-white">{order.product_slug}</td>
+                            <td className="py-3 px-4 text-sm text-gray-400">{order.seller_id || '-'}</td>
+                            <td className="py-3 px-4 text-sm text-gold-light font-bold">
+                              ${parseFloat(order.total_price_usd).toFixed(2)}
+                            </td>
+                            <td className="py-3 px-4 text-sm text-white font-semibold">
+                              ${netAmount.toFixed(2)}
+                            </td>
+                            <td className="py-3 px-4 text-sm text-gray-400">
+                              {feeAmount > 0 ? (
+                                <span className="text-red-400">-${feeAmount.toFixed(2)}</span>
+                              ) : (
+                                <span className="text-gray-500">$0.00</span>
+                              )}
+                            </td>
+                            <td className="py-3 px-4">
+                              {getStatusBadge(order.payment_status)}
+                            </td>
+                            <td className="py-3 px-4 text-sm text-gray-400">
+                              {new Date(order.created_at).toLocaleDateString()}
+                            </td>
+                            <td className="py-3 px-4">
+                              <div className="flex flex-col gap-1">
+                                {order.annex_pdf_url && (
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => {
+                                      setSelectedPdfUrl(order.annex_pdf_url);
+                                      setSelectedPdfTitle(`ANNEX I - ${order.order_number}`);
+                                    }}
+                                    className="border-gold-medium/50 bg-black/50 text-gold-light hover:bg-black hover:border-gold-medium hover:text-gold-medium text-xs"
+                                  >
+                                    <FileText className="w-3 h-3 mr-1" />
+                                    ANNEX I
+                                  </Button>
+                                )}
+                                {order.contract_pdf_url && (
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => {
+                                      setSelectedPdfUrl(order.contract_pdf_url);
+                                      setSelectedPdfTitle(`Contract - ${order.order_number}`);
+                                    }}
+                                    className="border-gold-medium/50 bg-black/50 text-gold-light hover:bg-black hover:border-gold-medium hover:text-gold-medium text-xs"
+                                  >
+                                    <FileText className="w-3 h-3 mr-1" />
+                                    Contract
+                                  </Button>
+                                )}
+                                {!order.annex_pdf_url && !order.contract_pdf_url && (
+                                  <span className="text-gray-500 text-xs">Not generated</span>
+                                )}
+                              </div>
+                            </td>
+                            <td className="py-3 px-4">
+                              <Link to={`/dashboard/visa-orders/${order.id}`}>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="flex items-center gap-2 border-gold-medium/50 bg-black/50 text-white hover:bg-gold-medium/30 hover:text-gold-light"
+                                >
+                                  <Eye className="w-4 h-4" />
+                                  View Details
+                                </Button>
+                              </Link>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
 
                 {/* Mobile Cards */}
                 <div className="md:hidden space-y-4">
                   {orders.map((order) => {
                     const { netAmount, feeAmount } = calculateNetAmountAndFee(order);
-                    
+
                     return (
                       <Card key={order.id} className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30">
                         <CardContent className="p-4 space-y-3">
@@ -231,7 +294,7 @@ export const VisaOrdersPage = () => {
                               {getStatusBadge(order.payment_status)}
                             </div>
                           </div>
-                          
+
                           <div className="grid grid-cols-2 gap-2 text-xs sm:text-sm">
                             <div>
                               <p className="text-gray-400">Product</p>

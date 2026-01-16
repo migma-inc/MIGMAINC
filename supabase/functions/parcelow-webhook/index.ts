@@ -9,7 +9,7 @@ const corsHeaders = {
 
 interface ParcelowWebhookEvent {
   event: string; // "event_order_paid", "event_order_declined", etc.
-  data: {
+  order?: {
     id: number;
     reference: string;
     status: number;
@@ -21,6 +21,19 @@ interface ParcelowWebhookEvent {
     order_date: string;
     [key: string]: any;
   };
+  data?: {
+    id: number;
+    reference: string;
+    status: number;
+    status_text: string;
+    order_amount: number;
+    total_usd: number;
+    total_brl: number;
+    installments: number;
+    order_date: string;
+    [key: string]: any;
+  };
+  timestamp?: string;
 }
 
 // Normalize service name for grouped products (initial, cos, transfer)
@@ -29,17 +42,17 @@ function normalizeServiceName(productSlug: string, productName: string): string 
   if (productSlug.startsWith('initial-')) {
     return 'F1 Initial';
   }
-  
+
   // COS - agrupa os 3 produtos
   if (productSlug.startsWith('cos-')) {
     return 'COS & Transfer';
   }
-  
+
   // Transfer - agrupa os 3 produtos
   if (productSlug.startsWith('transfer-')) {
     return 'COS & Transfer';
   }
-  
+
   // Para outros produtos, retorna o nome original
   return productName;
 }
@@ -47,26 +60,26 @@ function normalizeServiceName(productSlug: string, productName: string): string 
 // Send webhook to client (n8n) after payment confirmation
 async function sendClientWebhook(order: any, supabase: any) {
   let payload: any = null;
-  
+
   try {
     const webhookUrl = Deno.env.get('CLIENT_WEBHOOK_URL');
-    
+
     if (!webhookUrl) {
       console.error('[Parcelow Webhook Client] ❌ CLIENT_WEBHOOK_URL environment variable is not set. Skipping webhook.');
       return;
     }
-    
+
     console.log('[Parcelow Webhook Client] 📤 Starting webhook send process');
     console.log('[Parcelow Webhook Client] Order ID:', order.id);
     console.log('[Parcelow Webhook Client] Order Number:', order.order_number);
-    
+
     // 1. Buscar produto no banco para obter o nome do serviço
     const { data: product, error: productError } = await supabase
       .from('visa_products')
       .select('name')
       .eq('slug', order.product_slug)
       .single();
-    
+
     if (productError) {
       console.warn('[Parcelow Webhook Client] ⚠️ Error fetching product:', productError);
       console.warn('[Parcelow Webhook Client] Using product_slug as fallback:', order.product_slug);
@@ -74,13 +87,13 @@ async function sendClientWebhook(order: any, supabase: any) {
     } else {
       console.log('[Parcelow Webhook Client] ✅ Product found:', product?.name);
     }
-    
+
     // 2. Normalizar nome do serviço para produtos agrupados
     const normalizedServiceName = normalizeServiceName(
       order.product_slug,
       product?.name || order.product_slug
     );
-    
+
     // 3. Montar payload conforme especificado pelo cliente
     // IMPORTANTE: valor_servico deve ser APENAS o valor unitário do serviço (sem multiplicar por unidades)
     // Para produtos units_only: apenas extra_unit_price (valor unitário, não o total)
@@ -93,7 +106,7 @@ async function sendClientWebhook(order: any, supabase: any) {
       // Para base_plus_units: valor = apenas base_price_usd (sem dependentes)
       baseServicePrice = parseFloat(order.base_price_usd || '0');
     }
-    
+
     // Log detalhado do cálculo do valor
     console.log('[Parcelow Webhook Client] 💰 Valor calculation details:', {
       calculation_type: order.calculation_type,
@@ -104,7 +117,7 @@ async function sendClientWebhook(order: any, supabase: any) {
       calculated_baseServicePrice: baseServicePrice,
       product_slug: order.product_slug,
     });
-    
+
     payload = {
       servico: normalizedServiceName,
       plano_servico: order.product_slug,
@@ -115,7 +128,7 @@ async function sendClientWebhook(order: any, supabase: any) {
       vendedor: order.seller_id || '',
       quantidade_dependentes: order.dependent_names && Array.isArray(order.dependent_names) ? order.dependent_names.length : 0,
     };
-    
+
     // Log resumo antes de enviar
     const dependentCount = order.dependent_names && Array.isArray(order.dependent_names) ? order.dependent_names.length : 0;
     console.log('[Parcelow Webhook Client] 📋 RESUMO DOS WEBHOOKS A SEREM ENVIADOS:');
@@ -125,9 +138,9 @@ async function sendClientWebhook(order: any, supabase: any) {
     console.log('[Parcelow Webhook Client] 📦 Payload completo do CLIENTE PRINCIPAL que será enviado:');
     console.log(JSON.stringify(payload, null, 2));
     console.log('[Parcelow Webhook Client] 🌐 Sending POST request to:', webhookUrl);
-    
+
     const startTime = Date.now();
-    
+
     // 3. Fazer POST para o webhook do cliente
     const response = await fetch(webhookUrl, {
       method: 'POST',
@@ -136,11 +149,11 @@ async function sendClientWebhook(order: any, supabase: any) {
       },
       body: JSON.stringify(payload),
     });
-    
+
     const endTime = Date.now();
     const duration = endTime - startTime;
     const durationStr = duration + "ms";
-    
+
     // 4. Log resultado detalhado (sucesso ou erro)
     if (!response.ok) {
       const responseText = await response.text();
@@ -175,34 +188,34 @@ async function sendClientWebhook(order: any, supabase: any) {
     if (order.dependent_names && Array.isArray(order.dependent_names) && order.dependent_names.length > 0) {
       const dependentCount = order.dependent_names.length;
       const dependentUnitPrice = parseFloat(order.extra_unit_price_usd || '0');
-      
+
       console.log('');
       console.log('[Parcelow Webhook Client] ========================================');
       console.log(`[Parcelow Webhook Client] 📤 INICIANDO ENVIO DE ${dependentCount} WEBHOOK(S) DE DEPENDENTE(S)`);
       console.log('[Parcelow Webhook Client] ========================================');
-      
+
       for (let i = 0; i < dependentCount; i++) {
         const dependentName = order.dependent_names[i];
-        
+
         if (!dependentName || dependentName.trim() === '') {
           console.warn(`[Parcelow Webhook Client] ⚠️ Skipping dependent ${i + 1}: empty name`);
           continue;
         }
-        
+
         // Payload simplificado - nome do cliente principal, nome do dependente e valor
         const dependentPayload = {
           nome_completo_cliente_principal: order.client_name,
           nome_completo_dependente: dependentName,
           valor_servico: dependentUnitPrice.toFixed(2),
         };
-        
+
         console.log('');
         console.log(`[Parcelow Webhook Client] 📦 PAYLOAD DEPENDENTE ${i + 1}/${dependentCount} (ANTES DE ENVIAR):`);
         console.log(JSON.stringify(dependentPayload, null, 2));
         console.log(`[Parcelow Webhook Client] 🌐 Sending POST request for Dependent ${i + 1}/${dependentCount}`);
-        
+
         const dependentStartTime = Date.now();
-        
+
         try {
           const dependentResponse = await fetch(webhookUrl, {
             method: 'POST',
@@ -211,11 +224,11 @@ async function sendClientWebhook(order: any, supabase: any) {
             },
             body: JSON.stringify(dependentPayload),
           });
-          
+
           const dependentEndTime = Date.now();
           const dependentDuration = dependentEndTime - dependentStartTime;
           const dependentDurationStr = dependentDuration + "ms";
-          
+
           if (!dependentResponse.ok) {
             const dependentResponseText = await dependentResponse.text();
             console.error(`[Parcelow Webhook Client] ❌ ERRO ao enviar webhook do DEPENDENTE ${i + 1}/${dependentCount}:`, {
@@ -260,7 +273,7 @@ async function sendClientWebhook(order: any, supabase: any) {
           console.error(JSON.stringify(dependentPayload, null, 2));
         }
       }
-      
+
       console.log('');
       console.log('[Parcelow Webhook Client] ========================================');
       console.log(`[Parcelow Webhook Client] ✅ FINALIZADO: ${dependentCount} webhook(s) de dependente(s) processado(s)`);
@@ -269,7 +282,7 @@ async function sendClientWebhook(order: any, supabase: any) {
     } else {
       console.log('[Parcelow Webhook Client] ℹ️ No dependents to send webhooks for');
     }
-    
+
     // Log resumo final
     console.log('');
     console.log('[Parcelow Webhook Client] ========================================');
@@ -300,27 +313,35 @@ async function processParcelowWebhookEvent(
   event: ParcelowWebhookEvent,
   supabase: any
 ) {
-  const { event: eventType, data } = event;
+  const { event: eventType } = event;
+
+  // Normalize payload: Parcelow can send either 'order' or 'data'
+  const parcelowOrder = event.order || event.data;
+
+  if (!parcelowOrder) {
+    console.error(`[Parcelow Webhook] ❌ Invalid payload: missing 'order' or 'data' field`);
+    return;
+  }
 
   console.log(`[Parcelow Webhook] ========== PROCESSING EVENT ==========`);
   console.log(`[Parcelow Webhook] Event type: ${eventType}`);
-  console.log(`[Parcelow Webhook] Parcelow Order ID: ${data.id}`);
-  console.log(`[Parcelow Webhook] Reference: ${data.reference}`);
-  console.log(`[Parcelow Webhook] Status: ${data.status_text} (code: ${data.status})`);
-  console.log(`[Parcelow Webhook] Total USD: ${data.total_usd}, Total BRL: ${data.total_brl}`);
-  console.log(`[Parcelow Webhook] Installments: ${data.installments}`);
+  console.log(`[Parcelow Webhook] Parcelow Order ID: ${parcelowOrder.id}`);
+  console.log(`[Parcelow Webhook] Reference: ${parcelowOrder.reference || 'N/A'}`);
+  console.log(`[Parcelow Webhook] Status: ${parcelowOrder.status_text || 'N/A'} (code: ${parcelowOrder.status})`);
+  console.log(`[Parcelow Webhook] Total USD: ${parcelowOrder.total_usd || 0}, Total BRL: ${parcelowOrder.total_brl || 0}`);
+  console.log(`[Parcelow Webhook] Installments: ${parcelowOrder.installments || 1}`);
 
-  // Find the visa order by parcelow_order_id or reference
+  // Find the visa order by parcelow_order_id
   // Select all fields needed for complete processing
   const { data: order, error: orderError } = await supabase
     .from("visa_orders")
     .select("*")
-    .or(`parcelow_order_id.eq.${data.id},reference.eq.${data.reference}`)
+    .eq("parcelow_order_id", parcelowOrder.id.toString())
     .single();
 
   if (orderError || !order) {
     console.error(
-      `[Parcelow Webhook] ❌ Order not found for Parcelow order ${data.id} or reference ${data.reference}:`,
+      `[Parcelow Webhook] ❌ Order not found for Parcelow order ${parcelowOrder.id}:`,
       orderError
     );
     return;
@@ -340,30 +361,44 @@ async function processParcelowWebhookEvent(
   let paymentStatus = order.payment_status;
   let shouldProcessPayment = false; // Flag for full payment processing
 
+  console.log(`[Parcelow Webhook] 🔍 PAYMENT STATUS ANALYSIS:`);
+  console.log(`[Parcelow Webhook] - Current DB payment_status: ${paymentStatus}`);
+  console.log(`[Parcelow Webhook] - Parcelow status: ${parcelowOrder.status} (${parcelowOrder.status_text})`);
+  console.log(`[Parcelow Webhook] - Event type: ${eventType}`);
+  console.log(`[Parcelow Webhook] - Payments array: ${JSON.stringify(parcelowOrder.payments || [])}`);
+  console.log(`[Parcelow Webhook] - Order amount: ${parcelowOrder.order_amount}`);
+  console.log(`[Parcelow Webhook] - Total USD: ${parcelowOrder.total_usd}`);
+
   switch (eventType) {
     case "event_order_paid":
       // Payment completed - process full flow
+      console.log(`[Parcelow Webhook] ✅ PAYMENT COMPLETED - Will process full flow`);
       paymentStatus = "completed";
       shouldProcessPayment = true;
       break;
 
     case "event_order_confirmed":
       // Order confirmed (payment might be pending)
+      console.log(`[Parcelow Webhook] ℹ️ ORDER CONFIRMED - Payment may still be pending`);
       if (paymentStatus === "pending") {
         // Keep as pending, but update status
+        console.log(`[Parcelow Webhook] - Keeping status as 'pending'`);
       }
       break;
 
     case "event_order_declined":
       // Payment declined
+      console.log(`[Parcelow Webhook] ❌ PAYMENT DECLINED`);
       paymentStatus = "failed";
       break;
 
     case "event_order_canceled":
+      console.log(`[Parcelow Webhook] ❌ ORDER CANCELED`);
       paymentStatus = "cancelled";
       break;
 
     case "event_order_expired":
+      console.log(`[Parcelow Webhook] ⏰ ORDER EXPIRED`);
       paymentStatus = "cancelled";
       break;
 
@@ -371,6 +406,7 @@ async function processParcelowWebhookEvent(
     case "event_order_waiting_payment":
     case "event_order_waiting_docs":
       // Waiting states - keep as pending
+      console.log(`[Parcelow Webhook] ⏳ WAITING STATE - ${eventType}`);
       break;
 
     default:
@@ -381,8 +417,8 @@ async function processParcelowWebhookEvent(
 
   // Update visa_orders with payment_method and complete payment_metadata
   const updateData: any = {
-    parcelow_status: data.status_text,
-    parcelow_status_code: data.status,
+    parcelow_status: parcelowOrder.status_text,
+    parcelow_status_code: parcelowOrder.status,
   };
 
   if (paymentStatus !== order.payment_status) {
@@ -396,11 +432,11 @@ async function processParcelowWebhookEvent(
       ...(order.payment_metadata || {}),
       payment_method: "parcelow",
       completed_at: new Date().toISOString(),
-      parcelow_order_id: data.id,
-      installments: data.installments,
-      total_usd: data.total_usd,
-      total_brl: data.total_brl,
-      order_date: data.order_date,
+      parcelow_order_id: parcelowOrder.id,
+      installments: parcelowOrder.installments || 1,
+      total_usd: parcelowOrder.total_usd || parcelowOrder.order_amount || 0,
+      total_brl: parcelowOrder.total_brl || 0,
+      order_date: parcelowOrder.order_date || new Date().toISOString(),
     };
   }
 
@@ -418,9 +454,14 @@ async function processParcelowWebhookEvent(
     `[Parcelow Webhook] ✅ Updated order ${order.order_number} to status: ${paymentStatus}`
   );
 
+  console.log(`[Parcelow Webhook] 🔍 POST-PAYMENT PROCESSING DECISION:`);
+  console.log(`[Parcelow Webhook] - shouldProcessPayment: ${shouldProcessPayment}`);
+  console.log(`[Parcelow Webhook] - Reason: ${shouldProcessPayment ? 'Payment completed (event_order_paid received)' : `Event type is '${eventType}', not 'event_order_paid'`}`);
+
   // Only process full payment flow if payment is completed
   if (!shouldProcessPayment) {
     console.log(`[Parcelow Webhook] ℹ️ Payment not completed, skipping post-payment processing`);
+    console.log(`[Parcelow Webhook] ℹ️ Waiting for 'event_order_paid' webhook to process payment`);
     return;
   }
 
@@ -429,12 +470,12 @@ async function processParcelowWebhookEvent(
   // 1. Update payment record if service_request_id exists
   if (order.service_request_id) {
     console.log(`[Parcelow Webhook] 📋 Updating payment record for service_request_id: ${order.service_request_id}`);
-    
+
     const { data: paymentRecord } = await supabase
       .from("payments")
       .select("id")
       .eq("service_request_id", order.service_request_id)
-      .or(`external_payment_id.eq.${data.id},external_payment_id.eq.${data.reference}`)
+      .eq("external_payment_id", parcelowOrder.id.toString())
       .single();
 
     if (paymentRecord) {
@@ -442,16 +483,16 @@ async function processParcelowWebhookEvent(
         .from("payments")
         .update({
           status: "paid",
-          external_payment_id: data.id.toString(),
+          external_payment_id: parcelowOrder.id.toString(),
           raw_webhook_log: {
             event_type: eventType,
-            parcelow_order_id: data.id,
-            reference: data.reference,
-            status: data.status,
-            status_text: data.status_text,
-            total_usd: data.total_usd,
-            total_brl: data.total_brl,
-            installments: data.installments,
+            parcelow_order_id: parcelowOrder.id,
+            reference: parcelowOrder.reference || 'N/A',
+            status: parcelowOrder.status,
+            status_text: parcelowOrder.status_text || 'N/A',
+            total_usd: parcelowOrder.total_usd || parcelowOrder.order_amount || 0,
+            total_brl: parcelowOrder.total_brl || 0,
+            installments: parcelowOrder.installments || 1,
             completed_at: new Date().toISOString(),
           },
           updated_at: new Date().toISOString(),
@@ -502,8 +543,8 @@ async function processParcelowWebhookEvent(
             order_number: order.order_number,
             payment_method: 'parcelow',
             total_amount: order.total_price_usd,
-            parcelow_order_id: data.id,
-            installments: data.installments,
+            parcelow_order_id: parcelowOrder.id,
+            installments: parcelowOrder.installments,
           },
         });
 
@@ -528,7 +569,7 @@ async function processParcelowWebhookEvent(
     const { data: pdfData, error: pdfError } = await supabase.functions.invoke("generate-visa-contract-pdf", {
       body: { order_id: order.id },
     });
-    
+
     if (pdfError) {
       console.error(`[Parcelow Webhook] ❌ Error generating contract PDF:`, pdfError);
     } else {
@@ -545,7 +586,7 @@ async function processParcelowWebhookEvent(
     const { data: annexPdfData, error: annexPdfError } = await supabase.functions.invoke("generate-annex-pdf", {
       body: { order_id: order.id },
     });
-    
+
     if (annexPdfError) {
       console.error(`[Parcelow Webhook] ❌ Error generating ANNEX I PDF:`, annexPdfError);
     } else {
@@ -561,9 +602,9 @@ async function processParcelowWebhookEvent(
   try {
     // Get currency and final amount from payment_metadata or use defaults
     const metadata = updateData.payment_metadata || order.payment_metadata || {};
-    const currency = metadata.currency || (data.total_brl ? "BRL" : "USD");
-    const finalAmount = metadata.final_amount || data.total_usd || order.total_price_usd;
-    
+    const currency = metadata.currency || (parcelowOrder.total_brl ? "BRL" : "USD");
+    const finalAmount = metadata.final_amount || parcelowOrder.total_usd || order.total_price_usd;
+
     const { error: emailError } = await supabase.functions.invoke("send-payment-confirmation-email", {
       body: {
         clientName: order.client_name,
@@ -604,6 +645,15 @@ Deno.serve(async (req: Request) => {
   // Handle CORS preflight
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
+  }
+
+  // Handle GET requests (health checks or verification)
+  if (req.method === "GET") {
+    console.log("[Parcelow Webhook] GET request received - treating as health check");
+    return new Response(
+      JSON.stringify({ status: "ok", message: "Webhook endpoint is active" }),
+      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
   }
 
   try {
@@ -649,3 +699,4 @@ Deno.serve(async (req: Request) => {
     );
   }
 });
+

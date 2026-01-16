@@ -23,7 +23,7 @@ export const CheckoutSuccess = () => {
 
       try {
         let query = supabase.from('visa_orders').select('*');
-        
+
         if (sessionId) {
           query = query.eq('stripe_session_id', sessionId);
         } else if (orderId) {
@@ -74,7 +74,7 @@ export const CheckoutSuccess = () => {
               {method === 'zelle' ? 'Payment Submitted!' : 'Payment Successful!'}
             </h1>
             <p className="text-gray-300">
-              {method === 'zelle' 
+              {method === 'zelle'
                 ? 'Your Zelle payment receipt has been submitted successfully.'
                 : 'Your payment has been processed successfully.'}
             </p>
@@ -103,10 +103,14 @@ export const CheckoutSuccess = () => {
                       // Get currency and final amount from payment_metadata
                       const metadata = order.payment_metadata as any;
                       const currency = metadata?.currency || 'USD';
-                      const finalAmount = metadata?.final_amount 
-                        ? parseFloat(metadata.final_amount) 
-                        : parseFloat(order.total_price_usd);
-                      
+                      let finalAmount = parseFloat(order.total_price_usd);
+
+                      if (metadata?.final_amount) {
+                        finalAmount = parseFloat(metadata.final_amount);
+                      } else if (metadata?.total_usd) {
+                        finalAmount = parseFloat(metadata.total_usd);
+                      }
+
                       if (currency === 'BRL' || currency === 'brl') {
                         return `R$ ${finalAmount.toFixed(2)}`;
                       } else {

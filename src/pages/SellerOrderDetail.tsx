@@ -73,10 +73,11 @@ export const SellerOrderDetail = () => {
   const [_seller, setSeller] = useState<any>(null);
   const [showAlert, setShowAlert] = useState(false);
   const [alertData, setAlertData] = useState<{ title: string; message: string; variant: 'success' | 'error' | 'warning' | 'info' } | null>(null);
-  
+
   // PDF Modal
   const [showPdfModal, setShowPdfModal] = useState(false);
   const [selectedPdfUrl, setSelectedPdfUrl] = useState<string | null>(null);
+
   const [selectedPdfTitle, setSelectedPdfTitle] = useState<string>('');
   const [showZelleModal, setShowZelleModal] = useState(false);
 
@@ -502,20 +503,14 @@ export const SellerOrderDetail = () => {
       </div>
 
       {/* PDF Modal */}
-      {(() => {
-        // ANNEX I is now required for ALL products - prioritize annex_pdf_url if available
-        const pdfUrl = order?.annex_pdf_url || order?.contract_pdf_url;
-        const pdfTitle = order?.annex_pdf_url ? `ANNEX I - ${order?.order_number}` : `Contract - ${order?.order_number}`;
-        
-        return pdfUrl && (
-          <PdfModal
-            isOpen={showPdfModal}
-            onClose={() => setShowPdfModal(false)}
-            pdfUrl={pdfUrl}
-            title={pdfTitle}
-          />
-        );
-      })()}
+      {selectedPdfUrl && (
+        <PdfModal
+          isOpen={showPdfModal}
+          onClose={() => setShowPdfModal(false)}
+          pdfUrl={selectedPdfUrl}
+          title={selectedPdfTitle}
+        />
+      )}
 
       {/* Zelle Receipt Modal */}
       {order?.zelle_proof_url && (

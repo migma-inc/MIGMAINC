@@ -39,10 +39,10 @@ export const DocumentUpload = ({ onComplete, onCancel }: DocumentUploadProps) =>
       return 'File must be a JPG or PNG image';
     }
 
-    // Check file size (max 10MB)
-    const maxSize = 10 * 1024 * 1024; // 10MB
+    // Check file size (max 3MB)
+    const maxSize = 3 * 1024 * 1024; // 3MB
     if (file.size > maxSize) {
-      return 'File size must be less than 10MB';
+      return 'File too large. Please reduce the image size to under 3MB.';
     }
 
     return null;
@@ -143,7 +143,7 @@ export const DocumentUpload = ({ onComplete, onCancel }: DocumentUploadProps) =>
         documentBack: { file: documentBack.file, url: documentBackUrl },
         selfie: { file: selfie.file, url: selfieUrl },
       });
-      
+
       // Mark documents as uploaded
       setDocumentsUploaded(true);
     } catch (err: any) {
@@ -173,48 +173,48 @@ export const DocumentUpload = ({ onComplete, onCancel }: DocumentUploadProps) =>
           <Label htmlFor="document-front" className="text-white">
             Document Front (Passport/ID/Driver's License) *
           </Label>
-          <div className="border-2 border-dashed border-gold-medium/50 rounded-md p-6 text-center hover:bg-white/5 transition cursor-pointer">
+          <label
+            htmlFor="document-front"
+            className="block border-2 border-dashed border-gold-medium/50 rounded-md p-6 text-center hover:bg-white/5 transition cursor-pointer"
+          >
             <input
               ref={frontInputRef}
               type="file"
               id="document-front"
               accept="image/*"
-              capture="environment"
               onChange={(e) => handleFileSelect(e, 'document_front', setDocumentFront)}
               className="hidden"
             />
-            <label htmlFor="document-front" className="cursor-pointer">
-              {documentFront ? (
-                <div className="space-y-2">
-                  <img
-                    src={documentFront.preview}
-                    alt="Document front preview"
-                    className="max-h-48 mx-auto rounded-md border border-gold-medium/30"
-                  />
-                  <p className="text-sm text-gold-light mt-2">✓ {documentFront.file.name}</p>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      removeFile(setDocumentFront, frontInputRef);
-                    }}
-                    className="mt-2 border-gold-medium/50 bg-black/50 text-gold-light hover:bg-gold-medium/30 hover:text-gold-light"
-                  >
-                    <X className="w-4 h-4 mr-2" />
-                    Remove
-                  </Button>
-                </div>
-              ) : (
-                <div>
-                  <Upload className="h-12 w-12 text-gold-light mx-auto mb-2" />
-                  <p className="text-sm text-white">Click to upload or take photo</p>
-                  <p className="text-xs text-gray-400 mt-1">JPG or PNG (max 10MB)</p>
-                </div>
-              )}
-            </label>
-          </div>
+            {documentFront ? (
+              <div className="space-y-2">
+                <img
+                  src={documentFront.preview}
+                  alt="Document front preview"
+                  className="max-h-48 mx-auto rounded-md border border-gold-medium/30"
+                />
+                <p className="text-sm text-gold-light mt-2">✓ {documentFront.file.name}</p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    removeFile(setDocumentFront, frontInputRef);
+                  }}
+                  className="mt-2 border-gold-medium/50 bg-black/50 text-gold-light hover:bg-gold-medium/30 hover:text-gold-light"
+                >
+                  <X className="w-4 h-4 mr-2" />
+                  Remove
+                </Button>
+              </div>
+            ) : (
+              <div>
+                <Upload className="h-12 w-12 text-gold-light mx-auto mb-2" />
+                <p className="text-sm text-white">Click to upload or take photo</p>
+                <p className="text-xs text-gray-400 mt-1">JPG or PNG (max 3MB)</p>
+              </div>
+            )}
+          </label>
         </div>
 
         {/* Document Back (Required) */}
@@ -222,48 +222,48 @@ export const DocumentUpload = ({ onComplete, onCancel }: DocumentUploadProps) =>
           <Label htmlFor="document-back" className="text-white">
             Document Back *
           </Label>
-          <div className="border-2 border-dashed border-gold-medium/50 rounded-md p-6 text-center hover:bg-white/5 transition cursor-pointer">
+          <label
+            htmlFor="document-back"
+            className="block border-2 border-dashed border-gold-medium/50 rounded-md p-6 text-center hover:bg-white/5 transition cursor-pointer"
+          >
             <input
               ref={backInputRef}
               type="file"
               id="document-back"
               accept="image/*"
-              capture="environment"
               onChange={(e) => handleFileSelect(e, 'document_back', setDocumentBack)}
               className="hidden"
             />
-            <label htmlFor="document-back" className="cursor-pointer">
-              {documentBack ? (
-                <div className="space-y-2">
-                  <img
-                    src={documentBack.preview}
-                    alt="Document back preview"
-                    className="max-h-48 mx-auto rounded-md border border-gold-medium/30"
-                  />
-                  <p className="text-sm text-gold-light mt-2">✓ {documentBack.file.name}</p>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      removeFile(setDocumentBack, backInputRef);
-                    }}
-                    className="mt-2 border-gold-medium/50 bg-black/50 text-gold-light hover:bg-gold-medium/30 hover:text-gold-light"
-                  >
-                    <X className="w-4 h-4 mr-2" />
-                    Remove
-                  </Button>
-                </div>
-              ) : (
-                <div>
-                  <Upload className="h-12 w-12 text-gold-light mx-auto mb-2" />
-                  <p className="text-sm text-white">Click to upload or take photo</p>
-                  <p className="text-xs text-gray-400 mt-1">JPG, PNG or PDF (max 10MB)</p>
-                </div>
-              )}
-            </label>
-          </div>
+            {documentBack ? (
+              <div className="space-y-2">
+                <img
+                  src={documentBack.preview}
+                  alt="Document back preview"
+                  className="max-h-48 mx-auto rounded-md border border-gold-medium/30"
+                />
+                <p className="text-sm text-gold-light mt-2">✓ {documentBack.file.name}</p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    removeFile(setDocumentBack, backInputRef);
+                  }}
+                  className="mt-2 border-gold-medium/50 bg-black/50 text-gold-light hover:bg-gold-medium/30 hover:text-gold-light"
+                >
+                  <X className="w-4 h-4 mr-2" />
+                  Remove
+                </Button>
+              </div>
+            ) : (
+              <div>
+                <Upload className="h-12 w-12 text-gold-light mx-auto mb-2" />
+                <p className="text-sm text-white">Click to upload or take photo</p>
+                <p className="text-xs text-gray-400 mt-1">JPG, PNG or PDF (max 3MB)</p>
+              </div>
+            )}
+          </label>
         </div>
 
         {/* Selfie with Document (Required) */}
@@ -287,59 +287,59 @@ export const DocumentUpload = ({ onComplete, onCancel }: DocumentUploadProps) =>
               />
             </div>
           </div>
-          <div className="border-2 border-dashed border-gold-medium/50 rounded-md p-6 text-center hover:bg-white/5 transition cursor-pointer">
+          <label
+            htmlFor="selfie"
+            className="block border-2 border-dashed border-gold-medium/50 rounded-md p-6 text-center hover:bg-white/5 transition cursor-pointer"
+          >
             <input
               ref={selfieInputRef}
               type="file"
               id="selfie"
               accept="image/*"
-              capture="user"
               onChange={(e) => handleFileSelect(e, 'selfie_doc', setSelfie)}
               className="hidden"
             />
-            <label htmlFor="selfie" className="cursor-pointer">
-              {selfie ? (
-                <div className="space-y-2">
-                  <img
-                    src={selfie.preview}
-                    alt="Selfie preview"
-                    className="max-h-48 mx-auto rounded-md border border-gold-medium/30"
-                  />
-                  <p className="text-sm text-gold-light mt-2">✓ {selfie.file.name}</p>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      removeFile(setSelfie, selfieInputRef);
-                    }}
-                    className="mt-2 border-gold-medium/50 bg-black/50 text-gold-light hover:bg-gold-medium/30 hover:text-gold-light"
-                  >
-                    <X className="w-4 h-4 mr-2" />
-                    Retake Photo
-                  </Button>
-                </div>
-              ) : (
-                <div>
-                  <Camera className="h-12 w-12 text-gold-light mx-auto mb-2" />
-                  <p className="text-sm text-white">Click to take or upload selfie</p>
-                  <p className="text-xs text-gray-400 mt-1">JPG or PNG (max 10MB)</p>
-                </div>
-              )}
-            </label>
-          </div>
+            {selfie ? (
+              <div className="space-y-2">
+                <img
+                  src={selfie.preview}
+                  alt="Selfie preview"
+                  className="max-h-48 mx-auto rounded-md border border-gold-medium/30"
+                />
+                <p className="text-sm text-gold-light mt-2">✓ {selfie.file.name}</p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    removeFile(setSelfie, selfieInputRef);
+                  }}
+                  className="mt-2 border-gold-medium/50 bg-black/50 text-gold-light hover:bg-gold-medium/30 hover:text-gold-light"
+                >
+                  <X className="w-4 h-4 mr-2" />
+                  Retake Photo
+                </Button>
+              </div>
+            ) : (
+              <div>
+                <Camera className="h-12 w-12 text-gold-light mx-auto mb-2" />
+                <p className="text-sm text-white">Click to take or upload selfie</p>
+                <p className="text-xs text-gray-400 mt-1">JPG or PNG (max 3MB)</p>
+              </div>
+            )}
+          </label>
         </div>
 
         {/* Only show upload button if documents haven't been uploaded yet, or if user changed files */}
         {!documentsUploaded && (
-          <div className="flex justify-end gap-2">
+          <div className="flex flex-col-reverse sm:flex-row justify-end gap-3 sm:gap-2 mt-6">
             {onCancel && (
               <Button
                 type="button"
                 variant="outline"
                 onClick={onCancel}
-                className="border-gold-medium/50 bg-black/50 text-gold-light hover:bg-gold-medium/30 hover:text-gold-light"
+                className="border-gold-medium/50 bg-black/50 text-gold-light hover:bg-gold-medium/30 hover:text-gold-light w-full sm:w-auto"
               >
                 Cancel
               </Button>
@@ -347,12 +347,12 @@ export const DocumentUpload = ({ onComplete, onCancel }: DocumentUploadProps) =>
             <Button
               onClick={handleSubmit}
               disabled={!canProceed || uploading}
-              className="bg-gold-medium hover:bg-gold-light text-black"
+              className="bg-gold-medium hover:bg-gold-light text-black w-full sm:w-auto"
             >
               {uploading ? (
                 <>
                   <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-black mr-2" />
-                  Uploading Documents...
+                  Uploading...
                 </>
               ) : (
                 <>
@@ -364,7 +364,7 @@ export const DocumentUpload = ({ onComplete, onCancel }: DocumentUploadProps) =>
           </div>
         )}
       </CardContent>
-    </Card>
+    </Card >
   );
 };
 

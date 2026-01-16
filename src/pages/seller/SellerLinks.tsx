@@ -68,9 +68,9 @@ function getCachedProducts(): VisaProduct[] | null {
   try {
     const cached = sessionStorage.getItem(PRODUCTS_CACHE_KEY);
     const timestamp = sessionStorage.getItem(PRODUCTS_CACHE_TIMESTAMP_KEY);
-    
+
     if (!cached || !timestamp) return null;
-    
+
     const age = Date.now() - parseInt(timestamp, 10);
     if (age > PRODUCTS_CACHE_DURATION) {
       // Cache expirado
@@ -78,7 +78,7 @@ function getCachedProducts(): VisaProduct[] | null {
       sessionStorage.removeItem(PRODUCTS_CACHE_TIMESTAMP_KEY);
       return null;
     }
-    
+
     return JSON.parse(cached);
   } catch (err) {
     console.error('[SellerLinks] Error reading products cache:', err);
@@ -114,7 +114,7 @@ export function SellerLinks() {
   const [loading, setLoading] = useState(!hasCachedProducts);
   const hasLoadedRef = useRef(hasCachedProducts);
   const copyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  
+
   // Dropdown state for service groups
   const [expandedServices, setExpandedServices] = useState<{ [key: string]: boolean }>({
     initial: true,
@@ -147,7 +147,7 @@ export function SellerLinks() {
   const [prefillFieldErrors, setPrefillFieldErrors] = useState<Record<string, string>>({});
   const [prefillFormExpanded, setPrefillFormExpanded] = useState(false);
   const [prefillFormStep, setPrefillFormStep] = useState(1);
-  
+
   // Estado para armazenar links gerados com prefill (associando contrato)
   const [productGeneratedLinks, setProductGeneratedLinks] = useState<Record<string, string>>({});
 
@@ -355,10 +355,10 @@ export function SellerLinks() {
 
       try {
         setLoading(true);
-        
+
         // Load products and contract templates in parallel
         console.log('[SellerLinks] Starting to load products and contracts...');
-        
+
         let contractsResult: Set<string> = new Set();
         try {
           console.log('[SellerLinks] Calling getProductsWithContracts...');
@@ -368,7 +368,7 @@ export function SellerLinks() {
           console.error('[SellerLinks] Error calling getProductsWithContracts:', contractError);
           contractsResult = new Set();
         }
-        
+
         const productsResult = await supabase
           .from('visa_products')
           .select('slug, name, description, base_price_usd, extra_unit_price, extra_unit_label, calculation_type, allow_extra_units')
@@ -398,19 +398,19 @@ export function SellerLinks() {
             setProducts(productsData);
             hasLoadedRef.current = true;
           }
-          
+
           // Ensure contractsResult is a Set
           const contractsSet = contractsResult instanceof Set ? contractsResult : new Set<string>();
           console.log('[SellerLinks] Setting contracts Set:', contractsSet);
           console.log('[SellerLinks] Contracts Set size before setState:', contractsSet.size);
           console.log('[SellerLinks] Contracts Set values before setState:', Array.from(contractsSet));
           setProductsWithContracts(contractsSet);
-          
+
           // Log after a small delay to see if state was updated
           setTimeout(() => {
             console.log('[SellerLinks] State should be updated now. Check productsWithContracts in next render.');
           }, 100);
-          
+
           setLoading(false);
         } else {
           // Mesmo desmontado, marca como carregado para próxima montagem
@@ -439,26 +439,6 @@ export function SellerLinks() {
       }
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const copyLink = (productSlug: string) => {
-    if (!seller) return;
-    
-    // Clear any existing timeout
-    if (copyTimeoutRef.current) {
-      clearTimeout(copyTimeoutRef.current);
-    }
-    
-    const siteUrl = window.location.origin;
-    const link = `${siteUrl}/checkout/visa/${productSlug}?seller=${seller.seller_id_public}`;
-    
-    navigator.clipboard.writeText(link);
-    setCopiedLink(link);
-    
-    copyTimeoutRef.current = setTimeout(() => {
-      setCopiedLink(null);
-      copyTimeoutRef.current = null;
-    }, 3000);
-  };
 
   if (loading) {
     return (
@@ -501,7 +481,7 @@ export function SellerLinks() {
       </div>
 
       {/* Quick Client Setup Form */}
-      <Card 
+      <Card
         className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30 mb-8 cursor-pointer hover:border-gold-medium/50 transition-colors"
         onClick={() => {
           if (!prefillFormExpanded) {
@@ -509,7 +489,7 @@ export function SellerLinks() {
           }
         }}
       >
-        <CardHeader 
+        <CardHeader
           onClick={(e) => {
             e.stopPropagation();
             setPrefillFormExpanded(!prefillFormExpanded);
@@ -594,18 +574,18 @@ export function SellerLinks() {
                             console.log('[SellerLinks] Render - Contracts Set size:', productsWithContracts.size);
                             console.log('[SellerLinks] Render - Contracts Set values:', Array.from(productsWithContracts));
                           }
-                          
+
                           const hasContract = productsWithContracts.has(product.slug);
-                          
+
                           // Debug log for specific products
                           if (product.slug === 'cos-selection-process' || product.slug === 'transfer-selection-process') {
                             console.log(`[SellerLinks] Product ${product.slug}: hasContract=${hasContract}, contractsSet has:`, productsWithContracts.has(product.slug));
                           }
-                          
+
                           // Check if this is a scholarship or i20-control product that inherits from selection-process
                           const isScholarshipOrI20 = product.slug.includes('-scholarship') || product.slug.includes('-i20-control');
                           let inheritsContract = false;
-                          
+
                           if (isScholarshipOrI20 && hasContract) {
                             // Extract the prefix (initial, cos, or transfer)
                             const prefix = product.slug.split('-')[0];
@@ -613,7 +593,7 @@ export function SellerLinks() {
                             // If selection-process also has contract, this product inherits it
                             inheritsContract = productsWithContracts.has(selectionProcessSlug);
                           }
-                          
+
                           return (
                             <SelectItem key={product.slug} value={product.slug}>
                               <div className="flex items-center justify-between w-full pr-6">
@@ -698,9 +678,9 @@ export function SellerLinks() {
                         </Select>
                         {/* Overlay para garantir que "0" seja sempre exibido */}
                         {prefillFormData.extraUnits === 0 && (
-                          <span 
+                          <span
                             className="absolute left-3 top-1/2 -translate-y-1/2 text-black pointer-events-none select-none"
-                            style={{ 
+                            style={{
                               lineHeight: '1.5rem',
                               fontSize: '0.875rem',
                               zIndex: 1
@@ -1015,8 +995,8 @@ export function SellerLinks() {
                           } else {
                             newWhatsApp = phoneCode;
                           }
-                          setPrefillFormData({ 
-                            ...prefillFormData, 
+                          setPrefillFormData({
+                            ...prefillFormData,
                             clientCountry: value,
                             clientWhatsApp: newWhatsApp
                           });
@@ -1235,7 +1215,7 @@ export function SellerLinks() {
 
                     setPrefillError('');
                     setPrefillFieldErrors({});
-                    
+
                     // Generate token and create prefill record
                     try {
                       const token = crypto.randomUUID();
@@ -1287,8 +1267,8 @@ export function SellerLinks() {
                   Generate Link for Client
                 </Button>
               )}
-          </div>
-        </CardContent>
+            </div>
+          </CardContent>
         )}
       </Card>
 
@@ -1404,7 +1384,7 @@ export function SellerLinks() {
                                             </span>
                                           </div>
                                         )}
-                                        
+
                                         {hasExtraUnits && (
                                           <div className="flex items-center gap-2 text-gold-light">
                                             <Users className="w-4 h-4" />
@@ -1425,7 +1405,7 @@ export function SellerLinks() {
                                             const token = crypto.randomUUID();
                                             const expiresAt = new Date();
                                             expiresAt.setDate(expiresAt.getDate() + 30);
-                                            
+
                                             const { error: insertError } = await supabase
                                               .from('checkout_prefill_tokens')
                                               .insert({
@@ -1435,9 +1415,9 @@ export function SellerLinks() {
                                                 client_data: {},
                                                 expires_at: expiresAt.toISOString(),
                                               });
-                                            
+
                                             if (insertError) throw insertError;
-                                            
+
                                             const siteUrl = window.location.origin;
                                             const link = `${siteUrl}/checkout/visa/${product.slug}?seller=${seller.seller_id_public}&prefill=${token}`;
                                             setProductGeneratedLinks({
@@ -1459,7 +1439,7 @@ export function SellerLinks() {
                                       </Button>
                                     </div>
                                   </div>
-                                  
+
                                   {/* Link gerado */}
                                   {productGeneratedLinks[product.slug] && (
                                     <div className="mt-4 pt-4 border-t border-gold-medium/20">
@@ -1475,11 +1455,10 @@ export function SellerLinks() {
                                             }}
                                             size="sm"
                                             variant="outline"
-                                            className={`${
-                                              isCopied
-                                                ? 'bg-green-500/20 border-green-500/50 text-green-300 hover:bg-green-500/30'
-                                                : 'bg-green-500/20 border-green-500/50 text-green-300 hover:bg-green-500/30'
-                                            }`}
+                                            className={`${isCopied
+                                              ? 'bg-green-500/20 border-green-500/50 text-green-300 hover:bg-green-500/30'
+                                              : 'bg-green-500/20 border-green-500/50 text-green-300 hover:bg-green-500/30'
+                                              }`}
                                           >
                                             {isCopied ? (
                                               <>
@@ -1560,7 +1539,7 @@ export function SellerLinks() {
                                       </span>
                                     </div>
                                   )}
-                                  
+
                                   {hasExtraUnits && (
                                     <div className="flex items-center gap-2 text-gold-light">
                                       <Users className="w-4 h-4" />
@@ -1590,7 +1569,7 @@ export function SellerLinks() {
                                       const token = crypto.randomUUID();
                                       const expiresAt = new Date();
                                       expiresAt.setDate(expiresAt.getDate() + 30);
-                                      
+
                                       const { error: insertError } = await supabase
                                         .from('checkout_prefill_tokens')
                                         .insert({
@@ -1600,9 +1579,9 @@ export function SellerLinks() {
                                           client_data: {},
                                           expires_at: expiresAt.toISOString(),
                                         });
-                                      
+
                                       if (insertError) throw insertError;
-                                      
+
                                       const siteUrl = window.location.origin;
                                       const link = `${siteUrl}/checkout/visa/${product.slug}?seller=${seller.seller_id_public}&prefill=${token}`;
                                       setProductGeneratedLinks({
@@ -1624,7 +1603,7 @@ export function SellerLinks() {
                                 </Button>
                               </div>
                             </div>
-                            
+
                             {/* Link gerado */}
                             {productGeneratedLinks[product.slug] && (
                               <div className="mt-4 pt-4 border-t border-gold-medium/20">
@@ -1640,11 +1619,10 @@ export function SellerLinks() {
                                       }}
                                       size="sm"
                                       variant="outline"
-                                      className={`${
-                                        isCopied
-                                          ? 'bg-green-500/20 border-green-500/50 text-green-300 hover:bg-green-500/30'
-                                          : 'bg-green-500/20 border-green-500/50 text-green-300 hover:bg-green-500/30'
-                                      }`}
+                                      className={`${isCopied
+                                        ? 'bg-green-500/20 border-green-500/50 text-green-300 hover:bg-green-500/30'
+                                        : 'bg-green-500/20 border-green-500/50 text-green-300 hover:bg-green-500/30'
+                                        }`}
                                     >
                                       {isCopied ? (
                                         <>

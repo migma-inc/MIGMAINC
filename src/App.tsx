@@ -20,7 +20,7 @@ import { ApplicationDetailPage } from './pages/ApplicationDetailPage';
 import { ContractsPage } from './pages/ContractsPage';
 import { BookACallPage } from './pages/BookACallPage';
 import { BookACallDetailPage } from './pages/BookACallDetailPage';
-import { VisaCheckout } from './pages/VisaCheckout';
+import { VisaCheckoutPage as VisaCheckout } from './features/visa-checkout';
 import { CheckoutSuccess } from './pages/CheckoutSuccess';
 import { CheckoutCancel } from './pages/CheckoutCancel';
 import { ZellePaymentProcessing } from './pages/ZellePaymentProcessing';
@@ -75,7 +75,7 @@ function App() {
         <Route path="/checkout/success" element={<CheckoutSuccess />} />
         <Route path="/checkout/cancel" element={<CheckoutCancel />} />
         <Route path="/checkout/zelle/processing" element={<ZellePaymentProcessing />} />
-        
+
         {/* Seller Routes */}
         <Route path="/seller/login" element={<SellerLogin />} />
         <Route path="/seller/register" element={<SellerRegister />} />
@@ -89,7 +89,7 @@ function App() {
           <Route path="leads" element={<SellerLeads />} />
         </Route>
         <Route path="/seller/orders/:orderId" element={<SellerRoute><SellerOrderDetail /></SellerRoute>} />
-        
+
         <Route path="/global-partner/thank-you" element={<ThankYou />} />
         <Route path="/partner-terms" element={<PartnerTerms />} />
         <Route path="/partner-terms/success" element={<PartnerTermsSuccess />} />
