@@ -427,15 +427,37 @@ async function processParcelowWebhookEvent(
 
   // If payment completed, update payment_method and payment_metadata
   if (shouldProcessPayment) {
+    // Extract payment details - the correct BRL value is in payments[0].total_brl
+    const paymentDetails = parcelowOrder.payments?.[0];
+    const actualTotalBrl = paymentDetails?.total_brl; // This includes installment fees!
+    const actualInstallments = paymentDetails?.installments || parcelowOrder.installments || 1;
+
+    // Log ALL fields from Parcelow to identify correct BRL value
+    console.log(`[Parcelow Webhook] 🔍 COMPLETE PARCELOW ORDER DATA:`, JSON.stringify(parcelowOrder, null, 2));
+    console.log(`[Parcelow Webhook] 📊 PAYMENT VALUES:`, {
+      order_amount: parcelowOrder.order_amount,
+      total_usd: parcelowOrder.total_usd,
+      total_brl_root: parcelowOrder.total_brl, // This is base amount WITHOUT installment fees
+      payments_total_brl: actualTotalBrl, // ✅ This is the CORRECT value WITH installment fees
+      installments: actualInstallments,
+      payment_details: paymentDetails,
+    });
+
     updateData.payment_method = "parcelow";
     updateData.payment_metadata = {
       ...(order.payment_metadata || {}),
       payment_method: "parcelow",
       completed_at: new Date().toISOString(),
       parcelow_order_id: parcelowOrder.id,
-      installments: parcelowOrder.installments || 1,
+      installments: actualInstallments,
+      // Save USD values (in cents)
       total_usd: parcelowOrder.total_usd || parcelowOrder.order_amount || 0,
-      total_brl: parcelowOrder.total_brl || 0,
+      // Save CORRECT BRL value (already formatted as decimal string, includes installment fees)
+      total_brl: actualTotalBrl || parcelowOrder.total_brl || 0,
+      // Calculate fee amount (Gross - Net)
+      fee_amount: (parcelowOrder.total_usd || 0) - (parcelowOrder.order_amount || 0),
+      // Also save base BRL for reference
+      base_brl: parcelowOrder.total_brl || 0,
       order_date: parcelowOrder.order_date || new Date().toISOString(),
     };
   }
@@ -597,13 +619,25 @@ async function processParcelowWebhookEvent(
     // Continue - PDF generation is not critical for payment processing
   }
 
+  // Get currency and final amount from payment_metadata or use defaults
+  // Parcelow returns amounts in cents, so we need to divide by 100 for the email
+  const metadata = updateData.payment_metadata || order.payment_metadata || {};
+  const currency = metadata.currency || (parcelowOrder.total_brl ? "BRL" : "USD");
+
+  let finalAmountValue = metadata.final_amount;
+  if (!finalAmountValue) {
+    if (currency === "BRL") {
+      finalAmountValue = parcelowOrder.total_brl ? (parcelowOrder.total_brl / 100) : null;
+    } else {
+      finalAmountValue = parcelowOrder.total_usd ? (parcelowOrder.total_usd / 100) : null;
+    }
+  }
+
+  const finalAmount = finalAmountValue || order.total_price_usd;
+
   // 6. Send confirmation email to client
   console.log(`[Parcelow Webhook] 📧 Sending payment confirmation email...`);
   try {
-    // Get currency and final amount from payment_metadata or use defaults
-    const metadata = updateData.payment_metadata || order.payment_metadata || {};
-    const currency = metadata.currency || (parcelowOrder.total_brl ? "BRL" : "USD");
-    const finalAmount = metadata.final_amount || parcelowOrder.total_usd || order.total_price_usd;
 
     const { error: emailError } = await supabase.functions.invoke("send-payment-confirmation-email", {
       body: {
@@ -634,11 +668,88 @@ async function processParcelowWebhookEvent(
 
   // 8. Send notification to seller if seller_id exists
   if (order.seller_id) {
-    console.log(`[Parcelow Webhook] 📢 Seller notification (TODO): ${order.seller_id}`);
-    // TODO: Implement seller notification when seller dashboard is ready
+    console.log(`[Parcelow Webhook] 📧 Sending seller notification: ${order.seller_id}`);
+    try {
+      // Fetch seller details from 'sellers' table (not 'users')
+      const { data: seller, error: sellerError } = await supabase
+        .from('sellers')
+        .select('email, full_name')
+        .eq('seller_id_public', order.seller_id)
+        .single();
+
+      if (sellerError || !seller) {
+        console.error(`[Parcelow Webhook] ❌ Error fetching seller:`, sellerError);
+      } else {
+        // Send notification email to seller
+        const { error: sellerEmailError } = await supabase.functions.invoke("send-seller-payment-notification", {
+          body: {
+            sellerId: order.seller_id,
+            sellerEmail: seller.email,
+            sellerName: seller.full_name || 'Seller',
+            orderNumber: order.order_number,
+            clientName: order.client_name,
+            productSlug: order.product_slug,
+            totalAmount: order.total_price_usd,
+            paymentMethod: "parcelow",
+            currency: currency,
+            finalAmount: finalAmount,
+          },
+        });
+
+        if (sellerEmailError) {
+          console.error(`[Parcelow Webhook] ❌ Error sending seller notification:`, sellerEmailError);
+        } else {
+          console.log(`[Parcelow Webhook] ✅ Seller notification sent to ${seller.email}`);
+        }
+      }
+    } catch (sellerNotifError) {
+      console.error(`[Parcelow Webhook] ❌ Exception sending seller notification:`, sellerNotifError);
+      // Continue - notification is not critical for payment processing
+    }
+  } else {
+    console.log(`[Parcelow Webhook] ℹ️ No seller_id, skipping seller notification`);
   }
 
-  console.log(`[Parcelow Webhook] ========== PROCESSING COMPLETE ==========`);
+  // 9. Send notification to all platform admins
+  console.log(`[Parcelow Webhook] 📧 Sending admin notifications...`);
+  try {
+    // Fetch seller name if exists
+    let sellerName = null;
+    if (order.seller_id) {
+      const { data: seller } = await supabase
+        .from('users')
+        .select('name')
+        .eq('id', order.seller_id)
+        .single();
+      sellerName = seller?.name || null;
+    }
+
+    // Send notification email to all admins
+    const { error: adminEmailError } = await supabase.functions.invoke("send-admin-payment-notification", {
+      body: {
+        orderNumber: order.order_number,
+        clientName: order.client_name,
+        clientEmail: order.client_email,
+        sellerName: sellerName,
+        productSlug: order.product_slug,
+        totalAmount: order.total_price_usd,
+        paymentMethod: "parcelow",
+        currency: currency,
+        finalAmount: finalAmount,
+      },
+    });
+
+    if (adminEmailError) {
+      console.error(`[Parcelow Webhook] ❌ Error sending admin notifications:`, adminEmailError);
+    } else {
+      console.log(`[Parcelow Webhook] ✅ Admin notifications sent`);
+    }
+  } catch (adminNotifError) {
+    console.error(`[Parcelow Webhook] ❌ Exception sending admin notifications:`, adminNotifError);
+    // Continue - notification is not critical for payment processing
+  }
+
+  console.log(`[Parce low Webhook] ========== PROCESSING COMPLETE ==========`);
 }
 
 Deno.serve(async (req: Request) => {

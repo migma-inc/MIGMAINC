@@ -17,21 +17,21 @@ Deno.serve(async (req) => {
     console.log("[Payment Confirmation] Function started");
     console.log("[Payment Confirmation] Request method:", req.method);
 
-    const { 
-      clientName, 
-      clientEmail, 
-      orderNumber, 
-      productSlug, 
-      totalAmount, 
+    const {
+      clientName,
+      clientEmail,
+      orderNumber,
+      productSlug,
+      totalAmount,
       paymentMethod,
       currency,
       finalAmount
     } = await req.json();
-    
-    console.log("[Payment Confirmation] Received data:", { 
-      clientName, 
-      clientEmail, 
-      orderNumber, 
+
+    console.log("[Payment Confirmation] Received data:", {
+      clientName,
+      clientEmail,
+      orderNumber,
       productSlug,
       totalAmount,
       paymentMethod,
@@ -55,7 +55,7 @@ Deno.serve(async (req) => {
     // Get Supabase client
     const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
-    
+
     console.log("[Payment Confirmation] Environment check:", {
       supabaseUrl: supabaseUrl ? "✓ Set" : "✗ Missing",
       supabaseServiceKey: supabaseServiceKey ? `✓ Set (length: ${supabaseServiceKey.length})` : "✗ Missing",
@@ -82,25 +82,30 @@ Deno.serve(async (req) => {
     const safeClientEmail = escapeHtml(clientEmail);
     const safeOrderNumber = escapeHtml(orderNumber);
     const safeProductSlug = escapeHtml(productSlug || "Visa Service");
-    
+
     // Determine currency and amount
     // If currency and finalAmount are provided, use them (for Stripe payments with fees)
     // Otherwise, use totalAmount (for Zelle, which has no fees)
     const orderCurrency = currency || (paymentMethod === "stripe_pix" || paymentMethod === "pix" ? "BRL" : "USD");
     const displayAmount = finalAmount ? parseFloat(finalAmount) : parseFloat(totalAmount || "0");
     const safeTotalAmount = displayAmount.toFixed(2);
-    
+
     // Format currency symbol
     const currencySymbol = (orderCurrency === "BRL" || orderCurrency === "brl") ? "R$" : "US$";
-    
+
     // Format payment method for display
     // Also check currency to ensure correct method (PIX should show as PIX, not Card)
     const paymentMethodDisplay = (() => {
-      // If currency is BRL, it's definitely PIX
+      // For Parcelow, always show Parcelow regardless of currency
+      if (paymentMethod === "parcelow") {
+        return "Parcelow";
+      }
+
+      // If currency is BRL, it's definitely PIX (for Stripe)
       if (orderCurrency === "BRL" || orderCurrency === "brl") {
         return "PIX";
       }
-      
+
       switch (paymentMethod) {
         case "stripe_card":
         case "card":

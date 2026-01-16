@@ -43,7 +43,9 @@ export const usePaymentHandlers = (
         existingContractData,
         contractTemplate,
         exchangeRate,
-        zelleReceipt
+        zelleReceipt,
+        creditCardName,
+        cpf
     } = state;
 
     const {
@@ -53,10 +55,20 @@ export const usePaymentHandlers = (
     } = actions;
 
     // Internal helper for Step 3 validation
-    const validateStep3 = useCallback(async () => {
+    const validateStep3 = useCallback(async (paymentMethod?: string) => {
         if (!termsAccepted || !dataAuthorization || !signatureConfirmed || !signatureImageDataUrl) {
             setError('Please accept terms and confirm your signature');
             return false;
+        }
+        if (paymentMethod === 'parcelow') {
+            if (!creditCardName) {
+                setError('Please enter the name exactly as it appears on your card');
+                return false;
+            }
+            if (!cpf || cpf.length < 11) {
+                setError('Please enter a valid CPF (11 digits)');
+                return false;
+            }
         }
         if (!serviceRequestId) {
             setError('Service request ID is missing');
@@ -67,7 +79,8 @@ export const usePaymentHandlers = (
             serviceRequestId,
             termsAccepted,
             dataAuthorization,
-            contractTemplate?.id || null
+            contractTemplate?.id || null,
+            paymentMethod
         );
 
         if (!result.success) {
@@ -76,10 +89,10 @@ export const usePaymentHandlers = (
         }
 
         return true;
-    }, [termsAccepted, dataAuthorization, signatureConfirmed, signatureImageDataUrl, serviceRequestId, contractTemplate, setError]);
+    }, [termsAccepted, dataAuthorization, signatureConfirmed, signatureImageDataUrl, serviceRequestId, contractTemplate, setError, creditCardName, cpf]);
 
     const handleStripeCheckout = useCallback(async (method: 'card' | 'pix') => {
-        if (!await validateStep3()) return;
+        if (!await validateStep3(method)) return;
 
         setSubmitting(true);
         try {
@@ -141,7 +154,7 @@ export const usePaymentHandlers = (
     }, [productSlug, sellerId, totalWithFees, extraUnits, serviceRequestId, clientName, clientEmail, clientWhatsApp, validateStep3, documentFiles, hasExistingContract, existingContractData, dependentNames, clientCountry, clientNationality, clientObservations, exchangeRate, contractTemplate, setSubmitting, setError]);
 
     const handleZellePayment = useCallback(async () => {
-        if (!await validateStep3()) return;
+        if (!await validateStep3('zelle')) return;
         if (!zelleReceipt) {
             setError('Please upload Zelle receipt');
             return;
@@ -189,7 +202,7 @@ export const usePaymentHandlers = (
     }, [productSlug, sellerId, baseTotal, validateStep3, zelleReceipt, extraUnits, serviceRequestId, clientName, clientEmail, clientWhatsApp, dependentNames, clientCountry, clientNationality, clientObservations, contractTemplate, setSubmitting, setIsZelleProcessing, setError]);
 
     const handleParcelowPayment = useCallback(async () => {
-        if (!await validateStep3()) return;
+        if (!await validateStep3('parcelow')) return;
 
         setSubmitting(true);
         try {
@@ -209,7 +222,7 @@ export const usePaymentHandlers = (
                 });
             }
 
-            // Fetch product to get localized prices
+            // Fetch product
             const { data: product, error: productError } = await supabase
                 .from('visa_products')
                 .select('*')
@@ -248,23 +261,59 @@ export const usePaymentHandlers = (
                     client_nationality: clientNationality,
                     client_observations: clientObservations,
                     payment_method: 'parcelow',
-                    status: 'pending',
-                    total_amount_usd: totalWithFees,
+                    payment_status: 'pending',
+                    total_price_usd: totalWithFees,
                     contract_document_url: documentFrontUrl,
                     contract_selfie_url: selfieUrl,
                     contract_accepted: true,
                     contract_signed_at: new Date().toISOString(),
-                    contract_template_id: contractTemplate?.id
+                    payment_metadata: {
+                        credit_card_name: creditCardName,
+                        cpf: cpf
+                    }
                 })
                 .select()
                 .single();
 
             if (orderError || !order) {
+                if (orderError?.code === '409' || orderError?.message?.includes('duplicate key') || orderError?.details?.includes('already exists')) {
+                    console.warn('Order already exists, fetching existing pending order...');
+                    const { data: existingOrder, error: fetchError } = await supabase
+                        .from('visa_orders')
+                        .select('*')
+                        .eq('service_request_id', serviceRequestId)
+                        .eq('payment_status', 'pending')
+                        .order('created_at', { ascending: false })
+                        .limit(1)
+                        .single();
+
+                    if (!fetchError && existingOrder) {
+                        console.log('Using existing pending order:', existingOrder.id);
+                        // Use existing order for checkout
+                        const { data: checkoutData, error: checkoutError } = await supabase.functions.invoke('create-parcelow-checkout', {
+                            body: { order_id: existingOrder.id }
+                        });
+
+                        if (checkoutError) {
+                            console.error('Parcelow checkout error:', checkoutError);
+                            throw new Error('Failed to initiate Parcelow checkout');
+                        }
+
+                        const redirectUrl = checkoutData?.checkout_url || checkoutData?.url || checkoutData?.url_checkout;
+                        if (redirectUrl) {
+                            window.location.href = redirectUrl;
+                        } else {
+                            throw new Error('Invalid response from payment provider');
+                        }
+                        return;
+                    }
+                }
+
                 console.error('Order creation error:', orderError);
-                throw new Error('Failed to create order');
+                throw new Error('Failed to create order. If you already have an order, please check your dashboard.');
             }
 
-            // Call Parcelow Checkout Function
+            // Call Parcelow Checkout Function (direct redirect, no modal)
             const { data: checkoutData, error: checkoutError } = await supabase.functions.invoke('create-parcelow-checkout', {
                 body: { order_id: order.id }
             });
@@ -274,9 +323,11 @@ export const usePaymentHandlers = (
                 throw new Error('Failed to initiate Parcelow checkout');
             }
 
-            if (checkoutData?.url) {
-                window.location.href = checkoutData.url;
+            const redirectUrl = checkoutData?.checkout_url || checkoutData?.url || checkoutData?.url_checkout;
+            if (redirectUrl) {
+                window.location.href = redirectUrl;
             } else {
+                console.error('Missing checkout URL in data:', checkoutData);
                 throw new Error('Invalid response from payment provider');
             }
 
@@ -286,11 +337,11 @@ export const usePaymentHandlers = (
         } finally {
             setSubmitting(false);
         }
-    }, [productSlug, sellerId, totalWithFees, extraUnits, serviceRequestId, clientName, clientEmail, clientWhatsApp, validateStep3, documentFiles, hasExistingContract, existingContractData, dependentNames, clientCountry, clientNationality, clientObservations, setSubmitting, setError, contractTemplate]);
+    }, [productSlug, sellerId, totalWithFees, extraUnits, serviceRequestId, clientName, clientEmail, clientWhatsApp, validateStep3, documentFiles, hasExistingContract, existingContractData, dependentNames, clientCountry, clientNationality, clientObservations, setSubmitting, setError, contractTemplate, creditCardName, cpf]);
 
     return {
         handleStripeCheckout,
         handleZellePayment,
-        handleParcelowPayment,
+        handleParcelowPayment
     };
 };

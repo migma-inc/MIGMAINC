@@ -7,6 +7,7 @@ interface ParcelowPaymentModalProps {
     checkoutData: ParcelowCheckoutData;
     onConfirm: () => void;
     onCancel: () => void;
+    isLoading?: boolean;
 }
 
 /**
@@ -17,17 +18,15 @@ export function ParcelowPaymentModal({
     checkoutData,
     onConfirm,
     onCancel,
+    isLoading = false,
 }: ParcelowPaymentModalProps) {
-    const baseAmount = ParcelowService.formatAmount(checkoutData.order_amount || 0);
     const totalUsd = ParcelowService.formatAmount(checkoutData.total_usd);
     const totalBrl = ParcelowService.formatAmount(checkoutData.total_brl);
-    const fees = ParcelowService.formatAmount(
-        ParcelowService.calculateFees(checkoutData.total_usd, checkoutData.order_amount || 0)
-    );
+
 
     return (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-            <Card className="max-w-2xl w-full bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30 animate-fade-in">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <Card className="max-w-2xl w-full bg-neutral-900 border border-gold-medium/30 animate-fade-in shadow-2xl">
                 <CardHeader>
                     <CardTitle className="text-2xl font-bold migma-gold-text text-center">
                         Confirme o Valor do Pagamento
@@ -41,48 +40,41 @@ export function ParcelowPaymentModal({
                             Resumo do Pagamento
                         </h3>
 
-                        <div className="space-y-3">
-                            {/* Base Amount */}
-                            <div className="flex justify-between items-center pb-2 border-b border-gray-700/50">
-                                <span className="text-gray-400">Valor do Serviço:</span>
-                                <span className="text-white font-mono">US$ {baseAmount}</span>
-                            </div>
+                        <div className="space-y-4">
 
-                            {/* Fees */}
-                            {checkoutData.order_amount && (
-                                <div className="flex justify-between items-center pb-2 border-b border-gray-700/50">
-                                    <span className="text-gray-400">
-                                        Taxas Parcelow (IOF + Processamento):
-                                    </span>
-                                    <span className="text-gold-light font-mono">+ US$ {fees}</span>
-                                </div>
-                            )}
-
-                            {/* Total USD (highlighted) */}
-                            <div className="flex justify-between items-center pt-2">
-                                <span className="text-xl font-bold text-white">TOTAL (USD):</span>
-                                <span className="text-2xl font-bold migma-gold-text font-mono">
+                            <div className="text-center py-4">
+                                <span className="block text-gray-400 text-sm mb-1">Valor Estimado (USD)</span>
+                                <span className="text-4xl font-bold migma-gold-text font-mono">
                                     US$ {totalUsd}
                                 </span>
+
+                                {checkoutData.total_brl && (
+                                    <div className="mt-2 pt-2 border-t border-gray-700/30">
+                                        <span className="block text-gray-500 text-xs mb-1">Aprox. no Cartão (BRL)</span>
+                                        <span className="text-lg text-gray-300 font-mono">
+                                            R$ {totalBrl}
+                                        </span>
+                                    </div>
+                                )}
                             </div>
 
-                            {/* Total BRL */}
-                            {checkoutData.total_brl && (
-                                <div className="flex justify-between items-center pt-1 text-sm">
-                                    <span className="text-gray-500">Equivalente em Reais:</span>
-                                    <span className="text-gray-300 font-mono">R$ {totalBrl}</span>
-                                </div>
-                            )}
                         </div>
                     </div>
 
                     {/* Info Note */}
                     <div className="bg-gold-dark/10 border border-gold-medium/30 rounded-lg p-4">
-                        <p className="text-sm text-gray-300">
-                            ℹ️ <strong className="text-gold-light">Importante:</strong> Este é o
-                            valor total que será cobrado no seu cartão de crédito, incluindo todas
-                            as taxas de processamento internacional.
-                        </p>
+                        <div className="text-sm text-gray-300 leading-relaxed">
+                            <span className="block mb-2">
+                                ℹ️ <strong className="text-gold-light">Atenção:</strong> Ao prosseguir, você será redirecionado para o checkout seguro da Parcelow.
+                            </span>
+
+                            O valor final exato pode variar devido a:
+                            <ul className="list-disc list-inside mt-1 ml-1 text-gray-400">
+                                <li>Descontos para pagamentos à vista (Pix/TED)</li>
+                                <li>Juros de parcelamento no cartão</li>
+                                <li>Variações cambiais e taxas de processamento</li>
+                            </ul>
+                        </div>
                     </div>
 
                     {/* Action Buttons */}
@@ -96,9 +88,10 @@ export function ParcelowPaymentModal({
                         </Button>
                         <Button
                             onClick={onConfirm}
-                            className="flex-1 bg-gradient-to-b from-gold-light via-gold-medium to-gold-light text-black font-bold hover:from-gold-medium hover:via-gold-light hover:to-gold-medium"
+                            disabled={isLoading}
+                            className="flex-1 bg-gradient-to-b from-gold-light via-gold-medium to-gold-light text-black font-bold hover:from-gold-medium hover:via-gold-light hover:to-gold-medium disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                            Confirmar e Pagar →
+                            {isLoading ? 'Processando...' : 'Confirmar e Pagar →'}
                         </Button>
                     </div>
                 </CardContent>

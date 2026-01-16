@@ -140,7 +140,7 @@ export async function saveStep1Data(
       if (setServiceRequestId && serviceRequestIdToUse) {
         setServiceRequestId(serviceRequestIdToUse);
       }
-      
+
       // Save serviceRequestId to localStorage for restoration
       if (DRAFT_STORAGE_KEY) {
         try {
@@ -203,7 +203,7 @@ export async function saveStep2Data(
   if (!documentFiles && !existingContract) {
     return { success: false, error: 'Please upload all required documents (front, back, and selfie)' };
   }
-  
+
   // If using existing contract, skip document upload
   if (existingContract) {
     // Update service request status
@@ -211,10 +211,10 @@ export async function saveStep2Data(
       .from('service_requests')
       .update({ status: 'pending_payment', updated_at: new Date().toISOString() })
       .eq('id', serviceRequestId);
-    
+
     return { success: true };
   }
-  
+
   // Ensure all required documents are present
   if (!documentFiles?.documentFront || !documentFiles?.documentBack || !documentFiles?.selfie) {
     return { success: false, error: 'Please upload all required documents (front, back, and selfie)' };
@@ -248,7 +248,7 @@ export async function saveStep2Data(
     if (!documentFiles.documentBack) {
       return { success: false, error: 'Document back is required' };
     }
-    
+
     const { error: backError } = await supabase
       .from('identity_files')
       .insert({
@@ -311,7 +311,8 @@ export async function saveStep3Data(
   serviceRequestId: string,
   termsAccepted: boolean,
   dataAuthorization: boolean,
-  contractTemplateId?: string | null
+  contractTemplateId?: string | null,
+  paymentMethod?: string | null
 ): Promise<SaveStep3Result> {
   if (!termsAccepted || !dataAuthorization) {
     return { success: false, error: 'Please accept both terms and conditions' };
@@ -320,6 +321,19 @@ export async function saveStep3Data(
   try {
     const clientIP = await getClientIP();
     const userAgent = getUserAgent();
+
+    // Update service request with payment method (intention)
+    if (paymentMethod) {
+      const { error: srError } = await supabase
+        .from('service_requests')
+        .update({ payment_method: paymentMethod })
+        .eq('id', serviceRequestId);
+
+      if (srError) {
+        console.warn('Failed to update payment method in service request:', srError);
+        // Don't block flow just for this
+      }
+    }
 
     const insertData: Record<string, any> = {
       service_request_id: serviceRequestId,

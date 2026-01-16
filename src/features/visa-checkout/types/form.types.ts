@@ -1,6 +1,6 @@
 import type { ContractTemplate } from '@/lib/contract-templates';
 
-export type PaymentMethod = 'card' | 'pix' | 'zelle' | 'wise' | 'parcelow';
+export type PaymentMethod = '' | 'card' | 'pix' | 'zelle' | 'wise' | 'parcelow';
 
 export interface DocumentFile {
     file: File;
@@ -59,6 +59,8 @@ export interface VisaCheckoutState {
     termsAccepted: boolean;
     dataAuthorization: boolean;
     paymentMethod: PaymentMethod;
+    creditCardName: string;
+    cpf: string;
     zelleReceipt: File | null;
     signatureImageDataUrl: string | null;
     signatureConfirmed: boolean;
@@ -100,6 +102,8 @@ export interface VisaCheckoutActions {
     setTermsAccepted: (val: boolean) => void;
     setDataAuthorization: (val: boolean) => void;
     setPaymentMethod: (val: PaymentMethod) => void;
+    setCreditCardName: (val: string) => void;
+    setCpf: (val: string) => void;
     setZelleReceipt: (val: File | null) => void;
 
     setSignatureImageDataUrl: (val: string | null) => void;

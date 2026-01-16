@@ -228,6 +228,7 @@ Deno.serve(async (req) => {
     };
 
     let serviceRequestIdToUse: string | null = null;
+    let previousOrderSignatureUrl: string | null = null;
 
     // Check if this is a scholarship or i20-control product (these need documents from previous order)
     const isAnnexProduct = order.product_slug?.endsWith('-scholarship') || order.product_slug?.endsWith('-i20-control');
@@ -246,7 +247,7 @@ Deno.serve(async (req) => {
       // Find the most recent completed selection-process order for this client
       const { data: previousOrder, error: previousOrderError } = await supabase
         .from('visa_orders')
-        .select('id, service_request_id, product_slug, order_number, created_at')
+        .select('id, service_request_id, product_slug, order_number, created_at, signature_image_url')
         .eq('client_email', order.client_email)
         .eq('product_slug', selectionProcessSlug)
         .eq('payment_status', 'completed')
@@ -262,6 +263,7 @@ Deno.serve(async (req) => {
         console.log("[EDGE FUNCTION] Found previous selection-process order:", previousOrder.order_number);
         console.log("[EDGE FUNCTION] Previous order service_request_id:", previousOrder.service_request_id);
         serviceRequestIdToUse = previousOrder.service_request_id;
+        previousOrderSignatureUrl = previousOrder.signature_image_url;
       }
     } else {
       // For other products, use current order's service_request_id
@@ -422,10 +424,20 @@ Deno.serve(async (req) => {
 
     // Helper function to load signature image
     const loadSignatureImage = async (): Promise<{ dataUrl: string; format: string } | null> => {
-      if (!order.signature_image_url) {
+      let signatureUrl = order.signature_image_url;
+
+      // If no signature on current order, try previous order (for Annex products)
+      if (!signatureUrl && previousOrderSignatureUrl) {
+        console.log("[EDGE FUNCTION] Using signature from previous order");
+        signatureUrl = previousOrderSignatureUrl;
+      }
+
+      if (!signatureUrl) {
+        console.log("[EDGE FUNCTION] No signature URL found");
         return null;
       }
-      return await loadImage(order.signature_image_url);
+
+      return await loadImage(signatureUrl);
     };
 
     // ============================================
@@ -494,17 +506,34 @@ Deno.serve(async (req) => {
       displayAmount = parseFloat(order.total_price_usd);
       currencySymbol = 'US$';
     } else if (order.payment_method === 'parcelow') {
-      // Parcelow payments: use total_usd from metadata (includes fees) if available
-      if (order.payment_metadata && typeof order.payment_metadata === 'object' && 'total_usd' in order.payment_metadata) {
-        // total_usd might be string or number in metadata
-        const totalUsd = parseFloat(String(order.payment_metadata.total_usd));
-        if (!isNaN(totalUsd) && totalUsd > 0) {
-          displayAmount = totalUsd;
+      // Parcelow payments: use total_brl from metadata (the actual BRL amount paid, includes all fees)
+      let foundInMetadata = false;
+      if (order.payment_metadata && typeof order.payment_metadata === 'object') {
+        // Check total_brl first (this is the actual amount paid in BRL)
+        if ('total_brl' in order.payment_metadata) {
+          const val = parseFloat(String(order.payment_metadata.total_brl));
+          if (!isNaN(val) && val > 0) {
+            displayAmount = val;
+            foundInMetadata = true;
+          }
         }
-      } else {
+
+        // Fallback: check base_brl (amount without installment fees)
+        if (!foundInMetadata && 'base_brl' in order.payment_metadata) {
+          const val = parseFloat(String(order.payment_metadata.base_brl));
+          if (!isNaN(val) && val > 0) {
+            displayAmount = val;
+            foundInMetadata = true;
+          }
+        }
+      }
+
+      if (!foundInMetadata) {
+        // Last resort fallback: use total_price_usd
         displayAmount = parseFloat(order.total_price_usd);
       }
-      currencySymbol = 'US$';
+
+      currencySymbol = 'R$'; // Parcelow is always in BRL
     } else if (order.payment_method === 'zelle') {
       displayAmount = parseFloat(order.total_price_usd);
       currencySymbol = 'US$';

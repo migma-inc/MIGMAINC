@@ -47,7 +47,9 @@ export const useVisaCheckoutForm = () => {
     // Step 3: Terms & Payment
     const [termsAccepted, setTermsAccepted] = useState(false);
     const [dataAuthorization, setDataAuthorization] = useState(false);
-    const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('card');
+    const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('');
+    const [creditCardName, setCreditCardName] = useState('');
+    const [cpf, setCpf] = useState('');
     const [zelleReceipt, setZelleReceipt] = useState<File | null>(null);
     const [signatureImageDataUrl, setSignatureImageDataUrl] = useState<string | null>(null);
     const [signatureConfirmed, setSignatureConfirmed] = useState<boolean>(false);
@@ -96,6 +98,8 @@ export const useVisaCheckoutForm = () => {
         termsAccepted,
         dataAuthorization,
         paymentMethod,
+        creditCardName,
+        cpf,
         zelleReceipt,
         signatureImageDataUrl,
         signatureConfirmed,
@@ -131,6 +135,8 @@ export const useVisaCheckoutForm = () => {
         setTermsAccepted,
         setDataAuthorization,
         setPaymentMethod,
+        setCreditCardName,
+        setCpf,
         setZelleReceipt,
         setSignatureImageDataUrl,
         setSignatureConfirmed,

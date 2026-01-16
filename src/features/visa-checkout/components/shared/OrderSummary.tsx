@@ -8,7 +8,6 @@ interface OrderSummaryProps {
     extraUnits: number;
     totalWithFees: number;
     paymentMethod: string;
-    exchangeRate: number | null;
     showPaymentButton?: boolean;
     isPaymentReady?: boolean;
     isSubmitting?: boolean;
@@ -20,7 +19,6 @@ export const OrderSummary: React.FC<OrderSummaryProps> = ({
     extraUnits,
     totalWithFees,
     paymentMethod,
-    exchangeRate,
     showPaymentButton,
     isPaymentReady,
     isSubmitting,
@@ -61,34 +59,39 @@ export const OrderSummary: React.FC<OrderSummaryProps> = ({
                         <div className="flex justify-between">
                             <span className="text-white font-bold text-sm sm:text-base">Total</span>
                             <span className="text-xl sm:text-2xl font-bold text-gold-light">
-                                {paymentMethod === 'pix' && exchangeRate ? (
-                                    <>R$ {totalWithFees.toFixed(2)}</>
-                                ) : (
-                                    <>US$ {totalWithFees.toFixed(2)}</>
-                                )}
+                                US$ {totalWithFees.toFixed(2)}
                             </span>
                         </div>
                         {paymentMethod === 'parcelow' && (
-                            <p className="text-[10px] sm:text-xs text-center text-gray-400 mt-1">
-                                Parcelow fees included
-                            </p>
+                            <div className="bg-gold-dark/10 border border-gold-medium/30 rounded-md p-2 mt-2">
+                                <p className="text-[10px] sm:text-xs text-gray-300 leading-relaxed">
+                                    ⚠️ <strong className="text-gold-light">Note:</strong> Final amount will be calculated by Parcelow at checkout, including:
+                                </p>
+                                <ul className="text-[9px] sm:text-[10px] text-gray-400 mt-1 ml-3 list-disc list-inside">
+                                    <li>Processing fees</li>
+                                    <li>Exchange rate fluctuations (real-time quote)</li>
+                                    <li>Discounts (Pix/TED) or installment fees</li>
+                                </ul>
+                            </div>
                         )}
+                        {/* STRIPE REMOVED - No longer using Stripe
                         {paymentMethod === 'pix' && exchangeRate && (
                             <p className="text-[10px] sm:text-xs text-gray-400 mt-1 text-right">
                                 Includes processing fee
                             </p>
                         )}
+                        */}
                     </div>
                 </div>
 
                 {showPaymentButton && onPay && (
-                    <div className="pt-4 animate-in fade-in slide-in-from-bottom-2">
+                    <div className="pt-4 animate-in fade-in slide-in-from-bottom-2 hidden lg:block">
                         <Button
                             onClick={onPay}
                             disabled={!isPaymentReady || isSubmitting}
                             className={`w-full font-bold h-12 text-sm sm:text-base ${paymentMethod === 'parcelow'
-                                    ? 'bg-[#22c55e] hover:bg-[#16a34a] text-white'
-                                    : 'bg-gold-medium hover:bg-gold-light text-black'
+                                ? 'bg-[#22c55e] hover:bg-[#16a34a] text-white'
+                                : 'bg-gold-medium hover:bg-gold-light text-black'
                                 }`}
                         >
                             {isSubmitting ? (
@@ -106,6 +109,12 @@ export const OrderSummary: React.FC<OrderSummaryProps> = ({
                                             Confirm Zelle Payment
                                         </>
                                     ) : (
+                                        /* STRIPE REMOVED - No longer using Stripe/Card payments
+                                        <>
+                                            <CreditCard className="w-5 h-5" />
+                                            Pay Now
+                                        </>
+                                        */
                                         <>
                                             <CreditCard className="w-5 h-5" />
                                             Pay Now
@@ -116,7 +125,7 @@ export const OrderSummary: React.FC<OrderSummaryProps> = ({
                         </Button>
                         <div className="flex items-center justify-center gap-2 mt-3 opacity-60">
                             <Lock className="w-3 h-3 text-gold-light" />
-                            <span className="text-[10px] text-gray-400">Secure payment processing</span>
+                            <span className="text-[10px] text-gray-400">100% Secure Payment</span>
                         </div>
                     </div>
                 )}

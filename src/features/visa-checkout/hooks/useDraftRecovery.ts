@@ -76,7 +76,8 @@ export const useDraftRecovery = (
                 // Restore Step 3
                 setTermsAccepted(parsed.termsAccepted || false);
                 setDataAuthorization(parsed.dataAuthorization || false);
-                setPaymentMethod(parsed.paymentMethod || 'card');
+                // STRIPE REMOVED - No longer default to 'card'
+                setPaymentMethod(parsed.paymentMethod || '');
                 setSignatureImageDataUrl(parsed.signatureImageDataUrl || null);
                 setSignatureConfirmed(parsed.signatureConfirmed || false);
 

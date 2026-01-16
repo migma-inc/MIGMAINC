@@ -97,29 +97,74 @@ export const CheckoutSuccess = () => {
                   <span className="text-white">{order.number_of_dependents || 0}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-gray-400">Total:</span>
+                  <span className="text-gray-400">Base Total (USD):</span>
                   <span className="text-white font-bold">
-                    {(() => {
-                      // Get currency and final amount from payment_metadata
-                      const metadata = order.payment_metadata as any;
-                      const currency = metadata?.currency || 'USD';
-                      let finalAmount = parseFloat(order.total_price_usd);
-
-                      if (metadata?.final_amount) {
-                        finalAmount = parseFloat(metadata.final_amount);
-                      } else if (metadata?.total_usd) {
-                        finalAmount = parseFloat(metadata.total_usd);
-                      }
-
-                      if (currency === 'BRL' || currency === 'brl') {
-                        return `R$ ${finalAmount.toFixed(2)}`;
-                      } else {
-                        // USD - show with fees (final_amount already includes fees)
-                        return `US$ ${finalAmount.toFixed(2)}`;
-                      }
-                    })()}
+                    US$ {parseFloat(order.total_price_usd).toFixed(2)}
                   </span>
                 </div>
+                {order.payment_method === 'parcelow' && (() => {
+                  const metadata = order.payment_metadata as any;
+                  let totalBrl = metadata?.total_brl;
+
+                  if (totalBrl) {
+                    // Parcelow returns BRL as decimal string (e.g., "6153.35")
+                    // NOT in cents like other payment providers
+                    let brlAmount: number;
+
+                    if (typeof totalBrl === 'string') {
+                      // It's already a decimal string, just parse it
+                      brlAmount = parseFloat(totalBrl);
+                    } else if (typeof totalBrl === 'number') {
+                      // It's a number - check if in cents or decimal
+                      brlAmount = totalBrl > 10000 ? totalBrl / 100 : totalBrl;
+                    } else {
+                      return null;
+                    }
+
+                    return (
+                      <div className="border-t border-gold-medium/30 pt-2 mt-2">
+                        <div className="flex justify-between">
+                          <span className="text-gray-400">Amount Paid (BRL):</span>
+                          <span className="text-gold-light font-bold text-lg">
+                            R$ {brlAmount.toFixed(2)}
+                          </span>
+                        </div>
+                        <p className="text-[10px] text-gray-500 mt-1">
+                          * Includes Parcelow fees, taxes (IOF), exchange rate, and installment fees ({metadata?.installments || 1}x)
+                        </p>
+                      </div>
+                    );
+                  }
+                  return null;
+                })()}
+                {order.payment_method !== 'parcelow' && (() => {
+                  const metadata = order.payment_metadata as any;
+                  const currency = metadata?.currency || 'USD';
+                  let finalAmount = parseFloat(order.total_price_usd);
+
+                  if (metadata?.final_amount) {
+                    finalAmount = parseFloat(metadata.final_amount);
+                  } else if (metadata?.total_usd) {
+                    finalAmount = parseFloat(metadata.total_usd);
+                  }
+
+                  // Fix for values coming in cents
+                  if (finalAmount > 10000) {
+                    finalAmount = finalAmount / 100;
+                  }
+
+                  if (currency === 'BRL' || currency === 'brl') {
+                    return (
+                      <div className="flex justify-between border-t border-gold-medium/30 pt-2 mt-2">
+                        <span className="text-gray-400">Total Paid (BRL):</span>
+                        <span className="text-gold-light font-bold text-lg">
+                          R$ {finalAmount.toFixed(2)}
+                        </span>
+                      </div>
+                    );
+                  }
+                  return null;
+                })()}
                 {order.payment_status === 'completed' && (
                   <div className="flex justify-between">
                     <span className="text-gray-400">Status:</span>
@@ -132,7 +177,7 @@ export const CheckoutSuccess = () => {
             </div>
           )}
 
-          <div className="space-y-4">
+          <div className="space-y-4 mt-6">
             <p className="text-gray-300">
               {method === 'zelle'
                 ? 'Our team will review your payment and contact you shortly to confirm and begin the visa application process.'
@@ -141,12 +186,14 @@ export const CheckoutSuccess = () => {
             <p className="text-gray-300">
               Our team will contact you soon to begin the visa application process.
             </p>
-            <Link to="/">
-              <Button className="bg-gradient-to-b from-gold-light via-gold-medium to-gold-light text-black font-bold hover:from-gold-medium hover:via-gold-light hover:to-gold-medium">
-                Back to Home
-                <ArrowRight className="w-4 h-4 ml-2" />
-              </Button>
-            </Link>
+            <div className="pt-4">
+              <Link to="/">
+                <Button className="bg-gradient-to-b from-gold-light via-gold-medium to-gold-light text-black font-bold hover:from-gold-medium hover:via-gold-light hover:to-gold-medium">
+                  Back to Home
+                  <ArrowRight className="w-4 h-4 ml-2" />
+                </Button>
+              </Link>
+            </div>
           </div>
         </CardContent>
       </Card>

@@ -1,8 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useOutletContext, Link } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Skeleton } from '@/components/ui/skeleton';
+import { Card, CardContent } from '@/components/ui/card';
 import { ShoppingCart, CheckCircle, Clock, DollarSign, Coins } from 'lucide-react';
 import { calculateNetAmount } from '@/lib/seller-commissions';
 import { PeriodFilter, type PeriodOption, type CustomDateRange } from '@/components/seller/PeriodFilter';
@@ -57,9 +56,9 @@ export function SellerOverview() {
       startDate.setHours(0, 0, 0, 0);
       const endDate = new Date(customDateRange.end);
       endDate.setHours(23, 59, 59, 999);
-      return { 
-        start: startDate.toISOString(), 
-        end: endDate.toISOString() 
+      return {
+        start: startDate.toISOString(),
+        end: endDate.toISOString()
       };
     }
     const { start, end } = getPeriodDates(periodFilter);
@@ -72,14 +71,14 @@ export function SellerOverview() {
 
       try {
         setLoading(true);
-        
+
         // Construir query base
         const { start, end } = getPeriodRange();
         const period = {
           start: new Date(start),
           end: new Date(end),
         };
-        
+
         // Buscar pedidos e comissões em paralelo
         const [ordersResult, commissionResult] = await Promise.all([
           (async () => {
@@ -135,63 +134,30 @@ export function SellerOverview() {
 
   if (loading) {
     return (
-      <div>
-        <div className="mb-8">
-          <Skeleton className="h-9 w-64 mb-2" />
-          <Skeleton className="h-5 w-48" />
-          <Skeleton className="h-4 w-32 mt-1" />
-        </div>
-
-        {/* Stats Cards Skeleton */}
-        <div className="grid grid-cols-1 md:grid-cols-4 lg:grid-cols-5 gap-4 mb-8">
-          {[1, 2, 3, 4, 5].map((i) => (
-            <Card key={i} className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30">
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div className="flex-1">
-                    <Skeleton className="h-4 w-20 mb-3" />
-                    <Skeleton className="h-8 w-16" />
-                  </div>
-                  <Skeleton className="h-10 w-10 rounded" />
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-
-        {/* Quick Actions Skeleton */}
-        <Card className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30">
-          <CardHeader>
-            <Skeleton className="h-6 w-32" />
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {[1, 2, 3].map((i) => (
-                <div key={i} className="p-4 bg-black/50 rounded-lg border border-gold-medium/20">
-                  <Skeleton className="h-5 w-40 mb-2" />
-                  <Skeleton className="h-4 w-32" />
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gold-medium"></div>
       </div>
     );
   }
 
   return (
-    <div>
-      <div className="mb-6 sm:mb-8">
-        <div className="flex flex-col gap-4 mb-4">
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-bold migma-gold-text mb-2">Dashboard Overview</h1>
-            <p className="text-sm sm:text-base text-gray-400">Welcome back, {seller.full_name}</p>
-            <p className="text-xs sm:text-sm text-gold-light mt-1">Seller ID: {seller.seller_id_public}</p>
+    <div className="space-y-8">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-bold migma-gold-text">Dashboard Overview</h1>
+          <p className="text-zinc-500 mt-1">Welcome back, <span className="text-white font-medium">{seller.full_name}</span></p>
+          <div className="flex items-center gap-2 mt-2">
+            <span className="text-[10px] bg-zinc-900 text-zinc-400 px-2 py-0.5 rounded border border-zinc-800 uppercase tracking-wider font-mono">
+              ID: {seller.seller_id_public}
+            </span>
           </div>
-          <PeriodFilter 
-            value={periodFilter} 
-            onChange={setPeriodFilter} 
-            showLabel={true}
+        </div>
+
+        <div className="w-full md:w-auto">
+          <PeriodFilter
+            value={periodFilter}
+            onChange={setPeriodFilter}
+            showLabel={false}
             customDateRange={customDateRange}
             onCustomDateRangeChange={setCustomDateRange}
           />
@@ -199,71 +165,82 @@ export function SellerOverview() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4 mb-6 sm:mb-8">
-        <Card className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30">
-          <CardContent className="p-4 sm:p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs sm:text-sm text-gray-400">Total Sales</p>
-                <p className="text-2xl sm:text-3xl font-bold text-white">{stats.totalSales}</p>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+        <Card className="bg-zinc-950 border border-zinc-900 transform transition-all duration-300 hover:border-gold-medium/50 hover:bg-zinc-900/50">
+          <CardContent className="p-6">
+            <div className="flex items-start justify-between">
+              <div className="space-y-1">
+                <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">Total Sales</p>
+                <p className="text-3xl font-bold text-white">{stats.totalSales}</p>
               </div>
-              <ShoppingCart className="w-8 h-8 sm:w-10 sm:h-10 text-gold-light shrink-0" />
+              <div className="p-2 bg-gold-medium/10 rounded-lg">
+                <ShoppingCart className="w-5 h-5 text-gold-medium" />
+              </div>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="bg-gradient-to-br from-green-500/10 via-green-500/5 to-green-500/10 border border-green-500/30">
-          <CardContent className="p-4 sm:p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs sm:text-sm text-gray-400">Completed</p>
-                <p className="text-2xl sm:text-3xl font-bold text-green-300">{stats.completedSales}</p>
+        <Card className="bg-zinc-950 border border-zinc-900 transform transition-all duration-300 hover:border-green-500/50 hover:bg-zinc-900/50">
+          <CardContent className="p-6">
+            <div className="flex items-start justify-between">
+              <div className="space-y-1">
+                <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">Completed</p>
+                <p className="text-3xl font-bold text-green-500">{stats.completedSales}</p>
               </div>
-              <CheckCircle className="w-8 h-8 sm:w-10 sm:h-10 text-green-400 shrink-0" />
+              <div className="p-2 bg-green-500/10 rounded-lg">
+                <CheckCircle className="w-5 h-5 text-green-500" />
+              </div>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="bg-gradient-to-br from-yellow-500/10 via-yellow-500/5 to-yellow-500/10 border border-yellow-500/30">
-          <CardContent className="p-4 sm:p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs sm:text-sm text-gray-400">Pending</p>
-                <p className="text-2xl sm:text-3xl font-bold text-yellow-300">{stats.pendingSales}</p>
+        <Card className="bg-zinc-950 border border-zinc-900 transform transition-all duration-300 hover:border-yellow-500/50 hover:bg-zinc-900/50">
+          <CardContent className="p-6">
+            <div className="flex items-start justify-between">
+              <div className="space-y-1">
+                <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">Pending</p>
+                <p className="text-3xl font-bold text-yellow-500">{stats.pendingSales}</p>
               </div>
-              <Clock className="w-8 h-8 sm:w-10 sm:h-10 text-yellow-400 shrink-0" />
+              <div className="p-2 bg-yellow-500/10 rounded-lg">
+                <Clock className="w-5 h-5 text-yellow-500" />
+              </div>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30">
-          <CardContent className="p-4 sm:p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs sm:text-sm text-gray-400">Total Revenue</p>
-                <p className="text-xl sm:text-2xl font-bold text-gold-light">
-                  ${stats.totalRevenue.toFixed(2)}
+        <Card className="bg-zinc-950 border border-zinc-900 transform transition-all duration-300 hover:border-gold-medium/50 hover:bg-zinc-900/50">
+          <CardContent className="p-6">
+            <div className="flex items-start justify-between">
+              <div className="space-y-1">
+                <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">Net Revenue</p>
+                <p className="text-2xl font-bold text-white">
+                  ${stats.totalRevenue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </p>
               </div>
-              <DollarSign className="w-8 h-8 sm:w-10 sm:h-10 text-gold-light shrink-0" />
+              <div className="p-2 bg-gold-medium/10 rounded-lg">
+                <DollarSign className="w-5 h-5 text-gold-medium" />
+              </div>
             </div>
           </CardContent>
         </Card>
 
         <Link to="/seller/dashboard/commissions">
-          <Card className="bg-gradient-to-br from-purple-500/10 via-purple-500/5 to-purple-500/10 border border-purple-500/30 hover:border-purple-500/50 transition cursor-pointer">
-            <CardContent className="p-4 sm:p-6">
-              <div className="flex items-center justify-between">
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs sm:text-sm text-gray-400">Commission</p>
-                  <p className="text-xl sm:text-2xl font-bold text-purple-300">
-                    ${commissionBalance.total.toFixed(2)}
+          <Card className="bg-zinc-950 border border-zinc-900 transform transition-all duration-300 hover:border-purple-500/50 hover:bg-zinc-900/50 group h-full">
+            <CardContent className="p-6">
+              <div className="flex items-start justify-between">
+                <div className="space-y-1">
+                  <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">Commission</p>
+                  <p className="text-2xl font-bold text-purple-400">
+                    ${commissionBalance.total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </p>
-                  <p className="text-xs text-gray-500 mt-1">
-                    Available: ${commissionBalance.available.toFixed(2)} • Pending: ${commissionBalance.pending.toFixed(2)}
-                  </p>
+                  <div className="flex flex-col gap-0.5 pt-1">
+                    <p className="text-[10px] text-zinc-500">Available: <span className="text-zinc-300 font-medium">${commissionBalance.available.toFixed(2)}</span></p>
+                    <p className="text-[10px] text-zinc-500">Pending: <span className="text-zinc-300 font-medium">${commissionBalance.pending.toFixed(2)}</span></p>
+                  </div>
                 </div>
-                <Coins className="w-8 h-8 sm:w-10 sm:h-10 text-purple-400 shrink-0" />
+                <div className="p-2 bg-purple-500/10 rounded-lg group-hover:bg-purple-500/20 transition-colors">
+                  <Coins className="w-5 h-5 text-purple-400" />
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -271,36 +248,40 @@ export function SellerOverview() {
       </div>
 
       {/* Quick Actions */}
-      <Card className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30">
-        <CardHeader>
-          <CardTitle className="text-white text-lg sm:text-xl">Quick Actions</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
-            <Link
-              to="/seller/dashboard/funnel"
-              className="p-4 bg-black/50 rounded-lg border border-gold-medium/20 hover:bg-gold-medium/10 transition block"
-            >
-              <p className="text-white font-semibold mb-1">View Conversion Funnel</p>
-              <p className="text-xs text-gray-400">Analyze your conversion metrics</p>
-            </Link>
-            <Link
-              to="/seller/dashboard/orders"
-              className="p-4 bg-black/50 rounded-lg border border-gold-medium/20 hover:bg-gold-medium/10 transition block"
-            >
-              <p className="text-white font-semibold mb-1">View All Orders</p>
-              <p className="text-xs text-gray-400">See your complete order history</p>
-            </Link>
-            <Link
-              to="/seller/dashboard/links"
-              className="p-4 bg-black/50 rounded-lg border border-gold-medium/20 hover:bg-gold-medium/10 transition block"
-            >
-              <p className="text-white font-semibold mb-1">Generate Sales Links</p>
-              <p className="text-xs text-gray-400">Create and copy your links</p>
-            </Link>
-          </div>
-        </CardContent>
-      </Card>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        {[
+          {
+            title: "View Conversion Funnel",
+            desc: "Analyze your conversion metrics & performance",
+            link: "/seller/dashboard/funnel",
+            icon: "📊"
+          },
+          {
+            title: "View All Orders",
+            desc: "See your complete order history and details",
+            link: "/seller/dashboard/orders",
+            icon: "🛍️"
+          },
+          {
+            title: "Generate Sales Links",
+            desc: "Create and manage your affiliate tracking links",
+            link: "/seller/dashboard/links",
+            icon: "🔗"
+          }
+        ].map((action, idx) => (
+          <Link key={idx} to={action.link}>
+            <Card className="bg-zinc-950 border border-zinc-900 transform transition-all duration-300 hover:border-gold-medium/50 hover:bg-zinc-900/50 group">
+              <CardContent className="p-6 flex items-center gap-4">
+                <div className="text-2xl grayscale group-hover:grayscale-0 transition-all">{action.icon}</div>
+                <div>
+                  <h3 className="text-sm font-semibold text-white group-hover:text-gold-light transition-colors">{action.title}</h3>
+                  <p className="text-xs text-zinc-500 leading-relaxed">{action.desc}</p>
+                </div>
+              </CardContent>
+            </Card>
+          </Link>
+        ))}
+      </div>
     </div>
   );
 }

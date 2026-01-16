@@ -348,17 +348,34 @@ Deno.serve(async (req) => {
       displayAmount = parseFloat(order.total_price_usd);
       currencySymbol = 'US$';
     } else if (order.payment_method === 'parcelow') {
-      // Parcelow payments: use total_usd from metadata (includes fees) if available
-      if (order.payment_metadata && typeof order.payment_metadata === 'object' && 'total_usd' in order.payment_metadata) {
-        // total_usd might be string or number in metadata
-        const totalUsd = parseFloat(String(order.payment_metadata.total_usd));
-        if (!isNaN(totalUsd) && totalUsd > 0) {
-          displayAmount = totalUsd;
+      // Parcelow payments: use total_brl from metadata (the actual BRL amount paid, includes all fees)
+      let foundInMetadata = false;
+      if (order.payment_metadata && typeof order.payment_metadata === 'object') {
+        // Check total_brl first (this is the actual amount paid in BRL)
+        if ('total_brl' in order.payment_metadata) {
+          const val = parseFloat(String(order.payment_metadata.total_brl));
+          if (!isNaN(val) && val > 0) {
+            displayAmount = val;
+            foundInMetadata = true;
+          }
         }
-      } else {
+
+        // Fallback: check base_brl (amount without installment fees)
+        if (!foundInMetadata && 'base_brl' in order.payment_metadata) {
+          const val = parseFloat(String(order.payment_metadata.base_brl));
+          if (!isNaN(val) && val > 0) {
+            displayAmount = val;
+            foundInMetadata = true;
+          }
+        }
+      }
+
+      if (!foundInMetadata) {
+        // Last resort fallback: use total_price_usd
         displayAmount = parseFloat(order.total_price_usd);
       }
-      currencySymbol = 'US$';
+
+      currencySymbol = 'R$'; // Parcelow is always in BRL
     } else if (order.payment_method === 'zelle') {
       // Zelle: always USD, use total_price_usd (no fees)
       displayAmount = parseFloat(order.total_price_usd);

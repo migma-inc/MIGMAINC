@@ -50,6 +50,7 @@ import { ViewSignedContract } from './pages/ViewSignedContract';
 import { ScheduleMeetingPage } from './pages/admin/ScheduleMeetingPage';
 import { AdminSellerAnalytics } from './pages/admin/AdminSellerAnalytics';
 import { AdminRoute } from './components/admin/AdminRoute';
+import { SlackReportsPage } from './pages/admin/SlackReportsPage';
 // PAYMENT REQUEST - COMENTADO TEMPORARIAMENTE
 // import { AdminPaymentRequests } from './pages/admin/AdminPaymentRequests';
 
@@ -111,6 +112,7 @@ function App() {
           <Route path="contact-messages/:id" element={<ContactMessageDetail />} />
           <Route path="contract-templates" element={<ContractTemplatesPage />} />
           <Route path="schedule-meeting" element={<ScheduleMeetingPage />} />
+          <Route path="slack-reports" element={<SlackReportsPage />} />
         </Route>
       </Routes>
     </Router>

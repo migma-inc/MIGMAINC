@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
-import { FileText, ClipboardList, LayoutDashboard, Phone, ShoppingCart, DollarSign, UserCircle2, Mail, FileCode, Calendar, X } from 'lucide-react';
+import { FileText, ClipboardList, LayoutDashboard, Phone, ShoppingCart, DollarSign, UserCircle2, Mail, FileCode, Calendar, X, Activity } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useEffect } from 'react';
 
@@ -79,6 +79,12 @@ export function Sidebar({ className, isMobileOpen = false, onMobileClose }: Side
       title: 'Contract Templates',
       icon: FileCode,
       path: '/dashboard/contract-templates',
+      exact: false,
+    },
+    {
+      title: 'Slack Reports',
+      icon: Activity,
+      path: '/dashboard/slack-reports',
       exact: false,
     },
   ];

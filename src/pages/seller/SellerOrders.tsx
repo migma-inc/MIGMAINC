@@ -4,13 +4,11 @@ import { supabase } from '@/lib/supabase';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Skeleton } from '@/components/ui/skeleton';
 import { Pagination } from '@/components/ui/pagination';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { PdfModal } from '@/components/ui/pdf-modal';
-import { Users, Eye, FileText, Filter, X, Search } from 'lucide-react';
+import { Eye, FileText, X, Search } from 'lucide-react';
 
 interface SellerInfo {
   id: string;
@@ -38,13 +36,54 @@ interface Order {
 
 // Helper function to calculate net amount and fee
 const calculateNetAmountAndFee = (order: Order) => {
-  const totalPrice = parseFloat(order.total_price_usd || '0');
-  const metadata = order.payment_metadata as any;
-  const feeAmount = metadata?.fee_amount ? parseFloat(metadata.fee_amount) : 0;
-  const netAmount = totalPrice - feeAmount;
+  let dbPrice = parseFloat(order.total_price_usd || '0');
+
+  // Fix for total_price_usd being in cents
+  if (dbPrice > 10000) {
+    dbPrice = dbPrice / 100;
+  }
+
+  const metadata = order.payment_metadata;
+  let feeAmount = 0;
+  let totalPrice = dbPrice;
+  let netAmount = dbPrice;
+
+  // Main calculation logic: Net = Gross - Fee
+  // 1. Determine Gross Total
+  if (order.payment_method === 'parcelow') {
+    // For Parcelow, total_price_usd in DB is the Gross amount (including markup)
+    totalPrice = dbPrice;
+  } else {
+    // For Stripe/Zelle, total_price_usd in DB is the Gross amount (amount paid by client)
+    totalPrice = dbPrice;
+  }
+
+  // 2. Determine Fee
+  if (metadata?.fee_amount) {
+    let val = parseFloat(metadata.fee_amount.toString());
+    // If val is > 10000, it's likely in cents, but Parcelow fee might be large? 
+    // Usually fees are < 10% of total. 
+    // Let's assume if it matches total_price_usd it might be cents
+    if (val > 10000 && val > dbPrice) val = val / 100;
+    feeAmount = val;
+  }
+  // Fallback for Parcelow if fee_amount is missing: 5% markup
+  else if (order.payment_method === 'parcelow') {
+    // Estimate: Net = Gross / 1.05 -> Fee = Gross - Net
+    feeAmount = totalPrice - (totalPrice / 1.05);
+  }
+  // Fallback for Stripe if fee_amount is missing: ~3.5%
+  else if (order.payment_method?.startsWith('stripe')) {
+    feeAmount = totalPrice * 0.035;
+  }
+
+  // 3. Final Net Amount
+  netAmount = totalPrice - feeAmount;
+
   return {
     netAmount: Math.max(netAmount, 0),
-    feeAmount: feeAmount,
+    feeAmount: Math.max(feeAmount, 0),
+    totalPrice: totalPrice
   };
 };
 
@@ -55,11 +94,11 @@ export function SellerOrders() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
-  
+
   // Filters
   const [productFilter, setProductFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
-  
+
   // PDF Modal
   const [selectedPdfUrl, setSelectedPdfUrl] = useState<string | null>(null);
   const [selectedPdfTitle, setSelectedPdfTitle] = useState<string>('Contract PDF');
@@ -92,15 +131,15 @@ export function SellerOrders() {
     switch (status) {
       case 'completed':
       case 'paid':
-        return <Badge className="bg-green-500/20 text-green-300 border-green-500/50">Paid</Badge>;
+        return <Badge className="bg-green-500/20 text-green-300 border-green-500/50 uppercase text-[10px]">Paid</Badge>;
       case 'pending':
-        return <Badge className="bg-yellow-500/20 text-yellow-300 border-yellow-500/50">Pending</Badge>;
+        return <Badge className="bg-yellow-500/20 text-yellow-300 border-yellow-500/50 uppercase text-[10px]">Pending</Badge>;
       case 'failed':
-        return <Badge className="bg-red-500/20 text-red-300 border-red-500/50">Failed</Badge>;
+        return <Badge className="bg-red-500/20 text-red-300 border-red-500/50 uppercase text-[10px]">Failed</Badge>;
       case 'cancelled':
-        return <Badge className="bg-gray-500/20 text-gray-300 border-gray-500/50">Cancelled</Badge>;
+        return <Badge className="bg-gray-500/20 text-gray-300 border-gray-500/50 uppercase text-[10px]">Cancelled</Badge>;
       default:
-        return <Badge>{status}</Badge>;
+        return <Badge className="uppercase text-[10px]">{status}</Badge>;
     }
   };
 
@@ -122,7 +161,7 @@ export function SellerOrders() {
     // Search filter (by name, email, or order number)
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
-      filtered = filtered.filter(order => 
+      filtered = filtered.filter(order =>
         order.client_name.toLowerCase().includes(query) ||
         order.client_email.toLowerCase().includes(query) ||
         order.order_number.toLowerCase().includes(query)
@@ -156,367 +195,224 @@ export function SellerOrders() {
 
   if (loading) {
     return (
-      <div>
-        <div className="mb-8">
-          <Skeleton className="h-9 w-48 mb-2" />
-          <Skeleton className="h-5 w-64" />
-        </div>
-
-        <Card className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30">
-          <CardHeader>
-            <Skeleton className="h-6 w-32" />
-          </CardHeader>
-          <CardContent>
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-gold-medium/30">
-                    {[1, 2, 3, 4, 5, 6, 7].map((i) => (
-                      <th key={i} className="text-left py-3 px-4">
-                        <Skeleton className="h-4 w-20" />
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {[1, 2, 3, 4, 5].map((row) => (
-                    <tr key={row} className="border-b border-gold-medium/10">
-                      {[1, 2, 3, 4, 5, 6, 7].map((cell) => (
-                        <td key={cell} className="py-3 px-4">
-                          <Skeleton className="h-4 w-24" />
-                        </td>
-                      ))}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </CardContent>
-        </Card>
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gold-medium"></div>
       </div>
     );
   }
 
   return (
-    <div>
-      <div className="mb-6 sm:mb-8">
-        <h1 className="text-2xl sm:text-3xl font-bold migma-gold-text mb-2">Your Orders</h1>
-        <p className="text-sm sm:text-base text-gray-400">View and manage all your sales</p>
+    <div className="space-y-6">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-bold migma-gold-text">Your Orders</h1>
+          <p className="text-sm text-gray-400 mt-1">Manage and track your sales performance</p>
+        </div>
       </div>
 
-      <Card className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30">
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-white">All Orders</CardTitle>
-            {hasActiveFilters && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={clearFilters}
-                className="border-gold-medium/50 bg-black/50 text-gold-light hover:bg-black hover:border-gold-medium hover:text-gold-medium"
-              >
-                <X className="w-4 h-4 mr-1" />
-                Clear Filters
-              </Button>
-            )}
-          </div>
-        </CardHeader>
-        <CardContent>
-          {/* Filters Section */}
-          <div className="mb-6 p-4 bg-black/30 rounded-lg border border-gold-medium/20">
-            <div className="flex items-center gap-2 mb-4">
-              <Filter className="w-4 h-4 text-gold-light" />
-              <h3 className="text-sm font-semibold text-white">Filters</h3>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Search */}
-              <div>
-                <Label htmlFor="search" className="text-xs text-gray-400 mb-2 block">
-                  Search by Name, Email, or Order Number
-                </Label>
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-                  <Input
-                    id="search"
-                    type="text"
-                    placeholder="Search orders..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="pl-10 bg-black/50 border-gold-medium/50 text-white placeholder:text-gray-500 focus:border-gold-medium"
-                  />
-                </div>
+      <Card className="bg-zinc-950 border border-zinc-900 overflow-hidden">
+        <CardHeader className="border-b border-zinc-900 bg-zinc-950/50">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <CardTitle className="text-lg font-semibold text-white">All Orders</CardTitle>
+
+            <div className="flex flex-col sm:flex-row gap-2">
+              <div className="relative group">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500 group-focus-within:text-gold-medium transition-colors" />
+                <Input
+                  placeholder="Order #, name, email..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-9 h-9 w-full sm:w-64 bg-zinc-900/50 border-zinc-800 text-white placeholder:text-zinc-500 focus:border-gold-medium focus:ring-gold-medium/20"
+                />
               </div>
 
-              {/* Product Filter */}
-              {uniqueProducts.length > 0 && (
-                <div>
-                  <Label htmlFor="product-filter" className="text-xs text-gray-400 mb-2 block">
-                    Product
-                  </Label>
-                  <Select value={productFilter} onValueChange={setProductFilter}>
-                    <SelectTrigger 
-                      id="product-filter"
-                      className="bg-black/50 border-gold-medium/50 text-white"
-                    >
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent className="bg-black border-gold-medium/50">
-                      <SelectItem value="all" className="text-white focus:bg-gold-medium/20 focus:text-gold-light">
-                        All Products
-                      </SelectItem>
-                      {uniqueProducts.map((product) => (
-                        <SelectItem 
-                          key={product} 
-                          value={product}
-                          className="text-white focus:bg-gold-medium/20 focus:text-gold-light"
-                        >
-                          {product}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+              <Select value={productFilter} onValueChange={setProductFilter}>
+                <SelectTrigger className="h-9 w-full sm:w-48 bg-zinc-900/50 border-zinc-800 text-white focus:border-gold-medium focus:ring-gold-medium/20">
+                  <SelectValue placeholder="All Products" />
+                </SelectTrigger>
+                <SelectContent className="bg-zinc-950 border-zinc-800 text-white">
+                  <SelectItem value="all">All Products</SelectItem>
+                  {uniqueProducts.map(p => (
+                    <SelectItem key={p} value={p}>{p}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              {hasActiveFilters && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={clearFilters}
+                  className="h-9 text-zinc-400 hover:text-white hover:bg-zinc-900"
+                >
+                  <X className="w-4 h-4 mr-2" />
+                  Clear
+                </Button>
               )}
             </div>
           </div>
+        </CardHeader>
 
-          {/* Results count */}
-          <div className="mb-4 text-sm text-gray-400">
-            Showing <span className="text-gold-light font-medium">{filteredOrders.length}</span> of{' '}
-            <span className="text-gold-light font-medium">{orders.length}</span> orders
-            {hasActiveFilters && ' (filtered)'}
-          </div>
-
-          {orders.length === 0 ? (
-            <div className="text-center py-12">
-              <Users className="w-16 h-16 text-gray-500 mx-auto mb-4" />
-              <p className="text-gray-400 mb-2">No orders yet</p>
-              <p className="text-sm text-gray-500">
-                Share your personalized links to start making sales!
-              </p>
-            </div>
-          ) : filteredOrders.length === 0 ? (
-            <div className="text-center py-12">
-              <Filter className="w-16 h-16 text-gray-500 mx-auto mb-4" />
-              <p className="text-gray-400 mb-2">No orders match your filters</p>
-              <p className="text-sm text-gray-500 mb-4">
-                Try adjusting your filter criteria
-              </p>
-              <Button
-                variant="outline"
-                onClick={clearFilters}
-                className="border-gold-medium/50 bg-black/50 text-gold-light hover:bg-black hover:border-gold-medium hover:text-gold-medium"
-              >
-                Clear All Filters
-              </Button>
-            </div>
-          ) : (
-            <>
-              {/* Desktop Table View */}
-              <div className="hidden md:block overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-gold-medium/30">
-                    <th className="text-left py-3 px-4 text-sm text-gray-400 font-semibold">Order #</th>
-                    <th className="text-left py-3 px-4 text-sm text-gray-400 font-semibold">Client</th>
-                    <th className="text-left py-3 px-4 text-sm text-gray-400 font-semibold">Product</th>
-                    <th className="text-left py-3 px-4 text-sm text-gray-400 font-semibold">Total (with fee)</th>
-                    <th className="text-left py-3 px-4 text-sm text-gray-400 font-semibold">Net Amount</th>
-                    <th className="text-left py-3 px-4 text-sm text-gray-400 font-semibold">Stripe Fee</th>
-                    <th className="text-left py-3 px-4 text-sm text-gray-400 font-semibold">Status</th>
-                    <th className="text-left py-3 px-4 text-sm text-gray-400 font-semibold">Date</th>
-                    <th className="text-left py-3 px-4 text-sm text-gray-400 font-semibold">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {paginatedOrders.map((order) => {
-                    const { netAmount, feeAmount } = calculateNetAmountAndFee(order);
-                    return (
-                    <tr key={order.id} className="border-b border-gold-medium/10 hover:bg-white/5">
-                      <td className="py-3 px-4 text-sm text-white font-mono">{order.order_number}</td>
-                      <td className="py-3 px-4">
-                        <div className="text-sm">
-                          <p className="text-white">{order.client_name}</p>
-                          <p className="text-gray-400 text-xs">{order.client_email}</p>
+        <CardContent className="p-0">
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-zinc-900 bg-zinc-900/20">
+                  <th className="text-left py-4 px-6 text-xs font-bold text-zinc-500 uppercase tracking-wider">Order</th>
+                  <th className="text-left py-4 px-6 text-xs font-bold text-zinc-500 uppercase tracking-wider">Client</th>
+                  <th className="text-left py-4 px-6 text-xs font-bold text-zinc-500 uppercase tracking-wider">Product</th>
+                  <th className="text-left py-4 px-6 text-xs font-bold text-zinc-500 uppercase tracking-wider">Gross Total</th>
+                  <th className="text-left py-4 px-6 text-xs font-bold text-zinc-500 uppercase tracking-wider">Fee</th>
+                  <th className="text-left py-4 px-6 text-xs font-bold text-zinc-500 uppercase tracking-wider">Net Amount</th>
+                  <th className="text-left py-4 px-6 text-xs font-bold text-zinc-500 uppercase tracking-wider">Status</th>
+                  <th className="text-left py-4 px-6 text-xs font-bold text-zinc-500 uppercase tracking-wider">Date</th>
+                  <th className="text-right py-4 px-6 text-xs font-bold text-zinc-500 uppercase tracking-wider">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-zinc-900">
+                {paginatedOrders.map((order) => {
+                  const { netAmount, feeAmount, totalPrice } = calculateNetAmountAndFee(order);
+                  return (
+                    <tr key={order.id} className="hover:bg-zinc-900/30 transition-colors group">
+                      <td className="py-4 px-6">
+                        <span className="text-sm font-mono text-zinc-400">{order.order_number}</span>
+                      </td>
+                      <td className="py-4 px-6">
+                        <div className="flex flex-col">
+                          <span className="text-sm font-medium text-white">{order.client_name}</span>
+                          <span className="text-xs text-zinc-500">{order.client_email}</span>
                         </div>
                       </td>
-                      <td className="py-3 px-4">
-                        <div className="text-sm">
-                          <p className="text-white">{order.product_slug}</p>
-                          {order.extra_units > 0 && (
-                            <p className="text-gray-400 text-xs">+{order.extra_units} extra units</p>
-                          )}
-                        </div>
+                      <td className="py-4 px-6">
+                        <Badge variant="outline" className="text-[10px] border-zinc-800 text-zinc-400 bg-transparent uppercase font-medium">
+                          {order.product_slug}
+                        </Badge>
                       </td>
-                      <td className="py-3 px-4 text-sm text-gold-light font-bold">
-                        ${parseFloat(order.total_price_usd || '0').toFixed(2)}
+                      <td className="py-4 px-6">
+                        <span className="text-sm font-bold migma-gold-text">
+                          ${totalPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </span>
                       </td>
-                      <td className="py-3 px-4 text-sm text-white font-semibold">
-                        ${netAmount.toFixed(2)}
+                      <td className="py-4 px-6">
+                        <span className={`text-xs ${feeAmount > 0 ? 'text-red-400' : 'text-zinc-600'}`}>
+                          {feeAmount > 0 ? `-$${feeAmount.toFixed(2)}` : '$0.00'}
+                        </span>
                       </td>
-                      <td className="py-3 px-4 text-sm text-gray-400">
-                        {feeAmount > 0 ? (
-                          <span className="text-red-400">-${feeAmount.toFixed(2)}</span>
-                        ) : (
-                          <span className="text-gray-500">$0.00</span>
-                        )}
+                      <td className="py-4 px-6">
+                        <span className="text-sm font-semibold text-white">
+                          ${netAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </span>
                       </td>
-                      <td className="py-3 px-4">
+                      <td className="py-4 px-6">
                         {getStatusBadge(order.payment_status)}
                       </td>
-                      <td className="py-3 px-4 text-sm text-gray-400">
-                        {new Date(order.created_at).toLocaleDateString()}
+                      <td className="py-4 px-6">
+                        <span className="text-xs text-zinc-500">
+                          {new Date(order.created_at).toLocaleDateString()}
+                        </span>
                       </td>
-                      <td className="py-3 px-4">
-                        <div className="flex gap-2">
+                      <td className="py-4 px-6">
+                        <div className="flex items-center justify-end gap-2">
+                          {order.annex_pdf_url && (
+                            <button
+                              onClick={() => { setSelectedPdfUrl(order.annex_pdf_url); setSelectedPdfTitle(`Annex I - ${order.order_number}`); }}
+                              className="p-2 text-zinc-500 hover:text-gold-light hover:bg-zinc-800 rounded-md transition-all"
+                              title="Annex I"
+                            >
+                              <FileText className="w-4 h-4" />
+                            </button>
+                          )}
+                          {order.contract_pdf_url && (
+                            <button
+                              onClick={() => { setSelectedPdfUrl(order.contract_pdf_url); setSelectedPdfTitle(`Contract - ${order.order_number}`); }}
+                              className="p-2 text-zinc-500 hover:text-gold-light hover:bg-zinc-800 rounded-md transition-all"
+                              title="Contract"
+                            >
+                              <FileText className="w-4 h-4" />
+                            </button>
+                          )}
                           <Link to={`/seller/orders/${order.id}`}>
-                            <Button size="sm" variant="outline" className="text-xs border-gold-medium/50 bg-black/50 text-gold-light hover:bg-black hover:border-gold-medium hover:text-gold-medium">
-                              <Eye className="w-3 h-3 mr-1" />
+                            <Button variant="outline" size="sm" className="h-8 border-zinc-800 bg-zinc-900/50 text-xs text-white hover:bg-zinc-800 hover:border-gold-medium/50">
+                              <Eye className="w-3.5 h-3.5 mr-1.5" />
                               View
                             </Button>
                           </Link>
-                          {order.annex_pdf_url && (
-                            <Button 
-                              size="sm" 
-                              variant="outline" 
-                              onClick={() => {
-                                setSelectedPdfUrl(order.annex_pdf_url);
-                                setSelectedPdfTitle(`ANNEX I - ${order.order_number}`);
-                              }}
-                              className="text-xs border-gold-medium/50 bg-black/50 text-gold-light hover:bg-black hover:border-gold-medium hover:text-gold-medium"
-                              title="View ANNEX I PDF"
-                            >
-                              <FileText className="w-3 h-3" />
-                            </Button>
-                          )}
-                          {order.contract_pdf_url && (
-                            <Button 
-                              size="sm" 
-                              variant="outline" 
-                              onClick={() => {
-                                setSelectedPdfUrl(order.contract_pdf_url);
-                                setSelectedPdfTitle(`Contract - ${order.order_number}`);
-                              }}
-                              className="text-xs border-gold-medium/50 bg-black/50 text-gold-light hover:bg-black hover:border-gold-medium hover:text-gold-medium"
-                              title="View Contract PDF"
-                            >
-                              <FileText className="w-3 h-3" />
-                            </Button>
-                          )}
                         </div>
                       </td>
                     </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-
-              {/* Mobile Card View */}
-              <div className="md:hidden space-y-3">
-                {paginatedOrders.map((order) => {
-                  const { netAmount, feeAmount } = calculateNetAmountAndFee(order);
-                  
-                  return (
-                    <div key={order.id} className="p-4 bg-black/50 rounded-lg border border-gold-medium/20">
-                      <div className="flex items-start justify-between mb-3">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-2">
-                            <p className="text-sm text-white font-mono font-semibold">{order.order_number}</p>
-                            {getStatusBadge(order.payment_status)}
-                          </div>
-                          <p className="text-lg font-bold text-gold-light mb-1">
-                            ${parseFloat(order.total_price_usd || '0').toFixed(2)}
-                          </p>
-                        </div>
-                      </div>
-                      
-                      <div className="space-y-2 mb-3 text-sm">
-                        <div>
-                          <p className="text-xs text-gray-400 mb-1">Client</p>
-                          <p className="text-white">{order.client_name}</p>
-                          <p className="text-gray-400 text-xs">{order.client_email}</p>
-                        </div>
-                        <div>
-                          <p className="text-xs text-gray-400 mb-1">Product</p>
-                          <p className="text-white">{order.product_slug}</p>
-                          {order.extra_units > 0 && (
-                            <p className="text-gray-400 text-xs">+{order.extra_units} extra units</p>
-                          )}
-                        </div>
-                        <div className="grid grid-cols-2 gap-2 pt-2 border-t border-gold-medium/20">
-                          <div>
-                            <p className="text-xs text-gray-400 mb-1">Net Amount</p>
-                            <p className="text-white font-semibold">${netAmount.toFixed(2)}</p>
-                          </div>
-                          <div>
-                            <p className="text-xs text-gray-400 mb-1">Stripe Fee</p>
-                            <p className={feeAmount > 0 ? "text-red-400 font-semibold" : "text-gray-500"}>
-                              {feeAmount > 0 ? `-$${feeAmount.toFixed(2)}` : '$0.00'}
-                            </p>
-                          </div>
-                        </div>
-                        <div>
-                          <p className="text-xs text-gray-400 mb-1">Date</p>
-                          <p className="text-gray-400">{new Date(order.created_at).toLocaleDateString()}</p>
-                        </div>
-                      </div>
-
-                      <div className="flex flex-col gap-2 pt-3 border-t border-gold-medium/20">
-                        <div className="flex gap-2">
-                          <Link to={`/seller/orders/${order.id}`} className="flex-1">
-                            <Button size="sm" variant="outline" className="w-full text-xs border-gold-medium/50 bg-black/50 text-gold-light hover:bg-black hover:border-gold-medium hover:text-gold-medium">
-                              <Eye className="w-3 h-3 mr-1" />
-                              View
-                            </Button>
-                          </Link>
-                          {order.annex_pdf_url && (
-                            <Button 
-                              size="sm" 
-                              variant="outline" 
-                              onClick={() => {
-                                setSelectedPdfUrl(order.annex_pdf_url);
-                                setSelectedPdfTitle(`ANNEX I - ${order.order_number}`);
-                              }}
-                              className="text-xs border-gold-medium/50 bg-black/50 text-gold-light hover:bg-black hover:border-gold-medium hover:text-gold-medium"
-                              title="View ANNEX I PDF"
-                            >
-                              <FileText className="w-3 h-3" />
-                            </Button>
-                          )}
-                          {order.contract_pdf_url && (
-                            <Button 
-                              size="sm" 
-                              variant="outline" 
-                              onClick={() => {
-                                setSelectedPdfUrl(order.contract_pdf_url);
-                                setSelectedPdfTitle(`Contract - ${order.order_number}`);
-                              }}
-                              className="text-xs border-gold-medium/50 bg-black/50 text-gold-light hover:bg-black hover:border-gold-medium hover:text-gold-medium"
-                              title="View Contract PDF"
-                            >
-                              <FileText className="w-3 h-3" />
-                            </Button>
-                          )}
-                        </div>
-                      </div>
-                    </div>
                   );
                 })}
+              </tbody>
+            </table>
+          </div>
+
+          {!loading && filteredOrders.length === 0 && (
+            <div className="text-center py-20 bg-zinc-950/50">
+              <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-zinc-900 mb-4">
+                <Search className="w-8 h-8 text-zinc-700" />
               </div>
-            </>
+              <p className="text-zinc-500 text-sm">No orders found matching your criteria</p>
+              {hasActiveFilters && (
+                <Button variant="link" onClick={clearFilters} className="text-gold-medium text-sm mt-2">
+                  Clear all filters
+                </Button>
+              )}
+            </div>
           )}
+
           {filteredOrders.length > 0 && (
-            <Pagination
-              currentPage={currentPage}
-              totalPages={totalPages}
-              onPageChange={setCurrentPage}
-              itemsPerPage={ITEMS_PER_PAGE}
-              totalItems={filteredOrders.length}
-            />
+            <div className="border-t border-zinc-900 p-4">
+              <Pagination
+                currentPage={currentPage}
+                totalPages={totalPages}
+                onPageChange={setCurrentPage}
+                itemsPerPage={ITEMS_PER_PAGE}
+                totalItems={filteredOrders.length}
+              />
+            </div>
           )}
         </CardContent>
       </Card>
+
+      {/* Mobile Card View (Hidden on Desktop) */}
+      <div className="md:hidden space-y-4">
+        {paginatedOrders.map((order) => {
+          const { netAmount, totalPrice } = calculateNetAmountAndFee(order);
+          return (
+            <Card key={order.id} className="bg-zinc-950 border border-zinc-900">
+              <CardContent className="p-4 space-y-4">
+                <div className="flex justify-between items-start">
+                  <div className="flex flex-col">
+                    <span className="text-[10px] font-mono text-zinc-500 uppercase">{order.order_number}</span>
+                    <span className="text-sm font-semibold text-white mt-1">{order.client_name}</span>
+                  </div>
+                  {getStatusBadge(order.payment_status)}
+                </div>
+
+                <div className="grid grid-cols-2 gap-4 pt-4 border-t border-zinc-900">
+                  <div>
+                    <span className="text-[10px] text-zinc-500 uppercase font-bold block mb-1">Total</span>
+                    <span className="text-sm font-bold migma-gold-text">${totalPrice.toFixed(2)}</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-zinc-500 uppercase font-bold block mb-1">Net</span>
+                    <span className="text-sm font-semibold text-white">${netAmount.toFixed(2)}</span>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between pt-4 border-t border-zinc-900">
+                  <span className="text-xs text-zinc-500">{new Date(order.created_at).toLocaleDateString()}</span>
+                  <Link to={`/seller/orders/${order.id}`} className="w-full sm:w-auto">
+                    <Button variant="outline" size="sm" className="h-8 border-zinc-800 bg-zinc-900 text-xs w-full">
+                      View Details
+                    </Button>
+                  </Link>
+                </div>
+              </CardContent>
+            </Card>
+          );
+        })}
+      </div>
 
       {/* PDF Modal */}
       {selectedPdfUrl && (
