@@ -45,7 +45,7 @@ class ParcelowClient {
     this.clientId = clientId;
     this.clientSecret = clientSecret;
     this.baseUrl = environment === 'staging'
-      ? 'https://sandbox.parcelow.com'
+      ? 'https://sandbox-2.parcelow.com.br'
       : 'https://app.parcelow.com'; // URL de produção (assumindo baseado na documentação)
   }
 
@@ -132,16 +132,31 @@ class ParcelowClient {
         }));
       }
     } else {
-      // Use form-urlencoded format (works for numeric IDs)
-      console.log(`[Parcelow OAuth] Using format: form-urlencoded`);
-      const clientIdEncoded = encodeURIComponent(this.clientId.toString());
-      const clientSecretEncoded = encodeURIComponent(this.clientSecret);
-      requestBody = `client_id=${clientIdEncoded}&client_secret=${clientSecretEncoded}&grant_type=client_credentials`;
+      // Use JSON for standard numeric IDs (like '212' for staging v2)
+      console.log(`[Parcelow OAuth] Using format: JSON (standard ID)`);
+      useJsonFormat = true;
+
+      // Ensure client_id is a number if possible
+      let finalClientId: number | string = this.clientId;
+      if (typeof this.clientId !== 'number') {
+        const parsed = parseInt(this.clientId.toString());
+        if (!isNaN(parsed)) {
+          finalClientId = parsed;
+        }
+      }
+
+      requestBody = JSON.stringify({
+        client_id: finalClientId,
+        client_secret: this.clientSecret,
+        grant_type: 'client_credentials',
+      });
+
       requestHeaders = {
-        'Content-Type': 'application/x-www-form-urlencoded',
+        'Content-Type': 'application/json',
         'Accept': 'application/json',
       };
-      console.log(`[Parcelow OAuth] Form body preview: client_id=${this.clientId}&grant_type=client_credentials&client_secret=${this.clientSecret.substring(0, 8)}...`);
+
+      console.log(`[Parcelow OAuth] JSON body preview: client_id=${finalClientId}&grant_type=client_credentials`);
     }
 
     console.log(`[Parcelow OAuth] Request body length: ${requestBody.length} characters`);
@@ -456,6 +471,7 @@ Deno.serve(async (req: Request) => {
     // Try to get client CPF from service_request -> client relationship
     let clientCpf: string | null = null;
     let clientBirthdate: string | null = null;
+    let clientAddress: any = null;
 
     if (order.service_request_id) {
       try {
@@ -466,16 +482,31 @@ Deno.serve(async (req: Request) => {
           .single();
 
         if (!srError && serviceRequest?.client_id) {
+          // Correct column names based on actual DB schema
           const { data: client, error: clientError } = await supabase
             .from("clients")
-            .select("document_number, date_of_birth")
+            .select("document_number, date_of_birth, postal_code, address_line, city, state, phone")
             .eq("id", serviceRequest.client_id)
             .single();
 
           if (!clientError && client) {
             clientCpf = client.document_number || null;
             clientBirthdate = client.date_of_birth || null;
-            console.log("[Parcelow Checkout] ✅ Found client CPF from clients table");
+
+            // Map generic address_line to specific fields best effort
+            clientAddress = {
+              cep: client.postal_code,
+              street: client.address_line, // Assuming full address in line
+              number: "N/A", // Not separate in DB
+              neighborhood: "Centro", // Not in DB
+              city: client.city,
+              state: client.state,
+              complement: "",
+              phone: client.phone
+            };
+            console.log("[Parcelow Checkout] ✅ Found client data (CPF, birthdate, address) from clients table");
+          } else if (clientError) {
+            console.error("[Parcelow Checkout] ❌ Error fetching client details:", clientError);
           }
         }
       } catch (error: any) {
@@ -559,15 +590,15 @@ Deno.serve(async (req: Request) => {
       cpf: clientCpfToUse,
       name: order.client_name,
       email: order.client_email,
-      phone: order.client_whatsapp || '',
+      phone: order.client_whatsapp || clientAddress?.phone || '',
       birthdate: clientBirthdate || order.client_birthdate || undefined, // Format: "YYYY-MM-DD"
-      cep: order.client_cep,
-      address_street: order.client_address_street,
-      address_number: order.client_address_number,
-      address_neighborhood: order.client_address_neighborhood,
-      address_city: order.client_address_city,
-      address_state: order.client_address_state,
-      address_complement: order.client_address_complement,
+      cep: order.client_cep || clientAddress?.cep,
+      address_street: order.client_address_street || clientAddress?.street,
+      address_number: order.client_address_number || clientAddress?.number,
+      address_neighborhood: order.client_address_neighborhood || clientAddress?.neighborhood,
+      address_city: order.client_address_city || clientAddress?.city,
+      address_state: order.client_address_state || clientAddress?.state,
+      address_complement: order.client_address_complement || clientAddress?.complement,
     };
 
     console.log("[Parcelow Checkout] Client data prepared:", {
@@ -702,6 +733,9 @@ Deno.serve(async (req: Request) => {
         order_id: orderId,
         checkout_url: checkoutUrl,
         status: parcelowOrder?.status_text || 'Open',
+        total_usd: parcelowOrder?.total_usd || null,
+        total_brl: parcelowOrder?.total_brl || null,
+        order_amount: parcelowOrder?.order_amount || null,
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );

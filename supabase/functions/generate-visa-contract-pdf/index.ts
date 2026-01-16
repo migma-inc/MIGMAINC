@@ -118,11 +118,11 @@ Deno.serve(async (req) => {
     // Helper function to convert HTML to plain text
     const convertHtmlToText = (html: string): string => {
       if (!html) return '';
-      
+
       // Remove script and style tags and their content
       let text = html.replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '');
       text = text.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '');
-      
+
       // Replace common HTML tags with appropriate text formatting
       text = text.replace(/<h[1-6][^>]*>/gi, '\n\n');
       text = text.replace(/<\/h[1-6]>/gi, '\n');
@@ -143,10 +143,10 @@ Deno.serve(async (req) => {
       text = text.replace(/<\/em>/gi, '');
       text = text.replace(/<i[^>]*>/gi, '');
       text = text.replace(/<\/i>/gi, '');
-      
+
       // Remove all remaining HTML tags
       text = text.replace(/<[^>]+>/g, '');
-      
+
       // Decode HTML entities
       text = text.replace(/&nbsp;/g, ' ');
       text = text.replace(/&amp;/g, '&');
@@ -155,12 +155,12 @@ Deno.serve(async (req) => {
       text = text.replace(/&quot;/g, '"');
       text = text.replace(/&#39;/g, "'");
       text = text.replace(/&apos;/g, "'");
-      
+
       // Clean up whitespace
       text = text.replace(/\n\s*\n\s*\n/g, '\n\n'); // Multiple newlines to double
       text = text.replace(/[ \t]+/g, ' '); // Multiple spaces to single
       text = text.trim();
-      
+
       return text;
     };
 
@@ -175,7 +175,7 @@ Deno.serve(async (req) => {
       pdf.setFontSize(fontSize);
       const lines = pdf.splitTextToSize(text, maxWidth);
       let currentYPos = y;
-      
+
       for (let i = 0; i < lines.length; i++) {
         if (currentYPos > pageHeight - margin - 10) {
           pdf.addPage();
@@ -184,7 +184,7 @@ Deno.serve(async (req) => {
         pdf.text(lines[i], x, currentYPos);
         currentYPos += fontSize * 0.6;
       }
-      
+
       return currentYPos;
     };
 
@@ -199,19 +199,19 @@ Deno.serve(async (req) => {
         minute: '2-digit',
         second: '2-digit',
       });
-      
+
       for (let i = 1; i <= totalPages; i++) {
         pdf.setPage(i);
         pdf.setFontSize(8);
         pdf.setFont('helvetica', 'italic');
-        
+
         pdf.text(
           `Generated on ${footerDate}`,
           pageWidth / 2,
           pageHeight - 10,
           { align: 'center' }
         );
-        
+
         pdf.text(
           'This document has legal validity and serves as proof of acceptance',
           pageWidth / 2,
@@ -229,7 +229,7 @@ Deno.serve(async (req) => {
 
       try {
         console.log("[EDGE FUNCTION] Loading image from:", imageUrl);
-        
+
         // Get public URL if it's a storage path
         let publicUrl = imageUrl;
         if (imageUrl.startsWith('visa-documents/')) {
@@ -244,18 +244,18 @@ Deno.serve(async (req) => {
             .getPublicUrl(imageUrl);
           publicUrl = url;
         }
-        
+
         // Fetch the image
         const imageResponse = await fetch(publicUrl);
-        
+
         if (!imageResponse.ok) {
           throw new Error(`Failed to fetch image: ${imageResponse.status}`);
         }
-        
+
         const imageBlob = await imageResponse.blob();
         const imageArrayBuffer = await imageBlob.arrayBuffer();
         const mimeType = imageBlob.type;
-        
+
         // Convert to base64
         const bytes = new Uint8Array(imageArrayBuffer);
         let binary = '';
@@ -267,7 +267,7 @@ Deno.serve(async (req) => {
         const imageBase64 = btoa(binary);
         const imageFormat = mimeType.includes('png') ? 'PNG' : mimeType.includes('pdf') ? 'PDF' : 'JPEG';
         const imageDataUrl = `data:${mimeType};base64,${imageBase64}`;
-        
+
         return { dataUrl: imageDataUrl, format: imageFormat };
       } catch (imageError) {
         console.error("[EDGE FUNCTION] Could not load image:", imageError);
@@ -314,7 +314,7 @@ Deno.serve(async (req) => {
     currentY += 12;
 
     pdf.setFontSize(11);
-    
+
     // Order Number
     pdf.setFont('helvetica', 'bold');
     pdf.text('Order Number:', margin, currentY);
@@ -332,7 +332,7 @@ Deno.serve(async (req) => {
     // Total Price - use correct amount and currency based on payment method
     let displayAmount = parseFloat(order.total_price_usd);
     let currencySymbol = 'US$';
-    
+
     // Determine amount and currency based on payment method (not currency in metadata)
     if (order.payment_method === 'stripe_pix') {
       // PIX payments: use final_amount in BRL from metadata
@@ -347,12 +347,24 @@ Deno.serve(async (req) => {
       // Card payments: always use USD amount (total_price_usd), regardless of processing currency
       displayAmount = parseFloat(order.total_price_usd);
       currencySymbol = 'US$';
+    } else if (order.payment_method === 'parcelow') {
+      // Parcelow payments: use total_usd from metadata (includes fees) if available
+      if (order.payment_metadata && typeof order.payment_metadata === 'object' && 'total_usd' in order.payment_metadata) {
+        // total_usd might be string or number in metadata
+        const totalUsd = parseFloat(String(order.payment_metadata.total_usd));
+        if (!isNaN(totalUsd) && totalUsd > 0) {
+          displayAmount = totalUsd;
+        }
+      } else {
+        displayAmount = parseFloat(order.total_price_usd);
+      }
+      currencySymbol = 'US$';
     } else if (order.payment_method === 'zelle') {
       // Zelle: always USD, use total_price_usd (no fees)
       displayAmount = parseFloat(order.total_price_usd);
       currencySymbol = 'US$';
     }
-    
+
     pdf.setFont('helvetica', 'bold');
     pdf.text('Total Amount:', margin, currentY);
     pdf.setFont('helvetica', 'normal');
@@ -364,7 +376,7 @@ Deno.serve(async (req) => {
       pdf.setFont('helvetica', 'bold');
       pdf.text('Payment Method:', margin, currentY);
       pdf.setFont('helvetica', 'normal');
-      
+
       // Determine correct payment method display based on actual payment_method
       let paymentMethodDisplay = '';
       if (order.payment_method === 'stripe_card') {
@@ -376,7 +388,7 @@ Deno.serve(async (req) => {
       } else {
         paymentMethodDisplay = order.payment_method.replace('_', ' ').toUpperCase();
       }
-      
+
       pdf.text(paymentMethodDisplay, margin + 50, currentY);
       currentY += 8;
     }
@@ -406,7 +418,7 @@ Deno.serve(async (req) => {
     currentY += 12;
 
     pdf.setFontSize(11);
-    
+
     // Name
     pdf.setFont('helvetica', 'bold');
     pdf.text('Full Name:', margin, currentY);
@@ -454,7 +466,7 @@ Deno.serve(async (req) => {
       pdf.setFont('helvetica', 'bold');
       const labelText = `${order.extra_unit_label}:`;
       pdf.text(labelText, margin, currentY);
-      
+
       // Position value with proper spacing after the label
       const labelWidth = pdf.getTextWidth(labelText);
       pdf.setFont('helvetica', 'normal');
@@ -624,7 +636,7 @@ The client has electronically signed this contract by uploading a selfie with th
     const month = monthNames[signedDate.getMonth()];
     const day = signedDate.getDate();
     const year = signedDate.getFullYear();
-    
+
     pdf.setFontSize(10);
     pdf.setFont('helvetica', 'normal');
     pdf.text(`Date: ${month} ${day}, ${year}.`, margin, currentY);
@@ -688,11 +700,11 @@ The client has electronically signed this contract by uploading a selfie with th
           pdf.addPage();
           currentY = margin;
         }
-        
+
         // Add signature image (max 45mm width, height proportional)
         const maxWidth = 45;
         const maxHeight = 20;
-        
+
         pdf.addImage(
           signatureImage.dataUrl,
           signatureImage.format,
@@ -706,23 +718,23 @@ The client has electronically signed this contract by uploading a selfie with th
       } catch (imgError) {
         console.error("[EDGE FUNCTION] Error adding signature image to PDF:", imgError);
         // Fall through to show name as fallback if image fails
-    const nameStartX = margin + pdf.getTextWidth('Signature: ') + 5;
-    pdf.setFont('helvetica', 'bold');
-    pdf.text(order.client_name, nameStartX, currentY);
-    
-    // Draw line under name
-    const nameWidth = pdf.getTextWidth(order.client_name);
-    const lineY = currentY + 2;
-    pdf.setLineWidth(0.5);
-    pdf.line(nameStartX, lineY, nameStartX + nameWidth, lineY);
-    currentY += 15;
+        const nameStartX = margin + pdf.getTextWidth('Signature: ') + 5;
+        pdf.setFont('helvetica', 'bold');
+        pdf.text(order.client_name, nameStartX, currentY);
+
+        // Draw line under name
+        const nameWidth = pdf.getTextWidth(order.client_name);
+        const lineY = currentY + 2;
+        pdf.setLineWidth(0.5);
+        pdf.line(nameStartX, lineY, nameStartX + nameWidth, lineY);
+        currentY += 15;
       }
     } else {
       // No signature image - show name as fallback
       const nameStartX = margin + pdf.getTextWidth('Signature: ') + 5;
       pdf.setFont('helvetica', 'bold');
       pdf.text(order.client_name, nameStartX, currentY);
-      
+
       // Draw line under name
       const nameWidth = pdf.getTextWidth(order.client_name);
       const lineY = currentY + 2;
@@ -745,7 +757,7 @@ The client has electronically signed this contract by uploading a selfie with th
     currentY += 12;
 
     pdf.setFontSize(10);
-    
+
     // Contract signed at
     if (order.contract_signed_at) {
       pdf.setFont('helvetica', 'bold');

@@ -28,15 +28,16 @@ export const ContractSigning = ({ onComplete }: ContractSigningProps) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Validate file type (only images)
-    if (!file.type.startsWith('image/')) {
+    // Validate file type (only JPG/PNG)
+    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png'];
+    if (!allowedTypes.includes(file.type)) {
       setError('Please upload an image file (JPG, PNG)');
       return;
     }
 
-    // Validate file size (max 5MB)
-    if (file.size > 5 * 1024 * 1024) {
-      setError('File size must be less than 5MB');
+    // Validate file size (max 3MB)
+    if (file.size > 3 * 1024 * 1024) {
+      setError('File too large. Please reduce the image size to under 3MB.');
       return;
     }
 
@@ -62,7 +63,7 @@ export const ContractSigning = ({ onComplete }: ContractSigningProps) => {
     // Upload selfie
     const selfieExt = selfieFile.name.split('.').pop();
     const selfieFileName = `contracts/selfies/${Date.now()}-${Math.random().toString(36).substring(7)}.${selfieExt}`;
-    
+
     const { error: selfieError } = await supabase.storage
       .from('visa-documents')
       .upload(selfieFileName, selfieFile);
@@ -93,7 +94,7 @@ export const ContractSigning = ({ onComplete }: ContractSigningProps) => {
 
     try {
       const selfieUrl = await uploadFile();
-      
+
       // Use the same selfie URL for document URL since it's all in one photo
       onComplete({
         documentUrl: selfieUrl, // Same as selfie since it's all in one
@@ -151,7 +152,6 @@ export const ContractSigning = ({ onComplete }: ContractSigningProps) => {
                 type="file"
                 id="selfie"
                 accept="image/*"
-                capture="user"
                 onChange={handleSelfieChange}
                 className="hidden"
               />

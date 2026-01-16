@@ -18,11 +18,11 @@ const corsHeaders = {
 // Helper function to convert HTML to plain text for PDF
 const convertHtmlToText = (html: string): string => {
   if (!html) return '';
-  
+
   // Remove script and style tags and their content
   let text = html.replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '');
   text = text.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '');
-  
+
   // Replace common HTML tags with appropriate text formatting
   text = text.replace(/<h[1-6][^>]*>/gi, '\n\n');
   text = text.replace(/<\/h[1-6]>/gi, '\n');
@@ -47,10 +47,10 @@ const convertHtmlToText = (html: string): string => {
   text = text.replace(/<\/section>/gi, '\n');
   text = text.replace(/<div[^>]*>/gi, '\n');
   text = text.replace(/<\/div>/gi, '\n');
-  
+
   // Remove all remaining HTML tags
   text = text.replace(/<[^>]+>/g, '');
-  
+
   // Decode HTML entities
   text = text.replace(/&nbsp;/g, ' ');
   text = text.replace(/&amp;/g, '&');
@@ -58,13 +58,13 @@ const convertHtmlToText = (html: string): string => {
   text = text.replace(/&gt;/g, '>');
   text = text.replace(/&quot;/g, '"');
   text = text.replace(/&#39;/g, "'");
-  
+
   // Clean up multiple newlines
   text = text.replace(/\n{3,}/g, '\n\n');
-  
+
   // Trim whitespace
   text = text.trim();
-  
+
   return text;
 };
 
@@ -214,7 +214,7 @@ Deno.serve(async (req) => {
     }
 
     // Convert HTML template to plain text for PDF, or use fallback
-    const annexText = annexTemplateContent 
+    const annexText = annexTemplateContent
       ? convertHtmlToText(annexTemplateContent)
       : FALLBACK_ANNEX_I_TEXT;
 
@@ -231,18 +231,18 @@ Deno.serve(async (req) => {
 
     // Check if this is a scholarship or i20-control product (these need documents from previous order)
     const isAnnexProduct = order.product_slug?.endsWith('-scholarship') || order.product_slug?.endsWith('-i20-control');
-    
+
     if (isAnnexProduct) {
       // For scholarship/i20-control, find the previous selection-process order from the same client
       console.log("[EDGE FUNCTION] This is a scholarship/i20-control product, searching for previous selection-process order...");
-      
+
       // Extract base product slug (e.g., "cos-scholarship" -> "cos-selection-process")
       const baseSlug = order.product_slug.replace(/-scholarship$/, '').replace(/-i20-control$/, '');
       const selectionProcessSlug = `${baseSlug}-selection-process`;
-      
+
       console.log("[EDGE FUNCTION] Looking for selection-process order with slug:", selectionProcessSlug);
       console.log("[EDGE FUNCTION] Client email:", order.client_email);
-      
+
       // Find the most recent completed selection-process order for this client
       const { data: previousOrder, error: previousOrderError } = await supabase
         .from('visa_orders')
@@ -320,7 +320,7 @@ Deno.serve(async (req) => {
       pdf.setFontSize(fontSize);
       const lines = pdf.splitTextToSize(text, maxWidth);
       let currentYPos = y;
-      
+
       for (let i = 0; i < lines.length; i++) {
         if (currentYPos > pageHeight - margin - 10) {
           pdf.addPage();
@@ -329,7 +329,7 @@ Deno.serve(async (req) => {
         pdf.text(lines[i], x, currentYPos);
         currentYPos += fontSize * 0.6;
       }
-      
+
       return currentYPos;
     };
 
@@ -344,19 +344,19 @@ Deno.serve(async (req) => {
         minute: '2-digit',
         second: '2-digit',
       });
-      
+
       for (let i = 1; i <= totalPages; i++) {
         pdf.setPage(i);
         pdf.setFontSize(8);
         pdf.setFont('helvetica', 'italic');
-        
+
         pdf.text(
           `Generated on ${footerDate}`,
           pageWidth / 2,
           pageHeight - 10,
           { align: 'center' }
         );
-        
+
         pdf.text(
           'This document has legal validity and serves as proof of acceptance',
           pageWidth / 2,
@@ -374,7 +374,7 @@ Deno.serve(async (req) => {
 
       try {
         console.log("[EDGE FUNCTION] Loading image from:", imageUrl);
-        
+
         // Get public URL if it's a storage path
         let publicUrl = imageUrl;
         if (imageUrl.startsWith('visa-documents/')) {
@@ -389,18 +389,18 @@ Deno.serve(async (req) => {
             .getPublicUrl(imageUrl);
           publicUrl = url;
         }
-        
+
         // Fetch the image
         const imageResponse = await fetch(publicUrl);
-        
+
         if (!imageResponse.ok) {
           throw new Error(`Failed to fetch image: ${imageResponse.status}`);
         }
-        
+
         const imageBlob = await imageResponse.blob();
         const imageArrayBuffer = await imageBlob.arrayBuffer();
         const mimeType = imageBlob.type;
-        
+
         // Convert to base64
         const bytes = new Uint8Array(imageArrayBuffer);
         let binary = '';
@@ -412,7 +412,7 @@ Deno.serve(async (req) => {
         const imageBase64 = btoa(binary);
         const imageFormat = mimeType.includes('png') ? 'PNG' : mimeType.includes('pdf') ? 'PDF' : 'JPEG';
         const imageDataUrl = `data:${mimeType};base64,${imageBase64}`;
-        
+
         return { dataUrl: imageDataUrl, format: imageFormat };
       } catch (imageError) {
         console.error("[EDGE FUNCTION] Could not load image:", imageError);
@@ -435,7 +435,7 @@ Deno.serve(async (req) => {
     pdf.setFont('helvetica', 'bold');
     pdf.text('ANNEX I', pageWidth / 2, currentY, { align: 'center' });
     currentY += 8;
-    
+
     pdf.setFontSize(14);
     pdf.text('PAYMENT AUTHORIZATION & NON-DISPUTE AGREEMENT', pageWidth / 2, currentY, { align: 'center' });
     currentY += 15;
@@ -463,7 +463,7 @@ Deno.serve(async (req) => {
     currentY += 12;
 
     pdf.setFontSize(11);
-    
+
     // Order Number
     pdf.setFont('helvetica', 'bold');
     pdf.text('Order Number:', margin, currentY);
@@ -481,7 +481,7 @@ Deno.serve(async (req) => {
     // Total Price - use correct amount and currency based on payment method
     let displayAmount = parseFloat(order.total_price_usd);
     let currencySymbol = 'US$';
-    
+
     if (order.payment_method === 'stripe_pix') {
       if (order.payment_metadata && typeof order.payment_metadata === 'object' && 'final_amount' in order.payment_metadata) {
         const finalAmount = parseFloat(order.payment_metadata.final_amount as string);
@@ -493,11 +493,23 @@ Deno.serve(async (req) => {
     } else if (order.payment_method === 'stripe_card') {
       displayAmount = parseFloat(order.total_price_usd);
       currencySymbol = 'US$';
+    } else if (order.payment_method === 'parcelow') {
+      // Parcelow payments: use total_usd from metadata (includes fees) if available
+      if (order.payment_metadata && typeof order.payment_metadata === 'object' && 'total_usd' in order.payment_metadata) {
+        // total_usd might be string or number in metadata
+        const totalUsd = parseFloat(String(order.payment_metadata.total_usd));
+        if (!isNaN(totalUsd) && totalUsd > 0) {
+          displayAmount = totalUsd;
+        }
+      } else {
+        displayAmount = parseFloat(order.total_price_usd);
+      }
+      currencySymbol = 'US$';
     } else if (order.payment_method === 'zelle') {
       displayAmount = parseFloat(order.total_price_usd);
       currencySymbol = 'US$';
     }
-    
+
     pdf.setFont('helvetica', 'bold');
     pdf.text('Total Amount:', margin, currentY);
     pdf.setFont('helvetica', 'normal');
@@ -509,7 +521,7 @@ Deno.serve(async (req) => {
       pdf.setFont('helvetica', 'bold');
       pdf.text('Payment Method:', margin, currentY);
       pdf.setFont('helvetica', 'normal');
-      
+
       let paymentMethodDisplay = '';
       if (order.payment_method === 'stripe_card') {
         paymentMethodDisplay = 'STRIPE CARD';
@@ -520,7 +532,7 @@ Deno.serve(async (req) => {
       } else {
         paymentMethodDisplay = order.payment_method.replace('_', ' ').toUpperCase();
       }
-      
+
       pdf.text(paymentMethodDisplay, margin + 50, currentY);
       currentY += 8;
     }
@@ -727,7 +739,7 @@ Deno.serve(async (req) => {
     const month = monthNames[signedDate.getMonth()];
     const day = signedDate.getDate();
     const year = signedDate.getFullYear();
-    
+
     pdf.setFontSize(10);
     pdf.setFont('helvetica', 'normal');
     pdf.text(`Date: ${month} ${day}, ${year}.`, margin, currentY);
@@ -759,10 +771,10 @@ Deno.serve(async (req) => {
           pdf.addPage();
           currentY = margin;
         }
-        
+
         const maxWidth = 45;
         const maxHeight = 20;
-        
+
         pdf.addImage(
           signatureImage.dataUrl,
           signatureImage.format,
@@ -778,7 +790,7 @@ Deno.serve(async (req) => {
         const nameStartX = margin + pdf.getTextWidth('Signature: ') + 5;
         pdf.setFont('helvetica', 'bold');
         pdf.text(order.client_name, nameStartX, currentY);
-        
+
         const nameWidth = pdf.getTextWidth(order.client_name);
         const lineY = currentY + 2;
         pdf.setLineWidth(0.5);
@@ -790,7 +802,7 @@ Deno.serve(async (req) => {
       const nameStartX = margin + pdf.getTextWidth('Signature: ') + 5;
       pdf.setFont('helvetica', 'bold');
       pdf.text(order.client_name, nameStartX, currentY);
-      
+
       const nameWidth = pdf.getTextWidth(order.client_name);
       const lineY = currentY + 2;
       pdf.setLineWidth(0.5);
@@ -812,7 +824,7 @@ Deno.serve(async (req) => {
     currentY += 12;
 
     pdf.setFontSize(10);
-    
+
     // Contract signed at
     if (order.contract_signed_at) {
       pdf.setFont('helvetica', 'bold');

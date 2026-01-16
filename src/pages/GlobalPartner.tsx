@@ -28,12 +28,12 @@ const checkEmailExists = async (email: string): Promise<boolean> => {
             .select('id')
             .eq('email', email.toLowerCase().trim())
             .maybeSingle();
-        
+
         if (error && error.code !== 'PGRST116') { // PGRST116 = no rows returned
             console.error('Error checking email:', error);
             return false; // If error, don't block (let database constraint handle it)
         }
-        
+
         return !!data; // Return true if email exists
     } catch (error) {
         console.error('Error checking email:', error);
@@ -144,7 +144,7 @@ export const GlobalPartner = () => {
 
     useEffect(() => {
         if (typeof window === 'undefined') return;
-        
+
         const handleScroll = () => {
             const scrollPosition = window.scrollY;
             setIsScrolled(scrollPosition > 50);
@@ -169,9 +169,9 @@ export const GlobalPartner = () => {
                         <div className="container">
                             <div className="flex items-center justify-between">
                                 <Link to="/" className="flex items-center gap-2">
-                                    <img 
-                                        src="/logo2.png" 
-                                        alt="MIGMA INC" 
+                                    <img
+                                        src="/logo2.png"
+                                        alt="MIGMA INC"
                                         className="h-16 md:h-20 w-auto"
                                     />
                                 </Link>
@@ -846,7 +846,7 @@ const ApplicationWizard = ({ cardRef }: ApplicationWizardProps) => {
             word-wrap: break-word;
         `;
         document.body.appendChild(warning);
-        
+
         setTimeout(() => {
             warning.style.animation = 'slideOutWarning 0.3s ease-out';
             setTimeout(() => {
@@ -857,7 +857,7 @@ const ApplicationWizard = ({ cardRef }: ApplicationWizardProps) => {
         }, 3000); // Mostrar por 3 segundos
     };
     const navigate = useNavigate();
-    
+
     // Load saved form data first to check if we should redirect to step 5
     const savedFormData = React.useMemo(() => {
         try {
@@ -875,21 +875,21 @@ const ApplicationWizard = ({ cardRef }: ApplicationWizardProps) => {
     // Helper function to check if previous steps (1-4) are filled
     const arePreviousStepsFilled = (data: any): boolean => {
         if (!data) return false;
-        
+
         // Check Step 1 (Personal Info) - required fields
         const step1Filled =
             data.fullName && data.fullName.trim().length >= 2 &&
             data.email && data.email.includes('@') &&
             data.phone && data.phone.trim().length >= 5 &&
             data.country && data.country.trim().length >= 2;
-        
+
         // Check Step 2 (Legal) - required fields
         const step2Filled = data.hasBusiness !== undefined && data.hasBusiness !== null;
         // If hasBusiness is "Yes", also check businessId
         const step2Complete = data.hasBusiness === "Yes"
             ? (data.businessId && data.businessId.trim().length >= 3)
             : true;
-        
+
         // Check Step 3 (Experience) - required fields
         const step3Filled =
             Array.isArray(data.areaOfExpertise) && data.areaOfExpertise.length > 0 &&
@@ -906,18 +906,18 @@ const ApplicationWizard = ({ cardRef }: ApplicationWizardProps) => {
         const step3OtherComplete = data.areaOfExpertise?.includes("Other")
             ? (data.otherAreaOfExpertise && data.otherAreaOfExpertise.trim().length >= 3)
             : true;
-        
+
         // Check Step 4 (Fit) - required fields
         const step4Filled =
             data.weeklyAvailability &&
             data.whyMigma && data.whyMigma.trim().length >= 10 &&
             data.comfortableModel === true;
-        
+
         // All previous steps (1-4) must be filled
         return step1Filled &&
-               step2Filled && step2Complete &&
-               step3Filled && step3Complete && step3OtherComplete &&
-               step4Filled;
+            step2Filled && step2Complete &&
+            step3Filled && step3Complete && step3OtherComplete &&
+            step4Filled;
     };
 
     // Always start at step 1, then check if we should redirect to step 5
@@ -927,12 +927,12 @@ const ApplicationWizard = ({ cardRef }: ApplicationWizardProps) => {
     const isSubmittingRef = React.useRef(false); // Ref para evitar race conditions
     const formRef = React.useRef<HTMLDivElement>(null); // Ref para o formulário
     const totalSteps = 6;
-    
+
     // Scroll to top of form when step changes (especially important on mobile)
     React.useEffect(() => {
         // Skip scroll on initial mount (step 1)
         if (step === 1) return;
-        
+
         // Small delay to ensure DOM is updated and step content is rendered
         const timer = setTimeout(() => {
             // Priorizar cardRef se disponível (aponta para o Card)
@@ -940,7 +940,7 @@ const ApplicationWizard = ({ cardRef }: ApplicationWizardProps) => {
                 const element = cardRef.current;
                 const rect = element.getBoundingClientRect();
                 const elementTop = rect.top + window.scrollY;
-                
+
                 // Sempre fazer scroll para o topo do Card quando o step muda
                 // Calcular a posição absoluta do elemento e fazer scroll manual
                 // Isso garante que o scroll aconteça mesmo quando rect.top está próximo de 0
@@ -957,7 +957,7 @@ const ApplicationWizard = ({ cardRef }: ApplicationWizardProps) => {
                 }
             }
         }, 100); // Small delay to ensure step animation starts
-        
+
         return () => clearTimeout(timer);
     }, [step, cardRef]);
 
@@ -1004,17 +1004,17 @@ const ApplicationWizard = ({ cardRef }: ApplicationWizardProps) => {
         register('areaOfExpertise');
         register('interestedRoles');
     }, [register]);
-    
+
     // Watch all form values to save to localStorage
     const formValues = watch();
     const cvFile = watch('cv');
-    
+
     // Save form data to localStorage whenever it changes
     React.useEffect(() => {
         try {
             // Don't save the CV file (can't be serialized), but save CV info
             const { cv, ...dataToSave } = formValues;
-            
+
             // Save CV metadata if CV file is selected
             if (cvFile && cvFile instanceof File) {
                 (dataToSave as any).cvInfo = {
@@ -1027,24 +1027,24 @@ const ApplicationWizard = ({ cardRef }: ApplicationWizardProps) => {
                 // Remove cvInfo if CV is not set
                 delete (dataToSave as any).cvInfo;
             }
-            
+
             localStorage.setItem(STORAGE_KEY, JSON.stringify(dataToSave));
         } catch (error) {
             console.warn('Failed to save form data to localStorage:', error);
         }
     }, [formValues, cvFile]);
-    
+
     // Check on mount if we should redirect to step 5
     // This happens after form is initialized with saved data
     React.useEffect(() => {
         if (!savedFormData) return;
-        
+
         // Check if steps 1-4 are filled
         if (arePreviousStepsFilled(savedFormData)) {
             // Wait a moment for form to initialize, then check CV
             const timer = setTimeout(() => {
                 const currentCvFile = form.getValues('cv');
-                
+
                 // If no CV file is currently selected, redirect to step 5
                 // Note: cvInfo in savedFormData indicates there was a CV before, but File objects can't be restored from localStorage
                 // So we always need to redirect to step 5 if steps 1-4 are complete and no file is selected
@@ -1052,11 +1052,11 @@ const ApplicationWizard = ({ cardRef }: ApplicationWizardProps) => {
                     setStep(5);
                 }
             }, 50);
-            
+
             return () => clearTimeout(timer);
         }
     }, []); // Only run once on mount
-    
+
     const hasBusiness = watch('hasBusiness');
     const clientExperience = watch('clientExperience');
     const selectedCountry = watch('country');
@@ -1094,7 +1094,7 @@ const ApplicationWizard = ({ cardRef }: ApplicationWizardProps) => {
         // #endregion agent log
         let fieldsToValidate: (keyof FormData)[] = [];
         switch (currentStep) {
-            case 1: 
+            case 1:
                 fieldsToValidate = ['fullName', 'email', 'phone', 'country'];
                 // Validate email format first
                 const emailValid = await trigger(['email']);
@@ -1106,7 +1106,7 @@ const ApplicationWizard = ({ cardRef }: ApplicationWizardProps) => {
                             // Adicionar timeout para evitar que a validação trave
                             const emailExists = await Promise.race([
                                 checkEmailExists(emailValue),
-                                new Promise<boolean>((resolve) => 
+                                new Promise<boolean>((resolve) =>
                                     setTimeout(() => resolve(false), 5000) // Timeout de 5 segundos
                                 )
                             ]);
@@ -1262,12 +1262,12 @@ const ApplicationWizard = ({ cardRef }: ApplicationWizardProps) => {
             e.preventDefault();
             e.stopPropagation();
         }
-        
+
         // Mark that user tried to advance (for step 6, this means they tried to submit)
         if (step === 6) {
             setTriedToSubmit(true);
         }
-        
+
         const isStepValid = await validateStep(step);
 
         // #region agent log
@@ -1316,20 +1316,20 @@ const ApplicationWizard = ({ cardRef }: ApplicationWizardProps) => {
         // Step 1 primeiro (pode ter validação de email assíncrona)
         const step1Valid = await validateStep(1);
         if (!step1Valid) return 1;
-        
+
         // Validar steps 2-6 em paralelo
         const validationPromises = [];
         for (let stepNum = 2; stepNum <= totalSteps; stepNum++) {
             validationPromises.push(validateStep(stepNum).then(isValid => ({ stepNum, isValid })));
         }
-        
+
         const results = await Promise.all(validationPromises);
         for (const { stepNum, isValid } of results) {
             if (!isValid) {
                 return stepNum;
             }
         }
-        
+
         return null;
     };
 
@@ -1340,13 +1340,13 @@ const ApplicationWizard = ({ cardRef }: ApplicationWizardProps) => {
             await handleNext();
             return;
         }
-        
+
         // Proteção contra múltiplos cliques (race condition)
         if (isSubmittingRef.current || isSubmitting) {
             console.log('[FORM] Submit already in progress, ignoring duplicate click');
             return;
         }
-        
+
         isSubmittingRef.current = true;
         setIsSubmitting(true);
         try {
@@ -1362,18 +1362,18 @@ const ApplicationWizard = ({ cardRef }: ApplicationWizardProps) => {
                     5: 'CV & Links',
                     6: 'Consents'
                 };
-                
+
                 const stepName = stepNames[firstInvalidStep] || `Step ${firstInvalidStep}`;
-                
+
                 // Show warning message
                 showWarning(`Please complete all required fields in "${stepName}" before submitting.`);
-                
+
                 // Redirect to the step with missing required field
                 setStep(firstInvalidStep);
                 setTriedToSubmit(true);
                 setIsSubmitting(false);
                 isSubmittingRef.current = false;
-                
+
                 // Small delay to ensure step change is visible before scrolling
                 setTimeout(() => {
                     // Scroll to top of form to ensure user sees the step
@@ -1384,14 +1384,14 @@ const ApplicationWizard = ({ cardRef }: ApplicationWizardProps) => {
                     // Trigger validation to show errors
                     validateStep(firstInvalidStep);
                 }, 100);
-                
+
                 return;
             }
 
             // Step 1: Upload CV file
             let cvFilePath: string | undefined;
             let cvFileName: string | undefined;
-            
+
             if (data.cv && data.cv instanceof File) {
                 const uploadResult = await uploadCV(data.cv);
                 if (!uploadResult.success) {
@@ -1416,7 +1416,7 @@ const ApplicationWizard = ({ cardRef }: ApplicationWizardProps) => {
                 processedAreaOfExpertise = processedAreaOfExpertise.filter(area => area !== 'Other');
                 processedAreaOfExpertise.push(`Other: ${data.otherAreaOfExpertise.trim()}`);
             }
-            
+
             const applicationData = {
                 full_name: data.fullName,
                 email: data.email,
@@ -1480,7 +1480,7 @@ const ApplicationWizard = ({ cardRef }: ApplicationWizardProps) => {
                     message: insertError.message,
                     details: insertError.details,
                 });
-                
+
                 // Tratamento específico para email duplicado - set error on email field
                 if (insertError.code === '23505' && insertError.message.includes('email')) {
                     form.setError('email', {
@@ -1574,14 +1574,14 @@ const ApplicationWizard = ({ cardRef }: ApplicationWizardProps) => {
             }
 
             console.log('[FORM DEBUG] ✅ Application submitted successfully');
-            
-             // Clear localStorage after successful submission
-             try {
-                 localStorage.removeItem(STORAGE_KEY);
-             } catch (error) {
-                 console.warn('Failed to clear localStorage:', error);
-             }
-            
+
+            // Clear localStorage after successful submission
+            try {
+                localStorage.removeItem(STORAGE_KEY);
+            } catch (error) {
+                console.warn('Failed to clear localStorage:', error);
+            }
+
             // Redirect to thank you page
             navigate('/global-partner/thank-you');
         } catch (error) {
@@ -1625,9 +1625,9 @@ const ApplicationWizard = ({ cardRef }: ApplicationWizardProps) => {
                             </div>
                             <div className="space-y-2">
                                 <Label htmlFor="email" className="text-white">Email *</Label>
-                                <Input 
-                                    id="email" 
-                                    type="email" 
+                                <Input
+                                    id="email"
+                                    type="email"
                                     {...register('email', {
                                         onBlur: async () => {
                                             const emailValue = watch('email');
@@ -1635,8 +1635,8 @@ const ApplicationWizard = ({ cardRef }: ApplicationWizardProps) => {
                                                 await trigger('email');
                                             }
                                         }
-                                    })} 
-                                    className="bg-white text-black" 
+                                    })}
+                                    className="bg-white text-black"
                                 />
                                 {errors.email && (
                                     <p className="text-sm text-red-400 font-medium">{errors.email.message}</p>
@@ -1644,8 +1644,8 @@ const ApplicationWizard = ({ cardRef }: ApplicationWizardProps) => {
                             </div>
                             <div className="space-y-2">
                                 <Label htmlFor="country" className="text-white">Country *</Label>
-                                <Select 
-                                    value={watch('country') || ''} 
+                                <Select
+                                    value={watch('country') || ''}
                                     onValueChange={(val) => {
                                         setValue('country', val);
                                         updatePhoneWithCountryCode(val);
@@ -1664,11 +1664,11 @@ const ApplicationWizard = ({ cardRef }: ApplicationWizardProps) => {
                             </div>
                             <div className="space-y-2">
                                 <Label htmlFor="phone" className="text-white">Phone * (include country code)</Label>
-                                <Input 
-                                    id="phone" 
-                                    type="tel" 
+                                <Input
+                                    id="phone"
+                                    type="tel"
                                     placeholder={selectedCountry && countryPhoneCodes[selectedCountry] ? countryPhoneCodes[selectedCountry] + ' ...' : '+...'}
-                                    {...register('phone')} 
+                                    {...register('phone')}
                                     className="bg-white text-black"
                                 />
                                 {errors.phone && <p className="text-sm text-destructive">{errors.phone.message}</p>}
@@ -1744,7 +1744,7 @@ const ApplicationWizard = ({ cardRef }: ApplicationWizardProps) => {
                 {step === 3 && (
                     <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="space-y-4">
                         <h3 className="text-2xl font-bold mb-4 text-white">Professional Background</h3>
-                        
+
                         <div className="space-y-2">
                             <Label htmlFor="currentOccupation" className="text-white">Current Occupation</Label>
                             <Input id="currentOccupation" {...register('currentOccupation')} placeholder="e.g., Visa Consultant, Sales Closer, Assistant, Student, Administrator" className="bg-white text-black" />
@@ -1776,7 +1776,7 @@ const ApplicationWizard = ({ cardRef }: ApplicationWizardProps) => {
                                 ))}
                             </div>
                             {errors.areaOfExpertise && <p className="text-sm text-destructive">{errors.areaOfExpertise.message}</p>}
-                            
+
                             {/* Campo condicional para "Other" */}
                             {hasOtherSelected && (
                                 <div className="mt-3 space-y-2">
@@ -1796,8 +1796,8 @@ const ApplicationWizard = ({ cardRef }: ApplicationWizardProps) => {
 
                         <div className="space-y-2">
                             <Label className="text-white">Years of Experience *</Label>
-                            <Select 
-                                value={watch('yearsOfExperience') || ''} 
+                            <Select
+                                value={watch('yearsOfExperience') || ''}
                                 onValueChange={(val) => setValue('yearsOfExperience', val)}
                             >
                                 <SelectTrigger className="bg-white text-black">
@@ -1838,8 +1838,8 @@ const ApplicationWizard = ({ cardRef }: ApplicationWizardProps) => {
 
                         <div className="space-y-2">
                             <Label className="text-white">Do you have experience with U.S. visa processes? *</Label>
-                            <Select 
-                                value={watch('visaExperience') || ''} 
+                            <Select
+                                value={watch('visaExperience') || ''}
                                 onValueChange={(val) => setValue('visaExperience', val)}
                             >
                                 <SelectTrigger className="bg-white text-black">
@@ -1857,8 +1857,8 @@ const ApplicationWizard = ({ cardRef }: ApplicationWizardProps) => {
 
                         <div className="space-y-2">
                             <Label className="text-white">English Level *</Label>
-                            <Select 
-                                value={watch('englishLevel') || ''} 
+                            <Select
+                                value={watch('englishLevel') || ''}
                                 onValueChange={(val) => setValue('englishLevel', val)}
                             >
                                 <SelectTrigger className="bg-white text-black">
@@ -1916,8 +1916,8 @@ const ApplicationWizard = ({ cardRef }: ApplicationWizardProps) => {
                         <h3 className="text-2xl font-bold mb-4 text-white">Availability & Fit</h3>
                         <div className="space-y-2">
                             <Label className="text-white">Weekly Availability *</Label>
-                            <Select 
-                                value={watch('weeklyAvailability') || ''} 
+                            <Select
+                                value={watch('weeklyAvailability') || ''}
                                 onValueChange={(val) => setValue('weeklyAvailability', val)}
                             >
                                 <SelectTrigger className="bg-white text-black">
@@ -1935,10 +1935,10 @@ const ApplicationWizard = ({ cardRef }: ApplicationWizardProps) => {
 
                         <div className="space-y-2">
                             <Label htmlFor="whyMigma" className="text-white">Why do you want to work with MIGMA as a Global Partner? *</Label>
-                            <Textarea 
-                                id="whyMigma" 
-                                className="min-h-[120px] bg-white text-black" 
-                                {...register('whyMigma')} 
+                            <Textarea
+                                id="whyMigma"
+                                className="min-h-[120px] bg-white text-black"
+                                {...register('whyMigma')}
                             />
                             {errors.whyMigma && <p className="text-sm text-destructive">{errors.whyMigma.message}</p>}
                         </div>
@@ -1981,18 +1981,18 @@ const ApplicationWizard = ({ cardRef }: ApplicationWizardProps) => {
                                                 e.target.value = ''; // Limpar input
                                                 return;
                                             }
-                                            
-                                            // Validar tamanho (5MB = 5 * 1024 * 1024 bytes)
-                                            const MAX_FILE_SIZE = 5 * 1024 * 1024;
+
+                                            // Validar tamanho (3MB = 3 * 1024 * 1024 bytes)
+                                            const MAX_FILE_SIZE = 3 * 1024 * 1024;
                                             if (file.size > MAX_FILE_SIZE) {
                                                 form.setError('cv', {
                                                     type: 'manual',
-                                                    message: `File size must be less than 5MB. Your file is ${(file.size / (1024 * 1024)).toFixed(2)}MB`
+                                                    message: `File too large. Please reduce the file size to under 3MB. Current size: ${(file.size / (1024 * 1024)).toFixed(2)}MB`
                                                 });
                                                 e.target.value = ''; // Limpar input
                                                 return;
                                             }
-                                            
+
                                             // Limpar erro se validação passar
                                             form.clearErrors('cv');
                                             setValue('cv', file);
@@ -2001,7 +2001,7 @@ const ApplicationWizard = ({ cardRef }: ApplicationWizardProps) => {
                                 />
                                 <Upload className="h-8 w-8 text-gold-light" />
                                 <p className="text-white">Click to upload or drag and drop</p>
-                                <p className="text-xs text-gray-300">PDF only, max 5MB</p>
+                                <p className="text-xs text-gray-300">PDF only, max 3MB</p>
                                 {watch('cv') && (
                                     <p className="text-sm text-gold-light mt-2">✓ File selected: {(watch('cv') as File)?.name}</p>
                                 )}
@@ -2065,8 +2065,8 @@ const ApplicationWizard = ({ cardRef }: ApplicationWizardProps) => {
                     )}
 
                     {step < totalSteps ? (
-                        <Button 
-                            type="button" 
+                        <Button
+                            type="button"
                             onClick={(e) => {
                                 e.preventDefault();
                                 e.stopPropagation();
@@ -2077,7 +2077,7 @@ const ApplicationWizard = ({ cardRef }: ApplicationWizardProps) => {
                             Next Step <ChevronRight className="w-4 h-4 ml-2" />
                         </Button>
                     ) : (
-                        <Button 
+                        <Button
                             type="submit"
                             disabled={isSubmitting}
                             className="bg-gradient-to-b from-gold-light via-gold-medium to-gold-light text-black font-bold hover:from-gold-medium hover:via-gold-light hover:to-gold-medium transition-all shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"

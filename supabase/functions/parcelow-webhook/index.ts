@@ -9,7 +9,7 @@ const corsHeaders = {
 
 interface ParcelowWebhookEvent {
   event: string; // "event_order_paid", "event_order_declined", etc.
-  order: {
+  order?: {
     id: number;
     reference: string;
     status: number;
@@ -21,7 +21,19 @@ interface ParcelowWebhookEvent {
     order_date: string;
     [key: string]: any;
   };
-  timestamp: string;
+  data?: {
+    id: number;
+    reference: string;
+    status: number;
+    status_text: string;
+    order_amount: number;
+    total_usd: number;
+    total_brl: number;
+    installments: number;
+    order_date: string;
+    [key: string]: any;
+  };
+  timestamp?: string;
 }
 
 // Normalize service name for grouped products (initial, cos, transfer)
@@ -301,15 +313,23 @@ async function processParcelowWebhookEvent(
   event: ParcelowWebhookEvent,
   supabase: any
 ) {
-  const { event: eventType, order: parcelowOrder } = event;
+  const { event: eventType } = event;
+
+  // Normalize payload: Parcelow can send either 'order' or 'data'
+  const parcelowOrder = event.order || event.data;
+
+  if (!parcelowOrder) {
+    console.error(`[Parcelow Webhook] ❌ Invalid payload: missing 'order' or 'data' field`);
+    return;
+  }
 
   console.log(`[Parcelow Webhook] ========== PROCESSING EVENT ==========`);
   console.log(`[Parcelow Webhook] Event type: ${eventType}`);
   console.log(`[Parcelow Webhook] Parcelow Order ID: ${parcelowOrder.id}`);
-  console.log(`[Parcelow Webhook] Reference: ${parcelowOrder.reference}`);
-  console.log(`[Parcelow Webhook] Status: ${parcelowOrder.status_text} (code: ${parcelowOrder.status})`);
-  console.log(`[Parcelow Webhook] Total USD: ${parcelowOrder.total_usd}, Total BRL: ${parcelowOrder.total_brl}`);
-  console.log(`[Parcelow Webhook] Installments: ${parcelowOrder.installments}`);
+  console.log(`[Parcelow Webhook] Reference: ${parcelowOrder.reference || 'N/A'}`);
+  console.log(`[Parcelow Webhook] Status: ${parcelowOrder.status_text || 'N/A'} (code: ${parcelowOrder.status})`);
+  console.log(`[Parcelow Webhook] Total USD: ${parcelowOrder.total_usd || 0}, Total BRL: ${parcelowOrder.total_brl || 0}`);
+  console.log(`[Parcelow Webhook] Installments: ${parcelowOrder.installments || 1}`);
 
   // Find the visa order by parcelow_order_id
   // Select all fields needed for complete processing
@@ -413,10 +433,10 @@ async function processParcelowWebhookEvent(
       payment_method: "parcelow",
       completed_at: new Date().toISOString(),
       parcelow_order_id: parcelowOrder.id,
-      installments: parcelowOrder.installments,
-      total_usd: parcelowOrder.total_usd,
-      total_brl: parcelowOrder.total_brl,
-      order_date: parcelowOrder.order_date,
+      installments: parcelowOrder.installments || 1,
+      total_usd: parcelowOrder.total_usd || parcelowOrder.order_amount || 0,
+      total_brl: parcelowOrder.total_brl || 0,
+      order_date: parcelowOrder.order_date || new Date().toISOString(),
     };
   }
 
@@ -467,12 +487,12 @@ async function processParcelowWebhookEvent(
           raw_webhook_log: {
             event_type: eventType,
             parcelow_order_id: parcelowOrder.id,
-            reference: parcelowOrder.reference,
+            reference: parcelowOrder.reference || 'N/A',
             status: parcelowOrder.status,
-            status_text: parcelowOrder.status_text,
-            total_usd: parcelowOrder.total_usd,
-            total_brl: parcelowOrder.total_brl,
-            installments: parcelowOrder.installments,
+            status_text: parcelowOrder.status_text || 'N/A',
+            total_usd: parcelowOrder.total_usd || parcelowOrder.order_amount || 0,
+            total_brl: parcelowOrder.total_brl || 0,
+            installments: parcelowOrder.installments || 1,
             completed_at: new Date().toISOString(),
           },
           updated_at: new Date().toISOString(),
@@ -625,6 +645,15 @@ Deno.serve(async (req: Request) => {
   // Handle CORS preflight
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
+  }
+
+  // Handle GET requests (health checks or verification)
+  if (req.method === "GET") {
+    console.log("[Parcelow Webhook] GET request received - treating as health check");
+    return new Response(
+      JSON.stringify({ status: "ok", message: "Webhook endpoint is active" }),
+      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
   }
 
   try {
