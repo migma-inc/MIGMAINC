@@ -260,8 +260,9 @@ class ParcelowClient {
     const response = await fetch(url, {
       method,
       headers: {
-        'Authorization': `Bearer ${token}`, // Use full token in request
+        'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json',
+        'Accept': 'application/json',
       },
       body: data ? JSON.stringify(data) : undefined,
     });
@@ -315,12 +316,25 @@ class ParcelowClient {
     return await this.request('POST', '/api/orders/brl', orderData);
   }
 
+  async simulate(amountInCents: number): Promise<any> {
+    const response = await this.request<{ data: any }>('GET', `/api/simulate?amount=${amountInCents}`);
+    return response?.data || response;
+  }
+
   async getOrder(orderId: string): Promise<any> {
-    const response = await this.request<{ success: boolean; data: any[] }>('GET', `/api/order/${orderId}`);
-    if (response.success && Array.isArray(response.data) && response.data.length > 0) {
-      return response.data[0];
+    const response = await this.request<{ success?: boolean; data: any }>('GET', `/api/order/${orderId}`);
+
+    // API might return just { data: ... } without success: true property
+    if (response.data) {
+      if (Array.isArray(response.data) && response.data.length > 0) {
+        return response.data[0];
+      } else if (typeof response.data === 'object') {
+        return response.data;
+      }
     }
-    throw new Error('Order not found');
+
+    console.warn('[ParcelowClient] Invalid order response structure:', JSON.stringify(response));
+    throw new Error('Order not found or invalid response format');
   }
 }
 
@@ -352,9 +366,7 @@ Deno.serve(async (req: Request) => {
     return new Response(null, { headers: corsHeaders });
   }
 
-  console.log("[Parcelow Checkout] ========== REQUEST RECEIVED ==========");
-  console.log("[Parcelow Checkout] Method:", req.method);
-  console.log("[Parcelow Checkout] URL:", req.url);
+
 
   try {
     // Detect environment dynamically
@@ -365,64 +377,11 @@ Deno.serve(async (req: Request) => {
     console.log("[Parcelow Checkout] Detected environment:", parcelowEnvironment);
     console.log("[Parcelow Checkout] Is Production Domain:", envInfo.isProduction);
 
-    // Select credentials based on environment
-    // Sandbox (Staging) uses Client ID 282
-    // Production uses Client ID 1118
-    const parcelowClientId = parcelowEnvironment === 'staging'
-      ? (Deno.env.get("PARCELOW_CLIENT_ID_STAGING") || Deno.env.get("PARCELOW_CLIENT_ID"))
-      : (Deno.env.get("PARCELOW_CLIENT_ID_PRODUCTION") || Deno.env.get("PARCELOW_CLIENT_ID"));
-
-    const parcelowClientSecret = parcelowEnvironment === 'staging'
-      ? (Deno.env.get("PARCELOW_CLIENT_SECRET_STAGING") || Deno.env.get("PARCELOW_CLIENT_SECRET"))
-      : (Deno.env.get("PARCELOW_CLIENT_SECRET_PRODUCTION") || Deno.env.get("PARCELOW_CLIENT_SECRET"));
-
-    // The original instruction had a duplicate line for parcelowClientSecret, removed it.
-
-    console.log("[Parcelow Checkout] Using credentials for:", parcelowEnvironment);
-    console.log("[Parcelow Checkout] Client ID found:", !!parcelowClientId);
-    console.log("[Parcelow Checkout] Client ID length:", parcelowClientId?.length || 0);
-    console.log("[Parcelow Checkout] Client ID preview:", parcelowClientId ? `${parcelowClientId.substring(0, 8)}...${parcelowClientId.substring(parcelowClientId.length - 4)}` : "MISSING");
-    console.log("[Parcelow Checkout] Client Secret found:", !!parcelowClientSecret);
-    console.log("[Parcelow Checkout] Client Secret length:", parcelowClientSecret?.length || 0);
-    console.log("[Parcelow Checkout] Client Secret preview:", parcelowClientSecret ? `${parcelowClientSecret.substring(0, 8)}...${parcelowClientSecret.substring(parcelowClientSecret.length - 4)}` : "MISSING");
-
-    // Determine which variable was used
-    const clientIdSource = parcelowEnvironment === 'staging'
-      ? (Deno.env.get("PARCELOW_CLIENT_ID_STAGING") ? "PARCELOW_CLIENT_ID_STAGING" : "PARCELOW_CLIENT_ID (fallback)")
-      : (Deno.env.get("PARCELOW_CLIENT_ID_PRODUCTION") ? "PARCELOW_CLIENT_ID_PRODUCTION" : "PARCELOW_CLIENT_ID (fallback)");
-
-    const clientSecretSource = parcelowEnvironment === 'staging'
-      ? (Deno.env.get("PARCELOW_CLIENT_SECRET_STAGING") ? "PARCELOW_CLIENT_SECRET_STAGING" : "PARCELOW_CLIENT_SECRET (fallback)")
-      : (Deno.env.get("PARCELOW_CLIENT_SECRET_PRODUCTION") ? "PARCELOW_CLIENT_SECRET_PRODUCTION" : "PARCELOW_CLIENT_SECRET (fallback)");
-
-    console.log("[Parcelow Checkout] Client ID source:", clientIdSource);
-    console.log("[Parcelow Checkout] Client Secret source:", clientSecretSource);
-
-    if (!parcelowClientId || !parcelowClientSecret) {
-      console.error("[Parcelow Checkout] ❌ Parcelow credentials not configured");
-      const missingVars = [];
-      if (!parcelowClientId) {
-        missingVars.push(parcelowEnvironment === 'staging' ? "PARCELOW_CLIENT_ID_STAGING (or PARCELOW_CLIENT_ID)" : "PARCELOW_CLIENT_ID_PRODUCTION (or PARCELOW_CLIENT_ID)");
-      }
-      if (!parcelowClientSecret) {
-        missingVars.push(parcelowEnvironment === 'staging' ? "PARCELOW_CLIENT_SECRET_STAGING (or PARCELOW_CLIENT_SECRET)" : "PARCELOW_CLIENT_SECRET_PRODUCTION (or PARCELOW_CLIENT_SECRET)");
-      }
-      return new Response(
-        JSON.stringify({
-          error: "Parcelow credentials not configured",
-          details: `Missing: ${missingVars.join(", ")}`,
-          environment: parcelowEnvironment
-        }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
     // Initialize Supabase client
     console.log("[Parcelow Checkout] 📋 Step 2: Initializing Supabase client...");
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
-    console.log("[Parcelow Checkout] Supabase client initialized");
 
     // Get site URL
     const siteUrl = Deno.env.get("SITE_URL") || req.headers.get("origin") || "http://localhost:5173";
@@ -430,23 +389,66 @@ Deno.serve(async (req: Request) => {
     // Parse request body
     console.log("[Parcelow Checkout] 📋 Step 3: Parsing request body...");
     const body = await req.json();
-    console.log("[Parcelow Checkout] Request body:", JSON.stringify(body, null, 2));
+    const { order_id, action = 'create', currency = "USD", amount_usd } = body;
 
-    const {
-      order_id,
-      currency = "USD", // "USD" or "BRL"
-    } = body;
+    // Handle Simulation Action - NO DB REQUIRED
+    if (action === 'simulate') {
+      if (!amount_usd) {
+        throw new Error("amount_usd is required for simulation");
+      }
 
-    if (!order_id) {
-      console.error("[Parcelow Checkout] ❌ order_id is missing from request body");
-      return new Response(
-        JSON.stringify({ error: "order_id is required" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      const amountInCents = Math.round(parseFloat(amount_usd) * 100);
+      console.log(`[Parcelow Checkout] 🔄 Action: Simulate for amount ${amountInCents}`);
+
+      try {
+        const parcelowClientId = parcelowEnvironment === 'staging'
+          ? (Deno.env.get("PARCELOW_CLIENT_ID_STAGING") || Deno.env.get("PARCELOW_CLIENT_ID"))
+          : (Deno.env.get("PARCELOW_CLIENT_ID_PRODUCTION") || Deno.env.get("PARCELOW_CLIENT_ID"));
+
+        const parcelowClientSecret = parcelowEnvironment === 'staging'
+          ? (Deno.env.get("PARCELOW_CLIENT_SECRET_STAGING") || Deno.env.get("PARCELOW_CLIENT_SECRET"))
+          : (Deno.env.get("PARCELOW_CLIENT_SECRET_PRODUCTION") || Deno.env.get("PARCELOW_CLIENT_SECRET"));
+
+        if (!parcelowClientId || !parcelowClientSecret) throw new Error("Missing Parcelow credentials");
+
+        // Simple client init for simulation
+        const clientIdToUse = (!isNaN(parseInt(parcelowClientId)) && parcelowClientId.trim() === parseInt(parcelowClientId).toString())
+          ? parseInt(parcelowClientId) : parcelowClientId;
+
+        const simpleClient = new ParcelowClient(clientIdToUse, parcelowClientSecret, parcelowEnvironment);
+
+        const simulation = await simpleClient.simulate(amountInCents);
+        console.log("[Parcelow Checkout] 🟢 Simulation result:", JSON.stringify(simulation));
+
+        const responseData = {
+          success: true,
+          action: 'simulate',
+          data: {
+            total_usd: amountInCents,
+            // API DOC: simulation.ted.amount is BRL string "5869.50"
+            total_brl: simulation.ted?.amount ? Math.round(parseFloat(simulation.ted.amount) * 100) : 0,
+            exchange_rate: simulation.dolar,
+            rawRequest: simulation
+          }
+        };
+
+        return new Response(JSON.stringify(responseData), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+
+      } catch (error: any) {
+        console.error("[Parcelow Checkout] ❌ Simulation failed:", error.message);
+        return new Response(
+          JSON.stringify({ error: `Simulation failed: ${error.message}` }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
     }
 
-    console.log("[Parcelow Checkout] Order ID:", order_id);
-    console.log("[Parcelow Checkout] Currency:", currency);
+    // CREATE ACTION - DB REQUIRED
+    if (!order_id) {
+      throw new Error("order_id is required");
+    }
 
     // Get order from database
     console.log("[Parcelow Checkout] 📋 Step 4: Fetching order from database...");
@@ -457,16 +459,41 @@ Deno.serve(async (req: Request) => {
       .single();
 
     if (orderError || !order) {
-      console.error("[Parcelow Checkout] ❌ Error fetching order:", orderError);
-      return new Response(
-        JSON.stringify({ error: "Order not found", details: orderError?.message }),
-        { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      throw new Error(`Order not found: ${orderError?.message}`);
     }
 
-    console.log("[Parcelow Checkout] ✅ Order found:", order.order_number);
-    console.log("[Parcelow Checkout] Order total_price_usd:", order.total_price_usd);
-    console.log("[Parcelow Checkout] Service Request ID:", order.service_request_id);
+    // Initialize Parcelow client
+    console.log("[Parcelow Checkout] 📋 Step 5: Initializing Parcelow client...");
+
+    // Select credentials based on environment
+    const parcelowClientId = parcelowEnvironment === 'staging'
+      ? (Deno.env.get("PARCELOW_CLIENT_ID_STAGING") || Deno.env.get("PARCELOW_CLIENT_ID"))
+      : (Deno.env.get("PARCELOW_CLIENT_ID_PRODUCTION") || Deno.env.get("PARCELOW_CLIENT_ID"));
+
+    const parcelowClientSecret = parcelowEnvironment === 'staging'
+      ? (Deno.env.get("PARCELOW_CLIENT_SECRET_STAGING") || Deno.env.get("PARCELOW_CLIENT_SECRET"))
+      : (Deno.env.get("PARCELOW_CLIENT_SECRET_PRODUCTION") || Deno.env.get("PARCELOW_CLIENT_SECRET"));
+
+    if (!parcelowClientId || !parcelowClientSecret) {
+      throw new Error("Missing Parcelow credentials");
+    }
+
+    // Determine ID type
+    let clientIdToUse: number | string;
+    const clientIdNumber = parseInt(parcelowClientId, 10);
+    const isNumericId = !isNaN(clientIdNumber) && clientIdNumber.toString() === parcelowClientId.trim();
+
+    if (isNumericId) {
+      clientIdToUse = clientIdNumber;
+    } else {
+      clientIdToUse = parcelowClientId;
+    }
+
+    const parcelowClient = new ParcelowClient(
+      clientIdToUse,
+      parcelowClientSecret,
+      parcelowEnvironment
+    );
 
     // Try to get client CPF from service_request -> client relationship
     let clientCpf: string | null = null;
@@ -482,7 +509,6 @@ Deno.serve(async (req: Request) => {
           .single();
 
         if (!srError && serviceRequest?.client_id) {
-          // Correct column names based on actual DB schema
           const { data: client, error: clientError } = await supabase
             .from("clients")
             .select("document_number, date_of_birth, postal_code, address_line, city, state, phone")
@@ -493,20 +519,17 @@ Deno.serve(async (req: Request) => {
             clientCpf = client.document_number || null;
             clientBirthdate = client.date_of_birth || null;
 
-            // Map generic address_line to specific fields best effort
             clientAddress = {
               cep: client.postal_code,
-              street: client.address_line, // Assuming full address in line
-              number: "N/A", // Not separate in DB
-              neighborhood: "Centro", // Not in DB
+              street: client.address_line,
+              number: "N/A",
+              neighborhood: "Centro",
               city: client.city,
               state: client.state,
               complement: "",
               phone: client.phone
             };
-            console.log("[Parcelow Checkout] ✅ Found client data (CPF, birthdate, address) from clients table");
-          } else if (clientError) {
-            console.error("[Parcelow Checkout] ❌ Error fetching client details:", clientError);
+            console.log("[Parcelow Checkout] ✅ Found client data from clients table");
           }
         }
       } catch (error: any) {
@@ -514,73 +537,56 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    // Check if order already has a Parcelow order
-    if (order.parcelow_order_id) {
-      console.warn("[Parcelow Checkout] ⚠️ Order already has a Parcelow order:", order.parcelow_order_id);
-      return new Response(
-        JSON.stringify({ error: "Order already has a Parcelow order" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+    // Calculate amount early for simulation
+    const amountInCents = Math.round(parseFloat(order.total_price_usd) * 100);
+
+    // Handle Simulation Action
+    if (action === 'simulate') {
+      console.log(`[Parcelow Checkout] 🔄 Action: Simulate for amount ${amountInCents}`);
+      try {
+        const simulation = await parcelowClient.simulate(amountInCents);
+        console.log("[Parcelow Checkout] 🟢 Simulation result:", JSON.stringify(simulation));
+
+        // Format to match expected frontend structure (partially)
+        const responseData = {
+          success: true,
+          action: 'simulate',
+          data: {
+            // Ensure these fields exist based on API doc: data.order (USD), data.ted.amount (BRL?) -> Wait doc says:
+            // data.order: "1042.93" (USD value?)
+            // data.dolar: "5.7333"
+            // data.ted.amount: "5869.50" (BRL value for TED)
+            // We want total_usd (input) and total_brl (output)
+            total_usd: amountInCents, // Input amount
+            total_brl: simulation.ted?.amount ? Math.round(parseFloat(simulation.ted.amount) * 100) : 0, // Convert string BRL to cents
+            exchange_rate: simulation.dolar,
+            rawRequest: simulation
+          }
+        };
+
+        return new Response(JSON.stringify(responseData), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+
+      } catch (error: any) {
+        console.error("[Parcelow Checkout] ❌ Simulation failed:", error.message);
+        return new Response(
+          JSON.stringify({ error: `Simulation failed: ${error.message}` }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
     }
-
-    // Initialize Parcelow client
-    console.log("[Parcelow Checkout] 📋 Step 5: Initializing Parcelow client...");
-    console.log("[Parcelow Checkout] ========== CLIENT INITIALIZATION ==========");
-    console.log(`[Parcelow Checkout] Client ID (raw string): ${parcelowClientId}`);
-    console.log(`[Parcelow Checkout] Client ID length: ${parcelowClientId?.length || 0}`);
-    console.log(`[Parcelow Checkout] Client ID type (before conversion): ${typeof parcelowClientId}`);
-    console.log(`[Parcelow Checkout] Client ID preview: ${parcelowClientId ? `${parcelowClientId.substring(0, 16)}...${parcelowClientId.substring(parcelowClientId.length - 8)}` : 'MISSING'}`);
-
-    // Try to parse as number first (for numeric IDs like 1118)
-    // If it fails, use as string (for hex IDs like the new credentials)
-    let clientIdToUse: number | string;
-    const clientIdNumber = parseInt(parcelowClientId, 10);
-    const isNumericId = !isNaN(clientIdNumber) && clientIdNumber.toString() === parcelowClientId.trim();
-
-    console.log(`[Parcelow Checkout] Attempting to parse as number: ${clientIdNumber}`);
-    console.log(`[Parcelow Checkout] Is numeric ID: ${isNumericId}`);
-    console.log(`[Parcelow Checkout] Parsed number equals original: ${clientIdNumber.toString() === parcelowClientId.trim()}`);
-
-    if (isNumericId) {
-      clientIdToUse = clientIdNumber;
-      console.log(`[Parcelow Checkout] ✅ Using Client ID as number: ${clientIdToUse}`);
-    } else {
-      // For hex/string IDs, use as string
-      // The OAuth endpoint will receive it as string anyway (form-urlencoded)
-      console.log(`[Parcelow Checkout] ⚠️ Client ID is not numeric, using as string`);
-      console.log(`[Parcelow Checkout] Client ID value: ${parcelowClientId}`);
-      clientIdToUse = parcelowClientId;
-      console.log(`[Parcelow Checkout] Using Client ID as string: ${clientIdToUse.substring(0, 16)}...`);
-    }
-
-    console.log(`[Parcelow Checkout] Final Client ID to use: ${clientIdToUse} (type: ${typeof clientIdToUse})`);
-    console.log(`[Parcelow Checkout] Client ID string representation: ${clientIdToUse.toString()}`);
-    console.log(`[Parcelow Checkout] Client Secret length: ${parcelowClientSecret?.length || 0}`);
-    console.log(`[Parcelow Checkout] Client Secret preview: ${parcelowClientSecret ? `${parcelowClientSecret.substring(0, 8)}...${parcelowClientSecret.substring(parcelowClientSecret.length - 4)}` : 'MISSING'}`);
-    console.log(`[Parcelow Checkout] Environment: ${parcelowEnvironment}`);
-    console.log(`[Parcelow Checkout] ============================================`);
-
-    const parcelowClient = new ParcelowClient(
-      clientIdToUse, // Can be number or string now
-      parcelowClientSecret,
-      parcelowEnvironment
-    );
-    console.log("[Parcelow Checkout] ✅ Parcelow client initialized for environment:", parcelowEnvironment);
 
     // Prepare client data
-    // CPF is required by Parcelow - if not available, we'll need to handle this
-    const rawCpf = clientCpf || order.client_cpf || '';
+    // Prioritize payment-specific CPF (from Step 3) over profile document (which might be a passport)
+    const rawCpf = order.payment_metadata?.cpf || clientCpf || order.client_cpf || '';
     const clientCpfToUse = cleanDocumentNumber(rawCpf);
 
-    console.log(`[Parcelow Checkout] Raw CPF: ${rawCpf ? rawCpf.substring(0, 3) + '***' : 'MISSING'}`);
-    console.log(`[Parcelow Checkout] Cleaned CPF length: ${clientCpfToUse?.length || 0}`);
-
     if (!clientCpfToUse || clientCpfToUse.length < 11) {
-      console.error("[Parcelow Checkout] ❌ CPF is required but not found or invalid");
       return new Response(
         JSON.stringify({
-          error: "CPF is required for Parcelow payment. Please ensure client document is provided.",
-          details: `CPF not found or invalid (length: ${clientCpfToUse?.length || 0}, expected 11 or 14). Raw CPF: ${rawCpf ? rawCpf.substring(0, 3) + '***' : 'MISSING'}`
+          error: "CPF is required for Parcelow payment.",
+          details: "CPF missing or invalid"
         }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
@@ -591,7 +597,7 @@ Deno.serve(async (req: Request) => {
       name: order.client_name,
       email: order.client_email,
       phone: order.client_whatsapp || clientAddress?.phone || '',
-      birthdate: clientBirthdate || order.client_birthdate || undefined, // Format: "YYYY-MM-DD"
+      birthdate: clientBirthdate || order.client_birthdate || undefined,
       cep: order.client_cep || clientAddress?.cep,
       address_street: order.client_address_street || clientAddress?.street,
       address_number: order.client_address_number || clientAddress?.number,
@@ -601,15 +607,9 @@ Deno.serve(async (req: Request) => {
       address_complement: order.client_address_complement || clientAddress?.complement,
     };
 
-    console.log("[Parcelow Checkout] Client data prepared:", {
-      cpf: clientCpfToUse.substring(0, 3) + "***", // Log only first 3 digits for security
-      name: clientData.name,
-      email: clientData.email,
-      hasBirthdate: !!clientData.birthdate,
-    });
-
     // Prepare order items
-    const amountInCents = Math.round(parseFloat(order.total_price_usd) * 100);
+    // amountInCents is already calculated above
+
     const items = [
       {
         reference: order.order_number,
@@ -631,9 +631,8 @@ Deno.serve(async (req: Request) => {
 
     try {
       if (currency === "BRL") {
-        // For BRL, we need to convert USD to BRL first
-        // For now, we'll use the USD amount - in production, should use exchange rate
-        const amountBRL = parseFloat(order.total_price_usd) * 5; // Placeholder conversion
+        // BRL Logic (Placeholder)
+        const amountBRL = parseFloat(order.total_price_usd) * 5;
         const amountBRLInCents = Math.round(amountBRL * 100);
         items[0].amount = amountBRLInCents;
 
@@ -654,9 +653,8 @@ Deno.serve(async (req: Request) => {
             redirect: redirectUrls,
           });
         } catch (err: any) {
-          // Handle "Customer email exists" error by aliasing the email for testing/sandbox
           if (err.message && err.message.includes('Email do cliente existente')) {
-            console.warn('[Parcelow Checkout] ⚠️ Customer email exists, retrying with aliased email for checkout creation...');
+            console.warn('[Parcelow Checkout] ⚠️ Customer email exists, retrying with aliased email...');
             const emailParts = clientData.email.split('@');
             const aliasedEmail = `${emailParts[0]}+${Date.now()}@${emailParts[1]}`;
             const clientDataRetry = { ...clientData, email: aliasedEmail };
@@ -675,21 +673,12 @@ Deno.serve(async (req: Request) => {
       }
 
       console.log("[Parcelow Checkout] ✅ Parcelow order created successfully");
-      console.log("[Parcelow Checkout] Full response:", JSON.stringify(parcelowResponse, null, 2));
-      console.log("[Parcelow Checkout] Response has 'data' property:", !!parcelowResponse?.data);
+      // Concise logging
       console.log("[Parcelow Checkout] Order ID:", parcelowResponse?.data?.order_id || parcelowResponse?.order_id);
-      console.log("[Parcelow Checkout] Checkout URL:", parcelowResponse?.data?.url_checkout || parcelowResponse?.url_checkout);
+      console.log("[Parcelow Checkout] 🟢 RAW Parcelow Response:", JSON.stringify(parcelowResponse, null, 2));
 
-      // Validate response structure
-      if (!parcelowResponse || (!parcelowResponse.data && !parcelowResponse.order_id)) {
-        console.error("[Parcelow Checkout] ❌ Invalid response structure from Parcelow API");
-        console.error("[Parcelow Checkout] Expected: { data: { order_id, url_checkout } } or { order_id, url_checkout }");
-        console.error("[Parcelow Checkout] Received:", JSON.stringify(parcelowResponse, null, 2));
-        throw new Error("Invalid response from Parcelow API: missing order_id and url_checkout");
-      }
     } catch (error: any) {
-      console.error("[Parcelow Checkout] ❌ Error creating Parcelow order:", error);
-      console.error("[Parcelow Checkout] Error stack:", error.stack);
+      console.error("[Parcelow Checkout] ❌ Error creating Parcelow order:", error.message);
       throw new Error(`Failed to create Parcelow order: ${error.message}`);
     }
 
@@ -697,24 +686,29 @@ Deno.serve(async (req: Request) => {
     console.log("[Parcelow Checkout] 📋 Step 7: Fetching Parcelow order details...");
     let parcelowOrder: any;
 
-    // Extract order_id from response (handle both formats)
-    const orderId = parcelowResponse?.data?.order_id || parcelowResponse?.order_id;
-    const checkoutUrl = parcelowResponse?.data?.url_checkout || parcelowResponse?.url_checkout;
+    const orderId = parcelowResponse?.data?.order_id || parcelowResponse?.order_id || (parcelowResponse?.data?.id);
+    const checkoutUrl = parcelowResponse?.data?.url_checkout || parcelowResponse?.url_checkout || (parcelowResponse?.data?.url_checkout);
 
     if (!orderId || !checkoutUrl) {
-      console.error("[Parcelow Checkout] ❌ Missing required fields in Parcelow response");
-      console.error("[Parcelow Checkout] order_id:", orderId);
-      console.error("[Parcelow Checkout] url_checkout:", checkoutUrl);
+      console.error("[Parcelow Checkout] Missing ID or URL in:", JSON.stringify(parcelowResponse, null, 2));
       throw new Error("Parcelow API response missing order_id or url_checkout");
     }
 
     try {
       parcelowOrder = await parcelowClient.getOrder(orderId.toString());
-      console.log("[Parcelow Checkout] ✅ Parcelow order details fetched");
+      console.log("[Parcelow Checkout] ✅ Parcelow order details fetched via API");
     } catch (error: any) {
       console.warn("[Parcelow Checkout] ⚠️ Could not fetch order details, using response data");
-      parcelowOrder = parcelowResponse.data || parcelowResponse;
+      // Use the response from creation as fallback.
+      // Ensure we unwrap 'data' if it exists at the root, so we have the actual order object
+      if (parcelowResponse?.data && typeof parcelowResponse.data === 'object' && !parcelowResponse.id) {
+        parcelowOrder = parcelowResponse.data;
+      } else {
+        parcelowOrder = parcelowResponse;
+      }
     }
+
+    console.log("[Parcelow Checkout] 🟢 parcelowOrder for DB update:", JSON.stringify(parcelowOrder, null, 2));
 
     // Save Parcelow order details to database
     console.log("[Parcelow Checkout] 📋 Step 8: Saving Parcelow order details to database...");
@@ -725,7 +719,6 @@ Deno.serve(async (req: Request) => {
       parcelow_status: parcelowOrder?.status_text || 'Open',
       parcelow_status_code: parcelowOrder?.status || 0,
     };
-    console.log("[Parcelow Checkout] Update data:", JSON.stringify(updateData, null, 2));
 
     const { error: updateOrderError } = await supabase
       .from("visa_orders")
@@ -733,45 +726,65 @@ Deno.serve(async (req: Request) => {
       .eq("id", order.id);
 
     if (updateOrderError) {
-      console.error("[Parcelow Checkout] ❌ Error updating visa_orders:", updateOrderError);
-      return new Response(
-        JSON.stringify({ error: "Failed to update order", details: updateOrderError.message }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      console.error("[Parcelow Checkout] ❌ Error updating visa_orders:", updateOrderError.message);
+    } else {
+      console.log("[Parcelow Checkout] ✅ visa_orders updated successfully");
     }
-    console.log("[Parcelow Checkout] ✅ visa_orders updated successfully");
 
-    console.log("[Parcelow Checkout] ========== ✅ CHECKOUT CREATED SUCCESSFULLY ==========");
-    console.log("[Parcelow Checkout] Summary:");
-    console.log("[Parcelow Checkout] - Order ID:", orderId);
-    console.log("[Parcelow Checkout] - Status:", parcelowOrder?.status_text || 'Open');
-    console.log("[Parcelow Checkout] - Checkout URL:", checkoutUrl);
+    // Construct response properly ensuring all fields are present
+    // The structure of parcelowOrder depends on whether it came from getOrder or createOrder response
+
+    // Construct response properly ensuring all fields are present
+    // The structure of parcelowOrder depends on whether it came from getOrder or createOrder response
+
+    // Normalize parcelowOrder to be the inner data object if possible
+    let normalizedOrder = parcelowOrder;
+
+    if (parcelowOrder && parcelowOrder.data && typeof parcelowOrder.data === 'object' && !parcelowOrder.order_amount) {
+      normalizedOrder = parcelowOrder.data;
+    }
+
+    // BRUTE FORCE FALLBACKS:
+    // Try to find the values anywhere we can
+    const finalOrderAmount = normalizedOrder?.order_amount
+      || parcelowOrder?.data?.order_amount
+      || parcelowOrder?.order_amount
+      || amountInCents; // Calculated in Step 5
+
+    const finalTotalUsd = normalizedOrder?.total_usd
+      || parcelowOrder?.data?.total_usd
+      || parcelowOrder?.total_usd
+      || finalOrderAmount; // WCS: assume no fees if API fails to report total
+
+    const finalTotalBrl = normalizedOrder?.total_brl
+      || parcelowOrder?.data?.total_brl
+      || parcelowOrder?.total_brl;
+
+    const debugResponse = {
+      success: true,
+      order_id: orderId,
+      checkout_url: checkoutUrl,
+      status: normalizedOrder?.status_text || 'Open',
+      total_usd: finalTotalUsd,
+      total_brl: finalTotalBrl,
+      order_amount: finalOrderAmount,
+      _debug_fallback_used: !normalizedOrder?.total_usd // Flag if we had to use fallbacks
+    };
+
+    console.log("[Parcelow Checkout] 🟢 FINAL RESPONSE PAYLOAD:", JSON.stringify(debugResponse, null, 2));
 
     return new Response(
-      JSON.stringify({
-        success: true,
-        order_id: orderId,
-        checkout_url: checkoutUrl,
-        status: parcelowOrder?.status_text || 'Open',
-        total_usd: parcelowOrder?.total_usd || null,
-        total_brl: parcelowOrder?.total_brl || null,
-        order_amount: parcelowOrder?.order_amount || null,
-      }),
+      JSON.stringify(debugResponse),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
+
   } catch (error: any) {
     console.error("[Parcelow Checkout] ========== ❌ ERROR OCCURRED ==========");
-    console.error("[Parcelow Checkout] Error message:", error.message);
-    console.error("[Parcelow Checkout] Error stack:", error.stack);
-    console.error("[Parcelow Checkout] Error name:", error.name);
-    console.error("[Parcelow Checkout] Full error:", JSON.stringify(error, null, 2));
+    console.error(`[Parcelow Checkout] ${error.message}`);
 
-    // Return more detailed error for debugging
     return new Response(
       JSON.stringify({
         error: error.message || "Failed to create Parcelow checkout",
-        details: process.env.NODE_ENV === 'development' ? error.stack : undefined,
-        type: error.name || 'UnknownError'
       }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );

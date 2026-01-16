@@ -433,47 +433,39 @@ export function SignaturePadComponent({
     };
 
     window.addEventListener('resize', handleResize);
-
-    // Also handle orientation change on mobile
     window.addEventListener('orientationchange', handleResize);
 
     return () => {
-      // Cleanup apenas quando componente desmontar
-      // NÃO fazer cleanup em re-renders - isso cancela os timeouts
-      // Verificar se realmente é um unmount (canvas não existe mais) ou se é apenas StrictMode
-      const isRealUnmount = !canvasRef.current || !document.body.contains(canvasRef.current);
+      // Cleanup completo sempre que o efeito for desmontado ou re-executado
+      // Isso garante que ao ocultar (isHidden=true) e mostrar (isHidden=false), tudo seja recriado do zero
+      console.log('[SIGNATURE PAD] ========== useEffect CLEANUP ==========');
 
-      if (isRealUnmount) {
-        console.log('[SIGNATURE PAD] ========== useEffect CLEANUP (REAL UNMOUNT) ==========');
-        window.removeEventListener('resize', handleResize);
-        window.removeEventListener('orientationchange', handleResize);
+      window.removeEventListener('resize', handleResize);
+      window.removeEventListener('orientationchange', handleResize);
 
-        // Limpar timeouts apenas no unmount real
-        if (autoConfirmTimeoutRef.current) {
-          console.log('[SIGNATURE PAD] Cleanup: Clearing auto-confirm timeout (unmount)');
-          clearTimeout(autoConfirmTimeoutRef.current);
-          autoConfirmTimeoutRef.current = null;
-        }
-        if (countdownIntervalRef.current) {
-          console.log('[SIGNATURE PAD] Cleanup: Clearing countdown interval (unmount)');
-          clearInterval(countdownIntervalRef.current);
-          countdownIntervalRef.current = null;
-        }
-        if (signaturePadRef.current) {
-          console.log('[SIGNATURE PAD] Cleanup: Removing signature pad event listeners (unmount)');
-          signaturePadRef.current.off();
-          signaturePadRef.current = null;
-          isInitializedRef.current = false;
-        }
-        console.log('[SIGNATURE PAD] ========== useEffect CLEANUP COMPLETED ==========');
-      } else {
-        // É apenas StrictMode ou re-render, não fazer cleanup completo
-        console.log('[SIGNATURE PAD] ========== useEffect CLEANUP (StrictMode/re-render, preserving timeouts) ==========');
-        // Apenas remover event listeners de window, mas manter signaturePad e timeouts
-        window.removeEventListener('resize', handleResize);
-        window.removeEventListener('orientationchange', handleResize);
-        console.log('[SIGNATURE PAD] ========== useEffect CLEANUP COMPLETED (timeouts preserved) ==========');
+      if (autoConfirmTimeoutRef.current) {
+        clearTimeout(autoConfirmTimeoutRef.current);
+        autoConfirmTimeoutRef.current = null;
       }
+
+      if (countdownIntervalRef.current) {
+        clearInterval(countdownIntervalRef.current);
+        countdownIntervalRef.current = null;
+      }
+
+      if (signaturePadRef.current) {
+        console.log('[SIGNATURE PAD] Turning off and nulling signaturePad instance');
+        try {
+          signaturePadRef.current.off();
+        } catch (e) {
+          console.warn('Error turning off signature pad:', e);
+        }
+        signaturePadRef.current = null;
+      }
+
+      isInitializedRef.current = false;
+      setupInProgressRef.current = false;
+      console.log('[SIGNATURE PAD] ========== useEffect CLEANUP COMPLETED ==========');
     };
   }, [isHidden]); // Re-inicializar quando o pad for mostrado novamente (ex: clicar em "Edit")
 

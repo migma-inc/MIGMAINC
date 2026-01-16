@@ -82,7 +82,7 @@ export const VisaOrderDetailPage = () => {
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [rejectingContractType, setRejectingContractType] = useState<'annex' | 'contract'>('contract');
   const [rejectionReason, setRejectionReason] = useState('');
-  const [processing, setProcessing] = useState(false);
+  const [processingAction, setProcessingAction] = useState<string | null>(null);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [showAlert, setShowAlert] = useState(false);
   const [alertData, setAlertData] = useState<{ title: string; message: string; variant: 'success' | 'error' | 'warning' | 'info' } | null>(null);
@@ -178,7 +178,7 @@ export const VisaOrderDetailPage = () => {
   const handleApprove = async (contractType: 'annex' | 'contract') => {
     if (!order || !currentUserId) return;
 
-    setProcessing(true);
+    setProcessingAction(`approve-${contractType}`);
     try {
       const result = await approveVisaContract(order.id, currentUserId, contractType);
       if (result.success) {
@@ -214,14 +214,14 @@ export const VisaOrderDetailPage = () => {
       });
       setShowAlert(true);
     } finally {
-      setProcessing(false);
+      setProcessingAction(null);
     }
   };
 
   const handleReject = async (contractType: 'annex' | 'contract', reason?: string) => {
     if (!order || !currentUserId) return;
 
-    setProcessing(true);
+    setProcessingAction(`reject-${contractType}`);
     try {
       const result = await rejectVisaContract(order.id, currentUserId, reason || undefined, contractType);
       if (result.success) {
@@ -259,7 +259,7 @@ export const VisaOrderDetailPage = () => {
       });
       setShowAlert(true);
     } finally {
-      setProcessing(false);
+      setProcessingAction(null);
     }
   };
 
@@ -546,7 +546,7 @@ export const VisaOrderDetailPage = () => {
                           <div className="flex-1">
                             <h4 className="text-yellow-300 font-semibold mb-1">Awaiting Document Resubmission</h4>
                             <p className="text-gray-300 text-sm">
-                              ANNEX I was rejected and a resubmission link has been sent to the client. 
+                              ANNEX I was rejected and a resubmission link has been sent to the client.
                               The document will return to pending status once the client resubmits.
                             </p>
                             {order.annex_rejection_reason && (
@@ -572,10 +572,10 @@ export const VisaOrderDetailPage = () => {
                       <div className="flex gap-4">
                         <Button
                           onClick={() => handleApprove('annex')}
-                          disabled={processing}
+                          disabled={!!processingAction}
                           className="flex-1 bg-green-600 hover:bg-green-700 text-white"
                         >
-                          {processing ? (
+                          {processingAction === 'approve-annex' ? (
                             <>
                               <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                               Processing...
@@ -592,7 +592,7 @@ export const VisaOrderDetailPage = () => {
                             setRejectingContractType('annex');
                             setShowRejectModal(true);
                           }}
-                          disabled={processing}
+                          disabled={!!processingAction}
                           variant="destructive"
                           className="flex-1 bg-red-600 hover:bg-red-700"
                         >
@@ -626,7 +626,7 @@ export const VisaOrderDetailPage = () => {
                           <div className="flex-1">
                             <h4 className="text-yellow-300 font-semibold mb-1">Awaiting Document Resubmission</h4>
                             <p className="text-gray-300 text-sm">
-                              This contract was rejected and a resubmission link has been sent to the client. 
+                              This contract was rejected and a resubmission link has been sent to the client.
                               The contract will return to pending status once the client resubmits their documents.
                             </p>
                             {order.contract_rejection_reason && (
@@ -652,10 +652,10 @@ export const VisaOrderDetailPage = () => {
                       <div className="flex gap-4">
                         <Button
                           onClick={() => handleApprove('contract')}
-                          disabled={processing}
+                          disabled={!!processingAction}
                           className="flex-1 bg-green-600 hover:bg-green-700 text-white"
                         >
-                          {processing ? (
+                          {processingAction === 'approve-contract' ? (
                             <>
                               <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                               Processing...
@@ -672,7 +672,7 @@ export const VisaOrderDetailPage = () => {
                             setRejectingContractType('contract');
                             setShowRejectModal(true);
                           }}
-                          disabled={processing}
+                          disabled={!!processingAction}
                           variant="destructive"
                           className="flex-1 bg-red-600 hover:bg-red-700"
                         >
@@ -769,28 +769,32 @@ export const VisaOrderDetailPage = () => {
       </div>
 
       {/* PDF Modal */}
-      {selectedPdfUrl && (
-        <PdfModal
-          isOpen={showPdfModal}
-          onClose={() => {
-            setShowPdfModal(false);
-            setSelectedPdfUrl(null);
-            setSelectedPdfTitle('');
-          }}
-          pdfUrl={selectedPdfUrl}
-          title={selectedPdfTitle}
-        />
-      )}
+      {
+        selectedPdfUrl && (
+          <PdfModal
+            isOpen={showPdfModal}
+            onClose={() => {
+              setShowPdfModal(false);
+              setSelectedPdfUrl(null);
+              setSelectedPdfTitle('');
+            }}
+            pdfUrl={selectedPdfUrl}
+            title={selectedPdfTitle}
+          />
+        )
+      }
 
       {/* Zelle Receipt Modal */}
-      {order?.zelle_proof_url && (
-        <ImageModal
-          isOpen={showZelleModal}
-          onClose={() => setShowZelleModal(false)}
-          imageUrl={order.zelle_proof_url}
-          title={`Zelle Receipt - ${order.order_number}`}
-        />
-      )}
+      {
+        order?.zelle_proof_url && (
+          <ImageModal
+            isOpen={showZelleModal}
+            onClose={() => setShowZelleModal(false)}
+            imageUrl={order.zelle_proof_url}
+            title={`Zelle Receipt - ${order.order_number}`}
+          />
+        )
+      }
 
       {/* Reject Contract Modal */}
       <PromptModal
@@ -809,24 +813,26 @@ export const VisaOrderDetailPage = () => {
         confirmText={`Reject ${rejectingContractType === 'annex' ? 'ANNEX I' : 'Contract'}`}
         cancelText="Cancel"
         variant="danger"
-        isLoading={processing}
+        isLoading={!!processingAction && processingAction.startsWith('reject-')}
         defaultValue={rejectionReason}
       />
 
       {/* Alert Modal */}
-      {alertData && (
-        <AlertModal
-          isOpen={showAlert}
-          onClose={() => {
-            setShowAlert(false);
-            setAlertData(null);
-          }}
-          title={alertData.title}
-          message={alertData.message}
-          variant={alertData.variant}
-        />
-      )}
-    </div>
+      {
+        alertData && (
+          <AlertModal
+            isOpen={showAlert}
+            onClose={() => {
+              setShowAlert(false);
+              setAlertData(null);
+            }}
+            title={alertData.title}
+            message={alertData.message}
+            variant={alertData.variant}
+          />
+        )
+      }
+    </div >
   );
 };
 

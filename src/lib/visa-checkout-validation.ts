@@ -36,11 +36,11 @@ export interface ValidationResultWithFields {
  */
 export function validateStep1(formData: Step1FormData): ValidationResultWithFields {
   const errors: FieldErrors = {};
-  
+
   if (!formData.clientName.trim()) {
     errors.clientName = 'Full name is required';
   }
-  
+
   // Email validation: no spaces, must have @, characters before/after @, dot after @, characters after dot
   const email = formData.clientEmail.trim();
   if (!email) {
@@ -57,7 +57,7 @@ export function validateStep1(formData: Step1FormData): ValidationResultWithFiel
         errors.clientEmail = 'Invalid email format';
       } else {
         const [localPart, domainPart] = emailParts;
-        
+
         // Check characters before @
         if (!localPart || localPart.length === 0) {
           errors.clientEmail = 'Email must have characters before @';
@@ -75,13 +75,13 @@ export function validateStep1(formData: Step1FormData): ValidationResultWithFiel
       }
     }
   }
-  
+
   // Date of Birth validation: minimum year (>= 1900), valid date, must be in the past, accept day 31
   if (!formData.dateOfBirth) {
     errors.dateOfBirth = 'Date of birth is required';
   } else {
     const birthDate = new Date(formData.dateOfBirth);
-    
+
     // Check if date is valid
     if (isNaN(birthDate.getTime())) {
       errors.dateOfBirth = 'Invalid date of birth';
@@ -96,26 +96,26 @@ export function validateStep1(formData: Step1FormData): ValidationResultWithFiel
         today.setHours(0, 0, 0, 0);
         const birthDateNormalized = new Date(birthDate);
         birthDateNormalized.setHours(0, 0, 0, 0);
-        
+
         if (birthDateNormalized >= today) {
           errors.dateOfBirth = 'Date of birth must be in the past';
         }
       }
     }
   }
-  
+
   if (!formData.documentType) {
     errors.documentType = 'Document type is required';
   }
-  
+
   if (!formData.documentNumber.trim() || formData.documentNumber.length < 5) {
     errors.documentNumber = 'Document number is required (minimum 5 characters)';
   }
-  
+
   if (!formData.addressLine.trim()) {
     errors.addressLine = 'Address is required';
   }
-  
+
   // City validation: only letters, spaces, hyphens, and apostrophes (no numbers)
   const city = formData.city.trim();
   if (!city) {
@@ -126,7 +126,7 @@ export function validateStep1(formData: Step1FormData): ValidationResultWithFiel
       errors.city = 'City must contain only letters, spaces, hyphens, and apostrophes';
     }
   }
-  
+
   // State validation: only letters, spaces, hyphens, and apostrophes (no numbers)
   const state = formData.state.trim();
   if (!state) {
@@ -137,34 +137,36 @@ export function validateStep1(formData: Step1FormData): ValidationResultWithFiel
       errors.state = 'State must contain only letters, spaces, hyphens, and apostrophes';
     }
   }
-  
+
   if (!formData.postalCode.trim()) {
     errors.postalCode = 'Postal code is required';
   }
-  
+
   if (!formData.clientCountry.trim()) {
     errors.clientCountry = 'Country is required';
   }
-  
+
   if (!formData.clientNationality.trim()) {
     errors.clientNationality = 'Nationality is required';
   }
-  
+
   // WhatsApp validation: required and must start with +
   const whatsapp = formData.clientWhatsApp.trim();
   if (!whatsapp) {
     errors.clientWhatsApp = 'WhatsApp with country code (e.g., +1) is required';
   } else if (!whatsapp.startsWith('+')) {
     errors.clientWhatsApp = 'WhatsApp must start with country code (e.g., +1)';
+  } else if (whatsapp.replace(/\D/g, '').length < 7) {
+    errors.clientWhatsApp = 'Phone number is too short (min. 7 digits including country code).';
   }
-  
+
   if (!formData.maritalStatus) {
     errors.maritalStatus = 'Marital status is required';
   }
-  
+
   const valid = Object.keys(errors).length === 0;
   const firstErrorField = valid ? undefined : Object.keys(errors)[0];
-  
+
   return {
     valid,
     errors: valid ? undefined : errors,

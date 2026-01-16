@@ -14,6 +14,7 @@ import { Step1PersonalInfo } from './components/steps/Step1PersonalInfo';
 import { Step2Documents } from './components/steps/Step2Documents';
 import { Step3Payment } from './components/steps/Step3Payment';
 
+
 import { ArrowLeft } from 'lucide-react';
 import { calculateBaseTotal, calculateTotalWithFees } from '@/lib/visa-checkout-utils';
 import { trackLinkClick } from '@/lib/funnel-tracking';
@@ -170,10 +171,14 @@ export const VisaCheckoutPage: React.FC = () => {
                                 extraUnits={state.extraUnits}
                                 totalWithFees={totalWithFees}
                                 paymentMethod={state.paymentMethod}
-                                exchangeRate={state.exchangeRate}
                                 showPaymentButton={true}
                                 isSubmitting={state.submitting}
-                                isPaymentReady={state.signatureConfirmed && state.termsAccepted && (state.paymentMethod !== 'zelle' || !!state.zelleReceipt)}
+                                isPaymentReady={
+                                    state.signatureConfirmed &&
+                                    state.termsAccepted &&
+                                    (state.paymentMethod !== 'zelle' || !!state.zelleReceipt) &&
+                                    (state.paymentMethod !== 'parcelow' || (!!state.creditCardName && !!state.cpf && state.cpf.length >= 11))
+                                }
                                 onPay={() => {
                                     if (state.paymentMethod === 'zelle') paymentHandlers.handleZellePayment();
                                     else if (state.paymentMethod === 'parcelow') paymentHandlers.handleParcelowPayment?.();

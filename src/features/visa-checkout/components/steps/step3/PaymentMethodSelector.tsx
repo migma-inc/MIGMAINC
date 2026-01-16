@@ -16,7 +16,7 @@ export const PaymentMethodSelector: React.FC<PaymentMethodSelectorProps> = ({
     return (
         <div className="pt-4 border-t border-gold-medium/30">
             <Label className="text-white mb-3 block text-sm sm:text-base font-medium">Select Payment Method</Label>
-            <Select value={paymentMethod} onValueChange={(val) => onMethodChange(val as PaymentMethod)}>
+            <Select value={paymentMethod || undefined} onValueChange={(val) => onMethodChange(val as PaymentMethod)}>
                 <SelectTrigger className="w-full bg-white border-gray-300 text-black h-12 focus:ring-gold-medium/50">
                     <SelectValue placeholder="Select a payment method" />
                 </SelectTrigger>
@@ -33,7 +33,7 @@ export const PaymentMethodSelector: React.FC<PaymentMethodSelectorProps> = ({
                             <span>Parcelow (Split Payment)</span>
                         </div>
                     </SelectItem>
-                    {/* 
+                    {/* STRIPE REMOVED - No longer using Stripe payments
                     <SelectItem value="card" className="cursor-pointer hover:bg-gray-100 focus:bg-gray-100 focus:text-black">
                         <div className="flex items-center gap-2">
                             <CreditCard className="w-4 h-4 text-gray-600" />

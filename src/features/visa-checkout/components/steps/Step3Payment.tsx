@@ -6,7 +6,6 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ContractTermsSection } from './step3/ContractTermsSection';
 import { SignatureSection } from './step3/SignatureSection';
 import { PaymentMethodSelector } from './step3/PaymentMethodSelector';
-import { PaymentButtons } from './step3/PaymentButtons';
 
 interface Step3Props {
     state: VisaCheckoutState;
@@ -22,14 +21,12 @@ interface Step3Props {
 export const Step3Payment: React.FC<Step3Props> = ({ state, actions, handlers, onPrev }) => {
     const {
         termsAccepted, dataAuthorization, contractTemplate, chargebackAnnexTemplate, paymentMethod,
-        zelleReceipt, signatureImageDataUrl, signatureConfirmed, submitting
+        zelleReceipt, signatureImageDataUrl, signatureConfirmed
     } = state;
 
     const {
         setTermsAccepted, setDataAuthorization, setPaymentMethod, setZelleReceipt
     } = actions;
-
-    const { handleStripeCheckout, handleZellePayment, handleParcelowPayment } = handlers;
 
     return (
         <Card className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30">
@@ -66,6 +63,51 @@ export const Step3Payment: React.FC<Step3Props> = ({ state, actions, handlers, o
                     onMethodChange={setPaymentMethod}
                 />
 
+                {paymentMethod === 'parcelow' && (
+                    <div className="space-y-2 pt-2 animate-in fade-in slide-in-from-top-2">
+                        <div className="bg-blue-50 border border-blue-200 rounded-md p-4 space-y-3">
+                            <div className="flex flex-col space-y-1">
+                                <label htmlFor="cardName" className="text-sm font-medium text-blue-900">
+                                    Name on Card *
+                                </label>
+                                <p className="text-xs text-blue-700">
+                                    Please enter exactly the name as it appears on your card.
+                                </p>
+                            </div>
+                            <Input
+                                id="cardName"
+                                value={state.creditCardName || ''}
+                                onChange={(e) => actions.setCreditCardName(e.target.value.toUpperCase())}
+                                placeholder=""
+                                className="bg-white text-black uppercase"
+                            />
+                        </div>
+
+                        <div className="bg-blue-50 border border-blue-200 rounded-md p-4 space-y-3">
+                            <div className="flex flex-col space-y-1">
+                                <label htmlFor="cpfInput" className="text-sm font-medium text-blue-900">
+                                    CPF (Brazilian Tax ID) *
+                                </label>
+                                <p className="text-xs text-blue-700">
+                                    Required for payment processing in Brazil.
+                                </p>
+                            </div>
+                            <Input
+                                id="cpfInput"
+                                value={state.cpf || ''}
+                                onChange={(e) => {
+                                    // Allow only numbers and limit to 11 chars
+                                    const val = e.target.value.replace(/\D/g, '').slice(0, 11);
+                                    actions.setCpf(val);
+                                }}
+                                placeholder="000.000.000-00"
+                                className="bg-white text-black"
+                            />
+                        </div>
+
+                    </div>
+                )}
+
                 {paymentMethod === 'zelle' && (
                     <div className="space-y-2 pt-2 animate-in fade-in slide-in-from-top-2">
                         <p className="text-white text-xs sm:text-sm font-medium">Upload Zelle Receipt *</p>
@@ -79,19 +121,64 @@ export const Step3Payment: React.FC<Step3Props> = ({ state, actions, handlers, o
                     </div>
                 )}
 
-                <div className="lg:hidden">
-                    <PaymentButtons
-                        paymentMethod={paymentMethod}
-                        submitting={submitting}
-                        signatureConfirmed={signatureConfirmed}
-                        isZelleReceiptUploaded={!!zelleReceipt}
-                        onPrev={onPrev}
-                        onStripeCheckout={handleStripeCheckout}
-                        onZellePayment={handleZellePayment}
-                        onParcelowPayment={handleParcelowPayment}
-                    />
+                {/* Mobile - Back and Pay buttons */}
+                <div className="lg:hidden space-y-3 pt-4">
+                    <button
+                        onClick={onPrev}
+                        className="w-full inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium text-gold-light border border-gold-medium/50 bg-black/50 rounded-md hover:bg-gold-medium/30 hover:text-gold-light transition-colors"
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="m15 18-6-6 6-6" />
+                        </svg>
+                        Back
+                    </button>
+
+                    {paymentMethod && signatureConfirmed && (
+                        <button
+                            onClick={() => {
+                                if (paymentMethod === 'parcelow') {
+                                    handlers.handleParcelowPayment();
+                                } else if (paymentMethod === 'zelle' && zelleReceipt) {
+                                    handlers.handleZellePayment();
+                                }
+                            }}
+                            disabled={!signatureConfirmed || (paymentMethod === 'zelle' && !zelleReceipt) || (paymentMethod === 'parcelow' && (!state.creditCardName || !state.cpf || state.cpf.length < 11))}
+                            className={`w-full inline-flex items-center justify-center gap-2 px-4 py-3 text-base font-bold rounded-md transition-colors ${paymentMethod === 'parcelow'
+                                ? 'bg-[#22c55e] hover:bg-[#16a34a] text-white'
+                                : 'bg-gold-medium hover:bg-gold-light text-black'
+                                }`}
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                {paymentMethod === 'zelle' ? (
+                                    <>
+                                        <line x1="12" y1="1" x2="12" y2="23"></line>
+                                        <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
+                                    </>
+                                ) : (
+                                    <>
+                                        <rect width="20" height="14" x="2" y="5" rx="2"></rect>
+                                        <line x1="2" x2="22" y1="10" y2="10"></line>
+                                    </>
+                                )}
+                            </svg>
+                            {paymentMethod === 'parcelow' ? 'Pay with Parcelow' : 'Confirm Zelle Payment'}
+                        </button>
+                    )}
+                </div>
+
+                {/* Desktop - Back button only */}
+                <div className="hidden lg:flex pt-4">
+                    <button
+                        onClick={onPrev}
+                        className="inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium text-gold-light border border-gold-medium/50 bg-black/50 rounded-md hover:bg-gold-medium/30 hover:text-gold-light transition-colors"
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="m15 18-6-6 6-6" />
+                        </svg>
+                        Back
+                    </button>
                 </div>
             </CardContent>
-        </Card>
+        </Card >
     );
 };

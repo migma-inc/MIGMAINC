@@ -5,15 +5,15 @@ import Stripe from "npm:stripe@^17.3.1";
 // Get all available webhook secrets (inline)
 function getAllWebhookSecrets(): Array<{ env: 'production' | 'staging' | 'test'; secret: string }> {
   const secrets: Array<{ env: 'production' | 'staging' | 'test'; secret: string }> = [];
-  
+
   const prodSecret = Deno.env.get('STRIPE_WEBHOOK_SECRET_PROD');
   const stagingSecret = Deno.env.get('STRIPE_WEBHOOK_SECRET_STAGING');
   const testSecret = Deno.env.get('STRIPE_WEBHOOK_SECRET_TEST');
-  
+
   if (prodSecret) secrets.push({ env: 'production', secret: prodSecret });
   if (stagingSecret) secrets.push({ env: 'staging', secret: stagingSecret });
   if (testSecret) secrets.push({ env: 'test', secret: testSecret });
-  
+
   return secrets;
 }
 
@@ -21,11 +21,11 @@ function getAllWebhookSecrets(): Array<{ env: 'production' | 'staging' | 'test';
 function getStripeConfigForWebhook(verifiedEnvironment: 'production' | 'staging' | 'test'): { secretKey: string; apiVersion: string; appInfo: any } {
   const suffix = verifiedEnvironment === 'production' ? 'PROD' : 'TEST';
   const secretKey = Deno.env.get(`STRIPE_SECRET_KEY_${suffix}`) || '';
-  
+
   if (!secretKey) {
     throw new Error(`Missing STRIPE_SECRET_KEY_${suffix}`);
   }
-  
+
   return {
     secretKey,
     apiVersion: '2024-12-18.acacia',
@@ -42,17 +42,17 @@ function normalizeServiceName(productSlug: string, productName: string): string 
   if (productSlug.startsWith('initial-')) {
     return 'F1 Initial';
   }
-  
+
   // COS - agrupa os 3 produtos
   if (productSlug.startsWith('cos-')) {
     return 'COS & Transfer';
   }
-  
+
   // Transfer - agrupa os 3 produtos
   if (productSlug.startsWith('transfer-')) {
     return 'COS & Transfer';
   }
-  
+
   // Para outros produtos, retorna o nome original
   return productName;
 }
@@ -60,26 +60,26 @@ function normalizeServiceName(productSlug: string, productName: string): string 
 // Send webhook to client (n8n) after payment confirmation
 async function sendClientWebhook(order: any, supabase: any) {
   let payload: any = null;
-  
+
   try {
     const webhookUrl = Deno.env.get('CLIENT_WEBHOOK_URL');
-    
+
     if (!webhookUrl) {
       console.error('[Webhook Client] ❌ CLIENT_WEBHOOK_URL environment variable is not set. Skipping webhook.');
       return;
     }
-    
+
     console.log('[Webhook Client] 📤 Starting webhook send process');
     console.log('[Webhook Client] Order ID:', order.id);
     console.log('[Webhook Client] Order Number:', order.order_number);
-    
+
     // 1. Buscar produto no banco para obter o nome do serviço
     const { data: product, error: productError } = await supabase
       .from('visa_products')
       .select('name')
       .eq('slug', order.product_slug)
       .single();
-    
+
     if (productError) {
       console.warn('[Webhook Client] ⚠️ Error fetching product:', productError);
       console.warn('[Webhook Client] Using product_slug as fallback:', order.product_slug);
@@ -87,13 +87,13 @@ async function sendClientWebhook(order: any, supabase: any) {
     } else {
       console.log('[Webhook Client] ✅ Product found:', product?.name);
     }
-    
+
     // 2. Normalizar nome do serviço para produtos agrupados
     const normalizedServiceName = normalizeServiceName(
       order.product_slug,
       product?.name || order.product_slug
     );
-    
+
     // 3. Montar payload conforme especificado pelo cliente
     // IMPORTANTE: valor_servico deve ser APENAS o valor unitário do serviço (sem multiplicar por unidades)
     // Para produtos units_only: apenas extra_unit_price (valor unitário, não o total)
@@ -107,7 +107,7 @@ async function sendClientWebhook(order: any, supabase: any) {
       // Para base_plus_units: valor = apenas base_price_usd (sem dependentes)
       baseServicePrice = parseFloat(order.base_price_usd || '0');
     }
-    
+
     // Log detalhado do cálculo do valor
     console.log('[Webhook Client] 💰 Valor calculation details:', {
       calculation_type: order.calculation_type,
@@ -118,7 +118,7 @@ async function sendClientWebhook(order: any, supabase: any) {
       calculated_baseServicePrice: baseServicePrice,
       product_slug: order.product_slug,
     });
-    
+
     payload = {
       servico: normalizedServiceName,
       plano_servico: order.product_slug,
@@ -129,7 +129,7 @@ async function sendClientWebhook(order: any, supabase: any) {
       vendedor: order.seller_id || '',
       quantidade_dependentes: order.dependent_names && Array.isArray(order.dependent_names) ? order.dependent_names.length : 0,
     };
-    
+
     // Log resumo antes de enviar
     const dependentCount = order.dependent_names && Array.isArray(order.dependent_names) ? order.dependent_names.length : 0;
     console.log('[Webhook Client] 📋 RESUMO DOS WEBHOOKS A SEREM ENVIADOS:');
@@ -139,9 +139,9 @@ async function sendClientWebhook(order: any, supabase: any) {
     console.log('[Webhook Client] 📦 Payload completo do CLIENTE PRINCIPAL que será enviado:');
     console.log(JSON.stringify(payload, null, 2));
     console.log('[Webhook Client] 🌐 Sending POST request to:', webhookUrl);
-    
+
     const startTime = Date.now();
-    
+
     // 3. Fazer POST para o webhook do cliente
     const response = await fetch(webhookUrl, {
       method: 'POST',
@@ -150,11 +150,11 @@ async function sendClientWebhook(order: any, supabase: any) {
       },
       body: JSON.stringify(payload),
     });
-    
+
     const endTime = Date.now();
     const duration = endTime - startTime;
     const durationStr = duration + "ms";
-    
+
     // 4. Log resultado detalhado (sucesso ou erro)
     if (!response.ok) {
       const responseText = await response.text();
@@ -189,34 +189,34 @@ async function sendClientWebhook(order: any, supabase: any) {
     if (order.dependent_names && Array.isArray(order.dependent_names) && order.dependent_names.length > 0) {
       const dependentCount = order.dependent_names.length;
       const dependentUnitPrice = parseFloat(order.extra_unit_price_usd || '0');
-      
+
       console.log('');
       console.log('[Webhook Client] ========================================');
       console.log(`[Webhook Client] 📤 INICIANDO ENVIO DE ${dependentCount} WEBHOOK(S) DE DEPENDENTE(S)`);
       console.log('[Webhook Client] ========================================');
-      
+
       for (let i = 0; i < dependentCount; i++) {
         const dependentName = order.dependent_names[i];
-        
+
         if (!dependentName || dependentName.trim() === '') {
           console.warn(`[Webhook Client] ⚠️ Skipping dependent ${i + 1}: empty name`);
           continue;
         }
-        
+
         // Payload simplificado - nome do cliente principal, nome do dependente e valor
         const dependentPayload = {
           nome_completo_cliente_principal: order.client_name,
           nome_completo_dependente: dependentName,
           valor_servico: dependentUnitPrice.toFixed(2),
         };
-        
+
         console.log('');
         console.log(`[Webhook Client] 📦 PAYLOAD DEPENDENTE ${i + 1}/${dependentCount} (ANTES DE ENVIAR):`);
         console.log(JSON.stringify(dependentPayload, null, 2));
         console.log(`[Webhook Client] 🌐 Sending POST request for Dependent ${i + 1}/${dependentCount}`);
-        
+
         const dependentStartTime = Date.now();
-        
+
         try {
           const dependentResponse = await fetch(webhookUrl, {
             method: 'POST',
@@ -225,11 +225,11 @@ async function sendClientWebhook(order: any, supabase: any) {
             },
             body: JSON.stringify(dependentPayload),
           });
-          
+
           const dependentEndTime = Date.now();
           const dependentDuration = dependentEndTime - dependentStartTime;
           const dependentDurationStr = dependentDuration + "ms";
-          
+
           if (!dependentResponse.ok) {
             const dependentResponseText = await dependentResponse.text();
             console.error(`[Webhook Client] ❌ ERRO ao enviar webhook do DEPENDENTE ${i + 1}/${dependentCount}:`, {
@@ -274,7 +274,7 @@ async function sendClientWebhook(order: any, supabase: any) {
           console.error(JSON.stringify(dependentPayload, null, 2));
         }
       }
-      
+
       console.log('');
       console.log('[Webhook Client] ========================================');
       console.log(`[Webhook Client] ✅ FINALIZADO: ${dependentCount} webhook(s) de dependente(s) processado(s)`);
@@ -283,7 +283,7 @@ async function sendClientWebhook(order: any, supabase: any) {
     } else {
       console.log('[Webhook Client] ℹ️ No dependents to send webhooks for');
     }
-    
+
     // Log resumo final
     console.log('');
     console.log('[Webhook Client] ========================================');
@@ -422,7 +422,7 @@ Deno.serve(async (req: Request) => {
               const paymentIntent = await stripe.paymentIntents.retrieve(
                 session.payment_intent as string
               );
-              
+
               if (paymentIntent.charges.data.length > 0) {
                 const charge = paymentIntent.charges.data[0];
                 if (charge.payment_method_details?.type === "pix") {
@@ -440,6 +440,25 @@ Deno.serve(async (req: Request) => {
           }
         }
 
+        // Fetch fee amount from Stripe if possible
+        let feeAmount = 0;
+        if (session.payment_intent) {
+          try {
+            const paymentIntent = await stripe.paymentIntents.retrieve(
+              session.payment_intent as string,
+              { expand: ['latest_charge.balance_transaction'] }
+            );
+            const charge = paymentIntent.latest_charge as any;
+            if (charge?.balance_transaction?.fee) {
+              // Stripe fee is in cents
+              feeAmount = charge.balance_transaction.fee / 100;
+              console.log(`[Webhook] Stripe fee retrieved: $${feeAmount}`);
+            }
+          } catch (feeError) {
+            console.error("[Webhook] Error retrieving Stripe fee:", feeError);
+          }
+        }
+
         // Update order status
         const { error: updateError } = await supabase
           .from("visa_orders")
@@ -452,6 +471,7 @@ Deno.serve(async (req: Request) => {
               payment_method: paymentMethod,
               completed_at: new Date().toISOString(),
               session_id: session.id,
+              fee_amount: feeAmount, // Save the fee!
             },
           })
           .eq("id", order.id);
@@ -530,13 +550,13 @@ Deno.serve(async (req: Request) => {
         // ANNEX I is now required for ALL products (universal payment authorization)
         // Always generate ANNEX I PDF for all products
         // Also generate full contract PDF if it exists (optional, for additional terms)
-        
+
         // Generate full contract PDF (optional - if template exists)
         try {
           const { data: pdfData, error: pdfError } = await supabase.functions.invoke("generate-visa-contract-pdf", {
             body: { order_id: order.id },
           });
-          
+
           if (pdfError) {
             console.error("[Webhook] Error generating contract PDF:", pdfError);
           } else {
@@ -553,7 +573,7 @@ Deno.serve(async (req: Request) => {
             const { data: annexPdfData, error: annexPdfError } = await supabase.functions.invoke("generate-annex-pdf", {
               body: { order_id: order.id },
             });
-            
+
             if (annexPdfError) {
               console.error("[Webhook] Error generating ANNEX I PDF:", annexPdfError);
             } else {
@@ -571,7 +591,7 @@ Deno.serve(async (req: Request) => {
           const metadata = order.payment_metadata as any;
           const currency = metadata?.currency || (paymentMethod === "pix" ? "BRL" : "USD");
           const finalAmount = metadata?.final_amount || order.total_price_usd;
-          
+
           await supabase.functions.invoke("send-payment-confirmation-email", {
             body: {
               clientName: order.client_name,
@@ -703,13 +723,13 @@ Deno.serve(async (req: Request) => {
         // ANNEX I is now required for ALL products (universal payment authorization)
         // Always generate ANNEX I PDF for all products
         // Also generate full contract PDF if it exists (optional, for additional terms)
-        
+
         // Generate full contract PDF (optional - if template exists)
         try {
           const { data: pdfData, error: pdfError } = await supabase.functions.invoke("generate-visa-contract-pdf", {
             body: { order_id: order.id },
           });
-          
+
           if (pdfError) {
             console.error("[Webhook] Error generating contract PDF:", pdfError);
           } else {
@@ -726,7 +746,7 @@ Deno.serve(async (req: Request) => {
             const { data: annexPdfData, error: annexPdfError } = await supabase.functions.invoke("generate-annex-pdf", {
               body: { order_id: order.id },
             });
-            
+
             if (annexPdfError) {
               console.error("[Webhook] Error generating ANNEX I PDF:", annexPdfError);
             } else {
@@ -744,7 +764,7 @@ Deno.serve(async (req: Request) => {
           const metadata = order.payment_metadata as any;
           const currency = metadata?.currency || "BRL";
           const finalAmount = metadata?.final_amount || order.total_price_usd;
-          
+
           await supabase.functions.invoke("send-payment-confirmation-email", {
             body: {
               clientName: order.client_name,

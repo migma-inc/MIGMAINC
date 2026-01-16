@@ -8,7 +8,6 @@ interface OrderSummaryProps {
     extraUnits: number;
     totalWithFees: number;
     paymentMethod: string;
-    exchangeRate: number | null;
     showPaymentButton?: boolean;
     isPaymentReady?: boolean;
     isSubmitting?: boolean;
@@ -20,7 +19,6 @@ export const OrderSummary: React.FC<OrderSummaryProps> = ({
     extraUnits,
     totalWithFees,
     paymentMethod,
-    exchangeRate,
     showPaymentButton,
     isPaymentReady,
     isSubmitting,
@@ -32,14 +30,14 @@ export const OrderSummary: React.FC<OrderSummaryProps> = ({
     return (
         <Card className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30 lg:sticky lg:top-4">
             <CardHeader>
-                <CardTitle className="text-white text-lg sm:text-xl">Resumo do Pedido</CardTitle>
+                <CardTitle className="text-white text-lg sm:text-xl">Order Summary</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4 p-4 sm:p-6">
                 <div className="space-y-2">
                     {product.calculation_type === 'base_plus_units' && (
                         <>
                             <div className="flex justify-between text-xs sm:text-sm">
-                                <span className="text-gray-400">Preço Base</span>
+                                <span className="text-gray-400">Base Price</span>
                                 <span className="text-white">US$ {basePrice.toFixed(2)}</span>
                             </div>
                             {extraUnits > 0 && product.allow_extra_units && (
@@ -52,7 +50,7 @@ export const OrderSummary: React.FC<OrderSummaryProps> = ({
                     )}
                     {product.calculation_type === 'units_only' && (
                         <div className="flex justify-between text-xs sm:text-sm">
-                            <span className="text-gray-400">Número de solicitantes ({extraUnits})</span>
+                            <span className="text-gray-400">Number of applicants ({extraUnits})</span>
                             <span className="text-white">US$ {(extraUnits * extraUnitPrice).toFixed(2)}</span>
                         </div>
                     )}
@@ -61,23 +59,28 @@ export const OrderSummary: React.FC<OrderSummaryProps> = ({
                         <div className="flex justify-between">
                             <span className="text-white font-bold text-sm sm:text-base">Total</span>
                             <span className="text-xl sm:text-2xl font-bold text-gold-light">
-                                {paymentMethod === 'pix' && exchangeRate ? (
-                                    <>R$ {totalWithFees.toFixed(2)}</>
-                                ) : (
-                                    <>US$ {totalWithFees.toFixed(2)}</>
-                                )}
+                                US$ {totalWithFees.toFixed(2)}
                             </span>
                         </div>
                         {paymentMethod === 'parcelow' && (
-                            <p className="text-[10px] sm:text-xs text-center text-gray-400 mt-1">
-                                Taxas Parcelow incluídas
-                            </p>
+                            <div className="bg-gold-dark/10 border border-gold-medium/30 rounded-md p-2 mt-2">
+                                <p className="text-[10px] sm:text-xs text-gray-300 leading-relaxed">
+                                    ⚠️ <strong className="text-gold-light">Note:</strong> Final amount will be calculated by Parcelow at checkout, including:
+                                </p>
+                                <ul className="text-[9px] sm:text-[10px] text-gray-400 mt-1 ml-3 list-disc list-inside">
+                                    <li>Processing fees</li>
+                                    <li>Exchange rate fluctuations (real-time quote)</li>
+                                    <li>Discounts (Pix/TED) or installment fees</li>
+                                </ul>
+                            </div>
                         )}
+                        {/* STRIPE REMOVED - No longer using Stripe
                         {paymentMethod === 'pix' && exchangeRate && (
                             <p className="text-[10px] sm:text-xs text-gray-400 mt-1 text-right">
-                                Inclui taxa de processamento
+                                Includes processing fee
                             </p>
                         )}
+                        */}
                     </div>
                 </div>
 
@@ -92,23 +95,29 @@ export const OrderSummary: React.FC<OrderSummaryProps> = ({
                                 }`}
                         >
                             {isSubmitting ? (
-                                'Processando...'
+                                'Processing...'
                             ) : (
                                 <div className="flex items-center justify-center gap-2">
                                     {paymentMethod === 'parcelow' ? (
                                         <>
                                             <CreditCard className="w-5 h-5" />
-                                            Pagar com Parcelow
+                                            Pay with Parcelow
                                         </>
                                     ) : paymentMethod === 'zelle' ? (
                                         <>
                                             <DollarSign className="w-5 h-5" />
-                                            Confirmar Pagamento Zelle
+                                            Confirm Zelle Payment
                                         </>
                                     ) : (
+                                        /* STRIPE REMOVED - No longer using Stripe/Card payments
                                         <>
                                             <CreditCard className="w-5 h-5" />
-                                            Pagar Agora
+                                            Pay Now
+                                        </>
+                                        */
+                                        <>
+                                            <CreditCard className="w-5 h-5" />
+                                            Pay Now
                                         </>
                                     )}
                                 </div>
@@ -116,7 +125,7 @@ export const OrderSummary: React.FC<OrderSummaryProps> = ({
                         </Button>
                         <div className="flex items-center justify-center gap-2 mt-3 opacity-60">
                             <Lock className="w-3 h-3 text-gold-light" />
-                            <span className="text-[10px] text-gray-400">Pagamento 100% seguro</span>
+                            <span className="text-[10px] text-gray-400">100% Secure Payment</span>
                         </div>
                     </div>
                 )}

@@ -31,15 +31,33 @@ export type CommissionStats = {
  * Helper function to extract net amount from order data
  */
 export function calculateNetAmount(order: any): number {
-  const totalPrice = parseFloat(order.total_price_usd || '0');
+  let totalPrice = parseFloat(order.total_price_usd || '0');
+
+  // Fix for total_price being in cents
+  if (totalPrice > 10000) {
+    totalPrice = totalPrice / 100;
+  }
+
   const metadata = order.payment_metadata as any;
-  
+  const paymentMethod = order.payment_method;
+
   // If payment_metadata has fee_amount, subtract it
   if (metadata?.fee_amount) {
-    const feeAmount = parseFloat(metadata.fee_amount);
+    let feeAmount = parseFloat(metadata.fee_amount);
+    if (feeAmount > 10000 && feeAmount > totalPrice) feeAmount = feeAmount / 100;
     return Math.max(totalPrice - feeAmount, 0); // Ensure non-negative
   }
-  
+
+  // Fallback for Parcelow (5% markup in total_price_usd)
+  if (paymentMethod === 'parcelow') {
+    return totalPrice / 1.05;
+  }
+
+  // Fallback for Stripe (approx 3.5% fee subtracted from total_price_usd)
+  if (paymentMethod?.startsWith('stripe')) {
+    return totalPrice * 0.965;
+  }
+
   // Zelle or other methods without fees: return total_price
   return Math.max(totalPrice, 0);
 }
@@ -94,7 +112,7 @@ export async function getSellerCommissionStats(
 ): Promise<CommissionStats> {
   try {
     // Get start date for current month if period is 'month'
-    const startDate = period === 'month' 
+    const startDate = period === 'month'
       ? new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString()
       : null;
 

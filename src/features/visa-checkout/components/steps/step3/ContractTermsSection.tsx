@@ -26,7 +26,11 @@ export const ContractTermsSection: React.FC<ContractTermsSectionProps> = ({
                 <div className="p-3 sm:p-4 bg-blue-900/20 border border-blue-500/30 rounded-md">
                     <h3 className="text-white font-semibold mb-2 text-sm">{contractTemplate.name}</h3>
                     <div
-                        className="text-xs text-gray-300 max-h-48 overflow-y-auto prose prose-invert custom-scrollbar"
+                        className="text-sm text-gray-200 max-h-48 overflow-y-auto prose prose-invert custom-scrollbar leading-relaxed"
+                        style={{
+                            lineHeight: '1.8',
+                            letterSpacing: '0.01em'
+                        }}
                         dangerouslySetInnerHTML={{ __html: contractTemplate.content }}
                     />
                 </div>
@@ -35,7 +39,11 @@ export const ContractTermsSection: React.FC<ContractTermsSectionProps> = ({
             <div className="p-3 sm:p-4 bg-blue-900/20 border border-blue-500/30 rounded-md">
                 <h3 className="text-white font-semibold mb-2 text-sm">ANNEX I - Payment Authorization</h3>
                 <div
-                    className="text-xs text-gray-300 max-h-48 overflow-y-auto prose prose-invert custom-scrollbar"
+                    className="text-sm text-gray-200 max-h-48 overflow-y-auto prose prose-invert custom-scrollbar leading-relaxed"
+                    style={{
+                        lineHeight: '1.8',
+                        letterSpacing: '0.01em'
+                    }}
                     dangerouslySetInnerHTML={{ __html: chargebackAnnexTemplate?.content || ANNEX_I_HTML }}
                 />
             </div>
