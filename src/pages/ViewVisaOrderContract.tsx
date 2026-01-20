@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { AlertCircle, FileText, Router, CheckCircle2 } from 'lucide-react';
+import { AlertCircle, FileText, CheckCircle2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { useContentProtection } from '@/hooks/useContentProtection';
