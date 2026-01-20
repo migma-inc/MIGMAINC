@@ -13,7 +13,7 @@ import {
     trackPaymentStarted
 } from '@/lib/funnel-tracking';
 import { getClientIP } from '@/lib/visa-checkout-utils';
-import { saveStep3Data } from '@/lib/visa-checkout-service';
+import { saveStep3Data, uploadSignature } from '@/lib/visa-checkout-service';
 import type { VisaCheckoutState, VisaCheckoutActions } from '../types/form.types';
 
 export const usePaymentHandlers = (
@@ -120,7 +120,16 @@ export const usePaymentHandlers = (
                 ? existingContractData.contract_selfie_url
                 : documentFiles?.selfie?.url || '';
 
-            // 2. Process
+            // 3. Upload signature if needed
+            let signatureUrl = '';
+            if (signatureImageDataUrl) {
+                const uploadedUrl = await uploadSignature(signatureImageDataUrl);
+                if (uploadedUrl) {
+                    signatureUrl = uploadedUrl;
+                }
+            }
+
+            // 4. Process
             const request: StripeCheckoutRequest = {
                 product_slug: productSlug!,
                 seller_id: sellerId || null,
@@ -136,7 +145,7 @@ export const usePaymentHandlers = (
                 exchange_rate: exchangeRate,
                 contract_document_url: documentFrontUrl,
                 contract_selfie_url: selfieUrl,
-                signature_image_url: '', // Should upload first, but keeping it simple for now or using service
+                signature_image_url: signatureUrl,
                 service_request_id: serviceRequestId!,
                 ip_address: await getClientIP(),
                 contract_accepted: true,
@@ -164,6 +173,15 @@ export const usePaymentHandlers = (
         setIsZelleProcessing(true);
         try {
             // Logic from VisaCheckout...
+            // Upload signature if needed
+            let signatureUrl = '';
+            if (signatureImageDataUrl) {
+                const uploadedUrl = await uploadSignature(signatureImageDataUrl);
+                if (uploadedUrl) {
+                    signatureUrl = uploadedUrl;
+                }
+            }
+
             const request: ZellePaymentRequest = {
                 product_slug: productSlug!,
                 seller_id: sellerId || null,
@@ -178,7 +196,7 @@ export const usePaymentHandlers = (
                 payment_method: 'zelle',
                 contract_document_url: '', // same logic as stripe
                 contract_selfie_url: '',
-                signature_image_url: '',
+                signature_image_url: signatureUrl,
                 service_request_id: serviceRequestId!,
                 ip_address: await getClientIP(),
                 contract_accepted: true,
@@ -243,6 +261,15 @@ export const usePaymentHandlers = (
             // Create Order
             const orderNumber = `ORD-${new Date().toISOString().split('T')[0].replace(/-/g, '')}-${Math.floor(Math.random() * 10000).toString().padStart(4, '0')}`;
 
+            // Upload signature if needed
+            let signatureUrl = '';
+            if (signatureImageDataUrl) {
+                const uploadedUrl = await uploadSignature(signatureImageDataUrl);
+                if (uploadedUrl) {
+                    signatureUrl = uploadedUrl;
+                }
+            }
+
             const { data: order, error: orderError } = await supabase
                 .from('visa_orders')
                 .insert({
@@ -265,6 +292,7 @@ export const usePaymentHandlers = (
                     total_price_usd: totalWithFees,
                     contract_document_url: documentFrontUrl,
                     contract_selfie_url: selfieUrl,
+                    signature_image_url: signatureUrl,
                     contract_accepted: true,
                     contract_signed_at: new Date().toISOString(),
                     payment_metadata: {

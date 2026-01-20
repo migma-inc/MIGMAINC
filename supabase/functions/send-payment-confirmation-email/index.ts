@@ -64,6 +64,38 @@ Deno.serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
     console.log("[Payment Confirmation] Supabase client created with Service Role Key");
 
+    // NEW LOGIC: Generate Visa Contract View Token
+    let contractViewLink = null;
+    try {
+      console.log("[Payment Confirmation] Fetching order ID for contract view token...");
+      const { data: orderData, error: orderError } = await supabase
+        .from('visa_orders')
+        .select('id')
+        .eq('order_number', orderNumber)
+        .single();
+
+      if (orderData && !orderError) {
+        const token = crypto.randomUUID();
+        const { error: tokenError } = await supabase
+          .from('visa_contract_view_tokens')
+          .insert({
+            order_id: orderData.id,
+            token: token,
+            expires_at: null
+          });
+        if (!tokenError) {
+          contractViewLink = `https://migmainc.com/view-visa-contract?token=${token}`;
+          console.log("[Payment Confirmation] Generated contract view token:", token);
+        } else {
+          console.error("[Payment Confirmation] Token creation error:", tokenError);
+        }
+      } else {
+        console.error("[Payment Confirmation] Order fetch error (cannot create token):", orderError);
+      }
+    } catch (err) {
+      console.error("[Payment Confirmation] Contract link generation error:", err);
+    }
+
     // Get Supabase URL for logo
     const logoUrl = `${supabaseUrl}/storage/v1/object/public/logo/logo2.png`;
 
@@ -156,7 +188,6 @@ Deno.serve(async (req) => {
                                             We are pleased to confirm that your payment has been received and processed successfully.
                                         </p>
                                         <!-- Payment Details Box -->
-                                        <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
                                             <tr>
                                                 <td style="padding: 20px; background-color: #1a1a1a; border-left: 4px solid #CE9F48; border-radius: 4px; margin: 20px 0;">
                                                     <p style="margin: 0 0 10px 0; color: #CE9F48; font-weight: bold; font-size: 16px;">Order Number:</p>
@@ -178,6 +209,22 @@ Deno.serve(async (req) => {
                                                 </td>
                                             </tr>
                                         </table>
+
+                                        ${contractViewLink ? `
+                                        <!-- Contract View Button -->
+                                        <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin-top: 30px; margin-bottom: 30px;">
+                                            <tr>
+                                                <td align="center">
+                                                    <a href="${contractViewLink}" target="_blank" style="background: linear-gradient(135deg, #CE9F48 0%, #F3E196 100%); color: #000000; padding: 16px 32px; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 16px; display: inline-block; box-shadow: 0 4px 15px rgba(206, 159, 72, 0.3); transition: all 0.3s ease;">
+                                                        View Signed Contract
+                                                    </a>
+                                                    <p style="margin: 12px 0 0 0; color: #888888; font-size: 13px;">
+                                                        Secure link • Access anytime
+                                                    </p>
+                                                </td>
+                                            </tr>
+                                        </table>
+                                        ` : ''}
                                         <p style="margin: 20px 0 0 0; font-size: 16px; line-height: 1.6; color: #e0e0e0;">
                                             Our team will contact you shortly at <strong style="color: #CE9F48;">${safeClientEmail}</strong> to begin processing your visa application.
                                         </p>

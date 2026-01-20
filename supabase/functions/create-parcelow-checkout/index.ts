@@ -636,21 +636,25 @@ Deno.serve(async (req: Request) => {
         const amountBRLInCents = Math.round(amountBRL * 100);
         items[0].amount = amountBRLInCents;
 
+        const notifyUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/parcelow-webhook`;
         parcelowResponse = await parcelowClient.createOrderBRL({
           reference: order.order_number,
           partner_reference: order.id,
           client: clientData,
           items,
           redirect: redirectUrls,
+          notify_url: notifyUrl,
         });
       } else {
         try {
+          const notifyUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/parcelow-webhook`;
           parcelowResponse = await parcelowClient.createOrderUSD({
             reference: order.order_number,
             partner_reference: order.id,
             client: clientData,
             items,
             redirect: redirectUrls,
+            notify_url: notifyUrl,
           });
         } catch (err: any) {
           if (err.message && err.message.includes('Email do cliente existente')) {
@@ -659,12 +663,14 @@ Deno.serve(async (req: Request) => {
             const aliasedEmail = `${emailParts[0]}+${Date.now()}@${emailParts[1]}`;
             const clientDataRetry = { ...clientData, email: aliasedEmail };
 
+            const notifyUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/parcelow-webhook`;
             parcelowResponse = await parcelowClient.createOrderUSD({
               reference: order.order_number,
               partner_reference: order.id,
               client: clientDataRetry,
               items,
               redirect: redirectUrls,
+              notify_url: notifyUrl,
             });
           } else {
             throw err;

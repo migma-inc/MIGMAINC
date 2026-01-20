@@ -1255,7 +1255,8 @@ export function SellerLinks() {
 
                       // Generate link
                       const siteUrl = window.location.origin;
-                      const link = `${siteUrl}/checkout/visa/${prefillFormData.productSlug}?seller=${seller.seller_id_public}&prefill=${token}`;
+                      // When using prefill token, we don't need seller ID in the URL as it's included in the token
+                      const link = `${siteUrl}/checkout/visa/${prefillFormData.productSlug}?prefill=${token}`;
                       setGeneratedPrefillLink(link);
                     } catch (err: any) {
                       console.error('Error generating prefill link:', err);
@@ -1419,7 +1420,8 @@ export function SellerLinks() {
                                             if (insertError) throw insertError;
 
                                             const siteUrl = window.location.origin;
-                                            const link = `${siteUrl}/checkout/visa/${product.slug}?seller=${seller.seller_id_public}&prefill=${token}`;
+                                            // When using prefill token, we don't need seller ID in the URL as it's included in the token
+                                            const link = `${siteUrl}/checkout/visa/${product.slug}?prefill=${token}`;
                                             setProductGeneratedLinks({
                                               ...productGeneratedLinks,
                                               [product.slug]: link,
@@ -1583,7 +1585,8 @@ export function SellerLinks() {
                                       if (insertError) throw insertError;
 
                                       const siteUrl = window.location.origin;
-                                      const link = `${siteUrl}/checkout/visa/${product.slug}?seller=${seller.seller_id_public}&prefill=${token}`;
+                                      // When using prefill token, we don't need seller ID in the URL as it's included in the token
+                                      const link = `${siteUrl}/checkout/visa/${product.slug}?prefill=${token}`;
                                       setProductGeneratedLinks({
                                         ...productGeneratedLinks,
                                         [product.slug]: link,

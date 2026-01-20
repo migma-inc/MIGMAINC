@@ -366,6 +366,57 @@ export async function saveStep3Data(
   }
 }
 
+/**
+ * Realiza o upload da imagem da assinatura para o Supabase Storage
+ * @param signatureImageDataUrl Dados da imagem em base64
+ * @returns URL pública da imagem ou null em caso de erro
+ */
+export async function uploadSignature(signatureImageDataUrl: string): Promise<string | null> {
+  if (!signatureImageDataUrl) return null;
+
+  try {
+    console.log('[VISA CHECKOUT] Uploading signature image...');
+
+    // Converter base64 para blob
+    const base64Data = signatureImageDataUrl.split(',')[1];
+    const byteCharacters = atob(base64Data);
+    const byteNumbers = new Array(byteCharacters.length);
+    for (let i = 0; i < byteCharacters.length; i++) {
+      byteNumbers[i] = byteCharacters.charCodeAt(i);
+    }
+    const byteArray = new Uint8Array(byteNumbers);
+    const blob = new Blob([byteArray], { type: 'image/png' });
+
+    // Criar File a partir do blob
+    const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.png`;
+    const file = new File([blob], fileName, { type: 'image/png' });
+
+    // Upload para storage (bucket visa-signatures)
+    const { error: uploadError } = await supabase.storage
+      .from('visa-signatures')
+      .upload(fileName, file, {
+        contentType: 'image/png',
+        upsert: false,
+      });
+
+    if (uploadError) {
+      console.error('[VISA CHECKOUT] Error uploading signature:', uploadError);
+      return null;
+    }
+
+    // Obter URL pública
+    const { data: { publicUrl } } = supabase.storage
+      .from('visa-signatures')
+      .getPublicUrl(fileName);
+
+    console.log('[VISA CHECKOUT] Signature uploaded successfully:', publicUrl);
+    return publicUrl;
+  } catch (err) {
+    console.error('[VISA CHECKOUT] Unexpected error uploading signature:', err);
+    return null;
+  }
+}
+
 
 
 
