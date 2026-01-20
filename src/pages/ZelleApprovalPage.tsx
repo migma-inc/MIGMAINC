@@ -44,8 +44,22 @@ interface ZellePayment {
   admin_notes: string | null;
 }
 
+interface MigmaPayment {
+  id: string;
+  user_id: string;
+  fee_type_global: string;
+  amount: number;
+  confirmation_code: string | null;
+  status: string;
+  admin_notes: string | null;
+  image_url: string | null;
+  created_at?: string;
+  client_name?: string;
+}
+
 export const ZelleApprovalPage = () => {
   const [orders, setOrders] = useState<ZelleOrder[]>([]);
+  const [migmaPayments, setMigmaPayments] = useState<MigmaPayment[]>([]);
   const [zellePayments, setZellePayments] = useState<Record<string, ZellePayment>>({});
   const [loading, setLoading] = useState(true);
   const [selectedOrder, setSelectedOrder] = useState<ZelleOrder | null>(null);
@@ -101,6 +115,39 @@ export const ZelleApprovalPage = () => {
             paymentsMap[payment.order_id] = payment;
           });
           setZellePayments(paymentsMap);
+        }
+      }
+
+      // Load from migma_payments (new/n8n flow)
+      const { data: migmaData, error: migmaError } = await supabase
+        .from('migma_payments')
+        .select('*')
+        .eq('status', 'pending')
+        .order('id', { ascending: false });
+
+      if (migmaError) {
+        console.error('Error fetching migma_payments:', migmaError);
+      }
+
+      if (migmaData) {
+        try {
+          const enrichedMigma = await Promise.all(migmaData.map(async (p: any) => {
+            if (p.user_id) {
+              const { data: profile, error: profileError } = await supabase
+                .from('profiles')
+                .select('full_name')
+                .eq('id', p.user_id)
+                .maybeSingle();
+
+              if (profileError) console.warn(`Profile error for ${p.user_id}:`, profileError);
+              return { ...p, client_name: profile?.full_name || 'User ' + p.user_id.substring(0, 8) };
+            }
+            return p;
+          }));
+          setMigmaPayments(enrichedMigma);
+        } catch (enrichError) {
+          console.error('Error enriching migma data:', enrichError);
+          setMigmaPayments(migmaData); // Fallback to raw data
         }
       }
     } catch (err) {
@@ -340,6 +387,70 @@ export const ZelleApprovalPage = () => {
     }
   };
 
+  const handleMigmaAction = async (id: string, newStatus: string) => {
+    try {
+      const { error } = await supabase
+        .from('migma_payments')
+        .update({
+          status: newStatus,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', id);
+
+      if (error) throw error;
+
+      setAlertData({
+        title: 'Success',
+        message: `Payment ${newStatus === 'approved' ? 'Approved' : 'Rejected'} successfully`,
+        variant: 'success'
+      });
+      setShowAlert(true);
+      loadOrders();
+    } catch (err) {
+      console.error('Error updating migma payment status:', err);
+      setAlertData({
+        title: 'Error',
+        message: 'Failed to update status',
+        variant: 'error'
+      });
+      setShowAlert(true);
+    }
+  };
+
+  const handleViewMigmaProof = async (userId: string) => {
+    try {
+      // Buscar arquivos do usuário no bucket zelle_comprovantes
+      const { data: files, error } = await supabase.storage
+        .from('zelle_comprovantes')
+        .list(`zelle-payments/${userId}`, {
+          sortBy: { column: 'created_at', order: 'desc' }
+        });
+
+      if (error) {
+        console.error('Error fetching proof from storage:', error);
+        alert('Não foi possível carregar o comprovante. Erro: ' + error.message);
+        return;
+      }
+
+      if (!files || files.length === 0) {
+        alert('Nenhum comprovante encontrado para este usuário no bucket zelle_comprovantes.');
+        return;
+      }
+
+      // Pegar o arquivo mais recente
+      const latestFile = files[0];
+      const { data } = supabase.storage
+        .from('zelle_comprovantes')
+        .getPublicUrl(`zelle-payments/${userId}/${latestFile.name}`);
+
+      // Abrir em nova aba
+      window.open(data.publicUrl, '_blank');
+    } catch (err) {
+      console.error('Exception fetching proof:', err);
+      alert('Erro ao buscar comprovante.');
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -358,7 +469,7 @@ export const ZelleApprovalPage = () => {
         <p className="text-gray-400">Review and approve pending Zelle payments</p>
       </div>
 
-      {orders.length === 0 ? (
+      {orders.length === 0 && migmaPayments.length === 0 ? (
         <Card className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30">
           <CardContent className="py-12 text-center">
             <Clock className="w-16 h-16 text-gray-500 mx-auto mb-4" />
@@ -368,6 +479,78 @@ export const ZelleApprovalPage = () => {
         </Card>
       ) : (
         <div className="space-y-4">
+          {/* Migma Payments (n8n/External) */}
+          {migmaPayments.map((p) => (
+            <Card
+              key={p.id}
+              className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30"
+            >
+              <CardHeader>
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                  <div className="flex-1 min-w-0">
+                    <CardTitle className="text-base sm:text-lg text-white break-words">Order {p.id.substring(0, 13).toUpperCase()}</CardTitle>
+                    <p className="text-xs sm:text-sm text-gray-400 mt-1 break-words">
+                      {p.client_name} • User {p.user_id.substring(0, 8)}
+                    </p>
+                  </div>
+                  <Badge className="bg-yellow-500/20 text-yellow-300 border-yellow-500/50">
+                    Pending Approval
+                  </Badge>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 text-xs sm:text-sm">
+                  <div>
+                    <span className="text-gray-400">Product:</span>
+                    <span className="text-white ml-2">{p.fee_type_global}</span>
+                  </div>
+                  <div>
+                    <span className="text-gray-400">Total:</span>
+                    <span className="text-gold-medium font-bold ml-2">
+                      US$ {parseFloat(p.amount.toString()).toFixed(2)}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-gray-400">Date:</span>
+                    <span className="text-white ml-2">
+                      {p.created_at ? new Date(p.created_at).toLocaleDateString('pt-BR') : 'N/A'}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap gap-2 pt-2">
+                  <Button
+                    size="sm"
+                    className="bg-green-600 hover:bg-green-700 text-white text-xs sm:text-sm h-8 sm:h-9"
+                    onClick={() => handleMigmaAction(p.id, 'approved')}
+                  >
+                    <CheckCircle className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
+                    Approve Payment
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    className="text-white text-xs sm:text-sm h-8 sm:h-9"
+                    onClick={() => handleMigmaAction(p.id, 'rejected')}
+                  >
+                    <XCircle className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
+                    Reject Payment
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="text-white text-xs sm:text-sm h-8 sm:h-9 border-gold-medium/50 hover:bg-gold-medium/10"
+                    onClick={() => handleViewMigmaProof(p.user_id)}
+                  >
+                    <Eye className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
+                    View Proof
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+
+          {/* Regular Visa Orders */}
           {orders.map((order) => (
             <Card
               key={order.id}
@@ -386,18 +569,17 @@ export const ZelleApprovalPage = () => {
                       const zellePayment = zellePayments[order.id];
                       const n8nData = zellePayment?.n8n_response || order.payment_metadata?.n8n_validation;
                       const confidence = zellePayment?.n8n_confidence || n8nData?.confidence;
-                      
+
                       if (confidence !== null && confidence !== undefined) {
                         const confidencePercent = Math.round(confidence * 100);
                         return (
-                          <Badge 
-                            className={`${
-                              confidence >= 0.7 
-                                ? 'bg-green-500/20 text-green-300 border-green-500/50' 
-                                : confidence >= 0.4
+                          <Badge
+                            className={`${confidence >= 0.7
+                              ? 'bg-green-500/20 text-green-300 border-green-500/50'
+                              : confidence >= 0.4
                                 ? 'bg-yellow-500/20 text-yellow-300 border-yellow-500/50'
                                 : 'bg-red-500/20 text-red-300 border-red-500/50'
-                            } flex items-center gap-1`}
+                              } flex items-center gap-1`}
                           >
                             <Brain className="w-3 h-3" />
                             {confidencePercent}% Confidence
@@ -442,11 +624,11 @@ export const ZelleApprovalPage = () => {
                 {(() => {
                   const zellePayment = zellePayments[order.id];
                   const n8nData = zellePayment?.n8n_response || order.payment_metadata?.n8n_validation;
-                  
+
                   if (n8nData || zellePayment?.n8n_response) {
                     const response = n8nData?.response || zellePayment?.n8n_response?.response;
                     const confidence = zellePayment?.n8n_confidence || n8nData?.confidence;
-                    
+
                     return (
                       <div className="border-t border-gold-medium/30 pt-4">
                         <div className="flex items-start gap-2 mb-2">
@@ -460,11 +642,10 @@ export const ZelleApprovalPage = () => {
                               <div className="flex items-center gap-2 mt-2">
                                 <span className="text-xs text-gray-400">Confidence:</span>
                                 <div className="flex-1 bg-gray-700 rounded-full h-2">
-                                  <div 
-                                    className={`h-2 rounded-full ${
-                                      confidence >= 0.7 ? 'bg-green-500' :
+                                  <div
+                                    className={`h-2 rounded-full ${confidence >= 0.7 ? 'bg-green-500' :
                                       confidence >= 0.4 ? 'bg-yellow-500' : 'bg-red-500'
-                                    }`}
+                                      }`}
                                     style={{ width: `${confidence * 100}%` }}
                                   />
                                 </div>
@@ -558,8 +739,8 @@ export const ZelleApprovalPage = () => {
           <div className="flex flex-col items-center justify-center space-y-6">
             <div className="loader-gold"></div>
             <p className="text-gold-light text-lg font-semibold tracking-tight">
-              {processingAction === 'reject' 
-                ? 'Rejecting payment...' 
+              {processingAction === 'reject'
+                ? 'Rejecting payment...'
                 : 'Processing payment approval...'}
             </p>
             <p className="text-gray-400 text-sm">

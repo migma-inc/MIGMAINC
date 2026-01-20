@@ -7,12 +7,14 @@ import { useDraftRecovery } from './hooks/useDraftRecovery';
 import { useDocumentUpload } from './hooks/useDocumentUpload';
 import { usePaymentHandlers } from './hooks/usePaymentHandlers';
 import { useTemplateLoader } from './hooks/useTemplateLoader';
+import { usePrefillData } from './hooks/usePrefillData';
 
 import { StepIndicator } from './components/shared/StepIndicator';
 import { OrderSummary } from './components/shared/OrderSummary';
 import { Step1PersonalInfo } from './components/steps/Step1PersonalInfo';
 import { Step2Documents } from './components/steps/Step2Documents';
 import { Step3Payment } from './components/steps/Step3Payment';
+import { ZelleProcessingView } from './components/shared/ZelleProcessingView';
 
 
 import { ArrowLeft } from 'lucide-react';
@@ -24,7 +26,7 @@ import { Loader2, AlertCircle } from 'lucide-react';
 export const VisaCheckoutPage: React.FC = () => {
     const { productSlug } = useParams<{ productSlug: string }>();
     const [searchParams] = useSearchParams();
-    const sellerId = searchParams.get('seller') || '';
+    const urlSellerId = searchParams.get('seller') || '';
 
     const [product, setProduct] = useState<VisaProduct | null>(null);
     const [loading, setLoading] = useState(true);
@@ -32,11 +34,15 @@ export const VisaCheckoutPage: React.FC = () => {
     // 1. Inicializar estado central
     const { state, actions } = useVisaCheckoutForm();
 
+    // 1.1 Carregar dados de preenchimento automático (Prefill) e determinar Seller ID
+    const { isLoadingPrefill, sellerId: prefillSellerId } = usePrefillData(productSlug, actions);
+    const effectiveSellerId = prefillSellerId || urlSellerId;
+
     // 2. Inicializar lógica de navegação
-    const { handlePrev } = useCheckoutSteps(state, actions);
+    const { handlePrev } = useCheckoutSteps(state, actions, productSlug);
 
     // 3. Inicializar recuperação de rascunho
-    useDraftRecovery(productSlug, sellerId, loading, state, actions);
+    useDraftRecovery(productSlug, effectiveSellerId, loading, state, actions);
 
     // 4. Inicializar handlers especializados
     const { handleNextStep2 } = useDocumentUpload(state, actions);
@@ -47,7 +53,7 @@ export const VisaCheckoutPage: React.FC = () => {
 
     const paymentHandlers = usePaymentHandlers(
         productSlug,
-        sellerId,
+        effectiveSellerId,
         baseTotal,
         totalWithFees,
         state,
@@ -71,7 +77,7 @@ export const VisaCheckoutPage: React.FC = () => {
                     return;
                 }
                 setProduct(data);
-                if (sellerId) await trackLinkClick(sellerId, productSlug);
+                if (effectiveSellerId) await trackLinkClick(effectiveSellerId, productSlug);
             } catch (err) {
                 actions.setError('Erro ao carregar os detalhes do produto.');
             } finally {
@@ -79,9 +85,9 @@ export const VisaCheckoutPage: React.FC = () => {
             }
         };
         loadProduct();
-    }, [productSlug, sellerId]);
+    }, [productSlug, effectiveSellerId]);
 
-    if (loading) {
+    if (loading || isLoadingPrefill) {
         return (
             <div className="min-h-screen bg-black flex flex-col items-center justify-center text-white p-4">
                 <Loader2 className="w-12 h-12 text-gold-medium animate-spin mb-4" />
@@ -103,6 +109,18 @@ export const VisaCheckoutPage: React.FC = () => {
         );
     }
 
+    // Calcular passo exibido para o StepIndicator se for consulta comum
+    const displayStep = (productSlug === 'consultation-common' && state.currentStep === 3) ? 2 : state.currentStep;
+    const totalStepsCount = productSlug === 'consultation-common' ? 2 : 3;
+
+    if (state.isZelleProcessing) {
+        return (
+            <div className="min-h-screen bg-black py-8 sm:py-12 px-4 sm:px-6 lg:px-8 flex items-center justify-center">
+                <ZelleProcessingView />
+            </div>
+        );
+    }
+
     return (
         <div className="min-h-screen bg-black py-8 sm:py-12 px-4 sm:px-6 lg:px-8">
             <div className="max-w-4xl mx-auto">
@@ -111,12 +129,12 @@ export const VisaCheckoutPage: React.FC = () => {
                         <ArrowLeft className="w-4 h-4 mr-2" /> Back to Home
                     </Link>
                     <h1 className="text-2xl sm:text-3xl font-bold migma-gold-text">Visa Application Checkout</h1>
-                    {sellerId && (
-                        <p className="text-gray-400 text-sm">Seller ID: <span className="text-gold-light">{sellerId}</span></p>
+                    {effectiveSellerId && (
+                        <p className="text-gray-400 text-sm">Seller ID: <span className="text-gold-light">{effectiveSellerId}</span></p>
                     )}
                 </header>
 
-                <StepIndicator currentStep={state.currentStep} totalSteps={3} />
+                <StepIndicator currentStep={displayStep} totalSteps={totalStepsCount} />
 
                 {state.error && (
                     <div className="mb-6 bg-red-500/10 border border-red-500/50 text-red-300 p-4 rounded-lg flex items-center gap-3 animate-in fade-in slide-in-from-top-2">

@@ -6,6 +6,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ContractTermsSection } from './step3/ContractTermsSection';
 import { SignatureSection } from './step3/SignatureSection';
 import { PaymentMethodSelector } from './step3/PaymentMethodSelector';
+// Re-importing ZelleUpload to fix potential reference issues in HMR
+import { ZelleUpload } from './step3/ZelleUpload';
 
 interface Step3Props {
     state: VisaCheckoutState;
@@ -109,15 +111,12 @@ export const Step3Payment: React.FC<Step3Props> = ({ state, actions, handlers, o
                 )}
 
                 {paymentMethod === 'zelle' && (
-                    <div className="space-y-2 pt-2 animate-in fade-in slide-in-from-top-2">
-                        <p className="text-white text-xs sm:text-sm font-medium">Upload Zelle Receipt *</p>
-                        <Input
-                            type="file"
-                            accept="image/*,.pdf"
-                            onChange={(e) => setZelleReceipt(e.target.files?.[0] || null)}
-                            className="bg-white text-black"
+                    <div className="space-y-2 pt-2 animate-in fade-in slide-in-from-top-2 flex justify-center">
+                        <ZelleUpload
+                            onFileSelect={(file) => setZelleReceipt(file)}
+                            currentFile={zelleReceipt}
+                            onClear={() => setZelleReceipt(null)}
                         />
-                        {zelleReceipt && <p className="text-gold-light text-xs">File: {zelleReceipt.name}</p>}
                     </div>
                 )}
 

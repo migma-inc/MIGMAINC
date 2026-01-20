@@ -71,7 +71,7 @@ export async function uploadZelleReceipt(
   const fileExt = file.name.split('.').pop() || 'jpg';
   const timestamp = Date.now();
   const fileName = `zelle-payment-${timestamp}.${fileExt}`;
-  
+
   // Build path: zelle-payments/{user_id}/zelle-payment-{timestamp}.{ext}
   const userFolder = userId || 'anonymous';
   const filePath = `zelle-payments/${userFolder}/${fileName}`;
@@ -163,8 +163,11 @@ export async function sendZellePaymentToN8n(
 
   if (!webhookUrl) {
     console.warn('[Zelle n8n] VITE_N8N_WEBHOOK_URL not configured, skipping n8n validation');
+    alert('DEBUG: Webhook URL is missing in .env'); // Added for user visibility
     throw new Error('n8n webhook URL not configured');
   }
+
+  console.log('[Zelle n8n] Using Webhook URL:', webhookUrl); // Log the URL being used
 
   // Validate URL format
   try {
@@ -223,11 +226,11 @@ export async function sendZellePaymentToN8n(
     return n8nResponse;
   } catch (error) {
     clearTimeout(timeoutId);
-    
+
     if (error instanceof Error && error.name === 'AbortError') {
       throw new Error('n8n webhook timeout - request took longer than 30 seconds');
     }
-    
+
     throw error;
   }
 }
@@ -379,7 +382,7 @@ export async function processZellePaymentWithN8n(
   try {
     n8nResponse = await sendZellePaymentToN8n(payload);
   } catch (error) {
-    console.error('[Zelle n8n] Error sending to n8n:', error);
+    console.error('[Zelle n8n] CRITICAL ERROR sending to n8n:', error);
     // Return a default response for error case
     n8nResponse = {
       response: 'Error validating payment - requires manual review',

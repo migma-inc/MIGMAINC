@@ -47,6 +47,7 @@ import { SupportTicket } from './pages/SupportTicket';
 import { VisaContractResubmit } from './pages/VisaContractResubmit';
 import { ContractTemplatesPage } from './pages/ContractTemplatesPage';
 import { ViewSignedContract } from './pages/ViewSignedContract';
+import { ViewVisaOrderContract } from './pages/ViewVisaOrderContract';
 import { ScheduleMeetingPage } from './pages/admin/ScheduleMeetingPage';
 import { AdminSellerAnalytics } from './pages/admin/AdminSellerAnalytics';
 import { AdminRoute } from './components/admin/AdminRoute';
@@ -95,6 +96,7 @@ function App() {
         <Route path="/partner-terms" element={<PartnerTerms />} />
         <Route path="/partner-terms/success" element={<PartnerTermsSuccess />} />
         <Route path="/view-contract" element={<ViewSignedContract />} />
+        <Route path="/view-visa-contract" element={<ViewVisaOrderContract />} />
         <Route path="/dashboard" element={<Dashboard />}>
           <Route index element={<DashboardContent />} />
           <Route path="applications/:id" element={<ApplicationDetailPage />} />

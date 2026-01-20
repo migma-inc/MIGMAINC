@@ -93,7 +93,12 @@ export const Step1PersonalInfo: React.FC<Step1Props> = ({ product, state, action
             return;
         }
 
-        setCurrentStep(2);
+        // Se for consulta comum, pular Step 2 (Documentos)
+        if (productSlug === 'consultation-common') {
+            setCurrentStep(3);
+        } else {
+            setCurrentStep(2);
+        }
     };
 
     return (
