@@ -552,19 +552,21 @@ Deno.serve(async (req: Request) => {
         // Also generate full contract PDF if it exists (optional, for additional terms)
 
         // Generate full contract PDF (optional - if template exists)
-        try {
-          const { data: pdfData, error: pdfError } = await supabase.functions.invoke("generate-visa-contract-pdf", {
-            body: { order_id: order.id },
-          });
+        if (order.product_slug !== 'consultation-common') {
+          try {
+            const { data: pdfData, error: pdfError } = await supabase.functions.invoke("generate-visa-contract-pdf", {
+              body: { order_id: order.id },
+            });
 
-          if (pdfError) {
-            console.error("[Webhook] Error generating contract PDF:", pdfError);
-          } else {
-            console.log("[Webhook] Contract PDF generated successfully:", pdfData?.pdf_url);
+            if (pdfError) {
+              console.error("[Webhook] Error generating contract PDF:", pdfError);
+            } else {
+              console.log("[Webhook] Contract PDF generated successfully:", pdfData?.pdf_url);
+            }
+          } catch (pdfError) {
+            console.error("[Webhook] Exception generating PDF:", pdfError);
+            // Continue - PDF generation is not critical for payment processing
           }
-        } catch (pdfError) {
-          console.error("[Webhook] Exception generating PDF:", pdfError);
-          // Continue - PDF generation is not critical for payment processing
         }
 
         // Generate ANNEX I PDF for ALL products (universal requirement)
@@ -725,19 +727,21 @@ Deno.serve(async (req: Request) => {
         // Also generate full contract PDF if it exists (optional, for additional terms)
 
         // Generate full contract PDF (optional - if template exists)
-        try {
-          const { data: pdfData, error: pdfError } = await supabase.functions.invoke("generate-visa-contract-pdf", {
-            body: { order_id: order.id },
-          });
+        if (order.product_slug !== 'consultation-common') {
+          try {
+            const { data: pdfData, error: pdfError } = await supabase.functions.invoke("generate-visa-contract-pdf", {
+              body: { order_id: order.id },
+            });
 
-          if (pdfError) {
-            console.error("[Webhook] Error generating contract PDF:", pdfError);
-          } else {
-            console.log("[Webhook] Contract PDF generated successfully:", pdfData?.pdf_url);
+            if (pdfError) {
+              console.error("[Webhook] Error generating contract PDF:", pdfError);
+            } else {
+              console.log("[Webhook] Contract PDF generated successfully:", pdfData?.pdf_url);
+            }
+          } catch (pdfError) {
+            console.error("[Webhook] Exception generating PDF:", pdfError);
+            // Continue - PDF generation is not critical for payment processing
           }
-        } catch (pdfError) {
-          console.error("[Webhook] Exception generating PDF:", pdfError);
-          // Continue - PDF generation is not critical for payment processing
         }
 
         // Generate ANNEX I PDF for ALL products (universal requirement)

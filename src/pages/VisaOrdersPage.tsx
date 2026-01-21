@@ -34,7 +34,9 @@ interface VisaOrder {
 const calculateNetAmountAndFee = (order: VisaOrder) => {
   let dbPrice = parseFloat(order.total_price_usd || '0');
 
-  // Fix for total_price_usd being in cents
+  // Fix for total_price_usd being in cents (Heuristic: > 10000 means likely cents for values > $100)
+  // However, for values < $100 stored as cents (e.g. 2900), this stays 2900 if threshold is 10000.
+  // We'll keep this but improve metadata checks.
   if (dbPrice > 10000) {
     dbPrice = dbPrice / 100;
   }
@@ -52,11 +54,13 @@ const calculateNetAmountAndFee = (order: VisaOrder) => {
 
     if (metadata?.total_usd) {
       let val = parseFloat(metadata.total_usd.toString());
-      if (val > 10000) val = val / 100;
+      // Heuristic: If metadata total is > 5x the DB price, it's likely in cents (e.g. 29.00 vs 3387)
+      // This handles both old (cents) and new (decimal) data.
+      if (val > (dbPrice * 5) && val > 100) val = val / 100;
       if (val > 0) paidTotal = val;
     } else if (metadata?.final_amount) {
       let val = parseFloat(metadata.final_amount.toString());
-      if (val > 10000) val = val / 100;
+      if (val > (dbPrice * 5) && val > 100) val = val / 100;
       if (val > 0) paidTotal = val;
     }
 
@@ -73,7 +77,8 @@ const calculateNetAmountAndFee = (order: VisaOrder) => {
 
     if (metadata?.fee_amount) {
       let val = parseFloat(metadata.fee_amount.toString());
-      if (val > 10000) val = val / 100;
+      // If fee is suspiciously high (e.g. > total/2), it might be in cents
+      if (val > (totalPrice / 2) && val > 100) val = val / 100;
       feeAmount = val;
     }
 

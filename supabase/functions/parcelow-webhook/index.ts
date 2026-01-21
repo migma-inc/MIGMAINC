@@ -450,12 +450,12 @@ async function processParcelowWebhookEvent(
       completed_at: new Date().toISOString(),
       parcelow_order_id: parcelowOrder.id,
       installments: actualInstallments,
-      // Save USD values (in cents)
-      total_usd: parcelowOrder.total_usd || parcelowOrder.order_amount || 0,
+      // Save USD values as decimal (USD) - Parcelow returns cents
+      total_usd: (parcelowOrder.total_usd || parcelowOrder.order_amount || 0) / 100,
       // Save CORRECT BRL value (already formatted as decimal string, includes installment fees)
       total_brl: actualTotalBrl || parcelowOrder.total_brl || 0,
-      // Calculate fee amount (Gross - Net)
-      fee_amount: (parcelowOrder.total_usd || 0) - (parcelowOrder.order_amount || 0),
+      // Calculate fee amount (Gross - Net) in decimal (USD)
+      fee_amount: ((parcelowOrder.total_usd || 0) - (parcelowOrder.order_amount || 0)) / 100,
       // Also save base BRL for reference
       base_brl: parcelowOrder.total_brl || 0,
       order_date: parcelowOrder.order_date || new Date().toISOString(),
@@ -512,7 +512,7 @@ async function processParcelowWebhookEvent(
             reference: parcelowOrder.reference || 'N/A',
             status: parcelowOrder.status,
             status_text: parcelowOrder.status_text || 'N/A',
-            total_usd: parcelowOrder.total_usd || parcelowOrder.order_amount || 0,
+            total_usd: (parcelowOrder.total_usd || parcelowOrder.order_amount || 0) / 100,
             total_brl: parcelowOrder.total_brl || 0,
             installments: parcelowOrder.installments || 1,
             completed_at: new Date().toISOString(),
@@ -586,20 +586,22 @@ async function processParcelowWebhookEvent(
   // ========== POST-PAYMENT PROCESSING (Non-Critical Operations) ==========
 
   // 4. Generate full contract PDF (optional - if template exists)
-  console.log(`[Parcelow Webhook] 📄 Generating contract PDF...`);
-  try {
-    const { data: pdfData, error: pdfError } = await supabase.functions.invoke("generate-visa-contract-pdf", {
-      body: { order_id: order.id },
-    });
+  if (order.product_slug !== 'consultation-common') {
+    console.log(`[Parcelow Webhook] 📄 Generating contract PDF...`);
+    try {
+      const { data: pdfData, error: pdfError } = await supabase.functions.invoke("generate-visa-contract-pdf", {
+        body: { order_id: order.id },
+      });
 
-    if (pdfError) {
-      console.error(`[Parcelow Webhook] ❌ Error generating contract PDF:`, pdfError);
-    } else {
-      console.log(`[Parcelow Webhook] ✅ Contract PDF generated successfully:`, pdfData?.pdf_url);
+      if (pdfError) {
+        console.error(`[Parcelow Webhook] ❌ Error generating contract PDF:`, pdfError);
+      } else {
+        console.log(`[Parcelow Webhook] ✅ Contract PDF generated successfully:`, pdfData?.pdf_url);
+      }
+    } catch (pdfError) {
+      console.error(`[Parcelow Webhook] ❌ Exception generating contract PDF:`, pdfError);
+      // Continue - PDF generation is not critical for payment processing
     }
-  } catch (pdfError) {
-    console.error(`[Parcelow Webhook] ❌ Exception generating contract PDF:`, pdfError);
-    // Continue - PDF generation is not critical for payment processing
   }
 
   // 5. Generate ANNEX I PDF for ALL products (universal requirement)
@@ -629,6 +631,8 @@ async function processParcelowWebhookEvent(
     if (currency === "BRL") {
       finalAmountValue = parcelowOrder.total_brl ? (parcelowOrder.total_brl / 100) : null;
     } else {
+      // metadata.total_usd is now already divided by 100 in our updateData logic if we just set it
+      // but let's use the raw parcelowOrder and divide by 100 here to be safe for email
       finalAmountValue = parcelowOrder.total_usd ? (parcelowOrder.total_usd / 100) : null;
     }
   }

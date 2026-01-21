@@ -359,16 +359,18 @@ export function VisaContractApprovalPage() {
                                         </div>
 
                                         {/* Main Contract Action */}
-                                        <div className="lg:col-span-1">
-                                            <DocumentActionBlock
-                                                title="Main Contract"
-                                                pdfUrl={order.contract_pdf_url}
-                                                status={order.contract_approval_status}
-                                                orderId={order.id}
-                                                type="contract"
-                                                clientName={order.client_name}
-                                            />
-                                        </div>
+                                        {order.product_slug !== 'consultation-common' && (
+                                            <div className="lg:col-span-1">
+                                                <DocumentActionBlock
+                                                    title="Main Contract"
+                                                    pdfUrl={order.contract_pdf_url}
+                                                    status={order.contract_approval_status}
+                                                    orderId={order.id}
+                                                    type="contract"
+                                                    clientName={order.client_name}
+                                                />
+                                            </div>
+                                        )}
 
                                         {/* Annex I Action */}
                                         <div className="lg:col-span-1">

@@ -588,6 +588,46 @@ Deno.serve(async (req) => {
     currentY += 15;
 
     // ============================================
+    // 2.1. Payment Details (For Parcelow/Credit Card)
+    // ============================================
+    if (order.payment_method === 'parcelow') {
+      const metadata = order.payment_metadata as any;
+      if (metadata?.credit_card_name || metadata?.cpf) {
+        if (currentY > pageHeight - margin - 40) {
+          pdf.addPage();
+          currentY = margin;
+        }
+
+        pdf.setFontSize(14);
+        pdf.setFont('helvetica', 'bold');
+        pdf.text('PAYMENT DETAILS', margin, currentY);
+        currentY += 12;
+
+        pdf.setFontSize(11);
+
+        // Name on Card
+        if (metadata?.credit_card_name) {
+          pdf.setFont('helvetica', 'bold');
+          pdf.text('Name on Card:', margin, currentY);
+          pdf.setFont('helvetica', 'normal');
+          pdf.text(metadata.credit_card_name, margin + 40, currentY);
+          currentY += 8;
+        }
+
+        // CPF
+        if (metadata?.cpf) {
+          pdf.setFont('helvetica', 'bold');
+          pdf.text('CPF:', margin, currentY);
+          pdf.setFont('helvetica', 'normal');
+          pdf.text(metadata.cpf, margin + 40, currentY);
+          currentY += 8;
+        }
+
+        currentY += 10;
+      }
+    }
+
+    // ============================================
     // 3. ANNEX I Text
     // ============================================
     if (currentY > pageHeight - margin - 60) {

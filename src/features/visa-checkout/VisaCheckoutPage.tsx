@@ -157,10 +157,12 @@ export const VisaCheckoutPage: React.FC = () => {
                                         <span className="text-gray-400">Base Price:</span>
                                         <span className="text-white font-bold text-lg">US$ {parseFloat(product.base_price_usd).toFixed(2)}</span>
                                     </div>
-                                    <div className="flex justify-between items-center text-sm">
-                                        <span className="text-gray-400">Per dependents:</span>
-                                        <span className="text-gray-300">US$ {parseFloat(product.extra_unit_price).toFixed(2)}</span>
-                                    </div>
+                                    {productSlug !== 'consultation-common' && (
+                                        <div className="flex justify-between items-center text-sm">
+                                            <span className="text-gray-400">Per dependents:</span>
+                                            <span className="text-gray-300">US$ {parseFloat(product.extra_unit_price).toFixed(2)}</span>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         )}
