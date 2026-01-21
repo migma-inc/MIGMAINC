@@ -12,18 +12,56 @@ interface VisaOrder {
     client_name: string;
     total_price_usd: string;
     payment_status: string;
-    payment_metadata?: { fee_amount?: string | number } | null;
+    payment_method: string;
+    payment_metadata?: { fee_amount?: string | number, total_usd?: string | number, final_amount?: string | number } | null;
     created_at: string;
 }
 
 const calculateNetAmountAndFee = (order: VisaOrder) => {
-    const totalPrice = parseFloat(order.total_price_usd || '0');
-    const metadata = order.payment_metadata;
-    const feeAmount = metadata?.fee_amount ? parseFloat(metadata.fee_amount.toString()) : 0;
-    const netAmount = totalPrice - feeAmount;
+    let dbPrice = parseFloat(order.total_price_usd || '0');
+
+    // Fix for total_price_usd being in cents
+    if (dbPrice > 10000) {
+        dbPrice = dbPrice / 100;
+    }
+
+    const metadata = order.payment_metadata as any;
+    let feeAmount = 0;
+    let totalPrice = dbPrice;
+    let netAmount = dbPrice;
+
+    if (order.payment_method === 'parcelow') {
+        let paidTotal = dbPrice;
+
+        if (metadata?.total_usd) {
+            let val = parseFloat(metadata.total_usd.toString());
+            // Divide by 100 if significantly larger than base price (heuristic for cents)
+            if (val > (dbPrice * 5) && val > 100) val = val / 100;
+            if (val > 0) paidTotal = val;
+        } else if (metadata?.final_amount) {
+            let val = parseFloat(metadata.final_amount.toString());
+            if (val > (dbPrice * 5) && val > 100) val = val / 100;
+            if (val > 0) paidTotal = val;
+        }
+
+        totalPrice = paidTotal;
+        netAmount = dbPrice;
+        feeAmount = Math.max(totalPrice - netAmount, 0);
+    } else {
+        totalPrice = dbPrice;
+        if (metadata?.fee_amount) {
+            let val = parseFloat(metadata.fee_amount.toString());
+            // Fee is rarely more than the total, divide by 100 if suspiciously high
+            if (val > (totalPrice / 2) && val > 100) val = val / 100;
+            feeAmount = val;
+        }
+        netAmount = totalPrice - feeAmount;
+    }
+
     return {
         netAmount: Math.max(netAmount, 0),
         feeAmount: feeAmount,
+        totalPrice: totalPrice
     };
 };
 
@@ -92,12 +130,11 @@ export async function exportVisaOrdersToExcel(orders: VisaOrder[]): Promise<void
     let currentRowIdx = 4;
 
     orders.forEach(order => {
-        const { netAmount, feeAmount } = calculateNetAmountAndFee(order);
+        const { netAmount, feeAmount, totalPrice } = calculateNetAmountAndFee(order);
         const row = worksheet.getRow(currentRowIdx);
 
         // Preparar dados
         const dateValue = new Date(order.created_at);
-        const grossValue = parseFloat(order.total_price_usd || '0');
 
         // Traduzir status se necessário, ou usar direto
         const status = order.payment_status === 'completed' ? 'Pago' :
@@ -109,9 +146,9 @@ export async function exportVisaOrdersToExcel(orders: VisaOrder[]): Promise<void
             status,                 // Status
             order.client_name,      // Cliente
             order.product_slug,     // Serviço
-            grossValue,             // Valor Bruto
-            feeAmount,              // Taxa
-            netAmount,              // Líquido
+            totalPrice,             // Valor Bruto (Gross)
+            feeAmount,              // Taxa (Fee)
+            netAmount,              // Líquido (Net)
             order.seller_id || 'N/A' // Vendedor
         ];
 

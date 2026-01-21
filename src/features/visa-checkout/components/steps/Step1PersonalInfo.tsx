@@ -62,7 +62,7 @@ export const Step1PersonalInfo: React.FC<Step1Props> = ({ product, state, action
             clientNationality, clientWhatsApp, maritalStatus
         };
 
-        const validation = validateStep1(formData);
+        const validation = validateStep1(formData, productSlug);
         if (!validation.valid) {
             setFieldErrors(validation.errors || {});
             // Optional: Scroll to first error
@@ -107,15 +107,18 @@ export const Step1PersonalInfo: React.FC<Step1Props> = ({ product, state, action
                 <CardTitle className="text-white text-lg sm:text-xl">Step 1: Personal Information</CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
-                <QuantitySelector
-                    product={product}
-                    extraUnits={extraUnits}
-                    dependentNames={dependentNames}
-                    onExtraUnitsChange={setExtraUnits}
-                    onDependentNamesChange={setDependentNames}
-                />
-
-                <hr className="border-gold-medium/20" />
+                {productSlug !== 'consultation-common' && (
+                    <>
+                        <QuantitySelector
+                            product={product}
+                            extraUnits={extraUnits}
+                            dependentNames={dependentNames}
+                            onExtraUnitsChange={setExtraUnits}
+                            onDependentNamesChange={setDependentNames}
+                        />
+                        <hr className="border-gold-medium/20" />
+                    </>
+                )}
 
                 <ContactFields
                     clientName={clientName}
@@ -125,6 +128,7 @@ export const Step1PersonalInfo: React.FC<Step1Props> = ({ product, state, action
                     onClientNameChange={setClientName}
                     onClientEmailChange={setClientEmail}
                     onDateOfBirthChange={setDateOfBirth}
+                    isSimplified={productSlug === 'consultation-common'}
                 />
 
                 <hr className="border-gold-medium/20" />
@@ -151,6 +155,7 @@ export const Step1PersonalInfo: React.FC<Step1Props> = ({ product, state, action
                     onNationalityChange={setClientNationality}
                     onClientWhatsAppChange={setClientWhatsApp}
                     onMaritalStatusChange={setMaritalStatus}
+                    isSimplified={productSlug === 'consultation-common'}
                 />
 
                 <div className="space-y-2">

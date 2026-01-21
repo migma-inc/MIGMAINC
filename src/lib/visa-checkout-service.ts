@@ -58,24 +58,26 @@ export async function saveStep1Data(
   try {
     // Create or update client
     let clientIdToUse = clientId;
+    const clientPayload = {
+      full_name: formData.clientName,
+      email: formData.clientEmail,
+      phone: formData.clientWhatsApp,
+      date_of_birth: formData.dateOfBirth || null,
+      nationality: formData.clientNationality || null,
+      document_type: formData.documentType || null,
+      document_number: formData.documentNumber || null,
+      address_line: formData.addressLine || null,
+      city: formData.city || null,
+      state: formData.state || null,
+      postal_code: formData.postalCode || null,
+      country: formData.clientCountry || null,
+      marital_status: formData.maritalStatus || null,
+    };
+
     if (!clientIdToUse) {
       const { data: clientData, error: clientError } = await supabase
         .from('clients')
-        .insert({
-          full_name: formData.clientName,
-          email: formData.clientEmail,
-          phone: formData.clientWhatsApp,
-          date_of_birth: formData.dateOfBirth,
-          nationality: formData.clientNationality,
-          document_type: formData.documentType,
-          document_number: formData.documentNumber,
-          address_line: formData.addressLine,
-          city: formData.city,
-          state: formData.state,
-          postal_code: formData.postalCode,
-          country: formData.clientCountry,
-          marital_status: formData.maritalStatus,
-        })
+        .insert(clientPayload)
         .select()
         .single();
 
@@ -93,19 +95,7 @@ export async function saveStep1Data(
       const { error: updateError } = await supabase
         .from('clients')
         .update({
-          full_name: formData.clientName,
-          email: formData.clientEmail,
-          phone: formData.clientWhatsApp,
-          date_of_birth: formData.dateOfBirth,
-          nationality: formData.clientNationality,
-          document_type: formData.documentType,
-          document_number: formData.documentNumber,
-          address_line: formData.addressLine,
-          city: formData.city,
-          state: formData.state,
-          postal_code: formData.postalCode,
-          country: formData.clientCountry,
-          marital_status: formData.maritalStatus,
+          ...clientPayload,
           updated_at: new Date().toISOString(),
         })
         .eq('id', clientIdToUse);
@@ -126,7 +116,7 @@ export async function saveStep1Data(
           service_id: productSlug,
           dependents_count: extraUnits,
           seller_id: sellerId || null,
-          status: 'onboarding',
+          status: productSlug === 'consultation-common' ? 'pending_payment' : 'onboarding',
         })
         .select()
         .single();
@@ -157,12 +147,18 @@ export async function saveStep1Data(
       }
     } else {
       // Update existing service request
+      const updatePayload: Record<string, any> = {
+        dependents_count: extraUnits,
+        updated_at: new Date().toISOString(),
+      };
+
+      if (productSlug === 'consultation-common') {
+        updatePayload.status = 'pending_payment';
+      }
+
       const { error: updateError } = await supabase
         .from('service_requests')
-        .update({
-          dependents_count: extraUnits,
-          updated_at: new Date().toISOString(),
-        })
+        .update(updatePayload)
         .eq('id', serviceRequestIdToUse);
 
       if (updateError) {

@@ -46,11 +46,11 @@ function normalizeServiceName(productSlug: string, productName: string): string 
   if (productSlug.startsWith('initial-')) {
     return 'F1 Initial';
   }
-  
+
   if (productSlug.startsWith('cos-') || productSlug.startsWith('transfer-')) {
     return 'COS & Transfer';
   }
-  
+
   return productName;
 }
 
@@ -69,19 +69,19 @@ async function getProductName(supabase: any, productSlug: string): Promise<strin
     .select('name')
     .eq('slug', productSlug)
     .single();
-  
+
   if (error) {
     console.warn('[Webhook Client] ⚠️ Error fetching product, using slug as fallback:', productSlug);
     return productSlug;
   }
-  
+
   return product?.name || productSlug;
 }
 
 // Build main client payload
 function buildMainClientPayload(order: Order, serviceName: string, basePrice: number): any {
   const dependentCount = Array.isArray(order.dependent_names) ? order.dependent_names.length : 0;
-  
+
   return {
     servico: serviceName,
     plano_servico: order.product_slug,
@@ -111,7 +111,7 @@ async function fetchWithTimeout(
 ): Promise<Response> {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
-  
+
   try {
     const response = await fetch(url, {
       ...options,
@@ -147,14 +147,14 @@ async function sendWebhook(
   } = options;
 
   const startTime = Date.now();
-  const contextLabel = context.type === 'main' 
-    ? 'Cliente Principal' 
+  const contextLabel = context.type === 'main'
+    ? 'Cliente Principal'
     : `Dependente ${context.index}/${context.total}`;
-  
+
   // Serialize payload once (reused for retries)
   const payloadJson = JSON.stringify(payload);
   const payloadSize = new TextEncoder().encode(payloadJson).length;
-  
+
   // Optimized headers
   const headers: HeadersInit = {
     'Content-Type': 'application/json',
@@ -168,7 +168,7 @@ async function sendWebhook(
 
   for (attempts = 0; attempts <= maxRetries; attempts++) {
     const attemptStartTime = Date.now();
-    
+
     try {
       if (attempts > 0) {
         const backoffDelay = calculateBackoffDelay(attempts - 1, retryDelay);
@@ -177,7 +177,7 @@ async function sendWebhook(
       } else {
         console.log(`[Webhook Client] 📤 Enviando webhook: ${contextLabel} (${payloadSize} bytes)`);
       }
-      
+
       // Fetch with timeout
       const response = await fetchWithTimeout(
         webhookUrl,
@@ -188,15 +188,15 @@ async function sendWebhook(
         },
         timeout
       );
-      
+
       const attemptDuration = Date.now() - attemptStartTime;
       lastResponse = response;
-      
+
       // Limit response body size (max 10KB) to avoid memory issues
       let responseText = '';
       const contentLength = response.headers.get('content-length');
       const maxResponseSize = 10240; // 10KB
-      
+
       if (contentLength && parseInt(contentLength) > maxResponseSize) {
         // Read only first 10KB
         const reader = response.body?.getReader();
@@ -204,7 +204,7 @@ async function sendWebhook(
           const decoder = new TextDecoder();
           let totalSize = 0;
           let done = false;
-          
+
           while (!done && totalSize < maxResponseSize) {
             const { value, done: streamDone } = await reader.read();
             done = streamDone;
@@ -222,11 +222,11 @@ async function sendWebhook(
       } else {
         responseText = await response.text();
       }
-      
+
       if (!response.ok) {
         // Retry on 5xx errors, don't retry on 4xx (client errors)
         const isRetryable = response.status >= 500 || response.status === 429;
-        
+
         if (isRetryable && attempts < maxRetries) {
           console.warn(`[Webhook Client] ⚠️ Erro ${response.status} (tentativa ${attempts + 1}/${maxRetries + 1}):`, {
             status: response.status,
@@ -237,7 +237,7 @@ async function sendWebhook(
           lastError = new Error(`HTTP ${response.status}: ${response.statusText}`);
           continue; // Retry
         }
-        
+
         // Don't retry on 4xx errors or if max retries reached
         const duration = Date.now() - startTime;
         console.error(`[Webhook Client] ❌ Erro ao enviar webhook ${contextLabel}:`, {
@@ -252,7 +252,7 @@ async function sendWebhook(
         });
         return { success: false, duration, attempts: attempts + 1 };
       }
-      
+
       // Success!
       const duration = Date.now() - startTime;
       console.log(`[Webhook Client] ✅ Webhook ${contextLabel} enviado com sucesso:`, {
@@ -263,20 +263,20 @@ async function sendWebhook(
         order_id: context.orderId,
         order_number: context.orderNumber,
       });
-      
+
       return { success: true, duration, attempts: attempts + 1 };
-      
+
     } catch (error) {
       const attemptDuration = Date.now() - attemptStartTime;
       lastError = error instanceof Error ? error : new Error(String(error));
-      
+
       // Check if error is retryable
-      const isRetryable = 
+      const isRetryable =
         lastError.message.includes('timeout') ||
         lastError.message.includes('network') ||
         lastError.message.includes('ECONNREFUSED') ||
         lastError.message.includes('ENOTFOUND');
-      
+
       if (isRetryable && attempts < maxRetries) {
         console.warn(`[Webhook Client] ⚠️ Erro de rede (tentativa ${attempts + 1}/${maxRetries + 1}):`, {
           error: lastError.message,
@@ -285,7 +285,7 @@ async function sendWebhook(
         });
         continue; // Retry
       }
-      
+
       // Don't retry or max retries reached
       const duration = Date.now() - startTime;
       console.error(`[Webhook Client] ❌ Exceção ao enviar webhook ${contextLabel}:`, {
@@ -299,7 +299,7 @@ async function sendWebhook(
       return { success: false, duration, attempts: attempts + 1 };
     }
   }
-  
+
   // Should never reach here, but TypeScript needs it
   const duration = Date.now() - startTime;
   return { success: false, duration, attempts };
@@ -308,20 +308,20 @@ async function sendWebhook(
 // Send webhook to client (n8n) after payment confirmation
 async function sendClientWebhook(order: Order, supabase: any): Promise<void> {
   const webhookUrl = Deno.env.get('CLIENT_WEBHOOK_URL');
-  
+
   if (!webhookUrl) {
     console.error('[Webhook Client] ❌ CLIENT_WEBHOOK_URL não configurado. Pulando webhook.');
     return;
   }
-  
+
   try {
     console.log('[Webhook Client] 📤 Iniciando processo de envio de webhooks');
     console.log('[Webhook Client] Order ID:', order.id, '| Order Number:', order.order_number);
-    
+
     // Get product name and normalize service name
     const productName = await getProductName(supabase, order.product_slug);
     const normalizedServiceName = normalizeServiceName(order.product_slug, productName);
-    
+
     // Calculate base service price
     const baseServicePrice = calculateBaseServicePrice(order);
     console.log('[Webhook Client] 💰 Cálculo do valor:', {
@@ -330,34 +330,34 @@ async function sendClientWebhook(order: Order, supabase: any): Promise<void> {
       extra_unit_price_usd: order.extra_unit_price_usd,
       calculated_baseServicePrice: baseServicePrice,
     });
-    
+
     // Build and send main client webhook
     const mainPayload = buildMainClientPayload(order, normalizedServiceName, baseServicePrice);
     const dependentCount = Array.isArray(order.dependent_names) ? order.dependent_names.length : 0;
-    
+
     console.log('[Webhook Client] 📋 Resumo: 1 webhook principal +', dependentCount, 'webhook(s) de dependente(s)');
-    
+
     const mainResult = await sendWebhook(webhookUrl, mainPayload, {
       type: 'main',
       orderId: order.id,
       orderNumber: order.order_number,
     });
-    
+
     // Send webhooks for dependents in parallel
     const dependentResults: Promise<WebhookResult>[] = [];
     if (dependentCount > 0) {
       console.log('[Webhook Client] 📤 Iniciando envio paralelo de', dependentCount, 'webhook(s) de dependente(s)');
-      
+
       const dependentUnitPrice = parseFloat(order.extra_unit_price_usd || '0');
-      
+
       for (let i = 0; i < dependentCount; i++) {
         const dependentName = order.dependent_names![i];
-        
+
         if (!dependentName?.trim()) {
           console.warn(`[Webhook Client] ⚠️ Pulando dependente ${i + 1}: nome vazio`);
           continue;
         }
-        
+
         const dependentPayload = buildDependentPayload(order, dependentName, dependentUnitPrice);
         dependentResults.push(
           sendWebhook(webhookUrl, dependentPayload, {
@@ -371,17 +371,17 @@ async function sendClientWebhook(order: Order, supabase: any): Promise<void> {
         );
       }
     }
-    
+
     // Wait for all dependent webhooks to complete
     const dependentResultsArray = await Promise.allSettled(dependentResults);
     const successDependentCount = dependentResultsArray.filter(
       (result) => result.status === 'fulfilled' && result.value.success
     ).length;
-    
+
     // Summary
     const successCount = (mainResult.success ? 1 : 0) + successDependentCount;
     const totalCount = 1 + dependentCount;
-    
+
     console.log('[Webhook Client] 📋 Resumo final:', {
       total: totalCount,
       sucesso: successCount,
@@ -408,7 +408,7 @@ async function invokeEdgeFunction(
 ): Promise<void> {
   try {
     const { data, error } = await supabase.functions.invoke(functionName, { body });
-    
+
     if (error) {
       console.error(`[Zelle Webhook] Erro ao ${operationName}:`, error);
     } else {
@@ -472,10 +472,10 @@ Deno.serve(async (req: Request) => {
         payment_status: order.payment_status,
       });
       return new Response(
-        JSON.stringify({ 
-          error: order.payment_method !== 'zelle' 
-            ? "Order is not a Zelle payment" 
-            : "Order payment status must be completed" 
+        JSON.stringify({
+          error: order.payment_method !== 'zelle'
+            ? "Order is not a Zelle payment"
+            : "Order payment status must be completed"
         }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
@@ -497,11 +497,11 @@ Deno.serve(async (req: Request) => {
         .maybeSingle(),
       order.service_request_id
         ? supabase
-            .from("payments")
-            .select("id")
-            .eq("service_request_id", order.service_request_id)
-            .eq("external_payment_id", order.id)
-            .maybeSingle()
+          .from("payments")
+          .select("id")
+          .eq("service_request_id", order.service_request_id)
+          .eq("external_payment_id", order.id)
+          .maybeSingle()
         : Promise.resolve({ data: null, error: null }),
     ]);
 
@@ -595,9 +595,11 @@ Deno.serve(async (req: Request) => {
     const nonCriticalOperations: Promise<void>[] = [];
 
     // Generate full contract PDF (optional - if template exists)
-    nonCriticalOperations.push(
-      invokeEdgeFunction(supabase, "generate-visa-contract-pdf", { order_id: order.id }, "gerar PDF do contrato")
-    );
+    if (order.product_slug !== 'consultation-common') {
+      nonCriticalOperations.push(
+        invokeEdgeFunction(supabase, "generate-visa-contract-pdf", { order_id: order.id }, "gerar PDF do contrato")
+      );
+    }
 
     // Generate ANNEX I PDF for ALL products (universal requirement)
     nonCriticalOperations.push(
@@ -630,8 +632,8 @@ Deno.serve(async (req: Request) => {
 
     // Return success immediately after critical operations complete
     return new Response(
-      JSON.stringify({ 
-        success: true, 
+      JSON.stringify({
+        success: true,
         message: "Webhooks sent successfully",
         order_id: order.id,
         order_number: order.order_number,
