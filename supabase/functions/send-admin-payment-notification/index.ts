@@ -207,7 +207,7 @@ Deno.serve(async (req) => {
                     <tr>
                         <td align="center" style="padding: 20px 40px; background-color: #000000;">
                             <p style="margin: 0; font-size: 12px; color: #666666; line-height: 1.5;">
-                                © 2025 MIGMA. All rights reserved.
+                                © MIGMA. All rights reserved.
                             </p>
                         </td>
                     </tr>

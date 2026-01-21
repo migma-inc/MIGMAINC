@@ -229,6 +229,7 @@ export const VisaOrdersPage = () => {
                         <th className="text-left py-3 px-4 text-sm text-gray-400 font-semibold">Total (with fee)</th>
                         <th className="text-left py-3 px-4 text-sm text-gray-400 font-semibold">Fee</th>
                         <th className="text-left py-3 px-4 text-sm text-gray-400 font-semibold">Net Amount</th>
+                        <th className="text-left py-3 px-4 text-sm text-gray-400 font-semibold">Method</th>
                         <th className="text-left py-3 px-4 text-sm text-gray-400 font-semibold">Status</th>
                         <th className="text-left py-3 px-4 text-sm text-gray-400 font-semibold">Date</th>
                         <th className="text-left py-3 px-4 text-sm text-gray-400 font-semibold">Contract</th>
@@ -261,6 +262,11 @@ export const VisaOrdersPage = () => {
                             </td>
                             <td className="py-3 px-4 text-sm text-white font-semibold">
                               ${netAmount.toFixed(2)}
+                            </td>
+                            <td className="py-3 px-4">
+                              <Badge variant="outline" className="capitalize border-gold-medium/30 text-gold-light">
+                                {order.payment_method}
+                              </Badge>
                             </td>
                             <td className="py-3 px-4">
                               {getStatusBadge(order.payment_status)}
@@ -353,6 +359,12 @@ export const VisaOrdersPage = () => {
                             <div>
                               <p className="text-gray-400">Net Amount</p>
                               <p className="text-white font-semibold">${netAmount.toFixed(2)}</p>
+                            </div>
+                            <div>
+                              <p className="text-gray-400">Method</p>
+                              <Badge variant="outline" className="capitalize border-gold-medium/30 text-gold-light text-[10px] py-0 px-1">
+                                {order.payment_method}
+                              </Badge>
                             </div>
                             <div>
                               <p className="text-gray-400">Fee</p>

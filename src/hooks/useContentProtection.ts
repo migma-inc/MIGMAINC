@@ -4,7 +4,7 @@ import { useEffect } from 'react';
  * Hook para proteger conteúdo contra cópia, impressão e download
  * Aplica proteções apenas na área especificada do contrato
  */
-export function useContentProtection(enabled: boolean) {
+export function useContentProtection(enabled: boolean, allowSelection: boolean = false) {
   useEffect(() => {
     if (!enabled) return;
 
@@ -62,27 +62,27 @@ export function useContentProtection(enabled: boolean) {
     // Verificar se está na área de upload de documentos
     const isInUploadArea = (target: EventTarget | null): boolean => {
       if (!target || !(target instanceof Element)) return false;
-      
+
       const photoUploadSection = document.getElementById('photo-upload-section');
-      
+
       // Verificar se está na seção de upload
       if (photoUploadSection && photoUploadSection.contains(target)) {
         return true;
       }
-      
+
       // Verificar se está em qualquer elemento relacionado a upload
       let currentElement: Element | null = target as Element;
       while (currentElement) {
         if (currentElement.id === 'photo-upload-section' ||
-            currentElement.closest('#photo-upload-section') ||
-            currentElement.closest('[class*="upload"]') ||
-            currentElement.closest('[class*="DocumentUpload"]') ||
-            currentElement.closest('[class*="file"]')) {
+          currentElement.closest('#photo-upload-section') ||
+          currentElement.closest('[class*="upload"]') ||
+          currentElement.closest('[class*="DocumentUpload"]') ||
+          currentElement.closest('[class*="file"]')) {
           return true;
         }
         currentElement = currentElement.parentElement;
       }
-      
+
       return false;
     };
 
@@ -90,16 +90,16 @@ export function useContentProtection(enabled: boolean) {
     // Mas NÃO em elementos interativos (botões, inputs, checkboxes, etc.)
     const isProtectedArea = (target: EventTarget | null): boolean => {
       if (!target || !(target instanceof Element)) return false;
-      
+
       // NÃO proteger se estiver na área de upload
       if (isInUploadArea(target)) {
         return false;
       }
-      
+
       // Permitir elementos interativos mesmo dentro da área protegida
       const interactiveElements = ['BUTTON', 'INPUT', 'TEXTAREA', 'SELECT', 'A', 'LABEL'];
       let currentElement: Element | null = target as Element;
-      
+
       // Verificar se o elemento ou algum pai é interativo
       while (currentElement) {
         if (interactiveElements.includes(currentElement.tagName)) {
@@ -111,23 +111,23 @@ export function useContentProtection(enabled: boolean) {
           return false;
         }
         // Verificar se tem classe de componente UI (shadcn/ui)
-        if (currentElement.classList.contains('ui-button') || 
-            currentElement.closest('[class*="button"]') ||
-            currentElement.closest('[class*="checkbox"]') ||
-            currentElement.closest('[class*="upload"]') ||
-            currentElement.closest('[class*="input"]')) {
+        if (currentElement.classList.contains('ui-button') ||
+          currentElement.closest('[class*="button"]') ||
+          currentElement.closest('[class*="checkbox"]') ||
+          currentElement.closest('[class*="upload"]') ||
+          currentElement.closest('[class*="input"]')) {
           return false;
         }
         currentElement = currentElement.parentElement;
       }
-      
+
       // Verificar se está no conteúdo do contrato OU no header (título e descrição)
       const contractContent = document.getElementById('contract-content');
       const contractHeader = document.getElementById('contract-header');
-      
+
       const isInContractContent = contractContent && contractContent.contains(target);
       const isInContractHeader = contractHeader && contractHeader.contains(target);
-      
+
       return isInContractContent || isInContractHeader || false;
     };
 
@@ -138,7 +138,7 @@ export function useContentProtection(enabled: boolean) {
       if (target) {
         const interactiveElements = ['BUTTON', 'INPUT', 'TEXTAREA', 'SELECT', 'A'];
         let currentElement: Element | null = target;
-        
+
         // Verificar se o elemento ou algum pai é interativo
         while (currentElement) {
           if (interactiveElements.includes(currentElement.tagName)) {
@@ -150,15 +150,15 @@ export function useContentProtection(enabled: boolean) {
           }
           // Verificar se tem classe de componente UI (shadcn/ui)
           if (currentElement.closest('[class*="button"]') ||
-              currentElement.closest('[class*="checkbox"]') ||
-              currentElement.closest('[class*="upload"]') ||
-              currentElement.closest('[class*="input"]')) {
+            currentElement.closest('[class*="checkbox"]') ||
+            currentElement.closest('[class*="upload"]') ||
+            currentElement.closest('[class*="input"]')) {
             return; // Permitir botão direito em componentes UI
           }
           currentElement = currentElement.parentElement;
         }
       }
-      
+
       // Bloquear botão direito em toda a página (exceto elementos interativos)
       e.preventDefault();
       e.stopPropagation();
@@ -197,6 +197,8 @@ export function useContentProtection(enabled: boolean) {
 
     // Bloquear seleção de texto
     const handleSelectStart = (e: Event) => {
+      if (allowSelection) return; // Permitir se explicitamente solicitado
+
       if (isProtectedArea(e.target)) {
         e.preventDefault();
         e.stopPropagation();
@@ -217,7 +219,7 @@ export function useContentProtection(enabled: boolean) {
     // ESTILO NETFLIX/DISNEY+: Esconde durante o screenshot
     const hideContractContent = (duration: number = 3000) => {
       console.log('[PROTECTION] hideContractContent called, duration:', duration, 'isContentHidden:', isContentHidden);
-      
+
       if (isContentHidden) {
         // Se já está escondido, estender o tempo
         if (hideTimeout) {
@@ -228,10 +230,10 @@ export function useContentProtection(enabled: boolean) {
         }, duration);
         return;
       }
-      
+
       const contractContent = document.getElementById('contract-content');
       const contractHeader = document.getElementById('contract-header');
-      
+
       if (!contractContent) return;
 
       isContentHidden = true;
@@ -246,7 +248,7 @@ export function useContentProtection(enabled: boolean) {
       contractContent.style.width = '0';
       contractContent.style.height = '0';
       contractContent.style.overflow = 'hidden';
-      
+
       // Esconder também o header (título e descrição)
       if (contractHeader) {
         contractHeader.style.display = 'none';
@@ -311,12 +313,12 @@ export function useContentProtection(enabled: boolean) {
     // Função para restaurar conteúdo do contrato
     const restoreContractContent = () => {
       if (!isContentHidden) return; // Já está visível
-      
+
       isContentHidden = false;
 
       const contractContent = document.getElementById('contract-content');
       const contractHeader = document.getElementById('contract-header');
-      
+
       if (contractContent) {
         // Restaurar todas as propriedades
         contractContent.style.display = '';
@@ -328,7 +330,7 @@ export function useContentProtection(enabled: boolean) {
         contractContent.style.height = '';
         contractContent.style.overflow = '';
       }
-      
+
       // Restaurar também o header (título e descrição)
       if (contractHeader) {
         contractHeader.style.display = '';
@@ -363,25 +365,25 @@ export function useContentProtection(enabled: boolean) {
       if (resizeTimeout) {
         clearTimeout(resizeTimeout);
       }
-      
+
       // Verificar se está em área de upload
       const activeElement = document.activeElement;
       if (activeElement && isInUploadArea(activeElement)) {
         lastWindowSize = { width: window.innerWidth, height: window.innerHeight };
         return; // Não ativar durante upload
       }
-      
+
       // Delay antes de verificar (ameniza resize normal)
       resizeTimeout = setTimeout(() => {
         const currentSize = { width: window.innerWidth, height: window.innerHeight };
-        const sizeChange = Math.abs(currentSize.width - lastWindowSize.width) + 
-                          Math.abs(currentSize.height - lastWindowSize.height);
-        
+        const sizeChange = Math.abs(currentSize.width - lastWindowSize.width) +
+          Math.abs(currentSize.height - lastWindowSize.height);
+
         // Só ativar se mudança for MUITO grande (mais de 300px) - indica DevTools ou screenshot tool
         if (sizeChange > 300) {
           hideContractContent(2000);
         }
-        
+
         lastWindowSize = currentSize;
       }, 300); // Delay de 300ms antes de verificar
     };
@@ -401,9 +403,9 @@ export function useContentProtection(enabled: boolean) {
       if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
         const originalGetUserMedia = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
         navigator.mediaDevices.getUserMedia = async (constraints) => {
-          if (constraints?.video && 
-              ((constraints.video as any).displaySurface === 'monitor' ||
-               (constraints.video as any).displaySurface === 'window')) {
+          if (constraints?.video &&
+            ((constraints.video as any).displaySurface === 'monitor' ||
+              (constraints.video as any).displaySurface === 'window')) {
             hideContractContent(3000);
             // Mensagem removida - usuário não precisa ver aviso
             throw new DOMException('Screen capture is not permitted on this page.', 'NotAllowedError');
@@ -421,18 +423,18 @@ export function useContentProtection(enabled: boolean) {
       const isWindowsKey = keyCode === 91 || keyCode === 92 || keyCode === 93; // Windows keys
       const isShiftKey = keyCode === 16;
       const isControlKey = keyCode === 17; // Ctrl key (esquerdo e direito)
-      
+
       // AMENIZADO: Só esconder Ctrl se estiver na área protegida OU se for combinação suspeita
       // Não esconder apenas por pressionar Ctrl sozinho (muito restritivo)
-      const isCtrlPressed = isControlKey || 
-                           e.ctrlKey || 
-                           e.metaKey || 
-                           keyCode === 17 || 
-                           keyCode === 18 ||
-                           e.key === 'Control' ||
-                           e.code === 'ControlLeft' ||
-                           e.code === 'ControlRight';
-      
+      const isCtrlPressed = isControlKey ||
+        e.ctrlKey ||
+        e.metaKey ||
+        keyCode === 17 ||
+        keyCode === 18 ||
+        e.key === 'Control' ||
+        e.code === 'ControlLeft' ||
+        e.code === 'ControlRight';
+
       // Só ativar proteção de Ctrl se for combinação suspeita (Ctrl+Shift+S, Ctrl+P, etc)
       // OU se estiver na área protegida do contrato
       const isSuspiciousCombination = isCtrlPressed && (
@@ -442,14 +444,14 @@ export function useContentProtection(enabled: boolean) {
         e.key === 'c' || e.key === 'C' || // Ctrl+C (copy)
         e.key === 'a' || e.key === 'A'    // Ctrl+A (select all)
       );
-      
+
       if (isSuspiciousCombination && isProtectedArea(e.target)) {
         // Só esconder se for combinação suspeita E estiver na área protegida
         requestAnimationFrame(() => {
           hideContractContent(2000);
         });
       }
-      
+
       // Detectar Print Screen no keydown (alguns navegadores)
       if (e.key === 'PrintScreen' || e.code === 'PrintScreen' || keyCode === 44) {
         // Esconder IMEDIATAMENTE antes de qualquer coisa
@@ -465,32 +467,32 @@ export function useContentProtection(enabled: boolean) {
         // Esconder conteúdo preventivamente
         hideContractContent(3000);
       }
-      
+
       // REMOVIDO: Não esconder quando Ctrl é pressionado sozinho (muito restritivo)
       // Só ativar em combinações específicas de screenshot/print
 
       // Verificar se está dentro da área protegida ou se é um atalho global
-      const isGlobalShortcut = 
-        (e.ctrlKey || e.metaKey) && 
+      const isGlobalShortcut =
+        (e.ctrlKey || e.metaKey) &&
         !e.shiftKey && // Ctrl+S sem Shift (para não conflitar com screenshot)
         (e.key === 'c' || e.key === 'C' || // Ctrl+C
-         e.key === 'a' || e.key === 'A' || // Ctrl+A
-         e.key === 'p' || e.key === 'P' || // Ctrl+P
-         e.key === 's' || e.key === 'S' || // Ctrl+S
-         e.key === 'u' || e.key === 'U');  // Ctrl+U
+          e.key === 'a' || e.key === 'A' || // Ctrl+A
+          e.key === 'p' || e.key === 'P' || // Ctrl+P
+          e.key === 's' || e.key === 'S' || // Ctrl+S
+          e.key === 'u' || e.key === 'U');  // Ctrl+U
 
       // Bloquear acesso ao DevTools
-      const isDevToolsShortcut = 
+      const isDevToolsShortcut =
         e.key === 'F12' ||
-        ((e.ctrlKey || e.metaKey) && e.shiftKey && 
-         (e.key === 'i' || e.key === 'I' || // Ctrl+Shift+I
-          e.key === 'c' || e.key === 'C' || // Ctrl+Shift+C
-          e.key === 'j' || e.key === 'J')); // Ctrl+Shift+J
+        ((e.ctrlKey || e.metaKey) && e.shiftKey &&
+          (e.key === 'i' || e.key === 'I' || // Ctrl+Shift+I
+            e.key === 'c' || e.key === 'C' || // Ctrl+Shift+C
+            e.key === 'j' || e.key === 'J')); // Ctrl+Shift+J
 
       // Bloquear screenshot do navegador (Chrome/Edge: Ctrl+Shift+S)
-      const isScreenshotShortcut = 
-        (e.ctrlKey || e.metaKey) && 
-        e.shiftKey && 
+      const isScreenshotShortcut =
+        (e.ctrlKey || e.metaKey) &&
+        e.shiftKey &&
         (e.key === 's' || e.key === 'S');
 
       if (isScreenshotShortcut) {
@@ -512,7 +514,7 @@ export function useContentProtection(enabled: boolean) {
         // Mensagem removida - usuário não precisa ver aviso
         return false;
       }
-      
+
       // Bloquear atalhos globais (Ctrl+C, Ctrl+A, Ctrl+P, Ctrl+S, Ctrl+U)
       if (isGlobalShortcut) {
         // Se estiver na área protegida, bloquear sempre
@@ -540,10 +542,10 @@ export function useContentProtection(enabled: boolean) {
     // Print Screen não pode ser bloqueado completamente, mas podemos esconder o conteúdo
     const handleKeyUp = (e: KeyboardEvent) => {
       // Detectar Print Screen no keyup também (alguns navegadores capturam aqui)
-      if (e.key === 'PrintScreen' || 
-          e.key === 'F13' || 
-          (e.key === 'F13' && e.shiftKey) ||
-          e.code === 'PrintScreen') {
+      if (e.key === 'PrintScreen' ||
+        e.key === 'F13' ||
+        (e.key === 'F13' && e.shiftKey) ||
+        e.code === 'PrintScreen') {
         hideContractContent(3000);
         // Mensagem removida - usuário não precisa ver aviso
       }
@@ -567,7 +569,7 @@ export function useContentProtection(enabled: boolean) {
     window.addEventListener('afterprint', handleAfterPrint);
     // REMOVIDO: blur e focus listeners - Alt+Tab não deve ativar proteção
     window.addEventListener('resize', handleResize);
-    
+
     console.log('[PROTECTION] Content protection enabled, event listeners added');
 
     // Cleanup: remover event listeners ao desmontar
@@ -585,12 +587,12 @@ export function useContentProtection(enabled: boolean) {
       window.removeEventListener('afterprint', handleAfterPrint);
       // REMOVIDO: blur e focus listeners
       window.removeEventListener('resize', handleResize);
-      
+
       // Restaurar conteúdo se estiver escondido
       if (isContentHidden) {
         restoreContractContent();
       }
-      
+
       // Limpar timeouts se existirem
       if (hideTimeout) {
         clearTimeout(hideTimeout);

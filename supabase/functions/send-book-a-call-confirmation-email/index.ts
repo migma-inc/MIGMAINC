@@ -22,16 +22,16 @@ Deno.serve(async (req) => {
     });
 
     const { contactName, email, companyName, country, phone, typeOfBusiness, leadVolume, website, challenges } = await req.json();
-    console.log("[Book a Call Confirmation] Received data:", { 
-      contactName, 
-      email, 
-      companyName, 
+    console.log("[Book a Call Confirmation] Received data:", {
+      contactName,
+      email,
+      companyName,
       country,
       phone,
       typeOfBusiness,
       leadVolume,
       website,
-      challengesLength: challenges?.length 
+      challengesLength: challenges?.length
     });
 
     if (!contactName || !email || !companyName || !country || !phone || !typeOfBusiness || !leadVolume) {
@@ -50,7 +50,7 @@ Deno.serve(async (req) => {
     // Get Supabase client
     const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
-    
+
     console.log("[Book a Call Confirmation] Environment check:", {
       supabaseUrl: supabaseUrl ? "✓ Set" : "✗ Missing",
       supabaseServiceKey: supabaseServiceKey ? `✓ Set (length: ${supabaseServiceKey.length}, starts with: ${supabaseServiceKey.substring(0, 20)}...)` : "✗ Missing",
@@ -182,7 +182,7 @@ Deno.serve(async (req) => {
                     <tr>
                         <td align="center" style="padding: 20px 40px; background-color: #000000;">
                             <p style="margin: 0; font-size: 12px; color: #666666; line-height: 1.5;">
-                                © 2025 MIGMA. All rights reserved.
+                                © MIGMA. All rights reserved.
                             </p>
                         </td>
                     </tr>

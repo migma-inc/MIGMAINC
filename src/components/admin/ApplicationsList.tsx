@@ -255,6 +255,17 @@ export function ApplicationsList({
                       Approve After Meeting
                     </Button>
                   )}
+                  {onReject && (
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => onReject(application)}
+                      className="flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white"
+                    >
+                      <XCircle className="w-4 h-4" />
+                      Reject After Meeting
+                    </Button>
+                  )}
                 </>
               )}
               {application.status === 'approved_for_contract' && onResendEmail && (

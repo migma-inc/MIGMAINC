@@ -118,7 +118,7 @@ Deno.serve(async (req) => {
     let newToken: string | null = null;
     if (contract_template_id !== undefined && contract_template_id !== null) {
       console.log("[EDGE FUNCTION] Generating new token with contract template:", contract_template_id);
-      
+
       // Generate new token
       const token = `migma_${Date.now()}_${Math.random().toString(36).substring(2, 15)}_${Math.random().toString(36).substring(2, 15)}`;
       const expiresAt = new Date();
@@ -245,7 +245,7 @@ Deno.serve(async (req) => {
                             This is an automated message. Please do not reply to this email.
                           </p>
                           <p style="margin: 0; font-size: 12px; color: #666666; line-height: 1.5;">
-                            © 2025 MIGMA. All rights reserved.
+                            © MIGMA. All rights reserved.
                           </p>
                         </td>
                       </tr>
@@ -333,7 +333,7 @@ Deno.serve(async (req) => {
                             This is an automated message. Please do not reply to this email.
                           </p>
                           <p style="margin: 0; font-size: 12px; color: #666666; line-height: 1.5;">
-                            © 2025 MIGMA. All rights reserved.
+                            © MIGMA. All rights reserved.
                           </p>
                         </td>
                       </tr>

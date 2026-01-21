@@ -51,6 +51,12 @@ export function Sidebar({ className, isMobileOpen = false, onMobileClose }: Side
       exact: false,
     },
     {
+      title: 'Visa Approvals',
+      icon: FileText,
+      path: '/dashboard/visa-contract-approval',
+      exact: false,
+    },
+    {
       title: 'Zelle Approval',
       icon: DollarSign,
       path: '/dashboard/zelle-approval',
