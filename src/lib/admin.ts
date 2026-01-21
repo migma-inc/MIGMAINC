@@ -18,7 +18,7 @@ export async function approveApplication(
     // Update status to approved
     const { error: updateError } = await supabase
       .from('global_partner_applications')
-      .update({ 
+      .update({
         status: 'approved',
         updated_at: new Date().toISOString(),
       })
@@ -38,18 +38,18 @@ export async function approveApplication(
     if (!token) {
       console.warn('[ADMIN] Token generation or email sending failed, but status was updated');
       // Status was updated, so we consider it a partial success
-      return { 
-        success: true, 
-        error: 'Application approved, but email sending failed. Token may have been generated.' 
+      return {
+        success: true,
+        error: 'Application approved, but email sending failed. Token may have been generated.'
       };
     }
 
     return { success: true };
   } catch (error) {
     console.error('[ADMIN] Error approving application:', error);
-    return { 
-      success: false, 
-      error: error instanceof Error ? error.message : 'Unknown error occurred' 
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error occurred'
     };
   }
 }
@@ -73,6 +73,18 @@ export async function rejectApplication(
       updateData.rejection_reason = reason;
     }
 
+    // Get application data for email
+    const { data: application, error: fetchError } = await supabase
+      .from('global_partner_applications')
+      .select('email, full_name')
+      .eq('id', applicationId)
+      .single();
+
+    if (fetchError || !application) {
+      console.error('[ADMIN] Error fetching application for rejection:', fetchError);
+      return { success: false, error: 'Application not found' };
+    }
+
     const { error: updateError } = await supabase
       .from('global_partner_applications')
       .update(updateData)
@@ -83,15 +95,27 @@ export async function rejectApplication(
       return { success: false, error: updateError.message };
     }
 
+    // Send rejection email
+    // We import dynamically to avoid circular dependencies if any
+    const { sendApplicationRejectedAfterMeetingEmail } = await import('./emails');
+    const emailSent = await sendApplicationRejectedAfterMeetingEmail(
+      application.email,
+      application.full_name
+    );
+
+    if (!emailSent) {
+      console.warn('[ADMIN] Rejection email failed to send, but status was updated');
+    }
+
     // Invalidate cache after status update
     invalidateAllCache();
 
     return { success: true };
   } catch (error) {
     console.error('[ADMIN] Error rejecting application:', error);
-    return { 
-      success: false, 
-      error: error instanceof Error ? error.message : 'Unknown error occurred' 
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error occurred'
     };
   }
 }

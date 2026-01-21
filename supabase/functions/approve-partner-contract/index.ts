@@ -244,7 +244,7 @@ Deno.serve(async (req) => {
                                     This is an automated message. Please do not reply to this email.
                                 </p>
                                 <p style="margin: 0; font-size: 12px; color: #666666; line-height: 1.5;">
-                                    © 2025 MIGMA. All rights reserved.
+                                    © MIGMA. All rights reserved.
                                 </p>
                             </td>
                         </tr>

@@ -14,8 +14,7 @@ import { GlobalPartner } from './pages/GlobalPartner';
 import { PartnerTerms } from './pages/PartnerTerms';
 import { ThankYou } from './pages/ThankYou';
 import { PartnerTermsSuccess } from './pages/PartnerTermsSuccess';
-import { Dashboard } from './pages/Dashboard';
-import { DashboardContent } from './pages/Dashboard';
+import { Dashboard, DashboardContent } from './pages/Dashboard';
 import { ApplicationDetailPage } from './pages/ApplicationDetailPage';
 import { ContractsPage } from './pages/ContractsPage';
 import { BookACallPage } from './pages/BookACallPage';
@@ -52,8 +51,7 @@ import { ScheduleMeetingPage } from './pages/admin/ScheduleMeetingPage';
 import { AdminSellerAnalytics } from './pages/admin/AdminSellerAnalytics';
 import { AdminRoute } from './components/admin/AdminRoute';
 import { SlackReportsPage } from './pages/admin/SlackReportsPage';
-// PAYMENT REQUEST - COMENTADO TEMPORARIAMENTE
-// import { AdminPaymentRequests } from './pages/admin/AdminPaymentRequests';
+import { VisaContractApprovalPage } from './pages/VisaContractApprovalPage';
 
 function App() {
   return (
@@ -105,11 +103,10 @@ function App() {
           <Route path="contracts" element={<ContractsPage />} />
           <Route path="visa-orders" element={<VisaOrdersPage />} />
           <Route path="visa-orders/:id" element={<VisaOrderDetailPage />} />
+          <Route path="visa-contract-approval" element={<VisaContractApprovalPage />} />
           <Route path="zelle-approval" element={<ZelleApprovalPage />} />
           <Route path="sellers" element={<SellersPage />} />
           <Route path="sellers/:sellerId/analytics" element={<AdminRoute><AdminSellerAnalytics /></AdminRoute>} />
-          {/* PAYMENT REQUEST - COMENTADO TEMPORARIAMENTE */}
-          {/* <Route path="payment-requests" element={<AdminPaymentRequests />} /> */}
           <Route path="contact-messages" element={<ContactMessagesPage />} />
           <Route path="contact-messages/:id" element={<ContactMessageDetail />} />
           <Route path="contract-templates" element={<ContractTemplatesPage />} />

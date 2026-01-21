@@ -119,7 +119,7 @@ export async function sendApplicationConfirmationEmail(email: string, fullName: 
                                 This is an automated message. Please do not reply to this email.
                             </p>
                             <p style="margin: 0; font-size: 12px; color: #666666; line-height: 1.5;">
-                                © 2025 MIGMA. All rights reserved.
+                                © MIGMA. All rights reserved.
                             </p>
                         </td>
                     </tr>
@@ -155,7 +155,7 @@ export async function sendApprovalEmail(
     // 4. Fallback to production URL
     const getBaseUrl = (): string => {
         if (baseUrl) return baseUrl;
-        
+
         // Try environment variable first (for production builds)
         const envUrl = import.meta.env.VITE_APP_URL;
         console.log('[EMAIL DEBUG] Environment variable check:', {
@@ -163,25 +163,25 @@ export async function sendApprovalEmail(
             exists: !!envUrl,
             type: typeof envUrl
         });
-        
+
         if (envUrl) {
             // Remove trailing slash and return
             const normalizedUrl = envUrl.trim().replace(/\/+$/, '');
             console.log('[EMAIL DEBUG] Using environment variable:', normalizedUrl);
             return normalizedUrl;
         }
-        
+
         // If in browser, use current origin
         if (typeof window !== 'undefined' && window.location.origin) {
             console.log('[EMAIL DEBUG] Using browser origin:', window.location.origin);
             return window.location.origin;
         }
-        
+
         // Fallback (should be set via VITE_APP_URL in production)
         console.log('[EMAIL DEBUG] Using fallback URL: https://migmainc.com');
         return 'https://migmainc.com';
     };
-    
+
     const origin = getBaseUrl();
     const termsUrl = `${origin}/partner-terms?token=${token}`;
 
@@ -290,7 +290,7 @@ export async function sendApprovalEmail(
                                 This is an automated message. Please do not reply to this email.
                             </p>
                             <p style="margin: 0; font-size: 12px; color: #666666; line-height: 1.5;">
-                                © 2025 MIGMA. All rights reserved.
+                                © MIGMA. All rights reserved.
                             </p>
                         </td>
                     </tr>
@@ -438,7 +438,7 @@ export async function sendMeetingInvitationEmail(
                                 This is an automated message. Please do not reply to this email.
                             </p>
                             <p style="margin: 0; font-size: 12px; color: #666666; line-height: 1.5;">
-                                © 2025 MIGMA. All rights reserved.
+                                © MIGMA. All rights reserved.
                             </p>
                         </td>
                     </tr>
@@ -572,7 +572,7 @@ export async function sendMeetingUpdateEmail(
                                 This is an automated message. Please do not reply to this email.
                             </p>
                             <p style="margin: 0; font-size: 12px; color: #666666; line-height: 1.5;">
-                                © 2025 MIGMA. All rights reserved.
+                                © MIGMA. All rights reserved.
                             </p>
                         </td>
                     </tr>
@@ -592,11 +592,94 @@ export async function sendMeetingUpdateEmail(
 }
 
 /**
+ * Email 3 (Legacy): Confirmation after terms acceptance
+ * Note: PDF is NOT sent to the candidate - only confirmation that acceptance was received
+ */
+export async function sendApplicationRejectedAfterMeetingEmail(
+    email: string,
+    fullName: string
+): Promise<boolean> {
+    const html = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+        </head>
+<body style="margin: 0; padding: 0; font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #000000;">
+    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background-color: #000000;">
+        <tr>
+            <td align="center" style="padding: 40px 20px;">
+                <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="600" style="max-width: 600px; background-color: #000000; border-radius: 8px;">
+                    <!-- Logo Header -->
+                    <tr>
+                        <td align="center" style="padding: 40px 20px 30px; background-color: #000000;">
+                            <img src="https://ekxftwrjvxtpnqbraszv.supabase.co/storage/v1/object/public/logo/logo2.png" alt="MIGMA Logo" width="200" style="display: block; max-width: 200px; height: auto;">
+                        </td>
+                    </tr>
+                    <!-- Main Content -->
+                    <tr>
+                        <td style="padding: 0 40px 40px; background-color: #000000;">
+                            <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
+                                <tr>
+                                    <td style="padding: 30px; background: linear-gradient(135deg, #1a1a1a 0%, #000000 100%); border-radius: 8px; border: 1px solid #CE9F48;">
+                                        <h1 style="margin: 0 0 20px 0; font-size: 28px; font-weight: bold; color: #F3E196; text-align: center; background: linear-gradient(180deg, #8E6E2F 0%, #F3E196 25%, #CE9F48 50%, #F3E196 75%, #8E6E2F 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">
+                                            Update on Your Application
+                                        </h1>
+                                        <p style="margin: 0 0 20px 0; font-size: 16px; line-height: 1.6; color: #e0e0e0;">
+                                            Dear ${fullName},
+                                        </p>
+                                        <p style="margin: 0 0 20px 0; font-size: 16px; line-height: 1.6; color: #e0e0e0;">
+                                            Thank you for taking the time to meet with us regarding the <strong style="color: #CE9F48;">MIGMA Global Partner</strong> opportunity. We appreciated the chance to learn more about your background and experience.
+                                        </p>
+                                        <p style="margin: 0 0 20px 0; font-size: 16px; line-height: 1.6; color: #e0e0e0;">
+                                            After careful consideration, we regret to inform you that we will not be proceeding with your application at this time.
+                                        </p>
+                                        <p style="margin: 0 0 30px 0; font-size: 16px; line-height: 1.6; color: #e0e0e0;">
+                                            We wish you the best in your future endeavors.
+                                        </p>
+                                        <p style="margin: 0; font-size: 16px; line-height: 1.6; color: #e0e0e0;">
+                                            Best regards,<br>
+                                            <strong style="color: #CE9F48;">The MIGMA Team</strong>
+                                        </p>
+                                    </td>
+                                </tr>
+                            </table>
+                        </td>
+                    </tr>
+                    <!-- Footer -->
+                    <tr>
+                        <td align="center" style="padding: 20px 40px; background-color: #000000;">
+                            <p style="margin: 0 0 10px 0; font-size: 11px; color: #999999; line-height: 1.5; font-style: italic;">
+                                This is an automated message. Please do not reply to this email.
+                            </p>
+                            <p style="margin: 0; font-size: 12px; color: #666666; line-height: 1.5;">
+                                © MIGMA. All rights reserved.
+                            </p>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+        </body>
+        </html>
+    `;
+
+    return sendEmail({
+        to: email,
+        subject: 'Update on Your MIGMA Global Partner Application',
+        html: html,
+    });
+}
+
+/**
  * Email 3: Confirmation after terms acceptance
  * Note: PDF is NOT sent to the candidate - only confirmation that acceptance was received
  */
 export async function sendTermsAcceptanceConfirmationEmail(
-    email: string, 
+    email: string,
     fullName: string
 ): Promise<boolean> {
     const html = `
@@ -670,7 +753,7 @@ export async function sendTermsAcceptanceConfirmationEmail(
                                 This is an automated message. Please do not reply to this email.
                             </p>
                             <p style="margin: 0; font-size: 12px; color: #666666; line-height: 1.5;">
-                                © 2025 MIGMA. All rights reserved.
+                                © MIGMA. All rights reserved.
                             </p>
                         </td>
                     </tr>
@@ -717,7 +800,7 @@ export async function testEmailSending(testEmail: string): Promise<boolean> {
     `;
 
     console.log('🧪 [TEST] Enviando email de teste para:', testEmail);
-    
+
     const result = await sendEmail({
         to: testEmail,
         subject: 'Test Email - MIGMA Global Partner SMTP',
@@ -752,23 +835,23 @@ export async function sendContractRejectionEmail(
     // 4. Fallback to production URL
     const getBaseUrl = (): string => {
         if (baseUrl) return baseUrl;
-        
+
         // Try environment variable first (for production builds)
         const envUrl = import.meta.env.VITE_APP_URL;
         if (envUrl) {
             // Remove trailing slash and return
             return envUrl.trim().replace(/\/+$/, '');
         }
-        
+
         // If in browser, use current origin
         if (typeof window !== 'undefined' && window.location.origin) {
             return window.location.origin;
         }
-        
+
         // Fallback (should be set via VITE_APP_URL in production)
         return 'https://migmainc.com';
     };
-    
+
     const origin = getBaseUrl();
     const resubmitUrl = `${origin}/checkout/visa/resubmit?token=${token}`;
 
@@ -865,7 +948,7 @@ export async function sendContractRejectionEmail(
                                 This is an automated message. Please do not reply to this email.
                             </p>
                             <p style="margin: 0; font-size: 12px; color: #666666; line-height: 1.5;">
-                                © 2025 MIGMA. All rights reserved.
+                                © MIGMA. All rights reserved.
                             </p>
                         </td>
                     </tr>
@@ -901,28 +984,28 @@ export async function sendAdminNewApplicationNotification(
     // Get base URL
     const getBaseUrl = (): string => {
         if (baseUrl) return baseUrl;
-        
+
         // Try environment variable first (for production builds)
         const envUrl = import.meta.env.VITE_APP_URL;
         if (envUrl) {
             // Remove trailing slash and return
             return envUrl.trim().replace(/\/+$/, '');
         }
-        
+
         // If in browser, use current origin
         if (typeof window !== 'undefined' && window.location.origin) {
             return window.location.origin;
         }
-        
+
         // Fallback
         return 'https://migma.com';
     };
-    
+
     const origin = getBaseUrl();
     // Link directly to the admin dashboard application detail page
     // Routes: admin dashboard is served at /dashboard and application detail at /dashboard/applications/:id
     const dashboardUrl = `${origin}/dashboard/applications/${applicationData.applicationId}`;
-    
+
     // Format current date/time
     const submissionDateTime = new Date().toLocaleString('en-US', {
         weekday: 'long',
@@ -1053,7 +1136,7 @@ export async function sendAdminNewApplicationNotification(
                                 This is an automated admin notification. Do not reply to this email.
                             </p>
                             <p style="margin: 0; font-size: 12px; color: #666666; line-height: 1.5;">
-                                © 2025 MIGMA. All rights reserved.
+                                © MIGMA. All rights reserved.
                             </p>
                         </td>
                     </tr>
@@ -1087,17 +1170,17 @@ export async function sendContactMessageAccessLink(
     // Get base URL
     const getBaseUrl = (): string => {
         if (baseUrl) return baseUrl;
-        
+
         const envUrl = import.meta.env.VITE_APP_URL;
         if (envUrl) return envUrl;
-        
+
         if (typeof window !== 'undefined' && window.location.origin) {
             return window.location.origin;
         }
-        
+
         return 'https://migma.com';
     };
-    
+
     const origin = getBaseUrl();
     const ticketUrl = `${origin}/support/ticket?token=${token}`;
 
@@ -1178,7 +1261,7 @@ export async function sendContactMessageAccessLink(
                                 This is an automated message. Please do not reply to this email.
                             </p>
                             <p style="margin: 0; font-size: 12px; color: #666666; line-height: 1.5;">
-                                © 2025 MIGMA. All rights reserved.
+                                © MIGMA. All rights reserved.
                             </p>
                         </td>
                     </tr>
@@ -1304,7 +1387,7 @@ export async function sendContractViewLinkEmail(
                                 This is an automated message. Please do not reply to this email.
                             </p>
                             <p style="margin: 0; font-size: 12px; color: #666666; line-height: 1.5;">
-                                © 2025 MIGMA. All rights reserved.
+                                © MIGMA. All rights reserved.
                             </p>
                         </td>
                     </tr>
@@ -1333,17 +1416,17 @@ export async function sendAdminReplyNotification(
     // Get base URL
     const getBaseUrl = (): string => {
         if (baseUrl) return baseUrl;
-        
+
         const envUrl = import.meta.env.VITE_APP_URL;
         if (envUrl) return envUrl;
-        
+
         if (typeof window !== 'undefined' && window.location.origin) {
             return window.location.origin;
         }
-        
+
         return 'https://migma.com';
     };
-    
+
     const origin = getBaseUrl();
     const ticketUrl = `${origin}/support/ticket?token=${token}`;
 
@@ -1423,7 +1506,7 @@ export async function sendAdminReplyNotification(
                                 This is an automated message. Please do not reply to this email.
                             </p>
                             <p style="margin: 0; font-size: 12px; color: #666666; line-height: 1.5;">
-                                © 2025 MIGMA. All rights reserved.
+                                © MIGMA. All rights reserved.
                             </p>
                         </td>
                     </tr>
@@ -1555,7 +1638,7 @@ export async function sendScheduledMeetingEmail(
                                 This is an automated message. Please do not reply to this email.
                             </p>
                             <p style="margin: 0; font-size: 12px; color: #666666; line-height: 1.5;">
-                                © 2025 MIGMA. All rights reserved.
+                                © MIGMA. All rights reserved.
                             </p>
                         </td>
                     </tr>
@@ -1679,7 +1762,7 @@ export async function sendScheduledMeetingUpdateEmail(
                                 This is an automated message. Please do not reply to this email.
                             </p>
                             <p style="margin: 0; font-size: 12px; color: #666666; line-height: 1.5;">
-                                © 2025 MIGMA. All rights reserved.
+                                © MIGMA. All rights reserved.
                             </p>
                         </td>
                     </tr>
@@ -1757,7 +1840,7 @@ export async function sendPaymentRequestCreatedEmail(
                                 Esta é uma mensagem automática. Por favor, não responda a este email.
                             </p>
                             <p style="margin: 0; font-size: 12px; color: #666666; line-height: 1.5;">
-                                © 2025 MIGMA. All rights reserved.
+                                © MIGMA. All rights reserved.
                             </p>
                         </td>
                     </tr>
@@ -1844,7 +1927,7 @@ export async function sendPaymentRequestApprovedEmail(
                                 Esta é uma mensagem automática. Por favor, não responda a este email.
                             </p>
                             <p style="margin: 0; font-size: 12px; color: #666666; line-height: 1.5;">
-                                © 2025 MIGMA. All rights reserved.
+                                © MIGMA. All rights reserved.
                             </p>
                         </td>
                     </tr>
@@ -1927,7 +2010,7 @@ export async function sendPaymentRequestRejectedEmail(
                                 Esta é uma mensagem automática. Por favor, não responda a este email.
                             </p>
                             <p style="margin: 0; font-size: 12px; color: #666666; line-height: 1.5;">
-                                © 2025 MIGMA. All rights reserved.
+                                © MIGMA. All rights reserved.
                             </p>
                         </td>
                     </tr>
@@ -2022,7 +2105,7 @@ export async function sendPaymentRequestCompletedEmail(
                                 Esta é uma mensagem automática. Por favor, não responda a este email.
                             </p>
                             <p style="margin: 0; font-size: 12px; color: #666666; line-height: 1.5;">
-                                © 2025 MIGMA. All rights reserved.
+                                © MIGMA. All rights reserved.
                             </p>
                         </td>
                     </tr>

@@ -226,6 +226,13 @@ export async function saveStep2Data(
 
     // Save document front
     if (documentFiles.documentFront) {
+      // Remove previous document_front if exists to avoid duplicates
+      await supabase
+        .from('identity_files')
+        .delete()
+        .eq('service_request_id', serviceRequestId)
+        .eq('file_type', 'document_front');
+
       const { error: frontError } = await supabase
         .from('identity_files')
         .insert({
@@ -249,6 +256,13 @@ export async function saveStep2Data(
       return { success: false, error: 'Document back is required' };
     }
 
+    // Remove previous document_back if exists
+    await supabase
+      .from('identity_files')
+      .delete()
+      .eq('service_request_id', serviceRequestId)
+      .eq('file_type', 'document_back');
+
     const { error: backError } = await supabase
       .from('identity_files')
       .insert({
@@ -268,6 +282,13 @@ export async function saveStep2Data(
 
     // Save selfie
     if (documentFiles.selfie) {
+      // Remove previous selfie_doc if exists
+      await supabase
+        .from('identity_files')
+        .delete()
+        .eq('service_request_id', serviceRequestId)
+        .eq('file_type', 'selfie_doc');
+
       const { error: selfieError } = await supabase
         .from('identity_files')
         .insert({

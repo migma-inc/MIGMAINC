@@ -235,12 +235,19 @@ Deno.serve(async (req) => {
         if (imageUrl.startsWith('visa-documents/')) {
           const { data: { publicUrl: url } } = supabase.storage
             .from('visa-documents')
-            .getPublicUrl(imageUrl);
+            .getPublicUrl(imageUrl.replace('visa-documents/', ''));
+          publicUrl = url;
+        } else if (imageUrl.startsWith('visa-signatures/')) {
+          const { data: { publicUrl: url } } = supabase.storage
+            .from('visa-signatures')
+            .getPublicUrl(imageUrl.replace('visa-signatures/', ''));
           publicUrl = url;
         } else if (!imageUrl.includes('/storage/v1/object/public/') && !imageUrl.startsWith('http')) {
-          // Try to construct public URL
+          // If it is just a filename and we don't know the bucket, try visa-signatures first if it's a signature
+          // Otherwise default to visa-documents
+          const bucket = imageUrl.includes('sig') ? 'visa-signatures' : 'visa-documents';
           const { data: { publicUrl: url } } = supabase.storage
-            .from('visa-documents')
+            .from(bucket)
             .getPublicUrl(imageUrl);
           publicUrl = url;
         }
@@ -730,8 +737,13 @@ The client has electronically signed this contract by uploading a selfie with th
           maxWidth,
           maxHeight
         );
-        currentY += maxHeight + 15;
-        // If signature image exists, don't show name - signature is enough
+        currentY += maxHeight + 10;
+
+        // Adiciona o nome do cliente abaixo da assinatura para maior validade
+        pdf.setFontSize(9);
+        pdf.setFont('helvetica', 'normal');
+        pdf.text(order.client_name, margin, currentY);
+        currentY += 10;
       } catch (imgError) {
         console.error("[EDGE FUNCTION] Error adding signature image to PDF:", imgError);
         // Fall through to show name as fallback if image fails

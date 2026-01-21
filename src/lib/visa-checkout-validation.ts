@@ -121,9 +121,9 @@ export function validateStep1(formData: Step1FormData): ValidationResultWithFiel
   if (!city) {
     errors.city = 'City is required';
   } else {
-    const cityRegex = /^[a-zA-Z\s\-']+$/;
+    const cityRegex = /^[a-zA-Z\u00C0-\u00FF\s\-']+$/;
     if (!cityRegex.test(city)) {
-      errors.city = 'City must contain only letters, spaces, hyphens, and apostrophes';
+      errors.city = 'City must contain only letters (including accents), spaces, hyphens, and apostrophes';
     }
   }
 
@@ -132,9 +132,9 @@ export function validateStep1(formData: Step1FormData): ValidationResultWithFiel
   if (!state) {
     errors.state = 'State is required';
   } else {
-    const stateRegex = /^[a-zA-Z\s\-']+$/;
+    const stateRegex = /^[a-zA-Z\u00C0-\u00FF\s\-']+$/;
     if (!stateRegex.test(state)) {
-      errors.state = 'State must contain only letters, spaces, hyphens, and apostrophes';
+      errors.state = 'State must contain only letters (including accents), spaces, hyphens, and apostrophes';
     }
   }
 

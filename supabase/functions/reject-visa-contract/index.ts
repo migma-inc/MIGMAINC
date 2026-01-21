@@ -86,7 +86,7 @@ Deno.serve(async (req) => {
 
     // contract_type: 'annex' or 'contract' (defaults to 'contract' for backward compatibility)
     const approvalType = contract_type === 'annex' ? 'annex' : 'contract';
-    
+
     // Update order with rejection status based on contract type
     const updateData: any = {
       updated_at: new Date().toISOString(),
@@ -126,7 +126,7 @@ Deno.serve(async (req) => {
     // Sempre usa migmainc.com
     const baseUrl = "https://migmainc.com";
     const resubmitUrl = `${baseUrl}/checkout/visa/resubmit?token=${token}`;
-    
+
     console.log("[EDGE FUNCTION] Using base URL:", baseUrl);
 
     // Send rejection email via send-email function
@@ -227,7 +227,7 @@ Deno.serve(async (req) => {
                           This is an automated message. Please do not reply to this email.
                         </p>
                         <p style="margin: 0; font-size: 12px; color: #666666; line-height: 1.5;">
-                          © 2025 MIGMA. All rights reserved.
+                          © MIGMA. All rights reserved.
                         </p>
                       </td>
                     </tr>

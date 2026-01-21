@@ -68,6 +68,13 @@ export async function getVisaContractViewData(orderId: string) {
             .eq('is_active', true)
             .single();
 
+        const annexTemplatePromise = supabase
+            .from('contract_templates')
+            .select('content')
+            .eq('template_type', 'chargeback_annex')
+            .eq('is_active', true)
+            .maybeSingle();
+
         // Conditional promise for files
         let filesPromise;
         if (order.service_request_id) {
@@ -76,10 +83,16 @@ export async function getVisaContractViewData(orderId: string) {
             filesPromise = Promise.resolve({ data: [] });
         }
 
-        const [productResult, templateResult, filesResult] = await Promise.all([productPromise, templatePromise, filesPromise]);
+        const [productResult, templateResult, annexResult, filesResult] = await Promise.all([
+            productPromise,
+            templatePromise,
+            annexTemplatePromise,
+            filesPromise
+        ]);
 
         const product = productResult.data;
         const template = templateResult.data;
+        const annexTemplate = annexResult?.data;
         const identityFiles = filesResult?.data || [];
 
         // Construct image URLs object
@@ -141,6 +154,7 @@ export async function getVisaContractViewData(orderId: string) {
             order,
             product,
             contractContent,
+            annexContent: annexTemplate?.content || null,
             imageUrls
         };
 
