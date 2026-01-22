@@ -25,7 +25,7 @@ export const PartnerTerms = () => {
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
     const token = searchParams.get('token');
-    
+
     const [accepted, setAccepted] = useState(false);
     const [tokenValid, setTokenValid] = useState<boolean | null>(null);
     const [tokenData, setTokenData] = useState<any>(null);
@@ -46,7 +46,7 @@ export const PartnerTerms = () => {
     const [signatureName, setSignatureName] = useState<string>(''); // Mantido para backward compatibility
     const [signatureImageDataUrl, setSignatureImageDataUrl] = useState<string | null>(null); // Base64 da assinatura desenhada
     const [signatureConfirmed, setSignatureConfirmed] = useState<boolean>(false); // Se a assinatura foi confirmada (botão Done clicado)
-    
+
     // Estados para dados contratuais
     // Identificação Pessoal
     const [fullLegalName, setFullLegalName] = useState<string>('');
@@ -55,34 +55,34 @@ export const PartnerTerms = () => {
     const [countryOfResidence, setCountryOfResidence] = useState<string>('');
     const [phoneWhatsapp, setPhoneWhatsapp] = useState<string>('');
     const [email, setEmail] = useState<string>('');
-    
+
     // Endereço
     const [addressStreet, setAddressStreet] = useState<string>('');
     const [addressCity, setAddressCity] = useState<string>('');
     const [addressState, setAddressState] = useState<string>('');
     const [addressZip, setAddressZip] = useState<string>('');
     const [addressCountry, setAddressCountry] = useState<string>('');
-    
+
     // Estrutura Fiscal/Empresarial
     const [businessType, setBusinessType] = useState<'Individual' | 'Company' | ''>('');
     const [taxIdType, setTaxIdType] = useState<string>('');
     const [taxIdNumber, setTaxIdNumber] = useState<string>('');
     const [companyLegalName, setCompanyLegalName] = useState<string>('');
-    
+
     // Pagamento
     const [preferredPayoutMethod, setPreferredPayoutMethod] = useState<string>('');
     const [payoutDetails, setPayoutDetails] = useState<string>('');
-    
+
     // Estado para controlar step atual (1=personal, 2=address, 3=fiscal, 4=payment)
     const [currentStep, setCurrentStep] = useState<number>(1);
-    
+
     // Estados de validação
     const [formErrors, setFormErrors] = useState<Record<string, string>>({});
-    
+
     // Use refs to always have the latest values
     const identityPhotoPathRef = useRef<string | null>(null);
     const identityPhotoNameRef = useRef<string | null>(null);
-    
+
     // Keep refs in sync with state
     useEffect(() => {
         identityPhotoPathRef.current = identityPhotoPath;
@@ -140,7 +140,7 @@ export const PartnerTerms = () => {
             word-wrap: break-word;
         `;
         document.body.appendChild(warning);
-        
+
         setTimeout(() => {
             warning.style.animation = 'slideOutWarning 0.3s ease-out';
             setTimeout(() => {
@@ -210,7 +210,7 @@ export const PartnerTerms = () => {
             // Iniciar com loading ativo desde o início
             setLoading(true);
             setLoadingContent(true);
-            
+
             if (!token) {
                 setTokenValid(false);
                 setLoading(false);
@@ -386,7 +386,7 @@ export const PartnerTerms = () => {
             const savedData = localStorage.getItem(storageKey);
             if (savedData) {
                 const formData = JSON.parse(savedData);
-                
+
                 // Restaurar todos os campos
                 if (formData.fullLegalName !== undefined) setFullLegalName(formData.fullLegalName);
                 if (formData.dateOfBirth !== undefined) setDateOfBirth(formData.dateOfBirth);
@@ -434,7 +434,7 @@ export const PartnerTerms = () => {
         if (tokenData?.application_id && tokenValid) {
             const storageKey = getStorageKey();
             const savedData = storageKey ? localStorage.getItem(storageKey) : null;
-            
+
             if (savedData) {
                 // Há dados salvos, restaurar eles primeiro
                 restoreFormData();
@@ -520,13 +520,23 @@ export const PartnerTerms = () => {
         // Endereço
         if (!addressStreet.trim()) errors.addressStreet = 'Street address is required';
         if (!addressCity.trim()) errors.addressCity = 'City is required';
+        else if (!/^[a-zA-ZÀ-ÿ\s\-\.,']+$/.test(addressCity)) {
+            errors.addressCity = 'City name should only contain letters, spaces, and common punctuation';
+        }
+        if (!addressState.trim()) {
+            // State is optional, no error if empty
+        } else if (!/^[a-zA-ZÀ-ÿ\s\-\.,']+$/.test(addressState)) {
+            errors.addressState = 'State/Province should only contain letters, spaces, and common punctuation';
+        }
+        // ZIP is optional, no validation needed
         if (!addressCountry.trim()) errors.addressCountry = 'Country is required';
 
         // Estrutura Fiscal/Empresarial
         if (!businessType) errors.businessType = 'Business type is required';
+        if (!taxIdType) errors.taxIdType = 'Tax ID type is required';
+        if (!taxIdNumber.trim()) errors.taxIdNumber = 'Tax ID number is required';
         if (businessType === 'Company') {
             if (!companyLegalName.trim()) errors.companyLegalName = 'Company legal name is required';
-            if (!taxIdNumber.trim()) errors.taxIdNumber = 'Tax ID number is required';
         }
 
         // Pagamento
@@ -570,13 +580,23 @@ export const PartnerTerms = () => {
             // Validar Address
             if (!addressStreet.trim()) errors.addressStreet = 'Street address is required';
             if (!addressCity.trim()) errors.addressCity = 'City is required';
+            else if (!/^[a-zA-ZÀ-ÿ\s\-\.,']+$/.test(addressCity)) {
+                errors.addressCity = 'City name should only contain letters, spaces, and common punctuation';
+            }
+            if (!addressState.trim()) {
+                // State is optional, no error if empty
+            } else if (!/^[a-zA-ZÀ-ÿ\s\-\.,']+$/.test(addressState)) {
+                errors.addressState = 'State/Province should only contain letters, spaces, and common punctuation';
+            }
+            // ZIP is optional, no validation needed
             if (!addressCountry.trim()) errors.addressCountry = 'Country is required';
         } else if (step === 3) {
             // Validar Fiscal/Business
             if (!businessType) errors.businessType = 'Business type is required';
+            if (!taxIdType) errors.taxIdType = 'Tax ID type is required';
+            if (!taxIdNumber.trim()) errors.taxIdNumber = 'Tax ID number is required';
             if (businessType === 'Company') {
                 if (!companyLegalName.trim()) errors.companyLegalName = 'Company legal name is required';
-                if (!taxIdNumber.trim()) errors.taxIdNumber = 'Tax ID number is required';
             }
         } else if (step === 4) {
             // Validar Payment
@@ -623,11 +643,15 @@ export const PartnerTerms = () => {
             email.trim() &&
             addressStreet.trim() &&
             addressCity.trim() &&
+            // addressState is optional
+            // addressZip is optional
             addressCountry.trim() &&
             businessType &&
+            taxIdType &&
+            taxIdNumber.trim() &&
             preferredPayoutMethod &&
             payoutDetails.trim() &&
-            (businessType === 'Individual' || (businessType === 'Company' && companyLegalName.trim() && taxIdNumber.trim()))
+            (businessType === 'Individual' || (businessType === 'Company' && companyLegalName.trim()))
         );
     };
 
@@ -692,7 +716,7 @@ export const PartnerTerms = () => {
         // Use refs to get the latest values (avoid closure issues)
         const currentPhotoPath = identityPhotoPathRef.current;
         const currentPhotoName = identityPhotoNameRef.current;
-        
+
         // Verificar se todas as imagens foram enviadas (frente, verso e selfie)
         if (!documentFrontUrl || !documentBackUrl || !currentPhotoPath || !currentPhotoName) {
             setValidationModalTitle('Documents Pending');
@@ -718,7 +742,7 @@ export const PartnerTerms = () => {
             if (!validateForm()) {
                 // Encontrar primeiro step com erro
                 let firstErrorStep = 1;
-                if (formErrors.fullLegalName || formErrors.dateOfBirth || formErrors.nationality || 
+                if (formErrors.fullLegalName || formErrors.dateOfBirth || formErrors.nationality ||
                     formErrors.countryOfResidence || formErrors.phoneWhatsapp || formErrors.email) {
                     firstErrorStep = 1;
                 } else if (formErrors.addressStreet || formErrors.addressCity || formErrors.addressCountry) {
@@ -742,7 +766,7 @@ export const PartnerTerms = () => {
 
             // ETAPA 8: Buscar dados legais (versão, hash, geolocalização)
             console.log('[PARTNER TERMS] Fetching legal data (version, hash, geolocation)...');
-            
+
             // 1. Buscar versão ativa do contrato
             let contractVersion: { version: string; content: string } | null = null;
             try {
@@ -789,8 +813,8 @@ export const PartnerTerms = () => {
             }
 
             // Atualizar registro de aceite no banco
-            console.log('[PARTNER TERMS] Updating acceptance with photo and legal data:', { 
-                identityPhotoPath: currentPhotoPath, 
+            console.log('[PARTNER TERMS] Updating acceptance with photo and legal data:', {
+                identityPhotoPath: currentPhotoPath,
                 identityPhotoName: currentPhotoName,
                 token,
                 termAcceptanceId: tokenData.id,
@@ -798,7 +822,7 @@ export const PartnerTerms = () => {
                 hasHash: !!contractHash,
                 geolocation: geolocation
             });
-            
+
 
             const updateData: any = {
                 accepted_at: new Date().toISOString(),
@@ -814,7 +838,7 @@ export const PartnerTerms = () => {
             if (signatureImageDataUrl) {
                 try {
                     console.log('[PARTNER TERMS] Uploading signature image...');
-                    
+
                     // Converter base64 para blob
                     const base64Data = signatureImageDataUrl.split(',')[1];
                     const byteCharacters = atob(base64Data);
@@ -824,11 +848,11 @@ export const PartnerTerms = () => {
                     }
                     const byteArray = new Uint8Array(byteNumbers);
                     const blob = new Blob([byteArray], { type: 'image/png' });
-                    
+
                     // Criar File a partir do blob
                     const fileName = `signatures/${Date.now()}-${Math.random().toString(36).substring(7)}.png`;
                     const file = new File([blob], fileName, { type: 'image/png' });
-                    
+
                     // Upload para storage (bucket específico para assinaturas)
                     const { error: uploadError } = await supabase.storage
                         .from('partner-signatures')
@@ -836,17 +860,17 @@ export const PartnerTerms = () => {
                             contentType: 'image/png',
                             upsert: false,
                         });
-                    
+
                     if (uploadError) {
                         console.error('[PARTNER TERMS] Error uploading signature:', uploadError);
                         throw uploadError;
                     }
-                    
+
                     // Obter URL pública
                     const { data: { publicUrl } } = supabase.storage
                         .from('partner-signatures')
                         .getPublicUrl(fileName);
-                    
+
                     updateData.signature_image_url = publicUrl;
                     console.log('[PARTNER TERMS] Signature uploaded successfully:', publicUrl);
                 } catch (sigError) {
@@ -856,7 +880,7 @@ export const PartnerTerms = () => {
                     return;
                 }
             }
-            
+
             // Adicionar assinatura digital (backward compatibility)
             if (signatureName.trim()) {
                 updateData.signature_name = signatureName.trim();
@@ -949,7 +973,7 @@ export const PartnerTerms = () => {
                             application.email,
                             application.full_name
                         );
-                        
+
                         if (emailSent) {
                             console.log('[PARTNER TERMS] Confirmation email sent successfully');
                         } else {
@@ -1024,7 +1048,7 @@ export const PartnerTerms = () => {
                     </div>
                 </div>
             )}
-            
+
             <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
                 <Button variant="ghost" className="mb-6 pl-0 hover:bg-transparent text-gold-light hover:text-gold-medium" onClick={() => navigate('/global-partner')}>
                     <ArrowLeft className="w-4 h-4 mr-2" /> Back to Application
@@ -1032,7 +1056,7 @@ export const PartnerTerms = () => {
 
                 {/* Terms & Conditions Agreement - FIRST */}
                 <Card className="mb-6 shadow-lg border border-gold-medium/30 bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10">
-                    <CardHeader 
+                    <CardHeader
                         id="contract-header"
                         className="text-center border-b border-gold-medium/30 bg-gradient-to-r from-gold-dark via-gold-medium to-gold-dark rounded-t-lg pb-8 pt-10"
                         style={{
@@ -1058,7 +1082,7 @@ export const PartnerTerms = () => {
                         )}
                     </CardHeader>
 
-                    <CardContent 
+                    <CardContent
                         id="contract-content"
                         className="p-8 sm:p-12 space-y-8 text-justify leading-relaxed text-gray-300 contract-protected"
                         style={{
@@ -1091,10 +1115,10 @@ export const PartnerTerms = () => {
                                     <div className="h-8 bg-gold-medium/20 rounded w-3/4"></div>
                                     <div className="h-4 bg-gold-medium/10 rounded w-1/2"></div>
                                 </div>
-                                
+
                                 {/* Separator skeleton */}
                                 <div className="h-px bg-gold-medium/20"></div>
-                                
+
                                 {/* Content paragraphs skeleton */}
                                 {[...Array(8)].map((_, i) => (
                                     <div key={i} className="space-y-2">
@@ -1103,7 +1127,7 @@ export const PartnerTerms = () => {
                                         <div className="h-4 bg-gold-medium/10 rounded w-4/5"></div>
                                     </div>
                                 ))}
-                                
+
                                 {/* Section title skeleton */}
                                 <div className="space-y-3 mt-8">
                                     <div className="h-6 bg-gold-medium/20 rounded w-1/3"></div>
@@ -1114,10 +1138,10 @@ export const PartnerTerms = () => {
                                         </div>
                                     ))}
                                 </div>
-                                
+
                                 {/* Another separator */}
                                 <div className="h-px bg-gold-medium/20 mt-6"></div>
-                                
+
                                 {/* More content */}
                                 {[...Array(6)].map((_, i) => (
                                     <div key={i} className="space-y-2">
@@ -1796,7 +1820,7 @@ export const PartnerTerms = () => {
 
                 {/* Contractual Information Form - SECOND */}
                 {!loading && tokenValid && !templateLoadError && contractContent && (
-                    <Card className="mb-6 shadow-lg border border-gold-medium/30 bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10">
+                    <Card id="contractual-information-section" className="mb-6 shadow-lg border border-gold-medium/30 bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10">
                         <CardHeader className="text-center border-b border-gold-medium/30 bg-gradient-to-r from-gold-dark via-gold-medium to-gold-dark rounded-t-lg pb-6 pt-8">
                             <CardTitle className="text-2xl font-bold flex items-center justify-center gap-2 text-white">
                                 <span className="bg-white text-black rounded-full w-8 h-8 flex items-center justify-center text-lg font-bold border border-gold-medium/50">2</span>
@@ -1813,13 +1837,12 @@ export const PartnerTerms = () => {
                                     {[1, 2, 3, 4].map((step) => (
                                         <div key={step} className="flex items-center flex-1">
                                             <div className="flex flex-col items-center flex-1">
-                                                <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold border-2 transition-all ${
-                                                    step === currentStep 
-                                                        ? 'bg-gold-medium text-black border-gold-medium' 
-                                                        : step < currentStep
+                                                <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold border-2 transition-all ${step === currentStep
+                                                    ? 'bg-gold-medium text-black border-gold-medium'
+                                                    : step < currentStep
                                                         ? 'bg-green-600 text-white border-green-600'
                                                         : 'bg-black/50 text-gray-400 border-gold-medium/30'
-                                                }`}>
+                                                    }`}>
                                                     {step < currentStep ? '✓' : step}
                                                 </div>
                                                 <span className={`text-xs mt-2 ${step === currentStep ? 'text-gold-light font-semibold' : 'text-gray-400'}`}>
@@ -1980,7 +2003,13 @@ export const PartnerTerms = () => {
                                                 id="address-city"
                                                 type="text"
                                                 value={addressCity}
-                                                onChange={(e) => setAddressCity(e.target.value)}
+                                                onChange={(e) => {
+                                                    const value = e.target.value;
+                                                    // Only allow letters, spaces, and common punctuation
+                                                    if (value === '' || /^[a-zA-ZÀ-ÿ\s\-\.,']*$/.test(value)) {
+                                                        setAddressCity(value);
+                                                    }
+                                                }}
                                                 className="bg-white text-black"
                                                 placeholder="City name"
                                             />
@@ -1997,10 +2026,19 @@ export const PartnerTerms = () => {
                                                 id="address-state"
                                                 type="text"
                                                 value={addressState}
-                                                onChange={(e) => setAddressState(e.target.value)}
+                                                onChange={(e) => {
+                                                    const value = e.target.value;
+                                                    // Only allow letters, spaces, and common punctuation
+                                                    if (value === '' || /^[a-zA-ZÀ-ÿ\s\-\.,']*$/.test(value)) {
+                                                        setAddressState(value);
+                                                    }
+                                                }}
                                                 className="bg-white text-black"
                                                 placeholder="State or Province"
                                             />
+                                            {formErrors.addressState && (
+                                                <p className="text-sm text-red-400">{formErrors.addressState}</p>
+                                            )}
                                         </div>
 
                                         <div className="space-y-2">
@@ -2084,7 +2122,7 @@ export const PartnerTerms = () => {
 
                                         <div className="space-y-2">
                                             <Label htmlFor="tax-id-type" className="text-white">
-                                                Tax ID Type
+                                                Tax ID Type <span className="text-red-500">*</span>
                                             </Label>
                                             <Select value={taxIdType} onValueChange={setTaxIdType}>
                                                 <SelectTrigger className="bg-white text-black">
@@ -2097,11 +2135,14 @@ export const PartnerTerms = () => {
                                                     <SelectItem value="Other">Other</SelectItem>
                                                 </SelectContent>
                                             </Select>
+                                            {formErrors.taxIdType && (
+                                                <p className="text-sm text-red-400">{formErrors.taxIdType}</p>
+                                            )}
                                         </div>
 
                                         <div className="space-y-2">
                                             <Label htmlFor="tax-id-number" className="text-white">
-                                                Tax ID Number {businessType === 'Company' && <span className="text-red-500">*</span>}
+                                                Tax ID Number <span className="text-red-500">*</span>
                                             </Label>
                                             <Input
                                                 id="tax-id-number"
@@ -2172,7 +2213,7 @@ export const PartnerTerms = () => {
                                     <ChevronLeft className="w-4 h-4 mr-2" />
                                     Previous
                                 </Button>
-                                
+
                                 <div className="text-sm text-gray-400">
                                     Step {currentStep} of 4
                                 </div>
@@ -2272,15 +2313,27 @@ export const PartnerTerms = () => {
                                     onCheckedChange={(checked) => {
                                         const isChecked = checked as boolean;
                                         setAccepted(isChecked);
-                                        
-                                        // If user checks the box but hasn't uploaded all photos, smoothly scroll to photo section
-                                        if (isChecked && (!documentFrontUrl || !documentBackUrl || !identityPhotoPath)) {
-                                            setTimeout(() => {
-                                                const photoSection = document.getElementById('photo-upload-section');
-                                                if (photoSection) {
-                                                    smoothScrollTo(photoSection, 1000);
-                                                }
-                                            }, 150);
+
+                                        // If user checks the box, scroll to the appropriate section
+                                        if (isChecked) {
+                                            // First check if form is complete
+                                            if (!isFormComplete()) {
+                                                // Form is incomplete, scroll to contractual information section (section 2)
+                                                setTimeout(() => {
+                                                    const contractSection = document.getElementById('contractual-information-section');
+                                                    if (contractSection) {
+                                                        smoothScrollTo(contractSection, 1000);
+                                                    }
+                                                }, 150);
+                                            } else if (!documentFrontUrl || !documentBackUrl || !identityPhotoPath) {
+                                                // Form is complete but documents not uploaded, scroll to photo section (section 3)
+                                                setTimeout(() => {
+                                                    const photoSection = document.getElementById('photo-upload-section');
+                                                    if (photoSection) {
+                                                        smoothScrollTo(photoSection, 1000);
+                                                    }
+                                                }, 150);
+                                            }
                                         }
                                     }}
                                 />
@@ -2320,9 +2373,9 @@ export const PartnerTerms = () => {
 
                             {/* Botão de aceitar */}
                             <div className="flex justify-end mt-4">
-                                <Button 
-                                    onClick={handleAccept} 
-                                    disabled={!accepted || !!templateLoadError || !contractContent || isSubmitting} 
+                                <Button
+                                    onClick={handleAccept}
+                                    disabled={!accepted || !!templateLoadError || !contractContent || isSubmitting}
                                     className="w-full sm:w-auto min-w-[200px] bg-gradient-to-b from-gold-light via-gold-medium to-gold-light text-black font-bold hover:from-gold-medium hover:via-gold-light hover:to-gold-medium transition-all disabled:opacity-30 disabled:cursor-not-allowed shadow-lg disabled:shadow-none"
                                 >
                                     I ACCEPT <Check className="w-4 h-4 ml-2" />
@@ -2331,7 +2384,7 @@ export const PartnerTerms = () => {
                         </div>
                     </div>
                 )}
-                
+
                 {!loading && !tokenValid && (
                     <div className="fixed bottom-0 left-0 right-0 bg-black/95 border-t border-gold-medium/30 p-4 shadow-[0_-4px_6px_-1px_rgba(206,159,72,0.3)] z-50">
                         <div className="max-w-3xl mx-auto text-center">

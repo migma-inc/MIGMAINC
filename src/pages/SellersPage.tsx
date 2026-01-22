@@ -5,7 +5,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { ChevronDown, ChevronRight, DollarSign, Users, ShoppingCart, Eye, Coins, Wallet, Clock, TrendingUp, Award } from 'lucide-react';
+import { ConfirmModal } from '@/components/ui/confirm-modal';
+import { ChevronDown, ChevronRight, DollarSign, Users, ShoppingCart, Eye, Coins, Wallet, Clock, TrendingUp, Award, Trash2 } from 'lucide-react';
 
 // Helper function to calculate net amount and fee
 const calculateNetAmountAndFee = (order: Order) => {
@@ -89,6 +90,9 @@ export const SellersPage = () => {
   const [summaryStats, setSummaryStats] = useState<SummaryStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [expandedSellers, setExpandedSellers] = useState<Set<string>>(new Set());
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [sellerToDelete, setSellerToDelete] = useState<{ id: string, name: string } | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
     loadSellersData();
@@ -97,7 +101,7 @@ export const SellersPage = () => {
   const loadSellersData = async () => {
     try {
       setLoading(true);
-      
+
       // Load all sellers using adminSupabase
       // We'll order by last sale date after loading orders
       const { data: sellers, error: sellersError } = await adminSupabase
@@ -141,7 +145,7 @@ export const SellersPage = () => {
         const totalOrders = ordersList.length;
         const paidOrders = ordersList.filter(o => o.payment_status === 'paid' || o.payment_status === 'completed').length;
         const pendingOrders = ordersList.filter(o => o.payment_status === 'pending').length;
-        
+
         // Calculate total revenue WITHOUT Stripe fees (net amount)
         const totalRevenue = ordersList
           .filter(o => o.payment_status === 'paid' || o.payment_status === 'completed')
@@ -249,10 +253,10 @@ export const SellersPage = () => {
       // Sellers with sales come first, ordered by most recent sale
       // Sellers without sales come last, ordered by account creation date
       validStats.sort((a, b) => {
-        const aLastSale = a.orders.length > 0 
+        const aLastSale = a.orders.length > 0
           ? new Date(a.orders[0].created_at).getTime() // Most recent order
           : 0;
-        const bLastSale = b.orders.length > 0 
+        const bLastSale = b.orders.length > 0
           ? new Date(b.orders[0].created_at).getTime()
           : 0;
 
@@ -260,11 +264,11 @@ export const SellersPage = () => {
         if (aLastSale > 0 && bLastSale > 0) {
           return bLastSale - aLastSale; // Most recent first
         }
-        
+
         // If only one has sales, prioritize it
         if (aLastSale > 0 && bLastSale === 0) return -1;
         if (aLastSale === 0 && bLastSale > 0) return 1;
-        
+
         // If neither has sales, sort by account creation date (most recent first)
         return new Date(b.seller.created_at).getTime() - new Date(a.seller.created_at).getTime();
       });
@@ -304,6 +308,40 @@ export const SellersPage = () => {
     });
   };
 
+  const handleDeleteSeller = (sellerId: string, fullName: string) => {
+    setSellerToDelete({ id: sellerId, name: fullName });
+    setIsDeleteModalOpen(true);
+  };
+
+  const confirmDeleteSeller = async () => {
+    if (!sellerToDelete) return;
+
+    try {
+      setIsDeleting(true);
+      const { error } = await adminSupabase
+        .from('sellers')
+        .delete()
+        .eq('id', sellerToDelete.id);
+
+      if (error) {
+        console.error('Error deleting seller:', error);
+        alert(`Error deleting seller: ${error.message}`);
+        setIsDeleting(false);
+        return;
+      }
+
+      // Refresh data
+      await loadSellersData();
+      setIsDeleteModalOpen(false);
+      setSellerToDelete(null);
+    } catch (err) {
+      console.error('Unexpected error deleting seller:', err);
+      alert('An unexpected error occurred while deleting the seller.');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'completed':
@@ -322,7 +360,7 @@ export const SellersPage = () => {
 
   const formatTimeUntilRelease = (dateString: string | null): string => {
     if (!dateString) return 'N/A';
-    
+
     const releaseDate = new Date(dateString);
     const now = new Date();
     const diff = releaseDate.getTime() - now.getTime();
@@ -468,7 +506,7 @@ export const SellersPage = () => {
                             {index + 1}
                           </div>
                           <div className="flex-1 min-w-0">
-                            <p 
+                            <p
                               className="text-white font-semibold truncate cursor-pointer hover:text-gold-light transition-colors"
                               onClick={(e) => {
                                 e.stopPropagation();
@@ -516,7 +554,7 @@ export const SellersPage = () => {
                             {index + 1}
                           </div>
                           <div className="flex-1 min-w-0">
-                            <p 
+                            <p
                               className="text-white font-semibold truncate cursor-pointer hover:text-purple-300 transition-colors"
                               onClick={(e) => {
                                 e.stopPropagation();
@@ -557,7 +595,7 @@ export const SellersPage = () => {
             <h2 className="text-xl font-bold text-white mb-4">All Sellers</h2>
             {sellersStats.map((stats) => {
               const isExpanded = expandedSellers.has(stats.seller.id);
-              
+
               return (
                 <Card
                   key={stats.seller.id}
@@ -579,7 +617,7 @@ export const SellersPage = () => {
                           )}
                         </Button>
                         <div className="flex-1 min-w-0">
-                          <CardTitle 
+                          <CardTitle
                             className="text-white text-base sm:text-xl break-words cursor-pointer hover:text-gold-light transition-colors"
                             onClick={(e) => {
                               e.stopPropagation();
@@ -595,6 +633,19 @@ export const SellersPage = () => {
                           </p>
                         </div>
                       </div>
+
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteSeller(stats.seller.id, stats.seller.full_name || stats.seller.email);
+                        }}
+                        className="text-red-500 hover:text-red-400 hover:bg-red-500/10 shrink-0"
+                        title="Delete Seller"
+                      >
+                        <Trash2 className="w-4 h-4 sm:w-5 sm:h-5" />
+                      </Button>
                     </div>
                   </CardHeader>
                   <CardContent>
@@ -725,70 +776,70 @@ export const SellersPage = () => {
                         ) : (
                           <div className="hidden md:block overflow-x-auto">
                             <table className="w-full">
-                            <thead>
-                              <tr className="border-b border-gold-medium/30">
-                                <th className="text-left py-3 px-4 text-sm text-gray-400 font-semibold">Order #</th>
-                                <th className="text-left py-3 px-4 text-sm text-gray-400 font-semibold">Client</th>
-                                <th className="text-left py-3 px-4 text-sm text-gray-400 font-semibold">Product</th>
-                                <th className="text-left py-3 px-4 text-sm text-gray-400 font-semibold">Total (with fee)</th>
-                                <th className="text-left py-3 px-4 text-sm text-gray-400 font-semibold">Net Amount</th>
-                                <th className="text-left py-3 px-4 text-sm text-gray-400 font-semibold">Stripe Fee</th>
-                                <th className="text-left py-3 px-4 text-sm text-gray-400 font-semibold">Status</th>
-                                <th className="text-left py-3 px-4 text-sm text-gray-400 font-semibold">Date</th>
-                                <th className="text-left py-3 px-4 text-sm text-gray-400 font-semibold">Actions</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {stats.orders.map((order) => {
-                                const { netAmount, feeAmount } = calculateNetAmountAndFee(order);
-                                return (
-                                <tr key={order.id} className="border-b border-gold-medium/10 hover:bg-white/5">
-                                  <td className="py-3 px-4 text-sm text-white font-mono">{order.order_number}</td>
-                                  <td className="py-3 px-4">
-                                    <div className="text-sm">
-                                      <p className="text-white">{order.client_name}</p>
-                                      <p className="text-gray-400 text-xs">{order.client_email}</p>
-                                    </div>
-                                  </td>
-                                  <td className="py-3 px-4 text-sm text-white">{order.product_slug}</td>
-                                  <td className="py-3 px-4 text-sm text-gold-light font-bold">
-                                    ${parseFloat(order.total_price_usd || '0').toFixed(2)}
-                                  </td>
-                                  <td className="py-3 px-4 text-sm text-white font-semibold">
-                                    ${netAmount.toFixed(2)}
-                                  </td>
-                                  <td className="py-3 px-4 text-sm text-gray-400">
-                                    {feeAmount > 0 ? (
-                                      <span className="text-red-400">-${feeAmount.toFixed(2)}</span>
-                                    ) : (
-                                      <span className="text-gray-500">$0.00</span>
-                                    )}
-                                  </td>
-                                  <td className="py-3 px-4">
-                                    {getStatusBadge(order.payment_status)}
-                                  </td>
-                                  <td className="py-3 px-4 text-sm text-gray-400">
-                                    {new Date(order.created_at).toLocaleDateString()}
-                                  </td>
-                                  <td className="py-3 px-4">
-                                    <Link to={`/dashboard/visa-orders/${order.id}`}>
-                                      <Button
-                                        variant="outline"
-                                        size="sm"
-                                        className="flex items-center gap-2 border-gold-medium/50 bg-black/50 text-white hover:bg-gold-medium/30 hover:text-gold-light"
-                                      >
-                                        <Eye className="w-4 h-4" />
-                                        View
-                                      </Button>
-                                    </Link>
-                                  </td>
+                              <thead>
+                                <tr className="border-b border-gold-medium/30">
+                                  <th className="text-left py-3 px-4 text-sm text-gray-400 font-semibold">Order #</th>
+                                  <th className="text-left py-3 px-4 text-sm text-gray-400 font-semibold">Client</th>
+                                  <th className="text-left py-3 px-4 text-sm text-gray-400 font-semibold">Product</th>
+                                  <th className="text-left py-3 px-4 text-sm text-gray-400 font-semibold">Total (with fee)</th>
+                                  <th className="text-left py-3 px-4 text-sm text-gray-400 font-semibold">Net Amount</th>
+                                  <th className="text-left py-3 px-4 text-sm text-gray-400 font-semibold">Stripe Fee</th>
+                                  <th className="text-left py-3 px-4 text-sm text-gray-400 font-semibold">Status</th>
+                                  <th className="text-left py-3 px-4 text-sm text-gray-400 font-semibold">Date</th>
+                                  <th className="text-left py-3 px-4 text-sm text-gray-400 font-semibold">Actions</th>
                                 </tr>
-                                );
-                              })}
-                            </tbody>
-                          </table>
-                        </div>
-                      )}
+                              </thead>
+                              <tbody>
+                                {stats.orders.map((order) => {
+                                  const { netAmount, feeAmount } = calculateNetAmountAndFee(order);
+                                  return (
+                                    <tr key={order.id} className="border-b border-gold-medium/10 hover:bg-white/5">
+                                      <td className="py-3 px-4 text-sm text-white font-mono">{order.order_number}</td>
+                                      <td className="py-3 px-4">
+                                        <div className="text-sm">
+                                          <p className="text-white">{order.client_name}</p>
+                                          <p className="text-gray-400 text-xs">{order.client_email}</p>
+                                        </div>
+                                      </td>
+                                      <td className="py-3 px-4 text-sm text-white">{order.product_slug}</td>
+                                      <td className="py-3 px-4 text-sm text-gold-light font-bold">
+                                        ${parseFloat(order.total_price_usd || '0').toFixed(2)}
+                                      </td>
+                                      <td className="py-3 px-4 text-sm text-white font-semibold">
+                                        ${netAmount.toFixed(2)}
+                                      </td>
+                                      <td className="py-3 px-4 text-sm text-gray-400">
+                                        {feeAmount > 0 ? (
+                                          <span className="text-red-400">-${feeAmount.toFixed(2)}</span>
+                                        ) : (
+                                          <span className="text-gray-500">$0.00</span>
+                                        )}
+                                      </td>
+                                      <td className="py-3 px-4">
+                                        {getStatusBadge(order.payment_status)}
+                                      </td>
+                                      <td className="py-3 px-4 text-sm text-gray-400">
+                                        {new Date(order.created_at).toLocaleDateString()}
+                                      </td>
+                                      <td className="py-3 px-4">
+                                        <Link to={`/dashboard/visa-orders/${order.id}`}>
+                                          <Button
+                                            variant="outline"
+                                            size="sm"
+                                            className="flex items-center gap-2 border-gold-medium/50 bg-black/50 text-white hover:bg-gold-medium/30 hover:text-gold-light"
+                                          >
+                                            <Eye className="w-4 h-4" />
+                                            View
+                                          </Button>
+                                        </Link>
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
                       </div>
                     )}
                   </CardContent>
@@ -797,6 +848,23 @@ export const SellersPage = () => {
             })}
           </div>
         )}
+
+        <ConfirmModal
+          isOpen={isDeleteModalOpen}
+          onClose={() => {
+            if (!isDeleting) {
+              setIsDeleteModalOpen(false);
+              setSellerToDelete(null);
+            }
+          }}
+          onConfirm={confirmDeleteSeller}
+          title="Delete Seller"
+          message={`Are you sure you want to delete seller "${sellerToDelete?.name}"? This action cannot be undone and will remove all associated data.`}
+          confirmText="Delete Now"
+          cancelText="Cancel"
+          variant="danger"
+          isLoading={isDeleting}
+        />
       </div>
     </div>
   );

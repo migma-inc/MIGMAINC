@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { LogOut, Filter, FileText, AlertCircle, Menu } from 'lucide-react';
+import { LogOut, Filter, FileText, AlertCircle, Menu, ArrowLeft } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { ApplicationsList } from '@/components/admin/ApplicationsList';
 import { PartnerContractsList } from '@/components/admin/PartnerContractsList';
@@ -53,18 +53,22 @@ function LoginForm({ onLoginSuccess }: { onLoginSuccess: () => void }) {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-black via-[#1a1a1a] to-black px-4">
-      <Card className="w-full max-w-md shadow-xl border border-gold-medium/30 bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10">
-        <CardHeader className="space-y-1">
-          <CardTitle className="text-2xl font-bold text-center migma-gold-text">Admin Login</CardTitle>
-          <CardDescription className="text-center text-gray-300">
+    <div className="min-h-screen bg-black flex items-center justify-center p-4">
+      <Card className="max-w-md w-full bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30">
+        <CardHeader>
+          <Link to="/" className="inline-flex items-center text-gold-light hover:text-gold-medium transition mb-4">
+            <ArrowLeft className="w-4 h-4 mr-2" />
+            Back to Home
+          </Link>
+          <CardTitle className="text-2xl migma-gold-text">Admin Login</CardTitle>
+          <CardDescription className="text-gray-400">
             Enter your credentials to access the admin dashboard
           </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             {error && (
-              <div className="bg-red-900/30 border border-red-500/50 text-red-300 px-4 py-3 rounded-md text-sm">
+              <div className="bg-red-500/10 border border-red-500/50 text-red-300 p-3 rounded-md text-sm">
                 {error}
               </div>
             )}
@@ -74,9 +78,9 @@ function LoginForm({ onLoginSuccess }: { onLoginSuccess: () => void }) {
               <Input
                 id="email"
                 type="email"
-                placeholder="admin@example.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
+                className="bg-white text-black"
                 required
                 disabled={isLoading}
                 autoComplete="email"
@@ -88,19 +92,27 @@ function LoginForm({ onLoginSuccess }: { onLoginSuccess: () => void }) {
               <Input
                 id="password"
                 type="password"
-                placeholder="Enter your password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
+                className="bg-white text-black"
                 required
                 disabled={isLoading}
                 autoComplete="current-password"
               />
+              <div className="text-right">
+                <Link
+                  to="/forgot-password"
+                  className="text-sm text-gold-light hover:text-gold-medium underline"
+                >
+                  Forgot Password?
+                </Link>
+              </div>
             </div>
 
             <Button
               type="submit"
-              className="w-full bg-gradient-to-b from-gold-dark via-gold-medium to-gold-dark text-black font-bold hover:opacity-90 transition-opacity"
               disabled={isLoading}
+              className="w-full bg-gradient-to-b from-gold-light via-gold-medium to-gold-light text-black font-bold hover:from-gold-medium hover:via-gold-light hover:to-gold-medium"
             >
               {isLoading ? 'Signing in...' : 'Sign In'}
             </Button>
@@ -139,7 +151,7 @@ function DashboardLayout() {
   return (
     <div className="min-h-screen bg-gradient-to-b from-black via-[#1a1a1a] to-black flex">
       {/* Sidebar */}
-      <Sidebar 
+      <Sidebar
         isMobileOpen={isMobileMenuOpen}
         onMobileClose={() => setIsMobileMenuOpen(false)}
       />
@@ -200,7 +212,7 @@ export function DashboardContent() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
   const [contractsRefreshKey, setContractsRefreshKey] = useState(0);
-  
+
   // Modal states
   const [showApproveConfirm, setShowApproveConfirm] = useState(false);
   const [showRejectPrompt, setShowRejectPrompt] = useState(false);
@@ -259,19 +271,19 @@ export function DashboardContent() {
 
   const handleApprove = async (application: Application) => {
     setPendingApplication(application);
-    
+
     // If status is pending, open meeting modal
     if (application.status === 'pending') {
       setShowMeetingModal(true);
       return;
     }
-    
+
     // If status is approved_for_meeting, show template selector
     if (application.status === 'approved_for_meeting') {
       setShowTemplateSelector(true);
       return;
     }
-    
+
     // For other statuses, use old flow (backward compatibility)
     setShowApproveConfirm(true);
   };
@@ -283,7 +295,7 @@ export function DashboardContent() {
     scheduledBy?: string;
   }) => {
     if (!pendingApplication) return;
-    
+
     setShowMeetingModal(false);
     setIsProcessing(true);
     try {
@@ -337,7 +349,7 @@ export function DashboardContent() {
     scheduledBy?: string;
   }) => {
     if (!pendingApplication) return;
-    
+
     setShowMeetingModal(false);
     setIsProcessing(true);
     try {
@@ -382,12 +394,12 @@ export function DashboardContent() {
 
   const handleTemplateSelected = async (templateId: string | null) => {
     if (!pendingApplication) return;
-    
+
     setShowTemplateSelector(false);
     setIsProcessing(true);
     try {
       const result = await approveApplicationAfterMeeting(pendingApplication.id, templateId);
-      
+
       if (result.success) {
         setAlertData({
           title: 'Success',
@@ -420,13 +432,13 @@ export function DashboardContent() {
 
   const confirmApprove = async () => {
     if (!pendingApplication) return;
-    
+
     setShowApproveConfirm(false);
     setIsProcessing(true);
     try {
-        // For backward compatibility with old 'approved' status
+      // For backward compatibility with old 'approved' status
       const result = await approveApplication(pendingApplication.id);
-      
+
       if (result.success) {
         setAlertData({
           title: 'Success',
@@ -505,7 +517,7 @@ export function DashboardContent() {
 
   const confirmReject = async () => {
     if (!pendingApplication) return;
-    
+
     setShowRejectConfirm(false);
     setIsProcessing(true);
     try {
@@ -561,7 +573,7 @@ export function DashboardContent() {
       const reviewedBy = user?.email || user?.id || 'unknown';
 
       const result = await approvePartnerContract(pendingContract.id, reviewedBy);
-      
+
       if (result.success) {
         setAlertData({
           title: 'Success',
@@ -609,7 +621,7 @@ export function DashboardContent() {
         reviewedBy,
         rejectionReason || undefined
       );
-      
+
       if (result.success) {
         setAlertData({
           title: 'Success',
@@ -785,16 +797,16 @@ export function DashboardContent() {
           setShowMeetingModal(false);
           setPendingApplication(null);
         }}
-        onConfirm={(pendingApplication?.status === 'approved_for_meeting' && pendingApplication?.meeting_date) 
-          ? handleMeetingUpdate 
+        onConfirm={(pendingApplication?.status === 'approved_for_meeting' && pendingApplication?.meeting_date)
+          ? handleMeetingUpdate
           : handleMeetingSchedule}
         initialData={pendingApplication?.status === 'approved_for_meeting' && pendingApplication?.meeting_date
           ? {
-              meetingDate: pendingApplication.meeting_date,
-              meetingTime: pendingApplication.meeting_time || '',
-              meetingLink: pendingApplication.meeting_link || '',
-              scheduledBy: pendingApplication.meeting_scheduled_by || '',
-            }
+            meetingDate: pendingApplication.meeting_date,
+            meetingTime: pendingApplication.meeting_time || '',
+            meetingLink: pendingApplication.meeting_link || '',
+            scheduledBy: pendingApplication.meeting_scheduled_by || '',
+          }
           : undefined}
         isEditMode={pendingApplication?.status === 'approved_for_meeting' && !!pendingApplication?.meeting_date}
         isLoading={isProcessing}
@@ -865,7 +877,7 @@ export function DashboardContent() {
         }}
         onConfirm={async (templateId: string | null) => {
           if (!pendingRejection) return;
-          
+
           setShowRejectTemplateSelector(false);
           setIsProcessing(true);
           try {
@@ -880,8 +892,8 @@ export function DashboardContent() {
             if (result.success) {
               setAlertData({
                 title: 'Success',
-                message: templateId 
-                  ? 'Contract rejected and new contract link sent successfully.' 
+                message: templateId
+                  ? 'Contract rejected and new contract link sent successfully.'
                   : 'Contract rejected successfully.',
                 variant: 'success',
               });
@@ -934,16 +946,16 @@ export function DashboardContent() {
         title={
           pendingContract
             ? 'Approve Partner Contract'
-            : pendingApplication?.status === 'approved_for_meeting' 
-            ? 'Approve After Meeting' 
-            : 'Approve Application'
+            : pendingApplication?.status === 'approved_for_meeting'
+              ? 'Approve After Meeting'
+              : 'Approve Application'
         }
         message={
           pendingContract
             ? `Are you sure you want to approve the contract for ${pendingContract.global_partner_applications?.full_name || 'this partner'}? This will activate them as an Active Partner.`
             : pendingApplication?.status === 'approved_for_meeting'
-            ? `Are you sure you want to approve ${pendingApplication?.full_name} after the meeting? This will send them an email with the contract terms link.`
-            : `Are you sure you want to approve ${pendingApplication?.full_name}? This will send them an email with terms link.`
+              ? `Are you sure you want to approve ${pendingApplication?.full_name} after the meeting? This will send them an email with the contract terms link.`
+              : `Are you sure you want to approve ${pendingApplication?.full_name}? This will send them an email with terms link.`
         }
         confirmText="Approve"
         cancelText="Cancel"
@@ -1044,7 +1056,7 @@ export function Dashboard() {
       try {
         const authenticated = await checkIsAuthenticated();
         setIsAuthenticated(authenticated);
-        
+
         if (authenticated) {
           const hasAdminAccess = await checkAdminAccess();
           setIsAdmin(hasAdminAccess);
@@ -1064,12 +1076,28 @@ export function Dashboard() {
   const handleLoginSuccess = async () => {
     const authenticated = await checkIsAuthenticated();
     setIsAuthenticated(authenticated);
-    
+
     if (authenticated) {
       const hasAdminAccess = await checkAdminAccess();
       setIsAdmin(hasAdminAccess);
     }
   };
+
+  // Handle email change confirmation logout
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const type = params.get('type');
+
+    if (type === 'email_change' || window.location.hash.includes('type=email_change')) {
+      console.log('[Dashboard] Email change detected, logging out for security...');
+      signOut().then(() => {
+        setIsAuthenticated(false);
+        setIsAdmin(false);
+        // Clear URL parameters
+        window.history.replaceState({}, document.title, window.location.pathname);
+      });
+    }
+  }, []);
 
   // Show loading state while checking
   if (isChecking) {

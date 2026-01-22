@@ -25,6 +25,8 @@ import { CheckoutCancel } from './pages/CheckoutCancel';
 import { ZellePaymentProcessing } from './pages/ZellePaymentProcessing';
 import { VisaServiceTerms } from './pages/VisaServiceTerms';
 import { SellerLogin } from './pages/SellerLogin';
+import { ForgotPassword } from './pages/ForgotPassword';
+import { ResetPassword } from './pages/ResetPassword';
 import { SellerRegister } from './pages/SellerRegister';
 import { SellerDashboardLayout } from './pages/seller/SellerDashboardLayout';
 import { SellerOverview } from './pages/seller/SellerOverview';
@@ -33,6 +35,7 @@ import { SellerCommissions } from './pages/seller/SellerCommissions';
 import { SellerFunnel } from './pages/seller/SellerFunnel';
 import { SellerOrders } from './pages/seller/SellerOrders';
 import { SellerLinks } from './pages/seller/SellerLinks';
+import { SellerProfile } from './pages/seller/SellerProfile';
 import { SellerLeads } from './pages/seller/SellerLeads';
 import { SellerOrderDetail } from './pages/SellerOrderDetail';
 import { SellerRoute } from './components/seller/SellerRoute';
@@ -52,6 +55,7 @@ import { AdminSellerAnalytics } from './pages/admin/AdminSellerAnalytics';
 import { AdminRoute } from './components/admin/AdminRoute';
 import { SlackReportsPage } from './pages/admin/SlackReportsPage';
 import { VisaContractApprovalPage } from './pages/VisaContractApprovalPage';
+import { AdminProfile } from './pages/admin/AdminProfile';
 
 function App() {
   return (
@@ -76,6 +80,10 @@ function App() {
         <Route path="/checkout/cancel" element={<CheckoutCancel />} />
         <Route path="/checkout/zelle/processing" element={<ZellePaymentProcessing />} />
 
+        {/* Generic Password Recovery Routes */}
+        <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
+
         {/* Seller Routes */}
         <Route path="/seller/login" element={<SellerLogin />} />
         <Route path="/seller/register" element={<SellerRegister />} />
@@ -87,6 +95,7 @@ function App() {
           <Route path="orders" element={<SellerOrders />} />
           <Route path="links" element={<SellerLinks />} />
           <Route path="leads" element={<SellerLeads />} />
+          <Route path="profile" element={<SellerProfile />} />
         </Route>
         <Route path="/seller/orders/:orderId" element={<SellerRoute><SellerOrderDetail /></SellerRoute>} />
 
@@ -112,6 +121,7 @@ function App() {
           <Route path="contract-templates" element={<ContractTemplatesPage />} />
           <Route path="schedule-meeting" element={<ScheduleMeetingPage />} />
           <Route path="slack-reports" element={<SlackReportsPage />} />
+          <Route path="profile" element={<AdminProfile />} />
         </Route>
       </Routes>
     </Router>
