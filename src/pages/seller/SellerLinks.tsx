@@ -1258,6 +1258,15 @@ export function SellerLinks() {
                       // When using prefill token, we don't need seller ID in the URL as it's included in the token
                       const link = `${siteUrl}/checkout/visa/${prefillFormData.productSlug}?prefill=${token}`;
                       setGeneratedPrefillLink(link);
+
+                      // Auto-copy to clipboard
+                      navigator.clipboard.writeText(link);
+                      setCopiedLink(link);
+                      if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current);
+                      copyTimeoutRef.current = setTimeout(() => {
+                        setCopiedLink(null);
+                        copyTimeoutRef.current = null;
+                      }, 3000);
                     } catch (err: any) {
                       console.error('Error generating prefill link:', err);
                       setPrefillError(err.message || 'Failed to generate link. Please try again.');

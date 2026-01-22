@@ -11,7 +11,6 @@ export const AdminProfile = () => {
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState('');
     const [success, setSuccess] = useState('');
-    const [userId, setUserId] = useState('');
     const [formData, setFormData] = useState({
         full_name: '',
         email: '',
@@ -35,7 +34,6 @@ export const AdminProfile = () => {
                 return;
             }
 
-            setUserId(user.id);
             const metadata = user.user_metadata || {};
 
             setFormData({
