@@ -756,6 +756,20 @@ export const VisaOrderDetailPage = () => {
                         View Contract
                       </Button>
                     )}
+                    {(order.payment_metadata as any)?.invoice_pdf_url && (
+                      <Button
+                        variant="outline"
+                        onClick={() => {
+                          setSelectedPdfUrl((order.payment_metadata as any).invoice_pdf_url);
+                          setSelectedPdfTitle(`Invoice - ${order.order_number}`);
+                          setShowPdfModal(true);
+                        }}
+                        className="border-gold-medium/50 bg-black/50 text-gold-light hover:bg-black hover:border-gold-medium hover:text-gold-medium"
+                      >
+                        <FileText className="w-4 h-4 mr-1" />
+                        View Invoice
+                      </Button>
+                    )}
                   </div>
                 </div>
               )}

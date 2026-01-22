@@ -30,6 +30,7 @@ interface ZelleOrder {
       status?: string;
     };
   };
+  is_hidden?: boolean;
 }
 
 interface ZellePayment {
@@ -91,6 +92,7 @@ export const ZelleApprovalPage = () => {
         .select('*')
         .eq('payment_method', 'zelle')
         .eq('payment_status', 'pending')
+        .eq('is_hidden', false)
         .order('created_at', { ascending: false });
 
       if (ordersError) throw ordersError;
@@ -203,6 +205,7 @@ export const ZelleApprovalPage = () => {
         .select('*')
         .eq('payment_method', 'zelle')
         .in('payment_status', ['completed', 'failed'])
+        .eq('is_hidden', false)
         .order('updated_at', { ascending: false })
         .limit(20);
       setHistoryOrders(histOrdersData || []);

@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { PdfModal } from '@/components/ui/pdf-modal';
-import { FileText, Eye, Download, ChevronDown } from 'lucide-react';
+import { FileText, Eye, Download, ChevronDown, EyeOff, Archive, Undo2 } from 'lucide-react';
 import {
   Popover,
   PopoverContent,
@@ -27,6 +27,7 @@ interface VisaOrder {
   contract_pdf_url: string | null;
   annex_pdf_url: string | null;
   created_at: string;
+  is_hidden?: boolean;
 }
 
 // Helper function to calculate net amount and fee
@@ -95,6 +96,8 @@ const calculateNetAmountAndFee = (order: VisaOrder) => {
 export const VisaOrdersPage = () => {
   const [orders, setOrders] = useState<VisaOrder[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showHidden, setShowHidden] = useState(false);
+  const [isUpdating, setIsUpdating] = useState<string | null>(null);
   const [selectedPdfUrl, setSelectedPdfUrl] = useState<string | null>(null);
   const [selectedPdfTitle, setSelectedPdfTitle] = useState<string>('Contract PDF');
 
@@ -124,7 +127,7 @@ export const VisaOrdersPage = () => {
   }, []);
 
   // Function updated to accept filter type
-  const handleExportExcel = async (filterType: 'all' | 'completed' | 'pending' = 'all') => {
+  const handleExportExcel = async (filterType: 'all' | 'completed' | 'pending' | 'real' = 'all') => {
     try {
       let filteredOrders = orders;
 
@@ -132,6 +135,8 @@ export const VisaOrdersPage = () => {
         filteredOrders = orders.filter(order => order.payment_status === 'completed');
       } else if (filterType === 'pending') {
         filteredOrders = orders.filter(order => order.payment_status === 'pending');
+      } else if (filterType === 'real') {
+        filteredOrders = orders.filter(order => !order.is_hidden);
       }
 
       const { exportVisaOrdersToExcel } = await import('@/lib/visaOrdersExport');
@@ -140,6 +145,26 @@ export const VisaOrdersPage = () => {
       console.error('Failed to export excel:', error);
     }
   };
+
+  const toggleHideOrder = async (orderId: string, currentStatus: boolean) => {
+    try {
+      setIsUpdating(orderId);
+      const { error } = await supabase
+        .from('visa_orders')
+        .update({ is_hidden: !currentStatus })
+        .eq('id', orderId);
+
+      if (error) throw error;
+
+      setOrders(orders.map(o => o.id === orderId ? { ...o, is_hidden: !currentStatus } : o));
+    } catch (err) {
+      console.error('Error updating order visibility:', err);
+    } finally {
+      setIsUpdating(null);
+    }
+  };
+
+  const visibleOrders = orders.filter(order => showHidden || !order.is_hidden);
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -173,52 +198,75 @@ export const VisaOrdersPage = () => {
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4 sm:mb-8">
           <h1 className="text-2xl sm:text-3xl font-bold migma-gold-text">Visa Orders</h1>
 
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button
-                className="bg-green-600 hover:bg-green-700 text-white border-none gap-2 text-sm font-medium"
-              >
-                <Download className="w-4 h-4" />
-                Export Excel
-                <ChevronDown className="w-4 h-4 ml-1" />
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent align="end" className="w-56 p-2 bg-zinc-950 border border-zinc-800 rounded-lg shadow-xl">
-              <div className="flex flex-col gap-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowHidden(!showHidden)}
+              className={`border-gold-medium/30 bg-black/50 text-gold-light hover:bg-gold-medium/20 text-xs md:text-sm ${showHidden ? 'bg-gold-medium/40' : ''}`}
+            >
+              {showHidden ? <Eye className="w-4 h-4 mr-2" /> : <EyeOff className="w-4 h-4 mr-2" />}
+              {showHidden ? 'Ver Apenas Reais' : 'Ver Todos (Incluindo Ocultos)'}
+            </Button>
+
+            <Popover>
+              <PopoverTrigger asChild>
                 <Button
-                  variant="ghost"
-                  className="w-full justify-start text-zinc-300 hover:text-white hover:bg-zinc-800 text-sm font-normal"
-                  onClick={() => handleExportExcel('all')}
+                  className="bg-green-600 hover:bg-green-700 text-white border-none gap-2 text-sm font-medium h-9 sm:h-10 px-4"
                 >
-                  Exportar Todos
+                  <Download className="w-4 h-4" />
+                  Export Excel
+                  <ChevronDown className="w-4 h-4 ml-1" />
                 </Button>
-                <Button
-                  variant="ghost"
-                  className="w-full justify-start text-zinc-300 hover:text-white hover:bg-zinc-800 text-sm font-normal"
-                  onClick={() => handleExportExcel('completed')}
-                >
-                  Apenas Pagos
-                </Button>
-                <Button
-                  variant="ghost"
-                  className="w-full justify-start text-zinc-300 hover:text-white hover:bg-zinc-800 text-sm font-normal"
-                  onClick={() => handleExportExcel('pending')}
-                >
-                  Apenas Pendentes
-                </Button>
-              </div>
-            </PopoverContent>
-          </Popover>
+              </PopoverTrigger>
+              <PopoverContent align="end" className="w-56 p-2 bg-zinc-950 border border-zinc-800 rounded-lg shadow-xl">
+                <div className="flex flex-col gap-1">
+                  <Button
+                    variant="ghost"
+                    className="w-full justify-start text-zinc-300 hover:text-white hover:bg-zinc-800 text-sm font-normal"
+                    onClick={() => handleExportExcel('all')}
+                  >
+                    Exportar Todos
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    className="w-full justify-start text-zinc-300 hover:text-white hover:bg-zinc-800 text-sm font-normal"
+                    onClick={() => handleExportExcel('completed')}
+                  >
+                    Apenas Pagos
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    className="w-full justify-start text-zinc-300 hover:text-white hover:bg-zinc-800 text-sm font-normal"
+                    onClick={() => handleExportExcel('pending')}
+                  >
+                    Apenas Pendentes
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    className="w-full justify-start text-zinc-300 hover:text-white hover:bg-zinc-800 text-sm font-normal"
+                    onClick={() => handleExportExcel('real')}
+                  >
+                    Apenas Reais (Sem Ocultos)
+                  </Button>
+                </div>
+              </PopoverContent>
+            </Popover>
+          </div>
         </div>
 
         <Card className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30">
           <CardHeader>
-            <CardTitle className="text-lg sm:text-xl text-white">All Orders</CardTitle>
+            <CardTitle className="text-lg sm:text-xl text-white">
+              {showHidden ? 'All Orders (Including Hidden)' : 'Real Orders'}
+            </CardTitle>
           </CardHeader>
           <CardContent>
-            {orders.length === 0 ? (
+            {visibleOrders.length === 0 ? (
               <div className="text-center py-12">
-                <p className="text-gray-400 text-sm sm:text-base">No orders found</p>
+                <p className="text-gray-400 text-sm sm:text-base">
+                  {showHidden ? 'No orders found' : 'No real orders found. Check "Show Hidden" if you are looking for duplicates.'}
+                </p>
               </div>
             ) : (
               <>
@@ -242,7 +290,7 @@ export const VisaOrdersPage = () => {
                       </tr>
                     </thead>
                     <tbody>
-                      {orders.map((order) => {
+                      {visibleOrders.map((order) => {
                         const { netAmount, feeAmount, totalPrice } = calculateNetAmountAndFee(order);
                         return (
                           <tr key={order.id} className="border-b border-gold-medium/10 hover:bg-white/5">
@@ -309,7 +357,21 @@ export const VisaOrdersPage = () => {
                                     Contract
                                   </Button>
                                 )}
-                                {!order.annex_pdf_url && !order.contract_pdf_url && (
+                                {(order.payment_metadata as any)?.invoice_pdf_url && (
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => {
+                                      setSelectedPdfUrl((order.payment_metadata as any).invoice_pdf_url);
+                                      setSelectedPdfTitle(`Invoice - ${order.order_number}`);
+                                    }}
+                                    className="border-gold-medium/50 bg-black/50 text-gold-light hover:bg-black hover:border-gold-medium hover:text-gold-medium text-xs"
+                                  >
+                                    <FileText className="w-3 h-3 mr-1" />
+                                    Invoice
+                                  </Button>
+                                )}
+                                {!order.annex_pdf_url && !order.contract_pdf_url && !(order.payment_metadata as any)?.invoice_pdf_url && (
                                   <span className="text-gray-500 text-xs">Not generated</span>
                                 )}
                               </div>
@@ -325,6 +387,16 @@ export const VisaOrdersPage = () => {
                                   View Details
                                 </Button>
                               </Link>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                disabled={isUpdating === order.id}
+                                onClick={() => toggleHideOrder(order.id, !!order.is_hidden)}
+                                className={`mt-1 w-full flex items-center gap-2 text-xs ${order.is_hidden ? 'text-green-400 hover:text-green-300' : 'text-gray-500 hover:text-red-400'}`}
+                              >
+                                {order.is_hidden ? <Undo2 className="w-3 h-3" /> : <Archive className="w-3 h-3" />}
+                                {order.is_hidden ? 'Mostrar' : 'Ocultar'}
+                              </Button>
                             </td>
                           </tr>
                         );
@@ -335,7 +407,7 @@ export const VisaOrdersPage = () => {
 
                 {/* Mobile Cards */}
                 <div className="md:hidden space-y-4">
-                  {orders.map((order) => {
+                  {visibleOrders.map((order) => {
                     const { netAmount, feeAmount, totalPrice } = calculateNetAmountAndFee(order);
 
                     return (
@@ -430,6 +502,16 @@ export const VisaOrdersPage = () => {
                                 View Details
                               </Button>
                             </Link>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              disabled={isUpdating === order.id}
+                              onClick={() => toggleHideOrder(order.id, !!order.is_hidden)}
+                              className={`w-full flex items-center justify-center gap-2 text-xs ${order.is_hidden ? 'text-green-400' : 'text-gray-500'}`}
+                            >
+                              {order.is_hidden ? <Undo2 className="w-3 h-3" /> : <Archive className="w-3 h-3" />}
+                              {order.is_hidden ? 'Mostrar na Lista' : 'Ocultar Pedido'}
+                            </Button>
                           </div>
                         </CardContent>
                       </Card>
