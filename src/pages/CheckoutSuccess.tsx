@@ -71,12 +71,14 @@ export const CheckoutSuccess = () => {
           <div className="mb-6">
             <CheckCircle className="w-20 h-20 text-green-500 mx-auto mb-4" />
             <h1 className="text-3xl font-bold migma-gold-text mb-2">
-              {method === 'zelle' ? 'Payment Submitted!' : 'Payment Successful!'}
+              {method === 'zelle' ? 'Payment Submitted!' : method === 'manual' ? 'Contract Signed!' : 'Payment Successful!'}
             </h1>
             <p className="text-gray-300">
               {method === 'zelle'
                 ? 'Your Zelle payment receipt has been submitted successfully.'
-                : 'Your payment has been processed successfully.'}
+                : method === 'manual'
+                  ? 'Your contract has been signed and submitted successfully.'
+                  : 'Your payment has been processed successfully.'}
             </p>
           </div>
 
@@ -97,7 +99,7 @@ export const CheckoutSuccess = () => {
                   <span className="text-white">{order.number_of_dependents || 0}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-gray-400">Base Total (USD):</span>
+                  <span className="text-gray-400">{method === 'manual' ? 'Contract Value (USD):' : 'Base Total (USD):'}</span>
                   <span className="text-white font-bold">
                     US$ {parseFloat(order.total_price_usd).toFixed(2)}
                   </span>
@@ -173,6 +175,14 @@ export const CheckoutSuccess = () => {
                     </span>
                   </div>
                 )}
+                {order.payment_status === 'manual_pending' && (
+                  <div className="flex justify-between">
+                    <span className="text-gray-400">Status:</span>
+                    <span className="font-bold text-gold-light">
+                      Signed
+                    </span>
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -181,7 +191,9 @@ export const CheckoutSuccess = () => {
             <p className="text-gray-300">
               {method === 'zelle'
                 ? 'Our team will review your payment and contact you shortly to confirm and begin the visa application process.'
-                : 'A confirmation email has been sent to your email address.'}
+                : method === 'manual'
+                  ? 'Your information and signature have been received.'
+                  : 'A confirmation email has been sent to your email address.'}
             </p>
             <p className="text-gray-300">
               Our team will contact you soon to begin the visa application process.

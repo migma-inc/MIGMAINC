@@ -3,8 +3,8 @@ import { createClient } from "jsr:@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "POST, OPTIONS, GET",
 };
 
 interface ParcelowWebhookEvent {
@@ -621,6 +621,22 @@ async function processParcelowWebhookEvent(
     // Continue - PDF generation is not critical for payment processing
   }
 
+  // 6. Generate Invoice PDF for ALL products
+  console.log(`[Parcelow Webhook] 📄 Generating Invoice PDF...`);
+  try {
+    const { data: invoiceData, error: invoiceError } = await supabase.functions.invoke("generate-invoice-pdf", {
+      body: { order_id: order.id },
+    });
+
+    if (invoiceError) {
+      console.error(`[Parcelow Webhook] ❌ Error generating Invoice PDF:`, invoiceError);
+    } else {
+      console.log(`[Parcelow Webhook] ✅ Invoice PDF generated successfully:`, invoiceData?.pdf_url);
+    }
+  } catch (invoiceError) {
+    console.error(`[Parcelow Webhook] ❌ Exception generating Invoice PDF:`, invoiceError);
+  }
+
   // Get currency and final amount from payment_metadata or use defaults
   // Parcelow returns amounts in cents, so we need to divide by 100 for the email
   const metadata = updateData.payment_metadata || order.payment_metadata || {};
@@ -759,7 +775,11 @@ async function processParcelowWebhookEvent(
 Deno.serve(async (req: Request) => {
   // Handle CORS preflight
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    console.log("[Parcelow Webhook] 🛡️ OPTIONS request received - returning CORS headers");
+    return new Response(null, {
+      status: 204,
+      headers: corsHeaders
+    });
   }
 
   // Handle GET requests (health checks or verification)

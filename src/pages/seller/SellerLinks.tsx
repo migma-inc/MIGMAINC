@@ -1398,7 +1398,7 @@ export function SellerLinks() {
 
                                     </div>
 
-                                    {/* Botão Generate Link */}
+                                    {/* Botões Generate Link */}
                                     <div className="flex gap-2 shrink-0">
                                       <Button
                                         onClick={async () => {
@@ -1420,12 +1420,17 @@ export function SellerLinks() {
                                             if (insertError) throw insertError;
 
                                             const siteUrl = window.location.origin;
-                                            // When using prefill token, we don't need seller ID in the URL as it's included in the token
                                             const link = `${siteUrl}/checkout/visa/${product.slug}?prefill=${token}`;
                                             setProductGeneratedLinks({
                                               ...productGeneratedLinks,
                                               [product.slug]: link,
                                             });
+
+                                            // Copy to clipboard automatically
+                                            navigator.clipboard.writeText(link);
+                                            setCopiedLink(link);
+                                            setTimeout(() => setCopiedLink(null), 3000);
+
                                             setPrefillError('');
                                           } catch (err: any) {
                                             console.error('Error generating prefill link:', err);
@@ -1436,8 +1441,52 @@ export function SellerLinks() {
                                         variant="outline"
                                         className="bg-gold-medium/20 border-gold-medium/50 text-gold-light hover:bg-gold-medium/30 hover:border-gold-medium"
                                       >
-                                        <FileEdit className="w-4 h-4 mr-1" />
-                                        Generate Link
+                                        <DollarSign className="w-4 h-4 mr-1" />
+                                        Get Pay Link
+                                      </Button>
+                                      <Button
+                                        onClick={async () => {
+                                          try {
+                                            const token = crypto.randomUUID();
+                                            const expiresAt = new Date();
+                                            expiresAt.setDate(expiresAt.getDate() + 30);
+
+                                            const { error: insertError } = await supabase
+                                              .from('checkout_prefill_tokens')
+                                              .insert({
+                                                token,
+                                                seller_id: seller.seller_id_public,
+                                                product_slug: product.slug,
+                                                client_data: {},
+                                                expires_at: expiresAt.toISOString(),
+                                              });
+
+                                            if (insertError) throw insertError;
+
+                                            const siteUrl = window.location.origin;
+                                            const link = `${siteUrl}/checkout/contract/${product.slug}?prefill=${token}`;
+                                            setProductGeneratedLinks({
+                                              ...productGeneratedLinks,
+                                              [product.slug]: link,
+                                            });
+
+                                            // Copy to clipboard automatically
+                                            navigator.clipboard.writeText(link);
+                                            setCopiedLink(link);
+                                            setTimeout(() => setCopiedLink(null), 3000);
+
+                                            setPrefillError('');
+                                          } catch (err: any) {
+                                            console.error('Error generating contract link:', err);
+                                            setPrefillError(err.message || 'Erro ao gerar link');
+                                          }
+                                        }}
+                                        size="sm"
+                                        variant="outline"
+                                        className="bg-zinc-800 border-zinc-600 text-zinc-300 hover:bg-zinc-700 hover:text-white"
+                                      >
+                                        <FileText className="w-4 h-4 mr-1" />
+                                        Sign Link
                                       </Button>
                                     </div>
                                   </div>
@@ -1563,7 +1612,7 @@ export function SellerLinks() {
 
                               </div>
 
-                              {/* Botão Generate Link */}
+                              {/* Botões Generate Link */}
                               <div className="flex gap-2 shrink-0">
                                 <Button
                                   onClick={async () => {
@@ -1585,12 +1634,17 @@ export function SellerLinks() {
                                       if (insertError) throw insertError;
 
                                       const siteUrl = window.location.origin;
-                                      // When using prefill token, we don't need seller ID in the URL as it's included in the token
                                       const link = `${siteUrl}/checkout/visa/${product.slug}?prefill=${token}`;
                                       setProductGeneratedLinks({
                                         ...productGeneratedLinks,
                                         [product.slug]: link,
                                       });
+
+                                      // Copy to clipboard automatically
+                                      navigator.clipboard.writeText(link);
+                                      setCopiedLink(link);
+                                      setTimeout(() => setCopiedLink(null), 3000);
+
                                       setPrefillError('');
                                     } catch (err: any) {
                                       console.error('Error generating prefill link:', err);
@@ -1601,8 +1655,52 @@ export function SellerLinks() {
                                   variant="outline"
                                   className="bg-gold-medium/20 border-gold-medium/50 text-gold-light hover:bg-gold-medium/30 hover:border-gold-medium"
                                 >
-                                  <FileEdit className="w-4 h-4 mr-1" />
-                                  Generate Link
+                                  <DollarSign className="w-4 h-4 mr-1" />
+                                  Get Pay Link
+                                </Button>
+                                <Button
+                                  onClick={async () => {
+                                    try {
+                                      const token = crypto.randomUUID();
+                                      const expiresAt = new Date();
+                                      expiresAt.setDate(expiresAt.getDate() + 30);
+
+                                      const { error: insertError } = await supabase
+                                        .from('checkout_prefill_tokens')
+                                        .insert({
+                                          token,
+                                          seller_id: seller.seller_id_public,
+                                          product_slug: product.slug,
+                                          client_data: {},
+                                          expires_at: expiresAt.toISOString(),
+                                        });
+
+                                      if (insertError) throw insertError;
+
+                                      const siteUrl = window.location.origin;
+                                      const link = `${siteUrl}/checkout/contract/${product.slug}?prefill=${token}`;
+                                      setProductGeneratedLinks({
+                                        ...productGeneratedLinks,
+                                        [product.slug]: link,
+                                      });
+
+                                      // Copy to clipboard automatically
+                                      navigator.clipboard.writeText(link);
+                                      setCopiedLink(link);
+                                      setTimeout(() => setCopiedLink(null), 3000);
+
+                                      setPrefillError('');
+                                    } catch (err: any) {
+                                      console.error('Error generating contract link:', err);
+                                      setPrefillError(err.message || 'Erro ao gerar link');
+                                    }
+                                  }}
+                                  size="sm"
+                                  variant="outline"
+                                  className="bg-zinc-800 border-zinc-600 text-zinc-300 hover:bg-zinc-700 hover:text-white"
+                                >
+                                  <FileText className="w-4 h-4 mr-1" />
+                                  Sign Link
                                 </Button>
                               </div>
                             </div>

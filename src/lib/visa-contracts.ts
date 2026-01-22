@@ -49,6 +49,25 @@ export async function approveVisaContract(
       return { success: false, error: data.error };
     }
 
+    // NEW: If the contract was approved, and it's a manual order, trigger Invoice generation
+    try {
+      const { data: orderData } = await supabase
+        .from('visa_orders')
+        .select('payment_method')
+        .eq('id', orderId)
+        .single();
+
+      if (orderData?.payment_method === 'manual') {
+        console.log('[VISA_CONTRACTS] Manual order detected, triggering Invoice generation...');
+        // We trigger this in the background/parallel to not delay the UI success message
+        supabase.functions.invoke('generate-invoice-pdf', {
+          body: { order_id: orderId },
+        }).catch(err => console.error('[VISA_CONTRACTS] Error triggering invoice:', err));
+      }
+    } catch (orderErr) {
+      console.error('[VISA_CONTRACTS] Error checking order for invoice trigger:', orderErr);
+    }
+
     return { success: true };
   } catch (error) {
     console.error('[VISA_CONTRACTS] Exception approving contract:', error);
@@ -76,14 +95,14 @@ export async function rejectVisaContract(
       if (typeof window !== 'undefined' && window.location.origin) {
         return window.location.origin;
       }
-      
+
       // Try environment variable (for production builds)
       const envUrl = import.meta.env.VITE_APP_URL;
       if (envUrl) {
         // Remove trailing slash and return
         return envUrl.trim().replace(/\/+$/, '');
       }
-      
+
       // Fallback
       return 'https://migmainc.com';
     };
@@ -130,7 +149,7 @@ export async function validateResubmissionToken(
 ): Promise<TokenValidationResult> {
   try {
     console.log('[VISA_CONTRACTS] Starting token validation for:', token);
-    
+
     // Fetch token from database
     console.log('[VISA_CONTRACTS] Fetching token from database...');
     const { data: tokenData, error: tokenError } = await supabase

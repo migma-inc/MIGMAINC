@@ -2,6 +2,7 @@
 
 // Components
 export { VisaCheckoutPage } from './VisaCheckoutPage';
+export { VisaSignatureCheckoutPage } from './VisaSignatureCheckoutPage';
 export { ParcelowPaymentModal } from './components/payment/ParcelowPaymentModal';
 export { StepIndicator } from './components/shared/StepIndicator';
 export { OrderSummary } from './components/shared/OrderSummary';
