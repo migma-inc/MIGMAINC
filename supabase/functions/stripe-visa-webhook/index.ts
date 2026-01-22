@@ -587,6 +587,23 @@ Deno.serve(async (req: Request) => {
           }
         }
 
+        // Generate Invoice PDF for ALL products
+        {
+          try {
+            const { data: invoiceData, error: invoiceError } = await supabase.functions.invoke("generate-invoice-pdf", {
+              body: { order_id: order.id },
+            });
+
+            if (invoiceError) {
+              console.error("[Webhook] Error generating Invoice PDF:", invoiceError);
+            } else {
+              console.log("[Webhook] Invoice PDF generated successfully:", invoiceData?.pdf_url);
+            }
+          } catch (invoiceError) {
+            console.error("[Webhook] Exception generating Invoice PDF:", invoiceError);
+          }
+        }
+
         // Send confirmation email to client
         try {
           // Get currency and final amount from payment_metadata

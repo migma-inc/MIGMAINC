@@ -606,6 +606,11 @@ Deno.serve(async (req: Request) => {
       invokeEdgeFunction(supabase, "generate-annex-pdf", { order_id: order.id }, "gerar PDF do ANEXO I")
     );
 
+    // Generate Invoice PDF for ALL products
+    nonCriticalOperations.push(
+      invokeEdgeFunction(supabase, "generate-invoice-pdf", { order_id: order.id }, "gerar PDF da Invoice")
+    );
+
     // Send confirmation email
     nonCriticalOperations.push(
       invokeEdgeFunction(supabase, "send-payment-confirmation-email", {
