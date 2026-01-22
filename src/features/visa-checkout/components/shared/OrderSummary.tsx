@@ -1,7 +1,7 @@
 import type { VisaProduct } from '@/types/visa-product';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { CreditCard, DollarSign, Lock } from 'lucide-react';
+import { CreditCard, DollarSign, Lock, CheckCircle } from 'lucide-react';
 
 interface OrderSummaryProps {
     product: VisaProduct;
@@ -108,6 +108,11 @@ export const OrderSummary: React.FC<OrderSummaryProps> = ({
                                             <DollarSign className="w-5 h-5" />
                                             Confirm Zelle Payment
                                         </>
+                                    ) : paymentMethod === 'manual' ? (
+                                        <>
+                                            <CheckCircle className="w-5 h-5" />
+                                            Confirm & Sign Contract
+                                        </>
                                     ) : (
                                         /* STRIPE REMOVED - No longer using Stripe/Card payments
                                         <>
@@ -124,8 +129,14 @@ export const OrderSummary: React.FC<OrderSummaryProps> = ({
                             )}
                         </Button>
                         <div className="flex items-center justify-center gap-2 mt-3 opacity-60">
-                            <Lock className="w-3 h-3 text-gold-light" />
-                            <span className="text-[10px] text-gray-400">100% Secure Payment</span>
+                            {paymentMethod === 'manual' ? (
+                                <span className="text-[10px] text-gray-400">Verificado juridicamente</span>
+                            ) : (
+                                <>
+                                    <Lock className="w-3 h-3 text-gold-light" />
+                                    <span className="text-[10px] text-gray-400">100% Secure Payment</span>
+                                </>
+                            )}
                         </div>
                     </div>
                 )}

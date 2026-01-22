@@ -12,16 +12,22 @@ const BUCKET_NAME = 'contracts';
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, prefer",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
 Deno.serve(async (req) => {
   // Handle CORS
   if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
+    console.log("[EDGE FUNCTION] 🛡️ OPTIONS request received (Contract)");
+    return new Response("ok", {
+      status: 200,
+      headers: corsHeaders
+    });
   }
 
   try {
+    console.log("[EDGE FUNCTION] ========== POST REQUEST STARTED (Contract) ==========");
     const { order_id } = await req.json();
 
     if (!order_id) {
@@ -383,8 +389,8 @@ Deno.serve(async (req) => {
       }
 
       currencySymbol = 'R$'; // Parcelow is always in BRL
-    } else if (order.payment_method === 'zelle') {
-      // Zelle: always USD, use total_price_usd (no fees)
+    } else if (order.payment_method === 'zelle' || order.payment_method === 'manual') {
+      // Zelle and Manual: always USD, use total_price_usd (no fees)
       displayAmount = parseFloat(order.total_price_usd);
       currencySymbol = 'US$';
     }
@@ -409,6 +415,8 @@ Deno.serve(async (req) => {
         paymentMethodDisplay = 'STRIPE PIX';
       } else if (order.payment_method === 'zelle') {
         paymentMethodDisplay = 'ZELLE';
+      } else if (order.payment_method === 'manual') {
+        paymentMethodDisplay = 'MANUAL BY SELLER';
       } else {
         paymentMethodDisplay = order.payment_method.replace('_', ' ').toUpperCase();
       }

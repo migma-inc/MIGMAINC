@@ -152,6 +152,12 @@ export const VisaOrderDetailPage = () => {
         return <Badge className="bg-green-500/20 text-green-300 border-green-500/50">Paid</Badge>;
       case 'pending':
         return <Badge className="bg-yellow-500/20 text-yellow-300 border-yellow-500/50">Pending</Badge>;
+      case 'manual_pending':
+        return (
+          <Badge className="bg-amber-500/20 text-amber-200 border-amber-500/50 animate-pulse whitespace-nowrap">
+            Awaiting Approval
+          </Badge>
+        );
       case 'failed':
         return <Badge className="bg-red-500/20 text-red-300 border-red-500/50">Failed</Badge>;
       case 'cancelled':
@@ -700,7 +706,9 @@ export const VisaOrderDetailPage = () => {
             <CardContent className="space-y-3">
               <div className="flex justify-between">
                 <span className="text-gray-400">Payment Method:</span>
-                <span className="text-white capitalize">{order.payment_method.replace('_', ' ')}</span>
+                <span className="text-white capitalize">
+                  {order.payment_method === 'manual' ? 'Manual by Seller' : order.payment_method.replace('_', ' ')}
+                </span>
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-400">Payment Status:</span>

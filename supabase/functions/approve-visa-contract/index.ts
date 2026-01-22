@@ -13,6 +13,78 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+// Helper functions for n8n webhook
+function normalizeServiceName(productSlug: string, productName: string): string {
+  if (productSlug.startsWith('initial-')) return 'F1 Initial';
+  if (productSlug.startsWith('cos-') || productSlug.startsWith('transfer-')) return 'COS & Transfer';
+  return productName;
+}
+
+async function sendClientWebhook(order: any, supabase: any) {
+  const webhookUrl = Deno.env.get('CLIENT_WEBHOOK_URL');
+  if (!webhookUrl) {
+    console.error('[Webhook Client] CLIENT_WEBHOOK_URL not set');
+    return;
+  }
+
+  try {
+    const { data: product } = await supabase
+      .from('visa_products')
+      .select('name')
+      .eq('slug', order.product_slug)
+      .single();
+
+    const serviceName = normalizeServiceName(order.product_slug, product?.name || order.product_slug);
+
+    let basePrice = 0;
+    if (order.calculation_type === 'units_only') {
+      basePrice = parseFloat(order.extra_unit_price_usd || '0');
+    } else {
+      basePrice = parseFloat(order.base_price_usd || '0');
+    }
+
+    const payload = {
+      servico: serviceName,
+      plano_servico: order.product_slug,
+      nome_completo: order.client_name,
+      whatsapp: order.client_whatsapp || '',
+      email: order.client_email,
+      valor_servico: basePrice.toFixed(2),
+      vendedor: order.seller_id || '',
+      quantidade_dependentes: Array.isArray(order.dependent_names) ? order.dependent_names.length : 0,
+    };
+
+    console.log('[Webhook Client] Sending payload to n8n:', JSON.stringify(payload));
+
+    await fetch(webhookUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+
+    // Send dependents separately if any
+    if (Array.isArray(order.dependent_names) && order.dependent_names.length > 0) {
+      const unitPrice = parseFloat(order.extra_unit_price_usd || '0');
+      for (const depName of order.dependent_names) {
+        if (!depName) continue;
+        const depPayload = {
+          nome_completo_cliente_principal: order.client_name,
+          nome_completo_dependente: depName,
+          valor_servico: unitPrice.toFixed(2),
+        };
+        await fetch(webhookUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(depPayload),
+        });
+      }
+    }
+    console.log('[Webhook Client] All webhooks sent successfully');
+  } catch (error) {
+    console.error('[Webhook Client] Error sending webhook:', error);
+  }
+}
+
 Deno.serve(async (req) => {
   // Handle CORS
   if (req.method === "OPTIONS") {
@@ -45,7 +117,22 @@ Deno.serve(async (req) => {
       auth: { autoRefreshToken: false, persistSession: false },
     });
 
-    // 1. Update order with approval status based on contract type
+    // 1. Fetch order data with all fields needed for webhook
+    const { data: order, error: fetchError } = await supabase
+      .from('visa_orders')
+      .select('*')
+      .eq('id', order_id)
+      .single();
+
+    if (fetchError || !order) {
+      console.error("[EDGE FUNCTION] Error fetching order:", fetchError);
+      return new Response(
+        JSON.stringify({ success: false, error: "Order not found" }),
+        { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // 2. Update order with approval status based on contract type
     const updateData: any = {
       updated_at: new Date().toISOString(),
     };
@@ -58,20 +145,6 @@ Deno.serve(async (req) => {
       updateData.contract_approval_status = 'approved';
       updateData.contract_approval_reviewed_by = reviewed_by;
       updateData.contract_approval_reviewed_at = new Date().toISOString();
-    }
-
-    const { data: order, error: fetchError } = await supabase
-      .from('visa_orders')
-      .select('id, order_number, client_name, client_email, product_slug')
-      .eq('id', order_id)
-      .single();
-
-    if (fetchError || !order) {
-      console.error("[EDGE FUNCTION] Error fetching order:", fetchError);
-      return new Response(
-        JSON.stringify({ success: false, error: "Order not found" }),
-        { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
     }
 
     const { error: updateError } = await supabase
@@ -89,7 +162,19 @@ Deno.serve(async (req) => {
 
     console.log(`[EDGE FUNCTION] ${approvalType === 'annex' ? 'ANNEX I' : 'Contract'} approved successfully in DB`);
 
-    // 2. Manage View Token and Send Email (similar to partner flow)
+    // 3. Trigger n8n Webhook IF it's the main contract approval AND payment is manual
+    if (approvalType === 'contract' && order.payment_method === 'manual') {
+      console.log(`[EDGE FUNCTION] Triggering manual payment webhook for order: ${order.order_number}`);
+      const orderWithApproval = { ...order, ...updateData };
+      // Fire and forget (don't block the response)
+      sendClientWebhook(orderWithApproval, supabase).catch(err =>
+        console.error("[EDGE FUNCTION] Non-critical webhook error:", err)
+      );
+    } else if (approvalType === 'contract') {
+      console.log(`[EDGE FUNCTION] Skipping webhook for order ${order.order_number} (Payment method: ${order.payment_method})`);
+    }
+
+    // 4. Manage View Token and Send Email
     try {
       // Check if view token already exists
       const { data: existingToken } = await supabase
@@ -101,18 +186,14 @@ Deno.serve(async (req) => {
       let viewToken: string | null = null;
 
       if (existingToken) {
-        // If expires_at is NULL, token is infinite
         if (existingToken.expires_at === null) {
           viewToken = existingToken.token;
-          console.log("[EDGE FUNCTION] Using existing infinite view token");
         } else {
-          // Check validity
           const expiresAt = new Date(existingToken.expires_at);
           const now = new Date();
           if (now < expiresAt) {
             viewToken = existingToken.token;
           } else {
-            // Expired, generate new infinite one
             await supabase.from('visa_contract_view_tokens').delete().eq('id', existingToken.id);
           }
         }
@@ -125,12 +206,11 @@ Deno.serve(async (req) => {
           .insert({
             order_id: order_id,
             token: token,
-            expires_at: null, // Infinite
+            expires_at: null,
           });
 
         if (!tokenError) {
           viewToken = token;
-          console.log("[EDGE FUNCTION] Generated new infinite view token");
         }
       }
 

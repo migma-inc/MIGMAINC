@@ -12,16 +12,73 @@ const BUCKET_NAME = 'contracts'; // Reusing contracts bucket
 
 const corsHeaders = {
     "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, prefer",
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+};
+
+// Helper function to load image from URL
+const loadImage = async (imageUrl: string | null, supabase: any): Promise<{ dataUrl: string; format: string } | null> => {
+    if (!imageUrl) return null;
+
+    try {
+        console.log("[EDGE FUNCTION] Loading image from:", imageUrl);
+
+        // Get public URL if it's a storage path
+        let publicUrl = imageUrl;
+        if (imageUrl.startsWith('visa-documents/')) {
+            const { data: { publicUrl: url } } = supabase.storage
+                .from('visa-documents')
+                .getPublicUrl(imageUrl.replace('visa-documents/', ''));
+            publicUrl = url;
+        } else if (imageUrl.startsWith('visa-signatures/')) {
+            const { data: { publicUrl: url } } = supabase.storage
+                .from('visa-signatures')
+                .getPublicUrl(imageUrl.replace('visa-signatures/', ''));
+            publicUrl = url;
+        }
+
+        // Fetch the image
+        const imageResponse = await fetch(publicUrl);
+
+        if (!imageResponse.ok) {
+            throw new Error(`Failed to fetch image: ${imageResponse.status}`);
+        }
+
+        const imageBlob = await imageResponse.blob();
+        const imageArrayBuffer = await imageBlob.arrayBuffer();
+        const mimeType = imageBlob.type;
+
+        // Convert to base64
+        const bytes = new Uint8Array(imageArrayBuffer);
+        let binary = '';
+        const chunkSize = 8192;
+        for (let i = 0; i < bytes.length; i += chunkSize) {
+            const chunk = bytes.subarray(i, i + chunkSize);
+            binary += String.fromCharCode.apply(null, Array.from(chunk));
+        }
+        const imageBase64 = btoa(binary);
+        const imageFormat = mimeType.includes('png') ? 'PNG' : mimeType.includes('pdf') ? 'PDF' : 'JPEG';
+        const imageDataUrl = `data:${mimeType};base64,${imageBase64}`;
+
+        return { dataUrl: imageDataUrl, format: imageFormat };
+    } catch (imageError) {
+        console.error("[EDGE FUNCTION] Error loading image:", imageError);
+        return null;
+    }
 };
 
 Deno.serve(async (req) => {
     // Handle CORS
     if (req.method === "OPTIONS") {
-        return new Response("ok", { headers: corsHeaders });
+        console.log("[EDGE FUNCTION] 🛡️ OPTIONS request received (Invoice)");
+        return new Response("ok", {
+            status: 200,
+            headers: corsHeaders
+        });
     }
 
     try {
+        console.log("[EDGE FUNCTION] ========== REQUEST RECEIVED (Invoice) ==========");
         const { order_id } = await req.json();
 
         if (!order_id) {
@@ -71,16 +128,28 @@ Deno.serve(async (req) => {
         let currentY = 0;
 
         // ============================================
-        // 1. Header (Black Bar with Gold Text)
+        // 1. Header (Black Bar with Gold Text/Logo)
         // ============================================
         pdf.setFillColor(18, 18, 18); // Dark Black
         pdf.rect(0, 0, pageWidth, 40, 'F');
 
-        // Logo "MIGMA INC"
-        pdf.setFont('helvetica', 'bold');
-        pdf.setFontSize(28);
-        pdf.setTextColor(212, 175, 55); // Gold
-        pdf.text('MIGMA INC', margin, 26);
+        // Logo Image
+        const logoUrl = "https://ekxftwrjvxtpnqbraszv.supabase.co/storage/v1/object/public/logo/logo2.png";
+        const logoImage = await loadImage(logoUrl, supabase);
+
+        if (logoImage) {
+            // Adjust logo size to fit nicely in the header bar
+            // We use height 25 to be vertically centered in the 40 height bar
+            const logoWidth = 50;
+            const logoHeight = 25;
+            pdf.addImage(logoImage.dataUrl, logoImage.format, margin, 7.5, logoWidth, logoHeight);
+        } else {
+            // Fallback to text if logo fails to load
+            pdf.setFont('helvetica', 'bold');
+            pdf.setFontSize(28);
+            pdf.setTextColor(212, 175, 55); // Gold
+            pdf.text('MIGMA INC', margin, 26);
+        }
 
         // "INVOICE" title
         pdf.setFontSize(30);
@@ -255,12 +324,22 @@ Deno.serve(async (req) => {
 
         pdf.setFontSize(9);
         pdf.setFont('helvetica', 'normal');
-        const instructionLines = [
-            'Bank: Bank of America, N.A.',
-            'Account Name: MIGMA Inc',
-            'Account Number: 4570 5365 8489',
-            `Include the invoice number ${order.order_number} in the payment reference.`
-        ];
+
+        let instructionLines = [];
+        if (order.payment_method === 'manual') {
+            instructionLines = [
+                'Payment Method: MANUAL BY SELLER',
+                'This payment has been handled and authorized directly through an official agent.',
+                'No further action is required for payment confirmation.'
+            ];
+        } else {
+            instructionLines = [
+                'Bank: Bank of America, N.A.',
+                'Account Name: MIGMA Inc',
+                'Account Number: 4570 5365 8489',
+                `Include the invoice number ${order.order_number} in the payment reference.`
+            ];
+        }
 
         instructionLines.forEach(line => {
             pdf.text(line, margin, currentY);
