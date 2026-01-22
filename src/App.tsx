@@ -19,7 +19,7 @@ import { ApplicationDetailPage } from './pages/ApplicationDetailPage';
 import { ContractsPage } from './pages/ContractsPage';
 import { BookACallPage } from './pages/BookACallPage';
 import { BookACallDetailPage } from './pages/BookACallDetailPage';
-import { VisaCheckoutPage as VisaCheckout } from './features/visa-checkout';
+import { VisaCheckoutPage as VisaCheckout, VisaSignatureCheckoutPage as VisaSignatureCheckout } from './features/visa-checkout';
 import { CheckoutSuccess } from './pages/CheckoutSuccess';
 import { CheckoutCancel } from './pages/CheckoutCancel';
 import { ZellePaymentProcessing } from './pages/ZellePaymentProcessing';
@@ -71,6 +71,7 @@ function App() {
         <Route path="/legal/visa-service-terms" element={<VisaServiceTerms />} />
         <Route path="/global-partner" element={<GlobalPartner />} />
         <Route path="/checkout/visa/:productSlug" element={<VisaCheckout />} />
+        <Route path="/checkout/contract/:productSlug" element={<VisaSignatureCheckout />} />
         <Route path="/checkout/visa/resubmit" element={<VisaContractResubmit />} />
         <Route path="/checkout/success" element={<CheckoutSuccess />} />
         <Route path="/checkout/cancel" element={<CheckoutCancel />} />

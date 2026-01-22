@@ -12,7 +12,8 @@ const BUCKET_NAME = 'contracts';
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, prefer",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
 // Helper function to convert HTML to plain text for PDF
@@ -125,10 +126,15 @@ The CLIENT declares they have read this Annex, understand its legal implications
 Deno.serve(async (req) => {
   // Handle CORS
   if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
+    console.log("[EDGE FUNCTION] 🛡️ OPTIONS request received (Annex)");
+    return new Response("ok", {
+      status: 200,
+      headers: corsHeaders
+    });
   }
 
   try {
+    console.log("[EDGE FUNCTION] ========== REQUEST RECEIVED (Annex) ==========");
     const { order_id } = await req.json();
 
     if (!order_id) {
@@ -250,7 +256,7 @@ Deno.serve(async (req) => {
         .select('id, service_request_id, product_slug, order_number, created_at, signature_image_url')
         .eq('client_email', order.client_email)
         .eq('product_slug', selectionProcessSlug)
-        .eq('payment_status', 'completed')
+        .in('payment_status', ['completed', 'manual_pending'])
         .order('created_at', { ascending: false })
         .limit(1)
         .single();
@@ -541,7 +547,7 @@ Deno.serve(async (req) => {
       }
 
       currencySymbol = 'R$'; // Parcelow is always in BRL
-    } else if (order.payment_method === 'zelle') {
+    } else if (order.payment_method === 'zelle' || order.payment_method === 'manual') {
       displayAmount = parseFloat(order.total_price_usd);
       currencySymbol = 'US$';
     }
@@ -565,6 +571,8 @@ Deno.serve(async (req) => {
         paymentMethodDisplay = 'STRIPE PIX';
       } else if (order.payment_method === 'zelle') {
         paymentMethodDisplay = 'ZELLE';
+      } else if (order.payment_method === 'manual') {
+        paymentMethodDisplay = 'MANUAL BY SELLER';
       } else {
         paymentMethodDisplay = order.payment_method.replace('_', ' ').toUpperCase();
       }

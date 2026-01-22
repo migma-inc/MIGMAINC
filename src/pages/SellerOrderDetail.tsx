@@ -410,7 +410,9 @@ export const SellerOrderDetail = () => {
             <CardContent className="p-6 space-y-4">
               <div className="space-y-1">
                 <p className="text-xs text-zinc-500">Method</p>
-                <p className="text-sm font-medium text-white capitalize">{order.payment_method.replace('_', ' ')}</p>
+                <p className="text-sm font-medium text-white capitalize">
+                  {order.payment_method === 'manual' ? 'Manual by Seller' : order.payment_method.replace('_', ' ')}
+                </p>
               </div>
               <div className="space-y-1">
                 <p className="text-xs text-zinc-500">Status</p>
