@@ -93,6 +93,12 @@ export function Sidebar({ className, isMobileOpen = false, onMobileClose }: Side
       path: '/dashboard/slack-reports',
       exact: false,
     },
+    {
+      title: 'Profile',
+      icon: UserCircle2,
+      path: '/dashboard/profile',
+      exact: false,
+    },
   ];
 
   const sidebarContent = (

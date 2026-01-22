@@ -11,7 +11,7 @@ export const SellerLogin = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const message = searchParams.get('message');
-  
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [formData, setFormData] = useState({
@@ -141,6 +141,14 @@ export const SellerLogin = () => {
                 required
                 autoComplete="current-password"
               />
+              <div className="text-right">
+                <Link
+                  to="/forgot-password"
+                  className="text-sm text-gold-light hover:text-gold-medium underline"
+                >
+                  Forgot Password?
+                </Link>
+              </div>
             </div>
 
             <Button
