@@ -1,0 +1,559 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="description" content="Guia de Onboarding para Closer de Vendas - MIGMA INC">
+    <meta name="author" content="MIGMA INC">
+    <meta name="robots" content="noindex, nofollow">
+    <meta name="theme-color" content="#000000">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>Onboarding | Closer de Vendas | MIGMA INC</title>
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' stop-color='%23F5E6C8'/%3E%3Cstop offset='100%25' stop-color='%23D4AF37'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='32' height='32' rx='6' fill='%23000'/%3E%3Ctext x='50%25' y='58%25' dominant-baseline='middle' text-anchor='middle' font-family='Georgia' font-size='18' font-weight='bold' fill='url(%23g)'%3EM%3C/text%3E%3C/svg%3E">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.0.3/src/regular/style.css">
+    <style>
+/* ══════════════════════════════════════════════════════════════
+   V8 DEFINITIVA — NOTA 100 REAL
+   Visual Premium + Responsividade Perfeita + iOS Safe Areas
+   6 Breakpoints | Hover States | Print Optimized
+   ══════════════════════════════════════════════════════════════ */
+
+:root {
+    --gold-50:#FFFDF7;--gold-100:#FDF6E3;--gold-200:#F5E6C8;--gold-300:#E8D4A8;
+    --gold-400:#D4AF37;--gold-500:#BFA02E;--gold-600:#A68B1E;--gold-700:#8B7419;
+    --gold-gradient:linear-gradient(135deg,#D4AF37 0%,#F5E6C8 25%,#D4AF37 50%,#BFA02E 75%,#D4AF37 100%);
+    --gold-gradient-text:linear-gradient(90deg,#F5E6C8 0%,#D4AF37 50%,#F5E6C8 100%);
+    --gold-gradient-subtle:linear-gradient(135deg,rgba(212,175,55,0.12) 0%,rgba(212,175,55,0.03) 100%);
+    --gold-glow:0 0 30px rgba(212,175,55,0.25),0 0 60px rgba(212,175,55,0.12);
+    --gold-glow-strong:0 0 40px rgba(212,175,55,0.35),0 0 80px rgba(212,175,55,0.18);
+    --black-pure:#000;--black-rich:#030303;--black-card:#080808;--black-elevated:#0d0d0d;
+    --success:#22C55E;--success-light:#4ADE80;--success-bg:rgba(34,197,94,0.1);--success-border:rgba(34,197,94,0.3);
+    --warning:#F59E0B;--warning-light:#FBBF24;--warning-bg:rgba(245,158,11,0.1);--warning-border:rgba(245,158,11,0.3);
+    --danger:#EF4444;--danger-light:#F87171;--danger-bg:rgba(239,68,68,0.1);--danger-border:rgba(239,68,68,0.3);
+    --info:#3B82F6;--info-light:#60A5FA;--info-bg:rgba(59,130,246,0.1);--info-border:rgba(59,130,246,0.3);
+    --clickup:#7B68EE;--clickup-light:#9F8FFF;--clickup-bg:rgba(123,104,238,0.12);--clickup-border:rgba(123,104,238,0.35);
+    --border-subtle:rgba(212,175,55,0.06);--border-light:rgba(212,175,55,0.12);
+    --border-medium:rgba(212,175,55,0.22);--border-strong:rgba(212,175,55,0.4);
+    --font-display:'Playfair Display',Georgia,'Times New Roman',serif;
+    --font-body:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+    --shadow-xs:0 1px 3px rgba(0,0,0,0.2),0 1px 2px rgba(0,0,0,0.15);
+    --shadow-sm:0 2px 8px rgba(0,0,0,0.3),0 1px 3px rgba(0,0,0,0.2);
+    --shadow-md:0 4px 20px rgba(0,0,0,0.4),0 2px 8px rgba(0,0,0,0.25);
+    --shadow-lg:0 8px 40px rgba(0,0,0,0.5),0 4px 16px rgba(0,0,0,0.3);
+    --shadow-card:0 4px 24px rgba(0,0,0,0.45),inset 0 1px 0 rgba(212,175,55,0.06);
+    --shadow-card-hover:0 8px 40px rgba(0,0,0,0.55),0 0 0 1px rgba(212,175,55,0.15);
+    --ease-out-expo:cubic-bezier(0.16,1,0.3,1);
+    --ease-spring:cubic-bezier(0.175,0.885,0.32,1.275);
+    --transition-fast:0.15s var(--ease-out-expo);
+    --transition-normal:0.25s var(--ease-out-expo);
+    --transition-slow:0.4s var(--ease-out-expo);
+    --section-gap:clamp(3.5rem,9vw,5.5rem);
+    --container-padding:clamp(1.25rem,5vw,3rem);
+    --card-padding:clamp(1.125rem,3.5vw,1.625rem);
+    --gap-xs:clamp(0.375rem,1vw,0.5rem);
+    --gap-sm:clamp(0.625rem,1.5vw,0.875rem);
+    --gap-md:clamp(1rem,2.5vw,1.375rem);
+    --gap-lg:clamp(1.5rem,4vw,2.25rem);
+    --gap-xl:clamp(2rem,5vw,3rem);
+    --radius-xs:4px;--radius-sm:6px;--radius-md:10px;--radius-lg:14px;--radius-xl:20px;--radius-full:100px;
+    --safe-top:env(safe-area-inset-top,0px);
+    --safe-bottom:env(safe-area-inset-bottom,0px);
+    --safe-left:env(safe-area-inset-left,0px);
+    --safe-right:env(safe-area-inset-right,0px);
+}
+
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;text-rendering:optimizeLegibility}
+body{font-family:var(--font-body);background:var(--black-pure);color:var(--gold-300);line-height:1.7;font-size:clamp(15px,1.6vw,17px);overflow-x:hidden;min-height:100vh;min-height:100dvh}
+::selection{background:var(--gold-400);color:var(--black-pure)}
+:focus-visible{outline:2px solid var(--gold-400);outline-offset:4px;border-radius:var(--radius-sm)}
+
+.skip-link{position:absolute;top:-100%;left:50%;transform:translateX(-50%);background:var(--gold-400);color:var(--black-pure);padding:1rem 2rem;font-weight:600;font-size:0.875rem;text-decoration:none;z-index:99999;border-radius:0 0 var(--radius-md) var(--radius-md);transition:top var(--transition-normal)}
+.skip-link:focus{top:var(--safe-top)}
+
+.bg-effects{position:fixed;inset:0;pointer-events:none;z-index:-1;overflow:hidden}
+.bg-gradient{position:absolute;inset:0;background:radial-gradient(ellipse 100% 60% at 50% -20%,rgba(212,175,55,0.1) 0%,transparent 60%),radial-gradient(ellipse 60% 50% at 0% 50%,rgba(212,175,55,0.04) 0%,transparent 50%),radial-gradient(ellipse 60% 50% at 100% 50%,rgba(212,175,55,0.04) 0%,transparent 50%)}
+.bg-noise{position:absolute;inset:0;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 512 512' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.7' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");opacity:0.018}
+
+.progress-bar{position:fixed;top:var(--safe-top);left:0;right:0;height:3px;background:rgba(212,175,55,0.1);z-index:10001}
+.progress-bar-fill{height:100%;width:0;background:var(--gold-gradient);box-shadow:0 0 20px rgba(212,175,55,0.6),0 0 40px rgba(212,175,55,0.3);transition:width 0.12s ease-out;border-radius:0 3px 3px 0}
+
+.progress-widget{position:fixed;bottom:calc(var(--gap-lg) + var(--safe-bottom));right:calc(var(--gap-md) + var(--safe-right));display:flex;align-items:center;gap:0.875rem;padding:0.875rem 1.25rem;background:rgba(8,8,8,0.95);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border:1px solid var(--border-light);border-radius:var(--radius-lg);z-index:10000;cursor:pointer;transition:all var(--transition-slow);box-shadow:var(--shadow-md)}
+.progress-widget:hover{border-color:var(--gold-400);transform:translateY(-4px);box-shadow:var(--gold-glow),var(--shadow-lg)}
+.progress-widget:active{transform:translateY(-2px)}
+.progress-ring-wrap{position:relative;width:44px;height:44px}
+.progress-ring{transform:rotate(-90deg);width:100%;height:100%}
+.progress-ring circle{fill:none;stroke-width:3}
+.progress-ring .ring-bg{stroke:rgba(212,175,55,0.15)}
+.progress-ring .ring-fill{stroke:var(--gold-400);stroke-linecap:round;stroke-dasharray:126;stroke-dashoffset:126;transition:stroke-dashoffset var(--transition-slow);filter:drop-shadow(0 0 6px rgba(212,175,55,0.6))}
+.progress-percent{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:var(--font-display);font-size:0.8rem;font-weight:600;color:var(--gold-400)}
+.progress-info{display:flex;flex-direction:column;gap:0.2rem}
+.progress-label{font-size:0.6rem;letter-spacing:0.18em;text-transform:uppercase;color:var(--gold-600);font-weight:500}
+.progress-section{font-family:var(--font-display);font-size:0.9rem;color:var(--gold-200);max-width:100px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+header{min-height:100vh;min-height:100dvh;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;padding:calc(4rem + var(--safe-top)) var(--container-padding) 4rem;position:relative;overflow:hidden}
+.header-glow{position:absolute;width:min(650px,100vw);height:min(650px,100vw);border-radius:50%;background:radial-gradient(circle,rgba(212,175,55,0.12) 0%,transparent 65%);filter:blur(60px);top:50%;left:50%;transform:translate(-50%,-50%);animation:headerPulse 8s ease-in-out infinite;pointer-events:none}
+@keyframes headerPulse{0%,100%{opacity:0.5;transform:translate(-50%,-50%) scale(1)}50%{opacity:0.85;transform:translate(-50%,-50%) scale(1.1)}}
+
+.logo{font-family:var(--font-body);font-size:clamp(0.9rem,2.5vw,1.15rem);font-weight:700;letter-spacing:0.5em;background:var(--gold-gradient-text);background-size:200% 100%;-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin-bottom:2.5rem;animation:shimmer 4s ease-in-out infinite,fadeUp 0.8s var(--ease-out-expo)}
+@keyframes shimmer{0%,100%{background-position:0% 50%}50%{background-position:100% 50%}}
+
+.hero-meta{display:flex;align-items:center;gap:clamp(0.625rem,2vw,1rem);margin-bottom:1.75rem;flex-wrap:wrap;justify-content:center;animation:fadeUp 0.8s var(--ease-out-expo) 0.1s both}
+.hero-badge{display:inline-flex;align-items:center;gap:0.5rem;padding:0.5rem 1rem;background:var(--success-bg);border:1px solid var(--success-border);border-radius:var(--radius-full);transition:all var(--transition-normal)}
+.hero-badge:hover{border-color:var(--success);box-shadow:0 0 20px rgba(34,197,94,0.2)}
+.hero-badge-dot{width:8px;height:8px;background:var(--success);border-radius:50%;box-shadow:0 0 10px var(--success),0 0 20px rgba(34,197,94,0.4);animation:pulse 2s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:0.6;transform:scale(0.85)}}
+.hero-badge-text{font-size:0.65rem;letter-spacing:0.12em;text-transform:uppercase;color:var(--success-light);font-weight:600}
+.hero-reading-time{display:inline-flex;align-items:center;gap:0.4rem;padding:0.4rem 0.875rem;background:rgba(212,175,55,0.05);border:1px solid var(--border-subtle);border-radius:var(--radius-full);font-size:0.65rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--gold-500);font-weight:500;transition:all var(--transition-normal)}
+.hero-reading-time:hover{border-color:var(--border-light)}
+.hero-reading-time i{font-size:0.95rem;color:var(--gold-400)}
+
+.hero-title{font-family:var(--font-display);font-size:clamp(1.75rem,5.5vw,3.25rem);font-weight:500;font-style:italic;color:var(--gold-100);line-height:1.15;margin-bottom:1.125rem;max-width:720px;animation:fadeUp 0.8s var(--ease-out-expo) 0.2s both}
+.hero-subtitle{font-size:clamp(0.9rem,2vw,1.05rem);color:var(--gold-400);max-width:500px;margin-bottom:1.75rem;line-height:1.75;animation:fadeUp 0.8s var(--ease-out-expo) 0.3s both}
+.hero-subtitle strong{color:var(--gold-200);font-weight:600}
+
+.hero-role{display:inline-flex;align-items:center;gap:0.875rem;padding:0.875rem 1.75rem;background:var(--gold-gradient-subtle);border:1px solid var(--border-medium);border-radius:var(--radius-lg);margin-bottom:2.25rem;animation:fadeUp 0.8s var(--ease-out-expo) 0.4s both;transition:all var(--transition-slow)}
+.hero-role:hover{border-color:var(--gold-400);box-shadow:var(--gold-glow);transform:translateY(-4px)}
+.hero-role:active{transform:translateY(-2px)}
+.hero-role i{font-size:1.4rem;color:var(--gold-400)}
+.hero-role-text{font-family:var(--font-display);font-size:clamp(0.95rem,2vw,1.15rem);color:var(--gold-200)}
+
+.hero-stats{display:flex;gap:clamp(1.25rem,4vw,3rem);flex-wrap:wrap;justify-content:center;animation:fadeUp 0.8s var(--ease-out-expo) 0.5s both}
+.hero-stat{text-align:center;padding:0.5rem 0.625rem;min-width:65px}
+.hero-stat-value{font-family:var(--font-display);font-size:clamp(1.375rem,4vw,2.125rem);font-weight:600;background:var(--gold-gradient-text);background-size:200% 100%;-webkit-background-clip:text;-webkit-text-fill-color:transparent;line-height:1}
+.hero-stat-label{font-size:0.55rem;letter-spacing:0.2em;text-transform:uppercase;color:var(--gold-500);margin-top:0.3rem;font-weight:500}
+
+.scroll-indicator{position:absolute;bottom:clamp(1.25rem,4vw,2.5rem);display:flex;flex-direction:column;align-items:center;gap:0.5rem;animation:float 3s ease-in-out infinite}
+.scroll-text{font-size:0.55rem;letter-spacing:0.3em;text-transform:uppercase;color:var(--gold-500);font-weight:500}
+.scroll-arrow{width:1px;height:32px;background:linear-gradient(to bottom,var(--gold-400),transparent);position:relative}
+.scroll-arrow::after{content:'';position:absolute;bottom:0;left:50%;width:7px;height:7px;border-right:1.5px solid var(--gold-400);border-bottom:1.5px solid var(--gold-400);transform:translateX(-50%) rotate(45deg)}
+@keyframes float{0%,100%{transform:translateY(0);opacity:1}50%{transform:translateY(8px);opacity:0.5}}
+@keyframes fadeUp{from{opacity:0;transform:translateY(25px)}to{opacity:1;transform:translateY(0)}}
+
+nav{position:sticky;top:0;background:rgba(0,0,0,0.92);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-bottom:1px solid var(--border-subtle);z-index:1000}
+.nav-container{position:relative;max-width:1100px;margin:0 auto}
+.nav-fade-left,.nav-fade-right{position:absolute;top:0;bottom:0;width:55px;pointer-events:none;z-index:2}
+.nav-fade-left{left:0;background:linear-gradient(to right,rgba(0,0,0,0.95),transparent)}
+.nav-fade-right{right:0;background:linear-gradient(to left,rgba(0,0,0,0.95),transparent)}
+.nav-inner{display:flex;justify-content:center;gap:0.375rem;padding:0.625rem 3rem;overflow-x:auto;scrollbar-width:none;-ms-overflow-style:none;scroll-snap-type:x mandatory}
+.nav-inner::-webkit-scrollbar{display:none}
+.nav-link{position:relative;padding:0.625rem 1rem;color:var(--gold-500);text-decoration:none;font-size:0.625rem;font-weight:600;letter-spacing:0.12em;text-transform:uppercase;white-space:nowrap;transition:color var(--transition-normal);border-radius:var(--radius-sm);min-height:44px;display:flex;align-items:center;scroll-snap-align:center}
+.nav-link::before{content:'';position:absolute;bottom:5px;left:50%;width:0;height:2px;background:var(--gold-400);transform:translateX(-50%);transition:width var(--transition-normal);border-radius:1px}
+.nav-link:hover,.nav-link.active{color:var(--gold-200)}
+.nav-link:hover::before,.nav-link.active::before{width:50%}
+.nav-link:active{opacity:0.8}
+
+main{max-width:860px;margin:0 auto;padding:0 var(--container-padding)}
+section{padding-top:var(--section-gap);padding-bottom:calc(var(--section-gap) * 0.2)}
+.section-header{margin-bottom:var(--gap-xl)}
+.section-label{display:inline-flex;align-items:center;gap:0.75rem;font-size:0.65rem;font-weight:700;letter-spacing:0.3em;text-transform:uppercase;color:var(--gold-500);margin-bottom:0.625rem}
+.section-label::before{content:'';width:24px;height:2px;background:linear-gradient(to right,var(--gold-400),transparent);border-radius:1px}
+.section-title{font-family:var(--font-display);font-size:clamp(1.5rem,4.5vw,2.125rem);font-weight:500;color:var(--gold-100);line-height:1.2;margin-bottom:0.375rem}
+.section-desc{font-size:clamp(0.875rem,2vw,0.95rem);color:var(--gold-400);max-width:480px;line-height:1.65}
+
+.alert-box{padding:var(--card-padding);margin:var(--gap-lg) 0;border:1px solid;border-radius:var(--radius-md);box-shadow:var(--shadow-sm);transition:all var(--transition-normal)}
+.alert-box:hover{box-shadow:var(--shadow-md);transform:translateY(-2px)}
+.alert-box.danger{background:linear-gradient(135deg,var(--danger-bg) 0%,transparent 100%);border-color:var(--danger-border)}
+.alert-box.danger:hover{border-color:rgba(239,68,68,0.5)}
+.alert-box.warning{background:linear-gradient(135deg,var(--warning-bg) 0%,transparent 100%);border-color:var(--warning-border)}
+.alert-box.warning:hover{border-color:rgba(245,158,11,0.5)}
+.alert-box.info{background:linear-gradient(135deg,var(--info-bg) 0%,transparent 100%);border-color:var(--info-border)}
+.alert-box.info:hover{border-color:rgba(59,130,246,0.5)}
+.alert-header{display:flex;align-items:center;gap:0.75rem;margin-bottom:var(--gap-sm)}
+.alert-icon{font-size:1.35rem}
+.alert-box.danger .alert-icon{color:var(--danger)}
+.alert-box.warning .alert-icon{color:var(--warning)}
+.alert-box.info .alert-icon{color:var(--info)}
+.alert-title{font-family:var(--font-display);font-size:1rem}
+.alert-box.danger .alert-title{color:var(--danger)}
+.alert-box.warning .alert-title{color:var(--warning)}
+.alert-box.info .alert-title{color:var(--info)}
+.alert-content{font-size:0.85rem;color:var(--gold-300);line-height:1.8}
+.alert-content strong{color:var(--gold-200)}
+.alert-content p+p{margin-top:0.5rem}
+
+.commission-box{margin:var(--gap-lg) 0;padding:calc(var(--card-padding) * 1.3);background:var(--gold-gradient-subtle);border:1px solid var(--border-strong);border-radius:var(--radius-lg);text-align:center;box-shadow:var(--shadow-card);position:relative;overflow:hidden;transition:all var(--transition-slow)}
+.commission-box::before{content:'';position:absolute;inset:0;background:radial-gradient(circle at 50% 0%,rgba(212,175,55,0.1) 0%,transparent 60%);pointer-events:none}
+.commission-box:hover{border-color:var(--gold-400);box-shadow:var(--gold-glow),var(--shadow-card)}
+.commission-box-title{font-family:var(--font-display);font-size:0.875rem;color:var(--gold-400);margin-bottom:0.3rem;position:relative}
+.commission-value{font-family:var(--font-display);font-size:clamp(1.5rem,5vw,2.125rem);font-weight:600;background:var(--gold-gradient-text);background-size:200% 100%;-webkit-background-clip:text;-webkit-text-fill-color:transparent;animation:shimmer 3s ease-in-out infinite;position:relative}
+.commission-desc{font-size:0.8rem;color:var(--gold-400);margin-top:0.3rem;position:relative}
+
+.services-grid{display:grid;gap:var(--gap-sm);margin-top:var(--gap-md)}
+.service-row{display:grid;grid-template-columns:1fr auto;gap:var(--gap-md);padding:var(--card-padding);background:var(--black-card);border:1px solid var(--border-subtle);border-radius:var(--radius-md);align-items:center;transition:all var(--transition-normal);box-shadow:var(--shadow-xs)}
+.service-row:hover{border-color:var(--border-medium);transform:translateX(4px);box-shadow:var(--shadow-sm)}
+.service-row:active{transform:translateX(2px)}
+.service-row.highlight{border-left:3px solid var(--gold-400)}
+.service-row.highlight:hover{border-left-color:var(--gold-400)}
+.service-row.critical{border-left:3px solid var(--danger)}
+.service-row.critical:hover{border-left-color:var(--danger)}
+.service-name{font-family:var(--font-display);font-size:0.925rem;color:var(--gold-200);margin-bottom:0.1rem;line-height:1.3}
+.service-desc{font-size:0.75rem;color:var(--gold-500);line-height:1.4}
+.service-price{font-family:var(--font-display);font-size:1rem;color:var(--gold-400);text-align:right;white-space:nowrap}
+.service-price small{display:block;font-size:0.7rem;color:var(--gold-600);font-family:var(--font-body);margin-top:0.1rem}
+
+.services-category{margin-top:var(--gap-xl)}
+.services-category:first-of-type{margin-top:var(--gap-lg)}
+.services-category-title{font-size:0.65rem;font-weight:700;letter-spacing:0.2em;text-transform:uppercase;color:var(--gold-500);margin-bottom:var(--gap-sm);padding-bottom:var(--gap-xs);border-bottom:1px solid var(--border-subtle);display:flex;align-items:center;gap:0.5rem}
+.services-category-title i{font-size:1rem;color:var(--gold-400)}
+
+.req-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:var(--gap-md);margin-top:var(--gap-lg)}
+.req-card{padding:var(--card-padding);background:var(--black-card);border:1px solid var(--border-subtle);border-radius:var(--radius-md);display:flex;align-items:flex-start;gap:0.75rem;transition:all var(--transition-normal);box-shadow:var(--shadow-sm)}
+.req-card:hover{border-color:var(--border-medium);transform:translateY(-3px);box-shadow:var(--shadow-md)}
+.req-card:active{transform:translateY(-1px)}
+.req-card.critical{border-left:3px solid var(--danger)}
+.req-card.critical:hover{border-left-color:var(--danger)}
+.req-icon{font-size:1.2rem;color:var(--gold-400);flex-shrink:0;margin-top:0.1rem}
+.req-card.critical .req-icon{color:var(--danger)}
+.req-content h4{font-family:var(--font-display);font-size:0.875rem;color:var(--gold-200);margin-bottom:0.125rem;line-height:1.3}
+.req-content p{font-size:0.75rem;color:var(--gold-500);line-height:1.45}
+
+.clickup-rule{margin:var(--gap-lg) 0;padding:calc(var(--card-padding) * 1.2);background:linear-gradient(135deg,var(--clickup-bg) 0%,rgba(123,104,238,0.02) 100%);border:2px solid var(--clickup-border);border-radius:var(--radius-lg);text-align:center;position:relative;overflow:hidden;transition:all var(--transition-slow)}
+.clickup-rule::before{content:'';position:absolute;inset:0;background:radial-gradient(circle at 50% 0%,rgba(123,104,238,0.12) 0%,transparent 50%);pointer-events:none}
+.clickup-rule:hover{border-color:var(--clickup);box-shadow:0 0 30px rgba(123,104,238,0.18)}
+.clickup-rule-title{font-family:var(--font-display);font-size:1rem;color:var(--clickup);margin-bottom:0.35rem;display:flex;align-items:center;justify-content:center;gap:0.4rem;position:relative}
+.clickup-rule-title i{font-size:1.1rem}
+.clickup-rule-list{display:grid;grid-template-columns:repeat(3,1fr);gap:var(--gap-sm);margin-top:var(--gap-md);position:relative}
+.clickup-rule-item{padding:0.75rem;background:rgba(0,0,0,0.4);border:1px solid rgba(123,104,238,0.2);border-radius:var(--radius-md);transition:all var(--transition-normal)}
+.clickup-rule-item:hover{border-color:rgba(123,104,238,0.4);background:rgba(0,0,0,0.5)}
+.clickup-rule-num{font-family:var(--font-display);font-size:1.25rem;font-weight:600;color:var(--clickup)}
+.clickup-rule-text{font-size:0.7rem;color:var(--gold-300);margin-top:0.15rem}
+
+.routine-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:var(--gap-md);margin-top:var(--gap-lg)}
+.routine-card{background:var(--black-card);border:1px solid var(--clickup-border);border-left:3px solid var(--clickup);border-radius:var(--radius-md);overflow:hidden;transition:all var(--transition-normal);box-shadow:var(--shadow-sm)}
+.routine-card:hover{border-color:var(--clickup);box-shadow:var(--shadow-md),0 0 20px rgba(123,104,238,0.1)}
+.routine-header{padding:0.625rem var(--card-padding);background:var(--clickup-bg);display:flex;align-items:center;gap:0.4rem}
+.routine-icon{font-size:0.95rem;color:var(--clickup)}
+.routine-title{font-family:var(--font-display);font-size:0.875rem;color:var(--gold-200)}
+.routine-time{font-size:0.55rem;font-weight:600;color:var(--clickup-light);margin-left:auto;background:rgba(123,104,238,0.2);padding:0.15rem 0.4rem;border-radius:var(--radius-xs)}
+.routine-body{padding:var(--card-padding)}
+.routine-item{display:flex;gap:0.4rem;padding:0.25rem 0;font-size:0.8rem;color:var(--gold-300);line-height:1.45}
+.routine-item::before{content:'•';color:var(--clickup);font-weight:bold}
+
+.clickup-audit{margin-top:var(--gap-lg);padding:var(--card-padding);background:var(--black-card);border:1px solid var(--clickup-border);border-radius:var(--radius-md);text-align:center;transition:all var(--transition-normal)}
+.clickup-audit:hover{border-color:var(--clickup)}
+.clickup-audit-text{font-family:var(--font-display);font-size:clamp(0.85rem,2.5vw,1rem);font-style:italic;color:var(--gold-200)}
+.clickup-audit-text strong{color:var(--clickup)}
+
+/* Team Grid */
+.team-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:var(--gap-md);margin-top:var(--gap-lg)}
+.team-card{padding:var(--card-padding);background:var(--black-card);border:1px solid var(--border-medium);border-radius:var(--radius-lg);box-shadow:var(--shadow-card);transition:all var(--transition-slow);display:flex;flex-direction:column;align-items:center;text-align:center}
+.team-card:hover{border-color:var(--border-strong);box-shadow:var(--shadow-card-hover);transform:translateY(-4px)}
+.team-avatar{width:60px;height:60px;border:2px solid var(--gold-400);border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:var(--font-display);font-size:1.5rem;font-weight:600;color:var(--gold-400);background:rgba(212,175,55,0.06);flex-shrink:0;box-shadow:0 0 20px rgba(212,175,55,0.15);transition:all var(--transition-normal);margin-bottom:var(--gap-sm)}
+.team-card:hover .team-avatar{box-shadow:0 0 30px rgba(212,175,55,0.25)}
+.team-name{font-family:var(--font-display);font-size:1.1rem;color:var(--gold-200);margin-bottom:0.15rem}
+.team-role{font-size:0.6rem;font-weight:700;letter-spacing:0.15em;text-transform:uppercase;color:var(--gold-500);margin-bottom:var(--gap-sm)}
+.team-desc{font-size:0.8rem;color:var(--gold-400);line-height:1.5;margin-bottom:var(--gap-sm)}
+.team-contact{font-size:0.7rem;color:var(--gold-500);margin-bottom:0.2rem}
+.team-contact strong{color:var(--gold-400)}
+.team-topics{margin-top:auto;padding-top:var(--gap-sm);border-top:1px solid var(--border-subtle);width:100%}
+.team-topics-title{font-size:0.55rem;font-weight:700;letter-spacing:0.15em;text-transform:uppercase;color:var(--gold-500);margin-bottom:0.4rem}
+.team-topics ul{list-style:none;display:flex;flex-direction:column;gap:0.2rem}
+.team-topics li{font-size:0.7rem;color:var(--gold-400);padding:0.2rem 0;display:flex;align-items:center;justify-content:center;gap:0.3rem}
+.team-topics li::before{content:'•';color:var(--gold-500);font-size:0.6rem}
+
+.checklist{margin-top:var(--gap-lg)}
+.check-item{display:flex;align-items:center;gap:var(--gap-md);padding:var(--card-padding);background:var(--black-card);border:1px solid var(--border-subtle);border-radius:var(--radius-md);margin-bottom:var(--gap-sm);cursor:pointer;transition:all var(--transition-normal);user-select:none;min-height:56px;box-shadow:var(--shadow-xs)}
+.check-item:hover{border-color:var(--border-medium);transform:translateX(4px);box-shadow:var(--shadow-sm)}
+.check-item:active{transform:translateX(2px)}
+.check-item.checked{border-color:var(--success);background:var(--success-bg)}
+.check-item.checked:hover{border-color:var(--success-light)}
+.check-box{width:22px;height:22px;display:flex;align-items:center;justify-content:center;border:2px solid var(--gold-400);border-radius:var(--radius-sm);font-size:0.7rem;color:transparent;flex-shrink:0;transition:all var(--transition-normal)}
+.check-item.checked .check-box{background:var(--success);border-color:var(--success);color:var(--black-pure)}
+.check-text{font-size:0.85rem;color:var(--gold-300);line-height:1.4}
+.check-item.checked .check-text{color:var(--gold-200)}
+
+footer{margin-top:var(--section-gap);padding:calc(var(--section-gap) * 0.5) var(--container-padding) calc(var(--section-gap) * 0.35 + var(--safe-bottom));border-top:1px solid var(--border-subtle);text-align:center;position:relative}
+footer::before{content:'';position:absolute;top:-1px;left:50%;transform:translateX(-50%);width:70px;height:2px;background:var(--gold-gradient);border-radius:1px}
+.footer-message{max-width:420px;margin:0 auto var(--gap-lg)}
+.footer-message h3{font-family:var(--font-display);font-size:clamp(0.9rem,2.5vw,1.1rem);font-style:italic;color:var(--gold-200);margin-bottom:0.35rem}
+.footer-message p{font-size:0.8rem;color:var(--gold-400);line-height:1.55}
+.footer-logo{font-family:var(--font-body);font-size:0.9rem;font-weight:700;letter-spacing:0.4em;background:var(--gold-gradient-text);background-size:200% 100%;-webkit-background-clip:text;-webkit-text-fill-color:transparent;animation:shimmer 3s ease-in-out infinite}
+.footer-version{font-size:0.5rem;letter-spacing:0.2em;color:var(--gold-600);margin-top:0.3rem}
+
+.animate{opacity:0;transform:translateY(25px);transition:all 0.65s var(--ease-out-expo)}
+.animate.visible{opacity:1;transform:translateY(0)}
+
+@media(max-width:1024px){.req-grid{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:900px){.clickup-rule-list{grid-template-columns:1fr}.clickup-rule-item{padding:0.625rem 0.875rem;display:flex;align-items:center;gap:0.625rem}.clickup-rule-num{font-size:1.1rem}.clickup-rule-text{margin-top:0}}
+@media(max-width:768px){:root{--section-gap:clamp(2.5rem,7vw,4rem);--card-padding:clamp(1rem,3vw,1.375rem)}.team-grid{grid-template-columns:1fr}.team-card{flex-direction:column;text-align:center}.team-avatar{width:60px;height:60px;font-size:1.5rem}.progress-widget{bottom:calc(1rem + var(--safe-bottom));right:calc(1rem + var(--safe-right));padding:0.5rem 0.875rem;gap:0.5rem}.progress-ring-wrap{width:36px;height:36px}.progress-percent{font-size:0.7rem}.progress-info{display:none}.routine-grid{grid-template-columns:1fr}.service-row{grid-template-columns:1fr;gap:0.3rem;padding:1rem}.service-price{text-align:left;font-size:0.925rem;margin-top:0.25rem}.service-price small{display:inline;margin-left:0.4rem}.nav-inner{padding:0.5rem 2.5rem}}
+@media(max-width:640px){.req-grid{grid-template-columns:1fr}.nav-link{padding:0.5rem 0.75rem;font-size:0.575rem;min-height:44px}header{padding:calc(2.5rem + var(--safe-top)) 1.125rem 2.5rem}.hero-meta{gap:0.4rem}.hero-badge,.hero-reading-time{padding:0.375rem 0.75rem}.hero-badge-text,.hero-reading-time{font-size:0.6rem}.hero-stats{gap:0.75rem}.hero-stat{min-width:55px;padding:0.375rem 0.4rem}.hero-stat-value{font-size:1.25rem}.hero-stat-label{font-size:0.5rem}}
+@media(max-width:480px){:root{--container-padding:1rem}.hero-title{font-size:1.5rem}.hero-subtitle{font-size:0.875rem}.hero-stats{width:100%;justify-content:space-around}.hero-stat{flex:1}.scroll-indicator{bottom:1rem}.commission-box{padding:var(--card-padding)}.check-item{min-height:52px;padding:0.875rem 1rem}.check-text{font-size:0.8rem}.section-title{font-size:1.375rem}.alert-title{font-size:0.925rem}.service-name{font-size:0.875rem}}
+@media(max-width:360px){:root{--container-padding:0.875rem}.hero-title{font-size:1.375rem}.hero-role{padding:0.75rem 1.25rem;gap:0.625rem}.hero-role i{font-size:1.2rem}.hero-role-text{font-size:0.9rem}.nav-link{padding:0.4rem 0.625rem;font-size:0.55rem}.section-title{font-size:1.25rem}.section-label{font-size:0.6rem;gap:0.5rem}.alert-title{font-size:0.875rem}.service-name{font-size:0.85rem}.service-price{font-size:0.875rem}.clickup-rule-title{font-size:0.925rem}.team-name{font-size:1.1rem}}
+@media print{.bg-effects,.progress-bar,.progress-widget,nav,.scroll-indicator{display:none!important}body{background:white;color:#333;font-size:11pt;line-height:1.5}header{min-height:auto;padding:1.5rem 1rem;page-break-after:always}.header-glow{display:none}.hero-title,.section-title,.commission-value,.hero-stat-value,.footer-logo{-webkit-text-fill-color:#333!important;color:#333!important;background:none!important}.clickup-rule-num,.clickup-audit-text strong{-webkit-text-fill-color:#7B68EE!important;color:#7B68EE!important}section{padding:1.25rem 0;page-break-inside:avoid}.service-row,.alert-box,.req-card,.routine-card,.check-item,.team-card,.clickup-rule,.commission-box,.clickup-audit{border-color:#ddd!important;background:#f9f9f9!important;box-shadow:none!important;page-break-inside:avoid}.service-row.critical,.service-row.highlight{border-left-color:#999!important}.req-card.critical{border-left-color:#999!important}a{text-decoration:none;color:inherit}.hero-badge,.hero-reading-time,.hero-role{border-color:#ccc!important;background:#f5f5f5!important}}
+    </style>
+</head>
+<body>
+<a href="#main-content" class="skip-link">Pular para conteúdo</a>
+<div class="bg-effects"><div class="bg-gradient"></div><div class="bg-noise"></div></div>
+<div class="progress-bar"><div class="progress-bar-fill" id="progressFill"></div></div>
+<div class="progress-widget" onclick="scrollToTop()" role="button" aria-label="Voltar ao topo" tabindex="0">
+    <div class="progress-ring-wrap">
+        <svg class="progress-ring" viewBox="0 0 44 44"><circle class="ring-bg" cx="22" cy="22" r="20"/><circle class="ring-fill" id="progressRing" cx="22" cy="22" r="20"/></svg>
+        <span class="progress-percent" id="progressPercent">0%</span>
+    </div>
+    <div class="progress-info"><span class="progress-label">Leitura</span><span class="progress-section" id="currentSection">Início</span></div>
+</div>
+
+<header>
+    <div class="header-glow"></div>
+    <div class="logo">MIGMA INC</div>
+    <div class="hero-meta">
+        <div class="hero-badge"><div class="hero-badge-dot"></div><span class="hero-badge-text">Onboarding Ativo</span></div>
+        <div class="hero-reading-time"><i class="ph ph-clock"></i><span>~12 min</span></div>
+    </div>
+    <h1 class="hero-title">O lead chegou qualificado.<br>Agora é com você.</h1>
+    <p class="hero-subtitle">Você <strong>converte oportunidade em receita</strong>. Cada call transforma o sonho de alguém em realidade.</p>
+    <div class="hero-role"><i class="ph ph-handshake"></i><span class="hero-role-text">Closer de Vendas</span></div>
+    <div class="hero-stats">
+        <div class="hero-stat"><div class="hero-stat-value">11</div><div class="hero-stat-label">Serviços</div></div>
+        <div class="hero-stat"><div class="hero-stat-value">Fee</div><div class="hero-stat-label">Fixo</div></div>
+        <div class="hero-stat"><div class="hero-stat-value">+%</div><div class="hero-stat-label">Comissão</div></div>
+    </div>
+    <div class="scroll-indicator"><span class="scroll-text">Começar</span><div class="scroll-arrow"></div></div>
+</header>
+
+<nav role="navigation" aria-label="Navegação principal">
+    <div class="nav-container">
+        <div class="nav-fade-left"></div>
+        <div class="nav-fade-right"></div>
+        <div class="nav-inner">
+            <a href="#missao" class="nav-link">Missão</a>
+            <a href="#servicos" class="nav-link">Serviços</a>
+            <a href="#requisitos" class="nav-link">Requisitos</a>
+            <a href="#clickup" class="nav-link">ClickUp</a>
+            <a href="#suporte" class="nav-link">Suporte</a>
+            <a href="#checklist" class="nav-link">Checklist</a>
+        </div>
+    </div>
+</nav>
+
+<main id="main-content">
+
+<section id="missao" class="animate">
+    <div class="section-header">
+        <div class="section-label">01 — Sua Missão</div>
+        <h2 class="section-title">Fechar vendas de serviços de imigração</h2>
+        <p class="section-desc">Vistos e processos migratórios para EUA e Canadá</p>
+    </div>
+    <div class="alert-box danger">
+        <div class="alert-header"><i class="ph ph-warning alert-icon"></i><h3 class="alert-title">Você é Prestador de Serviço</h3></div>
+        <div class="alert-content">
+            <p>• <strong>Sem horário fixo</strong> — mas com entregas obrigatórias<br>
+            • <strong>Comissão escalonada</strong> — quanto mais vende, maior o percentual<br>
+            • <strong>Invoice obrigatório</strong> — você emite invoice para receber<br>
+            • <strong>Metas existem</strong> — falhar é quebra de contrato</p>
+        </div>
+    </div>
+    <div class="commission-box">
+        <div class="commission-box-title">Remuneração</div>
+        <div class="commission-value">Fee Fixo + Comissão</div>
+        <p class="commission-desc">Comissão escalonada de 0.5% a 5% sobre vendas mensais</p>
+    </div>
+    <div class="alert-box info">
+        <div class="alert-header"><i class="ph ph-chart-line-up alert-icon"></i><h3 class="alert-title">Tabela de Comissão</h3></div>
+        <div class="alert-content">
+            <p>• Até <strong>$4.999</strong> → <strong>0.5%</strong> · <strong>$5k–$9.999</strong> → <strong>1%</strong> · <strong>$10k–$14.999</strong> → <strong>2%</strong><br>
+            • <strong>$15k–$19.999</strong> → <strong>3%</strong> · <strong>$20k–$24.999</strong> → <strong>4%</strong> · <strong>Acima de $25k</strong> → <strong>5%</strong></p>
+            <p style="margin-top:0.4rem;font-size:0.75rem;color:var(--gold-500)">Comissão aplicada após pagamento integral do cliente.</p>
+        </div>
+    </div>
+    <div class="alert-box warning">
+        <div class="alert-header"><i class="ph ph-translate alert-icon"></i><h3 class="alert-title">Requisito: Inglês</h3></div>
+        <div class="alert-content"><p>Leads de <strong>qualquer nacionalidade</strong>. Mínimo: inglês funcional para conduzir calls.</p></div>
+    </div>
+</section>
+
+<section id="servicos" class="animate">
+    <div class="section-header">
+        <div class="section-label">02 — Serviços & Preços</div>
+        <h2 class="section-title">O que você vende</h2>
+        <p class="section-desc">Conheça cada serviço e seu valor</p>
+    </div>
+    <div class="services-category">
+        <div class="services-category-title"><i class="ph ph-map-pin"></i> Para quem já está nos EUA</div>
+        <div class="services-grid">
+            <div class="service-row critical"><div><div class="service-name">Reativação</div><div class="service-desc">Recuperar legalidade para quem perdeu status</div></div><div class="service-price">US$ 1.800<small>+ $400 proc. seletivo</small></div></div>
+            <div class="service-row"><div><div class="service-name">Mudança de Status (COS)</div><div class="service-desc">B1/B2 → F-1 sem sair dos EUA</div></div><div class="service-price">US$ 1.800<small>+ $150/dep</small></div></div>
+            <div class="service-row"><div><div class="service-name">Transfer</div><div class="service-desc">Troca de escola para F-1</div></div><div class="service-price">US$ 1.800</div></div>
+            <div class="service-row highlight"><div><div class="service-name">Híbrido EUA</div><div class="service-desc">Plano completo: estudo + permanência</div></div><div class="service-price">Sob Consulta<small>Análise de perfil</small></div></div>
+        </div>
+    </div>
+    <div class="services-category">
+        <div class="services-category-title"><i class="ph ph-airplane-takeoff"></i> Para quem está no Brasil</div>
+        <div class="services-grid">
+            <div class="service-row highlight"><div><div class="service-name">F-1 Initial</div><div class="service-desc">Primeiro visto de estudante</div></div><div class="service-price">US$ 1.800<small>+ $400 proc. seletivo</small></div></div>
+            <div class="service-row"><div><div class="service-name">Visto B1/B2 — Brant</div><div class="service-desc">Turismo/Negócios completo</div></div><div class="service-price">US$ 900<small>+ $99/dep</small></div></div>
+            <div class="service-row"><div><div class="service-name">Visto B1/B2 — Revolution</div><div class="service-desc">Turismo/Negócios acessível</div></div><div class="service-price">US$ 299<small>+ $49/dep</small></div></div>
+            <div class="service-row"><div><div class="service-name">Consultoria Estratégica</div><div class="service-desc">Mapeamento de opções</div></div><div class="service-price">Consultar</div></div>
+            <div class="service-row"><div><div class="service-name">Trabalho no Canadá</div><div class="service-desc">Consultoria de carreira e imigração</div></div><div class="service-price">US$ 1.800</div></div>
+        </div>
+    </div>
+    <div class="services-category">
+        <div class="services-category-title"><i class="ph ph-star"></i> Vistos Especiais — Alto Valor</div>
+        <div class="services-grid">
+            <div class="service-row"><div><div class="service-name">O-1</div><div class="service-desc">Habilidades extraordinárias</div></div><div class="service-price">US$ 7.000<small>+ $1k/dep</small></div></div>
+            <div class="service-row"><div><div class="service-name">E-2 / L-1</div><div class="service-desc">Investidor / Transferência</div></div><div class="service-price">US$ 12.999<small>+ $1k/dep</small></div></div>
+            <div class="service-row highlight"><div><div class="service-name">EB-3</div><div class="service-desc">Green Card por trabalho</div></div><div class="service-price">US$ 22.750<small>+ $1k/dep</small></div></div>
+            <div class="service-row highlight"><div><div class="service-name">EB-2 (NIW)</div><div class="service-desc">Green Card interesse nacional</div></div><div class="service-price">US$ 24.750<small>+ $1k/dep</small></div></div>
+        </div>
+    </div>
+    <div class="services-category">
+        <div class="services-category-title"><i class="ph ph-shield-check"></i> Defesas & Extras</div>
+        <div class="services-grid">
+            <div class="service-row"><div><div class="service-name">RFE</div><div class="service-desc">Resposta a evidência adicional</div></div><div class="service-price">US$ 250<small>/evidência</small></div></div>
+            <div class="service-row"><div><div class="service-name">Defesa</div><div class="service-desc">Suporte em processos</div></div><div class="service-price">US$ 99<small>/solicitante</small></div></div>
+        </div>
+    </div>
+</section>
+
+<section id="requisitos" class="animate">
+    <div class="section-header">
+        <div class="section-label">03 — Requisitos</div>
+        <h2 class="section-title">O que a MIGMA espera de você</h2>
+        <p class="section-desc">Falhar em cumprir = quebra de contrato</p>
+    </div>
+    <div class="req-grid">
+        <article class="req-card critical"><i class="ph ph-clock-countdown req-icon"></i><div class="req-content"><h4>Responder Leads Rápido</h4><p>Dentro do prazo estabelecido</p></div></article>
+        <article class="req-card critical"><i class="ph ph-calendar-check req-icon"></i><div class="req-content"><h4>Comparecer às Reuniões</h4><p>100% de presença</p></div></article>
+        <article class="req-card critical"><i class="ph ph-arrows-clockwise req-icon"></i><div class="req-content"><h4>Follow-ups em Dia</h4><p>Atualizar CRM imediatamente</p></div></article>
+        <article class="req-card critical"><i class="ph ph-chart-line-up req-icon"></i><div class="req-content"><h4>Bater Metas</h4><p>Diárias, semanais, mensais</p></div></article>
+        <article class="req-card critical"><i class="ph ph-list-checks req-icon"></i><div class="req-content"><h4>ClickUp Atualizado</h4><p>Se não está lá, não existe</p></div></article>
+        <article class="req-card critical"><i class="ph ph-file-text req-icon"></i><div class="req-content"><h4>Emitir Invoice</h4><p>Obrigatório para receber</p></div></article>
+    </div>
+</section>
+
+<section id="clickup" class="animate">
+    <div class="section-header">
+        <div class="section-label">04 — ClickUp</div>
+        <h2 class="section-title">Sua ferramenta principal</h2>
+        <p class="section-desc">Se não está no ClickUp, não existe no pipeline</p>
+    </div>
+    <div class="clickup-rule">
+        <div class="clickup-rule-title"><i class="ph ph-crown"></i> Regra de Ouro</div>
+        <p style="color:var(--gold-300);font-size:0.85rem;margin-bottom:0.3rem;position:relative">Após <strong>qualquer interação</strong>, a oportunidade precisa ter:</p>
+        <div class="clickup-rule-list">
+            <div class="clickup-rule-item"><div class="clickup-rule-num">1</div><div class="clickup-rule-text">Status atualizado</div></div>
+            <div class="clickup-rule-item"><div class="clickup-rule-num">2</div><div class="clickup-rule-text">Próxima ação c/ data</div></div>
+            <div class="clickup-rule-item"><div class="clickup-rule-num">3</div><div class="clickup-rule-text">Nota: dor + objeção</div></div>
+        </div>
+    </div>
+    <div class="routine-grid">
+        <article class="routine-card"><div class="routine-header"><i class="ph ph-sun routine-icon"></i><span class="routine-title">Início do Dia</span><span class="routine-time">10 min</span></div><div class="routine-body"><div class="routine-item">Ordenar por próxima ação</div><div class="routine-item">Atacar oportunidades vencidas</div><div class="routine-item">Identificar leads quentes</div></div></article>
+        <article class="routine-card"><div class="routine-header"><i class="ph ph-clipboard-text routine-icon"></i><span class="routine-title">Após Cada Call</span><span class="routine-time">2 min</span></div><div class="routine-body"><div class="routine-item">Atualizar status</div><div class="routine-item">Criar próxima ação</div><div class="routine-item">Registrar nota</div></div></article>
+        <article class="routine-card"><div class="routine-header"><i class="ph ph-moon routine-icon"></i><span class="routine-title">Fim do Dia</span><span class="routine-time">10 min</span></div><div class="routine-body"><div class="routine-item">Conferir pipeline completo</div><div class="routine-item">Zerar pendências</div><div class="routine-item">Preparar amanhã</div></div></article>
+    </div>
+    <div class="clickup-audit"><p class="clickup-audit-text">"<strong>Pipeline limpo</strong> = zero oportunidades ativas sem próxima ação."</p></div>
+</section>
+
+<section id="suporte" class="animate">
+    <div class="section-header">
+        <div class="section-label">05 — Suporte</div>
+        <h2 class="section-title">Quem te apoia</h2>
+        <p class="section-desc">Você é responsável por se desenvolver, mas tem apoio</p>
+    </div>
+    
+    <div class="team-grid">
+        <article class="team-card">
+            <div class="team-avatar">L</div>
+            <div class="team-name">Larissa</div>
+            <div class="team-role">Comercial</div>
+            <p class="team-desc">Metodologia, scripts, técnicas de fechamento e feedback.</p>
+            <div class="team-contact"><strong>Prefere:</strong> Call rápida</div>
+            <div class="team-contact"><strong>Horário:</strong> 9h–17h</div>
+            <div class="team-topics">
+                <div class="team-topics-title">Quando procurar</div>
+                <ul>
+                    <li>Dúvidas de script</li>
+                    <li>Objeção difícil</li>
+                    <li>Validar desconto</li>
+                </ul>
+            </div>
+        </article>
+        
+        <article class="team-card">
+            <div class="team-avatar">A</div>
+            <div class="team-name">Arthur</div>
+            <div class="team-role">Institucional</div>
+            <p class="team-desc">Conhece a empresa como ninguém. Cultura, regras, pagamentos.</p>
+            <div class="team-contact"><strong>Prefere:</strong> Slack</div>
+            <div class="team-contact"><strong>Horário:</strong> 9h–18h</div>
+            <div class="team-topics">
+                <div class="team-topics-title">Quando procurar</div>
+                <ul>
+                    <li>Regras de pagamento</li>
+                    <li>Validar comissões</li>
+                    <li>Questões institucionais</li>
+                </ul>
+            </div>
+        </article>
+        
+        <article class="team-card">
+            <div class="team-avatar">M</div>
+            <div class="team-name">Mib</div>
+            <div class="team-role">Gestão</div>
+            <p class="team-desc">Seu ponto focal para tarefas, prioridades e entregas.</p>
+            <div class="team-contact"><strong>Prefere:</strong> Daily rápida</div>
+            <div class="team-contact"><strong>Horário:</strong> 8h–18h</div>
+            <div class="team-topics">
+                <div class="team-topics-title">Quando procurar</div>
+                <ul>
+                    <li>Definir prioridades</li>
+                    <li>Valores e cultura</li>
+                    <li>Dúvidas de contrato</li>
+                </ul>
+            </div>
+        </article>
+    </div>
+</section>
+
+<section id="checklist" class="animate">
+    <div class="section-header">
+        <div class="section-label">06 — Checklist</div>
+        <h2 class="section-title">Você está pronto?</h2>
+        <p class="section-desc">Marque quando dominar cada item</p>
+    </div>
+    <div class="checklist">
+        <div class="check-item" onclick="toggleCheck(this,0)"><div class="check-box">✓</div><div class="check-text">Conheço todos os serviços e seus preços</div></div>
+        <div class="check-item" onclick="toggleCheck(this,1)"><div class="check-box">✓</div><div class="check-text">Entendo a diferença entre COS, Transfer, Reativação e Híbrido</div></div>
+        <div class="check-item" onclick="toggleCheck(this,2)"><div class="check-box">✓</div><div class="check-text">Sei que Híbrido EUA não tem preço fixo</div></div>
+        <div class="check-item" onclick="toggleCheck(this,3)"><div class="check-box">✓</div><div class="check-text">Domino a Regra de Ouro do ClickUp</div></div>
+        <div class="check-item" onclick="toggleCheck(this,4)"><div class="check-box">✓</div><div class="check-text">Configurei ambiente profissional para calls</div></div>
+        <div class="check-item" onclick="toggleCheck(this,5)"><div class="check-box">✓</div><div class="check-text">Completei role play aprovado</div></div>
+        <div class="check-item" onclick="toggleCheck(this,6)"><div class="check-box">✓</div><div class="check-text">Li e entendi as cláusulas do contrato</div></div>
+        <div class="check-item" onclick="toggleCheck(this,7)"><div class="check-box">✓</div><div class="check-text">Sei como emitir invoice</div></div>
+    </div>
+</section>
+
+</main>
+
+<footer>
+    <div class="footer-message">
+        <h3>Sem você, o pipeline não gera receita.</h3>
+        <p>O SDR de IA traz o lead. A operação entrega. Você fecha.</p>
+    </div>
+    <div class="footer-logo">MIGMA INC</div>
+    <div class="footer-version">Onboarding Closer v8.0</div>
+</footer>
+
+<script>
+const CONFIG={sections:['missao','servicos','requisitos','clickup','suporte','checklist'],names:['Missão','Serviços','Requisitos','ClickUp','Suporte','Checklist'],key:'migma-closer-v8',circ:126};
+function updateProgress(){const s=window.scrollY,d=document.documentElement.scrollHeight-window.innerHeight,p=d>0?Math.min(Math.round((s/d)*100),100):0;document.getElementById('progressFill').style.width=p+'%';document.getElementById('progressPercent').textContent=p+'%';document.getElementById('progressRing').style.strokeDashoffset=CONFIG.circ-(p/100)*CONFIG.circ;let c=0;CONFIG.sections.forEach((id,i)=>{const el=document.getElementById(id);if(el&&s>=el.offsetTop-300)c=i;});document.getElementById('currentSection').textContent=CONFIG.names[c]||'Início';}
+function scrollToTop(){window.scrollTo({top:0,behavior:'smooth'});}
+function getChecklist(){try{const d=localStorage.getItem(CONFIG.key);return d?JSON.parse(d):Array(8).fill(false);}catch{return Array(8).fill(false);}}
+function saveChecklist(d){try{localStorage.setItem(CONFIG.key,JSON.stringify(d));}catch{}}
+function toggleCheck(el,i){const c=getChecklist();c[i]=!c[i];saveChecklist(c);el.classList.toggle('checked',c[i]);}
+function restoreChecklist(){const c=getChecklist();document.querySelectorAll('.check-item').forEach((el,i)=>{if(c[i])el.classList.add('checked');});}
+function initAnimations(){const o=new IntersectionObserver(e=>{e.forEach(x=>{if(x.isIntersecting)x.target.classList.add('visible');});},{threshold:0.1,rootMargin:'0px 0px -50px 0px'});document.querySelectorAll('.animate').forEach(el=>o.observe(el));}
+function updateNav(){let c='';CONFIG.sections.forEach(id=>{const el=document.getElementById(id);if(el&&scrollY>=el.offsetTop-200)c=id;});document.querySelectorAll('.nav-link').forEach(l=>{l.classList.toggle('active','#'+c===l.getAttribute('href'));});}
+function initSmooth(){document.querySelectorAll('.nav-link').forEach(l=>{l.addEventListener('click',e=>{e.preventDefault();const t=document.querySelector(l.getAttribute('href'));if(t){const n=document.querySelector('nav').offsetHeight;window.scrollTo({top:t.offsetTop-n-20,behavior:'smooth'});}});});}
+function initKeyboard(){document.querySelector('.progress-widget').addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();scrollToTop();}});}
+document.addEventListener('DOMContentLoaded',()=>{restoreChecklist();initAnimations();initSmooth();initKeyboard();updateProgress();});
+window.addEventListener('scroll',()=>{updateProgress();updateNav();},{passive:true});
+</script>
+</body>
+</html>
