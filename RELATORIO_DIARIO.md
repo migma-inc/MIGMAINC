@@ -91,3 +91,53 @@ Correção da discrepância entre o número exibido no alerta de "Contratos Pend
 *   **Confiabilidade**: O dashboard agora reflete a carga de trabalho real da equipe.
 
 ---
+
+## [23/01/2026] - Badges Dinâmicos e Notificações na Sidebar
+
+### Descrição da Tarefa
+Implementação de um sistema de notificações visuais (badges) na barra lateral para centralizar o controle de pendências.
+
+### O que foi feito:
+1.  **Indicadores de Pendência**:
+    *   Inclusão de contadores automáticos nos itens de menu: Applications, Accepted Contracts, Visa Approvals e Zelle Approval.
+2.  **Lógica de Monitoramento**:
+    *   O componente Sidebar agora consulta o Supabase em cada mudança de rota para manter os números atualizados.
+3.  **Filtro de Qualidade**:
+    *   O badge de "Visa Approvals" ignora automaticamente tentativas de checkout abandonadas, focando apenas em contratos que exigem ação imediata.
+
+---
+
+## [23/01/2026] - Refatoração de Alertas de Ação (Dashboard UX)
+
+### Descrição da Tarefa
+Redesign dos banners de alerta no dashboard principal para melhorar a clareza e a velocidade de navegação.
+
+### O que foi feito:
+1.  **Layout de Grid Compacto**:
+    *   Substituição de banners largos por um grid de cards menores, economizando espaço vertical.
+2.  **Separação por Contexto**:
+    *   Divisão clara entre pendências de "Vistos" (Visa) e "Parceiros" (Partner).
+3.  **Navegação Direta**:
+    *   Atualização dos redirecionamentos: O alerta de contratos de visto agora leva o administrador diretamente para a página de aprovação técnica, eliminando passos extras.
+
+### Impacto:
+*   **Velocidade**: Acesso mais rápido às funções críticas do sistema.
+*   **Segmentação**: Diferenciação visual e lógica entre fluxos de serviço e fluxos de parceria.
+
+---
+
+## [23/01/2026] - Manutenção de Build e Estabilidade do Código
+
+### Descrição da Tarefa
+Correção de erros de lint e TypeScript que impediam a compilação do projeto para produção.
+
+### O que foi feito:
+1.  **Limpeza de Imports Inúteis**:
+    *   Remoção do ícone `FileText` não utilizado em `Dashboard.tsx`, resolvendo o erro `TS6133`.
+2.  **Validação de Produção**:
+    *   Execução e validação do comando `npm run build` para garantir que todas as novas funcionalidades estão estáveis e prontas para deploy.
+
+### Impacto:
+*   **Prontidão para Deploy**: O projeto agora compila 100% sem erros, garantindo que as mudanças possam ser enviadas para o servidor sem interrupções.
+
+---
