@@ -177,22 +177,24 @@ Deno.serve(async (req) => {
 
         // Sender Details (MIGMA)
         const senderLines = [
-            'MIGMA Inc',
+            'MIGMA INC.',
             '17102 W Gatling Rd',
             'Marana, AZ 85653, United States',
-            'Bank: Bank of America, N.A.',
-            'Account Number: 4570 5365 8489',
-            'Website: www.migmainc.com',
+            'Website: migmainc.com',
             'Email: adm@migmainc.com'
         ];
 
         // Client Details (Bill To)
+        const country = order.client_country || '';
+        const nationality = order.client_nationality || '';
+
         const billToLines = [
             order.client_name,
             order.client_email,
             order.client_whatsapp || '',
-            order.client_country || '',
-            order.client_nationality || ''
+            country,
+            // Only add nationality if it's different from country
+            nationality.toLowerCase().trim() !== country.toLowerCase().trim() ? nationality : ''
         ].filter(line => line !== '');
 
         let senderY = currentY;
@@ -332,12 +334,23 @@ Deno.serve(async (req) => {
                 'This payment has been handled and authorized directly through an official agent.',
                 'No further action is required for payment confirmation.'
             ];
+        } else if (order.payment_method === 'parcelow') {
+            instructionLines = [
+                'Payment Method: Parcelow',
+                `Include the invoice number ${order.order_number} in the payment reference.`,
+                'Please contact support for payment details.'
+            ];
+        } else if (order.payment_method === 'zelle') {
+            instructionLines = [
+                'Payment Method: Zelle',
+                'Zelle recipient: adm@migmainc.com',
+                `Include the invoice number ${order.order_number} in the payment reference.`,
+                'Please contact support for payment details.'
+            ];
         } else {
             instructionLines = [
-                'Bank: Bank of America, N.A.',
-                'Account Name: MIGMA Inc',
-                'Account Number: 4570 5365 8489',
-                `Include the invoice number ${order.order_number} in the payment reference.`
+                `Include the invoice number ${order.order_number} in the payment reference.`,
+                'Please contact support for payment details.'
             ];
         }
 
@@ -353,7 +366,20 @@ Deno.serve(async (req) => {
         const pdfArrayBuffer = await pdfBlob.arrayBuffer();
         const pdfBuffer = new Uint8Array(pdfArrayBuffer);
 
-        const fileName = `invoice_${order.order_number}_${Date.now()}.pdf`;
+        // Helper to normalize file names for storage safety while keeping readability
+        const normalizeForFileName = (text: string) => {
+            return text
+                .normalize('NFD')
+                .replace(/[\u0300-\u036f]/g, '') // Remove acentos
+                .replace(/[<>:"/\\|?*]/g, '')   // Remove caracteres proibidos em nomes de arquivos
+                .trim();
+        };
+
+        const safeClientName = normalizeForFileName(order.client_name);
+        const safeServiceName = normalizeForFileName(product?.name || order.product_slug);
+
+        // Final pattern: INVOICE - CUSTOMER NAME - SERVICE NAME.pdf
+        const fileName = `INVOICE - ${safeClientName} - ${safeServiceName}.pdf`;
         const filePath = `invoices/${fileName}`;
 
         const { error: uploadError } = await supabase.storage

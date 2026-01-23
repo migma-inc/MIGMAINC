@@ -2201,7 +2201,7 @@ export async function sendNewPaymentRequestNotification(
                                 Esta é uma mensagem automática. Por favor, não responda a este email.
                             </p>
                             <p style="margin: 0; font-size: 12px; color: #666666; line-height: 1.5;">
-                                © 2025 MIGMA. All rights reserved.
+                                © MIGMA. All rights reserved.
                             </p>
                         </td>
                     </tr>

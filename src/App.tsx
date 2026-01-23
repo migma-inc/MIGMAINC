@@ -35,7 +35,6 @@ import { SellerCommissions } from './pages/seller/SellerCommissions';
 import { SellerFunnel } from './pages/seller/SellerFunnel';
 import { SellerOrders } from './pages/seller/SellerOrders';
 import { SellerLinks } from './pages/seller/SellerLinks';
-import { SellerProfile } from './pages/seller/SellerProfile';
 import { SellerLeads } from './pages/seller/SellerLeads';
 import { SellerOrderDetail } from './pages/SellerOrderDetail';
 import { SellerRoute } from './components/seller/SellerRoute';
@@ -97,7 +96,6 @@ function App() {
           <Route path="orders" element={<SellerOrders />} />
           <Route path="links" element={<SellerLinks />} />
           <Route path="leads" element={<SellerLeads />} />
-          <Route path="profile" element={<SellerProfile />} />
         </Route>
         <Route path="/seller/orders/:orderId" element={<SellerRoute><SellerOrderDetail /></SellerRoute>} />
 

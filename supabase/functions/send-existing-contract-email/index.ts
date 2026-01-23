@@ -2,106 +2,106 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
 const corsHeaders = {
-    "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
 function getBucketAndPath(url: string | null) {
-    if (!url) return null;
-    const match = url.match(/\/storage\/v1\/object\/public\/([^\/]+)\/(.+)$/);
-    if (!match) return null;
-    return { bucket: match[1], path: match[2] };
+  if (!url) return null;
+  const match = url.match(/\/storage\/v1\/object\/public\/([^\/]+)\/(.+)$/);
+  if (!match) return null;
+  return { bucket: match[1], path: match[2] };
 }
 
 Deno.serve(async (req) => {
-    if (req.method === "OPTIONS") {
-        return new Response("ok", { headers: corsHeaders });
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { headers: corsHeaders });
+  }
+
+  try {
+    const { contract_id, type } = await req.json();
+
+    if (!contract_id || !type) {
+      return new Response(
+        JSON.stringify({ error: "Missing required fields: contract_id, type" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
 
-    try {
-        const { contract_id, type } = await req.json();
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-        if (!contract_id || !type) {
-            return new Response(
-                JSON.stringify({ error: "Missing required fields: contract_id, type" }),
-                { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-            );
-        }
+    let result;
 
-        const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-        const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-        const supabase = createClient(supabaseUrl, supabaseServiceKey);
-
-        let result;
-
-        if (type === 'visa') {
-            result = await processVisaContract(contract_id, supabase);
-        } else if (type === 'partner') {
-            result = await processPartnerContract(contract_id, supabase);
-        } else {
-            throw new Error("Invalid contract type");
-        }
-
-        return new Response(
-            JSON.stringify(result),
-            { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-
-    } catch (error) {
-        console.error("[EDGE FUNCTION] Exception:", error);
-        return new Response(
-            JSON.stringify({ success: false, error: error.message || "Internal server error" }),
-            { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
+    if (type === 'visa') {
+      result = await processVisaContract(contract_id, supabase);
+    } else if (type === 'partner') {
+      result = await processPartnerContract(contract_id, supabase);
+    } else {
+      throw new Error("Invalid contract type");
     }
+
+    return new Response(
+      JSON.stringify(result),
+      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+
+  } catch (error) {
+    console.error("[EDGE FUNCTION] Exception:", error);
+    return new Response(
+      JSON.stringify({ success: false, error: error.message || "Internal server error" }),
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  }
 });
 
 async function processVisaContract(orderId: string, supabase: any) {
-    const { data: order, error } = await supabase
-        .from('visa_orders')
-        .select('*')
-        .eq('id', orderId)
-        .single();
+  const { data: order, error } = await supabase
+    .from('visa_orders')
+    .select('*')
+    .eq('id', orderId)
+    .single();
 
-    if (error || !order) throw new Error("Visa order not found");
+  if (error || !order) throw new Error("Visa order not found");
 
-    const adminEmail = "info@migmainc.com";
-    const attachments = [];
+  const adminEmail = "info@migmainc.com";
+  const attachments = [];
 
-    // 1. Add Main Contract if it exists
-    const contract = getBucketAndPath(order.contract_pdf_url);
-    if (contract) {
-        attachments.push({
-            filename: `Contract_${order.order_number}_${order.client_name.replace(/\s+/g, '_')}.pdf`,
-            path: contract.path,
-            bucket: contract.bucket
-        });
-    }
+  // 1. Add Main Contract if it exists
+  const contract = getBucketAndPath(order.contract_pdf_url);
+  if (contract) {
+    attachments.push({
+      filename: `Contract_${order.order_number}_${order.client_name.replace(/\s+/g, '_')}.pdf`,
+      path: contract.path,
+      bucket: contract.bucket
+    });
+  }
 
-    // 2. Add ANNEX I if it exists
-    const annex = getBucketAndPath(order.annex_pdf_url);
-    if (annex) {
-        attachments.push({
-            filename: `Annex_${order.order_number}_${order.client_name.replace(/\s+/g, '_')}.pdf`,
-            path: annex.path,
-            bucket: annex.bucket
-        });
-    }
+  // 2. Add ANNEX I if it exists
+  const annex = getBucketAndPath(order.annex_pdf_url);
+  if (annex) {
+    attachments.push({
+      filename: `Annex_${order.order_number}_${order.client_name.replace(/\s+/g, '_')}.pdf`,
+      path: annex.path,
+      bucket: annex.bucket
+    });
+  }
 
-    // 3. Add Invoice if it exists in payment_metadata
-    const invoiceUrl = order.payment_metadata?.invoice_pdf_url;
-    const invoice = getBucketAndPath(invoiceUrl);
-    if (invoice) {
-        attachments.push({
-            filename: `Invoice_${order.order_number}_${order.client_name.replace(/\s+/g, '_')}.pdf`,
-            path: invoice.path,
-            bucket: invoice.bucket
-        });
-    }
+  // 3. Add Invoice if it exists in payment_metadata
+  const invoiceUrl = order.payment_metadata?.invoice_pdf_url;
+  const invoice = getBucketAndPath(invoiceUrl);
+  if (invoice) {
+    attachments.push({
+      filename: `Invoice_${order.order_number}_${order.client_name.replace(/\s+/g, '_')}.pdf`,
+      path: invoice.path,
+      bucket: invoice.bucket
+    });
+  }
 
-    if (attachments.length === 0) throw new Error("No PDF files found for this order");
+  if (attachments.length === 0) throw new Error("No PDF files found for this order");
 
-    const emailHtml = `
+  const emailHtml = `
       <!DOCTYPE html>
       <html>
       <head>
@@ -167,59 +167,59 @@ async function processVisaContract(orderId: string, supabase: any) {
       </html>
     `;
 
-    console.log(`[EDGE FUNCTION] Resending Visa Contract for ${order.client_name} (Order #${order.order_number})`);
-    const { data: emailData, error: emailError } = await supabase.functions.invoke('send-email-with-attachment', {
-        body: {
-            to: adminEmail,
-            subject: `[CONTRACT RESEND] ${order.client_name} - Order #${order.order_number}`,
-            html: emailHtml,
-            attachments: attachments
-        },
-    });
+  console.log(`[EDGE FUNCTION] Resending Visa Contract for ${order.client_name} (Order #${order.order_number})`);
+  const { data: emailData, error: emailError } = await supabase.functions.invoke('send-email-with-attachment', {
+    body: {
+      to: adminEmail,
+      subject: `[CONTRACT RESEND] ${order.client_name} - Order #${order.order_number}`,
+      html: emailHtml,
+      attachments: attachments
+    },
+  });
 
-    if (emailError) {
-        console.error(`[EDGE FUNCTION] Error resending Visa Contract:`, emailError);
-        throw new Error(`Email invocation error: ${emailError.message}`);
-    }
-    console.log(`[EDGE FUNCTION] Visa Contract Email Resend Status: Success`);
+  if (emailError) {
+    console.error(`[EDGE FUNCTION] Error resending Visa Contract:`, emailError);
+    throw new Error(`Email invocation error: ${emailError.message}`);
+  }
+  console.log(`[EDGE FUNCTION] Visa Contract Email Resend Status: Success`);
 
-    // Update flags
-    await supabase.from('visa_orders').update({
-        admin_email_sent: true,
-        admin_email_sent_at: new Date().toISOString()
-    }).eq('id', orderId);
+  // Update flags
+  await supabase.from('visa_orders').update({
+    admin_email_sent: true,
+    admin_email_sent_at: new Date().toISOString()
+  }).eq('id', orderId);
 
-    return { success: true, message: "Visa contract email resent successfully" };
+  return { success: true, message: "Visa contract email resent successfully" };
 }
 
 async function processPartnerContract(acceptanceId: string, supabase: any) {
-    const { data: acceptance, error: accError } = await supabase
-        .from('partner_terms_acceptances')
-        .select('*')
-        .eq('id', acceptanceId)
-        .single();
+  const { data: acceptance, error: accError } = await supabase
+    .from('partner_terms_acceptances')
+    .select('*')
+    .eq('id', acceptanceId)
+    .single();
 
-    if (accError || !acceptance) throw new Error("Partner acceptance not found");
+  if (accError || !acceptance) throw new Error("Partner acceptance not found");
 
-    const { data: application, error: appError } = await supabase
-        .from('global_partner_applications')
-        .select('*')
-        .eq('id', acceptance.application_id)
-        .single();
+  const { data: application, error: appError } = await supabase
+    .from('global_partner_applications')
+    .select('*')
+    .eq('id', acceptance.application_id)
+    .single();
 
-    if (appError || !application) throw new Error("Partner application not found");
+  if (appError || !application) throw new Error("Partner application not found");
 
-    const adminEmail = "adm@migmainc.com";
+  const adminEmail = "adm@migmainc.com";
 
-    if (!acceptance.contract_pdf_path) throw new Error("No PDF file found for this partner contract");
+  if (!acceptance.contract_pdf_path) throw new Error("No PDF file found for this partner contract");
 
-    const attachments = [{
-        filename: `PartnerContract_${application.full_name.replace(/\s+/g, '_')}.pdf`,
-        path: acceptance.contract_pdf_path,
-        bucket: 'contracts'
-    }];
+  const attachments = [{
+    filename: `PartnerContract_${application.full_name.replace(/\s+/g, '_')}.pdf`,
+    path: acceptance.contract_pdf_path,
+    bucket: 'contracts'
+  }];
 
-    const emailHtml = `
+  const emailHtml = `
       <!DOCTYPE html>
       <html>
       <head>
@@ -277,27 +277,27 @@ async function processPartnerContract(acceptanceId: string, supabase: any) {
       </html>
     `;
 
-    console.log(`[EDGE FUNCTION] Resending Partner Contract for ${application.full_name}`);
-    const { data: emailData, error: emailError } = await supabase.functions.invoke('send-email-with-attachment', {
-        body: {
-            to: adminEmail,
-            subject: `[PARTNER CONTRACT RESEND] ${application.full_name}`,
-            html: emailHtml,
-            attachments: attachments
-        },
-    });
+  console.log(`[EDGE FUNCTION] Resending Partner Contract for ${application.full_name}`);
+  const { data: emailData, error: emailError } = await supabase.functions.invoke('send-email-with-attachment', {
+    body: {
+      to: adminEmail,
+      subject: `[PARTNER CONTRACT RESEND] ${application.full_name}`,
+      html: emailHtml,
+      attachments: attachments
+    },
+  });
 
-    if (emailError) {
-        console.error(`[EDGE FUNCTION] Error resending Partner Contract:`, emailError);
-        throw new Error(`Email invocation error: ${emailError.message}`);
-    }
-    console.log(`[EDGE FUNCTION] Partner Contract Email Resend Status: Success`);
+  if (emailError) {
+    console.error(`[EDGE FUNCTION] Error resending Partner Contract:`, emailError);
+    throw new Error(`Email invocation error: ${emailError.message}`);
+  }
+  console.log(`[EDGE FUNCTION] Partner Contract Email Resend Status: Success`);
 
-    // Update flags
-    await supabase.from('partner_terms_acceptances').update({
-        admin_email_sent: true,
-        admin_email_sent_at: new Date().toISOString()
-    }).eq('id', acceptanceId);
+  // Update flags
+  await supabase.from('partner_terms_acceptances').update({
+    admin_email_sent: true,
+    admin_email_sent_at: new Date().toISOString()
+  }).eq('id', acceptanceId);
 
-    return { success: true, message: "Partner contract email resent successfully" };
+  return { success: true, message: "Partner contract email resent successfully" };
 }

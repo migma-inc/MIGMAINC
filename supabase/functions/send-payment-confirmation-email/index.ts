@@ -183,11 +183,11 @@ Deno.serve(async (req) => {
                                             Our team will contact you shortly at <strong style="color: #CE9F48;">${safeClientEmail}</strong> to begin processing your visa application.
                                         </p>
                                         <p style="margin: 20px 0 0 0; font-size: 16px; line-height: 1.6; color: #e0e0e0;">
-                                            Thank you for choosing MIGMA!
+                                            Thank you for choosing MIGMA INC.!
                                         </p>
                                         <p style="margin: 20px 0 0 0; font-size: 16px; line-height: 1.6; color: #e0e0e0;">
                                             Best regards,<br>
-                                            <strong style="color: #CE9F48;">MIGMA Team</strong>
+                                            <strong style="color: #CE9F48;">MIGMA INC. Team</strong>
                                         </p>
                                     </td>
                                 </tr>
@@ -198,7 +198,7 @@ Deno.serve(async (req) => {
                     <tr>
                         <td align="center" style="padding: 20px 40px; background-color: #000000;">
                             <p style="margin: 0; font-size: 12px; color: #666666; line-height: 1.5;">
-                                © MIGMA. All rights reserved.
+                                © MIGMA INC. All rights reserved.
                             </p>
                         </td>
                     </tr>

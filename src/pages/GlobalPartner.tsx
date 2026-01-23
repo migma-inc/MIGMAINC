@@ -690,7 +690,7 @@ const FooterSection = () => {
                         <Link to="/" className="inline-flex mb-4">
                             <img src="/logo2.png" alt="MIGMA INC" className="h-16 md:h-20 w-auto" />
                         </Link>
-                        <p className="text-gray-400">&copy; 2025 MIGMA INC. All rights reserved.</p>
+                        <p className="text-gray-400">&copy; MIGMA INC. All rights reserved.</p>
                     </div>
 
                     {/* Navigation Links */}

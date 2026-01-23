@@ -4,6 +4,160 @@ Este documento registra as tarefas concluídas, melhorias implementadas e decis�
 
 ---
 
+## [23/01/2026] - Atualização de Conteúdo Institucional (About & Contact)
+
+### Descrição da Tarefa
+Substituição de todo o conteúdo placeholder (Lorem Ipsum) das páginas About e Contact por textos reais fornecidos pelo cliente, alinhados com a identidade e propósito da MIGMA INC.
+
+### O que foi feito:
+
+#### **Página About (`/about`)**
+1. **Hero Section**:
+   - Atualizado subtitle com descrição oficial: "MIGMA INC is a U.S.-based operations and technology partner..."
+   
+2. **Seções de Conteúdo**:
+   - **Who We Are**: Explicação sobre o papel da MIGMA como parceiro operacional B2B.
+   - **Why You May See MIGMA**: Lista de serviços que parceiros terceirizam (pagamentos, onboarding, documentação).
+   - **Trust, Security & Compliance**: Práticas de segurança, logs de auditoria e padrões internacionais.
+   - **What MIGMA Is (and Isn't)**: Clarificação com checkmarks visuais (✅/❌) sobre o que a empresa faz e não faz.
+   - **Work With MIGMA**: Convite para candidatos interessados em se tornarem Global Partners.
+
+3. **Our Values (3 cards com ícones)**:
+   - **Compliance First** (Shield icon): Padrões de confidencialidade e rastreabilidade.
+   - **Performance & Execution** (TrendingUp icon): Foco em resultados mensuráveis e excelência operacional.
+   - **Trust & Security** (Lock icon): Proteção de pagamentos, dados e workflows.
+
+4. **Our Team**:
+   - Texto sobre equipe distribuída de especialistas.
+   - Explicação do modelo de trabalho com contractors independentes.
+   - Seção "What this means for you" com bullets para clientes e candidatos.
+
+#### **Página Contact (`/contact`)**
+1. **Hero Section**:
+   - Novo subtitle: "For support related to a MIGMA payment link, partnership inquiries..."
+
+2. **Get in Touch (Left Box)**:
+   - **Support**: Para clientes que usaram links de pagamento MIGMA.
+   - **Partnership**: Para empresas interessadas em serviços/integrações.
+   - **Global Partner Applications**: Para candidatos a contractors.
+   - **Email**: `adm@migma.com` (link clicável).
+
+3. **Send us a Message (Right Box - Form)**:
+   - **Subject Dropdown** com 4 opções:
+     - Payment Support
+     - Partnership / Business Inquiry
+     - Global Partner Application
+     - Other
+   - **Message Placeholder**: Instruções sobre informações relevantes a incluir.
+
+### Impacto:
+- **Profissionalismo**: Remoção completa de Lorem Ipsum aumenta credibilidade.
+- **Clareza**: Clientes e parceiros entendem exatamente o que a MIGMA faz.
+- **SEO**: Conteúdo real melhora indexação e relevância nos motores de busca.
+- **UX**: Formulário de contato com categorização facilita triagem de mensagens.
+
+---
+
+## [23/01/2026] - Remoção de Referências a Anos no Site
+
+### Descrição da Tarefa
+Remoção de todas as referências a anos específicos (2025, 2024, etc.) em todo o site para torná-lo "atemporal" e eliminar a necessidade de atualizações manuais anuais.
+
+### O que foi feito:
+1. **Footer Global** (`Footer.tsx`):
+   - `© 2025 MIGMA INC.` → `© MIGMA INC.`
+
+2. **Página Global Partner** (`GlobalPartner.tsx`):
+   - `© 2025 MIGMA INC.` → `© MIGMA INC.`
+
+3. **Privacy Policy** (`PrivacyPolicy.tsx`):
+   - `Last updated: December 17, 2025` → `Last updated: December 17`
+
+4. **Cookies Policy** (`Cookies.tsx`):
+   - `Last updated: December 17, 2025` → `Last updated: December 17`
+
+5. **Templates de Email** (`emails.ts`):
+   - `© 2025 MIGMA.` → `© MIGMA.`
+
+6. **Versão de Termos** (`visa-checkout-constants.ts`):
+   - `v1.0-2025-01-15` → `v1.0-01-15`
+
+### Arquivos Modificados:
+- `src/components/layout/Footer.tsx`
+- `src/pages/GlobalPartner.tsx`
+- `src/pages/PrivacyPolicy.tsx`
+- `src/pages/Cookies.tsx`
+- `src/lib/emails.ts`
+- `src/lib/visa-checkout-constants.ts`
+
+### Impacto:
+- **Manutenibilidade**: Não há mais necessidade de atualizar anos manualmente a cada virada de ano.
+- **Consistência**: Todas as páginas seguem o mesmo padrão atemporal.
+- **Profissionalismo**: Evita que o site pareça "desatualizado" quando o ano muda.
+
+---
+
+
+
+## [23/01/2026] - Centralização de Controle Administrativo de Vendedores
+
+### Descrição da Tarefa
+Implementação de um sistema centralizado para gerenciamento de perfis de vendedores, removendo a capacidade de auto-edição e concentrando todas as operações de atualização (nome, email, telefone, Seller ID e senha) exclusivamente no painel administrativo.
+
+### O que foi feito:
+1. **Remoção de Controles do Vendedor**:
+   - Removido link "Profile" do menu de navegação do vendedor (`SellerSidebar.tsx`).
+   - Removida rota `/seller/dashboard/profile` do sistema de rotas (`App.tsx`).
+   - Vendedores não têm mais acesso à página de edição de perfil.
+
+2. **Interface Administrativa de Edição**:
+   - Criado componente `EditSellerModal.tsx` com formulário completo de edição.
+   - Campos editáveis: Nome Completo, Email, Telefone, Seller ID Público e Senha.
+   - Validações implementadas:
+     - Formato de Seller ID (apenas letras, números, hífens e underscores).
+     - Comprimento mínimo de senha (6 caracteres).
+     - Confirmação de senha obrigatória.
+   - Avisos visuais para alterações críticas:
+     - Email: aviso sobre necessidade de confirmação.
+     - Seller ID: aviso sobre impacto em links de marketing.
+   - Integrado botão "Edit" (ícone dourado) ao lado do botão "Delete" em `SellersPage.tsx`.
+
+3. **Edge Function `admin-update-seller`**:
+   - Criada função para processamento de atualizações administrativas.
+   - Verificação de permissões: apenas usuários com `user_metadata.role === 'admin'`.
+   - Validações de unicidade:
+     - Seller ID: verifica se não está em uso por outro vendedor.
+     - Email: verificação automática pelo Supabase Auth.
+   - Atualização de `auth.users`:
+     - Email: atualiza e marca como não confirmado (requer confirmação do vendedor).
+     - Senha: atualiza se fornecida pelo admin.
+   - Atualização da tabela `sellers` com novos dados.
+   - Headers CORS implementados para permitir chamadas do frontend.
+   - Deploy realizado com flag `--no-verify-jwt`.
+
+4. **Correções Técnicas**:
+   - Corrigido erro CORS 405 adicionando tratamento de requisições OPTIONS (preflight).
+   - Corrigido erro 403 substituindo verificação de tabela `admins` inexistente por `user_metadata.role`.
+   - Adicionados headers CORS em todas as respostas da Edge Function.
+
+### Fluxo de Uso:
+- **Admin**: Acessa `/dashboard/sellers` → Clica em "Edit" → Modifica dados → Salva alterações.
+- **Vendedor**: Não tem mais acesso à página de perfil → Deve solicitar alterações ao admin.
+
+### Impacto Tecnológico:
+- **Segurança**: Centralização de controle reduz riscos de alterações não autorizadas.
+- **Auditoria**: Logs detalhados em todas as operações de atualização.
+- **UX**: Interface intuitiva com avisos claros sobre impactos de alterações críticas.
+- **Escalabilidade**: Sistema preparado para adicionar log de auditoria em tabela dedicada no futuro.
+
+### Riscos Mitigados:
+- **Seller ID**: Aviso visual alerta admin sobre quebra de links antigos.
+- **Email**: Confirmação obrigatória previne perda de acesso acidental.
+- **Senha**: Admin deve comunicar nova senha manualmente ao vendedor.
+
+---
+
+
 ## [23/01/2026] - Sistema de Backup de Contratos por E-mail
 
 ### Descrição da Tarefa
@@ -28,6 +182,28 @@ Implementação de um sistema automatizado e manual para envio de cópias em PDF
 *   **Escalabilidade**: Uso de Edge Functions isola o processamento pesado de arquivos do frontend.
 *   **Segurança**: Garantia de redundância física dos contratos em caixas de e-mail seguras.
 *   **Manutenibilidade**: Código modular que permite adicionar novos tipos de documentos facilmente.
+
+---
+
+## [23/01/2026] - Padronização de Nomenclatura de Invoices
+
+### Descrição da Tarefa
+Alteração do padrão de nomes dos arquivos de Invoice gerados pelo sistema para melhorar a identificação humana tanto no storage quanto nos anexos de e-mail.
+
+### O que foi feito:
+1.  **Novo Padrão de Nome na Geração**:
+    *   Implementação do formato: `INVOICE - [NOME DO CLIENTE] - [NOME DO SERVIÇO].pdf`.
+2.  **Atualização da Edge Function**:
+    *   `generate-invoice-pdf`: O arquivo agora é salvo no Supabase Storage com o nome amigável e profissional.
+3.  **Segurança e Normalização**:
+    *   Adição de filtros para remover acentos e caracteres especiais dos nomes para garantir compatibilidade com sistemas de arquivos e URLs de storage.
+4.  **Correção de Identidade Visual e Privacidade**:
+    *   Alteração do nome do remetente no PDF de "MIGMA Inc" para "MIGMA INC.".
+    *   Remoção de dados bancários sensíveis das seções "From" e "Payment Instructions", orientando o cliente a entrar em contato com o suporte para detalhes de pagamento.
+
+### Impacto:
+*   **Identificação Visual**: Facilidade extrema para o administrativo identificar faturas sem precisar abrir o arquivo ou consultar o banco de dados.
+*   **Profissionalismo**: Documentos enviados aos clientes e parceiros agora possuem nomes claros e profissionais.
 
 ---
 
@@ -165,5 +341,49 @@ Integração de três guias de treinamento (HTML estáticos) ao domínio princip
 *   [Guia Closer](https://migma.co/onboarding/closer)
 *   [Guia Operations](https://migma.co/onboarding/operations)
 *   [Guia Mentor](https://migma.co/onboarding/mentor)
+
+---
+
+## [23/01/2026] - Personalização de Instruções de Pagamento no Invoice
+
+### Descrição da Tarefa
+Personalização dinâmica da seção "Payment Instructions" no documento de Invoice (PDF) baseada no método de pagamento escolhido pelo cliente (Zelle ou Parcelow).
+
+### O que foi feito:
+1.  **Instruções Dinâmicas por Método**:
+    *   **Parcelow**: Agora exibe explicitamente "Payment Method: Parcelow".
+    *   **Zelle**: Agora exibe "Payment Method: Zelle" e o e-mail do destinatário: "Zelle recipient: adm@migmainc.com".
+2.  **Remoção de Redundância no "Bill To"**:
+    *   Implementação de lógica para evitar a duplicação de país e nacionalidade quando são idênticos (ex: evitando "Brazil Brazil").
+3.  **Manutenção de Referência**:
+    *   Ambos os métodos preservam a inclusão do número do invoice como referência para o pagamento.
+    *   Instrução padrão para entrar em contato com o suporte em caso de dúvidas.
+4.  **Edge Function `generate-invoice-pdf`**:
+    *   Atualização da lógica condicional para mapear os campos `payment_method` do banco de dados para o texto correto no PDF.
+
+### Impacto:
+*   **Transparência**: O cliente recebe informações claras sobre como e para onde enviar o pagamento logo após a geração da fatura.
+*   **Redução de Suporte**: Menos dúvidas enviadas ao atendimento humano sobre dados de recebimento do Zelle.
+*   **QA Financeiro**: Facilita a conciliação bancária ao garantir que o cliente use o número do Invoice na referência.
+
+---
+
+## [23/01/2026] - Padronização Global do Nome Legal (MIGMA INC.)
+
+### Descrição da Tarefa
+Padronização de todas as ocorrências do nome da empresa para sua forma legal completa "MIGMA INC." em contratos, anexos, faturas e comunicações por e-mail, garantindo conformidade e profissionalismo.
+
+### O que foi feito:
+1.  **Atualização de Contratos (PDF)**:
+    *   **Visa Service Contract**: Alterado de "MIGMA" para "MIGMA INC." no cabeçalho e em todas as cláusulas dos termos padrão (fallback).
+    *   **Global Partner Contract**: Atualizado para "MIGMA INC." no cabeçalho do documento de aceitação de termos.
+2.  **Comunicações por E-mail**:
+    *   **Confirmação de Pagamento**: Atualização do template de e-mail para incluir "MIGMA INC." no rodapé de direitos autorais, na mensagem de agradecimento e na assinatura da equipe.
+3.  **Deploy Integrado**:
+    *   Execução do deploy das funções `generate-visa-contract-pdf`, `generate-contract-pdf` e `send-payment-confirmation-email` com a flag de segurança correta.
+
+### Impacto:
+*   **Conformidade Legal**: Documentos assinados agora refletem o nome oficial da corporação.
+*   **Consistência de Marca**: Garantia de que o cliente visualize a mesma identidade em todos os pontos de contato (E-mail -> Invoice -> Contrato).
 
 ---

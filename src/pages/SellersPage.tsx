@@ -6,7 +6,8 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ConfirmModal } from '@/components/ui/confirm-modal';
-import { ChevronDown, ChevronRight, DollarSign, Users, ShoppingCart, Eye, Coins, Wallet, Clock, TrendingUp, Award, Trash2 } from 'lucide-react';
+import { EditSellerModal } from '@/components/admin/EditSellerModal';
+import { ChevronDown, ChevronRight, DollarSign, Users, ShoppingCart, Eye, Coins, Wallet, Clock, TrendingUp, Award, Trash2, Edit } from 'lucide-react';
 
 // Helper function to calculate net amount and fee
 const calculateNetAmountAndFee = (order: Order) => {
@@ -28,6 +29,7 @@ interface Seller {
   phone: string | null;
   created_at: string;
   user_id: string;
+  status: string;
 }
 
 interface Order {
@@ -93,6 +95,8 @@ export const SellersPage = () => {
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [sellerToDelete, setSellerToDelete] = useState<{ id: string, name: string } | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [sellerToEdit, setSellerToEdit] = useState<Seller | null>(null);
 
   useEffect(() => {
     loadSellersData();
@@ -634,18 +638,33 @@ export const SellersPage = () => {
                         </div>
                       </div>
 
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleDeleteSeller(stats.seller.id, stats.seller.full_name || stats.seller.email);
-                        }}
-                        className="text-red-500 hover:text-red-400 hover:bg-red-500/10 shrink-0"
-                        title="Delete Seller"
-                      >
-                        <Trash2 className="w-4 h-4 sm:w-5 sm:h-5" />
-                      </Button>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSellerToEdit(stats.seller);
+                            setIsEditModalOpen(true);
+                          }}
+                          className="text-gold-light hover:text-gold-medium hover:bg-gold-medium/10 shrink-0"
+                          title="Edit Seller"
+                        >
+                          <Edit className="w-4 h-4 sm:w-5 sm:h-5" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteSeller(stats.seller.id, stats.seller.full_name || stats.seller.email);
+                          }}
+                          className="text-red-500 hover:text-red-400 hover:bg-red-500/10 shrink-0"
+                          title="Delete Seller"
+                        >
+                          <Trash2 className="w-4 h-4 sm:w-5 sm:h-5" />
+                        </Button>
+                      </div>
                     </div>
                   </CardHeader>
                   <CardContent>
@@ -865,6 +884,20 @@ export const SellersPage = () => {
           variant="danger"
           isLoading={isDeleting}
         />
+
+        {sellerToEdit && (
+          <EditSellerModal
+            seller={sellerToEdit}
+            isOpen={isEditModalOpen}
+            onClose={() => {
+              setIsEditModalOpen(false);
+              setSellerToEdit(null);
+            }}
+            onSuccess={() => {
+              loadSellersData();
+            }}
+          />
+        )}
       </div>
     </div>
   );
