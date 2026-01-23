@@ -31,6 +31,7 @@ interface VisaOrder {
   annex_pdf_url: string | null;
   created_at: string;
   is_hidden?: boolean;
+  parcelow_status?: string;
 }
 
 // Helper function to calculate net amount and fee
@@ -461,7 +462,15 @@ export const VisaOrdersPage = () => {
     }
   };
 
-  const visibleOrders = orders.filter(order => showHidden || !order.is_hidden);
+  const visibleOrders = orders.filter(order => {
+    // Definimos como "abandonado" ou "em espera" pedidos Parcelow que não foram concluídos
+    const isPendingParcelow = order.payment_method === 'parcelow' &&
+      order.payment_status === 'pending' &&
+      (order.parcelow_status === 'Open' || order.parcelow_status === 'Waiting Payment');
+
+    if (showHidden) return true;
+    return !order.is_hidden && !isPendingParcelow;
+  });
 
   const realOrders = visibleOrders.filter(order => order.payment_method !== 'manual');
   const signatureOrders = visibleOrders.filter(order => order.payment_method === 'manual');
