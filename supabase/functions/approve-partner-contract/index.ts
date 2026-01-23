@@ -12,6 +12,116 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+async function sendPartnerAdminNotification(acceptance: any, application: any, supabase: any) {
+  const adminEmail = "adm@migmainc.com";
+  console.log(`[Admin Notification] Preparing admin notification for partner acceptance ${acceptance.id}`);
+
+  try {
+    if (!acceptance.contract_pdf_path) {
+      console.log("[Admin Notification] No PDF found to attach. Skipping admin email.");
+      return;
+    }
+
+    const attachments = [{
+      filename: `PartnerContract_${application.full_name.replace(/\s+/g, '_')}.pdf`,
+      path: acceptance.contract_pdf_path,
+      bucket: 'contracts'
+    }];
+
+    const emailHtml = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+      </head>
+      <body style="margin: 0; padding: 0; font-family: 'Plus Jakarta Sans', sans-serif; background-color: #000000; color: #ffffff;">
+        <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background-color: #000000;">
+          <tr>
+            <td align="center" style="padding: 30px 20px;">
+              <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="600" style="max-width: 600px; background-color: #0a0a0a; border: 1px solid #CE9F48; border-radius: 12px; overflow: hidden;">
+                <tr>
+                  <td align="center" style="padding: 30px; background-color: #000000; border-bottom: 1px solid #1a1a1a;">
+                    <img src="https://ekxftwrjvxtpnqbraszv.supabase.co/storage/v1/object/public/logo/logo2.png" alt="MIGMA Logo" width="150" style="display: block;">
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding: 40px;">
+                    <h2 style="margin: 0 0 25px 0; font-size: 22px; color: #F3E196; text-align: center; text-transform: uppercase; letter-spacing: 2px;">
+                      New Partner Contract Approved
+                    </h2>
+                    
+                    <div style="background-color: #111111; border-radius: 8px; padding: 25px; border-left: 4px solid #CE9F48; margin-bottom: 30px;">
+                      <p style="margin: 0 0 12px 0; font-size: 14px; color: #888; text-transform: uppercase;">Partner Details</p>
+                      <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
+                        <tr>
+                          <td width="40%" style="padding: 8px 0; color: #CE9F48; font-weight: 600;">Partner:</td>
+                          <td style="padding: 8px 0; color: #e0e0e0;">${application.full_name}</td>
+                        </tr>
+                        <tr>
+                          <td style="padding: 8px 0; color: #CE9F48; font-weight: 600;">Email:</td>
+                          <td style="padding: 8px 0; color: #e0e0e0;">${application.email}</td>
+                        </tr>
+                        <tr>
+                          <td style="padding: 8px 0; color: #CE9F48; font-weight: 600;">Date:</td>
+                          <td style="padding: 8px 0; color: #e0e0e0;">${new Date().toUTCString()}</td>
+                        </tr>
+                      </table>
+                    </div>
+
+                    <p style="font-size: 15px; line-height: 1.6; color: #cccccc; margin: 0 0 20px 0; text-align: center;">
+                      The signed partner contract is attached to this notification for administrative recording.
+                    </p>
+                  </td>
+                </tr>
+                <tr>
+                  <td align="center" style="padding: 20px; background-color: #000000; border-top: 1px solid #1a1a1a;">
+                    <p style="margin: 0; font-size: 10px; color: #555; text-transform: uppercase; letter-spacing: 1px;">
+                      © 2026 MIGMA GLOBAL • Internal Notification
+                    </p>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+        </table>
+      </body>
+      </html>
+    `;
+
+    const { data: emailData, error: emailError } = await supabase.functions.invoke('send-email-with-attachment', {
+      body: {
+        to: adminEmail,
+        subject: `[PARTNER APPROVED] ${application.full_name}`,
+        html: emailHtml,
+        attachments: attachments
+      },
+    });
+
+    if (emailError || (emailData && emailData.error)) {
+      console.error("[Admin Notification] Error invoking send-email-with-attachment:", emailError || emailData.error);
+    } else {
+      console.log("[Admin Notification] Admin email sent successfully with attachment");
+
+      // Update the flag in the database
+      const { error: updateFlagError } = await supabase
+        .from('partner_terms_acceptances')
+        .update({
+          admin_email_sent: true,
+          admin_email_sent_at: new Date().toISOString()
+        })
+        .eq('id', acceptance.id);
+
+      if (updateFlagError) {
+        console.warn("[Admin Notification] Error updating admin_email_sent flag:", updateFlagError);
+      }
+    }
+  } catch (error) {
+    console.error("[Admin Notification] Unexpected error:", error);
+  }
+}
+
 Deno.serve(async (req) => {
   // Handle CORS
   if (req.method === "OPTIONS") {
@@ -281,6 +391,28 @@ Deno.serve(async (req) => {
     }
 
     console.log("[EDGE FUNCTION] Partner contract approved successfully");
+
+    // Send Admin Notification Email with PDF Attachment
+    try {
+      // Fetch fresh acceptance data to ensure we have the latest PDF path
+      const { data: freshAcceptance } = await supabase
+        .from('partner_terms_acceptances')
+        .select('*')
+        .eq('id', acceptance_id)
+        .single();
+
+      const { data: appData } = await supabase
+        .from('global_partner_applications')
+        .select('email, full_name')
+        .eq('id', freshAcceptance.application_id)
+        .single();
+
+      if (freshAcceptance && appData) {
+        await sendPartnerAdminNotification(freshAcceptance, appData, supabase);
+      }
+    } catch (err) {
+      console.error("[Admin Notification] Execution error:", err);
+    }
 
     return new Response(
       JSON.stringify({
