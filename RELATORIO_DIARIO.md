@@ -72,3 +72,22 @@ Otimização da listagem de ordens de visto para ignorar automaticamente checkou
 *   **Interface Limpa**: Foco total em clientes que realmente iniciaram o processo de pagamento.
 
 ---
+
+## [23/01/2026] - Sincronização e Correção de Contadores do Dashboard
+
+### Descrição da Tarefa
+Correção da discrepância entre o número exibido no alerta de "Contratos Pendentes" e a quantidade real de contratos visíveis no dashboard.
+
+### O que foi feito:
+1.  **Refatoração da Lógica de Contagem**:
+    *   O contador global (`loadPendingContractApprovals`) foi atualizado para aplicar os mesmos filtros de segurança da listagem.
+    *   Exclusão de "vendas fantasmas" da Parcelow (status `Open` ou `Waiting Payment`) que inflavam o contador.
+2.  **Consistência de Dados**:
+    *   Garantia de que o número exibido no badge de alerta condiz 100% com os registros que aguardam ação humana real.
+    *   Integração do filtro de "pedidos ocultos" no cálculo estatístico.
+
+### Impacto:
+*   **Precisão**: Eliminação de notificações falsas-positivas, reduzindo a confusão do administrador.
+*   **Confiabilidade**: O dashboard agora reflete a carga de trabalho real da equipe.
+
+---
