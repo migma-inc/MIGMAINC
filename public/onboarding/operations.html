@@ -1,0 +1,3595 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Guia de Onboarding para Gestor de Operações de Pipeline - MIGMA INC. O motor por trás das agências de vistos e imigração dos EUA.">
+    <meta name="author" content="MIGMA INC">
+    <meta name="robots" content="noindex, nofollow">
+    
+    <!-- Open Graph -->
+    <meta property="og:title" content="Onboarding | Gestor de Operações | MIGMA INC">
+    <meta property="og:description" content="Guia completo de onboarding para o cargo de Gestor de Operações de Pipeline na MIGMA INC.">
+    <meta property="og:type" content="website">
+    <meta property="og:locale" content="pt_BR">
+    
+    <!-- Theme Color -->
+    <meta name="theme-color" content="#000000">
+    <meta name="msapplication-TileColor" content="#000000">
+    
+    <title>Onboarding | Gestor de Operações | MIGMA INC</title>
+    
+    <!-- Favicon SVG Inline -->
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' stop-color='%23F5E6C8'/%3E%3Cstop offset='50%25' stop-color='%23D4AF37'/%3E%3Cstop offset='100%25' stop-color='%23BFA02E'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='32' height='32' fill='%23000'/%3E%3Ctext x='50%25' y='58%25' dominant-baseline='middle' text-anchor='middle' font-family='Georgia,serif' font-size='18' font-weight='bold' fill='url(%23g)'%3EM%3C/text%3E%3C/svg%3E">
+    
+    <!-- Preconnect for Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    
+    <!-- Fonts with display=swap for performance -->
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Phosphor Icons (lightweight) -->
+    <link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.0.3/src/regular/style.css">
+    
+    <style>
+        /* ============================================
+           MIGMA INC - Onboarding v8.0 FINAL
+           Nota 100 Real - Janeiro 2026
+        ============================================ */
+
+        :root {
+            /* Gold Palette - Premium */
+            --gold-50: #FFFEF9;
+            --gold-100: #FDF6E3;
+            --gold-200: #F5E6C8;
+            --gold-300: #E8D4A8;
+            --gold-400: #D4AF37;
+            --gold-500: #BFA02E;
+            --gold-600: #A68B1E;
+            --gold-700: #8B7419;
+            
+            /* Gradients */
+            --gold-gradient: linear-gradient(135deg, #D4AF37 0%, #F5E6C8 25%, #D4AF37 50%, #BFA02E 75%, #D4AF37 100%);
+            --gold-gradient-text: linear-gradient(90deg, #F5E6C8 0%, #D4AF37 50%, #F5E6C8 100%);
+            --gold-glow: 0 0 40px rgba(212, 175, 55, 0.15), 0 0 80px rgba(212, 175, 55, 0.1);
+            --gold-glow-strong: 0 0 60px rgba(212, 175, 55, 0.25), 0 0 120px rgba(212, 175, 55, 0.15);
+            
+            /* Blacks */
+            --black-pure: #000000;
+            --black-rich: #030303;
+            --black-card: #080808;
+            --black-elevated: #0c0c0c;
+            --black-hover: #101010;
+            
+            /* Status Colors */
+            --success: #22C55E;
+            --success-glow: rgba(34, 197, 94, 0.2);
+            --success-bg: rgba(34, 197, 94, 0.08);
+            --warning: #EAB308;
+            --warning-glow: rgba(234, 179, 8, 0.2);
+            --warning-bg: rgba(234, 179, 8, 0.08);
+            --danger: #EF4444;
+            --danger-glow: rgba(239, 68, 68, 0.2);
+            --danger-bg: rgba(239, 68, 68, 0.08);
+            --info: #3B82F6;
+            --info-bg: rgba(59, 130, 246, 0.08);
+            
+            /* Borders */
+            --border-subtle: rgba(212, 175, 55, 0.06);
+            --border-light: rgba(212, 175, 55, 0.1);
+            --border-medium: rgba(212, 175, 55, 0.18);
+            --border-strong: rgba(212, 175, 55, 0.35);
+            
+            /* Typography */
+            --font-display: 'Playfair Display', Georgia, serif;
+            --font-body: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            
+            /* Animation Curves */
+            --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+            --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
+            --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+            
+            /* Spacing */
+            --section-padding: clamp(3rem, 8vw, 5rem);
+            --container-padding: clamp(1.25rem, 4vw, 2rem);
+        }
+
+        /* ========== RESET ========== */
+        *, *::before, *::after {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html {
+            scroll-behavior: smooth;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+            text-rendering: optimizeLegibility;
+        }
+
+        body {
+            font-family: var(--font-body);
+            background: var(--black-pure);
+            color: var(--gold-300);
+            line-height: 1.7;
+            font-size: 15px;
+            font-weight: 400;
+            overflow-x: hidden;
+            min-height: 100vh;
+        }
+
+        ::selection {
+            background: var(--gold-400);
+            color: var(--black-pure);
+        }
+
+        :focus-visible {
+            outline: 2px solid var(--gold-400);
+            outline-offset: 2px;
+        }
+
+        /* Skip Link for Accessibility */
+        .skip-link {
+            position: absolute;
+            top: -100px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: var(--gold-400);
+            color: var(--black-pure);
+            padding: 0.75rem 1.5rem;
+            font-weight: 600;
+            z-index: 99999;
+            transition: top 0.3s ease;
+        }
+        .skip-link:focus {
+            top: 10px;
+        }
+
+        /* ========== BACKGROUND EFFECTS ========== */
+        .bg-effects {
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            z-index: -1;
+        }
+
+        .bg-gradient {
+            position: absolute;
+            inset: 0;
+            background: 
+                radial-gradient(ellipse 100% 70% at 50% -30%, rgba(212, 175, 55, 0.08) 0%, transparent 60%),
+                radial-gradient(ellipse 80% 50% at 0% 50%, rgba(212, 175, 55, 0.03) 0%, transparent 50%),
+                radial-gradient(ellipse 80% 50% at 100% 50%, rgba(212, 175, 55, 0.03) 0%, transparent 50%);
+        }
+
+        .bg-noise {
+            position: absolute;
+            inset: 0;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 512 512' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.7' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+            opacity: 0.015;
+        }
+
+        .bg-grid {
+            position: absolute;
+            inset: 0;
+            background-image: 
+                linear-gradient(rgba(212, 175, 55, 0.02) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(212, 175, 55, 0.02) 1px, transparent 1px);
+            background-size: 60px 60px;
+            mask-image: radial-gradient(ellipse 80% 60% at 50% 30%, black 0%, transparent 70%);
+        }
+
+        /* ========== PROGRESS SYSTEM ========== */
+        .progress-bar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: rgba(212, 175, 55, 0.1);
+            z-index: 10001;
+        }
+
+        .progress-bar-fill {
+            height: 100%;
+            width: 0;
+            background: var(--gold-gradient);
+            box-shadow: 0 0 20px rgba(212, 175, 55, 0.5);
+            transition: width 0.15s ease-out;
+        }
+
+        .progress-widget {
+            position: fixed;
+            bottom: 1.5rem;
+            right: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            padding: 0.875rem 1.25rem;
+            background: rgba(8, 8, 8, 0.95);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid var(--border-light);
+            z-index: 10000;
+            cursor: pointer;
+            transition: all 0.4s var(--ease-out-expo);
+        }
+
+        .progress-widget:hover {
+            border-color: var(--gold-400);
+            transform: translateY(-4px);
+            box-shadow: var(--gold-glow);
+        }
+
+        .progress-ring-wrap {
+            position: relative;
+            width: 44px;
+            height: 44px;
+        }
+
+        .progress-ring {
+            transform: rotate(-90deg);
+            width: 100%;
+            height: 100%;
+        }
+
+        .progress-ring circle {
+            fill: none;
+            stroke-width: 2.5;
+        }
+
+        .progress-ring .ring-bg {
+            stroke: rgba(212, 175, 55, 0.1);
+        }
+
+        .progress-ring .ring-fill {
+            stroke: var(--gold-400);
+            stroke-linecap: round;
+            stroke-dasharray: 126;
+            stroke-dashoffset: 126;
+            transition: stroke-dashoffset 0.4s var(--ease-out-expo);
+        }
+
+        .progress-percent {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: var(--font-display);
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: var(--gold-400);
+        }
+
+        .progress-info {
+            display: flex;
+            flex-direction: column;
+            gap: 0.15rem;
+        }
+
+        .progress-label {
+            font-size: 0.55rem;
+            letter-spacing: 0.2em;
+            text-transform: uppercase;
+            color: var(--gold-600);
+        }
+
+        .progress-section {
+            font-family: var(--font-display);
+            font-size: 0.85rem;
+            color: var(--gold-200);
+            max-width: 100px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        /* Print Button */
+        .print-btn {
+            position: fixed;
+            bottom: 1.5rem;
+            left: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.75rem 1rem;
+            background: rgba(8, 8, 8, 0.95);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid var(--border-light);
+            color: var(--gold-400);
+            font-size: 0.65rem;
+            font-weight: 500;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            cursor: pointer;
+            z-index: 10000;
+            transition: all 0.4s var(--ease-out-expo);
+        }
+
+        .print-btn:hover {
+            border-color: var(--gold-400);
+            color: var(--gold-200);
+            transform: translateY(-4px);
+            box-shadow: var(--gold-glow);
+        }
+
+        .print-btn i {
+            font-size: 1rem;
+        }
+        /* ========== HEADER ========== */
+        header {
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            padding: 3rem var(--container-padding);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .header-glow {
+            position: absolute;
+            width: 600px;
+            height: 600px;
+            border-radius: 50%;
+            background: radial-gradient(circle, rgba(212, 175, 55, 0.1) 0%, transparent 70%);
+            filter: blur(80px);
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            animation: headerPulse 8s ease-in-out infinite;
+            pointer-events: none;
+        }
+
+        @keyframes headerPulse {
+            0%, 100% { opacity: 0.6; transform: translate(-50%, -50%) scale(1); }
+            50% { opacity: 1; transform: translate(-50%, -50%) scale(1.1); }
+        }
+
+        .logo {
+            position: relative;
+            font-family: var(--font-body);
+            font-size: clamp(1rem, 2.5vw, 1.25rem);
+            font-weight: 700;
+            letter-spacing: 0.4em;
+            background: var(--gold-gradient-text);
+            background-size: 200% 100%;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 2.5rem;
+            animation: shimmer 3s ease-in-out infinite, fadeUp 0.8s var(--ease-out-expo);
+        }
+
+        @keyframes shimmer {
+            0%, 100% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+        }
+
+        .hero-meta {
+            display: flex;
+            align-items: center;
+            gap: 1.5rem;
+            margin-bottom: 1.75rem;
+            flex-wrap: wrap;
+            justify-content: center;
+            animation: fadeUp 0.8s var(--ease-out-expo) 0.1s both;
+        }
+
+        .hero-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.6rem;
+            padding: 0.6rem 1.25rem;
+            background: rgba(34, 197, 94, 0.08);
+            border: 1px solid rgba(34, 197, 94, 0.2);
+            border-radius: 100px;
+        }
+
+        .hero-badge-dot {
+            width: 6px;
+            height: 6px;
+            background: var(--success);
+            border-radius: 50%;
+            box-shadow: 0 0 10px var(--success);
+            animation: pulse 2s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; box-shadow: 0 0 10px var(--success); }
+            50% { opacity: 0.6; box-shadow: 0 0 20px var(--success); }
+        }
+
+        .hero-badge-text {
+            font-size: 0.65rem;
+            letter-spacing: 0.15em;
+            text-transform: uppercase;
+            color: var(--success);
+        }
+
+        .hero-reading-time {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 1rem;
+            background: rgba(212, 175, 55, 0.05);
+            border: 1px solid var(--border-subtle);
+            border-radius: 100px;
+            font-size: 0.65rem;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            color: var(--gold-500);
+        }
+
+        .hero-reading-time i {
+            font-size: 0.9rem;
+            color: var(--gold-400);
+        }
+
+        .hero-title {
+            font-family: var(--font-display);
+            font-size: clamp(2.5rem, 7vw, 4.5rem);
+            font-weight: 500;
+            font-style: italic;
+            color: var(--gold-100);
+            line-height: 1.15;
+            margin-bottom: 1.25rem;
+            animation: fadeUp 0.8s var(--ease-out-expo) 0.2s both;
+        }
+
+        .hero-subtitle {
+            font-size: clamp(1rem, 2.5vw, 1.15rem);
+            color: var(--gold-400);
+            max-width: 550px;
+            margin-bottom: 2rem;
+            animation: fadeUp 0.8s var(--ease-out-expo) 0.3s both;
+        }
+
+        .hero-subtitle strong {
+            color: var(--gold-200);
+            font-weight: 500;
+        }
+
+        .hero-role {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.875rem;
+            padding: 1rem 2rem;
+            background: linear-gradient(135deg, rgba(212, 175, 55, 0.08) 0%, rgba(212, 175, 55, 0.02) 100%);
+            border: 1px solid var(--border-medium);
+            margin-bottom: 2.5rem;
+            animation: fadeUp 0.8s var(--ease-out-expo) 0.4s both;
+            transition: all 0.4s var(--ease-out-expo);
+        }
+
+        .hero-role:hover {
+            border-color: var(--gold-400);
+            box-shadow: var(--gold-glow);
+            transform: translateY(-2px);
+        }
+
+        .hero-role i {
+            font-size: 1.5rem;
+            color: var(--gold-400);
+        }
+
+        .hero-role-text {
+            font-family: var(--font-display);
+            font-size: clamp(1rem, 2vw, 1.2rem);
+            color: var(--gold-200);
+        }
+
+        .hero-stats {
+            display: flex;
+            gap: clamp(1.5rem, 4vw, 3rem);
+            flex-wrap: wrap;
+            justify-content: center;
+            animation: fadeUp 0.8s var(--ease-out-expo) 0.5s both;
+        }
+
+        .hero-stat {
+            text-align: center;
+            padding: 0.5rem;
+        }
+
+        .hero-stat-value {
+            font-family: var(--font-display);
+            font-size: clamp(2rem, 5vw, 3rem);
+            font-weight: 600;
+            background: var(--gold-gradient-text);
+            background-size: 200% 100%;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .hero-stat-label {
+            font-size: 0.6rem;
+            letter-spacing: 0.2em;
+            text-transform: uppercase;
+            color: var(--gold-500);
+            margin-top: 0.25rem;
+        }
+
+        .scroll-indicator {
+            position: absolute;
+            bottom: 2.5rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.6rem;
+            animation: float 3s ease-in-out infinite;
+        }
+
+        .scroll-text {
+            font-size: 0.55rem;
+            letter-spacing: 0.3em;
+            text-transform: uppercase;
+            color: var(--gold-500);
+        }
+
+        .scroll-arrow {
+            width: 1px;
+            height: 40px;
+            background: linear-gradient(to bottom, var(--gold-400), transparent);
+            position: relative;
+        }
+
+        .scroll-arrow::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 50%;
+            width: 8px;
+            height: 8px;
+            border-right: 1px solid var(--gold-400);
+            border-bottom: 1px solid var(--gold-400);
+            transform: translateX(-50%) rotate(45deg);
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0); opacity: 1; }
+            50% { transform: translateY(8px); opacity: 0.7; }
+        }
+
+        @keyframes fadeUp {
+            from { opacity: 0; transform: translateY(30px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* ========== NAVIGATION ========== */
+        nav {
+            position: sticky;
+            top: 2px;
+            background: rgba(0, 0, 0, 0.9);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border-bottom: 1px solid var(--border-subtle);
+            z-index: 1000;
+        }
+
+        .nav-container {
+            position: relative;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .nav-fade-left,
+        .nav-fade-right {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            width: 40px;
+            pointer-events: none;
+            z-index: 2;
+        }
+
+        .nav-fade-left {
+            left: 0;
+            background: linear-gradient(to right, rgba(0, 0, 0, 0.95), transparent);
+        }
+
+        .nav-fade-right {
+            right: 0;
+            background: linear-gradient(to left, rgba(0, 0, 0, 0.95), transparent);
+        }
+
+        .nav-inner {
+            display: flex;
+            justify-content: center;
+            gap: 0.25rem;
+            padding: 0.5rem 2rem;
+            overflow-x: auto;
+            scrollbar-width: none;
+            -ms-overflow-style: none;
+        }
+
+        .nav-inner::-webkit-scrollbar {
+            display: none;
+        }
+
+        .nav-link {
+            position: relative;
+            padding: 0.65rem 1rem;
+            color: var(--gold-500);
+            text-decoration: none;
+            font-size: 0.6rem;
+            font-weight: 500;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            white-space: nowrap;
+            transition: color 0.3s ease;
+        }
+
+        .nav-link::before {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 50%;
+            width: 0;
+            height: 1px;
+            background: var(--gold-400);
+            transform: translateX(-50%);
+            transition: width 0.3s var(--ease-out-expo);
+        }
+
+        .nav-link:hover,
+        .nav-link.active {
+            color: var(--gold-200);
+        }
+
+        .nav-link:hover::before,
+        .nav-link.active::before {
+            width: 50%;
+        }
+
+        .nav-link:focus-visible {
+            outline: none;
+            color: var(--gold-200);
+        }
+
+        .nav-link:focus-visible::before {
+            width: 70%;
+        }
+        /* ========== MAIN CONTENT ========== */
+        main {
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 0 var(--container-padding);
+        }
+
+        section {
+            padding: var(--section-padding) 0;
+        }
+
+        .section-header {
+            margin-bottom: 2rem;
+        }
+
+        .section-label {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.75rem;
+            font-size: 0.55rem;
+            font-weight: 600;
+            letter-spacing: 0.35em;
+            text-transform: uppercase;
+            color: var(--gold-500);
+            margin-bottom: 0.75rem;
+        }
+
+        .section-label::before {
+            content: '';
+            width: 20px;
+            height: 1px;
+            background: linear-gradient(to right, var(--gold-500), transparent);
+        }
+
+        .section-title {
+            font-family: var(--font-display);
+            font-size: clamp(1.75rem, 5vw, 2.5rem);
+            font-weight: 500;
+            color: var(--gold-100);
+            line-height: 1.2;
+            margin-bottom: 0.5rem;
+        }
+
+        .section-desc {
+            font-size: 0.95rem;
+            color: var(--gold-400);
+            max-width: 480px;
+        }
+
+        /* ========== QUOTE BLOCK ========== */
+        .quote {
+            position: relative;
+            padding: 2rem 2.5rem;
+            margin: 2rem 0;
+            background: linear-gradient(135deg, rgba(212, 175, 55, 0.04) 0%, transparent 100%);
+            border-left: 2px solid var(--gold-400);
+        }
+
+        .quote::before {
+            content: '"';
+            position: absolute;
+            top: 0.5rem;
+            left: 1rem;
+            font-family: var(--font-display);
+            font-size: 4rem;
+            color: rgba(212, 175, 55, 0.1);
+            line-height: 1;
+        }
+
+        .quote p {
+            font-size: 1.05rem;
+            color: var(--gold-200);
+            line-height: 1.85;
+        }
+
+        .quote p + p {
+            margin-top: 0.875rem;
+        }
+
+        .quote strong {
+            color: var(--gold-100);
+            font-weight: 600;
+        }
+
+        .quote-author {
+            margin-top: 1.25rem;
+            font-size: 0.85rem;
+            font-style: italic;
+            color: var(--gold-500);
+        }
+
+        /* ========== MISSION BLOCK ========== */
+        .mission {
+            text-align: center;
+            padding: 2.5rem;
+            margin: 2rem 0;
+            background: linear-gradient(135deg, rgba(212, 175, 55, 0.06) 0%, rgba(212, 175, 55, 0.02) 100%);
+            border: 1px solid var(--border-medium);
+            position: relative;
+        }
+
+        .mission::before {
+            content: '';
+            position: absolute;
+            top: -1px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 60px;
+            height: 1px;
+            background: var(--gold-gradient);
+        }
+
+        .mission-icon {
+            font-size: 1.75rem;
+            margin-bottom: 0.75rem;
+            color: var(--gold-400);
+        }
+
+        .mission-title {
+            font-family: var(--font-display);
+            font-size: 1.15rem;
+            font-style: italic;
+            color: var(--gold-200);
+            margin-bottom: 0.75rem;
+        }
+
+        .mission-text {
+            font-size: 1.05rem;
+            color: var(--gold-300);
+            max-width: 550px;
+            margin: 0 auto;
+        }
+
+        .mission-text strong {
+            color: var(--gold-200);
+        }
+
+        /* ========== ABOUT GRID ========== */
+        .about-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 1rem;
+            margin: 2rem 0;
+        }
+
+        .about-card {
+            padding: 1.5rem;
+            background: var(--black-card);
+            border: 1px solid var(--border-subtle);
+            transition: all 0.4s var(--ease-out-expo);
+        }
+
+        .about-card:hover {
+            border-color: var(--border-medium);
+            transform: translateY(-2px);
+        }
+
+        .about-card:focus-within {
+            border-color: var(--gold-400);
+        }
+
+        .about-card-icon {
+            font-size: 1.5rem;
+            margin-bottom: 0.75rem;
+            color: var(--gold-400);
+        }
+
+        .about-card-title {
+            font-family: var(--font-display);
+            font-size: 1.05rem;
+            color: var(--gold-200);
+            margin-bottom: 0.625rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .about-card-text {
+            font-size: 0.85rem;
+            color: var(--gold-400);
+            line-height: 1.6;
+        }
+
+        /* ========== PIPELINE FLOW ========== */
+        .pipeline-section {
+            margin: 2.5rem 0;
+            padding: 2rem;
+            background: var(--black-card);
+            border: 1px solid var(--border-subtle);
+        }
+
+        .pipeline-title {
+            font-family: var(--font-display);
+            font-size: 1.1rem;
+            color: var(--gold-200);
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+
+        /* Desktop Pipeline */
+        .pipeline-flow {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0;
+            position: relative;
+        }
+
+        .pipeline-step {
+            flex: 1;
+            max-width: 140px;
+            text-align: center;
+            padding: 1rem 0.5rem;
+            position: relative;
+            z-index: 1;
+        }
+
+        .pipeline-icon {
+            width: 50px;
+            height: 50px;
+            margin: 0 auto 0.75rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.35rem;
+            background: var(--black-elevated);
+            border: 1px solid var(--border-medium);
+            color: var(--gold-400);
+            transition: all 0.4s var(--ease-out-expo);
+        }
+
+        .pipeline-step:hover .pipeline-icon {
+            border-color: var(--gold-400);
+            box-shadow: var(--gold-glow);
+            transform: scale(1.1);
+        }
+
+        .pipeline-name {
+            font-family: var(--font-display);
+            font-size: 0.9rem;
+            color: var(--gold-200);
+            margin-bottom: 0.25rem;
+        }
+
+        .pipeline-desc {
+            font-size: 0.65rem;
+            color: var(--gold-500);
+        }
+
+        .pipeline-connector {
+            width: 30px;
+            height: 1px;
+            background: linear-gradient(90deg, var(--gold-400), rgba(212, 175, 55, 0.3));
+            position: relative;
+            flex-shrink: 0;
+        }
+
+        .pipeline-connector::after {
+            content: '→';
+            position: absolute;
+            right: -2px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 0.75rem;
+            color: var(--gold-400);
+        }
+
+        /* Mobile Pipeline */
+        .pipeline-flow-mobile {
+            display: none;
+            flex-direction: column;
+            gap: 0;
+        }
+
+        .pipeline-step-mobile {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            padding: 1rem 0;
+            position: relative;
+        }
+
+        .pipeline-step-mobile::before {
+            content: '';
+            position: absolute;
+            left: 24px;
+            top: 60px;
+            bottom: -1rem;
+            width: 1px;
+            background: linear-gradient(to bottom, var(--gold-400), rgba(212, 175, 55, 0.2));
+        }
+
+        .pipeline-step-mobile:last-child::before {
+            display: none;
+        }
+
+        .pipeline-icon-mobile {
+            width: 50px;
+            height: 50px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.25rem;
+            background: var(--black-elevated);
+            border: 1px solid var(--border-medium);
+            flex-shrink: 0;
+            z-index: 1;
+            color: var(--gold-400);
+        }
+
+        .pipeline-info-mobile {
+            flex: 1;
+        }
+
+        .pipeline-name-mobile {
+            font-family: var(--font-display);
+            font-size: 1rem;
+            color: var(--gold-200);
+        }
+
+        .pipeline-desc-mobile {
+            font-size: 0.75rem;
+            color: var(--gold-500);
+        }
+
+        /* Pipeline Highlight Card */
+        .pipeline-highlight {
+            padding: 1.5rem;
+            text-align: center;
+            margin-top: 1rem;
+            background: linear-gradient(135deg, rgba(212, 175, 55, 0.06) 0%, rgba(212, 175, 55, 0.02) 100%);
+            border: 1px solid var(--border-medium);
+        }
+
+        .pipeline-highlight p {
+            font-size: 0.95rem;
+            color: var(--gold-200);
+        }
+
+        .pipeline-highlight strong {
+            color: var(--gold-100);
+        }
+        /* ========== RESPONSIBILITIES GRID ========== */
+        .resp-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 1rem;
+            margin-top: 2rem;
+        }
+
+        .resp-card {
+            padding: 1.5rem;
+            background: var(--black-card);
+            border: 1px solid var(--border-subtle);
+            transition: all 0.4s var(--ease-out-expo);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .resp-card::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 3px;
+            height: 0;
+            background: var(--gold-gradient);
+            transition: height 0.4s var(--ease-out-expo);
+        }
+
+        .resp-card:hover {
+            border-color: var(--border-medium);
+            transform: translateY(-3px);
+        }
+
+        .resp-card:hover::after {
+            height: 100%;
+        }
+
+        .resp-card:focus-within {
+            border-color: var(--gold-400);
+        }
+
+        .resp-icon {
+            font-size: 1.5rem;
+            margin-bottom: 0.875rem;
+            color: var(--gold-400);
+        }
+
+        .resp-title {
+            font-family: var(--font-display);
+            font-size: 1.05rem;
+            color: var(--gold-200);
+            margin-bottom: 0.5rem;
+        }
+
+        .resp-desc {
+            font-size: 0.8rem;
+            color: var(--gold-400);
+            line-height: 1.55;
+            margin-bottom: 0.875rem;
+        }
+
+        .resp-tools {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.35rem;
+        }
+
+        .tool-tag {
+            font-size: 0.5rem;
+            font-weight: 500;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+            padding: 0.25rem 0.5rem;
+            background: rgba(212, 175, 55, 0.05);
+            border: 1px solid var(--border-subtle);
+            color: var(--gold-400);
+            transition: all 0.3s ease;
+        }
+
+        .resp-card:hover .tool-tag {
+            border-color: var(--border-medium);
+        }
+
+        /* ========== KPIs ========== */
+        .kpi-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 1rem;
+            margin-top: 2rem;
+        }
+
+        .kpi-card {
+            padding: 1.5rem;
+            background: var(--black-card);
+            border: 1px solid var(--border-subtle);
+            transition: all 0.4s var(--ease-out-expo);
+        }
+
+        .kpi-card:hover {
+            border-color: var(--border-medium);
+            transform: translateY(-3px);
+        }
+
+        .kpi-header {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            margin-bottom: 1rem;
+        }
+
+        .kpi-indicator {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+
+        .kpi-indicator.critical {
+            background: var(--danger);
+            box-shadow: 0 0 12px var(--danger-glow);
+            animation: kpiPulse 2s ease-in-out infinite;
+        }
+
+        .kpi-indicator.warning {
+            background: var(--warning);
+            box-shadow: 0 0 12px var(--warning-glow);
+        }
+
+        .kpi-indicator.success {
+            background: var(--success);
+            box-shadow: 0 0 12px var(--success-glow);
+        }
+
+        @keyframes kpiPulse {
+            0%, 100% { box-shadow: 0 0 12px var(--danger-glow); }
+            50% { box-shadow: 0 0 20px var(--danger-glow); }
+        }
+
+        .kpi-name {
+            font-family: var(--font-display);
+            font-size: 0.95rem;
+            color: var(--gold-200);
+        }
+
+        .kpi-value {
+            font-family: var(--font-display);
+            font-size: 2rem;
+            font-weight: 600;
+            color: var(--gold-100);
+            margin-bottom: 0.15rem;
+        }
+
+        .kpi-target {
+            font-size: 0.6rem;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            color: var(--gold-500);
+            margin-bottom: 0.75rem;
+        }
+
+        .kpi-desc {
+            font-size: 0.75rem;
+            color: var(--gold-400);
+            line-height: 1.5;
+        }
+
+        .kpi-impact {
+            margin-top: 0.75rem;
+            padding: 0.5rem 0.625rem;
+            background: var(--danger-bg);
+            border-left: 2px solid var(--danger);
+            font-size: 0.7rem;
+            color: var(--gold-400);
+        }
+
+        .kpi-impact strong {
+            color: var(--danger);
+        }
+
+        /* ========== ALERT BOX ========== */
+        .alert-box {
+            padding: 1.75rem;
+            margin: 2rem 0;
+            background: linear-gradient(135deg, var(--danger-bg) 0%, transparent 100%);
+            border: 1px solid rgba(239, 68, 68, 0.2);
+        }
+
+        .alert-header {
+            display: flex;
+            align-items: center;
+            gap: 0.875rem;
+            margin-bottom: 1rem;
+        }
+
+        .alert-icon {
+            font-size: 1.5rem;
+            color: var(--danger);
+            animation: alertPulse 2s ease-in-out infinite;
+        }
+
+        @keyframes alertPulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+        }
+
+        .alert-title {
+            font-family: var(--font-display);
+            font-size: 1.1rem;
+            color: var(--danger);
+        }
+
+        .alert-content {
+            font-size: 0.9rem;
+            color: var(--gold-300);
+            line-height: 1.7;
+        }
+
+        .alert-content strong {
+            color: var(--gold-200);
+        }
+
+        .alert-steps {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 0.5rem;
+            margin-top: 1.25rem;
+        }
+
+        .alert-step {
+            text-align: center;
+            padding: 0.875rem 0.5rem;
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(239, 68, 68, 0.1);
+        }
+
+        .alert-step-num {
+            font-family: var(--font-display);
+            font-size: 1.35rem;
+            font-weight: 600;
+            color: var(--danger);
+        }
+
+        .alert-step-text {
+            font-size: 0.65rem;
+            color: var(--gold-400);
+            margin-top: 0.25rem;
+        }
+
+        /* ========== WEEK TIMELINE ========== */
+        .week-timeline {
+            margin-top: 2rem;
+        }
+
+        .day-block {
+            background: var(--black-card);
+            border: 1px solid var(--border-subtle);
+            margin-bottom: 0.75rem;
+            overflow: hidden;
+            transition: all 0.4s var(--ease-out-expo);
+        }
+
+        .day-block:hover {
+            border-color: var(--border-light);
+        }
+
+        .day-block.open {
+            border-color: var(--gold-400);
+        }
+
+        .day-header {
+            padding: 1rem 1.5rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+            background: linear-gradient(135deg, rgba(212, 175, 55, 0.03) 0%, transparent 100%);
+            transition: background 0.3s ease;
+        }
+
+        .day-header:hover {
+            background: rgba(212, 175, 55, 0.05);
+        }
+
+        .day-header:focus-visible {
+            outline: none;
+            background: rgba(212, 175, 55, 0.08);
+        }
+
+        .day-header-left {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .day-number {
+            font-family: var(--font-display);
+            font-size: 1.75rem;
+            font-weight: 600;
+            background: var(--gold-gradient-text);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            min-width: 45px;
+        }
+
+        .day-title {
+            font-family: var(--font-display);
+            font-size: 1.05rem;
+            color: var(--gold-200);
+        }
+
+        .day-subtitle {
+            font-size: 0.7rem;
+            color: var(--gold-500);
+        }
+
+        .day-toggle {
+            width: 26px;
+            height: 26px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 1px solid var(--border-subtle);
+            color: var(--gold-400);
+            font-size: 0.7rem;
+            transition: all 0.3s var(--ease-out-expo);
+        }
+
+        .day-block.open .day-toggle {
+            transform: rotate(180deg);
+            background: var(--gold-400);
+            border-color: var(--gold-400);
+            color: var(--black-pure);
+        }
+
+        .day-content {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.5s var(--ease-out-expo);
+        }
+
+        .day-block.open .day-content {
+            max-height: 1200px;
+        }
+
+        .day-content-inner {
+            padding: 1.5rem;
+        }
+
+        .activity {
+            display: flex;
+            gap: 1rem;
+            padding: 0.875rem 0;
+            border-bottom: 1px solid var(--border-subtle);
+        }
+
+        .activity:last-child {
+            border-bottom: none;
+        }
+
+        .activity-time {
+            min-width: 70px;
+            font-family: var(--font-display);
+            font-size: 0.85rem;
+            color: var(--gold-400);
+        }
+
+        .activity-info {
+            flex: 1;
+        }
+
+        .activity-title {
+            font-size: 0.9rem;
+            color: var(--gold-200);
+            margin-bottom: 0.25rem;
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+        }
+
+        .activity-desc {
+            font-size: 0.75rem;
+            color: var(--gold-500);
+            line-height: 1.5;
+        }
+
+        .activity-tag {
+            font-size: 0.5rem;
+            font-weight: 500;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+            padding: 0.2rem 0.45rem;
+            border: 1px solid;
+        }
+
+        .activity-tag.person {
+            border-color: rgba(212, 175, 55, 0.3);
+            color: var(--gold-400);
+        }
+
+        .activity-tag.action {
+            border-color: rgba(59, 130, 246, 0.3);
+            color: var(--info);
+        }
+
+        .activity-tag.check {
+            border-color: rgba(34, 197, 94, 0.3);
+            color: var(--success);
+        }
+
+        .activity-box {
+            margin-top: 0.625rem;
+            padding: 0.625rem;
+            font-size: 0.7rem;
+        }
+
+        .activity-box.questions {
+            background: rgba(212, 175, 55, 0.03);
+            border-left: 2px solid var(--gold-400);
+        }
+
+        .activity-box.deliverable {
+            background: var(--success-bg);
+            border-left: 2px solid var(--success);
+        }
+
+        .activity-box-title {
+            font-size: 0.55rem;
+            font-weight: 600;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            margin-bottom: 0.35rem;
+        }
+
+        .activity-box.questions .activity-box-title {
+            color: var(--gold-500);
+        }
+
+        .activity-box.deliverable .activity-box-title {
+            color: var(--success);
+        }
+
+        .activity-box ul {
+            list-style: none;
+        }
+
+        .activity-box li {
+            padding: 0.15rem 0;
+            padding-left: 0.75rem;
+            position: relative;
+            color: var(--gold-300);
+        }
+
+        .activity-box li::before {
+            content: '→';
+            position: absolute;
+            left: 0;
+            color: var(--gold-500);
+        }
+        /* ========== TEAM GRID ========== */
+        .team-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 1rem;
+            margin-top: 2rem;
+        }
+
+        .team-card {
+            padding: 1.5rem;
+            background: var(--black-card);
+            border: 1px solid var(--border-subtle);
+            text-align: center;
+            transition: all 0.4s var(--ease-out-expo);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .team-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: var(--gold-gradient);
+            transform: scaleX(0);
+            transition: transform 0.4s var(--ease-out-expo);
+        }
+
+        .team-card:hover {
+            border-color: var(--border-medium);
+            transform: translateY(-4px);
+        }
+
+        .team-card:hover::before {
+            transform: scaleX(1);
+        }
+
+        .team-avatar {
+            width: 56px;
+            height: 56px;
+            border: 2px solid var(--gold-400);
+            border-radius: 50%;
+            margin: 0 auto 0.875rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: var(--font-display);
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: var(--gold-400);
+            background: rgba(212, 175, 55, 0.05);
+            transition: all 0.4s var(--ease-out-expo);
+        }
+
+        .team-card:hover .team-avatar {
+            box-shadow: 0 0 20px rgba(212, 175, 55, 0.3);
+        }
+
+        .team-name {
+            font-family: var(--font-display);
+            font-size: 1.2rem;
+            color: var(--gold-200);
+        }
+
+        .team-role {
+            font-size: 0.55rem;
+            font-weight: 600;
+            letter-spacing: 0.2em;
+            text-transform: uppercase;
+            color: var(--gold-500);
+            margin-bottom: 0.5rem;
+        }
+
+        .team-desc {
+            font-size: 0.75rem;
+            color: var(--gold-400);
+            line-height: 1.5;
+            margin-bottom: 0.75rem;
+        }
+
+        .team-contact {
+            font-size: 0.7rem;
+            color: var(--gold-300);
+            margin-bottom: 0.15rem;
+        }
+
+        .team-contact strong {
+            color: var(--gold-400);
+        }
+
+        .team-topics {
+            margin-top: 0.875rem;
+            padding-top: 0.875rem;
+            border-top: 1px solid var(--border-subtle);
+            text-align: left;
+        }
+
+        .team-topics-title {
+            font-size: 0.5rem;
+            font-weight: 600;
+            letter-spacing: 0.15em;
+            text-transform: uppercase;
+            color: var(--gold-600);
+            margin-bottom: 0.35rem;
+        }
+
+        .team-topics ul {
+            list-style: none;
+        }
+
+        .team-topics li {
+            font-size: 0.7rem;
+            color: var(--gold-400);
+            padding: 0.15rem 0;
+            padding-left: 0.75rem;
+            position: relative;
+        }
+
+        .team-topics li::before {
+            content: '→';
+            position: absolute;
+            left: 0;
+            color: var(--gold-500);
+        }
+
+        /* ========== SYSTEMS GRID ========== */
+        .systems-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 0.75rem;
+            margin-top: 2rem;
+        }
+
+        .system-card {
+            padding: 1.125rem;
+            background: var(--black-card);
+            border: 1px solid var(--border-subtle);
+            text-align: center;
+            transition: all 0.3s var(--ease-out-expo);
+        }
+
+        .system-card:hover {
+            border-color: var(--border-medium);
+            transform: translateY(-2px);
+        }
+
+        .system-icon {
+            font-size: 1.5rem;
+            margin-bottom: 0.5rem;
+            color: var(--gold-400);
+        }
+
+        .system-name {
+            font-family: var(--font-display);
+            font-size: 0.9rem;
+            color: var(--gold-200);
+            margin-bottom: 0.25rem;
+        }
+
+        .system-use {
+            font-size: 0.65rem;
+            color: var(--gold-500);
+            margin-bottom: 0.5rem;
+        }
+
+        .system-freq {
+            display: inline-block;
+            font-size: 0.5rem;
+            font-weight: 600;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+            padding: 0.2rem 0.45rem;
+        }
+
+        .system-freq.critical {
+            background: var(--danger-bg);
+            border: 1px solid rgba(239, 68, 68, 0.2);
+            color: var(--danger);
+        }
+
+        .system-freq.high {
+            background: var(--warning-bg);
+            border: 1px solid rgba(234, 179, 8, 0.2);
+            color: var(--warning);
+        }
+
+        /* ========== MATURITY TIMELINE ========== */
+        .maturity-section {
+            margin-top: 3rem;
+        }
+
+        .maturity-title {
+            font-family: var(--font-display);
+            font-size: 1.25rem;
+            color: var(--gold-200);
+            margin-bottom: 0.5rem;
+        }
+
+        .maturity-desc {
+            font-size: 0.85rem;
+            color: var(--gold-500);
+            margin-bottom: 1.5rem;
+        }
+
+        .maturity-timeline {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 0;
+            position: relative;
+        }
+
+        .maturity-timeline::before {
+            content: '';
+            position: absolute;
+            top: 23px;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: linear-gradient(to right, var(--gold-400), rgba(212, 175, 55, 0.1));
+        }
+
+        .maturity-phase {
+            text-align: center;
+            position: relative;
+            z-index: 1;
+        }
+
+        .maturity-dot {
+            width: 48px;
+            height: 48px;
+            margin: 0 auto 0.75rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: var(--font-display);
+            font-size: 1rem;
+            font-weight: 600;
+            background: var(--black-pure);
+            border: 2px solid var(--gold-400);
+            color: var(--gold-400);
+            transition: all 0.4s var(--ease-out-expo);
+        }
+
+        .maturity-phase:first-child .maturity-dot {
+            background: var(--gold-400);
+            color: var(--black-pure);
+        }
+
+        .maturity-period {
+            font-family: var(--font-display);
+            font-size: 1rem;
+            color: var(--gold-200);
+        }
+
+        .maturity-label {
+            font-size: 0.55rem;
+            font-weight: 600;
+            letter-spacing: 0.15em;
+            text-transform: uppercase;
+            color: var(--gold-500);
+            margin-bottom: 0.5rem;
+        }
+
+        .maturity-list {
+            text-align: left;
+            padding: 0.75rem;
+            background: var(--black-card);
+            border: 1px solid var(--border-subtle);
+            margin-top: 0.5rem;
+        }
+
+        .maturity-list ul {
+            list-style: none;
+        }
+
+        .maturity-list li {
+            font-size: 0.7rem;
+            color: var(--gold-400);
+            padding: 0.15rem 0;
+            padding-left: 0.625rem;
+            position: relative;
+        }
+
+        .maturity-list li::before {
+            content: '•';
+            position: absolute;
+            left: 0;
+            color: var(--gold-500);
+        }
+
+        /* ========== ROUTINE ========== */
+        .routine-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 1rem;
+            margin-top: 2rem;
+        }
+
+        .routine-card {
+            background: var(--black-card);
+            border: 1px solid var(--border-subtle);
+            overflow: hidden;
+        }
+
+        .routine-header {
+            padding: 0.875rem 1.125rem;
+            background: rgba(212, 175, 55, 0.03);
+            border-bottom: 1px solid var(--border-subtle);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .routine-icon {
+            font-size: 1rem;
+        }
+
+        .routine-title {
+            font-family: var(--font-display);
+            font-size: 1rem;
+            color: var(--gold-200);
+        }
+
+        .routine-body {
+            padding: 1rem 1.125rem;
+        }
+
+        .routine-item {
+            display: flex;
+            gap: 0.5rem;
+            padding: 0.4rem 0;
+        }
+
+        .routine-bullet {
+            width: 4px;
+            height: 4px;
+            background: var(--gold-400);
+            transform: rotate(45deg);
+            margin-top: 0.5rem;
+            flex-shrink: 0;
+        }
+
+        .routine-text strong {
+            display: block;
+            font-size: 0.8rem;
+            font-weight: 500;
+            color: var(--gold-200);
+        }
+
+        .routine-text span {
+            font-size: 0.7rem;
+            color: var(--gold-500);
+        }
+
+        /* ========== DAY EXAMPLE ========== */
+        .day-example {
+            margin: 2rem 0;
+            padding: 1.5rem;
+            background: var(--black-card);
+            border: 1px solid var(--border-subtle);
+        }
+
+        .day-example-header {
+            display: flex;
+            align-items: center;
+            gap: 0.875rem;
+            margin-bottom: 1.25rem;
+        }
+
+        .day-example-icon {
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 1px solid var(--gold-400);
+            font-size: 1rem;
+            color: var(--gold-400);
+        }
+
+        .day-example-title {
+            font-family: var(--font-display);
+            font-size: 1.1rem;
+            color: var(--gold-200);
+        }
+
+        .day-example-subtitle {
+            font-size: 0.7rem;
+            color: var(--gold-500);
+        }
+
+        .day-slots {
+            display: grid;
+            gap: 0;
+        }
+
+        .day-slot {
+            display: grid;
+            grid-template-columns: 55px 1fr;
+            gap: 0.875rem;
+            padding: 0.5rem 0;
+            border-bottom: 1px solid var(--border-subtle);
+        }
+
+        .day-slot:last-child {
+            border-bottom: none;
+        }
+
+        .day-slot-time {
+            font-family: var(--font-display);
+            font-size: 0.85rem;
+            color: var(--gold-400);
+            text-align: right;
+        }
+
+        .day-slot-activity {
+            padding-left: 0.875rem;
+            border-left: 1px solid var(--border-subtle);
+        }
+
+        .day-slot-activity strong {
+            display: block;
+            font-size: 0.8rem;
+            font-weight: 500;
+            color: var(--gold-200);
+        }
+
+        .day-slot-activity span {
+            font-size: 0.7rem;
+            color: var(--gold-500);
+        }
+
+        /* ========== GOLDEN RULES ========== */
+        .golden-rules {
+            text-align: center;
+            margin: 2.5rem 0;
+        }
+
+        .golden-rules-title {
+            font-family: var(--font-display);
+            font-size: 1.25rem;
+            color: var(--gold-200);
+            margin-bottom: 0.5rem;
+        }
+
+        .golden-rules-desc {
+            font-size: 0.85rem;
+            color: var(--gold-500);
+            margin-bottom: 1.25rem;
+        }
+
+        .rules-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 0;
+        }
+
+        .rule {
+            padding: 1.25rem 0.875rem;
+            border: 1px solid var(--border-subtle);
+            transition: all 0.3s ease;
+        }
+
+        .rule:hover {
+            background: rgba(212, 175, 55, 0.02);
+            border-color: var(--border-medium);
+        }
+
+        .rule-num {
+            font-family: var(--font-display);
+            font-size: 1.75rem;
+            font-weight: 600;
+            background: var(--gold-gradient-text);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .rule-title {
+            font-family: var(--font-display);
+            font-size: 0.95rem;
+            color: var(--gold-200);
+            margin: 0.25rem 0;
+        }
+
+        .rule-desc {
+            font-size: 0.7rem;
+            color: var(--gold-500);
+        }
+        /* ========== FLAGS SECTION ========== */
+        .flags-section {
+            margin: 2.5rem 0;
+        }
+
+        .flags-header {
+            display: flex;
+            align-items: center;
+            gap: 0.875rem;
+            margin-bottom: 1.25rem;
+        }
+
+        .flags-icon {
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 2px solid;
+            font-size: 1.1rem;
+        }
+
+        .flags-icon.danger {
+            border-color: var(--danger);
+            color: var(--danger);
+        }
+
+        .flags-icon.success {
+            border-color: var(--success);
+            color: var(--success);
+        }
+
+        .flags-title {
+            font-family: var(--font-display);
+            font-size: 1.15rem;
+        }
+
+        .flags-title.danger {
+            color: var(--danger);
+        }
+
+        .flags-title.success {
+            color: var(--success);
+        }
+
+        .flags-subtitle {
+            font-size: 0.75rem;
+            color: var(--gold-500);
+        }
+
+        .flags-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 0.75rem;
+        }
+
+        .flag-item {
+            padding: 1rem;
+            transition: all 0.3s ease;
+        }
+
+        .flag-item.danger {
+            background: var(--danger-bg);
+            border: 1px solid rgba(239, 68, 68, 0.12);
+        }
+
+        .flag-item.danger:hover {
+            border-color: rgba(239, 68, 68, 0.3);
+            transform: translateY(-2px);
+        }
+
+        .flag-item h4 {
+            font-size: 0.8rem;
+            margin-bottom: 0.25rem;
+            display: flex;
+            align-items: center;
+            gap: 0.35rem;
+        }
+
+        .flag-item.danger h4 {
+            color: var(--danger);
+        }
+
+        .flag-item.danger h4::before {
+            content: '✕';
+            font-size: 0.65rem;
+        }
+
+        .flag-item p {
+            font-size: 0.7rem;
+            color: var(--gold-500);
+        }
+
+        /* Quick Wins */
+        .wins-list {
+            display: grid;
+            gap: 0.5rem;
+        }
+
+        .win-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 0.875rem;
+            padding: 1rem;
+            background: var(--success-bg);
+            border: 1px solid rgba(34, 197, 94, 0.12);
+            transition: all 0.3s ease;
+        }
+
+        .win-item:hover {
+            border-color: rgba(34, 197, 94, 0.3);
+            transform: translateX(6px);
+        }
+
+        .win-num {
+            width: 26px;
+            height: 26px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 1px solid var(--success);
+            font-family: var(--font-display);
+            font-size: 0.8rem;
+            color: var(--success);
+            flex-shrink: 0;
+        }
+
+        .win-content h4 {
+            font-size: 0.85rem;
+            color: var(--gold-200);
+            margin-bottom: 0.15rem;
+        }
+
+        .win-content p {
+            font-size: 0.7rem;
+            color: var(--gold-500);
+        }
+
+        /* ========== FAQ ========== */
+        .faq-list {
+            margin-top: 2rem;
+        }
+
+        .faq-item {
+            background: var(--black-card);
+            border: 1px solid var(--border-subtle);
+            margin-bottom: 0.5rem;
+            overflow: hidden;
+            transition: all 0.3s ease;
+        }
+
+        .faq-item:hover {
+            border-color: var(--border-light);
+        }
+
+        .faq-item.open {
+            border-color: var(--gold-400);
+        }
+
+        .faq-question {
+            padding: 1rem 1.25rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+            transition: background 0.3s ease;
+        }
+
+        .faq-question:hover {
+            background: rgba(212, 175, 55, 0.02);
+        }
+
+        .faq-question:focus-visible {
+            outline: none;
+            background: rgba(212, 175, 55, 0.05);
+        }
+
+        .faq-question h4 {
+            font-family: var(--font-display);
+            font-size: 0.95rem;
+            color: var(--gold-200);
+        }
+
+        .faq-toggle {
+            font-size: 0.7rem;
+            color: var(--gold-400);
+            transition: transform 0.3s var(--ease-out-expo);
+        }
+
+        .faq-item.open .faq-toggle {
+            transform: rotate(180deg);
+        }
+
+        .faq-answer {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.4s var(--ease-out-expo);
+        }
+
+        .faq-item.open .faq-answer {
+            max-height: 300px;
+        }
+
+        .faq-answer-content {
+            padding: 0 1.25rem 1.25rem;
+            font-size: 0.85rem;
+            color: var(--gold-400);
+            line-height: 1.7;
+        }
+
+        /* ========== GLOSSARY ========== */
+        .glossary-section {
+            margin-top: 3rem;
+        }
+
+        .glossary-title {
+            font-family: var(--font-display);
+            font-size: 1.25rem;
+            color: var(--gold-200);
+            margin-bottom: 0.5rem;
+        }
+
+        .glossary-desc {
+            font-size: 0.85rem;
+            color: var(--gold-500);
+            margin-bottom: 1rem;
+        }
+
+        .glossary-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 0.5rem;
+        }
+
+        .glossary-item {
+            padding: 0.875rem;
+            background: var(--black-card);
+            border: 1px solid var(--border-subtle);
+            transition: all 0.3s ease;
+        }
+
+        .glossary-item:hover {
+            border-color: var(--border-light);
+        }
+
+        .glossary-term {
+            font-family: var(--font-display);
+            font-size: 0.95rem;
+            color: var(--gold-200);
+            margin-bottom: 0.25rem;
+        }
+
+        .glossary-def {
+            font-size: 0.7rem;
+            color: var(--gold-500);
+        }
+
+        /* ========== SUCCESS CHECKLIST ========== */
+        .success-list {
+            margin-top: 2rem;
+        }
+
+        .success-item {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            padding: 1rem;
+            background: var(--black-card);
+            border: 1px solid var(--border-subtle);
+            margin-bottom: 0.5rem;
+            cursor: pointer;
+            transition: all 0.3s var(--ease-out-expo);
+            user-select: none;
+        }
+
+        .success-item:hover {
+            border-color: var(--border-medium);
+            transform: translateX(6px);
+        }
+
+        .success-item.checked {
+            border-color: var(--success);
+            background: var(--success-bg);
+        }
+
+        .success-checkbox {
+            width: 26px;
+            height: 26px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 1px solid var(--gold-400);
+            font-size: 0.8rem;
+            color: transparent;
+            flex-shrink: 0;
+            transition: all 0.3s ease;
+        }
+
+        .success-item.checked .success-checkbox {
+            background: var(--success);
+            border-color: var(--success);
+            color: var(--black-pure);
+        }
+
+        .success-text {
+            font-size: 0.9rem;
+            color: var(--gold-300);
+        }
+
+        .success-item.checked .success-text {
+            color: var(--gold-200);
+        }
+
+        /* ========== FOOTER ========== */
+        footer {
+            margin-top: 5rem;
+            padding: 3rem var(--container-padding);
+            border-top: 1px solid var(--border-subtle);
+            text-align: center;
+            position: relative;
+        }
+
+        footer::before {
+            content: '';
+            position: absolute;
+            top: -1px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 100px;
+            height: 1px;
+            background: var(--gold-gradient);
+        }
+
+        .footer-message {
+            max-width: 480px;
+            margin: 0 auto 2rem;
+        }
+
+        .footer-message h3 {
+            font-family: var(--font-display);
+            font-size: 1.35rem;
+            font-style: italic;
+            color: var(--gold-200);
+            margin-bottom: 0.625rem;
+        }
+
+        .footer-message p {
+            font-size: 0.9rem;
+            color: var(--gold-400);
+        }
+
+        .footer-logo {
+            font-family: var(--font-body);
+            font-size: 1rem;
+            font-weight: 700;
+            letter-spacing: 0.35em;
+            background: var(--gold-gradient-text);
+            background-size: 200% 100%;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            animation: shimmer 3s ease-in-out infinite;
+        }
+
+        .footer-version {
+            font-size: 0.55rem;
+            letter-spacing: 0.2em;
+            color: var(--gold-600);
+            margin-top: 0.5rem;
+        }
+
+        /* ========== ANIMATIONS ========== */
+        .animate {
+            opacity: 0;
+            transform: translateY(30px);
+            transition: all 0.8s var(--ease-out-expo);
+        }
+
+        .animate.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        /* ========== RESPONSIVE ========== */
+        @media (max-width: 900px) {
+            .maturity-timeline {
+                grid-template-columns: 1fr;
+                gap: 1.25rem;
+            }
+
+            .maturity-timeline::before {
+                display: none;
+            }
+
+            .maturity-phase {
+                text-align: left;
+                display: flex;
+                gap: 1rem;
+                align-items: flex-start;
+            }
+
+            .maturity-dot {
+                margin: 0;
+            }
+
+            .maturity-list {
+                margin-top: 0;
+                flex: 1;
+            }
+
+            .rules-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .alert-steps {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        @media (max-width: 768px) {
+            .about-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .pipeline-flow {
+                display: none;
+            }
+
+            .pipeline-flow-mobile {
+                display: flex;
+            }
+
+            .team-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .progress-widget {
+                bottom: 1rem;
+                right: 1rem;
+                padding: 0.75rem 1rem;
+            }
+
+            .progress-section {
+                max-width: 80px;
+            }
+
+            .print-btn {
+                bottom: 1rem;
+                left: 1rem;
+                padding: 0.625rem 0.875rem;
+            }
+
+            .hero-stats {
+                gap: 1.5rem;
+            }
+
+            .day-slot {
+                grid-template-columns: 50px 1fr;
+            }
+
+            .hero-meta {
+                flex-direction: column;
+                gap: 0.75rem;
+            }
+        }
+
+        @media (max-width: 600px) {
+            .rules-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .alert-steps {
+                grid-template-columns: 1fr;
+            }
+
+            .resp-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .kpi-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .systems-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .nav-link {
+                padding: 0.6rem 0.75rem;
+                font-size: 0.55rem;
+            }
+
+            header {
+                padding: 2rem 1.5rem;
+            }
+
+            .hero-role {
+                padding: 0.875rem 1.5rem;
+            }
+        }
+
+        @media (max-width: 400px) {
+            .systems-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .glossary-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .flags-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* ========== PRINT STYLES ========== */
+        @media print {
+            .bg-effects,
+            .progress-bar,
+            .progress-widget,
+            .print-btn,
+            nav,
+            .scroll-indicator {
+                display: none !important;
+            }
+
+            body {
+                background: white;
+                color: #333;
+                font-size: 12px;
+            }
+
+            header {
+                min-height: auto;
+                padding: 2rem;
+            }
+
+            section {
+                padding: 1.5rem 0;
+                page-break-inside: avoid;
+            }
+
+            .glass-card,
+            .card,
+            .kpi-card,
+            .team-card,
+            .system-card,
+            .routine-card,
+            .faq-item,
+            .glossary-item,
+            .success-item,
+            .about-card,
+            .resp-card,
+            .day-block,
+            .flag-item,
+            .win-item {
+                background: #f9f9f9 !important;
+                border-color: #ddd !important;
+                box-shadow: none !important;
+            }
+
+            .hero-title,
+            .section-title,
+            .mission-title,
+            .maturity-title,
+            .glossary-title,
+            .golden-rules-title {
+                color: #000 !important;
+            }
+
+            .day-content {
+                max-height: none !important;
+            }
+
+            .faq-answer {
+                max-height: none !important;
+            }
+
+            a {
+                color: #333;
+                text-decoration: none;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Skip Link for Accessibility -->
+    <a href="#main-content" class="skip-link">Pular para o conteúdo principal</a>
+
+    <!-- Background Effects -->
+    <div class="bg-effects" aria-hidden="true">
+        <div class="bg-gradient"></div>
+        <div class="bg-noise"></div>
+        <div class="bg-grid"></div>
+    </div>
+
+    <!-- Progress Bar -->
+    <div class="progress-bar" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
+        <div class="progress-bar-fill" id="progressFill"></div>
+    </div>
+
+    <!-- Progress Widget -->
+    <div class="progress-widget" onclick="scrollToTop()" role="button" aria-label="Voltar ao topo" tabindex="0">
+        <div class="progress-ring-wrap">
+            <svg class="progress-ring" viewBox="0 0 44 44" aria-hidden="true">
+                <circle class="ring-bg" cx="22" cy="22" r="20"/>
+                <circle class="ring-fill" id="progressRing" cx="22" cy="22" r="20"/>
+            </svg>
+            <span class="progress-percent" id="progressPercent">0%</span>
+        </div>
+        <div class="progress-info">
+            <span class="progress-label">Leitura</span>
+            <span class="progress-section" id="currentSection">Início</span>
+        </div>
+    </div>
+
+    <!-- Print Button -->
+    <button class="print-btn" onclick="window.print()" aria-label="Imprimir documento">
+        <i class="ph ph-printer"></i>
+        <span>Imprimir</span>
+    </button>
+
+    <!-- Header -->
+    <header>
+        <div class="header-glow" aria-hidden="true"></div>
+        
+        <div class="logo">MIGMA INC</div>
+
+        <div class="hero-meta">
+            <div class="hero-badge">
+                <div class="hero-badge-dot" aria-hidden="true"></div>
+                <span class="hero-badge-text">Onboarding Ativo</span>
+            </div>
+            <div class="hero-reading-time">
+                <i class="ph ph-clock" aria-hidden="true"></i>
+                <span>~15 min de leitura</span>
+            </div>
+        </div>
+
+        <h1 class="hero-title">Bem-vindo ao time.</h1>
+
+        <p class="hero-subtitle">
+            A MIGMA é o <strong>motor por trás das agências de vistos e imigração</strong>. 
+            Você será o núcleo operacional que mantém tudo funcionando.
+        </p>
+
+        <div class="hero-role">
+            <i class="ph ph-lightning" aria-hidden="true"></i>
+            <span class="hero-role-text">Gestor de Operações de Pipeline</span>
+        </div>
+
+        <div class="hero-stats">
+            <div class="hero-stat">
+                <div class="hero-stat-value">5</div>
+                <div class="hero-stat-label">Dias de Onboarding</div>
+            </div>
+            <div class="hero-stat">
+                <div class="hero-stat-value">6</div>
+                <div class="hero-stat-label">Áreas de Atuação</div>
+            </div>
+            <div class="hero-stat">
+                <div class="hero-stat-value">24h</div>
+                <div class="hero-stat-label">Máx. sem Follow-up</div>
+            </div>
+        </div>
+
+        <div class="scroll-indicator" aria-hidden="true">
+            <span class="scroll-text">Começar</span>
+            <div class="scroll-arrow"></div>
+        </div>
+    </header>
+
+    <!-- Navigation -->
+    <nav role="navigation" aria-label="Navegação do documento">
+        <div class="nav-container">
+            <div class="nav-fade-left" aria-hidden="true"></div>
+            <div class="nav-fade-right" aria-hidden="true"></div>
+            <div class="nav-inner">
+                <a href="#missao" class="nav-link">Missão</a>
+                <a href="#pipeline" class="nav-link">Pipeline</a>
+                <a href="#responsabilidades" class="nav-link">Responsabilidades</a>
+                <a href="#kpis" class="nav-link">KPIs</a>
+                <a href="#semana" class="nav-link">Primeira Semana</a>
+                <a href="#time" class="nav-link">Time</a>
+                <a href="#sistemas" class="nav-link">Sistemas</a>
+                <a href="#rotina" class="nav-link">Rotina</a>
+                <a href="#faq" class="nav-link">FAQ</a>
+                <a href="#checklist" class="nav-link">Checklist</a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main id="main-content">
+        
+        <!-- SEÇÃO 1: MISSÃO -->
+        <section id="missao" class="animate" aria-labelledby="missao-title">
+            <div class="section-header">
+                <div class="section-label">01 — Sua Missão</div>
+                <h2 class="section-title" id="missao-title">Por que você é essencial</h2>
+                <p class="section-desc">Entenda o contexto antes de entrar na operação</p>
+            </div>
+
+            <blockquote class="quote">
+                <p>A MIGMA trabalha exclusivamente com empresas do ecossistema de <strong>vistos e imigração dos EUA</strong>. Não somos apenas mais uma agência — <strong>somos o motor por trás dessas agências.</strong></p>
+                <p>Nosso pipeline é altamente automatizado, com SDRs de IA, fluxos inteligentes e integrações complexas. Quando esse sistema funciona bem, nossos clientes fecham mais negócios. Quando falha, tudo para.</p>
+                <p><strong>Você é a pessoa que garante que nada pare.</strong></p>
+                <footer class="quote-author">— Equipe MIGMA</footer>
+            </blockquote>
+
+            <div class="mission">
+                <div class="mission-icon"><i class="ph ph-lightning" aria-hidden="true"></i></div>
+                <h3 class="mission-title">Sua Declaração de Missão</h3>
+                <p class="mission-text">Garantir o <strong>fluxo contínuo de leads</strong> e a <strong>integridade das automações baseadas em IA</strong>, servindo como o elo central entre tecnologia, vendas e operações.</p>
+            </div>
+
+            <div class="about-grid">
+                <article class="about-card">
+                    <i class="ph ph-buildings about-card-icon" aria-hidden="true"></i>
+                    <h4 class="about-card-title">Sobre a MIGMA</h4>
+                    <p class="about-card-text">Empresa B2B sediada nos EUA que se integra à operação de vistos e imigração para converter mais leads, gerenciar clientes e construir a tecnologia por trás do crescimento.</p>
+                </article>
+                <article class="about-card">
+                    <i class="ph ph-target about-card-icon" aria-hidden="true"></i>
+                    <h4 class="about-card-title">Nossos Clientes</h4>
+                    <p class="about-card-text">Agências de vistos, escritórios de advocacia especializados em direito de imigração, e programas de educação/mentoria do ecossistema de imigração para os EUA.</p>
+                </article>
+            </div>
+        </section>
+
+        <!-- SEÇÃO 2: PIPELINE -->
+        <section id="pipeline" class="animate" aria-labelledby="pipeline-title">
+            <div class="section-header">
+                <div class="section-label">02 — O Pipeline</div>
+                <h2 class="section-title" id="pipeline-title">Como um lead vira cliente</h2>
+                <p class="section-desc">Visualize o fluxo que você vai gerenciar</p>
+            </div>
+
+            <div class="pipeline-section">
+                <h3 class="pipeline-title">Fluxo Completo do Lead</h3>
+
+                <!-- Desktop Pipeline -->
+                <div class="pipeline-flow" aria-label="Fluxo do pipeline em 5 etapas">
+                    <div class="pipeline-step">
+                        <div class="pipeline-icon"><i class="ph ph-envelope-simple" aria-hidden="true"></i></div>
+                        <div class="pipeline-name">Lead Entra</div>
+                        <div class="pipeline-desc">Anúncio, orgânico, indicação</div>
+                    </div>
+                    <div class="pipeline-connector" aria-hidden="true"></div>
+                    <div class="pipeline-step">
+                        <div class="pipeline-icon"><i class="ph ph-robot" aria-hidden="true"></i></div>
+                        <div class="pipeline-name">SDR de IA</div>
+                        <div class="pipeline-desc">Qualifica automaticamente</div>
+                    </div>
+                    <div class="pipeline-connector" aria-hidden="true"></div>
+                    <div class="pipeline-step">
+                        <div class="pipeline-icon"><i class="ph ph-calendar-check" aria-hidden="true"></i></div>
+                        <div class="pipeline-name">Agendamento</div>
+                        <div class="pipeline-desc">Calendly sincronizado</div>
+                    </div>
+                    <div class="pipeline-connector" aria-hidden="true"></div>
+                    <div class="pipeline-step">
+                        <div class="pipeline-icon"><i class="ph ph-handshake" aria-hidden="true"></i></div>
+                        <div class="pipeline-name">Fechador</div>
+                        <div class="pipeline-desc">Reunião de vendas</div>
+                    </div>
+                    <div class="pipeline-connector" aria-hidden="true"></div>
+                    <div class="pipeline-step">
+                        <div class="pipeline-icon"><i class="ph ph-check-circle" aria-hidden="true"></i></div>
+                        <div class="pipeline-name">Cliente</div>
+                        <div class="pipeline-desc">Integração e suporte</div>
+                    </div>
+                </div>
+
+                <!-- Mobile Pipeline -->
+                <div class="pipeline-flow-mobile" aria-label="Fluxo do pipeline em 5 etapas">
+                    <div class="pipeline-step-mobile">
+                        <div class="pipeline-icon-mobile"><i class="ph ph-envelope-simple" aria-hidden="true"></i></div>
+                        <div class="pipeline-info-mobile">
+                            <div class="pipeline-name-mobile">Lead Entra</div>
+                            <div class="pipeline-desc-mobile">Anúncio, orgânico, indicação</div>
+                        </div>
+                    </div>
+                    <div class="pipeline-step-mobile">
+                        <div class="pipeline-icon-mobile"><i class="ph ph-robot" aria-hidden="true"></i></div>
+                        <div class="pipeline-info-mobile">
+                            <div class="pipeline-name-mobile">SDR de IA</div>
+                            <div class="pipeline-desc-mobile">Qualifica automaticamente</div>
+                        </div>
+                    </div>
+                    <div class="pipeline-step-mobile">
+                        <div class="pipeline-icon-mobile"><i class="ph ph-calendar-check" aria-hidden="true"></i></div>
+                        <div class="pipeline-info-mobile">
+                            <div class="pipeline-name-mobile">Agendamento</div>
+                            <div class="pipeline-desc-mobile">Calendly sincronizado</div>
+                        </div>
+                    </div>
+                    <div class="pipeline-step-mobile">
+                        <div class="pipeline-icon-mobile"><i class="ph ph-handshake" aria-hidden="true"></i></div>
+                        <div class="pipeline-info-mobile">
+                            <div class="pipeline-name-mobile">Fechador</div>
+                            <div class="pipeline-desc-mobile">Reunião de vendas</div>
+                        </div>
+                    </div>
+                    <div class="pipeline-step-mobile">
+                        <div class="pipeline-icon-mobile"><i class="ph ph-check-circle" aria-hidden="true"></i></div>
+                        <div class="pipeline-info-mobile">
+                            <div class="pipeline-name-mobile">Cliente</div>
+                            <div class="pipeline-desc-mobile">Integração e suporte</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="pipeline-highlight">
+                <p><strong>Seu papel:</strong> garantir que cada etapa funcione perfeitamente, que nenhum lead se perca, e que as automações rodem sem falhas.</p>
+            </div>
+        </section>
+
+        <!-- SEÇÃO 3: RESPONSABILIDADES -->
+        <section id="responsabilidades" class="animate" aria-labelledby="resp-title">
+            <div class="section-header">
+                <div class="section-label">03 — Responsabilidades</div>
+                <h2 class="section-title" id="resp-title">O que você faz</h2>
+                <p class="section-desc">Suas 6 áreas de atuação direta</p>
+            </div>
+
+            <div class="resp-grid">
+                <article class="resp-card">
+                    <i class="ph ph-chart-bar resp-icon" aria-hidden="true"></i>
+                    <h3 class="resp-title">Gestão de Pipeline</h3>
+                    <p class="resp-desc">Organizar, auditar e manter o pipeline interno. Garantir classificação correta de todos os leads.</p>
+                    <div class="resp-tools"><span class="tool-tag">ClickUp</span><span class="tool-tag">CRM</span></div>
+                </article>
+                <article class="resp-card">
+                    <i class="ph ph-robot resp-icon" aria-hidden="true"></i>
+                    <h3 class="resp-title">Supervisão de IA</h3>
+                    <p class="resp-desc">Monitorar SDRs de IA e agentes de vendas. Identificar e resolver interrupções no fluxo.</p>
+                    <div class="resp-tools"><span class="tool-tag">n8n</span><span class="tool-tag">Zapier</span><span class="tool-tag">Make</span></div>
+                </article>
+                <article class="resp-card">
+                    <i class="ph ph-calendar resp-icon" aria-hidden="true"></i>
+                    <h3 class="resp-title">Coordenação de Agendas</h3>
+                    <p class="resp-desc">Gerenciar agenda dos fechadores. Monitorar comparecimento. Garantir follow-ups.</p>
+                    <div class="resp-tools"><span class="tool-tag">Calendly</span><span class="tool-tag">Google Agenda</span></div>
+                </article>
+                <article class="resp-card">
+                    <i class="ph ph-chart-line-up resp-icon" aria-hidden="true"></i>
+                    <h3 class="resp-title">Relatórios</h3>
+                    <p class="resp-desc">Gerar relatórios diários, semanais e mensais sobre saúde do pipeline e métricas.</p>
+                    <div class="resp-tools"><span class="tool-tag">Dashboards</span><span class="tool-tag">Métricas</span></div>
+                </article>
+                <article class="resp-card">
+                    <i class="ph ph-link resp-icon" aria-hidden="true"></i>
+                    <h3 class="resp-title">Integração</h3>
+                    <p class="resp-desc">Elo entre Vendas, Finanças e Integração. Interface de GP com desenvolvimento.</p>
+                    <div class="resp-tools"><span class="tool-tag">Vendas</span><span class="tool-tag">Finanças</span><span class="tool-tag">Dev</span></div>
+                </article>
+                <article class="resp-card">
+                    <i class="ph ph-chat-circle-text resp-icon" aria-hidden="true"></i>
+                    <h3 class="resp-title">Comunicação</h3>
+                    <p class="resp-desc">Interagir com clientes quando necessário, mantendo os padrões de credibilidade MIGMA.</p>
+                    <div class="resp-tools"><span class="tool-tag">Cliente</span><span class="tool-tag">Suporte</span></div>
+                </article>
+            </div>
+        </section>
+
+        <!-- SEÇÃO 4: KPIs -->
+        <section id="kpis" class="animate" aria-labelledby="kpis-title">
+            <div class="section-header">
+                <div class="section-label">04 — KPIs</div>
+                <h2 class="section-title" id="kpis-title">Suas métricas de sucesso</h2>
+                <p class="section-desc">Os números que definem se você está entregando</p>
+            </div>
+
+            <div class="kpi-grid">
+                <article class="kpi-card">
+                    <div class="kpi-header">
+                        <div class="kpi-indicator critical" aria-label="Criticidade alta"></div>
+                        <h3 class="kpi-name">Integridade do Acompanhamento</h3>
+                    </div>
+                    <div class="kpi-value">0 leads</div>
+                    <div class="kpi-target">sem follow-up por +24h</div>
+                    <p class="kpi-desc">Nenhum lead pode ficar mais de 24 horas sem acompanhamento.</p>
+                    <div class="kpi-impact"><strong>Impacto:</strong> Lead esquecido = venda perdida</div>
+                </article>
+                <article class="kpi-card">
+                    <div class="kpi-header">
+                        <div class="kpi-indicator critical" aria-label="Criticidade alta"></div>
+                        <h3 class="kpi-name">Higiene do Pipeline</h3>
+                    </div>
+                    <div class="kpi-value">100%</div>
+                    <div class="kpi-target">consistência de dados</div>
+                    <p class="kpi-desc">Status, dados e estágios 100% corretos no CRM.</p>
+                    <div class="kpi-impact"><strong>Impacto:</strong> Dados errados = decisões erradas</div>
+                </article>
+                <article class="kpi-card">
+                    <div class="kpi-header">
+                        <div class="kpi-indicator critical" aria-label="Criticidade alta"></div>
+                        <h3 class="kpi-name">Resposta a Incidentes</h3>
+                    </div>
+                    <div class="kpi-value">Imediato</div>
+                    <div class="kpi-target">detecção e sinalização</div>
+                    <p class="kpi-desc">Falhas de automação detectadas e sinalizadas imediatamente.</p>
+                    <div class="kpi-impact"><strong>Impacto:</strong> Automação parada = pipeline travado</div>
+                </article>
+                <article class="kpi-card">
+                    <div class="kpi-header">
+                        <div class="kpi-indicator warning" aria-label="Criticidade média"></div>
+                        <h3 class="kpi-name">Relatórios</h3>
+                    </div>
+                    <div class="kpi-value">100%</div>
+                    <div class="kpi-target">precisão e pontualidade</div>
+                    <p class="kpi-desc">Todos os relatórios entregues com precisão e no prazo.</p>
+                </article>
+                <article class="kpi-card">
+                    <div class="kpi-header">
+                        <div class="kpi-indicator success" aria-label="Criticidade baixa"></div>
+                        <h3 class="kpi-name">Gestão de Agenda</h3>
+                    </div>
+                    <div class="kpi-value">0</div>
+                    <div class="kpi-target">conflitos de agenda</div>
+                    <p class="kpi-desc">Agendas sincronizadas e livres de conflitos.</p>
+                </article>
+            </div>
+
+            <div class="alert-box" role="alert">
+                <div class="alert-header">
+                    <i class="ph ph-warning alert-icon" aria-hidden="true"></i>
+                    <h3 class="alert-title">Sobre Incidentes Críticos</h3>
+                </div>
+                <div class="alert-content">
+                    <p>Você <strong>não tem horário fixo</strong>, mas incidentes podem ocorrer <strong>fora do expediente</strong>. Se uma automação parar às 22h de sexta e impactar vendas no fim de semana, você precisa agir.</p>
+                    <div class="alert-steps">
+                        <div class="alert-step">
+                            <div class="alert-step-num">1</div>
+                            <div class="alert-step-text">Detecte</div>
+                        </div>
+                        <div class="alert-step">
+                            <div class="alert-step-num">2</div>
+                            <div class="alert-step-text">Sinalize</div>
+                        </div>
+                        <div class="alert-step">
+                            <div class="alert-step-num">3</div>
+                            <div class="alert-step-text">Ajuste</div>
+                        </div>
+                        <div class="alert-step">
+                            <div class="alert-step-num">4</div>
+                            <div class="alert-step-text">Documente</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+        <!-- SEÇÃO 5: PRIMEIRA SEMANA -->
+        <section id="semana" class="animate" aria-labelledby="semana-title">
+            <div class="section-header">
+                <div class="section-label">05 — Primeira Semana</div>
+                <h2 class="section-title" id="semana-title">O que fazer em cada dia</h2>
+                <p class="section-desc">Seu roteiro passo a passo</p>
+            </div>
+
+            <div class="week-timeline">
+                <div class="day-block open">
+                    <div class="day-header" onclick="toggleDay(this)" role="button" tabindex="0" aria-expanded="true" onkeypress="if(event.key==='Enter')toggleDay(this)">
+                        <div class="day-header-left">
+                            <div class="day-number">01</div>
+                            <div>
+                                <div class="day-title">Contexto e Imersão</div>
+                                <div class="day-subtitle">Entenda a empresa e a operação</div>
+                            </div>
+                        </div>
+                        <div class="day-toggle" aria-hidden="true">▼</div>
+                    </div>
+                    <div class="day-content">
+                        <div class="day-content-inner">
+                            <div class="activity">
+                                <div class="activity-time">60-90 min</div>
+                                <div class="activity-info">
+                                    <div class="activity-title">Imersão na Empresa <span class="activity-tag person">Arthur</span></div>
+                                    <div class="activity-desc">MIGMA INC: empresa B2B, nicho de vistos e imigração, modelo de negócio, regras.</div>
+                                    <div class="activity-box questions">
+                                        <div class="activity-box-title">Perguntas para fazer</div>
+                                        <ul>
+                                            <li>Quem são nossos clientes típicos?</li>
+                                            <li>Como funciona nosso modelo de receita?</li>
+                                            <li>O que significa "fazer bem feito" aqui?</li>
+                                        </ul>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="activity">
+                                <div class="activity-time">90-120 min</div>
+                                <div class="activity-info">
+                                    <div class="activity-title">Visão Operacional <span class="activity-tag person">Larissa</span></div>
+                                    <div class="activity-desc">Fluxo completo: como um lead entra, como o SDR de IA qualifica, como fecha.</div>
+                                    <div class="activity-box deliverable">
+                                        <div class="activity-box-title">Entrega do dia</div>
+                                        <ul><li>Desenhar o fluxo completo de um lead</li></ul>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="day-block">
+                    <div class="day-header" onclick="toggleDay(this)" role="button" tabindex="0" aria-expanded="false" onkeypress="if(event.key==='Enter')toggleDay(this)">
+                        <div class="day-header-left">
+                            <div class="day-number">02</div>
+                            <div>
+                                <div class="day-title">Sistemas e Automações</div>
+                                <div class="day-subtitle">Conheça suas ferramentas</div>
+                            </div>
+                        </div>
+                        <div class="day-toggle" aria-hidden="true">▼</div>
+                    </div>
+                    <div class="day-content">
+                        <div class="day-content-inner">
+                            <div class="activity">
+                                <div class="activity-time">120 min</div>
+                                <div class="activity-info">
+                                    <div class="activity-title">Tour pelos Sistemas <span class="activity-tag person">Alfeu</span></div>
+                                    <div class="activity-desc">ClickUp, n8n, Zapier, Make, Calendly — como cada um funciona.</div>
+                                </div>
+                            </div>
+                            <div class="activity">
+                                <div class="activity-time">60 min</div>
+                                <div class="activity-info">
+                                    <div class="activity-title">Automações de IA <span class="activity-tag action">Prática</span></div>
+                                    <div class="activity-desc">Como os SDRs de IA funcionam, o que monitorar, sinais de problema.</div>
+                                    <div class="activity-box deliverable">
+                                        <div class="activity-box-title">Entrega do dia</div>
+                                        <ul><li>Identificar se um SDR de IA está funcionando ou falhando</li></ul>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="day-block">
+                    <div class="day-header" onclick="toggleDay(this)" role="button" tabindex="0" aria-expanded="false" onkeypress="if(event.key==='Enter')toggleDay(this)">
+                        <div class="day-header-left">
+                            <div class="day-number">03</div>
+                            <div>
+                                <div class="day-title">Rotina e Relatórios</div>
+                                <div class="day-subtitle">Estrutura do dia a dia</div>
+                            </div>
+                        </div>
+                        <div class="day-toggle" aria-hidden="true">▼</div>
+                    </div>
+                    <div class="day-content">
+                        <div class="day-content-inner">
+                            <div class="activity">
+                                <div class="activity-time">60-90 min</div>
+                                <div class="activity-info">
+                                    <div class="activity-title">Gestão de Agenda <span class="activity-tag person">Larissa</span></div>
+                                    <div class="activity-desc">Como gerenciar agenda dos fechadores, monitorar comparecimento.</div>
+                                </div>
+                            </div>
+                            <div class="activity">
+                                <div class="activity-time">60 min</div>
+                                <div class="activity-info">
+                                    <div class="activity-title">Estrutura de Relatórios <span class="activity-tag person">Mib</span></div>
+                                    <div class="activity-desc">Quais relatórios gerar, frequência, métricas a incluir.</div>
+                                </div>
+                            </div>
+                            <div class="activity">
+                                <div class="activity-time">60 min</div>
+                                <div class="activity-info">
+                                    <div class="activity-title">Backlog e Prioridades <span class="activity-tag person">Mib</span></div>
+                                    <div class="activity-desc">Suas primeiras tarefas e como priorizar.</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="day-block">
+                    <div class="day-header" onclick="toggleDay(this)" role="button" tabindex="0" aria-expanded="false" onkeypress="if(event.key==='Enter')toggleDay(this)">
+                        <div class="day-header-left">
+                            <div class="day-number">04-05</div>
+                            <div>
+                                <div class="day-title">Execução Supervisionada</div>
+                                <div class="day-subtitle">Trabalho real com apoio</div>
+                            </div>
+                        </div>
+                        <div class="day-toggle" aria-hidden="true">▼</div>
+                    </div>
+                    <div class="day-content">
+                        <div class="day-content-inner">
+                            <div class="activity">
+                                <div class="activity-time">Manhã</div>
+                                <div class="activity-info">
+                                    <div class="activity-title">Rotina Completa <span class="activity-tag action">Execução</span></div>
+                                    <div class="activity-desc">Execute a rotina diária: validação de leads, checagem de automações, gestão de agenda.</div>
+                                </div>
+                            </div>
+                            <div class="activity">
+                                <div class="activity-time">Tarde</div>
+                                <div class="activity-info">
+                                    <div class="activity-title">Primeiro Relatório <span class="activity-tag action">Execução</span></div>
+                                    <div class="activity-desc">Gere seu primeiro relatório diário real. Valide com Mib.</div>
+                                </div>
+                            </div>
+                            <div class="activity">
+                                <div class="activity-time">Final</div>
+                                <div class="activity-info">
+                                    <div class="activity-title">Validação de Prontidão <span class="activity-tag check">Marco</span></div>
+                                    <div class="activity-desc">Revisão: você está pronto para operar com autonomia supervisionada?</div>
+                                    <div class="activity-box deliverable">
+                                        <div class="activity-box-title">Critérios para "passar"</div>
+                                        <ul>
+                                            <li>Executou rotina 2 dias sem erros críticos</li>
+                                            <li>Gerou 2 relatórios válidos</li>
+                                            <li>Identificou pelo menos 1 problema nas automações</li>
+                                        </ul>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- SEÇÃO 6: TIME -->
+        <section id="time" class="animate" aria-labelledby="time-title">
+            <div class="section-header">
+                <div class="section-label">06 — Seu Time</div>
+                <h2 class="section-title" id="time-title">Quem é quem</h2>
+                <p class="section-desc">As pessoas que vão te ajudar a ter sucesso</p>
+            </div>
+
+            <div class="team-grid">
+                <article class="team-card">
+                    <div class="team-avatar">A</div>
+                    <h3 class="team-name">Arthur</h3>
+                    <div class="team-role">Institucional</div>
+                    <p class="team-desc">Conhece a empresa como ninguém. Cultura, regras, pagamentos.</p>
+                    <div class="team-contact"><strong>Prefere:</strong> Slack</div>
+                    <div class="team-contact"><strong>Horário:</strong> 9h–18h</div>
+                    <div class="team-topics">
+                        <div class="team-topics-title">Quando procurar</div>
+                        <ul>
+                            <li>Valores e cultura</li>
+                            <li>Regras de pagamento</li>
+                            <li>Questões institucionais</li>
+                        </ul>
+                    </div>
+                </article>
+                <article class="team-card">
+                    <div class="team-avatar">L</div>
+                    <h3 class="team-name">Larissa</h3>
+                    <div class="team-role">Operacional</div>
+                    <p class="team-desc">Entende todos os fluxos comerciais de ponta a ponta.</p>
+                    <div class="team-contact"><strong>Prefere:</strong> Call rápida</div>
+                    <div class="team-contact"><strong>Horário:</strong> 9h–17h</div>
+                    <div class="team-topics">
+                        <div class="team-topics-title">Quando procurar</div>
+                        <ul>
+                            <li>Fluxo de vendas</li>
+                            <li>Padrões do pipeline</li>
+                            <li>Impactos operacionais</li>
+                        </ul>
+                    </div>
+                </article>
+                <article class="team-card">
+                    <div class="team-avatar">Al</div>
+                    <h3 class="team-name">Alfeu</h3>
+                    <div class="team-role">Técnico</div>
+                    <p class="team-desc">O cara dos sistemas e automações. Se travou, ele resolve.</p>
+                    <div class="team-contact"><strong>Prefere:</strong> Slack + print</div>
+                    <div class="team-contact"><strong>Horário:</strong> 10h–19h</div>
+                    <div class="team-topics">
+                        <div class="team-topics-title">Quando procurar</div>
+                        <ul>
+                            <li>Problemas de acesso</li>
+                            <li>Erros em automações</li>
+                            <li>Falhas nos SDRs de IA</li>
+                        </ul>
+                    </div>
+                </article>
+                <article class="team-card">
+                    <div class="team-avatar">M</div>
+                    <h3 class="team-name">Mib</h3>
+                    <div class="team-role">Gestão</div>
+                    <p class="team-desc">Seu ponto focal para tarefas, prioridades e entregas.</p>
+                    <div class="team-contact"><strong>Prefere:</strong> Daily rápida</div>
+                    <div class="team-contact"><strong>Horário:</strong> 8h–18h</div>
+                    <div class="team-topics">
+                        <div class="team-topics-title">Quando procurar</div>
+                        <ul>
+                            <li>Definir prioridades</li>
+                            <li>Validar relatórios</li>
+                            <li>Propor melhorias</li>
+                        </ul>
+                    </div>
+                </article>
+            </div>
+        </section>
+
+        <!-- SEÇÃO 7: SISTEMAS -->
+        <section id="sistemas" class="animate" aria-labelledby="sistemas-title">
+            <div class="section-header">
+                <div class="section-label">07 — Sistemas</div>
+                <h2 class="section-title" id="sistemas-title">Suas ferramentas de trabalho</h2>
+                <p class="section-desc">O que você vai usar diariamente</p>
+            </div>
+
+            <div class="systems-grid">
+                <article class="system-card">
+                    <i class="ph ph-clipboard-text system-icon" aria-hidden="true"></i>
+                    <h3 class="system-name">ClickUp</h3>
+                    <p class="system-use">Pipeline principal</p>
+                    <span class="system-freq critical">Diário crítico</span>
+                </article>
+                <article class="system-card">
+                    <i class="ph ph-lightning system-icon" aria-hidden="true"></i>
+                    <h3 class="system-name">n8n</h3>
+                    <p class="system-use">Automações complexas</p>
+                    <span class="system-freq critical">Monitoramento</span>
+                </article>
+                <article class="system-card">
+                    <i class="ph ph-arrows-clockwise system-icon" aria-hidden="true"></i>
+                    <h3 class="system-name">Zapier / Make</h3>
+                    <p class="system-use">Automações simples</p>
+                    <span class="system-freq high">Frequente</span>
+                </article>
+                <article class="system-card">
+                    <i class="ph ph-calendar-check system-icon" aria-hidden="true"></i>
+                    <h3 class="system-name">Calendly</h3>
+                    <p class="system-use">Agendamentos</p>
+                    <span class="system-freq critical">Gestão diária</span>
+                </article>
+                <article class="system-card">
+                    <i class="ph ph-calendar system-icon" aria-hidden="true"></i>
+                    <h3 class="system-name">Google Agenda</h3>
+                    <p class="system-use">Sincronização</p>
+                    <span class="system-freq critical">Checagem</span>
+                </article>
+                <article class="system-card">
+                    <i class="ph ph-robot system-icon" aria-hidden="true"></i>
+                    <h3 class="system-name">SDRs de IA</h3>
+                    <p class="system-use">Qualificação</p>
+                    <span class="system-freq critical">Monitoramento</span>
+                </article>
+            </div>
+
+            <div class="maturity-section">
+                <h3 class="maturity-title">Sua Jornada de Maturidade</h3>
+                <p class="maturity-desc">O que esperamos de você em cada fase</p>
+                <div class="maturity-timeline">
+                    <div class="maturity-phase">
+                        <div class="maturity-dot">1</div>
+                        <div>
+                            <div class="maturity-period">0–30 dias</div>
+                            <div class="maturity-label">Aprendizado</div>
+                            <div class="maturity-list">
+                                <ul>
+                                    <li>Executar rotina com supervisão</li>
+                                    <li>Perguntar muito, errar pouco</li>
+                                    <li>Entender todos os sistemas</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="maturity-phase">
+                        <div class="maturity-dot">2</div>
+                        <div>
+                            <div class="maturity-period">30–60 dias</div>
+                            <div class="maturity-label">Execução</div>
+                            <div class="maturity-list">
+                                <ul>
+                                    <li>Rotina autônoma com check-ins</li>
+                                    <li>Identificar problemas proativamente</li>
+                                    <li>Propor melhorias</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="maturity-phase">
+                        <div class="maturity-dot">3</div>
+                        <div>
+                            <div class="maturity-period">60–90 dias</div>
+                            <div class="maturity-label">Autonomia</div>
+                            <div class="maturity-list">
+                                <ul>
+                                    <li>Ownership total do pipeline</li>
+                                    <li>Antecipar problemas</li>
+                                    <li>Implementar melhorias próprias</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+        <!-- SEÇÃO 8: ROTINA -->
+        <section id="rotina" class="animate" aria-labelledby="rotina-title">
+            <div class="section-header">
+                <div class="section-label">08 — Rotina</div>
+                <h2 class="section-title" id="rotina-title">Seu dia a dia ideal</h2>
+                <p class="section-desc">O que você deveria estar fazendo regularmente</p>
+            </div>
+
+            <div class="routine-grid">
+                <article class="routine-card">
+                    <div class="routine-header">
+                        <i class="ph ph-sun routine-icon" aria-hidden="true"></i>
+                        <h3 class="routine-title">Todo Dia</h3>
+                    </div>
+                    <div class="routine-body">
+                        <div class="routine-item"><div class="routine-bullet" aria-hidden="true"></div><div class="routine-text"><strong>Check de automações</strong><span>Verificar se todas rodaram sem erros</span></div></div>
+                        <div class="routine-item"><div class="routine-bullet" aria-hidden="true"></div><div class="routine-text"><strong>Auditoria de leads</strong><span>Classificar e validar novos leads</span></div></div>
+                        <div class="routine-item"><div class="routine-bullet" aria-hidden="true"></div><div class="routine-text"><strong>Gestão de agendas</strong><span>Verificar conflitos e sincronização</span></div></div>
+                        <div class="routine-item"><div class="routine-bullet" aria-hidden="true"></div><div class="routine-text"><strong>Follow-ups</strong><span>Nenhum lead sem acompanhamento +24h</span></div></div>
+                        <div class="routine-item"><div class="routine-bullet" aria-hidden="true"></div><div class="routine-text"><strong>Relatório diário</strong><span>Gerar e enviar saúde do pipeline</span></div></div>
+                    </div>
+                </article>
+                <article class="routine-card">
+                    <div class="routine-header">
+                        <i class="ph ph-calendar routine-icon" aria-hidden="true"></i>
+                        <h3 class="routine-title">Toda Semana</h3>
+                    </div>
+                    <div class="routine-body">
+                        <div class="routine-item"><div class="routine-bullet" aria-hidden="true"></div><div class="routine-text"><strong>Relatório semanal</strong><span>Conversão, desempenho IA, gargalos</span></div></div>
+                        <div class="routine-item"><div class="routine-bullet" aria-hidden="true"></div><div class="routine-text"><strong>Auditoria profunda</strong><span>100% dos leads críticos</span></div></div>
+                        <div class="routine-item"><div class="routine-bullet" aria-hidden="true"></div><div class="routine-text"><strong>Alinhamento com Mib</strong><span>Revisar prioridades, ajustar rota</span></div></div>
+                        <div class="routine-item"><div class="routine-bullet" aria-hidden="true"></div><div class="routine-text"><strong>Sync com Larissa</strong><span>Impactos e melhorias identificadas</span></div></div>
+                    </div>
+                </article>
+            </div>
+
+            <div class="day-example">
+                <div class="day-example-header">
+                    <div class="day-example-icon"><i class="ph ph-clipboard-text" aria-hidden="true"></i></div>
+                    <div>
+                        <h3 class="day-example-title">Exemplo: Uma Segunda-feira Típica</h3>
+                        <p class="day-example-subtitle">Como seria um dia produtivo</p>
+                    </div>
+                </div>
+                <div class="day-slots">
+                    <div class="day-slot"><div class="day-slot-time">08:00</div><div class="day-slot-activity"><strong>Check de automações</strong><span>15 min — n8n, Zapier, Make</span></div></div>
+                    <div class="day-slot"><div class="day-slot-time">08:15</div><div class="day-slot-activity"><strong>Auditoria de leads</strong><span>45 min — Todos classificados</span></div></div>
+                    <div class="day-slot"><div class="day-slot-time">09:00</div><div class="day-slot-activity"><strong>Follow-ups</strong><span>30 min — Nenhum lead esquecido</span></div></div>
+                    <div class="day-slot"><div class="day-slot-time">09:30</div><div class="day-slot-activity"><strong>Agendas</strong><span>30 min — Sincronizar Calendly</span></div></div>
+                    <div class="day-slot"><div class="day-slot-time">10:00</div><div class="day-slot-activity"><strong>Daily com Mib</strong><span>15 min — Alinhamento</span></div></div>
+                    <div class="day-slot"><div class="day-slot-time">10:15</div><div class="day-slot-activity"><strong>Tarefas prioritárias</strong><span>2h — Execução</span></div></div>
+                    <div class="day-slot"><div class="day-slot-time">14:00</div><div class="day-slot-activity"><strong>SDRs de IA</strong><span>45 min — Performance</span></div></div>
+                    <div class="day-slot"><div class="day-slot-time">17:00</div><div class="day-slot-activity"><strong>Relatório diário</strong><span>30 min — Compilar e enviar</span></div></div>
+                </div>
+            </div>
+
+            <div class="golden-rules">
+                <h3 class="golden-rules-title">Regra de Ouro da Comunicação</h3>
+                <p class="golden-rules-desc">Para qualquer problema, sempre inclua:</p>
+                <div class="rules-grid">
+                    <div class="rule"><div class="rule-num">1</div><div class="rule-title">Contexto</div><div class="rule-desc">O que aconteceu</div></div>
+                    <div class="rule"><div class="rule-num">2</div><div class="rule-title">Impacto</div><div class="rule-desc">O que está em risco</div></div>
+                    <div class="rule"><div class="rule-num">3</div><div class="rule-title">Ação</div><div class="rule-desc">O que você fez</div></div>
+                    <div class="rule"><div class="rule-num">4</div><div class="rule-title">Próximo</div><div class="rule-desc">O que falta</div></div>
+                </div>
+            </div>
+
+            <div class="flags-section">
+                <div class="flags-header">
+                    <div class="flags-icon danger"><i class="ph ph-warning" aria-hidden="true"></i></div>
+                    <div>
+                        <h3 class="flags-title danger">O Que Nunca Fazer</h3>
+                        <p class="flags-subtitle">Estes erros comprometem a operação</p>
+                    </div>
+                </div>
+                <div class="flags-grid">
+                    <article class="flag-item danger"><h4>Lead sem follow-up +24h</h4><p>Lead esquecido = venda perdida</p></article>
+                    <article class="flag-item danger"><h4>Ignorar alerta de automação</h4><p>Pipeline para, vendas param</p></article>
+                    <article class="flag-item danger"><h4>Alterar dados sem registro</h4><p>Sem rastreabilidade = caos</p></article>
+                    <article class="flag-item danger"><h4>Criar conflito de agenda</h4><p>Fechador perde reunião</p></article>
+                    <article class="flag-item danger"><h4>Relatório sem validar</h4><p>Decisões erradas</p></article>
+                    <article class="flag-item danger"><h4>Não escalar problema</h4><p>Silêncio é o pior cenário</p></article>
+                </div>
+            </div>
+
+            <div class="flags-section">
+                <div class="flags-header">
+                    <div class="flags-icon success"><i class="ph ph-rocket-launch" aria-hidden="true"></i></div>
+                    <div>
+                        <h3 class="flags-title success">Quick Wins</h3>
+                        <p class="flags-subtitle">Conquistas para os primeiros dias</p>
+                    </div>
+                </div>
+                <div class="wins-list">
+                    <article class="win-item"><div class="win-num">1</div><div class="win-content"><h4>Configure alertas de automação</h4><p>Receba notificação quando qualquer automação falhar</p></div></article>
+                    <article class="win-item"><div class="win-num">2</div><div class="win-content"><h4>Audite 20 leads aleatórios</h4><p>Encontre e corrija inconsistências</p></div></article>
+                    <article class="win-item"><div class="win-num">3</div><div class="win-content"><h4>Mapeie leads sem follow-up</h4><p>Crie lista de "esquecidos" e resolva</p></div></article>
+                    <article class="win-item"><div class="win-num">4</div><div class="win-content"><h4>Documente um processo</h4><p>Algo que você precisou perguntar</p></div></article>
+                    <article class="win-item"><div class="win-num">5</div><div class="win-content"><h4>Proponha uma melhoria</h4><p>Olhar fresco vê coisas novas</p></div></article>
+                </div>
+            </div>
+        </section>
+
+        <!-- SEÇÃO 9: FAQ -->
+        <section id="faq" class="animate" aria-labelledby="faq-title">
+            <div class="section-header">
+                <div class="section-label">09 — FAQ</div>
+                <h2 class="section-title" id="faq-title">Perguntas frequentes</h2>
+                <p class="section-desc">Dúvidas que todo mundo tem nos primeiros dias</p>
+            </div>
+
+            <div class="faq-list">
+                <article class="faq-item"><div class="faq-question" onclick="toggleFaq(this)" role="button" tabindex="0" aria-expanded="false" onkeypress="if(event.key==='Enter')toggleFaq(this)"><h4>Tenho horário fixo?</h4><span class="faq-toggle" aria-hidden="true">▼</span></div><div class="faq-answer"><div class="faq-answer-content">Não. Você está sujeito a KPIs, não a horário. O importante é que os resultados sejam entregues. Mas incidentes críticos precisam ser tratados com prioridade, mesmo fora do expediente.</div></div></article>
+                <article class="faq-item"><div class="faq-question" onclick="toggleFaq(this)" role="button" tabindex="0" aria-expanded="false" onkeypress="if(event.key==='Enter')toggleFaq(this)"><h4>Automação falhou às 23h. E agora?</h4><span class="faq-toggle" aria-hidden="true">▼</span></div><div class="faq-answer"><div class="faq-answer-content">Depende do impacto. Se pode esperar até amanhã sem prejudicar vendas, espere. Se vai travar o pipeline ou perder leads, você precisa agir — pelo menos sinalizar e mitigar.</div></div></article>
+                <article class="faq-item"><div class="faq-question" onclick="toggleFaq(this)" role="button" tabindex="0" aria-expanded="false" onkeypress="if(event.key==='Enter')toggleFaq(this)"><h4>Quem são os clientes da MIGMA?</h4><span class="faq-toggle" aria-hidden="true">▼</span></div><div class="faq-answer"><div class="faq-answer-content">Empresas do ecossistema de vistos e imigração dos EUA: agências de vistos, escritórios de advocacia de imigração, e programas de educação/mentoria. Não atendemos pessoas físicas.</div></div></article>
+                <article class="faq-item"><div class="faq-question" onclick="toggleFaq(this)" role="button" tabindex="0" aria-expanded="false" onkeypress="if(event.key==='Enter')toggleFaq(this)"><h4>Velocidade ou qualidade?</h4><span class="faq-toggle" aria-hidden="true">▼</span></div><div class="faq-answer"><div class="faq-answer-content">Ambos. Follow-up = velocidade (máximo 24h). Relatórios = qualidade (100% precisão).</div></div></article>
+                <article class="faq-item"><div class="faq-question" onclick="toggleFaq(this)" role="button" tabindex="0" aria-expanded="false" onkeypress="if(event.key==='Enter')toggleFaq(this)"><h4>Posso ajustar automações sozinho?</h4><span class="faq-toggle" aria-hidden="true">▼</span></div><div class="faq-answer"><div class="faq-answer-content">Ajustes simples (reprocessar fluxo), sim. Mudanças na estrutura precisam de validação com Alfeu. Na dúvida, pergunte antes.</div></div></article>
+                <article class="faq-item"><div class="faq-question" onclick="toggleFaq(this)" role="button" tabindex="0" aria-expanded="false" onkeypress="if(event.key==='Enter')toggleFaq(this)"><h4>Como sei se estou indo bem?</h4><span class="faq-toggle" aria-hidden="true">▼</span></div><div class="faq-answer"><div class="faq-answer-content">Olhe seus KPIs: zero leads sem follow-up +24h? 100% consistência? Relatórios no prazo? Se sim para todos, você está indo muito bem.</div></div></article>
+                <article class="faq-item"><div class="faq-question" onclick="toggleFaq(this)" role="button" tabindex="0" aria-expanded="false" onkeypress="if(event.key==='Enter')toggleFaq(this)"><h4>Posso falar com clientes?</h4><span class="faq-toggle" aria-hidden="true">▼</span></div><div class="faq-answer"><div class="faq-answer-content">Sim, quando necessário para resolver problemas operacionais. Mantenha os padrões de credibilidade MIGMA.</div></div></article>
+                <article class="faq-item"><div class="faq-question" onclick="toggleFaq(this)" role="button" tabindex="0" aria-expanded="false" onkeypress="if(event.key==='Enter')toggleFaq(this)"><h4>Quanto tempo para "dominar"?</h4><span class="faq-toggle" aria-hidden="true">▼</span></div><div class="faq-answer"><div class="faq-answer-content">30 dias: supervisão leve. 60 dias: autonomia na maioria. 90 dias: ownership completo. Mas os KPIs críticos valem desde o dia 1.</div></div></article>
+            </div>
+
+            <div class="glossary-section">
+                <h3 class="glossary-title">Glossário</h3>
+                <p class="glossary-desc">Termos que você vai usar diariamente</p>
+                <div class="glossary-grid">
+                    <div class="glossary-item"><div class="glossary-term">Pipeline</div><div class="glossary-def">Sistema que acompanha leads da entrada ao fechamento</div></div>
+                    <div class="glossary-item"><div class="glossary-term">SDR de IA</div><div class="glossary-def">Agente de IA que qualifica leads automaticamente</div></div>
+                    <div class="glossary-item"><div class="glossary-term">Fechador</div><div class="glossary-def">Vendedor que fecha negócios em reuniões</div></div>
+                    <div class="glossary-item"><div class="glossary-term">Handoff</div><div class="glossary-def">Passagem de lead de uma pessoa/área para outra</div></div>
+                    <div class="glossary-item"><div class="glossary-term">Taxa de Comparecimento</div><div class="glossary-def">% de leads que aparecem nas reuniões</div></div>
+                    <div class="glossary-item"><div class="glossary-term">Higiene do Pipeline</div><div class="glossary-def">Qualidade e consistência dos dados no CRM</div></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- SEÇÃO 10: CHECKLIST -->
+        <section id="checklist" class="animate" aria-labelledby="checklist-title">
+            <div class="section-header">
+                <div class="section-label">10 — Checklist de Conclusão</div>
+                <h2 class="section-title" id="checklist-title">Você está pronto?</h2>
+                <p class="section-desc">Marque cada item quando conseguir fazer sozinho — seu progresso é salvo automaticamente</p>
+            </div>
+
+            <div class="success-list" role="list">
+                <div class="success-item" onclick="toggleCheck(this, 0)" role="checkbox" tabindex="0" aria-checked="false" onkeypress="if(event.key==='Enter'||event.key===' ')toggleCheck(this,0)"><div class="success-checkbox" aria-hidden="true">✓</div><div class="success-text">Executar a rotina diária completa sem supervisão</div></div>
+                <div class="success-item" onclick="toggleCheck(this, 1)" role="checkbox" tabindex="0" aria-checked="false" onkeypress="if(event.key==='Enter'||event.key===' ')toggleCheck(this,1)"><div class="success-checkbox" aria-hidden="true">✓</div><div class="success-text">Manter zero leads sem follow-up por +24 horas</div></div>
+                <div class="success-item" onclick="toggleCheck(this, 2)" role="checkbox" tabindex="0" aria-checked="false" onkeypress="if(event.key==='Enter'||event.key===' ')toggleCheck(this,2)"><div class="success-checkbox" aria-hidden="true">✓</div><div class="success-text">Identificar e sinalizar falhas de automação imediatamente</div></div>
+                <div class="success-item" onclick="toggleCheck(this, 3)" role="checkbox" tabindex="0" aria-checked="false" onkeypress="if(event.key==='Enter'||event.key===' ')toggleCheck(this,3)"><div class="success-checkbox" aria-hidden="true">✓</div><div class="success-text">Gerar relatórios precisos e no prazo</div></div>
+                <div class="success-item" onclick="toggleCheck(this, 4)" role="checkbox" tabindex="0" aria-checked="false" onkeypress="if(event.key==='Enter'||event.key===' ')toggleCheck(this,4)"><div class="success-checkbox" aria-hidden="true">✓</div><div class="success-text">Gerenciar agendas sem criar conflitos</div></div>
+                <div class="success-item" onclick="toggleCheck(this, 5)" role="checkbox" tabindex="0" aria-checked="false" onkeypress="if(event.key==='Enter'||event.key===' ')toggleCheck(this,5)"><div class="success-checkbox" aria-hidden="true">✓</div><div class="success-text">Saber quem acionar para cada tipo de problema</div></div>
+                <div class="success-item" onclick="toggleCheck(this, 6)" role="checkbox" tabindex="0" aria-checked="false" onkeypress="if(event.key==='Enter'||event.key===' ')toggleCheck(this,6)"><div class="success-checkbox" aria-hidden="true">✓</div><div class="success-text">Entender o nicho de vistos/imigração e como a MIGMA atua</div></div>
+                <div class="success-item" onclick="toggleCheck(this, 7)" role="checkbox" tabindex="0" aria-checked="false" onkeypress="if(event.key==='Enter'||event.key===' ')toggleCheck(this,7)"><div class="success-checkbox" aria-hidden="true">✓</div><div class="success-text">Desenhar o fluxo completo de um lead</div></div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Footer -->
+    <footer>
+        <div class="footer-message">
+            <h3>Você é o motor por trás do motor.</h3>
+            <p>A MIGMA é o motor por trás das agências. E você é quem faz esse motor funcionar. Quando você faz bem, nossos clientes vendem mais.</p>
+        </div>
+        <div class="footer-logo">MIGMA INC</div>
+        <div class="footer-version">Guia de Onboarding v8.0 Final — Janeiro 2026</div>
+    </footer>
+
+    <!-- JavaScript -->
+    <script>
+        // ============================================
+        // MIGMA Onboarding - JavaScript v8.0
+        // ============================================
+
+        // Configuration
+        const CONFIG = {
+            sections: ['missao', 'pipeline', 'responsabilidades', 'kpis', 'semana', 'time', 'sistemas', 'rotina', 'faq', 'checklist'],
+            sectionNames: ['Missão', 'Pipeline', 'Responsabilidades', 'KPIs', 'Primeira Semana', 'Time', 'Sistemas', 'Rotina', 'FAQ', 'Checklist'],
+            storageKey: 'migma-onboarding-checklist',
+            circumference: 126 // 2 * PI * 20 (radius)
+        };
+
+        // ========== PROGRESS TRACKING ==========
+        function updateProgress() {
+            const scrollTop = window.scrollY;
+            const docHeight = document.documentElement.scrollHeight - window.innerHeight;
+            const progress = Math.min(Math.round((scrollTop / docHeight) * 100), 100);
+
+            // Update progress bar
+            document.getElementById('progressFill').style.width = progress + '%';
+            document.getElementById('progressPercent').textContent = progress + '%';
+
+            // Update progress ring
+            const ring = document.getElementById('progressRing');
+            ring.style.strokeDashoffset = CONFIG.circumference - (progress / 100) * CONFIG.circumference;
+
+            // Update ARIA
+            document.querySelector('.progress-bar').setAttribute('aria-valuenow', progress);
+
+            // Update current section
+            let currentIdx = 0;
+            CONFIG.sections.forEach((id, idx) => {
+                const el = document.getElementById(id);
+                if (el && scrollTop >= el.offsetTop - 300) currentIdx = idx;
+            });
+            document.getElementById('currentSection').textContent = CONFIG.sectionNames[currentIdx] || 'Início';
+        }
+
+        // ========== SCROLL TO TOP ==========
+        function scrollToTop() {
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        // ========== DAY ACCORDION ==========
+        function toggleDay(header) {
+            const block = header.closest('.day-block');
+            const isOpen = block.classList.contains('open');
+            block.classList.toggle('open');
+            header.setAttribute('aria-expanded', !isOpen);
+        }
+
+        // ========== FAQ ACCORDION ==========
+        function toggleFaq(question) {
+            const item = question.closest('.faq-item');
+            const wasOpen = item.classList.contains('open');
+
+            // Close all
+            document.querySelectorAll('.faq-item').forEach(i => {
+                i.classList.remove('open');
+                i.querySelector('.faq-question').setAttribute('aria-expanded', 'false');
+            });
+
+            // Open clicked if was closed
+            if (!wasOpen) {
+                item.classList.add('open');
+                question.setAttribute('aria-expanded', 'true');
+            }
+        }
+
+        // ========== CHECKLIST WITH LOCALSTORAGE ==========
+        function getChecklist() {
+            try {
+                const stored = localStorage.getItem(CONFIG.storageKey);
+                return stored ? JSON.parse(stored) : Array(8).fill(false);
+            } catch (e) {
+                return Array(8).fill(false);
+            }
+        }
+
+        function saveChecklist(checklist) {
+            try {
+                localStorage.setItem(CONFIG.storageKey, JSON.stringify(checklist));
+            } catch (e) {
+                console.warn('LocalStorage not available');
+            }
+        }
+
+        function toggleCheck(item, index) {
+            const checklist = getChecklist();
+            checklist[index] = !checklist[index];
+            saveChecklist(checklist);
+
+            item.classList.toggle('checked', checklist[index]);
+            item.setAttribute('aria-checked', checklist[index]);
+        }
+
+        function restoreChecklist() {
+            const checklist = getChecklist();
+            const items = document.querySelectorAll('.success-item');
+            items.forEach((item, idx) => {
+                if (checklist[idx]) {
+                    item.classList.add('checked');
+                    item.setAttribute('aria-checked', 'true');
+                }
+            });
+        }
+
+        // ========== SCROLL ANIMATIONS ==========
+        function initScrollAnimations() {
+            const observer = new IntersectionObserver((entries) => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting) {
+                        entry.target.classList.add('visible');
+                    }
+                });
+            }, { threshold: 0.1 });
+
+            document.querySelectorAll('.animate').forEach(el => observer.observe(el));
+        }
+
+        // ========== NAV ACTIVE STATE ==========
+        function updateNavState() {
+            let current = '';
+            CONFIG.sections.forEach(id => {
+                const el = document.getElementById(id);
+                if (el && scrollY >= el.offsetTop - 200) current = id;
+            });
+
+            document.querySelectorAll('.nav-link').forEach(link => {
+                link.classList.toggle('active', link.getAttribute('href') === '#' + current);
+            });
+        }
+
+        // ========== SMOOTH SCROLL ==========
+        function initSmoothScroll() {
+            document.querySelectorAll('.nav-link').forEach(link => {
+                link.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    const target = document.querySelector(link.getAttribute('href'));
+                    if (target) {
+                        const navHeight = document.querySelector('nav').offsetHeight;
+                        window.scrollTo({
+                            top: target.offsetTop - navHeight - 10,
+                            behavior: 'smooth'
+                        });
+                    }
+                });
+            });
+        }
+
+        // ========== KEYBOARD NAVIGATION ==========
+        function initKeyboardNav() {
+            // Progress widget
+            document.querySelector('.progress-widget').addEventListener('keypress', (e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    scrollToTop();
+                }
+            });
+        }
+
+        // ========== INITIALIZATION ==========
+        document.addEventListener('DOMContentLoaded', () => {
+            restoreChecklist();
+            initScrollAnimations();
+            initSmoothScroll();
+            initKeyboardNav();
+            updateProgress();
+        });
+
+        // Event Listeners
+        window.addEventListener('scroll', () => {
+            updateProgress();
+            updateNavState();
+        });
+    </script>
+</body>
+</html>

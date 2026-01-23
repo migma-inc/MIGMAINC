@@ -106,6 +106,10 @@ function App() {
         <Route path="/partner-terms/success" element={<PartnerTermsSuccess />} />
         <Route path="/view-contract" element={<ViewSignedContract />} />
         <Route path="/view-visa-contract" element={<ViewVisaOrderContract />} />
+        <Route path="/onboarding/closer" element={<iframe src="/onboarding/closer.html" style={{ width: '100%', height: '100vh', border: 'none' }} />} />
+        <Route path="/onboarding/operations" element={<iframe src="/onboarding/operations.html" style={{ width: '100%', height: '100vh', border: 'none' }} />} />
+        <Route path="/onboarding/mentor" element={<iframe src="/onboarding/mentor.html" style={{ width: '100%', height: '100vh', border: 'none' }} />} />
+
         <Route path="/dashboard" element={<Dashboard />}>
           <Route index element={<DashboardContent />} />
           <Route path="applications/:id" element={<ApplicationDetailPage />} />

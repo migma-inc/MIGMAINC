@@ -141,3 +141,29 @@ Correção de erros de lint e TypeScript que impediam a compilação do projeto 
 *   **Prontidão para Deploy**: O projeto agora compila 100% sem erros, garantindo que as mudanças possam ser enviadas para o servidor sem interrupções.
 
 ---
+
+## [23/01/2026] - Publicação de Guias de Onboarding (Static Pages)
+
+### Descrição da Tarefa
+Integração de três guias de treinamento (HTML estáticos) ao domínio principal da Migma com URLs limpas.
+
+### O que foi feito:
+1.  **Organização de Arquivos**:
+    *   Criação da estrutura de diretórios em `public/onboarding/`.
+    *   Migração e renomeação dos arquivos para padrões de URL amigáveis:
+        *   `closer.html`
+        *   `operations.html`
+        *   `mentor.html`
+    *   Remoção dos arquivos HTML originais da raiz do projeto para limpeza.
+2.  **Integração com React Router**:
+    *   Adição de rotas específicas em `App.tsx` para cada guia (`/onboarding/closer`, `/onboarding/operations`, `/onboarding/mentor`).
+    *   Uso de `iframe` para renderizar o conteúdo estático dentro do contexto da aplicação, mantendo URLs limpas sem precisar da extensão `.html`.
+3.  **Configuração de Deploy**:
+    *   Simplificação do `vercel.json` para o padrão SPA, permitindo que o React Router gerencie as rotas de onboarding.
+
+### Links Disponíveis:
+*   [Guia Closer](https://migma.co/onboarding/closer)
+*   [Guia Operations](https://migma.co/onboarding/operations)
+*   [Guia Mentor](https://migma.co/onboarding/mentor)
+
+---
