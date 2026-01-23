@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { LogOut, Filter, FileText, AlertCircle, Menu, ArrowLeft } from 'lucide-react';
+import { LogOut, Filter, AlertCircle, Menu, ArrowLeft } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { ApplicationsList } from '@/components/admin/ApplicationsList';
 import { PartnerContractsList } from '@/components/admin/PartnerContractsList';
@@ -242,11 +242,20 @@ export function DashboardContent() {
     try {
       const { data, error } = await supabase
         .from('visa_orders')
-        .select('id')
+        .select('id, payment_method, payment_status, parcelow_status, is_hidden')
         .eq('contract_approval_status', 'pending');
 
       if (!error && data) {
-        setPendingContractApprovals(data.length);
+        // Filter out hidden orders and abandoned/waiting parcelow orders
+        const realPendingCount = data.filter(order => {
+          const isAbandonedParcelow = order.payment_method === 'parcelow' &&
+            order.payment_status === 'pending' &&
+            (order.parcelow_status === 'Open' || order.parcelow_status === 'Waiting Payment');
+
+          return !order.is_hidden && !isAbandonedParcelow;
+        }).length;
+
+        setPendingContractApprovals(realPendingCount);
       }
     } catch (err) {
       console.error('Error loading pending contract approvals:', err);
@@ -659,54 +668,61 @@ export function DashboardContent() {
 
   return (
     <div className="p-4 sm:p-6 lg:p-8">
-      {/* Pending Contract Approvals Alert */}
-      {pendingContractApprovals > 0 && (
-        <Card className="bg-gradient-to-br from-yellow-500/20 via-yellow-500/10 to-yellow-500/20 border-2 border-yellow-500/50 mb-4 sm:mb-6">
-          <CardContent className="p-4 sm:p-6">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-              <div className="flex items-center gap-3 sm:gap-4">
-                <div className="p-2 sm:p-3 bg-yellow-500/20 rounded-lg shrink-0">
-                  <AlertCircle className="w-6 h-6 sm:w-8 sm:h-8 text-yellow-400" />
+      {/* Pending Actions Grid */}
+      {(pendingContractApprovals > 0 || pendingPartnerContracts > 0) && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+          {/* Visa Approvals Alert */}
+          {pendingContractApprovals > 0 && (
+            <Card className="bg-gradient-to-br from-yellow-500/10 via-yellow-500/5 to-yellow-500/10 border border-yellow-500/30">
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between gap-4">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-yellow-500/20 rounded-lg">
+                      <AlertCircle className="w-5 h-5 text-yellow-400" />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-bold text-yellow-300">
+                        {pendingContractApprovals} Visa {pendingContractApprovals === 1 ? 'Contract' : 'Contracts'}
+                      </h3>
+                      <p className="text-xs text-yellow-200/60">Awaiting technical approval</p>
+                    </div>
+                  </div>
+                  <Link to="/dashboard/visa-contract-approval">
+                    <Button size="sm" className="bg-yellow-600 hover:bg-yellow-700 text-white text-xs h-8">
+                      Review
+                    </Button>
+                  </Link>
                 </div>
-                <div>
-                  <h3 className="text-base sm:text-lg font-bold text-yellow-300 mb-1">
-                    {pendingContractApprovals} {pendingContractApprovals === 1 ? 'Contract' : 'Contracts'} Pending Approval
-                  </h3>
-                  <p className="text-xs sm:text-sm text-yellow-200/80">
-                    There {pendingContractApprovals === 1 ? 'is' : 'are'} {pendingContractApprovals} visa service {pendingContractApprovals === 1 ? 'contract' : 'contracts'} waiting for review
-                  </p>
-                </div>
-              </div>
-              <Link to="/dashboard/visa-orders" className="w-full sm:w-auto">
-                <Button className="w-full sm:w-auto bg-yellow-600 hover:bg-yellow-700 text-white text-sm">
-                  <FileText className="w-4 h-4 mr-2" />
-                  Review Contracts
-                </Button>
-              </Link>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+              </CardContent>
+            </Card>
+          )}
 
-      {/* Pending Partner Contracts Alert */}
-      {pendingPartnerContracts > 0 && (
-        <Card className="bg-gradient-to-br from-blue-500/20 via-blue-500/10 to-blue-500/20 border-2 border-blue-500/50 mb-4 sm:mb-6">
-          <CardContent className="p-4 sm:p-6">
-            <div className="flex items-center gap-3 sm:gap-4">
-              <div className="p-2 sm:p-3 bg-blue-500/20 rounded-lg shrink-0">
-                <AlertCircle className="w-6 h-6 sm:w-8 sm:h-8 text-blue-400" />
-              </div>
-              <div>
-                <h3 className="text-base sm:text-lg font-bold text-blue-300 mb-1">
-                  {pendingPartnerContracts} {pendingPartnerContracts === 1 ? 'Partner Contract' : 'Partner Contracts'} Pending Verification
-                </h3>
-                <p className="text-xs sm:text-sm text-blue-200/80">
-                  There {pendingPartnerContracts === 1 ? 'is' : 'are'} {pendingPartnerContracts} Global Partner {pendingPartnerContracts === 1 ? 'contract' : 'contracts'} waiting for document verification
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+          {/* Partner Approvals Alert */}
+          {pendingPartnerContracts > 0 && (
+            <Card className="bg-gradient-to-br from-blue-500/10 via-blue-500/5 to-blue-500/10 border border-blue-500/30">
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between gap-4">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-blue-500/20 rounded-lg">
+                      <AlertCircle className="w-5 h-5 text-blue-400" />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-bold text-blue-300">
+                        {pendingPartnerContracts} Partner {pendingPartnerContracts === 1 ? 'Contract' : 'Contracts'}
+                      </h3>
+                      <p className="text-xs text-blue-200/60">Awaiting document verification</p>
+                    </div>
+                  </div>
+                  <Link to="/dashboard/contracts">
+                    <Button size="sm" className="bg-blue-600 hover:bg-blue-700 text-white text-xs h-8">
+                      Verify
+                    </Button>
+                  </Link>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </div>
       )}
 
       {/* Statistics */}
