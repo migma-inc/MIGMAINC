@@ -20,6 +20,158 @@ function normalizeServiceName(productSlug: string, productName: string): string 
   return productName;
 }
 
+function getBucketAndPath(url: string | null) {
+  if (!url) return null;
+  const match = url.match(/\/storage\/v1\/object\/public\/([^\/]+)\/(.+)$/);
+  if (!match) return null;
+  return { bucket: match[1], path: match[2] };
+}
+
+async function sendVisaAdminNotification(order: any, supabase: any) {
+  const adminEmail = "info@migmainc.com";
+  console.log(`[Admin Notification] Preparing admin notification for order ${order.order_number}`);
+
+  try {
+    const attachments = [];
+
+    // 1. Add Main Contract if it exists
+    const contract = getBucketAndPath(order.contract_pdf_url);
+    if (contract) {
+      attachments.push({
+        filename: `Contract_${order.order_number}_${order.client_name.replace(/\s+/g, '_')}.pdf`,
+        path: contract.path,
+        bucket: contract.bucket
+      });
+    }
+
+    // 2. Add ANNEX I if it exists
+    const annex = getBucketAndPath(order.annex_pdf_url);
+    if (annex) {
+      attachments.push({
+        filename: `Annex_${order.order_number}_${order.client_name.replace(/\s+/g, '_')}.pdf`,
+        path: annex.path,
+        bucket: annex.bucket
+      });
+    }
+
+    // 3. Add Invoice if it exists in payment_metadata
+    const invoiceUrl = order.payment_metadata?.invoice_pdf_url;
+    const invoice = getBucketAndPath(invoiceUrl);
+    if (invoice) {
+      attachments.push({
+        filename: `Invoice_${order.order_number}_${order.client_name.replace(/\s+/g, '_')}.pdf`,
+        path: invoice.path,
+        bucket: invoice.bucket
+      });
+    }
+
+    if (attachments.length === 0) {
+      console.log("[Admin Notification] No PDFs found to attach. Skipping admin email.");
+      return;
+    }
+
+    const emailHtml = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+      </head>
+      <body style="margin: 0; padding: 0; font-family: 'Plus Jakarta Sans', sans-serif; background-color: #000000; color: #ffffff;">
+        <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background-color: #000000;">
+          <tr>
+            <td align="center" style="padding: 30px 20px;">
+              <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="600" style="max-width: 600px; background-color: #0a0a0a; border: 1px solid #CE9F48; border-radius: 12px; overflow: hidden;">
+                <tr>
+                  <td align="center" style="padding: 30px; background-color: #000000; border-bottom: 1px solid #1a1a1a;">
+                    <img src="https://ekxftwrjvxtpnqbraszv.supabase.co/storage/v1/object/public/logo/logo2.png" alt="MIGMA Logo" width="150" style="display: block;">
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding: 40px;">
+                    <h2 style="margin: 0 0 25px 0; font-size: 22px; color: #F3E196; text-align: center; text-transform: uppercase; letter-spacing: 2px;">
+                      New Documentation Approved
+                    </h2>
+                    
+                    <div style="background-color: #111111; border-radius: 8px; padding: 25px; border-left: 4px solid #CE9F48; margin-bottom: 30px;">
+                      <p style="margin: 0 0 12px 0; font-size: 14px; color: #888; text-transform: uppercase;">Order Details</p>
+                      <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
+                        <tr>
+                          <td width="40%" style="padding: 8px 0; color: #CE9F48; font-weight: 600;">Client:</td>
+                          <td style="padding: 8px 0; color: #e0e0e0;">${order.client_name}</td>
+                        </tr>
+                        <tr>
+                          <td style="padding: 8px 0; color: #CE9F48; font-weight: 600;">Order:</td>
+                          <td style="padding: 8px 0; color: #e0e0e0;">#${order.order_number}</td>
+                        </tr>
+                        <tr>
+                          <td style="padding: 8px 0; color: #CE9F48; font-weight: 600;">Email:</td>
+                          <td style="padding: 8px 0; color: #e0e0e0;">${order.client_email}</td>
+                        </tr>
+                        <tr>
+                          <td style="padding: 8px 0; color: #CE9F48; font-weight: 600;">Payment:</td>
+                          <td style="padding: 8px 0; color: #e0e0e0; text-transform: uppercase; font-size: 12px;">${order.payment_method}</td>
+                        </tr>
+                        <tr>
+                          <td style="padding: 8px 0; color: #CE9F48; font-weight: 600;">Date:</td>
+                          <td style="padding: 8px 0; color: #e0e0e0;">${new Date().toUTCString()}</td>
+                        </tr>
+                      </table>
+                    </div>
+
+                    <p style="font-size: 15px; line-height: 1.6; color: #cccccc; margin: 0 0 20px 0; text-align: center;">
+                      The signed documents (Contract, Annex, and Invoice) are attached to this notification for administrative recording.
+                    </p>
+                  </td>
+                </tr>
+                <tr>
+                  <td align="center" style="padding: 20px; background-color: #000000; border-top: 1px solid #1a1a1a;">
+                    <p style="margin: 0; font-size: 10px; color: #555; text-transform: uppercase; letter-spacing: 1px;">
+                      © 2026 MIGMA GLOBAL • Internal Notification
+                    </p>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+        </table>
+      </body>
+      </html>
+    `;
+
+    const { data: emailData, error: emailError } = await supabase.functions.invoke('send-email-with-attachment', {
+      body: {
+        to: adminEmail,
+        subject: `[CONTRACT APPROVED] ${order.client_name} - Order #${order.order_number}`,
+        html: emailHtml,
+        attachments: attachments
+      },
+    });
+
+    if (emailError || (emailData && emailData.error)) {
+      console.error("[Admin Notification] Error invoking send-email-with-attachment:", emailError || emailData.error);
+    } else {
+      console.log("[Admin Notification] Admin email sent successfully with attachments:", attachments.length);
+
+      // Update the flag in the database
+      const { error: updateFlagError } = await supabase
+        .from('visa_orders')
+        .update({
+          admin_email_sent: true,
+          admin_email_sent_at: new Date().toISOString()
+        })
+        .eq('id', order.id);
+
+      if (updateFlagError) {
+        console.warn("[Admin Notification] Error updating admin_email_sent flag:", updateFlagError);
+      }
+    }
+  } catch (error) {
+    console.error("[Admin Notification] Unexpected error:", error);
+  }
+}
+
 async function sendClientWebhook(order: any, supabase: any) {
   const webhookUrl = Deno.env.get('CLIENT_WEBHOOK_URL');
   if (!webhookUrl) {
@@ -162,7 +314,26 @@ Deno.serve(async (req) => {
 
     console.log(`[EDGE FUNCTION] ${approvalType === 'annex' ? 'ANNEX I' : 'Contract'} approved successfully in DB`);
 
-    // 3. Trigger n8n Webhook IF it's the main contract approval AND payment is manual
+    // 3. Send Admin Notification Email with PDF Attachments
+    // Run this in background to avoid blocking the response
+    (async () => {
+      try {
+        // Fetch fresh order data to ensure we have the latest PDF paths
+        const { data: freshOrder } = await supabase
+          .from('visa_orders')
+          .select('*')
+          .eq('id', order_id)
+          .single();
+
+        if (freshOrder) {
+          await sendVisaAdminNotification(freshOrder, supabase);
+        }
+      } catch (err) {
+        console.error("[Admin Notification] Background execution error:", err);
+      }
+    })();
+
+    // 4. Trigger n8n Webhook IF it's the main contract approval AND payment is manual
     if (approvalType === 'contract' && order.payment_method === 'manual') {
       console.log(`[EDGE FUNCTION] Triggering manual payment webhook for order: ${order.order_number}`);
       const orderWithApproval = { ...order, ...updateData };
@@ -174,7 +345,7 @@ Deno.serve(async (req) => {
       console.log(`[EDGE FUNCTION] Skipping webhook for order ${order.order_number} (Payment method: ${order.payment_method})`);
     }
 
-    // 4. Manage View Token and Send Email
+    // 5. Manage View Token and Send Email
     try {
       // Check if view token already exists
       const { data: existingToken } = await supabase

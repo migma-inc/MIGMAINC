@@ -56,6 +56,7 @@ import { AdminRoute } from './components/admin/AdminRoute';
 import { SlackReportsPage } from './pages/admin/SlackReportsPage';
 import { VisaContractApprovalPage } from './pages/VisaContractApprovalPage';
 import { AdminProfile } from './pages/admin/AdminProfile';
+import { SendExistingContracts } from './pages/admin/SendExistingContracts';
 
 function App() {
   return (
@@ -123,6 +124,7 @@ function App() {
           <Route path="schedule-meeting" element={<ScheduleMeetingPage />} />
           <Route path="slack-reports" element={<SlackReportsPage />} />
           <Route path="profile" element={<AdminProfile />} />
+          <Route path="send-existing-contracts" element={<SendExistingContracts />} />
         </Route>
       </Routes>
     </Router>
