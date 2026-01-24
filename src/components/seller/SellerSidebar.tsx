@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
-import { LayoutDashboard, TrendingUp, ShoppingCart, Link as LinkIcon, Users, LogOut, BarChart3, X, Coins, User } from 'lucide-react';
+import { LayoutDashboard, TrendingUp, ShoppingCart, Link as LinkIcon, Users, LogOut, BarChart3, X, Coins } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/lib/supabase';
@@ -63,12 +63,6 @@ export function SellerSidebar({ className, sellerName, isMobileOpen = false, onM
       title: 'Conversion Funnel',
       icon: TrendingUp,
       path: '/seller/dashboard/funnel',
-      exact: false,
-    },
-    {
-      title: 'Profile',
-      icon: User,
-      path: '/seller/dashboard/profile',
       exact: false,
     },
   ];

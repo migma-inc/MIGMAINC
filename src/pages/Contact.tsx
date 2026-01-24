@@ -10,6 +10,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { supabase } from '@/lib/supabase';
 import { generateAccessToken } from '@/lib/support';
 import { sendContactMessageAccessLink } from '@/lib/emails';
@@ -17,7 +18,7 @@ import { sendContactMessageAccessLink } from '@/lib/emails';
 const contactSchema = z.object({
     name: z.string().min(2, "Name is required"),
     email: z.string().email("Invalid email"),
-    subject: z.string().min(3, "Subject is required"),
+    subject: z.string().min(1, "Subject is required"),
     message: z.string().min(10, "Message must be at least 10 characters"),
 });
 
@@ -29,9 +30,12 @@ export const Contact = () => {
 
     const form = useForm<ContactFormData>({
         resolver: zodResolver(contactSchema),
+        defaultValues: {
+            subject: '',
+        }
     });
 
-    const { register, handleSubmit, formState: { errors }, reset } = form;
+    const { register, handleSubmit, formState: { errors }, reset, setValue, watch } = form;
 
     const onSubmit = async (data: ContactFormData) => {
         setIsSubmitting(true);
@@ -41,7 +45,7 @@ export const Contact = () => {
                 .then(res => res.json())
                 .then(data => data.ip)
                 .catch(() => null);
-            
+
             const userAgent = navigator.userAgent;
 
             // Save message to database
@@ -67,7 +71,7 @@ export const Contact = () => {
 
             // Generate access token for the ticket
             const token = await generateAccessToken(insertedData.id);
-            
+
             if (!token) {
                 console.error('[CONTACT] Failed to generate access token');
                 // Continue anyway - message was saved
@@ -93,10 +97,10 @@ export const Contact = () => {
                     // Don't fail the form submission if email fails
                 }
             }
-            
+
             setSubmitted(true);
             reset();
-            
+
             setTimeout(() => {
                 setSubmitted(false);
             }, 5000);
@@ -117,10 +121,10 @@ export const Contact = () => {
                 <div className="container">
                     <div className="max-w-4xl mx-auto text-center">
                         <h1 className="text-5xl md:text-7xl font-bold tracking-tighter migma-gold-text mb-6">
-                            Contact Us
+                            Contact MIGMA
                         </h1>
                         <p className="text-xl md:text-2xl text-gold-light tracking-tight max-w-3xl mx-auto">
-                            Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.
+                            For support related to a MIGMA payment link, partnership inquiries, or joining our Global Partner ecosystem — reach out below.
                         </p>
                     </div>
                 </div>
@@ -140,20 +144,22 @@ export const Contact = () => {
                                     <h2 className="text-2xl font-bold migma-gold-text mb-6">Get in Touch</h2>
                                     <div className="space-y-6 text-gray-300">
                                         <div>
+                                            <h3 className="text-gold-light font-semibold mb-2">Support (Clients who used a MIGMA link)</h3>
+                                            <p>If you made a payment through MIGMA and need help locating your receipt or next steps, contact us and include your email and payment reference.</p>
+                                        </div>
+                                        <div>
+                                            <h3 className="text-gold-light font-semibold mb-2">Partnership (Companies / Agencies)</h3>
+                                            <p>For businesses interested in working with MIGMA services, integrations, or operational support.</p>
+                                        </div>
+                                        <div>
+                                            <h3 className="text-gold-light font-semibold mb-2">Global Partner Applications</h3>
+                                            <p>For candidates applying to work with MIGMA as independent contractors.</p>
+                                        </div>
+                                        <div className="pt-4 border-t border-gold-medium/30">
                                             <h3 className="text-gold-light font-semibold mb-2">Email</h3>
-                                            <p>Lorem ipsum dolor sit amet, consectetur adipiscing elit.</p>
-                                        </div>
-                                        <div>
-                                            <h3 className="text-gold-light font-semibold mb-2">Phone</h3>
-                                            <p>Lorem ipsum dolor sit amet, consectetur adipiscing elit.</p>
-                                        </div>
-                                        <div>
-                                            <h3 className="text-gold-light font-semibold mb-2">Address</h3>
-                                            <p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.</p>
-                                        </div>
-                                        <div>
-                                            <h3 className="text-gold-light font-semibold mb-2">Business Hours</h3>
-                                            <p>Lorem ipsum dolor sit amet, consectetur adipiscing elit.</p>
+                                            <a href="mailto:adm@migma.com" className="text-gold-medium hover:text-gold-light underline">
+                                                adm@migma.com
+                                            </a>
                                         </div>
                                     </div>
                                 </CardContent>
@@ -168,7 +174,7 @@ export const Contact = () => {
                             <Card className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border-gold-medium/30">
                                 <CardContent className="p-8">
                                     <h2 className="text-2xl font-bold migma-gold-text mb-6">Send us a Message</h2>
-                                    
+
                                     {submitted && (
                                         <div className="mb-6 p-4 bg-green-900/30 border-2 border-green-500/50 rounded-lg">
                                             <p className="text-green-300">Thank you! Your message has been sent successfully.</p>
@@ -178,10 +184,10 @@ export const Contact = () => {
                                     <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
                                         <div className="space-y-2">
                                             <Label htmlFor="name" className="text-white">Name *</Label>
-                                            <Input 
-                                                id="name" 
-                                                {...register('name')} 
-                                                className="bg-white text-black" 
+                                            <Input
+                                                id="name"
+                                                {...register('name')}
+                                                className="bg-white text-black"
                                             />
                                             {errors.name && (
                                                 <p className="text-sm text-destructive">{errors.name.message}</p>
@@ -190,11 +196,11 @@ export const Contact = () => {
 
                                         <div className="space-y-2">
                                             <Label htmlFor="email" className="text-white">Email *</Label>
-                                            <Input 
-                                                id="email" 
-                                                type="email" 
-                                                {...register('email')} 
-                                                className="bg-white text-black" 
+                                            <Input
+                                                id="email"
+                                                type="email"
+                                                {...register('email')}
+                                                className="bg-white text-black"
                                             />
                                             {errors.email && (
                                                 <p className="text-sm text-destructive">{errors.email.message}</p>
@@ -203,11 +209,20 @@ export const Contact = () => {
 
                                         <div className="space-y-2">
                                             <Label htmlFor="subject" className="text-white">Subject *</Label>
-                                            <Input 
-                                                id="subject" 
-                                                {...register('subject')} 
-                                                className="bg-white text-black" 
-                                            />
+                                            <Select
+                                                value={watch('subject') || ''}
+                                                onValueChange={(val) => setValue('subject', val)}
+                                            >
+                                                <SelectTrigger className="bg-white text-black">
+                                                    <SelectValue placeholder="Select a subject" />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="Payment Support">Payment Support</SelectItem>
+                                                    <SelectItem value="Partnership / Business Inquiry">Partnership / Business Inquiry</SelectItem>
+                                                    <SelectItem value="Global Partner Application">Global Partner Application</SelectItem>
+                                                    <SelectItem value="Other">Other</SelectItem>
+                                                </SelectContent>
+                                            </Select>
                                             {errors.subject && (
                                                 <p className="text-sm text-destructive">{errors.subject.message}</p>
                                             )}
@@ -215,17 +230,18 @@ export const Contact = () => {
 
                                         <div className="space-y-2">
                                             <Label htmlFor="message" className="text-white">Message *</Label>
-                                            <Textarea 
-                                                id="message" 
-                                                {...register('message')} 
-                                                className="bg-white text-black min-h-[150px]" 
+                                            <Textarea
+                                                id="message"
+                                                {...register('message')}
+                                                className="bg-white text-black min-h-[150px]"
+                                                placeholder="Please describe your request and include any relevant details (email used, company name, payment reference, etc.)."
                                             />
                                             {errors.message && (
                                                 <p className="text-sm text-destructive">{errors.message.message}</p>
                                             )}
                                         </div>
 
-                                        <Button 
+                                        <Button
                                             type="submit"
                                             disabled={isSubmitting}
                                             className="w-full btn btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
@@ -244,10 +260,3 @@ export const Contact = () => {
         </div>
     );
 };
-
-
-
-
-
-
-

@@ -15,7 +15,7 @@ export const PrivacyPolicy = () => {
                             Privacy Policy
                         </h1>
                         <p className="text-lg text-gray-400">
-                            Last updated: December 17, 2025
+                            Last updated: December 17
                         </p>
                     </div>
 

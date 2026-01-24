@@ -1,5 +1,5 @@
 // Terms version constant
-export const TERMS_VERSION = 'v1.0-2025-01-15';
+export const TERMS_VERSION = 'v1.0-01-15';
 
 // localStorage key for draft
 export const DRAFT_STORAGE_KEY = 'visa_checkout_draft';

@@ -306,7 +306,7 @@ Deno.serve(async (req) => {
 
     pdf.setFontSize(12);
     pdf.setFont('helvetica', 'normal');
-    pdf.text('MIGMA', pageWidth / 2, currentY, { align: 'center' });
+    pdf.text('MIGMA INC.', pageWidth / 2, currentY, { align: 'center' });
     currentY += 20;
 
     pdf.setLineWidth(0.5);
@@ -575,9 +575,9 @@ By signing this contract, the client agrees to the following terms:
 1. The client confirms that all information provided is accurate and truthful.
 2. The client understands that providing false information may result in cancellation of services and legal action.
 3. The client agrees to pay the total amount specified in this contract.
-4. MIGMA will provide visa consultation services as described in the service package.
-5. The client acknowledges that visa approval is subject to immigration authorities and MIGMA cannot guarantee approval.
-6. Refunds are subject to MIGMA's refund policy as outlined in the service terms.
+4. MIGMA INC. will provide visa consultation services as described in the service package.
+5. The client acknowledges that visa approval is subject to immigration authorities and MIGMA INC. cannot guarantee approval.
+6. Refunds are subject to MIGMA INC.'s refund policy as outlined in the service terms.
 7. The client agrees to provide all necessary documentation in a timely manner.
 8. This contract is legally binding and enforceable.
 

@@ -57,7 +57,7 @@ Deno.serve(async (req) => {
     let termAcceptance = null;
     let attempts = 0;
     const maxAttempts = 5;
-    
+
     while (attempts < maxAttempts && (!termAcceptance || !termAcceptance.identity_photo_path)) {
       const { data, error: termError } = await supabase
         .from('partner_terms_acceptances')
@@ -81,13 +81,13 @@ Deno.serve(async (req) => {
           identity_photo_name: termAcceptance.identity_photo_name,
           accepted_at: termAcceptance.accepted_at
         });
-        
+
         // If we have the photo path, we're done
         if (termAcceptance.identity_photo_path) {
           break;
         }
       }
-      
+
       // Wait a bit before retrying
       if (attempts < maxAttempts - 1) {
         await new Promise(resolve => setTimeout(resolve, 500));
@@ -121,14 +121,14 @@ Deno.serve(async (req) => {
           error: templateError
         });
         return new Response(
-          JSON.stringify({ 
+          JSON.stringify({
             error: 'Contract template not found',
             templateId: termAcceptance.contract_template_id,
             message: 'The contract template selected by the administrator could not be found. PDF generation aborted.'
           }),
-          { 
-            status: 500, 
-            headers: { 'Content-Type': 'application/json' } 
+          {
+            status: 500,
+            headers: { 'Content-Type': 'application/json' }
           }
         );
       }
@@ -139,25 +139,25 @@ Deno.serve(async (req) => {
       console.log("[EDGE FUNCTION] Using contract template:", templateData.name);
     } else {
       // No template ID, fetch from application_terms
-    const { data: termsData, error: termsError } = await supabase
-      .from('application_terms')
-      .select('title, content')
-      .eq('term_type', 'partner_contract')
-      .eq('is_active', true)
-      .order('version', { ascending: false })
-      .limit(1)
-      .maybeSingle();
+      const { data: termsData, error: termsError } = await supabase
+        .from('application_terms')
+        .select('title, content')
+        .eq('term_type', 'partner_contract')
+        .eq('is_active', true)
+        .order('version', { ascending: false })
+        .limit(1)
+        .maybeSingle();
 
-    if (termsError) {
+      if (termsError) {
         console.error("[EDGE FUNCTION] Error fetching application_terms:", termsError);
         return new Response(
-          JSON.stringify({ 
+          JSON.stringify({
             error: 'Error loading default contract terms',
             message: 'Default contract terms could not be loaded from the database.'
           }),
-          { 
-            status: 500, 
-            headers: { 'Content-Type': 'application/json' } 
+          {
+            status: 500,
+            headers: { 'Content-Type': 'application/json' }
           }
         );
       }
@@ -165,13 +165,13 @@ Deno.serve(async (req) => {
       if (!termsData || !termsData.content) {
         console.error("[EDGE FUNCTION] No active contract version found in application_terms");
         return new Response(
-          JSON.stringify({ 
+          JSON.stringify({
             error: 'Default contract terms not available',
             message: 'No active contract version found in the database.'
           }),
-          { 
-            status: 500, 
-            headers: { 'Content-Type': 'application/json' } 
+          {
+            status: 500,
+            headers: { 'Content-Type': 'application/json' }
           }
         );
       }
@@ -185,13 +185,13 @@ Deno.serve(async (req) => {
     if (!termsContent) {
       console.error("[EDGE FUNCTION] No contract content available after all attempts");
       return new Response(
-        JSON.stringify({ 
+        JSON.stringify({
           error: 'Contract content unavailable',
           message: 'No contract content could be loaded for PDF generation.'
         }),
-        { 
-          status: 500, 
-          headers: { 'Content-Type': 'application/json' } 
+        {
+          status: 500,
+          headers: { 'Content-Type': 'application/json' }
         }
       );
     }
@@ -214,7 +214,7 @@ Deno.serve(async (req) => {
       pdf.setFontSize(fontSize);
       const lines = pdf.splitTextToSize(text, maxWidth);
       let currentYPos = y;
-      
+
       for (let i = 0; i < lines.length; i++) {
         // Check if we need a new page
         if (currentYPos > pageHeight - margin - 10) {
@@ -224,7 +224,7 @@ Deno.serve(async (req) => {
         pdf.text(lines[i], x, currentYPos);
         currentYPos += fontSize * 0.6; // Espaçamento entre linhas (60% do tamanho da fonte)
       }
-      
+
       return currentYPos; // Return final Y position
     };
 
@@ -239,12 +239,12 @@ Deno.serve(async (req) => {
         minute: '2-digit',
         second: '2-digit',
       });
-      
+
       for (let i = 1; i <= totalPages; i++) {
         pdf.setPage(i);
         pdf.setFontSize(8);
         pdf.setFont('helvetica', 'italic');
-        
+
         // Generation date (10 points from bottom)
         pdf.text(
           `Generated on ${footerDate}`,
@@ -252,7 +252,7 @@ Deno.serve(async (req) => {
           pageHeight - 10,
           { align: 'center' }
         );
-        
+
         // Legal note (5 points from bottom)
         pdf.text(
           'This document has legal validity and serves as proof of acceptance',
@@ -327,7 +327,7 @@ Deno.serve(async (req) => {
             const { data: { publicUrl } } = supabase.storage
               .from('identity-photos')
               .getPublicUrl(urlOrPath);
-            
+
             console.log("[EDGE FUNCTION] Trying public URL for storage image:", publicUrl);
             const imageResponse = await fetch(publicUrl);
             if (!imageResponse.ok) {
@@ -381,7 +381,7 @@ Deno.serve(async (req) => {
     // SUBTITLE
     pdf.setFontSize(12);
     pdf.setFont('helvetica', 'normal');
-    pdf.text('MIGMA', pageWidth / 2, currentY, { align: 'center' });
+    pdf.text('MIGMA INC.', pageWidth / 2, currentY, { align: 'center' });
     currentY += 20;
 
     // SEPARATOR LINE
@@ -406,7 +406,7 @@ Deno.serve(async (req) => {
 
     // DATA WITH LABEL AND VALUE
     pdf.setFontSize(11);
-    
+
     // Name
     pdf.setFont('helvetica', 'bold');
     pdf.text('Name:', margin, currentY);
@@ -478,7 +478,7 @@ Deno.serve(async (req) => {
     const month = monthNames[acceptanceDate.getMonth()];
     const day = acceptanceDate.getDate();
     const year = acceptanceDate.getFullYear();
-    
+
     pdf.setFontSize(10);
     pdf.setFont('helvetica', 'normal');
     currentY = addWrappedText(
@@ -506,10 +506,10 @@ Deno.serve(async (req) => {
     pdf.setFont('helvetica', 'normal');
     pdf.text('Signature:', margin, currentY);
     currentY += 8;
-    
+
     // Try to load and display signature image if available
     const signatureImage = await loadSignatureImage();
-    
+
     if (signatureImage) {
       try {
         // Check if we need a new page for the signature image
@@ -517,11 +517,11 @@ Deno.serve(async (req) => {
           pdf.addPage();
           currentY = margin;
         }
-        
+
         // Add signature image (max 45mm width, height proportional)
         const maxWidth = 45;
         const maxHeight = 20; // Height for signature is typically smaller
-        
+
         pdf.addImage(
           signatureImage.dataUrl,
           signatureImage.format,
@@ -536,7 +536,7 @@ Deno.serve(async (req) => {
         // Fall through to show name as fallback
       }
     }
-    
+
     // Nome removido - não é mais necessário pois já aparece em "Full Name:" abaixo
     // A assinatura desenhada é suficiente
 
