@@ -4,7 +4,8 @@
  */
 
 import { useState, useEffect } from 'react';
-import { Plus, Edit, Trash2, Copy, Check, X, FileText, Loader2 } from 'lucide-react';
+import { Plus, Edit, Trash2, Copy, Check, X, FileText } from 'lucide-react';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -73,17 +74,17 @@ export function ContractTemplatesPage() {
 
   const filterTemplates = () => {
     let filtered = templates;
-    
+
     // Filter by active/inactive status
     if (filter === 'active') {
       filtered = templates.filter((t) => t.is_active);
     } else if (filter === 'inactive') {
       filtered = templates.filter((t) => !t.is_active);
     }
-    
+
     // Ensure we only show templates of the current tab type
     filtered = filtered.filter((t) => (t.template_type || 'global_partner') === activeTab);
-    
+
     setFilteredTemplates(filtered);
   };
 
@@ -289,9 +290,47 @@ export function ContractTemplatesPage() {
 
   if (loading) {
     return (
-      <div className="px-4 sm:px-6 lg:px-8 pt-6 sm:pt-8 lg:pt-12">
-        <div className="flex items-center justify-center min-h-[400px]">
-          <Loader2 className="w-8 h-8 animate-spin text-gold-medium" />
+      <div className="px-4 sm:px-6 lg:p-8 space-y-8 pt-6 sm:pt-8 lg:pt-12 animate-in fade-in duration-500">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+          <div className="space-y-4">
+            <Skeleton className="h-10 w-64" />
+            <Skeleton className="h-4 w-96 hidden md:block" />
+          </div>
+          <Skeleton className="h-10 w-40" />
+        </div>
+
+        <div className="space-y-6">
+          <div className="flex gap-2 bg-black/50 p-1 rounded-lg border border-white/5 w-full sm:w-fit">
+            {[1, 2, 3].map(i => (
+              <Skeleton key={i} className="h-9 w-32" />
+            ))}
+          </div>
+
+          <Skeleton className="h-10 w-52" />
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {[1, 2, 3, 4, 5, 6].map(i => (
+              <Card key={i} className="bg-zinc-900/40 border-white/5 p-6 space-y-4">
+                <div className="space-y-2">
+                  <Skeleton className="h-6 w-3/4" />
+                  <Skeleton className="h-4 w-full" />
+                </div>
+                <div className="flex gap-2">
+                  <Skeleton className="h-5 w-20 rounded-full" />
+                  <Skeleton className="h-5 w-20 rounded-full" />
+                </div>
+                <div className="space-y-1">
+                  <Skeleton className="h-3 w-32" />
+                  <Skeleton className="h-3 w-24" />
+                </div>
+                <div className="flex flex-wrap gap-2 pt-2">
+                  {[1, 2, 3, 4].map(btn => (
+                    <Skeleton key={btn} className="h-8 w-20" />
+                  ))}
+                </div>
+              </Card>
+            ))}
+          </div>
         </div>
       </div>
     );
@@ -319,19 +358,19 @@ export function ContractTemplatesPage() {
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={handleTabChange} className="mb-6">
         <TabsList className="bg-black border border-gold-medium/30">
-          <TabsTrigger 
-            value="global_partner" 
+          <TabsTrigger
+            value="global_partner"
             className="data-[state=active]:bg-gold-medium/20 data-[state=active]:text-gold-light"
           >
             Global Partner
           </TabsTrigger>
-          <TabsTrigger 
+          <TabsTrigger
             value="visa_service"
             className="data-[state=active]:bg-gold-medium/20 data-[state=active]:text-gold-light"
           >
             Visa Services
           </TabsTrigger>
-          <TabsTrigger 
+          <TabsTrigger
             value="chargeback_annex"
             className="data-[state=active]:bg-gold-medium/20 data-[state=active]:text-gold-light"
           >
@@ -417,130 +456,130 @@ export function ContractTemplatesPage() {
     return (
       <>
         {/* Templates List */}
-      {filteredTemplates.length === 0 ? (
-        <Card className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30">
-          <CardContent className="p-12 text-center">
-            <FileText className="w-16 h-16 text-gray-500 mx-auto mb-4" />
-            <h3 className="text-lg sm:text-xl font-semibold text-white mb-2">No Templates Found</h3>
-            <p className="text-gray-400 mb-6">
-              {filter === 'all'
-                ? 'Create your first contract template to get started'
-                : `No ${filter} templates found`}
-            </p>
-            {filter === 'all' && (
-              <Button onClick={handleCreate} className="btn btn-primary">
-                <Plus className="w-4 h-4 mr-2" />
-                Create Template
-              </Button>
-            )}
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
-          {filteredTemplates.map((template) => (
-            <Card
-              key={template.id}
-              className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30"
-            >
-              <CardHeader>
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <CardTitle className="text-white text-lg mb-1">{template.name}</CardTitle>
-                    {template.description && (
-                      <p className="text-sm text-gray-400 mb-2">{template.description}</p>
-                    )}
-                    <div className="flex flex-wrap gap-2 mb-2">
-                      <Badge
-                        className={
-                          template.is_active
-                            ? 'bg-green-500/20 text-green-300 border-green-500/50'
-                            : 'bg-gray-500/20 text-gray-300 border-gray-500/50'
-                        }
-                      >
-                        {template.is_active ? 'Active' : 'Inactive'}
-                      </Badge>
-                      {(template.template_type === 'visa_service' || template.template_type === 'chargeback_annex') && template.product_slug && (
-                        <Badge className="bg-blue-500/20 text-blue-300 border-blue-500/50">
-                          {template.product_slug}
-                        </Badge>
+        {filteredTemplates.length === 0 ? (
+          <Card className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30">
+            <CardContent className="p-12 text-center">
+              <FileText className="w-16 h-16 text-gray-500 mx-auto mb-4" />
+              <h3 className="text-lg sm:text-xl font-semibold text-white mb-2">No Templates Found</h3>
+              <p className="text-gray-400 mb-6">
+                {filter === 'all'
+                  ? 'Create your first contract template to get started'
+                  : `No ${filter} templates found`}
+              </p>
+              {filter === 'all' && (
+                <Button onClick={handleCreate} className="btn btn-primary">
+                  <Plus className="w-4 h-4 mr-2" />
+                  Create Template
+                </Button>
+              )}
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
+            {filteredTemplates.map((template) => (
+              <Card
+                key={template.id}
+                className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30"
+              >
+                <CardHeader>
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <CardTitle className="text-white text-lg mb-1">{template.name}</CardTitle>
+                      {template.description && (
+                        <p className="text-sm text-gray-400 mb-2">{template.description}</p>
                       )}
-                      {template.template_type === 'chargeback_annex' && !template.product_slug && (
-                        <Badge className="bg-purple-500/20 text-purple-300 border-purple-500/50">
-                          Global
+                      <div className="flex flex-wrap gap-2 mb-2">
+                        <Badge
+                          className={
+                            template.is_active
+                              ? 'bg-green-500/20 text-green-300 border-green-500/50'
+                              : 'bg-gray-500/20 text-gray-300 border-gray-500/50'
+                          }
+                        >
+                          {template.is_active ? 'Active' : 'Inactive'}
                         </Badge>
-                      )}
+                        {(template.template_type === 'visa_service' || template.template_type === 'chargeback_annex') && template.product_slug && (
+                          <Badge className="bg-blue-500/20 text-blue-300 border-blue-500/50">
+                            {template.product_slug}
+                          </Badge>
+                        )}
+                        {template.template_type === 'chargeback_annex' && !template.product_slug && (
+                          <Badge className="bg-purple-500/20 text-purple-300 border-purple-500/50">
+                            Global
+                          </Badge>
+                        )}
+                      </div>
                     </div>
                   </div>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2 mb-4">
-                  <p className="text-xs text-gray-500">
-                    Created: {new Date(template.created_at).toLocaleDateString()}
-                  </p>
-                  {template.created_by && (
-                    <p className="text-xs text-gray-500">By: {template.created_by}</p>
-                  )}
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleEdit(template)}
-                    className="bg-black border-gold-medium/50 text-gold-light hover:bg-black/80 hover:border-gold-medium"
-                  >
-                    <Edit className="w-3 h-3 mr-1" />
-                    Edit
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleDuplicate(template)}
-                    disabled={isSaving}
-                    className="bg-black border-gold-medium/50 text-gold-light hover:bg-black/80 hover:border-gold-medium disabled:opacity-50"
-                  >
-                    <Copy className="w-3 h-3 mr-1" />
-                    Duplicate
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleToggleActive(template)}
-                    disabled={isSaving}
-                    className={
-                      template.is_active
-                        ? 'bg-black border-yellow-500/50 text-yellow-300 hover:bg-black/80 hover:border-yellow-500 disabled:opacity-50'
-                        : 'bg-black border-green-500/50 text-green-300 hover:bg-black/80 hover:border-green-500 disabled:opacity-50'
-                    }
-                  >
-                    {template.is_active ? (
-                      <>
-                        <X className="w-3 h-3 mr-1" />
-                        Deactivate
-                      </>
-                    ) : (
-                      <>
-                        <Check className="w-3 h-3 mr-1" />
-                        Activate
-                      </>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-2 mb-4">
+                    <p className="text-xs text-gray-500">
+                      Created: {new Date(template.created_at).toLocaleDateString()}
+                    </p>
+                    {template.created_by && (
+                      <p className="text-xs text-gray-500">By: {template.created_by}</p>
                     )}
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleDelete(template)}
-                    disabled={isSaving}
-                    className="bg-black border-red-500/50 text-red-300 hover:bg-black/80 hover:border-red-500 disabled:opacity-50"
-                  >
-                    <Trash2 className="w-3 h-3 mr-1" />
-                    Delete
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      )}
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleEdit(template)}
+                      className="bg-black border-gold-medium/50 text-gold-light hover:bg-black/80 hover:border-gold-medium"
+                    >
+                      <Edit className="w-3 h-3 mr-1" />
+                      Edit
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleDuplicate(template)}
+                      disabled={isSaving}
+                      className="bg-black border-gold-medium/50 text-gold-light hover:bg-black/80 hover:border-gold-medium disabled:opacity-50"
+                    >
+                      <Copy className="w-3 h-3 mr-1" />
+                      Duplicate
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleToggleActive(template)}
+                      disabled={isSaving}
+                      className={
+                        template.is_active
+                          ? 'bg-black border-yellow-500/50 text-yellow-300 hover:bg-black/80 hover:border-yellow-500 disabled:opacity-50'
+                          : 'bg-black border-green-500/50 text-green-300 hover:bg-black/80 hover:border-green-500 disabled:opacity-50'
+                      }
+                    >
+                      {template.is_active ? (
+                        <>
+                          <X className="w-3 h-3 mr-1" />
+                          Deactivate
+                        </>
+                      ) : (
+                        <>
+                          <Check className="w-3 h-3 mr-1" />
+                          Activate
+                        </>
+                      )}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleDelete(template)}
+                      disabled={isSaving}
+                      className="bg-black border-red-500/50 text-red-300 hover:bg-black/80 hover:border-red-500 disabled:opacity-50"
+                    >
+                      <Trash2 className="w-3 h-3 mr-1" />
+                      Delete
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
       </>
     );
   }

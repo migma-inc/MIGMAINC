@@ -37,6 +37,7 @@ import { SellerOrders } from './pages/seller/SellerOrders';
 import { SellerLinks } from './pages/seller/SellerLinks';
 import { SellerLeads } from './pages/seller/SellerLeads';
 import { SellerOrderDetail } from './pages/SellerOrderDetail';
+import { SellerZelleApprovalPage } from './pages/seller/SellerZelleApprovalPage';
 import { SellerRoute } from './components/seller/SellerRoute';
 import { VisaOrdersPage } from './pages/VisaOrdersPage';
 import { VisaOrderDetailPage } from './pages/VisaOrderDetailPage';
@@ -97,6 +98,7 @@ function App() {
           <Route path="orders" element={<SellerOrders />} />
           <Route path="links" element={<SellerLinks />} />
           <Route path="leads" element={<SellerLeads />} />
+          <Route path="zelle-approvals" element={<SellerZelleApprovalPage />} />
         </Route>
         <Route path="/seller/orders/:orderId" element={<SellerRoute><SellerOrderDetail /></SellerRoute>} />
 

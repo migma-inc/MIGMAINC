@@ -2,39 +2,72 @@
 
 Este documento registra as tarefas concluídas, melhorias implementadas e decisões técnicas tomadas ao longo do projeto, organizado por data e tarefa.
 
-## [27/01/2026] - Investigação Parcelow e Proteção contra Cliques Duplos
+## [27/01/2026] - Gestão de Zelle Auditada, Skeleton UI e Performance de Imagens
 
 ### Descrição da Tarefa
-Investigação de ordens pendentes do Samuel Barbosa na Parcelow e implementação de uma camada de segurança no frontend para evitar a criação de pedidos duplicados por cliques múltiplos.
+Dia focado na robustez do sistema de pagamentos Zelle, implementação de auditoria completa (quem aprovou o quê), unificação de dados entre Admin/Seller e transformação da experiência de carregamento em Skeleton UI (Zero Spinner Policy).
 
 ### O que foi feito:
 
-#### **Investigação Técnica Parcelow**
-1.  **Análise de Logs**:
-    *   Identificada a causa das ordens pendentes do cliente Samuel Barbosa: o usuário gerou **5 pedidos em 14 segundos**, resultando em erros de "E-mail existente" na API da Parcelow.
-    *   Confirmado que o sistema de "alias" (`+timestamp`) funcionou corretamente, mas as ordens permaneceram como `Open` porque o cliente não concluiu o pagamento no site externo.
-2.  **Identificação de Vulnerabilidade**:
-    *   Detectada a falta de "debounce" ou trava no botão de finalização de compra, permitindo que usuários impacientes gerassem múltiplos registros órfãos no banco de dados.
+#### **1. Auditoria e Rastreabilidade (Audit Log)**
+*   **Identificação de Aprovadores**: Adicionado o campo `processed_by_user_id` nas tabelas `migma_payments` e `zelle_payments`.
+*   **Destaque no Histórico**: Nova UI de auditoria que exibe o selo **"Approved by: [Nome]"** com design premium em dourado, permitindo saber exatamente qual administrador ou vendedor processou cada pedido.
+*   **Backfilling Histórico**: Executada higienização manual via SQL para vincular transações antigas ao aprovador correto, garantindo que o histórico retroativo não tenha vácuos de informação.
 
-#### **Segurança e Idempotência no Frontend**
-1.  **Proteção contra Cliques Duplos (Double-Click Protection)**:
-    *   Implementada trava lógica nos handlers de pagamento (`handleStripeCheckout`, `handleZellePayment`, `handleParcelowPayment`).
-    *   O sistema agora ignora qualquer clique adicional se já houver um processamento em curso (`state.submitting`).
-2.  **Melhoria de UX e Feedback Visual**:
-    *   **Botão de Pagamento Mobile**: Adicionado estado de "Loading" com spinner animado e alteração do texto para "Processing..." após o primeiro clique.
-    *   **Botão de Pagamento Desktop**: Integrada a mesma proteção lógica no componente `OrderSummary`.
-3.  **Refatoração de Fluxo**:
-    *   O estado de submissão agora é disparado no primeiro milissegundo do evento, garantindo que a trava seja imediata mesmo em conexões lentas.
+#### **2. Fluxo Zelle para Vendedores (Seller Dashboard)**
+*   **Independência do Seller**: Implementada a página `SellerZelleApprovalPage.tsx`, permitindo que vendedores aprovem seus próprios pagamentos Zelle.
+*   **Deduplicação Inteligente**: Refatorada a lógica de unificação de dados para evitar registros duplicados quando um pagamento bruto (`migma_payments`) e uma ordem de serviço (`visa_orders`) coexistem.
+*   **Visualização de Comprovantes**: Integrado o acesso direto ao Storage do Supabase para que o vendedor possa conferir o comprovante antes da aprovação.
 
-### Arquivos Modificados:
-*   `src/features/visa-checkout/hooks/usePaymentHandlers.ts`: Lógica central de proteção.
-*   `src/features/visa-checkout/components/steps/Step3Payment.tsx`: Interface mobile com feedback visual.
-*   `src/features/visa-checkout/VisaCheckoutPage.tsx`: Segurança adicional no container principal.
+#### **3. Skeleton UI - Experiência "Zero Spinner" (Concluído)**
+*   **Cobertura de 100%**: Skeleton UI implementado em todas as seções principais do dashboard:
+    *   `ZelleApprovalPage`, `VisaContractApprovalPage`, `VisaOrdersPage`.
+    *   `ContractsPage` (Contratos Aceitos), `ContractTemplatesPage`.
+    *   `SlackReportsPage` e `DashboardContent` (Estatísticas e Lista de Aplicações).
+    *   `AdminProfile` (Configurações de Perfil).
+*   **Benefício**: Transições de página instantâneas e visualmente suaves, eliminando o "salto" de conteúdo e mantendo a estética state-of-the-art.
+
+#### **4. Otimização de Carregamento de Imagens**
+*   **ImageWithSkeleton**: Novo componente inteligente adicionado à `VisaContractApprovalPage.tsx`.
+*   **Carregamento Não Bloqueante**: Imagens de documentos e selfies agora carregam em segundo plano com um placeholder pulsante e entram com um efeito de **fade-in** suave após o download, eliminando o visual de carregamento "fatiado".
+
+#### **5. Central de Leads - Book a Call (Nova Funcionalidade)**
+*   **Gestão de Leads**: Implementação completa da página `BookACallPage.tsx` com listagem de leads, busca em tempo real e estatísticas rápidas (leads de hoje, países únicos e total).
+*   **Visualização Detalhada**: Criada a `BookACallDetailPage.tsx` com design rico em detalhes, incluindo desafios estratégicos do cliente, dados de contato e rastreamento de IP/Segurança.
+*   **Infraestrutura**: Novo hook `useBookACall` e tipos TS dedicados para garantir a escalabilidade do sistema de parcerias.
+
+#### **6. Refatoração de UI - Tickets de Suporte**
+*   **Toolbar Unificada**: Consolidada a interface de filtros na `ContactMessagesPage.tsx`. Substituídos os cards duplicados por uma barra de ferramentas compacta e moderna com botões estilo "pílula".
+*   **UX de Filtros**: Adicionado sistema de badges internos e botão de "Limpar Filtros" dinâmico.
+*   **Estado Vazio**: Redesenhado o componente de "Nenhum resultado encontrado" para ser mais minimalista e menos poluído visualmente.
+
+#### **7. Manutenção e Higienização de Dados (Supabase)**
+*   **Limpeza Profunda**: Remoção de registros de teste em múltiplas tabelas (`visa_orders`, `migma_payments`, `contact_messages`, `contact_message_replies`), garantindo um ambiente limpo para o uso em produção.
+
+#### **8. Sincronização e Recuperação do Monitoramento Slack**
+*   **Consolidação de Eventos**: Corrigida falha na exibição do dia 27/01. Realizada a consolidação manual de **31 eventos brutos** que estavam no banco, mas não apareciam no resumo consolidado.
+*   **Recuperação de Identidade**: Mapeados manualmente os IDs de usuários (Miriã, Larissa Costa, ADM MIGMA) para restaurar a clareza dos relatórios após mudança no formato do payload do Slack.
+*   **Resolutividade**: O dia 27 agora está visível e populado com todas as mensagens e estatísticas de tempo real.
+
+### Arquivos Modificados/Criados:
+*   `src/pages/BookACallPage.tsx`: (Refatorado) Central de Leads completa.
+*   `src/pages/BookACallDetailPage.tsx`: (Novo) Detalhes ricos do Lead.
+*   `src/hooks/useBookACall.ts`: (Novo) Hook de integração com Supabase.
+*   `src/types/book-a-call.ts`: (Novo) Definições de tipos para leads.
+*   `src/pages/ContactMessagesPage.tsx`: Refatoração da Toolbar e filtros de suporte.
+*   `src/pages/VisaContractApprovalPage.tsx`: Implementação de Skeleton e `ImageWithSkeleton`.
+*   `src/pages/ZelleApprovalPage.tsx`: Auditoria, Skeleton e Unificação.
+*   `src/pages/seller/SellerZelleApprovalPage.tsx`: (Novo) Fluxo completo de vendedores.
+*   `src/components/admin/ApplicationsList.tsx`: Implementação de Skeleton UI.
+*   `src/utils/image-compression.ts`: Utilitário central de compressão.
+*   `supabase/functions/parcelow-webhook/index.ts`: Trava de segurança.
 
 ### Impacto:
-*   **Integridade de Dados**: Redução drástica de ordens duplicadas e "lixo" no banco de dados e na API do provedor de pagamentos.
-*   **UX Superior**: Feedback visual claro impede que o usuário ache que o site travou e clique novamente.
-*   **Economia de API**: Menos chamadas desnecessárias para as Edge Functions e APIs externas da Parcelow/Stripe.
+*   **Transparência**: Gestão total sobre quem realizou cada ação no sistema.
+*   **UX Premium**: Interface fluida, sem "flashing" de conteúdo e com estética de software Tier 1.
+*   **Estabilidade**: Fim dos erros de memória na geração de documentos e banco de dados limpo.
+
+---
 
 ---
 

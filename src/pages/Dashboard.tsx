@@ -12,6 +12,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { LogOut, Filter, AlertCircle, Menu, ArrowLeft } from 'lucide-react';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Link } from 'react-router-dom';
 import { ApplicationsList } from '@/components/admin/ApplicationsList';
 import { PartnerContractsList } from '@/components/admin/PartnerContractsList';
@@ -737,7 +738,13 @@ export function DashboardContent() {
       )}
 
       {/* Statistics */}
-      {stats && (
+      {!stats ? (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 mb-4 sm:mb-6">
+          {[1, 2, 3, 4].map(i => (
+            <Skeleton key={i} className="h-20 sm:h-24 rounded-lg bg-zinc-900/40 border-white/5" />
+          ))}
+        </div>
+      ) : (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 mb-4 sm:mb-6">
           <div className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 rounded-lg shadow p-3 sm:p-4 border border-gold-medium/30">
             <p className="text-xs sm:text-sm text-gray-300">Total</p>

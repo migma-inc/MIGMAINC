@@ -8,6 +8,7 @@ import { PdfModal } from '@/components/ui/pdf-modal';
 import { ImageModal } from '@/components/ui/image-modal';
 import { CheckCircle, XCircle, Clock, Brain, Eye } from 'lucide-react';
 import { AlertModal } from '@/components/ui/alert-modal';
+import { Skeleton } from '@/components/ui/skeleton';
 
 interface ZelleOrder {
   id: string;
@@ -56,6 +57,7 @@ interface MigmaPayment {
   updated_at?: string;
   client_name?: string;
   client_email?: string;
+  unification_key?: string;
 }
 
 export const ZelleApprovalPage = () => {
@@ -91,7 +93,7 @@ export const ZelleApprovalPage = () => {
         .from('visa_orders')
         .select('*')
         .eq('payment_method', 'zelle')
-        .eq('payment_status', 'pending')
+        .in('payment_status', ['pending', 'completed']) // Fetch both to allow deduplication/unification
         .eq('is_hidden', false)
         .order('created_at', { ascending: false });
 
@@ -123,8 +125,10 @@ export const ZelleApprovalPage = () => {
 
       if (migmaError) console.error('Error loading Migma:', migmaError);
 
-      // 4. Enrich Migma with client names
+      // 4. Enrich Migma with client names and Fetch Processed By names
       let enrichedMigma: MigmaPayment[] = [];
+      const adminIds = new Set<string>();
+
       if (migmaData && migmaData.length > 0) {
         const userIds = [...new Set(migmaData.map(p => p.user_id))];
         const { data: clientsData } = await supabase
@@ -135,13 +139,67 @@ export const ZelleApprovalPage = () => {
         const clientsMap = new Map((clientsData || []).map(c => [c.id, c]));
         enrichedMigma = migmaData.map(p => {
           const client = clientsMap.get(p.user_id);
+          const email = client?.email || '';
           return {
             ...p,
             client_name: client?.full_name || `User ${p.user_id.substring(0, 8)}`,
-            client_email: client?.email || 'N/A'
+            client_email: email,
+            // Pre-calculate search key to be robust
+            unification_key: `${email.trim().toLowerCase()}_${p.fee_type_global.trim().toLowerCase()}`
           };
         });
-        console.log('🔍 [DEBUG] Enriched Migma data:', enrichedMigma.map(p => ({ id: p.id, status: p.status, email: p.client_email })));
+      }
+
+      // Collect admin/seller IDs from history
+      const { data: histOrdersData } = await supabase
+        .from('visa_orders')
+        .select('*')
+        .eq('payment_method', 'zelle')
+        .in('payment_status', ['completed', 'failed'])
+        .eq('is_hidden', false)
+        .order('updated_at', { ascending: false })
+        .limit(20);
+
+      const { data: histMigmaData } = await supabase
+        .from('migma_payments')
+        .select('*')
+        .in('status', ['approved', 'rejected'])
+        .order('updated_at', { ascending: false })
+        .limit(20);
+
+      const histMigmaPayments = histMigmaData || [];
+      const histOrdersPayments = histOrdersData || [];
+
+      // Find all processed_by_user_id in zelle_payments for regular orders
+      let zelleProcessedMap: Record<string, string> = {};
+      if (histOrdersPayments.length > 0) {
+        const orderIds = histOrdersPayments.map(o => o.id);
+        const { data: zpData } = await supabase
+          .from('zelle_payments')
+          .select('order_id, processed_by_user_id')
+          .in('order_id', orderIds);
+
+        zpData?.forEach(zp => {
+          if (zp.processed_by_user_id) {
+            adminIds.add(zp.processed_by_user_id);
+            zelleProcessedMap[zp.order_id] = zp.processed_by_user_id;
+          }
+        });
+      }
+
+      histMigmaPayments.forEach((p: any) => {
+        if (p.processed_by_user_id) adminIds.add(p.processed_by_user_id);
+      });
+
+      // Fetch names for these IDs
+      const adminsMap = new Map<string, string>();
+      if (adminIds.size > 0) {
+        const { data: adminsData } = await supabase
+          .from('sellers')
+          .select('user_id, full_name')
+          .in('user_id', Array.from(adminIds));
+
+        adminsData?.forEach(a => adminsMap.set(a.user_id, a.full_name));
       }
 
       // --- UNIFICATION & DEDUPLICATION ---
@@ -150,7 +208,7 @@ export const ZelleApprovalPage = () => {
 
       // A. Process Visa Orders
       (ordersData || []).forEach(order => {
-        const key = `${order.client_email.toLowerCase()}_${order.product_slug}`;
+        const key = `${(order.client_email || '').trim().toLowerCase()}_${(order.product_slug || '').trim().toLowerCase()}`;
         unifiedMap.set(key, {
           id: order.id,
           type: 'order',
@@ -170,7 +228,7 @@ export const ZelleApprovalPage = () => {
 
       // B. Merge Migma Payments (Grouped by email + product)
       enrichedMigma.forEach(migma => {
-        const key = `${migma.client_email?.toLowerCase()}_${migma.fee_type_global}`.toLowerCase();
+        const key = migma.unification_key || `${(migma.client_email || '').trim().toLowerCase()}_${(migma.fee_type_global || '').trim().toLowerCase()}`;
         const existing = unifiedMap.get(key);
 
         console.log(`🔍 [DEBUG] Processing Migma ID ${migma.id}: key=${key}, existing=${!!existing}, db_status=${migma.status}`);
@@ -196,47 +254,47 @@ export const ZelleApprovalPage = () => {
         }
       });
 
-      setUnifiedApprovals(Array.from(unifiedMap.values()));
-      console.log('🔍 [DEBUG] Unified Approvals count:', unifiedMap.size);
+      // Filter out items that are already completed in the unified map
+      const finalPending = Array.from(unifiedMap.values()).filter(item => {
+        // If it has migma status, check it
+        if (item.type === 'migma' && (item.status === 'approved' || item.status === 'rejected')) return false;
 
-      // --- HISTORY LOADING ---
-      const { data: histOrdersData } = await supabase
-        .from('visa_orders')
-        .select('*')
-        .eq('payment_method', 'zelle')
-        .in('payment_status', ['completed', 'failed'])
-        .eq('is_hidden', false)
-        .order('updated_at', { ascending: false })
-        .limit(20);
-      setHistoryOrders(histOrdersData || []);
+        // If it's an order or unified, check payment_status
+        const status = item.original_order?.payment_status || item.status;
+        return status === 'pending' || status === 'pending_verification';
+      });
 
-      const { data: histMigmaData } = await supabase
-        .from('migma_payments')
-        .select('*')
-        .in('status', ['approved', 'rejected'])
-        .order('updated_at', { ascending: false })
-        .limit(20);
+      setUnifiedApprovals(finalPending);
+      console.log('🔍 [DEBUG] Unified Approvals count (Filtered):', finalPending.length);
 
-      if (histMigmaData && histMigmaData.length > 0) {
-        const histUserIds = [...new Set(histMigmaData.map((p: any) => p.user_id))];
+      // --- HISTORY UI PREP ---
+      const enrichedHistOrders = histOrdersPayments.map(o => ({
+        ...o,
+        processed_by_name: adminsMap.get(zelleProcessedMap[o.id] || '')
+      }));
+
+      if (histMigmaPayments.length > 0) {
+        const histUserIds = [...new Set(histMigmaPayments.map((p: any) => p.user_id))];
         const { data: histClientsData } = await supabase
           .from('clients')
           .select('id, full_name, email')
           .in('id', histUserIds);
 
         const histClientsMap = new Map((histClientsData || []).map((c: any) => [c.id, c]));
-        const enrichedHistMigma = histMigmaData.map((p: any) => {
+        const enrichedHistMigma = histMigmaPayments.map((p: any) => {
           const client = histClientsMap.get(p.user_id);
           return {
             ...p,
             client_name: client?.full_name || `User ${p.user_id?.substring(0, 8)}`,
-            client_email: client?.email || 'N/A'
+            client_email: client?.email || 'N/A',
+            processed_by_name: adminsMap.get(p.processed_by_user_id || '')
           };
         });
         setHistoryMigma(enrichedHistMigma);
       } else {
         setHistoryMigma([]);
       }
+      setHistoryOrders(enrichedHistOrders);
     } catch (err) {
       console.error('Error loadOrders:', err);
       setAlertData({ title: 'Error', message: 'Failed to load approvals', variant: 'error' });
@@ -289,6 +347,7 @@ export const ZelleApprovalPage = () => {
             status: 'approved',
             admin_approved_at: new Date().toISOString(),
             admin_notes: 'Approved manually by admin',
+            processed_by_user_id: (await supabase.auth.getUser()).data.user?.id,
             updated_at: new Date().toISOString(),
           })
           .eq('id', zellePayment.id);
@@ -385,7 +444,8 @@ export const ZelleApprovalPage = () => {
         body: {
           id: selectedItem.id,
           type: selectedItem.type === 'order' ? 'visa_order' : 'migma_payment',
-          rejection_reason: rejectionReason
+          rejection_reason: rejectionReason,
+          processed_by_user_id: (await supabase.auth.getUser()).data.user?.id
         }
       });
 
@@ -636,23 +696,111 @@ export const ZelleApprovalPage = () => {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-12">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gold-medium mx-auto"></div>
-          <p className="mt-4 text-gray-400">Loading Zelle orders...</p>
+      <div className="p-4 sm:p-6 lg:p-8 space-y-8 animate-in fade-in duration-500">
+        <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
+          <div className="space-y-4">
+            <Skeleton className="h-10 w-64" />
+            <Skeleton className="h-4 w-96" />
+          </div>
+          <Skeleton className="h-10 w-32 hidden sm:block" />
         </div>
+
+        <section className="space-y-6">
+          <div className="flex items-center gap-3">
+            <Skeleton className="w-9 h-9 rounded-lg" />
+            <Skeleton className="h-7 w-48" />
+          </div>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {[1, 2, 3, 4].map((i) => (
+              <Card key={i} className="bg-zinc-900/40 border-white/5 overflow-hidden">
+                <CardHeader className="pb-4">
+                  <div className="flex justify-between items-start">
+                    <div className="space-y-2">
+                      <Skeleton className="h-4 w-32" />
+                      <Skeleton className="h-6 w-48" />
+                    </div>
+                    <Skeleton className="h-8 w-8 rounded-full" />
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Skeleton className="h-3 w-16" />
+                      <Skeleton className="h-5 w-24" />
+                    </div>
+                    <div className="space-y-2">
+                      <Skeleton className="h-3 w-16" />
+                      <Skeleton className="h-5 w-24" />
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <Skeleton className="h-10 flex-1" />
+                    <Skeleton className="h-10 flex-1" />
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </section>
+
+        <section className="pt-8 border-t border-white/5 space-y-6">
+          <div className="flex items-center gap-3">
+            <Skeleton className="w-9 h-9 rounded-lg" />
+            <Skeleton className="h-7 w-48" />
+          </div>
+          <div className="space-y-4">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="p-6 bg-white/[0.02] rounded-xl border border-white/5 flex gap-4">
+                <div className="flex-1 space-y-3">
+                  <Skeleton className="h-4 w-32" />
+                  <Skeleton className="h-6 w-64" />
+                </div>
+                <div className="w-24 space-y-3">
+                  <Skeleton className="h-4 w-full" />
+                  <Skeleton className="h-6 w-full" />
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
       </div>
     );
   }
 
-  const allHistory = [
-    ...historyOrders.map(o => ({ ...o, type: 'order' as const })),
-    ...historyMigma.map(p => ({ ...p, type: 'migma' as const }))
-  ].sort((a, b) => {
-    const dateA = new Date(a.updated_at || 0).getTime();
-    const dateB = new Date(b.updated_at || 0).getTime();
-    return dateB - dateA;
-  });
+  const allHistory = (() => {
+    const combined = [
+      ...historyOrders.map(o => ({ ...o, type: 'order' as const })),
+      ...historyMigma.map(p => ({ ...p, type: 'migma' as const }))
+    ];
+
+    const dedupedMap = new Map<string, any>();
+
+    // Processar ordens primeiro para que tenham prioridade sobre o migma_payment bruto
+    const sortedRaw = [...combined].sort((a, b) => (a.type === 'order' ? -1 : 1));
+
+    sortedRaw.forEach((item: any) => {
+      const email = (item.client_email || item.email || '').trim().toLowerCase();
+      const product = (item.product_slug || item.fee_type_global || '').trim().toLowerCase();
+      // Chave baseada em email e produto para evitar duplicidade de Ordem vs Pagamento
+      const key = `${email}_${product}`;
+
+      if (!dedupedMap.has(key)) {
+        dedupedMap.set(key, item);
+      } else {
+        const existing = dedupedMap.get(key);
+        // Se já temos a Ordem mas ela não tem o nome do aprovador, e o registro Migma tem, transferimos o nome.
+        if (existing.type === 'order' && !existing.processed_by_name && item.processed_by_name) {
+          existing.processed_by_name = item.processed_by_name;
+        }
+      }
+    });
+
+    return Array.from(dedupedMap.values()).sort((a, b) => {
+      const dateA = new Date(a.updated_at || 0).getTime();
+      const dateB = new Date(b.updated_at || 0).getTime();
+      return dateB - dateA;
+    });
+  })();
 
   return (
     <div className="p-4 sm:p-6 lg:p-8">
@@ -881,16 +1029,26 @@ export const ZelleApprovalPage = () => {
                         <h3 className="text-white font-semibold text-lg">{item.client_name}</h3>
                         <p className="text-xs text-gray-500">{item.client_email}</p>
                       </div>
-                      <Badge
-                        className={`
-                        py-1 px-3 rounded-full text-[10px] font-bold tracking-wider
-                        ${(item.status === 'approved' || item.payment_status === 'completed')
-                            ? 'bg-green-500/10 text-green-400 border border-green-500/20'
-                            : 'bg-red-500/10 text-red-400 border border-red-500/20'}
-                      `}
-                      >
-                        {(item.status === 'approved' || item.payment_status === 'completed') ? 'APPROVED' : 'REJECTED'}
-                      </Badge>
+                      <div className="flex flex-col items-end gap-1">
+                        <Badge
+                          className={`
+                          py-1 px-3 rounded-full text-[10px] font-bold tracking-wider
+                          ${(item.status === 'approved' || item.payment_status === 'completed')
+                              ? 'bg-green-500/10 text-green-400 border border-green-500/20'
+                              : 'bg-red-500/10 text-red-400 border border-red-500/20'}
+                        `}
+                        >
+                          {(item.status === 'approved' || item.payment_status === 'completed') ? 'APPROVED' : 'REJECTED'}
+                        </Badge>
+                        {item.processed_by_name && (
+                          <div className="flex items-center gap-1.5 mt-1 bg-white/5 px-2 py-0.5 rounded border border-white/5">
+                            <span className="text-[8px] text-gray-400 uppercase font-bold tracking-tighter">Approved by</span>
+                            <span className="text-[10px] text-gold-light font-semibold whitespace-nowrap">
+                              {item.processed_by_name}
+                            </span>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </CardHeader>
 

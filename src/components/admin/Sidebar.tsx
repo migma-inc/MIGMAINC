@@ -67,19 +67,55 @@ export function Sidebar({ className, isMobileOpen = false, onMobileClose }: Side
         return hasPendingContract || hasPendingAnnex;
       }).length;
 
-      // 4. Zelle Approvals Count
-      const { count: zelleCount } = await supabase
+      // 4. Zelle Approvals Count (Orders + UNIQUE Migma Payments)
+      const { data: zelleOrdersRaw } = await supabase
         .from('visa_orders')
-        .select('*', { count: 'exact', head: true })
+        .select('id, client_email, product_slug, payment_status, zelle_proof_url')
         .eq('payment_method', 'zelle')
-        .eq('payment_status', 'pending')
-        .not('zelle_proof_url', 'is', null);
+        .eq('is_hidden', false);
+
+      const { data: migmaPaymentsRaw } = await supabase
+        .from('migma_payments')
+        .select('id, user_id, fee_type_global, status')
+        .in('status', ['pending', 'pending_verification']);
+
+      // Filtrar ordens realmente pendentes (com comprovante)
+      const pendingOrders = (zelleOrdersRaw || []).filter(o =>
+        o.payment_status === 'pending' && o.zelle_proof_url
+      );
+
+      // Mapear ordens completadas para deduplicação
+      const completedKeys = new Set(
+        (zelleOrdersRaw || [])
+          .filter(o => o.payment_status === 'completed')
+          .map(o => `${(o.client_email || '').trim().toLowerCase()}_${(o.product_slug || '').trim().toLowerCase()}`)
+      );
+
+      // Enriquecer Migma com email para cruzar dados
+      let finalMigmaCount = 0;
+      if (migmaPaymentsRaw && migmaPaymentsRaw.length > 0) {
+        const userIds = [...new Set(migmaPaymentsRaw.map(p => p.user_id))];
+        const { data: clientsData } = await supabase
+          .from('clients')
+          .select('id, email')
+          .in('id', userIds);
+
+        const clientsMap = new Map((clientsData || []).map(c => [c.id, c.email]));
+
+        finalMigmaCount = migmaPaymentsRaw.filter(p => {
+          const email = (clientsMap.get(p.user_id) || '').trim().toLowerCase();
+          const product = (p.fee_type_global || '').trim().toLowerCase();
+          const key = `${email}_${product}`;
+          // Só conta se NÃO tiver uma ordem completada para esse par email_produto
+          return !completedKeys.has(key);
+        }).length;
+      }
 
       setCounts({
         applications: appCount || 0,
         partnerContracts: partnerCount || 0,
         visaApprovals: visaApprovalsCount,
-        zelleApprovals: zelleCount || 0
+        zelleApprovals: pendingOrders.length + finalMigmaCount
       });
     } catch (err) {
       console.error('Error loading sidebar counts:', err);
