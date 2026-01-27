@@ -6,6 +6,8 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Loader2, Save, User, Mail, Phone, Shield } from 'lucide-react';
 
+import { Skeleton } from '@/components/ui/skeleton';
+
 export const AdminProfile = () => {
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
@@ -46,7 +48,8 @@ export const AdminProfile = () => {
             console.error('[AdminProfile] Unexpected error:', err);
             setError('An unexpected error occurred');
         } finally {
-            setLoading(false);
+            // Pequeno delay para suavizar a transição do skeleton
+            setTimeout(() => setLoading(false), 300);
         }
     };
 
@@ -127,11 +130,28 @@ export const AdminProfile = () => {
 
     if (loading) {
         return (
-            <div className="flex items-center justify-center min-h-[400px]">
-                <div className="text-center">
-                    <Loader2 className="w-8 h-8 animate-spin text-gold-medium mx-auto mb-4" />
-                    <p className="text-gray-400">Loading profile...</p>
-                </div>
+            <div className="max-w-3xl mx-auto p-4 sm:p-6 lg:p-8 space-y-8 animate-in fade-in duration-500">
+                <Card className="bg-zinc-900/40 border-white/5">
+                    <CardHeader className="space-y-4">
+                        <div className="flex items-center gap-3">
+                            <Skeleton className="h-8 w-8 rounded-lg" />
+                            <Skeleton className="h-8 w-64" />
+                        </div>
+                        <Skeleton className="h-4 w-80" />
+                    </CardHeader>
+                    <CardContent className="space-y-6">
+                        {[1, 2, 3].map(i => (
+                            <div key={i} className="space-y-2">
+                                <div className="flex items-center gap-2">
+                                    <Skeleton className="h-4 w-4" />
+                                    <Skeleton className="h-4 w-24" />
+                                </div>
+                                <Skeleton className="h-10 w-full rounded-md" />
+                            </div>
+                        ))}
+                        <Skeleton className="h-10 w-full rounded-md mt-6" />
+                    </CardContent>
+                </Card>
             </div>
         );
     }

@@ -5,17 +5,18 @@
 
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { cn } from '@/lib/utils';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { 
-  Mail, 
-  User, 
-  Calendar, 
-  MessageSquare, 
-  CheckCircle, 
-  Circle, 
+import {
+  Mail,
+  User,
+  Calendar,
+  MessageSquare,
+  CheckCircle,
+  Circle,
   Archive,
   AlertCircle,
   Clock,
@@ -40,7 +41,7 @@ export function ContactMessagesPage() {
 
   useEffect(() => {
     loadMessages();
-    
+
     // Auto-refresh every 10 seconds
     const interval = setInterval(loadMessages, 10000);
     return () => clearInterval(interval);
@@ -49,7 +50,7 @@ export function ContactMessagesPage() {
   const loadMessages = async () => {
     try {
       setLoading(true);
-      
+
       // Build query with filters
       let query = adminSupabase
         .from('contact_messages')
@@ -217,97 +218,119 @@ export function ContactMessagesPage() {
         <p className="text-gray-400">Manage and respond to customer support tickets</p>
       </div>
 
-      {/* Filters */}
-      <div className="space-y-4 mb-6">
-        {/* Status Filter */}
-        <Card className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-2 mb-3">
-              <CheckCircle className="w-4 h-4 text-gold-light" />
-              <p className="text-sm font-semibold text-gold-light">Status Filter:</p>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {[
-                { value: 'all', label: 'All', count: statusCounts.all },
-                { value: 'new', label: 'New', count: statusCounts.new },
-                { value: 'read', label: 'In Review', count: statusCounts.read },
-                { value: 'replied', label: 'Replied', count: statusCounts.replied },
-                { value: 'resolved', label: 'Resolved', count: statusCounts.resolved },
-                { value: 'archived', label: 'Archived', count: statusCounts.archived },
-              ].map((status) => (
-                <Button
-                  key={status.value}
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setStatusFilter(status.value)}
-                  className={`${
-                    statusFilter === status.value
-                      ? 'bg-gold-medium/20 border-gold-medium text-gold-light'
-                      : 'border-gold-medium/50 bg-black/50 text-gold-light hover:bg-black hover:border-gold-medium'
-                  }`}
-                >
-                  {status.label} ({status.count})
-                </Button>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+      {/* Filters Toolbar */}
+      <Card className="bg-black/40 border border-white/5 mb-8 overflow-hidden">
+        <div className="p-4 sm:p-6 space-y-6">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
 
-        {/* Priority Filter */}
-        <Card className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-2 mb-3">
-              <AlertCircle className="w-4 h-4 text-gold-light" />
-              <p className="text-sm font-semibold text-gold-light">Priority Filter:</p>
+            {/* Status Section */}
+            <div className="flex-1 space-y-3">
+              <div className="flex items-center gap-2">
+                <CheckCircle className="w-4 h-4 text-gold-medium" />
+                <span className="text-xs font-bold uppercase tracking-widest text-gray-500">Filter by Status</span>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {[
+                  { value: 'all', label: 'All', count: statusCounts.all },
+                  { value: 'new', label: 'New', count: statusCounts.new },
+                  { value: 'read', label: 'In Review', count: statusCounts.read },
+                  { value: 'replied', label: 'Replied', count: statusCounts.replied },
+                  { value: 'resolved', label: 'Resolved', count: statusCounts.resolved },
+                  { value: 'archived', label: 'Archived', count: statusCounts.archived },
+                ].map((status) => (
+                  <button
+                    key={status.value}
+                    onClick={() => setStatusFilter(status.value)}
+                    className={cn(
+                      "px-3 py-1.5 rounded-full text-xs font-medium transition-all flex items-center gap-2",
+                      statusFilter === status.value
+                        ? "bg-gold-medium text-black shadow-[0_0_15px_rgba(212,175,55,0.3)]"
+                        : "bg-white/5 text-gray-400 hover:bg-white/10 border border-white/5"
+                    )}
+                  >
+                    {status.label}
+                    <span className={cn(
+                      "px-1.5 py-0.5 rounded-full text-[10px]",
+                      statusFilter === status.value ? "bg-black/20" : "bg-white/10"
+                    )}>
+                      {status.count}
+                    </span>
+                  </button>
+                ))}
+              </div>
             </div>
-            <div className="flex flex-wrap gap-2">
-              {[
-                { value: 'all', label: 'All Priorities', count: priorityCounts.all },
-                { value: 'urgent', label: 'Urgent', count: priorityCounts.urgent },
-                { value: 'high', label: 'High', count: priorityCounts.high },
-                { value: 'medium', label: 'Medium', count: priorityCounts.medium },
-                { value: 'low', label: 'Low', count: priorityCounts.low },
-              ].map((priority) => (
-                <Button
-                  key={priority.value}
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setPriorityFilter(priority.value)}
-                  className={`${
-                    priorityFilter === priority.value
-                      ? 'bg-gold-medium/20 border-gold-medium text-gold-light'
-                      : 'border-gold-medium/50 bg-black/50 text-gold-light hover:bg-black hover:border-gold-medium'
-                  }`}
-                >
-                  {priority.label} ({priority.count})
-                </Button>
-              ))}
+
+            <div className="hidden md:block w-px h-12 bg-white/5" />
+
+            {/* Priority Section */}
+            <div className="flex-1 space-y-3 text-right md:text-left">
+              <div className="flex items-center gap-2 md:justify-start justify-end">
+                <AlertCircle className="w-4 h-4 text-gold-medium" />
+                <span className="text-xs font-bold uppercase tracking-widest text-gray-500">Filter by Priority</span>
+              </div>
+              <div className="flex flex-wrap gap-2 justify-end md:justify-start">
+                {[
+                  { value: 'all', label: 'All', count: priorityCounts.all },
+                  { value: 'urgent', label: 'Urgent', count: priorityCounts.urgent },
+                  { value: 'high', label: 'High', count: priorityCounts.high },
+                  { value: 'medium', label: 'Medium', count: priorityCounts.medium },
+                  { value: 'low', label: 'Low', count: priorityCounts.low },
+                ].map((priority) => (
+                  <button
+                    key={priority.value}
+                    onClick={() => setPriorityFilter(priority.value)}
+                    className={cn(
+                      "px-3 py-1.5 rounded-full text-xs font-medium transition-all flex items-center gap-2",
+                      priorityFilter === priority.value
+                        ? "bg-zinc-100 text-black"
+                        : "bg-white/5 text-gray-400 hover:bg-white/10 border border-white/5"
+                    )}
+                  >
+                    {priority.label}
+                    <span className={cn(
+                      "px-1.5 py-0.5 rounded-full text-[10px]",
+                      priorityFilter === priority.value ? "bg-black/10" : "bg-white/10"
+                    )}>
+                      {priority.count}
+                    </span>
+                  </button>
+                ))}
+              </div>
             </div>
-          </CardContent>
-        </Card>
-      </div>
+
+          </div>
+        </div>
+      </Card>
 
       {/* Tickets List */}
-      <div className="space-y-4">
+      <div className="space-y-4 pb-12">
         {messages.length === 0 ? (
-          <Card className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30">
-            <CardContent className="p-12 text-center">
-              <Mail className="w-16 h-16 text-gray-500 mx-auto mb-4" />
-              <p className="text-gray-400 mb-2">No tickets found</p>
-              <p className="text-sm text-gray-500">
-                {statusFilter !== 'all' || priorityFilter !== 'all' 
-                  ? 'Try adjusting your filters' 
-                  : 'Tickets will appear here when users submit the contact form'}
-              </p>
-            </CardContent>
-          </Card>
+          <div className="py-20 text-center border-2 border-dashed border-white/5 rounded-3xl">
+            <div className="w-16 h-16 bg-white/5 rounded-full flex items-center justify-center mx-auto mb-4">
+              <Mail className="w-8 h-8 text-gray-600" />
+            </div>
+            <h3 className="text-white font-bold text-lg">No tickets found</h3>
+            <p className="text-gray-500 max-w-xs mx-auto text-sm mt-1">
+              {statusFilter !== 'all' || priorityFilter !== 'all'
+                ? 'Try adjusting your filters to find specific support messages.'
+                : 'Tickets will appear here when users submit the contact form on your website.'}
+            </p>
+            {(statusFilter !== 'all' || priorityFilter !== 'all') && (
+              <Button
+                variant="ghost"
+                onClick={() => { setStatusFilter('all'); setPriorityFilter('all'); }}
+                className="mt-6 text-gold-light hover:text-gold-medium hover:bg-transparent"
+              >
+                Clear all filters
+              </Button>
+            )}
+          </div>
         ) : (
           messages.map((message) => (
             <Card
               key={message.id}
-              className={`bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30 cursor-pointer hover:border-gold-medium/60 transition-all ${
-                message.unread_count && message.unread_count > 0 ? 'ring-2 ring-gold-medium/50' : ''
-              }`}
+              className={`bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30 cursor-pointer hover:border-gold-medium/60 transition-all ${message.unread_count && message.unread_count > 0 ? 'ring-2 ring-gold-medium/50' : ''
+                }`}
               onClick={() => navigate(`/dashboard/contact-messages/${message.id}`)}
             >
               <CardHeader>
@@ -318,14 +341,14 @@ export function ContactMessagesPage() {
                       <CardTitle className="text-white">{message.subject}</CardTitle>
                       {getStatusBadge(message.status)}
                       {getPriorityBadge(message.priority)}
-                      
+
                       {/* Unread indicator */}
                       {message.unread_count && message.unread_count > 0 && (
                         <Badge className="bg-red-500/30 text-red-200 border-red-500/50 animate-pulse">
                           {message.unread_count} new {message.unread_count === 1 ? 'reply' : 'replies'}
                         </Badge>
                       )}
-                      
+
                       {/* Reply count */}
                       {message.reply_count && message.reply_count > 0 && (
                         <Badge variant="outline" className="border-gold-medium/50 text-gray-300">
@@ -334,7 +357,7 @@ export function ContactMessagesPage() {
                         </Badge>
                       )}
                     </div>
-                    
+
                     <div className="flex flex-wrap items-center gap-4 text-sm text-gray-400">
                       <div className="flex items-center gap-1">
                         <User className="w-4 h-4" />
@@ -342,8 +365,8 @@ export function ContactMessagesPage() {
                       </div>
                       <div className="flex items-center gap-1">
                         <Mail className="w-4 h-4" />
-                        <a 
-                          href={`mailto:${message.email}`} 
+                        <a
+                          href={`mailto:${message.email}`}
                           className="text-gold-light hover:text-gold-medium"
                           onClick={(e) => e.stopPropagation()}
                         >
@@ -364,11 +387,11 @@ export function ContactMessagesPage() {
                       )}
                     </div>
                   </div>
-                  
+
                   <ArrowRight className="w-5 h-5 text-gold-light ml-4 flex-shrink-0" />
                 </div>
               </CardHeader>
-              
+
               <CardContent>
                 <div className="space-y-3">
                   {/* Tags */}
@@ -376,9 +399,9 @@ export function ContactMessagesPage() {
                     <div className="flex items-center gap-2 flex-wrap">
                       <Tag className="w-4 h-4 text-gold-light" />
                       {message.tags.map((tag, idx) => (
-                        <Badge 
-                          key={idx} 
-                          variant="outline" 
+                        <Badge
+                          key={idx}
+                          variant="outline"
                           className="border-gold-medium/50 text-gold-light bg-black/30"
                         >
                           {tag}
@@ -386,7 +409,7 @@ export function ContactMessagesPage() {
                       ))}
                     </div>
                   )}
-                  
+
                   {/* Message preview */}
                   <div>
                     <p className="text-sm font-semibold text-gray-300 mb-1">Message Preview:</p>
@@ -394,7 +417,7 @@ export function ContactMessagesPage() {
                       {message.message}
                     </p>
                   </div>
-                  
+
                   <div className="flex items-center justify-between pt-3 border-t border-gold-medium/30">
                     <p className="text-xs text-gray-500">Click to open ticket and respond</p>
                     <Button

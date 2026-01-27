@@ -13,6 +13,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Skeleton } from '@/components/ui/skeleton';
 
 const isLocal = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
 
@@ -514,10 +515,71 @@ export const VisaOrdersPage = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-black flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gold-medium mx-auto"></div>
-          <p className="mt-4 text-gray-400">Loading orders...</p>
+      <div className="p-4 sm:p-6 lg:p-8 space-y-8 animate-in fade-in duration-500">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4 sm:mb-8">
+          <div className="space-y-4">
+            <Skeleton className="h-10 w-64" />
+            <Skeleton className="h-4 w-96 hidden md:block" />
+          </div>
+          <div className="flex gap-2">
+            <Skeleton className="h-10 w-40" />
+            <Skeleton className="h-10 w-40" />
+          </div>
+        </div>
+
+        <div className="space-y-6">
+          <div className="flex gap-2 border-b border-white/5 pb-2">
+            <Skeleton className="h-10 w-32" />
+            <Skeleton className="h-10 w-32" />
+          </div>
+
+          {/* Desktop Skeleton Table */}
+          <div className="hidden md:block overflow-hidden rounded-xl border border-white/5">
+            <div className="bg-zinc-900/40 p-4 border-b border-white/5 flex gap-4">
+              {[1, 2, 3, 4, 5, 6].map(i => (
+                <Skeleton key={i} className="h-4 flex-1" />
+              ))}
+            </div>
+            <div className="space-y-0">
+              {[1, 2, 3, 4, 5].map(i => (
+                <div key={i} className="p-4 bg-zinc-900/20 border-b border-white/5 flex gap-4 items-center">
+                  <Skeleton className="h-6 w-24" />
+                  <div className="flex-1 space-y-2">
+                    <Skeleton className="h-5 w-32" />
+                    <Skeleton className="h-3 w-48" />
+                  </div>
+                  <Skeleton className="h-5 w-32" />
+                  <Skeleton className="h-5 w-16" />
+                  <Skeleton className="h-5 w-24" />
+                  <Skeleton className="h-5 w-24" />
+                  <Skeleton className="h-8 w-24 rounded-full" />
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Mobile Skeleton Cards */}
+          <div className="md:hidden space-y-4">
+            {[1, 2, 3].map(i => (
+              <Card key={i} className="bg-zinc-900/40 border-white/5 p-4 space-y-4">
+                <div className="flex justify-between items-start">
+                  <div className="space-y-2">
+                    <Skeleton className="h-5 w-32" />
+                    <Skeleton className="h-4 w-24" />
+                  </div>
+                  <Skeleton className="h-6 w-20 rounded-full" />
+                </div>
+                <div className="space-y-2">
+                  <Skeleton className="h-4 w-full" />
+                  <Skeleton className="h-4 w-2/3" />
+                </div>
+                <div className="flex gap-2 pt-2">
+                  <Skeleton className="h-9 flex-1" />
+                  <Skeleton className="h-9 flex-1" />
+                </div>
+              </Card>
+            ))}
+          </div>
         </div>
       </div>
     );

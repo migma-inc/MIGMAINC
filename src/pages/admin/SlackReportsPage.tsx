@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { supabase } from '@/lib/supabase';
-import { Loader2, Activity, Users, Calendar, BarChart3, MessageSquare, FileText, FileJson, FileCode } from 'lucide-react';
+import { Activity, Users, Calendar, BarChart3, MessageSquare, FileText, FileJson, FileCode } from 'lucide-react';
+import { Skeleton } from '@/components/ui/skeleton';
 import { format } from 'date-fns';
 import {
     Dialog,
@@ -290,8 +291,54 @@ export function SlackReportsPage() {
 
     if (loading) {
         return (
-            <div className="flex items-center justify-center p-8 min-h-[50vh]">
-                <Loader2 className="w-8 h-8 animate-spin text-gold-medium" />
+            <div className="p-4 sm:p-6 lg:p-8 space-y-8 animate-in fade-in duration-500">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                    <div className="space-y-4">
+                        <Skeleton className="h-10 w-64" />
+                        <Skeleton className="h-4 w-96 hidden md:block" />
+                    </div>
+                    <Skeleton className="h-10 w-32" />
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    {[1, 2, 3].map(i => (
+                        <Card key={i} className="bg-zinc-900/40 border-white/5 p-6 space-y-4">
+                            <Skeleton className="h-4 w-32" />
+                            <div className="flex items-center gap-3">
+                                <Skeleton className="h-8 w-8 rounded" />
+                                <Skeleton className="h-8 w-24" />
+                            </div>
+                            <Skeleton className="h-3 w-40" />
+                        </Card>
+                    ))}
+                </div>
+
+                <Card className="bg-zinc-900/40 border-white/5">
+                    <CardHeader>
+                        <Skeleton className="h-6 w-48" />
+                    </CardHeader>
+                    <CardContent>
+                        <div className="space-y-4">
+                            <div className="flex gap-4 border-b border-white/5 pb-4">
+                                {[1, 2, 3, 4].map(i => (
+                                    <Skeleton key={i} className="h-4 flex-1" />
+                                ))}
+                            </div>
+                            {[1, 2, 3, 4, 5].map(i => (
+                                <div key={i} className="flex gap-4 items-center">
+                                    <Skeleton className="h-5 flex-1" />
+                                    <Skeleton className="h-5 flex-1" />
+                                    <Skeleton className="h-5 flex-1" />
+                                    <div className="flex-1 flex justify-end gap-2">
+                                        <Skeleton className="h-8 w-8" />
+                                        <Skeleton className="h-8 w-8" />
+                                        <Skeleton className="h-8 w-20" />
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </CardContent>
+                </Card>
             </div>
         );
     }

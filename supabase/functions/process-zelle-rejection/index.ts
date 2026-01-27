@@ -19,7 +19,7 @@ Deno.serve(async (req: Request) => {
     }
 
     try {
-        const { id, type, rejection_reason } = await req.json();
+        const { id, type, rejection_reason, processed_by_user_id } = await req.json();
         console.log(`[PROCESS-ZELLE-REJECTION] REJECTION START - Type: ${type}, ID: ${id}`);
         console.log(`[PROCESS-ZELLE-REJECTION] Reason: ${rejection_reason}`);
 
@@ -62,6 +62,7 @@ Deno.serve(async (req: Request) => {
             await supabase.from('zelle_payments').update({
                 status: 'rejected',
                 admin_notes: rejection_reason || 'Rejected manually by admin',
+                processed_by_user_id: processed_by_user_id,
                 updated_at: new Date().toISOString()
             }).eq('order_id', id);
 
@@ -97,6 +98,7 @@ Deno.serve(async (req: Request) => {
             await supabase.from('migma_payments').update({
                 status: 'rejected',
                 admin_notes: rejection_reason || 'Rejected manually by admin',
+                processed_by_user_id: processed_by_user_id,
                 updated_at: new Date().toISOString()
             }).eq('id', id);
 

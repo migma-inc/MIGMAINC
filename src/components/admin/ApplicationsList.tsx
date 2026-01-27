@@ -4,10 +4,10 @@
 
 import { useApplications } from '@/hooks/useApplications';
 import type { Application } from '@/types/application';
+import { Eye, CheckCircle, XCircle, Calendar, Clock, Link as LinkIcon, Pencil, Mail } from 'lucide-react';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-// Badge component is defined inline in StatusBadge
-import { Eye, CheckCircle, XCircle, Calendar, Clock, Link as LinkIcon, Pencil, Mail } from 'lucide-react';
 import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 
@@ -70,11 +70,39 @@ export function ApplicationsList({
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-12">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gold-medium mx-auto"></div>
-          <p className="mt-4 text-gray-400">Loading applications...</p>
-        </div>
+      <div className="space-y-4 animate-in fade-in duration-500">
+        {[1, 2, 3].map((i) => (
+          <Card key={i} className="bg-zinc-900/40 border-white/5 p-6 space-y-6">
+            <div className="flex flex-col sm:flex-row justify-between items-start gap-4">
+              <div className="space-y-3 flex-1">
+                <Skeleton className="h-6 w-64" />
+                <Skeleton className="h-4 w-48" />
+              </div>
+              <Skeleton className="h-6 w-32 rounded-full" />
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="space-y-2">
+                <Skeleton className="h-3 w-16" />
+                <Skeleton className="h-4 w-32" />
+              </div>
+              <div className="space-y-2">
+                <Skeleton className="h-3 w-16" />
+                <Skeleton className="h-4 w-32" />
+              </div>
+              <div className="space-y-2">
+                <Skeleton className="h-3 w-16" />
+                <Skeleton className="h-4 w-32" />
+              </div>
+            </div>
+
+            <div className="flex flex-wrap gap-2 pt-2">
+              <Skeleton className="h-9 w-32" />
+              <Skeleton className="h-9 w-32" />
+              <Skeleton className="h-9 w-32" />
+            </div>
+          </Card>
+        ))}
       </div>
     );
   }

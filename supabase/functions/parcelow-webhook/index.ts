@@ -109,6 +109,13 @@ async function processParcelowWebhookEvent(
     current_payment_status: order.payment_status,
   });
 
+  // PROTEÇÃO DE IDEMPOTÊNCIA: Se a ordem já está completa no banco, retorne imediatamente
+  // Isso evita que retentativas do webhook disparem e-mails e gerações de PDF repetidas
+  if (order.payment_status === 'completed' && eventType === 'event_order_paid') {
+    console.log(`[Parcelow Webhook] 🛡️ Order ${order.order_number} is ALREADY marked as completed. Skipping and returning 200 OK to prevent duplicate notifications.`);
+    return;
+  }
+
   // Update visa_orders based on event type
   let paymentStatus = order.payment_status;
   let shouldProcessPayment = false; // Flag for full payment processing

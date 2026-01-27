@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
+import { cn } from '@/lib/utils';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -26,6 +27,7 @@ import {
     DialogTitle
 } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
+import { Skeleton } from '@/components/ui/skeleton';
 
 interface VisaOrder {
     id: string;
@@ -162,6 +164,27 @@ export function VisaContractApprovalPage() {
         }
     };
 
+    const ImageWithSkeleton = ({ src, alt, className }: { src: string, alt: string, className: string }) => {
+        const [isLoaded, setIsLoaded] = useState(false);
+
+        return (
+            <div className={cn("relative overflow-hidden", className)}>
+                {!isLoaded && (
+                    <Skeleton className="absolute inset-0 w-full h-full" />
+                )}
+                <img
+                    src={src}
+                    alt={alt}
+                    className={cn(
+                        "w-full h-full object-cover transition-opacity duration-500",
+                        isLoaded ? "opacity-100" : "opacity-0"
+                    )}
+                    onLoad={() => setIsLoaded(true)}
+                />
+            </div>
+        );
+    };
+
     const confirmReject = async () => {
         if (!pendingItem) return;
         setIsProcessing(true);
@@ -273,8 +296,64 @@ export function VisaContractApprovalPage() {
 
     if (loading) {
         return (
-            <div className="flex items-center justify-center min-h-[400px]">
-                <div className="loader-gold"></div>
+            <div className="p-4 sm:p-6 lg:p-8 space-y-8 animate-in fade-in duration-500">
+                <div className="space-y-4">
+                    <Skeleton className="h-10 w-64" />
+                    <Skeleton className="h-4 w-96" />
+                </div>
+
+                <div className="flex gap-2">
+                    <Skeleton className="h-10 w-32" />
+                    <Skeleton className="h-10 w-32" />
+                    <Skeleton className="h-10 w-32" />
+                </div>
+
+                <div className="space-y-6">
+                    {[1, 2, 3].map((i) => (
+                        <Card key={i} className="bg-zinc-900/40 border-white/5 overflow-hidden">
+                            <CardHeader className="border-b border-white/5 pb-4">
+                                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                                    <div className="space-y-2">
+                                        <div className="flex items-center gap-2">
+                                            <Skeleton className="h-5 w-5 rounded-full" />
+                                            <Skeleton className="h-6 w-48" />
+                                        </div>
+                                        <Skeleton className="h-4 w-32" />
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <Skeleton className="h-5 w-16 px-2" />
+                                        <Skeleton className="h-5 w-32" />
+                                    </div>
+                                </div>
+                            </CardHeader>
+                            <CardContent className="p-6">
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                                    <div className="space-y-4">
+                                        <Skeleton className="h-3 w-24" />
+                                        <div className="flex gap-2">
+                                            <Skeleton className="w-20 h-20 rounded-lg" />
+                                            <Skeleton className="w-20 h-20 rounded-lg" />
+                                            <Skeleton className="w-20 h-20 rounded-lg" />
+                                        </div>
+                                    </div>
+                                    {[1, 2].map((j) => (
+                                        <div key={j} className="p-4 rounded-xl border border-white/5 bg-white/5 space-y-4">
+                                            <div className="flex justify-between items-center">
+                                                <Skeleton className="h-4 w-24" />
+                                                <Skeleton className="h-5 w-16" />
+                                            </div>
+                                            <Skeleton className="h-10 w-full" />
+                                            <div className="grid grid-cols-2 gap-2 pt-2">
+                                                <Skeleton className="h-8 w-full" />
+                                                <Skeleton className="h-8 w-full" />
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </CardContent>
+                        </Card>
+                    ))}
+                </div>
             </div>
         );
     }
@@ -340,11 +419,15 @@ export function VisaContractApprovalPage() {
                                                             rel="noopener noreferrer"
                                                             className="group relative w-20 h-20 sm:w-24 sm:h-24 rounded-lg overflow-hidden border border-gold-medium/30 bg-black/50 hover:border-gold-medium transition-colors"
                                                         >
-                                                            <img src={getDocumentUrl(file.file_path)} alt={file.file_type} className="w-full h-full object-cover" />
+                                                            <ImageWithSkeleton
+                                                                src={getDocumentUrl(file.file_path)}
+                                                                alt={file.file_type}
+                                                                className="w-full h-full"
+                                                            />
                                                             <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
                                                                 <ImageIcon className="w-6 h-6 text-white" />
                                                             </div>
-                                                            <span className="absolute bottom-0 inset-x-0 bg-black/80 text-[10px] text-center text-white py-0.5 capitalize">
+                                                            <span className="absolute bottom-0 inset-x-0 bg-black/80 text-[10px] text-center text-white py-0.5 capitalize z-10">
                                                                 {file.file_type === 'document_front' ? 'Doc Front' :
                                                                     file.file_type === 'document_back' ? 'Doc Back' :
                                                                         file.file_type === 'selfie_doc' ? 'Selfie' :

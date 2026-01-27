@@ -7,6 +7,8 @@ interface AlertModalProps {
   title: string;
   message: string;
   variant?: 'success' | 'error' | 'warning' | 'info';
+  onConfirm?: () => void;
+  children?: React.ReactNode;
 }
 
 export function AlertModal({
@@ -15,6 +17,8 @@ export function AlertModal({
   title,
   message,
   variant = 'info',
+  onConfirm,
+  children,
 }: AlertModalProps) {
   if (!isOpen) return null;
 
@@ -50,14 +54,27 @@ export function AlertModal({
             <div className="flex-1">
               <h3 className="text-lg font-semibold text-white mb-2">{title}</h3>
               <p className="text-gray-300">{message}</p>
+              {children && <div className="mt-4">{children}</div>}
             </div>
           </div>
-          <div className="flex justify-end">
+          <div className="flex justify-end gap-3">
+            {onConfirm && (
+              <Button
+                variant="ghost"
+                onClick={onClose}
+                className="text-white/60 hover:text-white hover:bg-white/5 border border-white/10"
+              >
+                Cancel
+              </Button>
+            )}
             <Button
-              onClick={onClose}
+              onClick={() => {
+                if (onConfirm) onConfirm();
+                onClose();
+              }}
               className="bg-gradient-to-b from-gold-light via-gold-medium to-gold-light text-black font-bold hover:from-gold-medium hover:via-gold-light hover:to-gold-medium transition-all shadow-lg"
             >
-              OK
+              {onConfirm ? 'Confirm' : 'OK'}
             </Button>
           </div>
         </div>

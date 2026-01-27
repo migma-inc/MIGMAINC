@@ -2,7 +2,8 @@ import { useState, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
-import { Camera, Upload, X } from 'lucide-react';
+import { Camera, Upload, X, Loader2 } from 'lucide-react';
+import { compressImage } from '@/utils/image-compression';
 
 interface DocumentFile {
   file: File;
@@ -24,6 +25,7 @@ export const DocumentUpload = ({ onComplete, onCancel }: DocumentUploadProps) =>
   const [documentBack, setDocumentBack] = useState<DocumentFile | null>(null);
   const [selfie, setSelfie] = useState<DocumentFile | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [compressing, setCompressing] = useState<string | null>(null);
   const [error, setError] = useState('');
   const [documentsUploaded, setDocumentsUploaded] = useState(false);
 
@@ -39,17 +41,17 @@ export const DocumentUpload = ({ onComplete, onCancel }: DocumentUploadProps) =>
       return 'File must be a JPG or PNG image';
     }
 
-    // Check file size (max 3MB)
-    const maxSize = 3 * 1024 * 1024; // 3MB
+    // Check file size (max 20MB for source - we will compress it)
+    const maxSize = 20 * 1024 * 1024; // 20MB
     if (file.size > maxSize) {
-      return 'File too large. Please reduce the image size to under 3MB.';
+      return 'File too large. Please select an image under 20MB.';
     }
 
     return null;
   };
 
   // Handle file selection
-  const handleFileSelect = (
+  const handleFileSelect = async (
     e: React.ChangeEvent<HTMLInputElement>,
     type: 'document_front' | 'document_back' | 'selfie_doc',
     setter: (file: DocumentFile | null) => void
@@ -64,17 +66,27 @@ export const DocumentUpload = ({ onComplete, onCancel }: DocumentUploadProps) =>
     }
 
     setError('');
+    setCompressing(type);
 
-    // Create preview for images (we only allow images now)
-    const reader = new FileReader();
-    reader.onloadend = () => {
+    try {
+      // Compress image before setting state
+      const { file: compressedFile, preview } = await compressImage(file, {
+        maxWidth: 2000,
+        maxHeight: 2000,
+        quality: 0.8
+      });
+
       setter({
-        file,
-        preview: reader.result as string,
+        file: compressedFile,
+        preview,
         type,
       });
-    };
-    reader.readAsDataURL(file);
+    } catch (err: any) {
+      console.error('Compression error:', err);
+      setError('Failed to process image. Please try again.');
+    } finally {
+      setCompressing(null);
+    }
   };
 
   // Remove file
@@ -207,11 +219,16 @@ export const DocumentUpload = ({ onComplete, onCancel }: DocumentUploadProps) =>
                   Remove
                 </Button>
               </div>
+            ) : compressing === 'document_front' ? (
+              <div className="py-12">
+                <Loader2 className="h-12 w-12 text-gold-light mx-auto mb-2 animate-spin" />
+                <p className="text-sm text-white">Compressing image...</p>
+              </div>
             ) : (
               <div>
                 <Upload className="h-12 w-12 text-gold-light mx-auto mb-2" />
                 <p className="text-sm text-white">Click to upload or take photo</p>
-                <p className="text-xs text-gray-400 mt-1">JPG or PNG (max 3MB)</p>
+                <p className="text-xs text-gray-400 mt-1">JPG or PNG (max 20MB)</p>
               </div>
             )}
           </label>
@@ -256,11 +273,16 @@ export const DocumentUpload = ({ onComplete, onCancel }: DocumentUploadProps) =>
                   Remove
                 </Button>
               </div>
+            ) : compressing === 'document_back' ? (
+              <div className="py-12">
+                <Loader2 className="h-12 w-12 text-gold-light mx-auto mb-2 animate-spin" />
+                <p className="text-sm text-white">Compressing image...</p>
+              </div>
             ) : (
               <div>
                 <Upload className="h-12 w-12 text-gold-light mx-auto mb-2" />
                 <p className="text-sm text-white">Click to upload or take photo</p>
-                <p className="text-xs text-gray-400 mt-1">JPG, PNG or PDF (max 3MB)</p>
+                <p className="text-xs text-gray-400 mt-1">JPG or PNG (max 20MB)</p>
               </div>
             )}
           </label>
@@ -321,11 +343,16 @@ export const DocumentUpload = ({ onComplete, onCancel }: DocumentUploadProps) =>
                   Retake Photo
                 </Button>
               </div>
+            ) : compressing === 'selfie_doc' ? (
+              <div className="py-12">
+                <Loader2 className="h-12 w-12 text-gold-light mx-auto mb-2 animate-spin" />
+                <p className="text-sm text-white">Compressing image...</p>
+              </div>
             ) : (
               <div>
                 <Camera className="h-12 w-12 text-gold-light mx-auto mb-2" />
                 <p className="text-sm text-white">Click to take or upload selfie</p>
-                <p className="text-xs text-gray-400 mt-1">JPG or PNG (max 3MB)</p>
+                <p className="text-xs text-gray-400 mt-1">JPG or PNG (max 20MB)</p>
               </div>
             )}
           </label>

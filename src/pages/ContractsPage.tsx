@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { FileText, Download, Eye, FileDown, User, MapPin, Hash, FileCode, Globe, Check, X, AlertCircle } from 'lucide-react';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { fetchAcceptedContracts, fetchContractStats, getContractPdfUrl, getCvFileUrl, type AcceptedContract } from '@/lib/contracts';
@@ -27,14 +28,14 @@ export function ContractsPage() {
     approved: [],
     rejected: [],
   });
-  
+
   const [contracts, setContracts] = useState<AcceptedContract[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedContract, setSelectedContract] = useState<AcceptedContract | null>(null);
   const [showPdfModal, setShowPdfModal] = useState(false);
   const [showCvModal, setShowCvModal] = useState(false);
-  
+
   // Restaurar statusFilter do localStorage na inicialização
   const getInitialStatusFilter = (): 'all' | 'pending' | 'approved' | 'rejected' => {
     try {
@@ -47,7 +48,7 @@ export function ContractsPage() {
     }
     return 'all';
   };
-  
+
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>(getInitialStatusFilter());
   const [stats, setStats] = useState<{ total: number; pending: number; approved: number; rejected: number } | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -66,10 +67,10 @@ export function ContractsPage() {
     try {
       setLoading(true);
       setError(null);
-      
+
       // Carregar todos os contratos de uma vez
       const allContracts = await fetchAcceptedContracts('all');
-      
+
       // Organizar por status
       const organized: typeof contractsCache = {
         all: allContracts,
@@ -77,12 +78,12 @@ export function ContractsPage() {
         approved: allContracts.filter(c => c.verification_status === 'approved'),
         rejected: allContracts.filter(c => c.verification_status === 'rejected'),
       };
-      
+
       setContractsCache(organized);
-      
+
       // Atualizar contratos exibidos baseado no filtro atual
       setContracts(organized[statusFilter] || []);
-      
+
       console.log('[ContractsPage] All contracts loaded and cached');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load contracts');
@@ -94,10 +95,10 @@ export function ContractsPage() {
   // Salvar statusFilter no localStorage quando mudar e atualizar exibição (sem recarregar)
   const handleStatusFilterChange = (value: 'all' | 'pending' | 'approved' | 'rejected') => {
     setStatusFilter(value);
-    
+
     // Atualizar contratos exibidos do cache (sem recarregar do servidor)
     setContracts(contractsCache[value] || []);
-    
+
     try {
       localStorage.setItem(CONTRACTS_TAB_STORAGE_KEY, value);
       console.log('[ContractsPage] Tab changed, using cached data:', value);
@@ -410,7 +411,7 @@ export function ContractsPage() {
       const reviewedBy = user?.email || user?.id || 'unknown';
 
       const result = await approvePartnerContract(pendingContract.id, reviewedBy);
-      
+
       if (result.success) {
         setAlertData({
           title: 'Success',
@@ -474,12 +475,12 @@ export function ContractsPage() {
         pendingRejection.reason,
         templateId
       );
-      
+
       if (result.success) {
         setAlertData({
           title: 'Success',
-          message: templateId 
-            ? 'Contract rejected and new contract link sent successfully.' 
+          message: templateId
+            ? 'Contract rejected and new contract link sent successfully.'
             : 'Contract rejected successfully.',
           variant: 'success',
         });
@@ -515,10 +516,62 @@ export function ContractsPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gold-medium mx-auto"></div>
-          <p className="mt-4 text-gray-400">Loading contracts...</p>
+      <div className="p-4 sm:p-6 lg:p-8 space-y-8 animate-in fade-in duration-500">
+        <div className="space-y-4">
+          <Skeleton className="h-10 w-64" />
+          <Skeleton className="h-4 w-96 hidden md:block" />
+
+          <div className="flex flex-wrap gap-4 mt-4">
+            {[1, 2, 3, 4].map(i => (
+              <Skeleton key={i} className="h-5 w-24" />
+            ))}
+          </div>
+        </div>
+
+        {/* Warning Alert Skeleton */}
+        <Skeleton className="h-24 w-full rounded-xl border-2 border-yellow-500/20 bg-yellow-500/5" />
+
+        <div className="space-y-6">
+          <div className="flex gap-2 bg-black/50 p-1 rounded-lg border border-white/5 w-full sm:w-fit">
+            {[1, 2, 3, 4].map(i => (
+              <Skeleton key={i} className="h-9 w-24 sm:w-32" />
+            ))}
+          </div>
+
+          <div className="grid grid-cols-1 gap-6">
+            {[1, 2, 3].map(i => (
+              <Card key={i} className="bg-zinc-900/40 border-white/5 p-6 space-y-6">
+                <div className="flex flex-col sm:flex-row justify-between items-start gap-4">
+                  <div className="space-y-3 flex-1">
+                    <Skeleton className="h-7 w-64" />
+                    <div className="flex gap-3">
+                      <Skeleton className="h-4 w-48" />
+                      <Skeleton className="h-4 w-24" />
+                      <Skeleton className="h-4 w-32" />
+                    </div>
+                  </div>
+                  <Skeleton className="h-6 w-32 rounded-full" />
+                </div>
+
+                <div className="p-4 bg-black/20 rounded-lg border border-white/5 space-y-4">
+                  <Skeleton className="h-4 w-32" />
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <Skeleton className="h-4 w-full" />
+                    <Skeleton className="h-4 w-full" />
+                    <Skeleton className="h-4 w-full" />
+                    <Skeleton className="h-4 w-full" />
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap gap-2 pt-2">
+                  <Skeleton className="h-9 w-28" />
+                  <Skeleton className="h-9 w-28" />
+                  <Skeleton className="h-9 w-32" />
+                  <Skeleton className="h-9 w-32" />
+                </div>
+              </Card>
+            ))}
+          </div>
         </div>
       </div>
     );
@@ -544,7 +597,7 @@ export function ContractsPage() {
       <div className="mb-4 sm:mb-6">
         <h1 className="text-2xl sm:text-3xl font-bold migma-gold-text mb-2">Accepted Contracts</h1>
         <p className="text-sm sm:text-base text-gray-400">View and manage all accepted partner contracts</p>
-        
+
         {/* Statistics */}
         {stats && (
           <div className="mt-3 sm:mt-4 flex flex-wrap gap-3 sm:gap-4 text-xs sm:text-sm">
@@ -576,15 +629,15 @@ export function ContractsPage() {
       </div>
 
       {/* Tabs for filtering */}
-        <Tabs value={statusFilter} onValueChange={(value) => handleStatusFilterChange(value as 'all' | 'pending' | 'approved' | 'rejected')} className="mb-6">
+      <Tabs value={statusFilter} onValueChange={(value) => handleStatusFilterChange(value as 'all' | 'pending' | 'approved' | 'rejected')} className="mb-6">
         <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 bg-black/50 border border-gold-medium/30 text-xs sm:text-sm">
-          <TabsTrigger 
+          <TabsTrigger
             value="all"
             className="data-[state=active]:bg-gold-medium data-[state=active]:text-black data-[state=inactive]:text-gray-400 data-[state=inactive]:hover:text-gold-light border-r border-gold-medium/30"
           >
             All
           </TabsTrigger>
-          <TabsTrigger 
+          <TabsTrigger
             value="pending"
             className="data-[state=active]:bg-gold-medium data-[state=active]:text-black data-[state=inactive]:text-gray-400 data-[state=inactive]:hover:text-gold-light border-r border-gold-medium/30"
           >
@@ -593,13 +646,13 @@ export function ContractsPage() {
               <Badge className="ml-2 bg-yellow-600 text-white">{stats.pending}</Badge>
             )}
           </TabsTrigger>
-          <TabsTrigger 
+          <TabsTrigger
             value="approved"
             className="data-[state=active]:bg-gold-medium data-[state=active]:text-black data-[state=inactive]:text-gray-400 data-[state=inactive]:hover:text-gold-light border-r border-gold-medium/30"
           >
             Approved
           </TabsTrigger>
-          <TabsTrigger 
+          <TabsTrigger
             value="rejected"
             className="data-[state=active]:bg-gold-medium data-[state=active]:text-black data-[state=inactive]:text-gray-400 data-[state=inactive]:hover:text-gold-light"
           >
@@ -838,15 +891,15 @@ export function ContractsPage() {
                 Contract - {selectedContract.application?.full_name}
               </h3>
               <div className="flex gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleDownloadContract(selectedContract)}
-                    className="border-gold-medium/50 bg-black/50 text-white hover:bg-gold-medium/30 hover:text-gold-light"
-                  >
-                    <Download className="w-4 h-4 mr-2" />
-                    Download
-                  </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleDownloadContract(selectedContract)}
+                  className="border-gold-medium/50 bg-black/50 text-white hover:bg-gold-medium/30 hover:text-gold-light"
+                >
+                  <Download className="w-4 h-4 mr-2" />
+                  Download
+                </Button>
                 <Button variant="outline" size="sm" onClick={() => setShowPdfModal(false)} className="border-gold-medium/50 bg-black/50 text-white hover:bg-black/50 hover:text-white">
                   Close
                 </Button>
@@ -872,15 +925,15 @@ export function ContractsPage() {
                 CV - {selectedContract.application?.full_name}
               </h3>
               <div className="flex gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleDownloadCv(selectedContract)}
-                    className="border-gold-medium/50 bg-black/50 text-white hover:bg-gold-medium/30 hover:text-gold-light"
-                  >
-                    <Download className="w-4 h-4 mr-2" />
-                    Download
-                  </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleDownloadCv(selectedContract)}
+                  className="border-gold-medium/50 bg-black/50 text-white hover:bg-gold-medium/30 hover:text-gold-light"
+                >
+                  <Download className="w-4 h-4 mr-2" />
+                  Download
+                </Button>
                 <Button variant="outline" size="sm" onClick={() => setShowCvModal(false)} className="border-gold-medium/50 bg-black/50 text-white hover:bg-black/50 hover:text-white">
                   Close
                 </Button>
