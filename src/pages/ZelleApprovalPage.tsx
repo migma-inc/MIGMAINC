@@ -776,7 +776,7 @@ export const ZelleApprovalPage = () => {
     const dedupedMap = new Map<string, any>();
 
     // Processar ordens primeiro para que tenham prioridade sobre o migma_payment bruto
-    const sortedRaw = [...combined].sort((a, b) => (a.type === 'order' ? -1 : 1));
+    const sortedRaw = [...combined].sort((a, _b) => (a.type === 'order' ? -1 : 1));
 
     sortedRaw.forEach((item: any) => {
       const email = (item.client_email || item.email || '').trim().toLowerCase();

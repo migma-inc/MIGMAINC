@@ -502,7 +502,7 @@ export const SellerZelleApprovalPage = () => {
         const seenKeys = new Set<string>();
 
         // Processar ordens primeiro
-        const sortedRaw = [...combined].sort((a, b) => (a.type === 'order' ? -1 : 1));
+        const sortedRaw = [...combined].sort((a, _b) => (a.type === 'order' ? -1 : 1));
 
         sortedRaw.forEach((item: any) => {
             const email = (item.client_email || item.email || '').trim().toLowerCase();
