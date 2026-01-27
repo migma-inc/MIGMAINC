@@ -333,16 +333,14 @@ Deno.serve(async (req) => {
       }
     })();
 
-    // 4. Trigger n8n Webhook IF it's the main contract approval AND payment is manual
-    if (approvalType === 'contract' && order.payment_method === 'manual') {
-      console.log(`[EDGE FUNCTION] Triggering manual payment webhook for order: ${order.order_number}`);
+    // 4. Trigger n8n Webhook IF it's the main contract approval (Universal standard for all payment methods)
+    if (approvalType === 'contract') {
+      console.log(`[EDGE FUNCTION] Triggering n8n webhook for order: ${order.order_number} (Method: ${order.payment_method})`);
       const orderWithApproval = { ...order, ...updateData };
       // Fire and forget (don't block the response)
       sendClientWebhook(orderWithApproval, supabase).catch(err =>
         console.error("[EDGE FUNCTION] Non-critical webhook error:", err)
       );
-    } else if (approvalType === 'contract') {
-      console.log(`[EDGE FUNCTION] Skipping webhook for order ${order.order_number} (Payment method: ${order.payment_method})`);
     }
 
     // 5. Manage View Token and Send Email

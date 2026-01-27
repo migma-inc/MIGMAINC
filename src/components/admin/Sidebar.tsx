@@ -41,17 +41,30 @@ export function Sidebar({ className, isMobileOpen = false, onMobileClose }: Side
         .eq('verification_status', 'pending')
         .not('accepted_at', 'is', null);
 
-      // 3. Visa Approvals Count (with special filtering for abandoned)
+      // 3. Visa Approvals Count (with real document check)
       const { data: visaData } = await supabase
         .from('visa_orders')
-        .select('payment_method, payment_status, parcelow_status, is_hidden')
-        .eq('contract_approval_status', 'pending');
+        .select('payment_method, payment_status, parcelow_status, is_hidden, contract_pdf_url, annex_pdf_url, contract_approval_status, annex_approval_status')
+        .or('contract_approval_status.eq.pending,annex_approval_status.eq.pending');
 
       const visaApprovalsCount = (visaData || []).filter(order => {
+        // 1. Ignorar ocultos ou cancelados
+        if (order.is_hidden || order.payment_status === 'cancelled') return false;
+
+        // 2. Filtro Zelle
+        if (order.payment_method === 'zelle' && order.payment_status !== 'completed') return false;
+
+        // 3. Filtro Parcelow abandonado
         const isAbandonedParcelow = order.payment_method === 'parcelow' &&
           order.payment_status === 'pending' &&
           (order.parcelow_status === 'Open' || order.parcelow_status === 'Waiting Payment');
-        return !order.is_hidden && !isAbandonedParcelow;
+        if (isAbandonedParcelow) return false;
+
+        // 4. Só conta se houver de fato um documento pendente para revisar
+        const hasPendingContract = order.contract_pdf_url && (order.contract_approval_status === 'pending' || !order.contract_approval_status);
+        const hasPendingAnnex = order.annex_pdf_url && (order.annex_approval_status === 'pending' || !order.annex_approval_status);
+
+        return hasPendingContract || hasPendingAnnex;
       }).length;
 
       // 4. Zelle Approvals Count

@@ -56,6 +56,7 @@ import { SlackReportsPage } from './pages/admin/SlackReportsPage';
 import { VisaContractApprovalPage } from './pages/VisaContractApprovalPage';
 import { AdminProfile } from './pages/admin/AdminProfile';
 import { SendExistingContracts } from './pages/admin/SendExistingContracts';
+import { NotFound } from './pages/NotFound';
 
 function App() {
   return (
@@ -128,6 +129,9 @@ function App() {
           <Route path="profile" element={<AdminProfile />} />
           <Route path="send-existing-contracts" element={<SendExistingContracts />} />
         </Route>
+
+        {/* Catch-all 404 Route */}
+        <Route path="*" element={<NotFound />} />
       </Routes>
     </Router>
   );
