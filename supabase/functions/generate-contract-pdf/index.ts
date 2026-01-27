@@ -295,7 +295,7 @@ Deno.serve(async (req) => {
     };
 
     // Generic helper to load an image either from a public URL or from storage path
-    const loadImage = async (urlOrPath: string | null | undefined): Promise<{ dataUrl: string; format: string } | null> => {
+    const loadImage = async (urlOrPath: string | null | undefined): Promise<{ data: Uint8Array; format: string } | null> => {
       if (!urlOrPath) {
         return null;
       }
@@ -343,20 +343,11 @@ Deno.serve(async (req) => {
           }
         }
 
-        // Convert ArrayBuffer to base64 (chunked approach for large files)
         const bytes = new Uint8Array(imageArrayBuffer);
-        let binary = '';
-        const chunkSize = 8192;
-        for (let i = 0; i < bytes.length; i += chunkSize) {
-          const chunk = bytes.subarray(i, i + chunkSize);
-          binary += String.fromCharCode.apply(null, Array.from(chunk));
-        }
-        const imageBase64 = btoa(binary);
         const imageFormat = mimeType.includes('png') ? 'PNG' : 'JPEG';
-        const imageDataUrl = `data:${mimeType};base64,${imageBase64}`;
 
         console.log("[EDGE FUNCTION] Image loaded successfully");
-        return { dataUrl: imageDataUrl, format: imageFormat };
+        return { data: bytes, format: imageFormat };
       } catch (imageError) {
         console.error("[EDGE FUNCTION] Could not load image:", imageError);
         return null;
@@ -523,7 +514,7 @@ Deno.serve(async (req) => {
         const maxHeight = 20; // Height for signature is typically smaller
 
         pdf.addImage(
-          signatureImage.dataUrl,
+          signatureImage.data,
           signatureImage.format,
           margin,
           currentY,
@@ -598,7 +589,7 @@ Deno.serve(async (req) => {
         pdf.setFont('helvetica', 'bold');
         pdf.text('DOCUMENT FRONT', margin, currentY);
         currentY += titleHeight;
-        pdf.addImage(documentFront.dataUrl, documentFront.format, margin, currentY, maxWidth, maxHeight);
+        pdf.addImage(documentFront.data, documentFront.format, margin, currentY, maxWidth, maxHeight);
         currentY += maxHeight + imageSpacing;
       }
 
@@ -612,7 +603,7 @@ Deno.serve(async (req) => {
         pdf.setFont('helvetica', 'bold');
         pdf.text('DOCUMENT BACK', margin, currentY);
         currentY += titleHeight;
-        pdf.addImage(documentBack.dataUrl, documentBack.format, margin, currentY, maxWidth, maxHeight);
+        pdf.addImage(documentBack.data, documentBack.format, margin, currentY, maxWidth, maxHeight);
         currentY += maxHeight + imageSpacing;
       }
 
@@ -627,7 +618,7 @@ Deno.serve(async (req) => {
         pdf.setFont('helvetica', 'bold');
         pdf.text('IDENTITY PHOTO WITH DOCUMENT', margin, currentY);
         currentY += titleHeight;
-        pdf.addImage(identityPhoto.dataUrl, identityPhoto.format, margin, currentY, maxWidth, maxHeight);
+        pdf.addImage(identityPhoto.data, identityPhoto.format, margin, currentY, maxWidth, maxHeight);
         currentY += maxHeight + imageSpacing;
       }
     }

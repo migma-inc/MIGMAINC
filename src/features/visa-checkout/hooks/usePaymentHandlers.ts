@@ -92,10 +92,15 @@ export const usePaymentHandlers = (
     }, [termsAccepted, dataAuthorization, signatureConfirmed, signatureImageDataUrl, serviceRequestId, contractTemplate, setError, creditCardName, cpf]);
 
     const handleStripeCheckout = useCallback(async (method: 'card' | 'pix') => {
-        if (!await validateStep3(method)) return;
+        if (state.submitting) return;
 
         setSubmitting(true);
         try {
+            if (!await validateStep3(method)) {
+                setSubmitting(false);
+                return;
+            }
+
             if (sellerId && productSlug) {
                 await trackFormCompleted(sellerId, productSlug, {
                     extra_units: extraUnits,
@@ -157,21 +162,27 @@ export const usePaymentHandlers = (
             StripeService.redirectToCheckout(response.url);
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Stripe payment failed');
-        } finally {
             setSubmitting(false);
         }
-    }, [productSlug, sellerId, totalWithFees, extraUnits, serviceRequestId, clientName, clientEmail, clientWhatsApp, validateStep3, documentFiles, hasExistingContract, existingContractData, dependentNames, clientCountry, clientNationality, clientObservations, exchangeRate, contractTemplate, setSubmitting, setError]);
+    }, [productSlug, sellerId, totalWithFees, extraUnits, serviceRequestId, clientName, clientEmail, clientWhatsApp, validateStep3, documentFiles, hasExistingContract, existingContractData, dependentNames, clientCountry, clientNationality, clientObservations, exchangeRate, contractTemplate, setSubmitting, setError, state.submitting]);
 
     const handleZellePayment = useCallback(async () => {
-        if (!await validateStep3('zelle')) return;
-        if (!zelleReceipt) {
-            setError('Please upload Zelle receipt');
-            return;
-        }
+        if (state.submitting) return;
 
         setSubmitting(true);
-        setIsZelleProcessing(true);
         try {
+            if (!await validateStep3('zelle')) {
+                setSubmitting(false);
+                return;
+            }
+
+            if (!zelleReceipt) {
+                setError('Please upload Zelle receipt');
+                setSubmitting(false);
+                return;
+            }
+
+            setIsZelleProcessing(true);
             // Logic from VisaCheckout...
             // Upload signature if needed
             let signatureUrl = '';
@@ -213,17 +224,21 @@ export const usePaymentHandlers = (
             }
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Zelle payment failed');
-        } finally {
             setSubmitting(false);
             setIsZelleProcessing(false);
         }
-    }, [productSlug, sellerId, baseTotal, validateStep3, zelleReceipt, extraUnits, serviceRequestId, clientName, clientEmail, clientWhatsApp, dependentNames, clientCountry, clientNationality, clientObservations, contractTemplate, setSubmitting, setIsZelleProcessing, setError]);
+    }, [productSlug, sellerId, baseTotal, validateStep3, zelleReceipt, extraUnits, serviceRequestId, clientName, clientEmail, clientWhatsApp, dependentNames, clientCountry, clientNationality, clientObservations, contractTemplate, setSubmitting, setIsZelleProcessing, setError, state.submitting]);
 
     const handleParcelowPayment = useCallback(async () => {
-        if (!await validateStep3('parcelow')) return;
+        if (state.submitting) return;
 
         setSubmitting(true);
         try {
+            if (!await validateStep3('parcelow')) {
+                setSubmitting(false);
+                return;
+            }
+
             if (sellerId && productSlug) {
                 await trackFormCompleted(sellerId, productSlug, {
                     extra_units: extraUnits,
@@ -362,10 +377,9 @@ export const usePaymentHandlers = (
         } catch (err) {
             console.error('Parcelow payment error:', err);
             setError(err instanceof Error ? err.message : 'Parcelow payment failed');
-        } finally {
             setSubmitting(false);
         }
-    }, [productSlug, sellerId, totalWithFees, extraUnits, serviceRequestId, clientName, clientEmail, clientWhatsApp, validateStep3, documentFiles, hasExistingContract, existingContractData, dependentNames, clientCountry, clientNationality, clientObservations, setSubmitting, setError, contractTemplate, creditCardName, cpf]);
+    }, [productSlug, sellerId, totalWithFees, extraUnits, serviceRequestId, clientName, clientEmail, clientWhatsApp, validateStep3, documentFiles, hasExistingContract, existingContractData, dependentNames, clientCountry, clientNationality, clientObservations, setSubmitting, setError, contractTemplate, creditCardName, cpf, state.submitting]);
 
     return {
         handleStripeCheckout,

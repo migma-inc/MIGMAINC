@@ -2,6 +2,40 @@
 
 Este documento registra as tarefas concluídas, melhorias implementadas e decisões técnicas tomadas ao longo do projeto, organizado por data e tarefa.
 
+## [27/01/2026] - Investigação Parcelow e Proteção contra Cliques Duplos
+
+### Descrição da Tarefa
+Investigação de ordens pendentes do Samuel Barbosa na Parcelow e implementação de uma camada de segurança no frontend para evitar a criação de pedidos duplicados por cliques múltiplos.
+
+### O que foi feito:
+
+#### **Investigação Técnica Parcelow**
+1.  **Análise de Logs**:
+    *   Identificada a causa das ordens pendentes do cliente Samuel Barbosa: o usuário gerou **5 pedidos em 14 segundos**, resultando em erros de "E-mail existente" na API da Parcelow.
+    *   Confirmado que o sistema de "alias" (`+timestamp`) funcionou corretamente, mas as ordens permaneceram como `Open` porque o cliente não concluiu o pagamento no site externo.
+2.  **Identificação de Vulnerabilidade**:
+    *   Detectada a falta de "debounce" ou trava no botão de finalização de compra, permitindo que usuários impacientes gerassem múltiplos registros órfãos no banco de dados.
+
+#### **Segurança e Idempotência no Frontend**
+1.  **Proteção contra Cliques Duplos (Double-Click Protection)**:
+    *   Implementada trava lógica nos handlers de pagamento (`handleStripeCheckout`, `handleZellePayment`, `handleParcelowPayment`).
+    *   O sistema agora ignora qualquer clique adicional se já houver um processamento em curso (`state.submitting`).
+2.  **Melhoria de UX e Feedback Visual**:
+    *   **Botão de Pagamento Mobile**: Adicionado estado de "Loading" com spinner animado e alteração do texto para "Processing..." após o primeiro clique.
+    *   **Botão de Pagamento Desktop**: Integrada a mesma proteção lógica no componente `OrderSummary`.
+3.  **Refatoração de Fluxo**:
+    *   O estado de submissão agora é disparado no primeiro milissegundo do evento, garantindo que a trava seja imediata mesmo em conexões lentas.
+
+### Arquivos Modificados:
+*   `src/features/visa-checkout/hooks/usePaymentHandlers.ts`: Lógica central de proteção.
+*   `src/features/visa-checkout/components/steps/Step3Payment.tsx`: Interface mobile com feedback visual.
+*   `src/features/visa-checkout/VisaCheckoutPage.tsx`: Segurança adicional no container principal.
+
+### Impacto:
+*   **Integridade de Dados**: Redução drástica de ordens duplicadas e "lixo" no banco de dados e na API do provedor de pagamentos.
+*   **UX Superior**: Feedback visual claro impede que o usuário ache que o site travou e clique novamente.
+*   **Economia de API**: Menos chamadas desnecessárias para as Edge Functions e APIs externas da Parcelow/Stripe.
+
 ---
 
 ## [26/01/2026] - Estabilização de Dados, Monitoramento Slack e Remoção de Webhooks
