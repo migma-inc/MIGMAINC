@@ -17,7 +17,7 @@ const corsHeaders = {
 };
 
 // Helper function to load image from URL
-const loadImage = async (imageUrl: string | null, supabase: any): Promise<{ dataUrl: string; format: string } | null> => {
+const loadImage = async (imageUrl: string | null, supabase: any): Promise<{ data: Uint8Array; format: string } | null> => {
     if (!imageUrl) return null;
 
     try {
@@ -47,20 +47,10 @@ const loadImage = async (imageUrl: string | null, supabase: any): Promise<{ data
         const imageBlob = await imageResponse.blob();
         const imageArrayBuffer = await imageBlob.arrayBuffer();
         const mimeType = imageBlob.type;
-
-        // Convert to base64
+        const imageFormat = mimeType.includes('png') ? 'PNG' : 'JPEG';
         const bytes = new Uint8Array(imageArrayBuffer);
-        let binary = '';
-        const chunkSize = 8192;
-        for (let i = 0; i < bytes.length; i += chunkSize) {
-            const chunk = bytes.subarray(i, i + chunkSize);
-            binary += String.fromCharCode.apply(null, Array.from(chunk));
-        }
-        const imageBase64 = btoa(binary);
-        const imageFormat = mimeType.includes('png') ? 'PNG' : mimeType.includes('pdf') ? 'PDF' : 'JPEG';
-        const imageDataUrl = `data:${mimeType};base64,${imageBase64}`;
 
-        return { dataUrl: imageDataUrl, format: imageFormat };
+        return { data: bytes, format: imageFormat };
     } catch (imageError) {
         console.error("[EDGE FUNCTION] Error loading image:", imageError);
         return null;
@@ -142,7 +132,7 @@ Deno.serve(async (req) => {
             // We use height 25 to be vertically centered in the 40 height bar
             const logoWidth = 50;
             const logoHeight = 25;
-            pdf.addImage(logoImage.dataUrl, logoImage.format, margin, 7.5, logoWidth, logoHeight);
+            pdf.addImage(logoImage.data, logoImage.format, margin, 7.5, logoWidth, logoHeight);
         } else {
             // Fallback to text if logo fails to load
             pdf.setFont('helvetica', 'bold');

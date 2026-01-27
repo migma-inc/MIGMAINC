@@ -135,32 +135,45 @@ export const Step3Payment: React.FC<Step3Props> = ({ state, actions, handlers, o
                     {paymentMethod && signatureConfirmed && (
                         <button
                             onClick={() => {
+                                if (state.submitting) return;
                                 if (paymentMethod === 'parcelow') {
                                     handlers.handleParcelowPayment();
                                 } else if (paymentMethod === 'zelle' && zelleReceipt) {
                                     handlers.handleZellePayment();
                                 }
                             }}
-                            disabled={!signatureConfirmed || (paymentMethod === 'zelle' && !zelleReceipt) || (paymentMethod === 'parcelow' && (!state.creditCardName || !state.cpf || state.cpf.length < 11))}
-                            className={`w-full inline-flex items-center justify-center gap-2 px-4 py-3 text-base font-bold rounded-md transition-colors ${paymentMethod === 'parcelow'
+                            disabled={state.submitting || !signatureConfirmed || (paymentMethod === 'zelle' && !zelleReceipt) || (paymentMethod === 'parcelow' && (!state.creditCardName || !state.cpf || state.cpf.length < 11))}
+                            className={`w-full inline-flex items-center justify-center gap-2 px-4 py-3 text-base font-bold rounded-md transition-colors ${state.submitting ? 'opacity-70 cursor-not-allowed' : ''} ${paymentMethod === 'parcelow'
                                 ? 'bg-[#22c55e] hover:bg-[#16a34a] text-white'
                                 : 'bg-gold-medium hover:bg-gold-light text-black'
                                 }`}
                         >
-                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                {paymentMethod === 'zelle' ? (
-                                    <>
-                                        <line x1="12" y1="1" x2="12" y2="23"></line>
-                                        <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
-                                    </>
-                                ) : (
-                                    <>
-                                        <rect width="20" height="14" x="2" y="5" rx="2"></rect>
-                                        <line x1="2" x2="22" y1="10" y2="10"></line>
-                                    </>
-                                )}
-                            </svg>
-                            {paymentMethod === 'parcelow' ? 'Pay with Parcelow' : 'Confirm Zelle Payment'}
+                            {state.submitting ? (
+                                <>
+                                    <svg className="animate-spin h-5 w-5 text-current" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                    </svg>
+                                    Processing...
+                                </>
+                            ) : (
+                                <>
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                        {paymentMethod === 'zelle' ? (
+                                            <>
+                                                <line x1="12" y1="1" x2="12" y2="23"></line>
+                                                <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <rect width="20" height="14" x="2" y="5" rx="2"></rect>
+                                                <line x1="2" x2="22" y1="10" y2="10"></line>
+                                            </>
+                                        )}
+                                    </svg>
+                                    {paymentMethod === 'parcelow' ? 'Pay with Parcelow' : 'Confirm Zelle Payment'}
+                                </>
+                            )}
                         </button>
                     )}
                 </div>

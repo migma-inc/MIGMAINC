@@ -228,7 +228,7 @@ Deno.serve(async (req) => {
     };
 
     // Helper function to load image from URL (generic, works for any image)
-    const loadImage = async (imageUrl: string | null): Promise<{ dataUrl: string; format: string } | null> => {
+    const loadImage = async (imageUrl: string | null): Promise<{ data: Uint8Array; format: string } | null> => {
       if (!imageUrl) {
         return null;
       }
@@ -249,8 +249,6 @@ Deno.serve(async (req) => {
             .getPublicUrl(imageUrl.replace('visa-signatures/', ''));
           publicUrl = url;
         } else if (!imageUrl.includes('/storage/v1/object/public/') && !imageUrl.startsWith('http')) {
-          // If it is just a filename and we don't know the bucket, try visa-signatures first if it's a signature
-          // Otherwise default to visa-documents
           const bucket = imageUrl.includes('sig') ? 'visa-signatures' : 'visa-documents';
           const { data: { publicUrl: url } } = supabase.storage
             .from(bucket)
@@ -268,20 +266,10 @@ Deno.serve(async (req) => {
         const imageBlob = await imageResponse.blob();
         const imageArrayBuffer = await imageBlob.arrayBuffer();
         const mimeType = imageBlob.type;
-
-        // Convert to base64
+        const imageFormat = mimeType.includes('png') ? 'PNG' : 'JPEG';
         const bytes = new Uint8Array(imageArrayBuffer);
-        let binary = '';
-        const chunkSize = 8192;
-        for (let i = 0; i < bytes.length; i += chunkSize) {
-          const chunk = bytes.subarray(i, i + chunkSize);
-          binary += String.fromCharCode.apply(null, Array.from(chunk));
-        }
-        const imageBase64 = btoa(binary);
-        const imageFormat = mimeType.includes('png') ? 'PNG' : mimeType.includes('pdf') ? 'PDF' : 'JPEG';
-        const imageDataUrl = `data:${mimeType};base64,${imageBase64}`;
 
-        return { dataUrl: imageDataUrl, format: imageFormat };
+        return { data: bytes, format: imageFormat };
       } catch (imageError) {
         console.error("[EDGE FUNCTION] Could not load image:", imageError);
         return null;
@@ -289,7 +277,7 @@ Deno.serve(async (req) => {
     };
 
     // Helper function to load signature image
-    const loadSignatureImage = async (): Promise<{ dataUrl: string; format: string } | null> => {
+    const loadSignatureImage = async (): Promise<{ data: Uint8Array; format: string } | null> => {
       if (!order.signature_image_url) {
         return null;
       }
@@ -619,12 +607,12 @@ The client has electronically signed this contract by uploading a selfie with th
       currentY += 10;
 
       const docFrontImage = await loadImage(documentFrontUrl);
-      if (docFrontImage && docFrontImage.format !== 'PDF') {
+      if (docFrontImage) {
         try {
           const maxWidth = 80;
           const maxHeight = 50;
           pdf.addImage(
-            docFrontImage.dataUrl,
+            docFrontImage.data,
             docFrontImage.format,
             margin,
             currentY,
@@ -661,12 +649,12 @@ The client has electronically signed this contract by uploading a selfie with th
       currentY += 10;
 
       const docBackImage = await loadImage(documentBackUrl);
-      if (docBackImage && docBackImage.format !== 'PDF') {
+      if (docBackImage) {
         try {
           const maxWidth = 80;
           const maxHeight = 50;
           pdf.addImage(
-            docBackImage.dataUrl,
+            docBackImage.data,
             docBackImage.format,
             margin,
             currentY,
@@ -717,13 +705,12 @@ The client has electronically signed this contract by uploading a selfie with th
     // Load and add selfie image
     const selfieUrl = identityFiles.selfie_doc || order.contract_selfie_url || null;
     const selfieImage = await loadImage(selfieUrl);
-    if (selfieImage && selfieImage.format !== 'PDF') {
+    if (selfieImage) {
       try {
-        // Add image (max 60mm width, centered)
         const maxWidth = 60;
         const maxHeight = 60;
         pdf.addImage(
-          selfieImage.dataUrl,
+          selfieImage.data,
           selfieImage.format,
           (pageWidth - maxWidth) / 2,
           currentY,
@@ -778,7 +765,7 @@ The client has electronically signed this contract by uploading a selfie with th
         const maxHeight = 20;
 
         pdf.addImage(
-          signatureImage.dataUrl,
+          signatureImage.data,
           signatureImage.format,
           margin,
           currentY,

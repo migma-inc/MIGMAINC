@@ -200,6 +200,7 @@ export const VisaCheckoutPage: React.FC = () => {
                                     (state.paymentMethod !== 'parcelow' || (!!state.creditCardName && !!state.cpf && state.cpf.length >= 11))
                                 }
                                 onPay={() => {
+                                    if (state.submitting) return;
                                     if (state.paymentMethod === 'zelle') paymentHandlers.handleZellePayment();
                                     else if (state.paymentMethod === 'parcelow') paymentHandlers.handleParcelowPayment?.();
                                     else paymentHandlers.handleStripeCheckout(state.paymentMethod as 'card' | 'pix');

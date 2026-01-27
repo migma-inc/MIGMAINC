@@ -180,7 +180,7 @@ const OrderTable = ({
                   </Badge>
                 </td>
                 <td className="py-3 px-4">
-                  {getStatusBadge(order.payment_status)}
+                  {getStatusBadge(order)}
                 </td>
                 <td className="py-3 px-4 text-sm text-gray-400">
                   {new Date(order.created_at).toLocaleDateString()}
@@ -282,7 +282,7 @@ const OrderTable = ({
                   <p className="text-xs text-gray-400 truncate">{order.client_email}</p>
                 </div>
                 <div className="ml-2">
-                  {getStatusBadge(order.payment_status)}
+                  {getStatusBadge(order)}
                 </div>
               </div>
 
@@ -475,7 +475,22 @@ export const VisaOrdersPage = () => {
   const realOrders = visibleOrders.filter(order => order.payment_method !== 'manual');
   const signatureOrders = visibleOrders.filter(order => order.payment_method === 'manual');
 
-  const getStatusBadge = (status: string) => {
+  const getStatusBadge = (order: VisaOrder) => {
+    const status = order.payment_status;
+
+    // Detect abandoned Parcelow checkouts
+    const isAbandonedParcelow = order.payment_method === 'parcelow' &&
+      status === 'pending' &&
+      (order.parcelow_status === 'Open' || order.parcelow_status === 'Waiting Payment');
+
+    if (isAbandonedParcelow) {
+      return (
+        <Badge variant="outline" className="bg-zinc-500/10 text-zinc-400 border-zinc-500/30">
+          Abandoned
+        </Badge>
+      );
+    }
+
     switch (status) {
       case 'completed':
       case 'paid':
