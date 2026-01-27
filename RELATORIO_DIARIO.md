@@ -4,6 +4,58 @@ Este documento registra as tarefas concluídas, melhorias implementadas e decis�
 
 ---
 
+## [26/01/2026] - Estabilização de Dados, Monitoramento Slack e Remoção de Webhooks
+
+### Descrição da Tarefa
+Implementação de um sistema resiliente para monitoramento de produtividade do Slack, correção de bugs de interface (404, contadores) e remoção da integração n8n para pagamentos.
+
+### O que foi feito:
+
+#### **Estabilização do Monitoramento Slack (Resiliência e Tempo Real)**
+1.  **Recuperação de Dados Críticos**:
+    *   Extração manual de **176 eventos** dos logs do Render (dias 21 a 25) que foram apagados devido ao reset do disco local.
+    *   Injeção retroativa concluída via `scripts/recover-logs.js` (dados enriquecidos e sem duplicidade).
+2.  **Arquitetura Cloud-Only (Anti-Reset)**:
+    *   Implementado o **Live Sync**: mensagens são enviadas instantaneamente para a tabela `slack_raw_events` no Supabase.
+    *   Removida dependência de arquivos JSON locais no `activityLogger.js`. **Reset de servidor não causa mais perda de dados.**
+3.  **Correção de UI e Fuso Horário**:
+    *   Padronização de todo o sistema para o timezone `America/Sao_Paulo`.
+    *   Resolvido bug onde horário e canal apareciam como "N/A" (ajustado mapeamento de campos).
+    *   Implementada compensação de fuso no Dashboard para evitar atrasos na exibição dos dias.
+4.  **Live Dashboard**:
+    *   Relatórios diários no site agora atualizam a cada **5 minutos** via `reportScheduler.js`.
+
+#### **Remoção de Webhooks n8n (Zelle e Parcelow)**
+1.  **Desativação de Gatilhos Automáticos**:
+    *   Removida a integração que enviava dados para o n8n toda vez que um pagamento de Zelle ou Parcelow era confirmado.
+    *   O envio para o CRM agora é **exclusivamente manual** na aprovação final do contrato, evitando registros duplicados.
+2.  **Limpeza de Código**:
+    *   Removida a função `sendClientWebhook` das Edge Functions `parcelow-webhook`, `send-zelle-webhook` e `approve-visa-contract`.
+
+#### **Melhorias de Interface e Dashboard**
+1.  **Nova Página 404**:
+    *   Criado o componente `src/pages/NotFound.tsx` com design premium (Metallic Gold) e fundo total preto.
+2.  **Sincronização de Contadores**:
+    *   Ajustados os badges da Sidebar para ignorar pedidos cancelados ou abandonados. O número reflete exatamente o que o admin precisa revisar.
+
+### Ferramentas e Scripts Criados:
+*   `scripts/recover-logs.js`: Injeção de logs históricos.
+*   `scripts/update-site-reports.js`: Consolidador de dados real-time.
+*   `scripts/cleanup-logs.js`: Limpeza automática de arquivos com +7 dias.
+
+### Status e Próximos Passos:
+- [x] Sincronização automática de fuso no `reportScheduler.js`.
+- [x] Limpeza automática de disco no servidor.
+- [ ] Validar acesso de Administrador do Workspace com o Admin do Slack.
+- [ ] Criar alerta automático para queda de fluxo de eventos (>1h sem mensagens).
+
+### Impacto:
+*   **Auditabilidade**: 100% do conteúdo das mensagens do Slack é preservado com segurança na nuvem.
+*   **Precisão Financeira**: Remoção de webhooks duplicados garante que o CRM tenha apenas dados validados.
+*   **UX Administrativa**: Dashboards limpos e contadores precisos reduzem o tempo de gestão.
+
+---
+
 ## [23/01/2026] - Atualização de Conteúdo Institucional (About & Contact)
 
 ### Descrição da Tarefa
@@ -97,8 +149,6 @@ Remoção de todas as referências a anos específicos (2025, 2024, etc.) em tod
 
 ---
 
-
-
 ## [23/01/2026] - Centralização de Controle Administrativo de Vendedores
 
 ### Descrição da Tarefa
@@ -156,7 +206,6 @@ Implementação de um sistema centralizado para gerenciamento de perfis de vende
 - **Senha**: Admin deve comunicar nova senha manualmente ao vendedor.
 
 ---
-
 
 ## [23/01/2026] - Sistema de Backup de Contratos por E-mail
 
@@ -385,5 +434,3 @@ Padronização de todas as ocorrências do nome da empresa para sua forma legal 
 ### Impacto:
 *   **Conformidade Legal**: Documentos assinados agora refletem o nome oficial da corporação.
 *   **Consistência de Marca**: Garantia de que o cliente visualize a mesma identidade em todos os pontos de contato (E-mail -> Invoice -> Contrato).
-
----
