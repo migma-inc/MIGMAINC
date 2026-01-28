@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { PdfModal } from '@/components/ui/pdf-modal';
+import { ImageModal } from '@/components/ui/image-modal';
 import {
     FileText,
     Check,
@@ -62,6 +63,8 @@ export function VisaContractApprovalPage() {
     const [statusFilter, setStatusFilter] = useState<'pending' | 'approved' | 'rejected' | 'all'>('pending');
     const [selectedPdfUrl, setSelectedPdfUrl] = useState<string | null>(null);
     const [selectedPdfTitle, setSelectedPdfTitle] = useState<string>('');
+    const [selectedImageUrl, setSelectedImageUrl] = useState<string | null>(null);
+    const [selectedImageTitle, setSelectedImageTitle] = useState<string>('');
     const [isProcessing, setIsProcessing] = useState(false);
 
     // Modais de aprovação/rejeição
@@ -93,12 +96,12 @@ export function VisaContractApprovalPage() {
             // Fetch identity files for these orders
             const srIds = relevantOrders.map(o => o.service_request_id).filter(Boolean) as string[];
             if (srIds.length > 0) {
-                const { data: filesData, error: filesError } = await supabase
+                const { data: filesData } = await supabase
                     .from('identity_files')
                     .select('*')
                     .in('service_request_id', srIds);
 
-                if (!filesError && filesData) {
+                if (filesData) {
                     const filesMap: Record<string, IdentityFile[]> = {};
                     filesData.forEach(file => {
                         if (!filesMap[file.service_request_id]) filesMap[file.service_request_id] = [];
@@ -412,12 +415,13 @@ export function VisaContractApprovalPage() {
                                             <div className="flex flex-wrap gap-2">
                                                 {order.service_request_id && idFiles[order.service_request_id] ? (
                                                     idFiles[order.service_request_id].map(file => (
-                                                        <a
+                                                        <div
                                                             key={file.id}
-                                                            href={getDocumentUrl(file.file_path)}
-                                                            target="_blank"
-                                                            rel="noopener noreferrer"
-                                                            className="group relative w-20 h-20 sm:w-24 sm:h-24 rounded-lg overflow-hidden border border-gold-medium/30 bg-black/50 hover:border-gold-medium transition-colors"
+                                                            onClick={() => {
+                                                                setSelectedImageUrl(getDocumentUrl(file.file_path));
+                                                                setSelectedImageTitle(`${file.file_type.replace('_', ' ').toUpperCase()} - ${order.client_name}`);
+                                                            }}
+                                                            className="group relative cursor-pointer w-20 h-20 sm:w-24 sm:h-24 rounded-lg overflow-hidden border border-gold-medium/30 bg-black/50 hover:border-gold-medium transition-colors"
                                                         >
                                                             <ImageWithSkeleton
                                                                 src={getDocumentUrl(file.file_path)}
@@ -433,7 +437,7 @@ export function VisaContractApprovalPage() {
                                                                         file.file_type === 'selfie_doc' ? 'Selfie' :
                                                                             file.file_type.replace('_', ' ')}
                                                             </span>
-                                                        </a>
+                                                        </div>
                                                     ))
                                                 ) : (
                                                     <p className="text-xs text-gray-500 italic">No photos found.</p>
@@ -573,6 +577,19 @@ export function VisaContractApprovalPage() {
                     onClose={() => setSelectedPdfUrl(null)}
                     pdfUrl={selectedPdfUrl}
                     title={selectedPdfTitle}
+                />
+            )}
+
+            {/* Image View Modal */}
+            {selectedImageUrl && (
+                <ImageModal
+                    isOpen={!!selectedImageUrl}
+                    onClose={() => {
+                        setSelectedImageUrl(null);
+                        setSelectedImageTitle('');
+                    }}
+                    imageUrl={selectedImageUrl}
+                    title={selectedImageTitle}
                 />
             )}
         </div>

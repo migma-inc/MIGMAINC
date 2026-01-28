@@ -60,7 +60,7 @@ export const useSignatureOnlyHandlers = (
             // 2. Upload signature
             let signatureUrl = '';
             if (signatureImageDataUrl) {
-                const uploadedUrl = await uploadSignature(signatureImageDataUrl);
+                const uploadedUrl = await uploadSignature(signatureImageDataUrl, state.clientId);
                 if (uploadedUrl) {
                     signatureUrl = uploadedUrl;
                 }

@@ -72,27 +72,25 @@ export function Sidebar({ className, isMobileOpen = false, onMobileClose }: Side
         .from('visa_orders')
         .select('id, client_email, product_slug, payment_status, zelle_proof_url')
         .eq('payment_method', 'zelle')
-        .eq('is_hidden', false);
+        .eq('is_hidden', false)
+        .in('payment_status', ['pending', 'completed']); // Fetch both for unification
 
       const { data: migmaPaymentsRaw } = await supabase
         .from('migma_payments')
         .select('id, user_id, fee_type_global, status')
         .in('status', ['pending', 'pending_verification']);
 
-      // Filtrar ordens realmente pendentes (com comprovante)
-      const pendingOrders = (zelleOrdersRaw || []).filter(o =>
-        o.payment_status === 'pending' && o.zelle_proof_url
-      );
+      const unifiedPendingKeys = new Set<string>();
 
-      // Mapear ordens completadas para deduplicação
-      const completedKeys = new Set(
-        (zelleOrdersRaw || [])
-          .filter(o => o.payment_status === 'completed')
-          .map(o => `${(o.client_email || '').trim().toLowerCase()}_${(o.product_slug || '').trim().toLowerCase()}`)
-      );
+      // A. Coletar chaves de ordens pendentes
+      (zelleOrdersRaw || []).forEach(o => {
+        if (o.payment_status === 'pending' && o.zelle_proof_url) {
+          const key = `${(o.client_email || '').trim().toLowerCase()}_${(o.product_slug || '').trim().toLowerCase().replace(/-/g, '_')}`;
+          unifiedPendingKeys.add(key);
+        }
+      });
 
-      // Enriquecer Migma com email para cruzar dados
-      let finalMigmaCount = 0;
+      // B. Somar Migma Payments que não batem com ordens já contadas ou completadas
       if (migmaPaymentsRaw && migmaPaymentsRaw.length > 0) {
         const userIds = [...new Set(migmaPaymentsRaw.map(p => p.user_id))];
         const { data: clientsData } = await supabase
@@ -101,21 +99,28 @@ export function Sidebar({ className, isMobileOpen = false, onMobileClose }: Side
           .in('id', userIds);
 
         const clientsMap = new Map((clientsData || []).map(c => [c.id, c.email]));
+        const completedKeys = new Set(
+          (zelleOrdersRaw || [])
+            .filter(o => o.payment_status === 'completed')
+            .map(o => `${(o.client_email || '').trim().toLowerCase()}_${(o.product_slug || '').trim().toLowerCase().replace(/-/g, '_')}`)
+        );
 
-        finalMigmaCount = migmaPaymentsRaw.filter(p => {
+        migmaPaymentsRaw.forEach(p => {
           const email = (clientsMap.get(p.user_id) || '').trim().toLowerCase();
-          const product = (p.fee_type_global || '').trim().toLowerCase();
+          const product = (p.fee_type_global || '').trim().toLowerCase().replace(/-/g, '_');
           const key = `${email}_${product}`;
-          // Só conta se NÃO tiver uma ordem completada para esse par email_produto
-          return !completedKeys.has(key);
-        }).length;
+
+          if (!completedKeys.has(key)) {
+            unifiedPendingKeys.add(key);
+          }
+        });
       }
 
       setCounts({
         applications: appCount || 0,
         partnerContracts: partnerCount || 0,
         visaApprovals: visaApprovalsCount,
-        zelleApprovals: pendingOrders.length + finalMigmaCount
+        zelleApprovals: unifiedPendingKeys.size
       });
     } catch (err) {
       console.error('Error loading sidebar counts:', err);

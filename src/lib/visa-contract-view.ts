@@ -103,33 +103,31 @@ export async function getVisaContractViewData(orderId: string) {
             selfieDoc: null
         };
 
-        // Helper to get public URL
-        const getPublicUrl = (path: string | null, bucket: string = 'visa-documents') => {
+        // Helper to get raw paths (frontend will resolve via getSecureUrl with token)
+        const getRawPath = (path: string | null) => {
             if (!path) return null;
-            if (path.startsWith('http')) return path;
-            const { data } = supabase.storage.from(bucket).getPublicUrl(path);
-            return data.publicUrl;
+            return path;
         };
 
         // Signature
-        imageUrls.signature = getPublicUrl(order.signature_image_url);
+        imageUrls.signature = getRawPath(order.signature_image_url);
 
         // Documents from identity_files table
         if (identityFiles.length > 0) {
             identityFiles.forEach((file: any) => {
-                const url = getPublicUrl(file.file_path);
-                if (file.file_type === 'document_front') imageUrls.documentFront = url;
-                if (file.file_type === 'document_back') imageUrls.documentBack = url;
-                if (file.file_type === 'selfie_doc') imageUrls.selfieDoc = url;
+                const path = getRawPath(file.file_path);
+                if (file.file_type === 'document_front') imageUrls.documentFront = path;
+                if (file.file_type === 'document_back') imageUrls.documentBack = path;
+                if (file.file_type === 'selfie_doc') imageUrls.selfieDoc = path;
             });
         }
 
         // Fallback to order columns if identity_files missing (legacy support)
         if (!imageUrls.documentFront && order.contract_document_url) {
-            imageUrls.documentFront = getPublicUrl(order.contract_document_url);
+            imageUrls.documentFront = getRawPath(order.contract_document_url);
         }
         if (!imageUrls.selfieDoc && order.contract_selfie_url) {
-            imageUrls.selfieDoc = getPublicUrl(order.contract_selfie_url);
+            imageUrls.selfieDoc = getRawPath(order.contract_selfie_url);
         }
 
         // Determine contract content

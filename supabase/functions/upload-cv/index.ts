@@ -25,6 +25,7 @@ Deno.serve(async (req) => {
   try {
     const formData = await req.formData();
     const file = formData.get("file") as File;
+    const clientId = formData.get("clientId") as string | null;
 
     if (!file) {
       return new Response(
@@ -73,7 +74,7 @@ Deno.serve(async (req) => {
       const lastDot = name.lastIndexOf('.');
       const extension = lastDot > 0 ? name.substring(lastDot) : '.pdf';
       const nameWithoutExt = lastDot > 0 ? name.substring(0, lastDot) : name;
-      
+
       // Remove accents and normalize
       const normalized = nameWithoutExt
         .normalize('NFD') // Decompose characters (é -> e + ´)
@@ -82,7 +83,7 @@ Deno.serve(async (req) => {
         .replace(/[^a-z0-9]+/g, '-') // Replace non-alphanumeric with hyphen
         .replace(/^-+|-+$/g, '') // Remove leading/trailing hyphens
         .substring(0, 100); // Limit length
-      
+
       return `${normalized}${extension}`;
     };
 
@@ -91,7 +92,10 @@ Deno.serve(async (req) => {
     const randomString = Math.random().toString(36).substring(2, 15);
     const normalizedOriginalName = normalizeFileName(file.name);
     const fileName = `${timestamp}-${randomString}-${normalizedOriginalName}`;
-    const filePath = `applications/${fileName}`;
+
+    // Organize by clientId if provided
+    const userFolder = clientId || 'anonymous';
+    const filePath = `${userFolder}/applications/${fileName}`;
 
     console.log("[EDGE FUNCTION] Uploading CV:", {
       fileName: file.name,

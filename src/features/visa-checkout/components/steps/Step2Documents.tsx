@@ -46,6 +46,7 @@ export const Step2Documents: React.FC<Step2Props> = ({ state, actions, onNext, o
                     <>
                         <div data-document-upload>
                             <DocumentUpload
+                                clientId={state.clientId}
                                 onComplete={(files) => {
                                     setDocumentFiles(files);
                                     setDocumentsUploaded(true);

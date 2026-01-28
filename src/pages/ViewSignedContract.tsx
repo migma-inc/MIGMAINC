@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { useContentProtection } from '@/hooks/useContentProtection';
 import { validateContractViewToken, getContractViewData } from '@/lib/contract-view';
 import { formatContractTextToHtml } from '@/lib/contract-formatter';
-import { supabase } from '@/lib/supabase';
+import { getSecureUrl } from '@/lib/storage';
 
 export const ViewSignedContract = () => {
   const navigate = useNavigate();
@@ -117,63 +117,33 @@ export const ViewSignedContract = () => {
         // Obter URLs das imagens
         const urls: typeof imageUrls = {};
 
+        const resolveUrl = async (path: string | null) => {
+          if (!path) return undefined;
+          let finalUrl = await getSecureUrl(path);
+          if (finalUrl && finalUrl.includes('/functions/v1/document-proxy') && token) {
+            finalUrl += `&token=${token}`;
+          }
+          return finalUrl || undefined;
+        };
+
         // Assinatura
         if (data.acceptance.signature_image_url) {
-          if (data.acceptance.signature_image_url.startsWith('http')) {
-            urls.signature = data.acceptance.signature_image_url;
-          } else {
-            // Assinatura pode estar em 'partner-signatures' ou 'identity-photos'
-            // Tentar primeiro partner-signatures (onde é salva)
-            let urlData;
-            if (data.acceptance.signature_image_url.includes('signatures/')) {
-              const result = supabase.storage
-                .from('partner-signatures')
-                .getPublicUrl(data.acceptance.signature_image_url);
-              urlData = result.data;
-            } else {
-              const result = supabase.storage
-                .from('identity-photos')
-                .getPublicUrl(data.acceptance.signature_image_url);
-              urlData = result.data;
-            }
-            urls.signature = urlData?.publicUrl;
-          }
+          urls.signature = await resolveUrl(data.acceptance.signature_image_url);
         }
 
         // Documento frente
         if (data.acceptance.document_front_url) {
-          if (data.acceptance.document_front_url.startsWith('http')) {
-            urls.documentFront = data.acceptance.document_front_url;
-          } else {
-            const { data: urlData } = supabase.storage
-              .from('identity-photos')
-              .getPublicUrl(data.acceptance.document_front_url);
-            urls.documentFront = urlData?.publicUrl;
-          }
+          urls.documentFront = await resolveUrl(data.acceptance.document_front_url);
         }
 
         // Documento verso
         if (data.acceptance.document_back_url) {
-          if (data.acceptance.document_back_url.startsWith('http')) {
-            urls.documentBack = data.acceptance.document_back_url;
-          } else {
-            const { data: urlData } = supabase.storage
-              .from('identity-photos')
-              .getPublicUrl(data.acceptance.document_back_url);
-            urls.documentBack = urlData?.publicUrl;
-          }
+          urls.documentBack = await resolveUrl(data.acceptance.document_back_url);
         }
 
         // Selfie com documento
         if (data.acceptance.identity_photo_path) {
-          if (data.acceptance.identity_photo_path.startsWith('http')) {
-            urls.identityPhoto = data.acceptance.identity_photo_path;
-          } else {
-            const { data: urlData } = supabase.storage
-              .from('identity-photos')
-              .getPublicUrl(data.acceptance.identity_photo_path);
-            urls.identityPhoto = urlData?.publicUrl;
-          }
+          urls.identityPhoto = await resolveUrl(data.acceptance.identity_photo_path);
         }
 
         setImageUrls(urls);
@@ -341,8 +311,8 @@ export const ViewSignedContract = () => {
                           src={imageUrls.signature}
                           alt="Digital Signature"
                           className="max-w-full h-auto"
-                          style={{ 
-                            userSelect: 'none', 
+                          style={{
+                            userSelect: 'none',
                             pointerEvents: 'none',
                             maxHeight: '300px',
                             objectFit: 'contain'
