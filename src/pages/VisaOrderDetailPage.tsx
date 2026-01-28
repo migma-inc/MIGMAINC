@@ -79,7 +79,9 @@ export const VisaOrderDetailPage = () => {
   const [showPdfModal, setShowPdfModal] = useState(false);
   const [selectedPdfUrl, setSelectedPdfUrl] = useState<string | null>(null);
   const [selectedPdfTitle, setSelectedPdfTitle] = useState<string>('');
-  const [showZelleModal, setShowZelleModal] = useState(false);
+  const [showImageModal, setShowImageModal] = useState(false);
+  const [selectedImageUrl, setSelectedImageUrl] = useState<string | null>(null);
+  const [selectedImageTitle, setSelectedImageTitle] = useState<string>('');
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [rejectingContractType, setRejectingContractType] = useState<'annex' | 'contract'>('contract');
   const [rejectionReason, setRejectionReason] = useState('');
@@ -124,7 +126,7 @@ export const VisaOrderDetailPage = () => {
           }
 
           // Load identity files
-          const { data: filesData, error: filesError } = await supabase
+          const { data: filesData } = await supabase
             .from('identity_files')
             .select('id, file_type, file_path, file_name')
             .eq('service_request_id', orderData.service_request_id);
@@ -533,7 +535,11 @@ export const VisaOrderDetailPage = () => {
                           src={getDocumentUrl(file.file_path)}
                           alt={file.file_type}
                           className="w-full h-48 object-cover rounded-lg border border-gold-medium/30 cursor-pointer hover:opacity-80 transition"
-                          onClick={() => window.open(getDocumentUrl(file.file_path), '_blank')}
+                          onClick={() => {
+                            setSelectedImageUrl(getDocumentUrl(file.file_path));
+                            setSelectedImageTitle(`${file.file_type.replace('_', ' ').toUpperCase()} - ${order?.client_name}`);
+                            setShowImageModal(true);
+                          }}
                         />
                         <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center rounded-lg">
                           <Eye className="w-6 h-6 text-white" />
@@ -737,7 +743,11 @@ export const VisaOrderDetailPage = () => {
                   <p className="text-gray-400 mb-2">Zelle Receipt:</p>
                   <Button
                     variant="outline"
-                    onClick={() => setShowZelleModal(true)}
+                    onClick={() => {
+                      setSelectedImageUrl(order.zelle_proof_url);
+                      setSelectedImageTitle(`Zelle Receipt - ${order.order_number}`);
+                      setShowImageModal(true);
+                    }}
                     className="border-gold-medium/50 bg-black/50 text-gold-light hover:bg-black hover:border-gold-medium hover:text-gold-medium"
                   >
                     View Receipt
@@ -818,14 +828,18 @@ export const VisaOrderDetailPage = () => {
         )
       }
 
-      {/* Zelle Receipt Modal */}
+      {/* Image Modal for Proofs and Identities */}
       {
-        order?.zelle_proof_url && (
+        selectedImageUrl && (
           <ImageModal
-            isOpen={showZelleModal}
-            onClose={() => setShowZelleModal(false)}
-            imageUrl={order.zelle_proof_url}
-            title={`Zelle Receipt - ${order.order_number}`}
+            isOpen={showImageModal}
+            onClose={() => {
+              setShowImageModal(false);
+              setSelectedImageUrl(null);
+              setSelectedImageTitle('');
+            }}
+            imageUrl={selectedImageUrl}
+            title={selectedImageTitle}
           />
         )
       }

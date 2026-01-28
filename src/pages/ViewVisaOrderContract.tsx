@@ -7,6 +7,7 @@ import { useContentProtection } from '@/hooks/useContentProtection';
 import { validateVisaContractViewToken, getVisaContractViewData } from '@/lib/visa-contract-view';
 import { formatContractTextToHtml } from '@/lib/contract-formatter';
 import { motion } from 'framer-motion';
+import { getSecureUrl } from '@/lib/storage';
 
 export const ViewVisaOrderContract = () => {
     const navigate = useNavigate();
@@ -105,7 +106,20 @@ export const ViewVisaOrderContract = () => {
                 }
 
                 setOrderData(data);
-                setImageUrls(data.imageUrls);
+
+                // Obter URLs seguras injetando o token de visualização se necessário
+                const secureUrls: typeof imageUrls = {};
+                for (const [key, path] of Object.entries(data.imageUrls)) {
+                    if (path) {
+                        let finalUrl = await getSecureUrl(path as string);
+                        // Se o getSecureUrl retornou uma URL do Proxy, precisamos anexar o token para autorizar o acesso deslogado
+                        if (finalUrl && finalUrl.includes('/functions/v1/document-proxy')) {
+                            finalUrl += `&token=${token}`;
+                        }
+                        (secureUrls as any)[key] = finalUrl;
+                    }
+                }
+                setImageUrls(secureUrls);
 
                 if (data.contractContent) {
                     const formatted = formatContractTextToHtml(data.contractContent);

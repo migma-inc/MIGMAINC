@@ -66,7 +66,8 @@ export function ImageModal({ isOpen, onClose, imageUrl, title = 'Image' }: Image
 
   const isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(imageUrl);
   const isPdf = /\.pdf$/i.test(imageUrl);
-  const displayUrl = finalUrl || imageUrl;
+  // Nunca use a imageUrl original como fallback se ela for potencialmente privada
+  const displayUrl = finalUrl;
 
   return (
     <div
@@ -107,13 +108,18 @@ export function ImageModal({ isOpen, onClose, imageUrl, title = 'Image' }: Image
                 Retry
               </Button>
               <a
-                href={displayUrl}
+                href={displayUrl || undefined}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-gold-light hover:text-gold-medium text-sm underline"
               >
                 Try opening in new tab
               </a>
+            </div>
+          ) : !displayUrl ? (
+            <div className="flex flex-col items-center justify-center space-y-4">
+              <Loader2 className="w-8 h-8 text-gold-light animate-spin" />
+              <p className="text-gray-400 text-sm">Preparing secure link...</p>
             </div>
           ) : isPdf ? (
             <iframe
@@ -136,7 +142,7 @@ export function ImageModal({ isOpen, onClose, imageUrl, title = 'Image' }: Image
             <div className="text-center text-gray-400">
               <p>Unsupported file type</p>
               <a
-                href={displayUrl}
+                href={displayUrl || undefined}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-gold-light hover:text-gold-medium mt-2 inline-block"

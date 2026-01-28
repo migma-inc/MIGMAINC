@@ -21,24 +21,39 @@ const loadImage = async (imageUrl: string | null, supabase: any): Promise<{ data
     if (!imageUrl) return null;
 
     try {
-        console.log("[EDGE FUNCTION] Loading image from:", imageUrl);
+        console.log("[EDGE FUNCTION] Loading image from path/url:", imageUrl);
 
-        // Get public URL if it's a storage path
-        let publicUrl = imageUrl;
+        let bucket: string | null = null;
+        let path: string | null = null;
+
+        // Extract bucket and path for storage items
         if (imageUrl.startsWith('visa-documents/')) {
-            const { data: { publicUrl: url } } = supabase.storage
-                .from('visa-documents')
-                .getPublicUrl(imageUrl.replace('visa-documents/', ''));
-            publicUrl = url;
+            bucket = 'visa-documents';
+            path = imageUrl.replace('visa-documents/', '');
         } else if (imageUrl.startsWith('visa-signatures/')) {
-            const { data: { publicUrl: url } } = supabase.storage
-                .from('visa-signatures')
-                .getPublicUrl(imageUrl.replace('visa-signatures/', ''));
-            publicUrl = url;
+            bucket = 'visa-signatures';
+            path = imageUrl.replace('visa-signatures/', '');
+        } else if (imageUrl.includes('/storage/v1/object/')) {
+            const match = imageUrl.match(/\/storage\/v1\/object\/(?:public|authenticated|sign)\/([^/]+)\/(.+)$/);
+            if (match) {
+                bucket = match[1];
+                path = decodeURIComponent(match[2]);
+            }
         }
 
-        // Fetch the image
-        const imageResponse = await fetch(publicUrl);
+        // If it's a storage path we identified
+        if (bucket && path) {
+            console.log(`[EDGE FUNCTION] Downloading from storage: ${bucket}/${path}`);
+            const { data, error } = await supabase.storage.from(bucket).download(path);
+            if (!error && data) {
+                const arrayBuffer = await data.arrayBuffer();
+                return { data: new Uint8Array(arrayBuffer), format: data.type.includes('png') ? 'PNG' : 'JPEG' };
+            }
+            console.error(`[EDGE FUNCTION] Storage download failed:`, error);
+        }
+
+        // Fallback or external URL: Fetch the image
+        const imageResponse = await fetch(imageUrl);
 
         if (!imageResponse.ok) {
             throw new Error(`Failed to fetch image: ${imageResponse.status}`);

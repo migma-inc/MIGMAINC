@@ -12,14 +12,14 @@ interface PdfModalProps {
 }
 
 export function PdfModal({ isOpen, onClose, pdfUrl, title = 'Contract PDF', showDownload = true }: PdfModalProps) {
-  const [displayUrl, setDisplayUrl] = useState<string>(pdfUrl);
+  const [displayUrl, setDisplayUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     if (isOpen && pdfUrl) {
       setLoading(true);
       getSecureUrl(pdfUrl).then(url => {
-        if (url) setDisplayUrl(url);
+        setDisplayUrl(url);
         setLoading(false);
       }).catch(err => {
         console.error('Error loading secure PDF URL:', err);
@@ -31,6 +31,7 @@ export function PdfModal({ isOpen, onClose, pdfUrl, title = 'Contract PDF', show
   if (!isOpen) return null;
 
   const handleDownload = () => {
+    if (!displayUrl) return;
     const link = document.createElement('a');
     link.href = displayUrl;
     link.download = title.replace(/\s+/g, '-') + '.pdf';
@@ -57,6 +58,7 @@ export function PdfModal({ isOpen, onClose, pdfUrl, title = 'Contract PDF', show
                 variant="outline"
                 size="sm"
                 onClick={handleDownload}
+                disabled={!displayUrl}
                 className="border-gold-medium/50 bg-black/50 text-gold-light hover:bg-black hover:border-gold-medium hover:text-gold-medium"
               >
                 <Download className="w-4 h-4 mr-2" />
@@ -75,10 +77,10 @@ export function PdfModal({ isOpen, onClose, pdfUrl, title = 'Contract PDF', show
           </div>
         </div>
         <div className="flex-1 overflow-auto p-4 flex items-center justify-center">
-          {loading ? (
+          {loading || !displayUrl ? (
             <div className="flex flex-col items-center justify-center space-y-4">
               <Loader2 className="w-8 h-8 text-gold-light animate-spin" />
-              <p className="text-gray-400 text-sm">Loading PDF...</p>
+              <p className="text-gray-400 text-sm">Loading secure PDF...</p>
             </div>
           ) : (
             <iframe

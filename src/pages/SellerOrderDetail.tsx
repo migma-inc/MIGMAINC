@@ -79,7 +79,9 @@ export const SellerOrderDetail = () => {
   const [selectedPdfUrl, setSelectedPdfUrl] = useState<string | null>(null);
 
   const [selectedPdfTitle, setSelectedPdfTitle] = useState<string>('');
-  const [showZelleModal, setShowZelleModal] = useState(false);
+  const [showImageModal, setShowImageModal] = useState(false);
+  const [selectedImageUrl, setSelectedImageUrl] = useState<string | null>(null);
+  const [selectedImageTitle, setSelectedImageTitle] = useState<string>('');
 
   useEffect(() => {
     const loadData = async () => {
@@ -135,12 +137,12 @@ export const SellerOrderDetail = () => {
           }
 
           // Load identity files
-          const { data: filesData, error: filesError } = await supabase
+          const { data: filesData } = await supabase
             .from('identity_files')
             .select('id, file_type, file_path, file_name')
             .eq('service_request_id', orderData.service_request_id);
 
-          if (!filesError && filesData) {
+          if (filesData) {
             setIdentityFiles(filesData);
           }
         }
@@ -308,7 +310,11 @@ export const SellerOrderDetail = () => {
                         <p className="text-xs text-zinc-500 capitalize">{file.file_type.replace('_', ' ')}</p>
                       </div>
                       <div className="relative aspect-video rounded-lg overflow-hidden border border-zinc-800 bg-zinc-900 cursor-pointer"
-                        onClick={() => window.open(getDocumentUrl(file.file_path), '_blank')}>
+                        onClick={() => {
+                          setSelectedImageUrl(getDocumentUrl(file.file_path));
+                          setSelectedImageTitle(`${file.file_type.replace('_', ' ').toUpperCase()} - ${order?.client_name}`);
+                          setShowImageModal(true);
+                        }}>
                         <img
                           src={getDocumentUrl(file.file_path)}
                           alt={file.file_type}
@@ -423,7 +429,11 @@ export const SellerOrderDetail = () => {
                 <Button
                   variant="outline"
                   className="w-full border-zinc-800 bg-zinc-900 text-white hover:border-gold-medium hover:bg-gold-light/10"
-                  onClick={() => setShowZelleModal(true)}
+                  onClick={() => {
+                    setSelectedImageUrl(order.zelle_proof_url);
+                    setSelectedImageTitle(`Zelle Receipt - ${order.order_number}`);
+                    setShowImageModal(true);
+                  }}
                 >
                   <Eye className="w-4 h-4 mr-2" />
                   View Zelle Receipt
@@ -446,12 +456,16 @@ export const SellerOrderDetail = () => {
         title={selectedPdfTitle}
       />
 
-      {order?.zelle_proof_url && (
+      {selectedImageUrl && (
         <ImageModal
-          isOpen={showZelleModal}
-          onClose={() => setShowZelleModal(false)}
-          imageUrl={order.zelle_proof_url}
-          title={`Zelle Receipt - ${order.order_number}`}
+          isOpen={showImageModal}
+          onClose={() => {
+            setShowImageModal(false);
+            setSelectedImageUrl(null);
+            setSelectedImageTitle('');
+          }}
+          imageUrl={selectedImageUrl}
+          title={selectedImageTitle}
         />
       )}
 

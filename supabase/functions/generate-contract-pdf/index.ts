@@ -304,50 +304,68 @@ Deno.serve(async (req) => {
         let imageArrayBuffer: ArrayBuffer;
         let mimeType: string;
 
-        // If it's a full URL, fetch directly
-        if (urlOrPath.startsWith('http://') || urlOrPath.startsWith('https://')) {
-          console.log("[EDGE FUNCTION] Loading image from URL:", urlOrPath);
-          const imageResponse = await fetch(urlOrPath);
-          if (!imageResponse.ok) {
-            throw new Error(`Failed to fetch image from URL: ${imageResponse.status}`);
-          }
-          const imageBlob = await imageResponse.blob();
-          imageArrayBuffer = await imageBlob.arrayBuffer();
-          mimeType = imageBlob.type || 'image/jpeg';
-        } else {
-          // Assume it's a path in the identity-photos bucket (backwards compatibility)
-          console.log("[EDGE FUNCTION] Attempting to load image from storage path:", urlOrPath);
-          const { data: imageData, error: downloadError } = await supabase.storage
-            .from('identity-photos')
-            .download(urlOrPath);
+        // --- DETECÇÃO DE BUCKET E PATH ---
+        let bucket = '';
+        let path = '';
 
-          if (downloadError || !imageData) {
-            console.error("[EDGE FUNCTION] Error downloading image from storage:", downloadError);
-            // Try public URL as fallback
-            const { data: { publicUrl } } = supabase.storage
-              .from('identity-photos')
-              .getPublicUrl(urlOrPath);
-
-            console.log("[EDGE FUNCTION] Trying public URL for storage image:", publicUrl);
-            const imageResponse = await fetch(publicUrl);
-            if (!imageResponse.ok) {
-              throw new Error(`Failed to fetch image from storage public URL: ${imageResponse.status}`);
-            }
-            const imageBlob = await imageResponse.blob();
-            imageArrayBuffer = await imageBlob.arrayBuffer();
-            mimeType = imageBlob.type || 'image/jpeg';
-          } else {
-            imageArrayBuffer = await imageData.arrayBuffer();
-            const fileExtension = urlOrPath.toLowerCase().split('.').pop();
-            mimeType = fileExtension === 'png' ? 'image/png' : 'image/jpeg';
+        // 1. Se for uma URL completa do Supabase Storage
+        if (urlOrPath.includes('/storage/v1/object/')) {
+          const match = urlOrPath.match(/\/storage\/v1\/object\/(?:public|authenticated|sign)\/([^/]+)\/(.+)$/);
+          if (match) {
+            bucket = match[1];
+            path = decodeURIComponent(match[2]);
           }
         }
+        // 2. Se for um path relativo que começa com um bucket conhecido
+        else if (!urlOrPath.startsWith('http')) {
+          const privateBuckets = ['identity-photos', 'visa-documents', 'partner-signatures', 'contracts', 'visa-signatures'];
+          const parts = urlOrPath.split('/');
+          if (parts.length > 1 && privateBuckets.includes(parts[0])) {
+            bucket = parts[0];
+            path = parts.slice(1).join('/');
+          } else {
+            // Fallback: Assume que sem bucket, o padrão para Global Partner é identity-photos
+            bucket = 'identity-photos';
+            path = urlOrPath;
+          }
+        }
+
+        // --- TENTATIVA DE DOWNLOAD DIRETO (PARA BUCKETS PRIVADOS) ---
+        if (bucket && path) {
+          console.log(`[EDGE FUNCTION] Downloading from storage: ${bucket}/${path}`);
+          const { data, error } = await supabase.storage.from(bucket).download(path);
+
+          if (!error && data) {
+            imageArrayBuffer = await data.arrayBuffer();
+            mimeType = data.type || (path.toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg');
+            const bytes = new Uint8Array(imageArrayBuffer);
+            const imageFormat = mimeType.includes('png') ? 'PNG' : 'JPEG';
+            console.log(`[EDGE FUNCTION] Successfully loaded from storage: ${bucket}/${path}`);
+            return { data: bytes, format: imageFormat };
+          }
+          console.warn(`[EDGE FUNCTION] Storage download failed for ${bucket}/${path}, falling back to fetch...`, error);
+        }
+
+        // --- FALLBACK: FETCH TRADICIONAL (PARA ARQUIVOS EXTERNOS OU PÚBLICOS) ---
+        const imageUrl = (bucket && path && !urlOrPath.startsWith('http'))
+          ? supabase.storage.from(bucket).getPublicUrl(path).data.publicUrl
+          : urlOrPath;
+
+        console.log("[EDGE FUNCTION] Loading image via fetch:", imageUrl);
+        const imageResponse = await fetch(imageUrl);
+        if (!imageResponse.ok) {
+          throw new Error(`Failed to fetch image: ${imageResponse.status}`);
+        }
+        const imageBlob = await imageResponse.blob();
+        imageArrayBuffer = await imageBlob.arrayBuffer();
+        mimeType = imageBlob.type || 'image/jpeg';
 
         const bytes = new Uint8Array(imageArrayBuffer);
         const imageFormat = mimeType.includes('png') ? 'PNG' : 'JPEG';
 
-        console.log("[EDGE FUNCTION] Image loaded successfully");
+        console.log("[EDGE FUNCTION] Image loaded via fetch successfully");
         return { data: bytes, format: imageFormat };
+
       } catch (imageError) {
         console.error("[EDGE FUNCTION] Could not load image:", imageError);
         return null;
@@ -714,7 +732,7 @@ Deno.serve(async (req) => {
     const dateStr = new Date().toISOString().split('T')[0];
     const timestamp = Date.now();
     const fileName = `contract_${normalizedName}_${dateStr}_${timestamp}.pdf`;
-    const filePath = `contracts/${fileName}`;
+    const filePath = fileName;
 
     // Upload to storage
     const { data: uploadData, error: uploadError } = await supabase.storage

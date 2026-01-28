@@ -1,65 +1,56 @@
-# Status da Segurança de Storage - 28/01/2026
+# Status da Segurança de Storage - 28/01/2026 (Atualizado)
 
-## Configuração Atual
+## Arquitetura Implementada
 
-### Buckets
-Todos os buckets estão configurados como **PÚBLICOS** (`public: true`):
-- `visa-documents`
-- `visa-signatures`
-- `contracts`
-- `identity-photos`
-- `partner-signatures`
-- `zelle_comprovantes`
+Implementamos uma solução de "Gatekeeper" que elimina a exposição de URLs públicas de documentos sensíveis.
+
+### 1. Buckets PRIVADOS
+Os seguintes buckets foram alterados de `public: true` para **`public: false`**:
 - `cv-files`
+- `identity-photos`
+- `contracts`
+- `visa-documents`
+- `partner-signatures`
+- `visa-signatures`
 
-**Motivo**: Buckets privados estavam causando erro "Bucket not found" nas Signed URLs.
+**Exceções (Mantidos Públicos):**
+- `zelle_comprovantes`: Necessário para integração com n8n (o n8n recebe a URL direta).
+- `logo`: Ativos públicos do site.
 
-### Políticas RLS Ativas
+### 2. Fluxo de Visualização (Frontend - Blobs)
+Em vez de Signed URLs (que expiram e podem ser vazadas), agora usamos **Blobs Locais**:
+1. O componente (`ImageModal`, `PdfModal`) chama `getSecureUrl()`.
+2. A função `getSecureUrl` usa o SDK do Supabase para fazer o `download()` do arquivo "por dentro" da sessão autenticada do usuário.
+3. O arquivo é convertido em um `Blob URL` (`blob:http://...`).
+4. **Segurança**: Essa URL só funciona no navegador do usuário logado e morre quando a aba é fechada. Se copiada para outro lugar, ela não funciona.
 
-As seguintes políticas RLS estão ativas e funcionando:
+### 3. Edge Function Proxy (`document-proxy`)
+Criamos uma função centralizada para servir arquivos via servidor:
+- **URL**: `${SUPABASE_URL}/functions/v1/document-proxy?bucket=...&path=...`
+- **Uso**: Links em e-mails ou sistemas externos que suportem headers de autorização.
+- **Validação**: A função verifica se o usuário é **Admin** ou um **Seller** vinculado ao pedido antes de entregar o arquivo.
 
-#### SELECT (Leitura)
-- **Admins and Sellers can read [bucket]** - Apenas usuários autenticados que sejam Admins ou Sellers podem ler
+### 4. Geração de PDFs (Service Role)
+As funções de geração de PDF (`generate-visa-contract-pdf`, `generate-annex-pdf`, `generate-invoice-pdf`) foram atualizadas:
+- Pararam de usar `fetch()` de URLs públicas.
+- Agora usam `download()` direto do storage via `service_role`.
+- Isso garante que os PDFs continuem sendo gerados corretamente mesmo com os buckets privados.
 
-#### INSERT (Upload)
-- **Allow anonymous uploads** - Uploads anônimos permitidos (necessário para checkout)
-- **Allow authenticated uploads** - Uploads autenticados permitidos
+## RLS (Row Level Security)
 
-#### UPDATE/DELETE
-- **Only admins can update/delete** - Apenas Admins podem modificar/deletar
+As políticas no Storage garantem:
+- **SELECT**: Apenas usuários autenticados (Admins e Sellers) podem baixar.
+- **INSERT**: Usuários anônimos podem fazer upload (necessário no checkout), mas não podem ler o que enviaram (prevenindo que um atacante veja documentos de outros).
+- **UPDATE/DELETE**: Restrito a Administradores.
 
-#### Service Role
-- **Service role full access** - Service role tem acesso total (para Edge Functions)
+## Como usar no código
 
-### Funções Auxiliares
+Sempre use a função `getSecureUrl(path)` ao exibir qualquer arquivo:
+```typescript
+const url = await getSecureUrl("visa-documents/meu-arquivo.jpg");
+// retorna um blob: URL seguro se o usuário tiver permissão.
+```
 
-Criadas e funcionando:
-- `is_admin()` - Verifica se usuário é admin via `raw_user_meta_data->>'role'`
-- `is_seller()` - Verifica se usuário existe na tabela `sellers` com status `active`
-- `is_admin_or_seller()` - Combina ambas verificações
-
-### Frontend
-
-Componentes atualizados para usar `getSecureUrl()`:
-- `ImageModal.tsx`
-- `PdfModal.tsx`
-- `VisaOrderDetailPage.tsx`
-- `ZelleApprovalPage.tsx`
-- `SellerZelleApprovalPage.tsx`
-
-A função `getSecureUrl()` está preparada para gerar Signed URLs, mas como os buckets estão públicos, ela retorna a URL pública mesmo.
-
-## Próximos Passos (Futuro)
-
-Para melhorar a segurança:
-1. Investigar por que Signed URLs não funcionam com buckets privados
-2. Considerar proxy customizado para servir arquivos
-3. Implementar rotação de URLs temporárias
-4. Adicionar auditoria de acesso a arquivos sensíveis
-
-## Notas Importantes
-
-- ⚠️ Arquivos antigos continuam acessíveis via URL direta
-- ✅ RLS protege contra modificações não autorizadas
-- ✅ Novos uploads são organizados por `clientId`
-- ✅ Edge Functions funcionam normalmente
+## Próximos Passos
+1. Refinar a política RLS de `SELECT` para Sellers para restringir apenas aos IDs de clientes que eles possuem (atualmente podem ver todos os buckets privados).
+2. Monitorar logs do `document-proxy` para tentativas de acesso negado.

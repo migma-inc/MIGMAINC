@@ -234,38 +234,53 @@ Deno.serve(async (req) => {
       }
 
       try {
-        console.log("[EDGE FUNCTION] Loading image from:", imageUrl);
+        console.log("[EDGE FUNCTION] Loading image from path/url:", imageUrl);
 
-        // Get public URL if it's a storage path
-        let publicUrl = imageUrl;
+        let bucket: string | null = null;
+        let path: string | null = null;
+
+        // Extract bucket and path
         if (imageUrl.startsWith('visa-documents/')) {
-          const { data: { publicUrl: url } } = supabase.storage
-            .from('visa-documents')
-            .getPublicUrl(imageUrl.replace('visa-documents/', ''));
-          publicUrl = url;
+          bucket = 'visa-documents';
+          path = imageUrl.replace('visa-documents/', '');
         } else if (imageUrl.startsWith('visa-signatures/')) {
-          const { data: { publicUrl: url } } = supabase.storage
-            .from('visa-signatures')
-            .getPublicUrl(imageUrl.replace('visa-signatures/', ''));
-          publicUrl = url;
-        } else if (!imageUrl.includes('/storage/v1/object/public/') && !imageUrl.startsWith('http')) {
-          const bucket = imageUrl.includes('sig') ? 'visa-signatures' : 'visa-documents';
-          const { data: { publicUrl: url } } = supabase.storage
-            .from(bucket)
-            .getPublicUrl(imageUrl);
-          publicUrl = url;
+          bucket = 'visa-signatures';
+          path = imageUrl.replace('visa-signatures/', '');
+        } else if (imageUrl.includes('/storage/v1/object/')) {
+          const match = imageUrl.match(/\/storage\/v1\/object\/(?:public|authenticated|sign)\/([^/]+)\/(.+)$/);
+          if (match) {
+            bucket = match[1];
+            path = decodeURIComponent(match[2]);
+          }
+        } else if (!imageUrl.startsWith('http')) {
+          // Fallback guess based on content
+          bucket = imageUrl.includes('sig') ? 'visa-signatures' : 'visa-documents';
+          path = imageUrl;
         }
 
-        // Fetch the image
-        const imageResponse = await fetch(publicUrl);
-
-        if (!imageResponse.ok) {
-          throw new Error(`Failed to fetch image: ${imageResponse.status}`);
+        if (!bucket || !path) {
+          console.warn("[EDGE FUNCTION] Could not determine bucket/path for:", imageUrl);
+          // If it's a full external URL, try to fetch it directly
+          if (imageUrl.startsWith('http')) {
+            const resp = await fetch(imageUrl);
+            if (!resp.ok) return null;
+            const blob = await resp.blob();
+            const buffer = await blob.arrayBuffer();
+            return { data: new Uint8Array(buffer), format: blob.type.includes('png') ? 'PNG' : 'JPEG' };
+          }
+          return null;
         }
 
-        const imageBlob = await imageResponse.blob();
-        const imageArrayBuffer = await imageBlob.arrayBuffer();
-        const mimeType = imageBlob.type;
+        console.log(`[EDGE FUNCTION] Downloading from storage: ${bucket}/${path}`);
+        const { data, error } = await supabase.storage.from(bucket).download(path);
+
+        if (error || !data) {
+          console.error(`[EDGE FUNCTION] Error downloading ${bucket}/${path}:`, error);
+          return null;
+        }
+
+        const imageArrayBuffer = await data.arrayBuffer();
+        const mimeType = data.type;
         const imageFormat = mimeType.includes('png') ? 'PNG' : 'JPEG';
         const bytes = new Uint8Array(imageArrayBuffer);
 

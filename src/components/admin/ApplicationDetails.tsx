@@ -2,11 +2,13 @@
  * Component for displaying detailed information about an application
  */
 
+import { useState } from 'react';
 import type { Application } from '@/types/application';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { X, Download, CheckCircle, XCircle } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import { PdfModal } from '@/components/ui/pdf-modal';
 
 interface ApplicationDetailsProps {
   application: Application;
@@ -50,6 +52,9 @@ export function ApplicationDetails({
   onApprove,
   onReject,
 }: ApplicationDetailsProps) {
+  const [showPdfModal, setShowPdfModal] = useState(false);
+  const [cvUrl, setCvUrl] = useState<string | null>(null);
+
   const handleDownloadCV = async () => {
     if (!application.cv_file_path) {
       alert('CV file not available');
@@ -63,7 +68,8 @@ export function ApplicationDetails({
         .getPublicUrl(application.cv_file_path);
 
       if (data?.publicUrl) {
-        window.open(data.publicUrl, '_blank');
+        setCvUrl(data.publicUrl);
+        setShowPdfModal(true);
       } else {
         alert('Could not generate CV download link');
       }
@@ -305,6 +311,15 @@ export function ApplicationDetails({
           )}
         </CardContent>
       </Card>
+
+      {showPdfModal && cvUrl && (
+        <PdfModal
+          isOpen={showPdfModal}
+          onClose={() => setShowPdfModal(false)}
+          pdfUrl={cvUrl}
+          title={`CV - ${application.full_name}`}
+        />
+      )}
     </div>
   );
 }

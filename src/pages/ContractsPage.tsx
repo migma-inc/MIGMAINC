@@ -3,7 +3,8 @@ import { FileText, Download, Eye, FileDown, User, MapPin, Hash, FileCode, Globe,
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { fetchAcceptedContracts, fetchContractStats, getContractPdfUrl, getCvFileUrl, type AcceptedContract } from '@/lib/contracts';
+import { fetchAcceptedContracts, fetchContractStats, type AcceptedContract } from '@/lib/contracts';
+import { getSecureUrl } from '@/lib/storage';
 import { Badge } from '@/components/ui/badge';
 import { approvePartnerContract, rejectPartnerContract } from '@/lib/partner-contracts';
 import { getCurrentUser } from '@/lib/auth';
@@ -11,6 +12,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { ContractTemplateSelector } from '@/components/admin/ContractTemplateSelector';
+import { PdfModal } from '@/components/ui/pdf-modal';
+import { ImageModal } from '@/components/ui/image-modal';
 
 // Chave para localStorage
 const CONTRACTS_TAB_STORAGE_KEY = 'contracts_page_selected_tab';
@@ -124,14 +127,18 @@ export function ContractsPage() {
   };
 
   const handleDownloadContract = async (contract: AcceptedContract) => {
-    const pdfUrl = getContractPdfUrl(contract);
+    let pdfUrl = contract.contract_pdf_url;
     if (!pdfUrl) {
       alert('Contract PDF not available');
       return;
     }
 
     try {
-      const response = await fetch(pdfUrl);
+      // Obter URL segura (Blob ou Proxy)
+      const secureUrl = await getSecureUrl(pdfUrl);
+      if (!secureUrl) throw new Error('Could not resolve secure URL');
+
+      const response = await fetch(secureUrl);
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -162,14 +169,13 @@ export function ContractsPage() {
       return;
     }
 
-    const cvUrl = getCvFileUrl(contract.application.cv_file_path);
-    if (!cvUrl) {
-      alert('CV URL not available');
-      return;
-    }
+    const cvUrl = contract.application.cv_file_path; // getSecureUrl deals with path or full URL
 
     try {
-      const response = await fetch(cvUrl);
+      const secureUrl = await getSecureUrl(cvUrl);
+      if (!secureUrl) throw new Error('Could not resolve secure URL');
+
+      const response = await fetch(secureUrl);
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -883,71 +889,29 @@ export function ContractsPage() {
       </Dialog>
 
       {/* PDF Modal */}
-      {showPdfModal && selectedContract && selectedContract.contract_pdf_url && (
-        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
-          <div className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30 rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] flex flex-col">
-            <div className="flex items-center justify-between p-4 border-b border-gold-medium/30">
-              <h3 className="text-lg font-semibold text-white">
-                Contract - {selectedContract.application?.full_name}
-              </h3>
-              <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleDownloadContract(selectedContract)}
-                  className="border-gold-medium/50 bg-black/50 text-white hover:bg-gold-medium/30 hover:text-gold-light"
-                >
-                  <Download className="w-4 h-4 mr-2" />
-                  Download
-                </Button>
-                <Button variant="outline" size="sm" onClick={() => setShowPdfModal(false)} className="border-gold-medium/50 bg-black/50 text-white hover:bg-black/50 hover:text-white">
-                  Close
-                </Button>
-              </div>
-            </div>
-            <div className="flex-1 overflow-auto p-4">
-              <iframe
-                src={selectedContract.contract_pdf_url}
-                className="w-full h-full min-h-[600px] border-0"
-                title="Contract PDF"
-              />
-            </div>
-          </div>
-        </div>
+      {selectedContract && (
+        <PdfModal
+          isOpen={showPdfModal}
+          onClose={() => {
+            setShowPdfModal(false);
+            setSelectedContract(null);
+          }}
+          pdfUrl={selectedContract.contract_pdf_url || ''}
+          title={`Contract - ${selectedContract.application?.full_name}`}
+        />
       )}
 
       {/* CV Modal */}
-      {showCvModal && selectedContract && selectedContract.application?.cv_file_path && (
-        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
-          <div className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30 rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] flex flex-col">
-            <div className="flex items-center justify-between p-4 border-b border-gold-medium/30">
-              <h3 className="text-lg font-semibold text-white">
-                CV - {selectedContract.application?.full_name}
-              </h3>
-              <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleDownloadCv(selectedContract)}
-                  className="border-gold-medium/50 bg-black/50 text-white hover:bg-gold-medium/30 hover:text-gold-light"
-                >
-                  <Download className="w-4 h-4 mr-2" />
-                  Download
-                </Button>
-                <Button variant="outline" size="sm" onClick={() => setShowCvModal(false)} className="border-gold-medium/50 bg-black/50 text-white hover:bg-black/50 hover:text-white">
-                  Close
-                </Button>
-              </div>
-            </div>
-            <div className="flex-1 overflow-auto p-4">
-              <iframe
-                src={getCvFileUrl(selectedContract.application.cv_file_path) || ''}
-                className="w-full h-full min-h-[600px] border-0"
-                title="CV PDF"
-              />
-            </div>
-          </div>
-        </div>
+      {selectedContract && (
+        <ImageModal
+          isOpen={showCvModal}
+          onClose={() => {
+            setShowCvModal(false);
+            setSelectedContract(null);
+          }}
+          imageUrl={selectedContract.application?.cv_file_path || ''}
+          title={`CV - ${selectedContract.application?.full_name}`}
+        />
       )}
     </div>
   );

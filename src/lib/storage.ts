@@ -87,14 +87,12 @@ export async function uploadCV(file: File): Promise<UploadCVResult> {
 
 /**
  * Resolve uma URL de storage (possivelmente privada) para uma URL acessível.
- * Se o bucket for privado, tenta gerar uma Signed URL.
+ * Se o bucket for privado, tenta baixar o arquivo ou usar o Proxy.
  */
 export async function getSecureUrl(url: string | null): Promise<string | null> {
     if (!url) return null;
 
     try {
-        const { supabase } = await import('./supabase');
-
         // buckets que sabemos que são privados ou precisam de RLS
         const privateBuckets = [
             'visa-documents',
@@ -102,88 +100,71 @@ export async function getSecureUrl(url: string | null): Promise<string | null> {
             'contracts',
             'identity-photos',
             'partner-signatures',
-            'zelle_comprovantes',
             'cv-files'
         ];
 
         let bucket: string | null = null;
         let path: string | null = null;
 
-        // Caso 1: Path relativo (ex: "visa-documents/path/to/file.jpg")
-        if (!url.includes('http') && !url.includes('/storage/')) {
-            // Extrair bucket do início do path
-            const parts = url.split('/');
-
-            // Se o primeiro segmento é um bucket conhecido
-            if (parts.length > 1 && privateBuckets.includes(parts[0])) {
-                bucket = parts[0];
-                path = parts.slice(1).join('/');
-            }
-            // Se não tem prefixo de bucket, tentar inferir pelo nome do arquivo
-            else {
-                // CVs geralmente começam com "Resume_" ou "CV_" ou têm extensão .pdf
-                if (url.toLowerCase().includes('resume_') || url.toLowerCase().includes('cv_') || url.endsWith('.pdf')) {
-                    bucket = 'cv-files';
-                    path = `applications/${url}`;
-                }
-                // Contratos
-                else if (url.toLowerCase().includes('contract') || url.toLowerCase().includes('contrato')) {
-                    bucket = 'contracts';
-                    path = url;
-                }
-                // Assinaturas
-                else if (url.toLowerCase().includes('signature') || url.toLowerCase().includes('assinatura')) {
-                    bucket = 'visa-signatures';
-                    path = url;
-                }
-                // Documentos de identidade
-                else if (url.toLowerCase().includes('identity') || url.toLowerCase().includes('document')) {
-                    bucket = 'visa-documents';
-                    path = url;
-                }
-                // Fotos de identidade
-                else if (url.toLowerCase().includes('photo') || url.toLowerCase().includes('selfie')) {
-                    bucket = 'identity-photos';
-                    path = `photos/${url}`;
-                }
-                // Comprovantes Zelle
-                else if (url.toLowerCase().includes('zelle') || url.toLowerCase().includes('proof')) {
-                    bucket = 'zelle_comprovantes';
-                    path = `zelle-payments/${url}`;
-                }
-            }
-        }
-        // Caso 2: URL completa do Supabase Storage
-        else if (url.includes('/storage/v1/object/')) {
-            // Regex para extrair bucket e path de URLs do Supabase
-            // Formatos comuns: 
-            // .../storage/v1/object/public/bucket/path/to/file.jpg
-            // .../storage/v1/object/authenticated/bucket/path/to/file.jpg
+        // Caso 1: URL completa do Supabase Storage (possivelmente pública)
+        if (url.includes('/storage/v1/object/')) {
             const match = url.match(/\/storage\/v1\/object\/(?:public|authenticated|sign)\/([^/]+)\/(.+)$/);
-
             if (match) {
                 bucket = match[1];
                 path = decodeURIComponent(match[2]);
             }
         }
-        // Caso 3: Não é URL do Supabase, retorna como está
-        else {
-            return url;
+        // Caso 2: Path relativo (ex: "visa-documents/path/to/file.jpg")
+        else if (!url.startsWith('http')) {
+            const parts = url.split('/');
+            if (parts.length > 1 && privateBuckets.includes(parts[0])) {
+                bucket = parts[0];
+                path = parts.slice(1).join('/');
+            } else {
+                // Fallback guess baseado no conteúdo
+                if (url.toLowerCase().includes('resume_') || url.toLowerCase().includes('cv_') || url.endsWith('.pdf')) {
+                    bucket = 'cv-files';
+                    path = url.includes('/') ? url : `applications/${url}`;
+                } else if (url.toLowerCase().includes('sig') || url.toLowerCase().includes('assinatura')) {
+                    bucket = 'visa-signatures';
+                    path = url;
+                } else if (url.toLowerCase().includes('photo') || url.toLowerCase().includes('selfie')) {
+                    bucket = 'identity-photos';
+                    path = url.includes('/') ? url : `photos/${url}`;
+                } else {
+                    bucket = 'visa-documents';
+                    path = url;
+                }
+            }
         }
 
-        // Se identificamos bucket e path, e é um bucket privado, gera Signed URL
-        if (bucket && path && privateBuckets.includes(bucket)) {
-            const { data, error } = await supabase.storage.from(bucket).createSignedUrl(path, 3600);
-            if (!error && data?.signedUrl) {
-                return data.signedUrl;
+        // Verificação final - Se identificamos que é um bucket privado, forçamos a segurança
+        if (bucket && (privateBuckets.includes(bucket) || bucket === 'contracts')) {
+            // Tentar download direto (Blob URL) - Só funciona se o usuário estiver logado ou bucket for público por RLS
+            try {
+                const { data, error } = await supabase.storage.from(bucket).download(path || '');
+                if (!error && data) {
+                    console.log(`[STORAGE] Direct download successful for ${bucket}/${path}`);
+                    return URL.createObjectURL(data);
+                }
+            } catch (err) {
+                console.warn('[STORAGE] Catch during direct download:', err);
             }
-            console.error('[STORAGE] Erro ao criar Signed URL:', error);
+
+            // Se o download direto falhar (usuário deslogado ou sem permissão direta), usamos o Proxy
+            console.log(`[STORAGE] Falling back to proxy for ${bucket}/${path}`);
+            return `${SUPABASE_URL}/functions/v1/document-proxy?bucket=${bucket}&path=${encodeURIComponent(path || '')}`;
         }
+
+        // Buckets públicos (ex: Zelle)
+        if (bucket === 'zelle_comprovantes') {
+            const { data } = supabase.storage.from(bucket).getPublicUrl(path || '');
+            return data.publicUrl;
+        }
+
     } catch (err) {
-        console.error('[STORAGE] Erro ao resolver URL segura:', err);
+        console.error('[STORAGE] Erro crítico ao resolver URL segura:', err);
     }
 
     return url;
 }
-
-
