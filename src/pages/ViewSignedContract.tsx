@@ -6,7 +6,6 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { useContentProtection } from '@/hooks/useContentProtection';
 import { validateContractViewToken, getContractViewData } from '@/lib/contract-view';
 import { formatContractTextToHtml } from '@/lib/contract-formatter';
-import { supabase } from '@/lib/supabase';
 import { getSecureUrl } from '@/lib/storage';
 
 export const ViewSignedContract = () => {
