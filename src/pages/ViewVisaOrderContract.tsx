@@ -6,7 +6,6 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { useContentProtection } from '@/hooks/useContentProtection';
 import { validateVisaContractViewToken, getVisaContractViewData } from '@/lib/visa-contract-view';
 import { formatContractTextToHtml } from '@/lib/contract-formatter';
-import { motion } from 'framer-motion';
 import { getSecureUrl } from '@/lib/storage';
 
 export const ViewVisaOrderContract = () => {

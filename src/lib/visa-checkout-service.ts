@@ -93,7 +93,7 @@ export async function saveStep1Data(
     }
 
     clientIdToUse = clientData.id;
-    if (setClientId) setClientId(clientIdToUse);
+    if (setClientId && clientIdToUse) setClientId(clientIdToUse);
 
     // UPSERT Service Request
     const serviceRequestPayload: any = {
