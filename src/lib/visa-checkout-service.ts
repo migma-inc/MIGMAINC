@@ -56,6 +56,8 @@ export async function saveStep1Data(
   DRAFT_STORAGE_KEY?: string
 ): Promise<SaveStep1Result> {
   try {
+    console.log('[VISA CHECKOUT SERVICE] Starting Step 1 Save...', { productSlug, clientId, serviceRequestId });
+
     // Create or update client
     let clientIdToUse = clientId;
     const clientPayload = {
@@ -74,96 +76,65 @@ export async function saveStep1Data(
       marital_status: formData.maritalStatus || null,
     };
 
-    if (!clientIdToUse) {
-      const { data: clientData, error: clientError } = await supabase
-        .from('clients')
-        .insert(clientPayload)
-        .select()
-        .single();
+    // UPSERT Client
+    const { data: clientData, error: clientError } = await supabase
+      .from('clients')
+      .upsert({
+        id: clientIdToUse || undefined,
+        ...clientPayload,
+        updated_at: new Date().toISOString(),
+      })
+      .select('id')
+      .single();
 
-      if (clientError || !clientData) {
-        console.error('Error creating client:', clientError);
-        return { success: false, error: 'Failed to save client information' };
-      }
-
-      clientIdToUse = clientData.id;
-      if (setClientId && clientIdToUse) {
-        setClientId(clientIdToUse);
-      }
-    } else {
-      // Update existing client
-      const { error: updateError } = await supabase
-        .from('clients')
-        .update({
-          ...clientPayload,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', clientIdToUse);
-
-      if (updateError) {
-        console.error('Error updating client:', updateError);
-        return { success: false, error: 'Failed to update client information' };
-      }
+    if (clientError || !clientData) {
+      console.error('[VISA CHECKOUT SERVICE] Error saving client:', clientError);
+      return { success: false, error: 'Failed to save client information' };
     }
 
-    // Create or update service request
-    let serviceRequestIdToUse = serviceRequestId;
-    if (!serviceRequestIdToUse) {
-      const { data: serviceRequestData, error: serviceRequestError } = await supabase
-        .from('service_requests')
-        .insert({
-          client_id: clientIdToUse,
-          service_id: productSlug,
-          dependents_count: extraUnits,
-          seller_id: sellerId || null,
-          status: productSlug === 'consultation-common' ? 'pending_payment' : 'onboarding',
-        })
-        .select()
-        .single();
+    clientIdToUse = clientData.id;
+    if (setClientId && clientIdToUse) setClientId(clientIdToUse);
 
-      if (serviceRequestError || !serviceRequestData) {
-        console.error('Error creating service request:', serviceRequestError);
-        return { success: false, error: 'Failed to create service request' };
-      }
+    // UPSERT Service Request
+    const serviceRequestPayload: any = {
+      id: serviceRequestId || undefined,
+      client_id: clientIdToUse,
+      service_id: productSlug,
+      dependents_count: extraUnits,
+      seller_id: sellerId || null,
+      updated_at: new Date().toISOString(),
+    };
 
-      serviceRequestIdToUse = serviceRequestData.id;
-      if (setServiceRequestId && serviceRequestIdToUse) {
-        setServiceRequestId(serviceRequestIdToUse);
-      }
+    if (!serviceRequestId || productSlug === 'consultation-common') {
+      serviceRequestPayload.status = productSlug === 'consultation-common' ? 'pending_payment' : 'onboarding';
+    }
 
-      // Save serviceRequestId to localStorage for restoration
-      if (DRAFT_STORAGE_KEY) {
-        try {
-          const draft = localStorage.getItem(DRAFT_STORAGE_KEY);
-          if (draft) {
-            const parsed = JSON.parse(draft);
-            parsed.serviceRequestId = serviceRequestIdToUse;
-            parsed.clientId = clientIdToUse;
-            localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(parsed));
-          }
-        } catch (err) {
-          console.warn('Failed to save serviceRequestId to draft:', err);
+    const { data: serviceData, error: serviceError } = await supabase
+      .from('service_requests')
+      .upsert(serviceRequestPayload)
+      .select('id')
+      .single();
+
+    if (serviceError || !serviceData) {
+      console.error('[VISA CHECKOUT SERVICE] Error saving service request:', serviceError);
+      return { success: false, error: 'Failed to save application details' };
+    }
+
+    let serviceRequestIdToUse = serviceData.id;
+    if (setServiceRequestId) setServiceRequestId(serviceRequestIdToUse);
+
+    // Sync draft with IDs
+    if (DRAFT_STORAGE_KEY) {
+      try {
+        const draft = localStorage.getItem(DRAFT_STORAGE_KEY);
+        if (draft) {
+          const parsed = JSON.parse(draft);
+          parsed.serviceRequestId = serviceRequestIdToUse;
+          parsed.clientId = clientIdToUse;
+          localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(parsed));
         }
-      }
-    } else {
-      // Update existing service request
-      const updatePayload: Record<string, any> = {
-        dependents_count: extraUnits,
-        updated_at: new Date().toISOString(),
-      };
-
-      if (productSlug === 'consultation-common') {
-        updatePayload.status = 'pending_payment';
-      }
-
-      const { error: updateError } = await supabase
-        .from('service_requests')
-        .update(updatePayload)
-        .eq('id', serviceRequestIdToUse);
-
-      if (updateError) {
-        console.error('Error updating service request:', updateError);
-        return { success: false, error: 'Failed to update service request' };
+      } catch (err) {
+        console.warn('Failed to sync IDs to draft:', err);
       }
     }
 
@@ -196,6 +167,8 @@ export async function saveStep2Data(
   documentFiles: DocumentFiles | null,
   existingContract?: { contract_document_url?: string; contract_selfie_url?: string }
 ): Promise<SaveStep2Result> {
+  console.log('[VISA CHECKOUT SERVICE] Starting Step 2 Save...', { serviceRequestId, hasFiles: !!documentFiles });
+
   if (!documentFiles && !existingContract) {
     return { success: false, error: 'Please upload all required documents (front, back, and selfie)' };
   }
@@ -222,16 +195,9 @@ export async function saveStep2Data(
 
     // Save document front
     if (documentFiles.documentFront) {
-      // Remove previous document_front if exists to avoid duplicates
-      await supabase
-        .from('identity_files')
-        .delete()
-        .eq('service_request_id', serviceRequestId)
-        .eq('file_type', 'document_front');
-
       const { error: frontError } = await supabase
         .from('identity_files')
-        .insert({
+        .upsert({
           service_request_id: serviceRequestId,
           file_type: 'document_front',
           file_path: documentFiles.documentFront.url,
@@ -239,55 +205,56 @@ export async function saveStep2Data(
           file_size: documentFiles.documentFront.file.size,
           created_ip: clientIP,
           user_agent: userAgent,
+        }, {
+          onConflict: 'service_request_id,file_type'
         });
 
       if (frontError) {
-        console.error('Error saving document front:', frontError);
-        return { success: false, error: 'Failed to save document' };
+        console.error('[VISA CHECKOUT SERVICE] CRITICAL: Error saving document front:', frontError);
+
+        // Tratar erro de Pedido Não Encontrado (FK Violation)
+        if (frontError.code === '23503') {
+          console.warn('[VISA CHECKOUT SERVICE] Service Request ID not found in database. Possible stale draft.');
+          return {
+            success: false,
+            error: 'Sessão expirada ou pedido não encontrado. Por favor, volte ao Passo 1 e clique em Continuar novamente.'
+          };
+        }
+
+        return { success: false, error: 'Failed to save document. Please try again.' };
       }
     }
 
     // Save document back (required)
-    if (!documentFiles.documentBack) {
-      return { success: false, error: 'Document back is required' };
-    }
+    if (documentFiles.documentBack) {
+      const { error: backError } = await supabase
+        .from('identity_files')
+        .upsert({
+          service_request_id: serviceRequestId,
+          file_type: 'document_back',
+          file_path: documentFiles.documentBack.url,
+          file_name: documentFiles.documentBack.file.name,
+          file_size: documentFiles.documentBack.file.size,
+          created_ip: clientIP,
+          user_agent: userAgent,
+        }, {
+          onConflict: 'service_request_id,file_type'
+        });
 
-    // Remove previous document_back if exists
-    await supabase
-      .from('identity_files')
-      .delete()
-      .eq('service_request_id', serviceRequestId)
-      .eq('file_type', 'document_back');
-
-    const { error: backError } = await supabase
-      .from('identity_files')
-      .insert({
-        service_request_id: serviceRequestId,
-        file_type: 'document_back',
-        file_path: documentFiles.documentBack.url,
-        file_name: documentFiles.documentBack.file.name,
-        file_size: documentFiles.documentBack.file.size,
-        created_ip: clientIP,
-        user_agent: userAgent,
-      });
-
-    if (backError) {
-      console.error('Error saving document back:', backError);
-      return { success: false, error: 'Failed to save document back' };
+      if (backError) {
+        console.error('[VISA CHECKOUT SERVICE] CRITICAL: Error saving document back:', backError);
+        if (backError.code === '23503') {
+          return { success: false, error: 'Sessão expirada ou pedido não encontrado. Por favor, volte ao Passo 1.' };
+        }
+        return { success: false, error: 'Failed to save document back' };
+      }
     }
 
     // Save selfie
     if (documentFiles.selfie) {
-      // Remove previous selfie_doc if exists
-      await supabase
-        .from('identity_files')
-        .delete()
-        .eq('service_request_id', serviceRequestId)
-        .eq('file_type', 'selfie_doc');
-
       const { error: selfieError } = await supabase
         .from('identity_files')
-        .insert({
+        .upsert({
           service_request_id: serviceRequestId,
           file_type: 'selfie_doc',
           file_path: documentFiles.selfie.url,
@@ -295,10 +262,15 @@ export async function saveStep2Data(
           file_size: documentFiles.selfie.file.size,
           created_ip: clientIP,
           user_agent: userAgent,
+        }, {
+          onConflict: 'service_request_id,file_type'
         });
 
       if (selfieError) {
-        console.error('Error saving selfie:', selfieError);
+        console.error('[VISA CHECKOUT SERVICE] CRITICAL: Error saving selfie:', selfieError);
+        if (selfieError.code === '23503') {
+          return { success: false, error: 'Sessão expirada ou pedido não encontrado. Por favor, volte ao Passo 1.' };
+        }
         return { success: false, error: 'Failed to save selfie' };
       }
     }
