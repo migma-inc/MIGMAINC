@@ -7,6 +7,7 @@ import { PdfModal } from '@/components/ui/pdf-modal';
 import { ImageModal } from '@/components/ui/image-modal';
 import { CheckCircle, XCircle, Clock, Eye } from 'lucide-react';
 import { AlertModal } from '@/components/ui/alert-modal';
+import { getSecureUrl } from '@/lib/storage';
 
 interface ZelleOrder {
     id: string;
@@ -126,7 +127,8 @@ export const SellerZelleApprovalPage = () => {
                 .from('zelle_comprovantes')
                 .getPublicUrl(`zelle-payments/${userId}/${latestFile.name}`);
 
-            setSelectedZelleUrl(data.publicUrl);
+            const secureUrl = await getSecureUrl(data.publicUrl);
+            setSelectedZelleUrl(secureUrl);
             setSelectedZelleTitle(`Zelle Proof - ${clientName || userId}`);
         } catch (err) {
             console.error(err);

@@ -8,6 +8,7 @@ import { PdfModal } from '@/components/ui/pdf-modal';
 import { ImageModal } from '@/components/ui/image-modal';
 import { ArrowLeft, FileText, CheckCircle2, XCircle, Shield, CheckCircle, X, Eye, Loader2, AlertCircle } from 'lucide-react';
 import { approveVisaContract, rejectVisaContract } from '@/lib/visa-contracts';
+import { getSecureUrl } from '@/lib/storage';
 import { PromptModal } from '@/components/ui/prompt-modal';
 import { AlertModal } from '@/components/ui/alert-modal';
 
@@ -128,8 +129,22 @@ export const VisaOrderDetailPage = () => {
             .select('id, file_type, file_path, file_name')
             .eq('service_request_id', orderData.service_request_id);
 
-          if (!filesError && filesData) {
-            setIdentityFiles(filesData);
+          if (filesData) {
+            // Resolver URLs seguras para thumbnails
+            const resolvedFiles = await Promise.all(filesData.map(async file => {
+              // Usar path relativo diretamente (já foi migrado no banco)
+              const securePath = await getSecureUrl(file.file_path);
+              return { ...file, file_path: securePath || file.file_path };
+            }));
+            setIdentityFiles(resolvedFiles);
+          }
+        }
+
+        // Resolver Zelle Proof URL (se existir e não for nulo)
+        if (orderData.zelle_proof_url) {
+          const secureZelleUrl = await getSecureUrl(orderData.zelle_proof_url);
+          if (secureZelleUrl) {
+            setOrder(prev => prev ? { ...prev, zelle_proof_url: secureZelleUrl } : null);
           }
         }
       } catch (err) {
@@ -270,10 +285,7 @@ export const VisaOrderDetailPage = () => {
   };
 
   const getDocumentUrl = (filePath: string): string => {
-    if (filePath.startsWith('http')) return filePath;
-    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-    const bucketName = 'identity-photos';
-    return `${supabaseUrl}/storage/v1/object/public/${bucketName}/${filePath}`;
+    return filePath; // As URLs já são resolvidas no carregamento
   };
 
   if (loading) {

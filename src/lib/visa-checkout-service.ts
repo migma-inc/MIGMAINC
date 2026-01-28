@@ -386,9 +386,10 @@ export async function saveStep3Data(
 /**
  * Realiza o upload da imagem da assinatura para o Supabase Storage
  * @param signatureImageDataUrl Dados da imagem em base64
+ * @param clientId ID do cliente para isolamento de pasta
  * @returns URL pública da imagem ou null em caso de erro
  */
-export async function uploadSignature(signatureImageDataUrl: string): Promise<string | null> {
+export async function uploadSignature(signatureImageDataUrl: string, clientId?: string | null): Promise<string | null> {
   if (!signatureImageDataUrl) return null;
 
   try {
@@ -405,7 +406,8 @@ export async function uploadSignature(signatureImageDataUrl: string): Promise<st
     const blob = new Blob([byteArray], { type: 'image/png' });
 
     // Criar File a partir do blob
-    const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.png`;
+    const userFolder = clientId || 'anonymous';
+    const fileName = `${userFolder}/${Date.now()}-${Math.random().toString(36).substring(7)}.png`;
     const file = new File([blob], fileName, { type: 'image/png' });
 
     // Upload para storage (bucket visa-signatures)

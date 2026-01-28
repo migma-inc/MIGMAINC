@@ -128,7 +128,7 @@ export const usePaymentHandlers = (
             // 3. Upload signature if needed
             let signatureUrl = '';
             if (signatureImageDataUrl) {
-                const uploadedUrl = await uploadSignature(signatureImageDataUrl);
+                const uploadedUrl = await uploadSignature(signatureImageDataUrl, state.clientId);
                 if (uploadedUrl) {
                     signatureUrl = uploadedUrl;
                 }
@@ -187,7 +187,7 @@ export const usePaymentHandlers = (
             // Upload signature if needed
             let signatureUrl = '';
             if (signatureImageDataUrl) {
-                const uploadedUrl = await uploadSignature(signatureImageDataUrl);
+                const uploadedUrl = await uploadSignature(signatureImageDataUrl, state.clientId);
                 if (uploadedUrl) {
                     signatureUrl = uploadedUrl;
                 }
@@ -279,7 +279,7 @@ export const usePaymentHandlers = (
             // Upload signature if needed
             let signatureUrl = '';
             if (signatureImageDataUrl) {
-                const uploadedUrl = await uploadSignature(signatureImageDataUrl);
+                const uploadedUrl = await uploadSignature(signatureImageDataUrl, state.clientId);
                 if (uploadedUrl) {
                     signatureUrl = uploadedUrl;
                 }

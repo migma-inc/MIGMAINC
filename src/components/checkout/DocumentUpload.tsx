@@ -12,6 +12,7 @@ interface DocumentFile {
 }
 
 interface DocumentUploadProps {
+  clientId?: string | null;
   onComplete: (files: {
     documentFront: { file: File; url: string };
     documentBack: { file: File; url: string };
@@ -20,7 +21,7 @@ interface DocumentUploadProps {
   onCancel?: () => void;
 }
 
-export const DocumentUpload = ({ onComplete, onCancel }: DocumentUploadProps) => {
+export const DocumentUpload = ({ clientId, onComplete, onCancel }: DocumentUploadProps) => {
   const [documentFront, setDocumentFront] = useState<DocumentFile | null>(null);
   const [documentBack, setDocumentBack] = useState<DocumentFile | null>(null);
   const [selfie, setSelfie] = useState<DocumentFile | null>(null);
@@ -107,7 +108,8 @@ export const DocumentUpload = ({ onComplete, onCancel }: DocumentUploadProps) =>
     const { supabase } = await import('@/lib/supabase');
 
     const fileExt = file.name.split('.').pop();
-    const fileName = `${folder}/${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
+    const userFolder = clientId || 'anonymous';
+    const fileName = `${userFolder}/${folder}/${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
 
     const { error: uploadError } = await supabase.storage
       .from('visa-documents')

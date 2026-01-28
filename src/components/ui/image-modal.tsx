@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { X, Loader2, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { supabase } from '@/lib/supabase';
+import { getSecureUrl } from '@/lib/storage';
 
 interface ImageModalProps {
   isOpen: boolean;
@@ -32,98 +32,11 @@ export function ImageModal({ isOpen, onClose, imageUrl, title = 'Image' }: Image
 
     const loadImageUrl = async () => {
       try {
-        // Check if URL is already a full HTTP URL (most common case)
-        if (imageUrl.startsWith('http://') || imageUrl.startsWith('https://')) {
-          // Pre-validate the URL by trying to fetch it
-          const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
-          
-          try {
-            const response = await fetch(imageUrl, {
-              method: 'HEAD',
-              signal: controller.signal,
-            });
-            
-            clearTimeout(timeoutId);
-            
-            if (response.ok) {
-              setFinalUrl(imageUrl);
-              return;
-            } else {
-              // If HEAD fails, try to extract path and get signed URL
-              throw new Error('Public URL not accessible');
-            }
-          } catch (fetchError) {
-            clearTimeout(timeoutId);
-            
-            // If it's a Supabase Storage URL, try to extract path and get signed URL
-            if (imageUrl.includes('/storage/v1/object/public/zelle_comprovantes/')) {
-              const pathMatch = imageUrl.match(/\/zelle_comprovantes\/(.+)$/);
-              if (pathMatch && pathMatch[1]) {
-                const storagePath = pathMatch[1];
-                
-                // Try signed URL as fallback
-                const { data: signedData, error: signedError } = await supabase.storage
-                  .from('zelle_comprovantes')
-                  .createSignedUrl(storagePath, 3600); // 1 hour
-
-                if (!signedError && signedData?.signedUrl) {
-                  setFinalUrl(signedData.signedUrl);
-                  return;
-                }
-              }
-            }
-            
-            // If all else fails, still try to use the original URL
-            // Sometimes the image loads even if HEAD fails
-            setFinalUrl(imageUrl);
-            return;
-          }
-        }
-
-        // If it's a storage path (not a full URL), convert it
-        if (imageUrl.includes('zelle-payments/') || imageUrl.includes('zelle_comprovantes')) {
-          let storagePath = imageUrl;
-          
-          // If it's a full storage URL, extract just the path
-          if (imageUrl.includes('/storage/v1/object/public/')) {
-            const parts = imageUrl.split('/storage/v1/object/public/');
-            if (parts.length > 1) {
-              storagePath = parts[1].split('/').slice(1).join('/'); // Remove bucket name
-            }
-          } else if (imageUrl.startsWith('zelle-payments/')) {
-            storagePath = imageUrl;
-          }
-
-          // Try public URL first (faster)
-          const { data: publicUrlData } = supabase.storage
-            .from('zelle_comprovantes')
-            .getPublicUrl(storagePath);
-
-          if (publicUrlData?.publicUrl) {
-            setFinalUrl(publicUrlData.publicUrl);
-            return;
-          }
-
-          // Fallback: try signed URL (slower but more reliable)
-          const { data: signedData, error: signedError } = await supabase.storage
-            .from('zelle_comprovantes')
-            .createSignedUrl(storagePath, 3600); // 1 hour
-
-          if (!signedError && signedData?.signedUrl) {
-            setFinalUrl(signedData.signedUrl);
-            return;
-          }
-
-          throw new Error('Failed to generate image URL');
-        }
-
-        // If it's already a valid URL, use it
-        setFinalUrl(imageUrl);
+        const secureUrl = await getSecureUrl(imageUrl);
+        setFinalUrl(secureUrl);
       } catch (err) {
         console.error('[ImageModal] Error loading image URL:', err);
         setError(err instanceof Error ? err.message : 'Failed to load image');
-        // Still try to use the original URL as last resort
         setFinalUrl(imageUrl);
       } finally {
         setLoading(false);
@@ -156,20 +69,20 @@ export function ImageModal({ isOpen, onClose, imageUrl, title = 'Image' }: Image
   const displayUrl = finalUrl || imageUrl;
 
   return (
-    <div 
+    <div
       className="fixed inset-0 bg-black/95 flex items-center justify-center z-50 p-4"
       onClick={onClose}
     >
-      <div 
+      <div
         className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30 rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between p-4 border-b border-gold-medium/30">
           <h3 className="text-lg font-semibold text-white">{title}</h3>
-          <Button 
-            variant="outline" 
-            size="sm" 
-            onClick={onClose} 
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onClose}
             className="border-gold-medium/50 bg-black/50 text-gold-light hover:bg-black hover:border-gold-medium hover:text-gold-medium"
           >
             <X className="w-4 h-4 mr-2" />

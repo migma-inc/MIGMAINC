@@ -9,6 +9,7 @@ import { ImageModal } from '@/components/ui/image-modal';
 import { CheckCircle, XCircle, Clock, Brain, Eye } from 'lucide-react';
 import { AlertModal } from '@/components/ui/alert-modal';
 import { Skeleton } from '@/components/ui/skeleton';
+import { getSecureUrl } from '@/lib/storage';
 
 interface ZelleOrder {
   id: string;
@@ -145,7 +146,7 @@ export const ZelleApprovalPage = () => {
             client_name: client?.full_name || `User ${p.user_id.substring(0, 8)}`,
             client_email: email,
             // Pre-calculate search key to be robust
-            unification_key: `${email.trim().toLowerCase()}_${p.fee_type_global.trim().toLowerCase()}`
+            unification_key: `${email.trim().toLowerCase()}_${p.fee_type_global.trim().toLowerCase().replace(/-/g, '_')}`
           };
         });
       }
@@ -208,7 +209,7 @@ export const ZelleApprovalPage = () => {
 
       // A. Process Visa Orders
       (ordersData || []).forEach(order => {
-        const key = `${(order.client_email || '').trim().toLowerCase()}_${(order.product_slug || '').trim().toLowerCase()}`;
+        const key = `${(order.client_email || '').trim().toLowerCase()}_${(order.product_slug || '').trim().toLowerCase().replace(/-/g, '_')}`;
         unifiedMap.set(key, {
           id: order.id,
           type: 'order',
@@ -228,7 +229,7 @@ export const ZelleApprovalPage = () => {
 
       // B. Merge Migma Payments (Grouped by email + product)
       enrichedMigma.forEach(migma => {
-        const key = migma.unification_key || `${(migma.client_email || '').trim().toLowerCase()}_${(migma.fee_type_global || '').trim().toLowerCase()}`;
+        const key = migma.unification_key || `${(migma.client_email || '').trim().toLowerCase()}_${(migma.fee_type_global || '').trim().toLowerCase().replace(/-/g, '_')}`;
         const existing = unifiedMap.get(key);
 
         console.log(`🔍 [DEBUG] Processing Migma ID ${migma.id}: key=${key}, existing=${!!existing}, db_status=${migma.status}`);
@@ -686,7 +687,8 @@ export const ZelleApprovalPage = () => {
         .getPublicUrl(`zelle-payments/${userId}/${latestFile.name}`);
 
       // Abrir no modal em vez de nova aba
-      setSelectedZelleUrl(data.publicUrl);
+      const secureUrl = await getSecureUrl(data.publicUrl);
+      setSelectedZelleUrl(secureUrl);
       setSelectedZelleTitle(`Zelle Proof - ${clientName || userId}`);
     } catch (err) {
       console.error('Exception fetching proof:', err);

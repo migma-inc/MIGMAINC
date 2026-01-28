@@ -26,6 +26,7 @@ Deno.serve(async (req) => {
   try {
     const formData = await req.formData();
     const file = formData.get("file") as File;
+    const clientId = formData.get("clientId") as string | null;
 
     if (!file) {
       return new Response(
@@ -67,7 +68,10 @@ Deno.serve(async (req) => {
     const randomString = Math.random().toString(36).substring(2, 15);
     const fileExtension = normalizeFileExtension(file.name);
     const fileName = `${timestamp}-${randomString}-identity.${fileExtension}`;
-    const filePath = `photos/${fileName}`;
+
+    // Organize by clientId if provided
+    const userFolder = clientId || 'anonymous';
+    const filePath = `${userFolder}/photos/${fileName}`;
 
     console.log("[EDGE FUNCTION] Uploading identity photo:", { fileName: file.name, fileSize: file.size, filePath });
 
@@ -77,10 +81,10 @@ Deno.serve(async (req) => {
 
     const { data, error } = await supabase.storage
       .from(BUCKET_NAME)
-      .upload(filePath, file, { 
-        cacheControl: "3600", 
-        upsert: false, 
-        contentType: file.type 
+      .upload(filePath, file, {
+        cacheControl: "3600",
+        upsert: false,
+        contentType: file.type
       });
 
     if (error) {
