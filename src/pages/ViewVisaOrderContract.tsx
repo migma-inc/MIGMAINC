@@ -1,8 +1,8 @@
 import { useEffect, useState, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { AlertCircle, FileText, CheckCircle2, ShieldCheck, ChevronDown } from 'lucide-react';
+import { AlertCircle, FileText, CheckCircle2, ShieldCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { useContentProtection } from '@/hooks/useContentProtection';
 import { validateVisaContractViewToken, getVisaContractViewData } from '@/lib/visa-contract-view';
 import { formatContractTextToHtml } from '@/lib/contract-formatter';
@@ -14,7 +14,6 @@ export const ViewVisaOrderContract = () => {
     const [searchParams] = useSearchParams();
     const token = searchParams.get('token');
 
-    // Pass true for allowSelection to enable text selection
     const [tokenValid, setTokenValid] = useState<boolean | null>(null);
     useContentProtection(tokenValid === true, true);
 
@@ -31,88 +30,44 @@ export const ViewVisaOrderContract = () => {
 
     const annexRef = useRef<HTMLDivElement>(null);
 
-    // CSS print protection remains (good practice for contracts)
     useEffect(() => {
         if (!tokenValid) return;
-
         const styleId = 'contract-view-print-protection';
         if (!document.getElementById(styleId)) {
             const style = document.createElement('style');
             style.id = styleId;
             style.textContent = `
-        @media print {
-          #contract-content-area,
-          #contract-content-area * {
-            display: none !important;
-            visibility: hidden !important;
-          }
-          
-          body::before {
-            content: "This document cannot be printed. It is available exclusively through the MIGMA portal.";
-            display: block !important;
-            visibility: visible !important;
-            position: fixed;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            font-size: 18px;
-            font-weight: bold;
-            text-align: center;
-            color: #000;
-            background: #fff;
-            padding: 40px;
-            border: 3px solid #CE9F48;
-            border-radius: 8px;
-            z-index: 999999;
-            width: 80%;
-            max-width: 600px;
-          }
-        }
-      `;
+                @media print {
+                  #contract-content-area, #contract-content-area * { display: none !important; }
+                  body::before {
+                    content: "Locked Document - View Only";
+                    display: block !important;
+                    position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+                    font-size: 24px; font-weight: bold; color: #CE9F48;
+                  }
+                }
+            `;
             document.head.appendChild(style);
         }
-
-        return () => {
-            const style = document.getElementById(styleId);
-            if (style) style.remove();
-        };
+        return () => { document.getElementById(styleId)?.remove(); };
     }, [tokenValid]);
 
     useEffect(() => {
         const loadContract = async () => {
             setLoading(true);
-
-            if (!token) {
-                setTokenValid(false);
-                setLoading(false);
-                return;
-            }
-
+            if (!token) { setTokenValid(false); setLoading(false); return; }
             try {
                 const tokenData = await validateVisaContractViewToken(token);
-                if (!tokenData) {
-                    setTokenValid(false);
-                    setLoading(false);
-                    return;
-                }
-
+                if (!tokenData) { setTokenValid(false); setLoading(false); return; }
                 setTokenValid(true);
-
                 const data = await getVisaContractViewData(tokenData.order_id);
-                if (!data) {
-                    setTokenValid(false);
-                    setLoading(false);
-                    return;
-                }
-
+                if (!data) { setTokenValid(false); setLoading(false); return; }
                 setOrderData(data);
 
-                // Obter URLs seguras injetando o token de visualização se necessário
                 const secureUrls: typeof imageUrls = {};
                 for (const [key, path] of Object.entries(data.imageUrls)) {
                     if (path) {
                         let finalUrl = await getSecureUrl(path as string);
-                        // Se o getSecureUrl retornou uma URL do Proxy, precisamos anexar o token para autorizar o acesso deslogado
                         if (finalUrl && finalUrl.includes('/functions/v1/document-proxy')) {
                             finalUrl += `&token=${token}`;
                         }
@@ -121,248 +76,162 @@ export const ViewVisaOrderContract = () => {
                 }
                 setImageUrls(secureUrls);
 
-                if (data.contractContent) {
-                    const formatted = formatContractTextToHtml(data.contractContent);
-                    setContractContent(formatted);
-                }
-
-                if (data.annexContent && data.order.annex_approval_status === 'approved') {
-                    const formattedAnnex = formatContractTextToHtml(data.annexContent);
-                    setAnnexContent(formattedAnnex);
-                }
-
+                if (data.contractContent) setContractContent(formatContractTextToHtml(data.contractContent));
+                if (data.annexContent && data.order.annex_approval_status === 'approved') setAnnexContent(formatContractTextToHtml(data.annexContent));
             } catch (error) {
-                console.error('[VIEW_VISA_CONTRACT] Error loading contract:', error);
+                console.error('[VIEW_VISA_CONTRACT] Error:', error);
                 setTokenValid(false);
-            } finally {
-                setLoading(false);
-            }
+            } finally { setLoading(false); }
         };
-
         loadContract();
     }, [token]);
 
-    const scrollToAnnex = () => {
-        annexRef.current?.scrollIntoView({ behavior: 'smooth' });
-    };
+    if (loading) return <div className="min-h-screen bg-black flex items-center justify-center"><div className="w-12 h-12 border-4 border-gold-medium border-t-transparent rounded-full animate-spin"></div></div>;
 
-    if (loading) {
-        return (
-            <div className="min-h-screen bg-black flex items-center justify-center p-4">
-                <div className="flex flex-col items-center">
-                    <div className="w-12 h-12 border-4 border-gold-medium border-t-transparent rounded-full animate-spin mb-4 shadow-[0_0_15px_rgba(206,159,72,0.5)]"></div>
-                    <p className="text-gold-light tracking-wide font-light">Loading Secure Contract...</p>
-                </div>
-            </div>
-        );
-    }
-
-    if (!tokenValid || !orderData) {
-        return (
-            <div className="min-h-screen bg-black flex items-center justify-center p-4">
-                <Card className="max-w-md w-full border border-red-900/50 bg-red-950/10 backdrop-blur-sm">
-                    <CardContent className="p-8 text-center">
-                        <AlertCircle className="w-16 h-16 text-red-500 mx-auto mb-6 opacity-80" />
-                        <h1 className="text-2xl font-bold mb-4 text-red-400 font-serif">Link Expired</h1>
-                        <p className="text-gray-400 mb-8 font-light leading-relaxed">
-                            This secure link is invalid or has expired. Please contact support if you believe this is an error.
-                        </p>
-                        <Button
-                            onClick={() => navigate('/')}
-                            className="bg-gold-medium text-black hover:bg-gold-light w-full font-bold tracking-wide"
-                        >
-                            Return Home
-                        </Button>
-                    </CardContent>
-                </Card>
-            </div>
-        );
-    }
+    if (!tokenValid || !orderData) return (
+        <div className="min-h-screen bg-black flex items-center justify-center p-4">
+            <Card className="max-w-md w-full border border-red-900/50 bg-red-950/10 text-center p-8">
+                <AlertCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
+                <h1 className="text-2xl font-bold text-red-400 mb-2">Access Denied</h1>
+                <p className="text-gray-400 mb-6">This legal link has expired or is invalid.</p>
+                <Button onClick={() => navigate('/')} className="bg-gold-medium text-black w-full font-bold">Return Home</Button>
+            </Card>
+        </div>
+    );
 
     const { order, product } = orderData;
-    const paymentMethodDisplay = order.payment_method?.replace('_', ' ').toUpperCase() || 'N/A';
     const signedDate = order.contract_signed_at ? new Date(order.contract_signed_at).toLocaleString() : 'N/A';
 
     return (
-        <div className="min-h-screen font-sans text-gray-200 selection:bg-gold-medium/30 selection:text-gold-light">
-            {/* Background Gradient similar to Global Partner */}
-            <div className="fixed inset-0 z-0 pointer-events-none" style={{ background: "radial-gradient(ellipse 150% 100% at top center, #1a1a1a 0%, #000000 100%)" }}></div>
+        <div className="min-h-screen bg-gradient-to-b from-black via-[#1a1a1a] to-black py-12 px-4 shadow-[inset_0_0_100px_rgba(0,0,0,0.9)]">
+            <div className="max-w-5xl mx-auto space-y-6">
+                <Card className="border border-gold-medium/30 shadow-2xl bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 backdrop-blur-sm overflow-hidden">
+                    <CardHeader className="text-center border-b border-gold-medium/30 bg-gradient-to-r from-gold-dark via-gold-medium to-gold-dark pb-8 pt-10">
+                        <CardTitle className="text-3xl font-bold flex items-center justify-center gap-2 text-white drop-shadow-md">
+                            <ShieldCheck className="w-8 h-8 text-black/80" />
+                            Authenticated Agreement
+                        </CardTitle>
+                        <CardDescription className="text-lg mt-4 text-black/80 font-medium font-serif italic">
+                            {product?.name || 'Visa Support Agreement'}
+                        </CardDescription>
+                    </CardHeader>
 
-            <div className="relative z-10 py-12 px-4 md:px-8 max-w-5xl mx-auto space-y-8">
-
-                {/* Header Section */}
-                <motion.div
-                    initial={{ opacity: 0, y: -20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="text-center space-y-4"
-                >
-                    <div className="inline-flex items-center justify-center p-3 bg-green-500/10 rounded-full border border-green-500/20 mb-2">
-                        <ShieldCheck className="w-8 h-8 text-green-400" />
-                    </div>
-                    <h1 className="text-4xl md:text-5xl font-bold migma-gold-text tracking-tight">
-                        Secure Contract View
-                    </h1>
-                    <p className="text-gold-light/70 text-lg font-light tracking-wide">
-                        Verified Agreement for {product?.name || 'Visa Service'}
-                    </p>
-                </motion.div>
-
-                {/* Main Content Card */}
-                <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.1 }}
-                >
-                    <Card className="border border-gold-medium/30 bg-black/40 backdrop-blur-md shadow-[0_0_50px_rgba(0,0,0,0.5)] overflow-hidden">
-
-                        {/* Order Status Bar */}
-                        <div className="bg-gradient-to-r from-gold-dark/20 to-transparent border-b border-gold-medium/20 p-4 md:p-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
-                            <div className="flex items-center gap-3">
-                                <CheckCircle2 className="w-5 h-5 text-green-400 shrink-0" />
-                                <div>
-                                    <p className="text-gold-light font-semibold tracking-wide">Payment Confirmed & Verified</p>
-                                    <p className="text-xs text-gray-400 font-mono">ID: {order.order_number}</p>
-                                </div>
+                    <CardContent id="contract-content-area" className="p-8 sm:p-12 space-y-12 text-justify leading-relaxed text-gray-200">
+                        {/* Info Bar */}
+                        <div className="p-6 bg-black/40 rounded-lg border border-gold-medium/30 shadow-inner grid grid-cols-1 md:grid-cols-2 gap-6 text-sm">
+                            <div className="flex flex-col gap-1">
+                                <span className="text-gray-500 uppercase text-[10px] tracking-widest font-bold">Client</span>
+                                <span className="text-white font-semibold text-base">{order.client_name}</span>
                             </div>
+                            <div className="flex flex-col gap-1">
+                                <span className="text-gray-500 uppercase text-[10px] tracking-widest font-bold">Order Number</span>
+                                <span className="text-white font-mono">{order.order_number}</span>
+                            </div>
+                            <div className="flex flex-col gap-1">
+                                <span className="text-gray-500 uppercase text-[10px] tracking-widest font-bold">Signed At</span>
+                                <span className="text-gold-light font-bold">{signedDate}</span>
+                            </div>
+                            <div className="flex flex-col gap-1">
+                                <span className="text-gray-500 uppercase text-[10px] tracking-widest font-bold">Status</span>
+                                <span className="text-green-400 font-bold uppercase tracking-widest">VALID & ENFORCEABLE</span>
+                            </div>
+                        </div>
 
-                            <div className="flex items-center gap-6 text-sm">
-                                <div>
-                                    <span className="text-gray-500 block text-[10px] uppercase tracking-wider">Method</span>
-                                    <span className="text-white font-medium">{paymentMethodDisplay}</span>
+                        {/* Contract Content */}
+                        <div className="prose prose-invert max-w-none 
+                            prose-p:my-6 prose-p:leading-[1.8] prose-p:text-gray-300 
+                            prose-strong:text-gold-medium prose-strong:font-bold
+                            prose-headings:text-gold-light prose-headings:font-bold prose-headings:border-l-2 prose-headings:border-gold-medium prose-headings:pl-4">
+                            {contractContent && <div dangerouslySetInnerHTML={{ __html: contractContent }} />}
+
+                            {annexContent && (
+                                <div ref={annexRef} className="mt-24 pt-20 border-t border-gold-medium/20">
+                                    <div className="text-center mb-10">
+                                        <span className="px-6 py-1 bg-gold-medium text-black text-[10px] font-bold rounded-full uppercase tracking-[0.2em]">Legal Annex I</span>
+                                        <h2 className="text-2xl font-bold mt-4 text-gold-light uppercase tracking-tight">Statement of Responsibility</h2>
+                                    </div>
+                                    <div dangerouslySetInnerHTML={{ __html: annexContent }} />
                                 </div>
-                                <div>
-                                    <span className="text-gray-500 block text-[10px] uppercase tracking-wider">Signed On</span>
-                                    <span className="text-white font-medium">{signedDate}</span>
+                            )}
+                        </div>
+
+                        {/* Digital Certification Section */}
+                        <div className="mt-12 pt-12 border-t border-gold-medium/20">
+                            <h3 className="text-sm font-bold text-gold-medium uppercase tracking-[0.2em] mb-10 text-center underline underline-offset-8">Digital Authentication Record</h3>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
+                                {/* Signature */}
+                                <div className="space-y-4">
+                                    <p className="text-[10px] text-gray-500 uppercase font-bold tracking-widest">Client Digital Signature</p>
+                                    <div className="border border-gold-medium/30 rounded-xl p-8 bg-white/5 backdrop-blur-sm min-h-[160px] flex items-center justify-center relative">
+                                        {imageUrls.signature ? (
+                                            <img src={imageUrls.signature} alt="Signature" className="max-h-24 max-w-full object-contain filter invert opacity-90" draggable={false} />
+                                        ) : (
+                                            <p className="text-3xl font-serif italic text-white/10 select-none">/ {order.client_name} /</p>
+                                        )}
+                                    </div>
+                                    <div className="pt-2">
+                                        <p className="text-sm font-bold text-white uppercase">{order.client_name}</p>
+                                        <p className="text-[10px] text-gray-500 font-mono">RECORD_ID: {order.id?.substring(0, 16).toUpperCase()}</p>
+                                    </div>
+                                </div>
+
+                                {/* Identity Photos */}
+                                <div className="space-y-4">
+                                    <p className="text-[10px] text-gray-500 uppercase font-bold tracking-widest">Identity Evidence (Originals)</p>
+                                    <div className="flex flex-wrap gap-3">
+                                        {imageUrls.documentFront && (
+                                            <div className="relative group bg-zinc-900 p-1 rounded-lg border border-gold-medium/20 shadow-xl">
+                                                <img src={imageUrls.documentFront} alt="Front" className="w-20 h-28 object-cover rounded" />
+                                                <div className="absolute inset-x-0 bottom-0 bg-black/60 text-[7px] text-center font-bold uppercase py-0.5 rounded-b text-white">Front</div>
+                                            </div>
+                                        )}
+                                        {imageUrls.documentBack && (
+                                            <div className="relative group bg-zinc-900 p-1 rounded-lg border border-gold-medium/20 shadow-xl">
+                                                <img src={imageUrls.documentBack} alt="Back" className="w-20 h-28 object-cover rounded" />
+                                                <div className="absolute inset-x-0 bottom-0 bg-black/60 text-[7px] text-center font-bold uppercase py-0.5 rounded-b text-white">Back</div>
+                                            </div>
+                                        )}
+                                        {imageUrls.selfieDoc && (
+                                            <div className="relative group bg-zinc-900 p-1 rounded-lg border border-gold-medium/20 shadow-xl">
+                                                <img src={imageUrls.selfieDoc} alt="Selfie" className="w-20 h-28 object-cover rounded" />
+                                                <div className="absolute inset-x-0 bottom-0 bg-gold-medium/80 text-[7px] text-center font-bold uppercase py-0.5 rounded-b text-black">Selfie</div>
+                                            </div>
+                                        )}
+                                        <div className="flex flex-col justify-center">
+                                            <div className="inline-flex items-center gap-1 px-2 py-0.5 bg-green-500/20 text-green-400 rounded text-[9px] font-bold border border-green-500/30 uppercase mb-2">
+                                                <CheckCircle2 className="w-2 h-2" /> Verified
+                                            </div>
+                                            <p className="text-[8px] text-gray-500 font-mono leading-tight">AUTH: SECURE<br />MATCH: PREMIUM</p>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
 
-                        <CardContent id="contract-content-area" className="p-8 md:p-12 space-y-12">
-
-                            {/* Client Summary */}
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 p-6 bg-white/5 rounded-xl border border-white/10">
-                                <div className="space-y-1">
-                                    <p className="text-xs text-gold-medium/70 uppercase tracking-widest font-semibold">Client Name</p>
-                                    <p className="text-white font-medium text-lg">{order.client_name}</p>
-                                </div>
-                                <div className="space-y-1">
-                                    <p className="text-xs text-gold-medium/70 uppercase tracking-widest font-semibold">Email Address</p>
-                                    <p className="text-gray-300 font-medium">{order.client_email}</p>
-                                </div>
-                                <div className="space-y-1">
-                                    <p className="text-xs text-gold-medium/70 uppercase tracking-widest font-semibold">Nationality</p>
-                                    <p className="text-gray-300 font-medium">{order.client_nationality || 'N/A'}</p>
-                                </div>
+                        {/* Footer Seals */}
+                        <div className="mt-20 pt-10 border-t border-gold-medium/10 text-center space-y-6">
+                            <div className="flex justify-center gap-12 opacity-20 contrast-125">
+                                <ShieldCheck className="w-10 h-10 text-gold-medium" />
+                                <div className="border-r border-gold-medium/30 h-10"></div>
+                                <FileText className="w-10 h-10 text-gold-medium" />
                             </div>
+                            <p className="text-[9px] text-gray-500 uppercase tracking-[0.2em] max-w-xl mx-auto leading-relaxed">
+                                This agreement is a legally binding digital instrument. All signatures
+                                and verification data are stored in the MIGMA private secure vault.
+                            </p>
+                            <p className="text-gold-medium/40 text-[10px] font-bold tracking-[0.4em]">
+                                &copy; {new Date().getFullYear()} MIGMA INC • ALL RIGHTS RESERVED
+                            </p>
+                        </div>
+                    </CardContent>
+                </Card>
 
-                            {/* Jump to Annex Button if available */}
-                            {annexContent && (
-                                <div className="flex justify-end">
-                                    <Button
-                                        variant="outline"
-                                        onClick={scrollToAnnex}
-                                        className="border-gold-medium/30 text-gold-light hover:bg-gold-medium/10 gap-2 text-xs uppercase tracking-wider"
-                                    >
-                                        Jump to Annex I <ChevronDown className="w-4 h-4" />
-                                    </Button>
-                                </div>
-                            )}
-
-                            {/* Main Contract Text */}
-                            <div className="space-y-6">
-                                <div className="flex items-center gap-3 border-b border-gold-medium/30 pb-4">
-                                    <FileText className="w-6 h-6 text-gold-medium" />
-                                    <h2 className="text-2xl font-bold text-white tracking-tight">Terms of Service Agreement</h2>
-                                </div>
-
-                                {contractContent ? (
-                                    <div
-                                        className="prose prose-invert prose-lg max-w-none 
-                                            prose-headings:text-gold-light prose-headings:font-bold
-                                            prose-p:text-gray-300 prose-p:leading-relaxed
-                                            prose-li:text-gray-300
-                                            prose-strong:text-white"
-                                        dangerouslySetInnerHTML={{ __html: contractContent }}
-                                    />
-                                ) : (
-                                    <div className="p-8 text-center border border-dashed border-red-900/50 rounded-lg bg-red-950/10">
-                                        <p className="text-red-400 italic">Contract content unavailable.</p>
-                                    </div>
-                                )}
-                            </div>
-
-                            {/* Annex Section */}
-                            {annexContent && (
-                                <div ref={annexRef} className="pt-12 border-t border-gold-medium/20 space-y-6 scroll-mt-24">
-                                    <div className="flex items-center gap-3 border-b border-gold-medium/30 pb-4">
-                                        <FileText className="w-6 h-6 text-gold-medium" />
-                                        <h2 className="text-2xl font-bold text-white tracking-tight">ANNEX I - Statement of Responsibility</h2>
-                                    </div>
-                                    <div
-                                        className="prose prose-invert prose-lg max-w-none 
-                                            prose-headings:text-gold-light prose-headings:font-bold
-                                            prose-p:text-gray-300 prose-p:leading-relaxed
-                                            prose-li:text-gray-300
-                                            prose-strong:text-white"
-                                        dangerouslySetInnerHTML={{ __html: annexContent }}
-                                    />
-                                </div>
-                            )}
-
-                            {/* Signatures */}
-                            <div className="pt-12 border-t border-gold-medium/20">
-                                <h3 className="text-lg font-bold text-gold-light uppercase tracking-widest mb-8">Digital Authentication</h3>
-
-                                <div className="flex flex-col md:flex-row gap-10">
-                                    {/* Client Signature */}
-                                    <div className="flex-1 space-y-4">
-                                        <p className="text-sm text-gray-400 font-medium">Authorized Signature</p>
-                                        <div className="border border-gold-medium/30 bg-white/5 rounded-xl p-8 flex items-center justify-center min-h-[160px]">
-                                            {imageUrls.signature ? (
-                                                <img
-                                                    src={imageUrls.signature}
-                                                    alt="Client Signature"
-                                                    className="max-h-24 max-w-full object-contain filter invert opacity-90"
-                                                    draggable={false}
-                                                />
-                                            ) : (
-                                                <p className="text-3xl font-script text-white/80 italic">{order.client_name}</p>
-                                            )}
-                                        </div>
-                                    </div>
-
-                                    {/* Selfie (if present) */}
-                                    {imageUrls.selfieDoc && (
-                                        <div className="flex-1 space-y-4">
-                                            <p className="text-sm text-gray-400 font-medium">Biometric Verification</p>
-                                            <div className="border border-gold-medium/30 bg-black rounded-xl p-2 flex items-center justify-center min-h-[160px] max-w-[200px]">
-                                                <img
-                                                    src={imageUrls.selfieDoc}
-                                                    alt="Identity Verification"
-                                                    className="h-32 w-auto object-cover rounded shadow-lg"
-                                                    draggable={false}
-                                                />
-                                            </div>
-                                        </div>
-                                    )}
-                                </div>
-                                <div className="mt-6 flex items-center gap-2 text-gold-dark/40 text-xs font-mono uppercase tracking-widest">
-                                    <ShieldCheck className="w-3 h-3" />
-                                    <span>Digitally Signed & Encrypted • {signedDate}</span>
-                                </div>
-                            </div>
-
-                        </CardContent>
-                    </Card>
-                </motion.div>
-
-                <div className="text-center pb-8">
-                    <p className="text-gray-600 text-xs max-w-md mx-auto">
-                        This document is protected by international copyright laws. Unauthorized reproduction or distribution of this contract is strictly prohibited.
-                        <br />&copy; {new Date().getFullYear()} MIGMA INC.
-                    </p>
+                <div className="flex justify-center pb-10">
+                    <Button onClick={() => navigate('/')} className="bg-gold-medium text-black hover:bg-gold-light px-10 py-6 rounded-xl font-bold uppercase tracking-[0.2em] shadow-xl transition-transform hover:scale-105">
+                        Return Home
+                    </Button>
                 </div>
-
             </div>
         </div>
     );
