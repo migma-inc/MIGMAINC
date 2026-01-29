@@ -7,8 +7,8 @@ import type { Application } from '@/types/application';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { X, Download, CheckCircle, XCircle } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
 import { PdfModal } from '@/components/ui/pdf-modal';
+import { getSecureUrl } from '@/lib/storage';
 
 interface ApplicationDetailsProps {
   application: Application;
@@ -62,13 +62,11 @@ export function ApplicationDetails({
     }
 
     try {
-      // Get public URL for the CV file
-      const { data } = supabase.storage
-        .from('cv-files')
-        .getPublicUrl(application.cv_file_path);
+      // Use getSecureUrl to handle private buckets and proxy fallback
+      const secureUrl = await getSecureUrl(application.cv_file_path);
 
-      if (data?.publicUrl) {
-        setCvUrl(data.publicUrl);
+      if (secureUrl) {
+        setCvUrl(secureUrl);
         setShowPdfModal(true);
       } else {
         alert('Could not generate CV download link');
