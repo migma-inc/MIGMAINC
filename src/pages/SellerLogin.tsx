@@ -141,14 +141,6 @@ export const SellerLogin = () => {
                 required
                 autoComplete="current-password"
               />
-              <div className="text-right">
-                <Link
-                  to="/forgot-password"
-                  className="text-sm text-gold-light hover:text-gold-medium underline"
-                >
-                  Forgot Password?
-                </Link>
-              </div>
             </div>
 
             <Button
