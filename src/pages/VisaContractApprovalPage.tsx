@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { approveVisaContract, rejectVisaContract } from '@/lib/visa-contracts';
 import { getCurrentUser } from '@/lib/auth';
+import { getSecureUrl } from '@/lib/storage';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
     Dialog,
@@ -169,6 +170,19 @@ export function VisaContractApprovalPage() {
 
     const ImageWithSkeleton = ({ src, alt, className }: { src: string, alt: string, className: string }) => {
         const [isLoaded, setIsLoaded] = useState(false);
+        const [resolvedUrl, setResolvedUrl] = useState<string | null>(null);
+
+        useEffect(() => {
+            const resolve = async () => {
+                const url = await getSecureUrl(src);
+                setResolvedUrl(url);
+            };
+            resolve();
+        }, [src]);
+
+        if (!resolvedUrl) {
+            return <Skeleton className={cn("w-full h-full", className)} />;
+        }
 
         return (
             <div className={cn("relative overflow-hidden", className)}>
@@ -176,7 +190,7 @@ export function VisaContractApprovalPage() {
                     <Skeleton className="absolute inset-0 w-full h-full" />
                 )}
                 <img
-                    src={src}
+                    src={resolvedUrl}
                     alt={alt}
                     className={cn(
                         "w-full h-full object-cover transition-opacity duration-500",
@@ -290,11 +304,15 @@ export function VisaContractApprovalPage() {
         );
     };
 
-    const getDocumentUrl = (filePath: string): string => {
-        if (filePath.startsWith('http')) return filePath;
-        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-        const bucketName = 'identity-photos';
-        return `${supabaseUrl}/storage/v1/object/public/${bucketName}/${filePath}`;
+    const getDocumentUrl = (file: IdentityFile): string => {
+        // Se já for uma URL completa, retorna
+        if (file.file_path.startsWith('http')) return file.file_path;
+
+        // Caso contrário, retorna o caminho relativo que o getSecureUrl entende
+        // O getSecureUrl do storage.ts já tem lógica para identificar buckets se passarmos "bucket/path"
+        // ou se passarmos apenas o path (ele tenta adivinhar).
+        // Aqui os arquivos de identidade costumam estar no bucket 'identity-photos'
+        return `identity-photos/${file.file_path}`;
     };
 
     if (loading) {
@@ -417,14 +435,15 @@ export function VisaContractApprovalPage() {
                                                     idFiles[order.service_request_id].map(file => (
                                                         <div
                                                             key={file.id}
-                                                            onClick={() => {
-                                                                setSelectedImageUrl(getDocumentUrl(file.file_path));
+                                                            onClick={async () => {
+                                                                const secureUrl = await getSecureUrl(getDocumentUrl(file));
+                                                                setSelectedImageUrl(secureUrl);
                                                                 setSelectedImageTitle(`${file.file_type.replace('_', ' ').toUpperCase()} - ${order.client_name}`);
                                                             }}
-                                                            className="group relative cursor-pointer w-20 h-20 sm:w-24 sm:h-24 rounded-lg overflow-hidden border border-gold-medium/30 bg-black/50 hover:border-gold-medium transition-colors"
+                                                            className="group relative cursor-pointer w-28 h-28 sm:w-32 sm:h-32 rounded-lg overflow-hidden border border-gold-medium/30 bg-black/50 hover:border-gold-medium transition-all hover:scale-105 duration-300 shadow-lg shadow-black/50"
                                                         >
                                                             <ImageWithSkeleton
-                                                                src={getDocumentUrl(file.file_path)}
+                                                                src={getDocumentUrl(file)}
                                                                 alt={file.file_type}
                                                                 className="w-full h-full"
                                                             />
