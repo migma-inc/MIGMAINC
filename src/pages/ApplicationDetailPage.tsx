@@ -10,6 +10,7 @@ import { approveApplication, rejectApplication, approveApplicationForMeeting, ap
 import { resendContractTermsEmail } from '@/lib/partner-terms';
 import { approvePartnerContract, rejectPartnerContract } from '@/lib/partner-contracts';
 import { getCurrentUser } from '@/lib/auth';
+import { getSecureUrl } from '@/lib/storage';
 import type { Application } from '@/types/application';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -54,7 +55,7 @@ function ApplicationDetailContent() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [cvUrl, setCvUrl] = useState<string | null>(null);
   const [showCVModal, setShowCVModal] = useState(false);
-  
+
   // Modal states
   const [showApproveConfirm, setShowApproveConfirm] = useState(false);
   const [showRejectPrompt, setShowRejectPrompt] = useState(false);
@@ -102,7 +103,7 @@ function ApplicationDetailContent() {
           .eq('application_id', id)
           .not('accepted_at', 'is', null)
           .maybeSingle();
-        
+
         if (acceptanceData) {
           setTermsAcceptance(acceptanceData);
         }
@@ -110,24 +111,9 @@ function ApplicationDetailContent() {
         // Get CV URL if available
         if (data.cv_file_path) {
           try {
-            // Try public URL first
-            const { data: urlData } = supabase.storage
-              .from('cv-files')
-              .getPublicUrl(data.cv_file_path);
-            
-            if (urlData?.publicUrl) {
-              setCvUrl(urlData.publicUrl);
-            } else {
-              // Fallback: try signed URL (valid for 1 hour)
-              const { data: signedData, error: signedError } = await supabase.storage
-                .from('cv-files')
-                .createSignedUrl(data.cv_file_path, 3600); // 1 hour
-              
-              if (!signedError && signedData?.signedUrl) {
-                setCvUrl(signedData.signedUrl);
-              } else {
-                console.error('[ApplicationDetail] Error getting CV URL:', signedError);
-              }
+            const secureUrl = await getSecureUrl(data.cv_file_path);
+            if (secureUrl) {
+              setCvUrl(secureUrl);
             }
           } catch (urlError) {
             console.error('[ApplicationDetail] Error generating CV URL:', urlError);
@@ -146,19 +132,19 @@ function ApplicationDetailContent() {
 
   const handleApprove = async () => {
     if (!application) return;
-    
+
     // If status is pending, open meeting modal
     if (application.status === 'pending') {
       setShowMeetingModal(true);
       return;
     }
-    
+
     // If status is approved_for_meeting, show template selector
     if (application.status === 'approved_for_meeting') {
       setShowTemplateSelector(true);
       return;
     }
-    
+
     // For other statuses, use old flow (backward compatibility)
     setShowApproveConfirm(true);
   };
@@ -170,7 +156,7 @@ function ApplicationDetailContent() {
     scheduledBy?: string;
   }) => {
     if (!application) return;
-    
+
     setShowMeetingModal(false);
     setIsProcessing(true);
     try {
@@ -219,7 +205,7 @@ function ApplicationDetailContent() {
     scheduledBy?: string;
   }) => {
     if (!application) return;
-    
+
     setShowMeetingModal(false);
     setIsProcessing(true);
     try {
@@ -264,12 +250,12 @@ function ApplicationDetailContent() {
 
   const handleTemplateSelected = async (templateId: string | null) => {
     if (!application) return;
-    
+
     setShowTemplateSelector(false);
     setIsProcessing(true);
     try {
       const result = await approveApplicationAfterMeeting(application.id, templateId);
-      
+
       if (result.success) {
         setAlertData({
           title: 'Success',
@@ -303,12 +289,12 @@ function ApplicationDetailContent() {
 
   const handleResendEmail = async () => {
     if (!application) return;
-    
+
     setIsProcessing(true);
     try {
       // Forçar uso de URL de produção
       const result = await resendContractTermsEmail(application.id, true);
-      
+
       if (result.success) {
         setAlertData({
           title: 'Success',
@@ -338,13 +324,13 @@ function ApplicationDetailContent() {
 
   const confirmApprove = async () => {
     if (!application) return;
-    
+
     setShowApproveConfirm(false);
     setIsProcessing(true);
     try {
-        // For backward compatibility with old 'approved' status
+      // For backward compatibility with old 'approved' status
       const result = await approveApplication(application.id);
-      
+
       if (result.success) {
         setAlertData({
           title: 'Success',
@@ -390,7 +376,7 @@ function ApplicationDetailContent() {
 
   const confirmReject = async () => {
     if (!application) return;
-    
+
     setShowRejectConfirm(false);
     setIsProcessing(true);
     try {
@@ -436,22 +422,19 @@ function ApplicationDetailContent() {
     try {
       // Ensure we have a valid URL
       let urlToUse = cvUrl;
-      
+
       if (!urlToUse) {
-        const { data: signedData, error: signedError } = await supabase.storage
-          .from('cv-files')
-          .createSignedUrl(application.cv_file_path, 3600);
-        
-        if (signedError || !signedData?.signedUrl) {
+        const secureUrl = await getSecureUrl(application.cv_file_path);
+
+        if (!secureUrl) {
           alert('Error accessing CV file. Please try again later.');
-          console.error('[ApplicationDetail] Error creating signed URL:', signedError);
           return;
         }
-        
-        urlToUse = signedData.signedUrl;
+
+        urlToUse = secureUrl;
         setCvUrl(urlToUse);
       }
-      
+
       setShowCVModal(true);
     } catch (error) {
       console.error('[ApplicationDetail] Error loading CV:', error);
@@ -509,633 +492,633 @@ function ApplicationDetailContent() {
 
       {/* Main Content */}
       <div className="space-y-6">
-          {/* Personal Information */}
-          <Card className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30">
-            <CardHeader>
-              <CardTitle className="text-white">Personal Information</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
+        {/* Personal Information */}
+        <Card className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30">
+          <CardHeader>
+            <CardTitle className="text-white">Personal Information</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
+              <div>
+                <p className="text-sm text-gray-400 mb-1">Full Name</p>
+                <p className="font-medium text-base sm:text-lg text-gray-200 break-words">{application.full_name}</p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-400 mb-1">Email</p>
+                <p className="font-medium text-gray-200">{application.email}</p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-400 mb-1">Phone</p>
+                <p className="font-medium text-gray-200">{application.phone}</p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-400 mb-1">Country</p>
+                <p className="font-medium text-gray-200">{application.country}</p>
+              </div>
+              {application.city && (
                 <div>
-                  <p className="text-sm text-gray-400 mb-1">Full Name</p>
-                  <p className="font-medium text-base sm:text-lg text-gray-200 break-words">{application.full_name}</p>
+                  <p className="text-sm text-gray-400 mb-1">City</p>
+                  <p className="font-medium text-gray-200">{application.city}</p>
                 </div>
+              )}
+              <div>
+                <p className="text-sm text-gray-400 mb-1">Submitted</p>
+                <p className="font-medium text-gray-200">
+                  {new Date(application.created_at).toLocaleString('en-US', {
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  })}
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Business Information */}
+        <Card className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30">
+          <CardHeader>
+            <CardTitle className="text-white">Business Information</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
+              <div>
+                <p className="text-sm text-gray-400 mb-1">Has Business Registration</p>
+                <p className="font-medium text-gray-200">{application.has_business_registration}</p>
+              </div>
+              {application.business_name && (
                 <div>
-                  <p className="text-sm text-gray-400 mb-1">Email</p>
-                  <p className="font-medium text-gray-200">{application.email}</p>
+                  <p className="text-sm text-gray-400 mb-1">Business Name</p>
+                  <p className="font-medium text-gray-200">{application.business_name}</p>
                 </div>
+              )}
+              {application.business_id && (
                 <div>
-                  <p className="text-sm text-gray-400 mb-1">Phone</p>
-                  <p className="font-medium text-gray-200">{application.phone}</p>
+                  <p className="text-sm text-gray-400 mb-1">Business ID (CNPJ/NIF)</p>
+                  <p className="font-medium text-gray-200">{application.business_id}</p>
                 </div>
+              )}
+              {application.tax_id && (
                 <div>
-                  <p className="text-sm text-gray-400 mb-1">Country</p>
-                  <p className="font-medium text-gray-200">{application.country}</p>
+                  <p className="text-sm text-gray-400 mb-1">Tax ID</p>
+                  <p className="font-medium text-gray-200">{application.tax_id}</p>
                 </div>
-                {application.city && (
-                  <div>
-                    <p className="text-sm text-gray-400 mb-1">City</p>
-                    <p className="font-medium text-gray-200">{application.city}</p>
-                  </div>
-                )}
+              )}
+              {application.registration_type && (
                 <div>
-                  <p className="text-sm text-gray-400 mb-1">Submitted</p>
-                  <p className="font-medium text-gray-200">
-                    {new Date(application.created_at).toLocaleString('en-US', {
-                      year: 'numeric',
-                      month: 'long',
-                      day: 'numeric',
-                      hour: '2-digit',
-                      minute: '2-digit',
-                    })}
-                  </p>
+                  <p className="text-sm text-gray-400 mb-1">Registration Type</p>
+                  <p className="font-medium text-gray-200">{application.registration_type}</p>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Professional Information */}
+        <Card className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30">
+          <CardHeader>
+            <CardTitle className="text-white">Professional Information</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
+              {application.current_occupation && (
+                <div>
+                  <p className="text-sm text-gray-400 mb-1">Current Occupation</p>
+                  <p className="font-medium text-gray-200">{application.current_occupation}</p>
+                </div>
+              )}
+              <div className="md:col-span-2">
+                <p className="text-sm text-gray-400 mb-2">Area of Expertise</p>
+                <div className="flex flex-wrap gap-2">
+                  {application.area_of_expertise.map((area, idx) => (
+                    <span
+                      key={idx}
+                      className="px-3 py-1 bg-gold-medium/30 text-white border border-gold-medium/50 rounded-full text-sm font-medium"
+                    >
+                      {area}
+                    </span>
+                  ))}
                 </div>
               </div>
-            </CardContent>
-          </Card>
-
-          {/* Business Information */}
-          <Card className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30">
-            <CardHeader>
-              <CardTitle className="text-white">Business Information</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
-                <div>
-                  <p className="text-sm text-gray-400 mb-1">Has Business Registration</p>
-                  <p className="font-medium text-gray-200">{application.has_business_registration}</p>
-                </div>
-                {application.business_name && (
-                  <div>
-                    <p className="text-sm text-gray-400 mb-1">Business Name</p>
-                    <p className="font-medium text-gray-200">{application.business_name}</p>
-                  </div>
-                )}
-                {application.business_id && (
-                  <div>
-                    <p className="text-sm text-gray-400 mb-1">Business ID (CNPJ/NIF)</p>
-                    <p className="font-medium text-gray-200">{application.business_id}</p>
-                  </div>
-                )}
-                {application.tax_id && (
-                  <div>
-                    <p className="text-sm text-gray-400 mb-1">Tax ID</p>
-                    <p className="font-medium text-gray-200">{application.tax_id}</p>
-                  </div>
-                )}
-                {application.registration_type && (
-                  <div>
-                    <p className="text-sm text-gray-400 mb-1">Registration Type</p>
-                    <p className="font-medium text-gray-200">{application.registration_type}</p>
-                  </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Professional Information */}
-          <Card className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30">
-            <CardHeader>
-              <CardTitle className="text-white">Professional Information</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
-                {application.current_occupation && (
-                  <div>
-                    <p className="text-sm text-gray-400 mb-1">Current Occupation</p>
-                    <p className="font-medium text-gray-200">{application.current_occupation}</p>
-                  </div>
-                )}
+              {application.interested_roles && application.interested_roles.length > 0 && (
                 <div className="md:col-span-2">
-                  <p className="text-sm text-gray-400 mb-2">Area of Expertise</p>
+                  <p className="text-sm text-gray-400 mb-2">Interested Roles</p>
                   <div className="flex flex-wrap gap-2">
-                    {application.area_of_expertise.map((area, idx) => (
+                    {application.interested_roles.map((role, idx) => (
                       <span
                         key={idx}
-                        className="px-3 py-1 bg-gold-medium/30 text-white border border-gold-medium/50 rounded-full text-sm font-medium"
+                        className="px-3 py-1 bg-purple-500/30 text-white border border-purple-500/50 rounded-full text-sm font-medium"
                       >
-                        {area}
+                        {role}
                       </span>
                     ))}
                   </div>
                 </div>
-                {application.interested_roles && application.interested_roles.length > 0 && (
-                  <div className="md:col-span-2">
-                    <p className="text-sm text-gray-400 mb-2">Interested Roles</p>
-                    <div className="flex flex-wrap gap-2">
-                      {application.interested_roles.map((role, idx) => (
-                        <span
-                          key={idx}
-                          className="px-3 py-1 bg-purple-500/30 text-white border border-purple-500/50 rounded-full text-sm font-medium"
-                        >
-                          {role}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                <div>
-                  <p className="text-sm text-gray-400 mb-1">Years of Experience</p>
-                  <p className="font-medium text-gray-200">{application.years_of_experience}</p>
-                </div>
-                {application.visa_experience && (
-                  <div>
-                    <p className="text-sm text-gray-400 mb-1">U.S. Visa Experience</p>
-                    <p className="font-medium text-gray-200">{application.visa_experience}</p>
-                  </div>
-                )}
-                <div>
-                  <p className="text-sm text-gray-400 mb-1">English Level</p>
-                  <p className="font-medium text-gray-200">{application.english_level}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-400 mb-1">Client Experience</p>
-                  <p className="font-medium text-gray-200">{application.client_experience}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-400 mb-1">Weekly Availability</p>
-                  <p className="font-medium text-gray-200">{application.weekly_availability}</p>
-                </div>
-                {application.client_experience_description && (
-                  <div className="md:col-span-2">
-                    <p className="text-sm text-gray-400 mb-1">Client Experience Description</p>
-                    <p className="font-medium text-gray-200 whitespace-pre-wrap">{application.client_experience_description}</p>
-                  </div>
-                )}
+              )}
+              <div>
+                <p className="text-sm text-gray-400 mb-1">Years of Experience</p>
+                <p className="font-medium text-gray-200">{application.years_of_experience}</p>
               </div>
-            </CardContent>
-          </Card>
-
-          {/* Additional Information */}
-          <Card className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30">
-            <CardHeader>
-              <CardTitle className="text-white">Additional Information</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-6">
+              {application.visa_experience && (
                 <div>
-                  <p className="text-sm text-gray-400 mb-2">Why MIGMA?</p>
-                  <p className="font-medium whitespace-pre-wrap bg-black/30 border border-gold-medium/30 p-4 rounded-lg text-gray-200">
-                    {application.why_migma}
-                  </p>
+                  <p className="text-sm text-gray-400 mb-1">U.S. Visa Experience</p>
+                  <p className="font-medium text-gray-200">{application.visa_experience}</p>
                 </div>
-                {application.linkedin_url && (
-                  <div>
-                    <p className="text-sm text-gray-400 mb-1">LinkedIn</p>
-                    <a
-                      href={application.linkedin_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-gold-light hover:text-white hover:underline flex items-center gap-2"
-                    >
-                      {application.linkedin_url}
-                      <ExternalLink className="w-4 h-4" />
-                    </a>
-                  </div>
-                )}
-                {application.other_links && (
-                  <div>
-                    <p className="text-sm text-gray-400 mb-1">Other Links</p>
-                    <a
-                      href={application.other_links}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-gold-light hover:text-white hover:underline flex items-center gap-2"
-                    >
-                      {application.other_links}
-                      <ExternalLink className="w-4 h-4" />
-                    </a>
-                  </div>
-                )}
-                {application.cv_file_name && (
-                  <div>
-                    <p className="text-sm text-gray-400 mb-2">CV File</p>
-                    <Button
-                      variant="outline"
-                      onClick={handleViewCV}
-                      className="flex items-center gap-2 border-gold-medium/50 bg-black/50 text-white hover:bg-gold-medium/30 hover:text-gold-light"
-                    >
-                      <Download className="w-4 h-4" />
-                      View CV: {application.cv_file_name}
-                    </Button>
-                  </div>
-                )}
+              )}
+              <div>
+                <p className="text-sm text-gray-400 mb-1">English Level</p>
+                <p className="font-medium text-gray-200">{application.english_level}</p>
               </div>
-            </CardContent>
-          </Card>
-
-          {/* Consent Information */}
-          <Card className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30">
-            <CardHeader>
-              <CardTitle className="text-white">Consent & Verification</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
-                <div>
-                  <p className="text-sm text-gray-400 mb-1">Information Accurate</p>
-                  <p className="font-medium text-gray-200">{application.info_accurate ? '✓ Confirmed' : '✗ Not confirmed'}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-400 mb-1">Marketing Consent</p>
-                  <p className="font-medium text-gray-200">{application.marketing_consent ? '✓ Agreed' : '✗ Not agreed'}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-400 mb-1">Comfortable with Model</p>
-                  <p className="font-medium text-gray-200">{application.comfortable_model ? '✓ Yes' : '✗ No'}</p>
-                </div>
-                {application.ip_address && (
-                  <div>
-                    <p className="text-sm text-gray-400 mb-1">IP Address</p>
-                    <p className="font-medium font-mono text-sm text-gray-200">{application.ip_address}</p>
-                  </div>
-                )}
+              <div>
+                <p className="text-sm text-gray-400 mb-1">Client Experience</p>
+                <p className="font-medium text-gray-200">{application.client_experience}</p>
               </div>
-            </CardContent>
-          </Card>
-
-          {/* Terms Acceptance & Legal Records */}
-          {termsAcceptance && (
-            <Card className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30">
-              <CardHeader>
-                <CardTitle className="text-white flex items-center gap-2">
-                  <Shield className="w-5 h-5 text-gold-light" />
-                  Terms Acceptance & Legal Records
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <span className="text-gray-400">Terms Accepted:</span>
-                    <div className="flex items-center gap-2 text-green-300">
-                      <CheckCircle className="w-4 h-4" />
-                      <span>Yes</span>
-                    </div>
-                  </div>
-                  
-                  {termsAcceptance.accepted_at && (
-                    <div className="flex justify-between">
-                      <span className="text-gray-400">Accepted At:</span>
-                      <span className="text-white">
-                        {new Date(termsAcceptance.accepted_at).toLocaleString('en-US', {
-                          year: 'numeric',
-                          month: 'long',
-                          day: 'numeric',
-                          hour: '2-digit',
-                          minute: '2-digit',
-                        })}
-                      </span>
-                    </div>
-                  )}
-
-                  {(termsAcceptance.contract_version || termsAcceptance.contract_hash || termsAcceptance.geolocation_country || termsAcceptance.signature_name) && (
-                    <div className="mt-4 pt-4 border-t border-gold-medium/20">
-                      <h4 className="text-sm font-semibold text-gold-light mb-3">Legal Records</h4>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {termsAcceptance.contract_version && (
-                          <div className="flex items-start gap-2">
-                            <FileCode className="w-4 h-4 text-gold-medium mt-0.5 flex-shrink-0" />
-                            <div>
-                              <p className="text-xs text-gray-400">Contract Version</p>
-                              <p className="text-white font-mono text-sm">{termsAcceptance.contract_version}</p>
-                            </div>
-                          </div>
-                        )}
-                        {termsAcceptance.contract_hash && (
-                          <div className="flex items-start gap-2">
-                            <Hash className="w-4 h-4 text-gold-medium mt-0.5 flex-shrink-0" />
-                            <div className="flex-1 min-w-0">
-                              <p className="text-xs text-gray-400">Contract Hash</p>
-                              <p className="text-white font-mono text-xs break-all">{termsAcceptance.contract_hash.substring(0, 32)}...</p>
-                            </div>
-                          </div>
-                        )}
-                        {(termsAcceptance.geolocation_country || termsAcceptance.geolocation_city) && (
-                          <div className="flex items-start gap-2">
-                            <MapPin className="w-4 h-4 text-gold-medium mt-0.5 flex-shrink-0" />
-                            <div>
-                              <p className="text-xs text-gray-400">Location</p>
-                              <p className="text-white">
-                                {[termsAcceptance.geolocation_city, termsAcceptance.geolocation_country].filter(Boolean).join(', ') || 'N/A'}
-                              </p>
-                            </div>
-                          </div>
-                        )}
-                        {termsAcceptance.signature_name && (
-                          <div className="flex items-start gap-2">
-                            <CheckCircle className="w-4 h-4 text-gold-medium mt-0.5 flex-shrink-0" />
-                            <div>
-                              <p className="text-xs text-gray-400">Digital Signature</p>
-                              <p className="text-white">{termsAcceptance.signature_name}</p>
-                            </div>
-                          </div>
-                        )}
-                        {termsAcceptance.ip_address && (
-                          <div className="flex items-start gap-2">
-                            <Globe className="w-4 h-4 text-gold-medium mt-0.5 flex-shrink-0" />
-                            <div>
-                              <p className="text-xs text-gray-400">IP Address</p>
-                              <p className="text-white font-mono text-xs">{termsAcceptance.ip_address}</p>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Timestamps */}
-          <Card className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30">
-            <CardHeader>
-              <CardTitle className="text-white">Timestamps</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
-                <div>
-                  <p className="text-sm text-gray-400 mb-1">Created At</p>
-                  <p className="font-medium text-gray-200">
-                    {new Date(application.created_at).toLocaleString('en-US', {
-                      year: 'numeric',
-                      month: 'long',
-                      day: 'numeric',
-                      hour: '2-digit',
-                      minute: '2-digit',
-                      second: '2-digit',
-                    })}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-400 mb-1">Last Updated</p>
-                  <p className="font-medium text-gray-200">
-                    {new Date(application.updated_at).toLocaleString('en-US', {
-                      year: 'numeric',
-                      month: 'long',
-                      day: 'numeric',
-                      hour: '2-digit',
-                      minute: '2-digit',
-                      second: '2-digit',
-                    })}
-                  </p>
-                </div>
+              <div>
+                <p className="text-sm text-gray-400 mb-1">Weekly Availability</p>
+                <p className="font-medium text-gray-200">{application.weekly_availability}</p>
               </div>
-            </CardContent>
-          </Card>
+              {application.client_experience_description && (
+                <div className="md:col-span-2">
+                  <p className="text-sm text-gray-400 mb-1">Client Experience Description</p>
+                  <p className="font-medium text-gray-200 whitespace-pre-wrap">{application.client_experience_description}</p>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
 
-          {/* Meeting Information */}
-          {application.meeting_date && (
-            <Card className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30">
-              <CardHeader>
-                <div className="flex justify-between items-center">
-                  <CardTitle className="text-white">Meeting Information</CardTitle>
-                  {application.status === 'approved_for_meeting' && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setShowMeetingModal(true)}
-                      disabled={isProcessing}
-                      className="flex items-center justify-center gap-2 border-yellow-500/50 bg-yellow-900/20 text-yellow-300 hover:bg-yellow-800/30 hover:text-yellow-200 text-xs sm:text-sm"
-                    >
-                      <Pencil className="w-4 h-4" />
-                      Edit Meeting
-                    </Button>
-                  )}
+        {/* Additional Information */}
+        <Card className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30">
+          <CardHeader>
+            <CardTitle className="text-white">Additional Information</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-6">
+              <div>
+                <p className="text-sm text-gray-400 mb-2">Why MIGMA?</p>
+                <p className="font-medium whitespace-pre-wrap bg-black/30 border border-gold-medium/30 p-4 rounded-lg text-gray-200">
+                  {application.why_migma}
+                </p>
+              </div>
+              {application.linkedin_url && (
+                <div>
+                  <p className="text-sm text-gray-400 mb-1">LinkedIn</p>
+                  <a
+                    href={application.linkedin_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-gold-light hover:text-white hover:underline flex items-center gap-2"
+                  >
+                    {application.linkedin_url}
+                    <ExternalLink className="w-4 h-4" />
+                  </a>
                 </div>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
-                  <div className="flex items-start gap-3">
-                    <Calendar className="w-5 h-5 text-gold-medium mt-0.5" />
-                    <div>
-                      <p className="text-sm text-gray-400 mb-1">Meeting Date</p>
-                      <p className="font-medium text-gray-200">
-                        {(() => {
-                          // Parse date in local timezone to avoid timezone conversion issues
-                          const [year, month, day] = application.meeting_date.split('-').map(Number);
-                          const date = new Date(year, month - 1, day);
-                          return date.toLocaleDateString('en-US', {
-                            weekday: 'long',
-                            year: 'numeric',
-                            month: 'long',
-                            day: 'numeric',
-                          });
-                        })()}
-                      </p>
-                    </div>
-                  </div>
-                  {application.meeting_time && (
-                    <div className="flex items-start gap-3">
-                      <Clock className="w-5 h-5 text-gold-medium mt-0.5" />
-                      <div>
-                        <p className="text-sm text-gray-400 mb-1">Meeting Time</p>
-                        <p className="font-medium text-gray-200">{application.meeting_time}</p>
-                      </div>
-                    </div>
-                  )}
-                  {application.meeting_link && (
-                    <div className="flex items-start gap-3 md:col-span-2">
-                      <LinkIcon className="w-5 h-5 text-gold-medium mt-0.5" />
-                      <div className="flex-1">
-                        <p className="text-sm text-gray-400 mb-1">Meeting Link</p>
-                        <a
-                          href={application.meeting_link}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="font-medium text-gold-medium hover:text-gold-light underline break-all"
-                        >
-                          {application.meeting_link}
-                        </a>
-                      </div>
-                    </div>
-                  )}
-                  {application.meeting_scheduled_at && (
-                    <div>
-                      <p className="text-sm text-gray-400 mb-1">Scheduled At</p>
-                      <p className="font-medium text-gray-200">
-                        {new Date(application.meeting_scheduled_at).toLocaleString('en-US', {
-                          year: 'numeric',
-                          month: 'long',
-                          day: 'numeric',
-                          hour: '2-digit',
-                          minute: '2-digit',
-                        })}
-                      </p>
-                    </div>
-                  )}
-                  {application.meeting_scheduled_by && (
-                    <div>
-                      <p className="text-sm text-gray-400 mb-1">Scheduled By</p>
-                      <p className="font-medium text-gray-200">{application.meeting_scheduled_by}</p>
-                    </div>
-                  )}
+              )}
+              {application.other_links && (
+                <div>
+                  <p className="text-sm text-gray-400 mb-1">Other Links</p>
+                  <a
+                    href={application.other_links}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-gold-light hover:text-white hover:underline flex items-center gap-2"
+                  >
+                    {application.other_links}
+                    <ExternalLink className="w-4 h-4" />
+                  </a>
                 </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Contract Verification Actions */}
-          {termsAcceptance && termsAcceptance.verification_status === 'pending' && (
-            <Card className="bg-gradient-to-br from-blue-500/10 via-blue-500/5 to-blue-500/10 border border-blue-500/30">
-              <CardHeader>
-                <CardTitle className="text-white">Contract Verification</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="mb-4">
-                  <p className="text-sm text-gray-300 mb-2">
-                    This partner has accepted the contract terms and submitted their documents. 
-                    Please review the documents and verify the contract.
-                  </p>
-                  <div className="flex gap-2 text-xs text-gray-400">
-                    {termsAcceptance.document_front_url && (
-                      <span className="px-2 py-1 bg-green-900/30 text-green-300 rounded">Front Document ✓</span>
-                    )}
-                    {termsAcceptance.document_back_url && (
-                      <span className="px-2 py-1 bg-green-900/30 text-green-300 rounded">Back Document ✓</span>
-                    )}
-                    {termsAcceptance.identity_photo_path && (
-                      <span className="px-2 py-1 bg-green-900/30 text-green-300 rounded">Selfie ✓</span>
-                    )}
-                  </div>
-                </div>
-                <div className="flex gap-4">
+              )}
+              {application.cv_file_name && (
+                <div>
+                  <p className="text-sm text-gray-400 mb-2">CV File</p>
                   <Button
-                    onClick={async () => {
-                      if (!termsAcceptance) return;
-                      setIsProcessing(true);
-                      try {
-                        const user = await getCurrentUser();
-                        const reviewedBy = user?.email || user?.id || 'unknown';
-                        const result = await approvePartnerContract(termsAcceptance.id, reviewedBy);
-                        if (result.success) {
-                          setAlertData({
-                            title: 'Success',
-                            message: 'Contract approved successfully! Partner is now Active.',
-                            variant: 'success',
-                          });
-                          setShowAlert(true);
-                          // Reload application and terms acceptance
-                          const { data: appData } = await supabase
-                            .from('global_partner_applications')
-                            .select('*')
-                            .eq('id', id)
-                            .single();
-                          if (appData) setApplication(appData as Application);
-                          const { data: acceptanceData } = await supabase
-                            .from('partner_terms_acceptances')
-                            .select('*')
-                            .eq('application_id', id)
-                            .not('accepted_at', 'is', null)
-                            .maybeSingle();
-                          if (acceptanceData) setTermsAcceptance(acceptanceData);
-                        } else {
-                          setAlertData({
-                            title: 'Error',
-                            message: result.error || 'Failed to approve contract',
-                            variant: 'error',
-                          });
-                          setShowAlert(true);
-                        }
-                      } catch (err) {
-                        console.error('Error approving contract:', err);
+                    variant="outline"
+                    onClick={handleViewCV}
+                    className="flex items-center gap-2 border-gold-medium/50 bg-black/50 text-white hover:bg-gold-medium/30 hover:text-gold-light"
+                  >
+                    <Download className="w-4 h-4" />
+                    View CV: {application.cv_file_name}
+                  </Button>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Consent Information */}
+        <Card className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30">
+          <CardHeader>
+            <CardTitle className="text-white">Consent & Verification</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
+              <div>
+                <p className="text-sm text-gray-400 mb-1">Information Accurate</p>
+                <p className="font-medium text-gray-200">{application.info_accurate ? '✓ Confirmed' : '✗ Not confirmed'}</p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-400 mb-1">Marketing Consent</p>
+                <p className="font-medium text-gray-200">{application.marketing_consent ? '✓ Agreed' : '✗ Not agreed'}</p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-400 mb-1">Comfortable with Model</p>
+                <p className="font-medium text-gray-200">{application.comfortable_model ? '✓ Yes' : '✗ No'}</p>
+              </div>
+              {application.ip_address && (
+                <div>
+                  <p className="text-sm text-gray-400 mb-1">IP Address</p>
+                  <p className="font-medium font-mono text-sm text-gray-200">{application.ip_address}</p>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Terms Acceptance & Legal Records */}
+        {termsAcceptance && (
+          <Card className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30">
+            <CardHeader>
+              <CardTitle className="text-white flex items-center gap-2">
+                <Shield className="w-5 h-5 text-gold-light" />
+                Terms Acceptance & Legal Records
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-400">Terms Accepted:</span>
+                  <div className="flex items-center gap-2 text-green-300">
+                    <CheckCircle className="w-4 h-4" />
+                    <span>Yes</span>
+                  </div>
+                </div>
+
+                {termsAcceptance.accepted_at && (
+                  <div className="flex justify-between">
+                    <span className="text-gray-400">Accepted At:</span>
+                    <span className="text-white">
+                      {new Date(termsAcceptance.accepted_at).toLocaleString('en-US', {
+                        year: 'numeric',
+                        month: 'long',
+                        day: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })}
+                    </span>
+                  </div>
+                )}
+
+                {(termsAcceptance.contract_version || termsAcceptance.contract_hash || termsAcceptance.geolocation_country || termsAcceptance.signature_name) && (
+                  <div className="mt-4 pt-4 border-t border-gold-medium/20">
+                    <h4 className="text-sm font-semibold text-gold-light mb-3">Legal Records</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {termsAcceptance.contract_version && (
+                        <div className="flex items-start gap-2">
+                          <FileCode className="w-4 h-4 text-gold-medium mt-0.5 flex-shrink-0" />
+                          <div>
+                            <p className="text-xs text-gray-400">Contract Version</p>
+                            <p className="text-white font-mono text-sm">{termsAcceptance.contract_version}</p>
+                          </div>
+                        </div>
+                      )}
+                      {termsAcceptance.contract_hash && (
+                        <div className="flex items-start gap-2">
+                          <Hash className="w-4 h-4 text-gold-medium mt-0.5 flex-shrink-0" />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs text-gray-400">Contract Hash</p>
+                            <p className="text-white font-mono text-xs break-all">{termsAcceptance.contract_hash.substring(0, 32)}...</p>
+                          </div>
+                        </div>
+                      )}
+                      {(termsAcceptance.geolocation_country || termsAcceptance.geolocation_city) && (
+                        <div className="flex items-start gap-2">
+                          <MapPin className="w-4 h-4 text-gold-medium mt-0.5 flex-shrink-0" />
+                          <div>
+                            <p className="text-xs text-gray-400">Location</p>
+                            <p className="text-white">
+                              {[termsAcceptance.geolocation_city, termsAcceptance.geolocation_country].filter(Boolean).join(', ') || 'N/A'}
+                            </p>
+                          </div>
+                        </div>
+                      )}
+                      {termsAcceptance.signature_name && (
+                        <div className="flex items-start gap-2">
+                          <CheckCircle className="w-4 h-4 text-gold-medium mt-0.5 flex-shrink-0" />
+                          <div>
+                            <p className="text-xs text-gray-400">Digital Signature</p>
+                            <p className="text-white">{termsAcceptance.signature_name}</p>
+                          </div>
+                        </div>
+                      )}
+                      {termsAcceptance.ip_address && (
+                        <div className="flex items-start gap-2">
+                          <Globe className="w-4 h-4 text-gold-medium mt-0.5 flex-shrink-0" />
+                          <div>
+                            <p className="text-xs text-gray-400">IP Address</p>
+                            <p className="text-white font-mono text-xs">{termsAcceptance.ip_address}</p>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Timestamps */}
+        <Card className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30">
+          <CardHeader>
+            <CardTitle className="text-white">Timestamps</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
+              <div>
+                <p className="text-sm text-gray-400 mb-1">Created At</p>
+                <p className="font-medium text-gray-200">
+                  {new Date(application.created_at).toLocaleString('en-US', {
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit',
+                  })}
+                </p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-400 mb-1">Last Updated</p>
+                <p className="font-medium text-gray-200">
+                  {new Date(application.updated_at).toLocaleString('en-US', {
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit',
+                  })}
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Meeting Information */}
+        {application.meeting_date && (
+          <Card className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30">
+            <CardHeader>
+              <div className="flex justify-between items-center">
+                <CardTitle className="text-white">Meeting Information</CardTitle>
+                {application.status === 'approved_for_meeting' && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowMeetingModal(true)}
+                    disabled={isProcessing}
+                    className="flex items-center justify-center gap-2 border-yellow-500/50 bg-yellow-900/20 text-yellow-300 hover:bg-yellow-800/30 hover:text-yellow-200 text-xs sm:text-sm"
+                  >
+                    <Pencil className="w-4 h-4" />
+                    Edit Meeting
+                  </Button>
+                )}
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
+                <div className="flex items-start gap-3">
+                  <Calendar className="w-5 h-5 text-gold-medium mt-0.5" />
+                  <div>
+                    <p className="text-sm text-gray-400 mb-1">Meeting Date</p>
+                    <p className="font-medium text-gray-200">
+                      {(() => {
+                        // Parse date in local timezone to avoid timezone conversion issues
+                        const [year, month, day] = application.meeting_date.split('-').map(Number);
+                        const date = new Date(year, month - 1, day);
+                        return date.toLocaleDateString('en-US', {
+                          weekday: 'long',
+                          year: 'numeric',
+                          month: 'long',
+                          day: 'numeric',
+                        });
+                      })()}
+                    </p>
+                  </div>
+                </div>
+                {application.meeting_time && (
+                  <div className="flex items-start gap-3">
+                    <Clock className="w-5 h-5 text-gold-medium mt-0.5" />
+                    <div>
+                      <p className="text-sm text-gray-400 mb-1">Meeting Time</p>
+                      <p className="font-medium text-gray-200">{application.meeting_time}</p>
+                    </div>
+                  </div>
+                )}
+                {application.meeting_link && (
+                  <div className="flex items-start gap-3 md:col-span-2">
+                    <LinkIcon className="w-5 h-5 text-gold-medium mt-0.5" />
+                    <div className="flex-1">
+                      <p className="text-sm text-gray-400 mb-1">Meeting Link</p>
+                      <a
+                        href={application.meeting_link}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="font-medium text-gold-medium hover:text-gold-light underline break-all"
+                      >
+                        {application.meeting_link}
+                      </a>
+                    </div>
+                  </div>
+                )}
+                {application.meeting_scheduled_at && (
+                  <div>
+                    <p className="text-sm text-gray-400 mb-1">Scheduled At</p>
+                    <p className="font-medium text-gray-200">
+                      {new Date(application.meeting_scheduled_at).toLocaleString('en-US', {
+                        year: 'numeric',
+                        month: 'long',
+                        day: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })}
+                    </p>
+                  </div>
+                )}
+                {application.meeting_scheduled_by && (
+                  <div>
+                    <p className="text-sm text-gray-400 mb-1">Scheduled By</p>
+                    <p className="font-medium text-gray-200">{application.meeting_scheduled_by}</p>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Contract Verification Actions */}
+        {termsAcceptance && termsAcceptance.verification_status === 'pending' && (
+          <Card className="bg-gradient-to-br from-blue-500/10 via-blue-500/5 to-blue-500/10 border border-blue-500/30">
+            <CardHeader>
+              <CardTitle className="text-white">Contract Verification</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="mb-4">
+                <p className="text-sm text-gray-300 mb-2">
+                  This partner has accepted the contract terms and submitted their documents.
+                  Please review the documents and verify the contract.
+                </p>
+                <div className="flex gap-2 text-xs text-gray-400">
+                  {termsAcceptance.document_front_url && (
+                    <span className="px-2 py-1 bg-green-900/30 text-green-300 rounded">Front Document ✓</span>
+                  )}
+                  {termsAcceptance.document_back_url && (
+                    <span className="px-2 py-1 bg-green-900/30 text-green-300 rounded">Back Document ✓</span>
+                  )}
+                  {termsAcceptance.identity_photo_path && (
+                    <span className="px-2 py-1 bg-green-900/30 text-green-300 rounded">Selfie ✓</span>
+                  )}
+                </div>
+              </div>
+              <div className="flex gap-4">
+                <Button
+                  onClick={async () => {
+                    if (!termsAcceptance) return;
+                    setIsProcessing(true);
+                    try {
+                      const user = await getCurrentUser();
+                      const reviewedBy = user?.email || user?.id || 'unknown';
+                      const result = await approvePartnerContract(termsAcceptance.id, reviewedBy);
+                      if (result.success) {
+                        setAlertData({
+                          title: 'Success',
+                          message: 'Contract approved successfully! Partner is now Active.',
+                          variant: 'success',
+                        });
+                        setShowAlert(true);
+                        // Reload application and terms acceptance
+                        const { data: appData } = await supabase
+                          .from('global_partner_applications')
+                          .select('*')
+                          .eq('id', id)
+                          .single();
+                        if (appData) setApplication(appData as Application);
+                        const { data: acceptanceData } = await supabase
+                          .from('partner_terms_acceptances')
+                          .select('*')
+                          .eq('application_id', id)
+                          .not('accepted_at', 'is', null)
+                          .maybeSingle();
+                        if (acceptanceData) setTermsAcceptance(acceptanceData);
+                      } else {
                         setAlertData({
                           title: 'Error',
-                          message: 'An error occurred while approving the contract',
+                          message: result.error || 'Failed to approve contract',
                           variant: 'error',
                         });
                         setShowAlert(true);
-                      } finally {
-                        setIsProcessing(false);
                       }
-                    }}
-                    disabled={isProcessing}
-                    className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 text-white text-xs sm:text-sm"
-                  >
-                    <CheckCircle className="w-3 h-3 sm:w-4 sm:h-4" />
-                    Approve Contract
-                  </Button>
+                    } catch (err) {
+                      console.error('Error approving contract:', err);
+                      setAlertData({
+                        title: 'Error',
+                        message: 'An error occurred while approving the contract',
+                        variant: 'error',
+                      });
+                      setShowAlert(true);
+                    } finally {
+                      setIsProcessing(false);
+                    }
+                  }}
+                  disabled={isProcessing}
+                  className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 text-white text-xs sm:text-sm"
+                >
+                  <CheckCircle className="w-3 h-3 sm:w-4 sm:h-4" />
+                  Approve Contract
+                </Button>
+                <Button
+                  variant="destructive"
+                  onClick={() => {
+                    setRejectionReason('');
+                    setShowRejectPrompt(true);
+                  }}
+                  disabled={isProcessing}
+                  className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-red-600 hover:bg-red-700 text-white text-xs sm:text-sm"
+                >
+                  <XCircle className="w-3 h-3 sm:w-4 sm:h-4" />
+                  Reject Contract
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Actions */}
+        {(application.status === 'pending' || application.status === 'approved_for_meeting') && (
+          <Card className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30">
+            <CardHeader>
+              <CardTitle className="text-white">Actions</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex gap-4">
+                <Button
+                  onClick={handleApprove}
+                  disabled={isProcessing}
+                  className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white"
+                >
+                  <CheckCircle className="w-4 h-4" />
+                  {application.status === 'pending'
+                    ? 'Approve & Schedule Meeting'
+                    : 'Approve After Meeting'}
+                </Button>
+                {application.status === 'pending' && (
                   <Button
                     variant="destructive"
-                    onClick={() => {
-                      setRejectionReason('');
-                      setShowRejectPrompt(true);
-                    }}
+                    onClick={handleReject}
                     disabled={isProcessing}
-                    className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-red-600 hover:bg-red-700 text-white text-xs sm:text-sm"
+                    className="flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white"
                   >
-                    <XCircle className="w-3 h-3 sm:w-4 sm:h-4" />
-                    Reject Contract
+                    <XCircle className="w-4 h-4" />
+                    Reject Application
                   </Button>
-                </div>
-              </CardContent>
-            </Card>
-          )}
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
-          {/* Actions */}
-          {(application.status === 'pending' || application.status === 'approved_for_meeting') && (
-            <Card className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30">
-              <CardHeader>
-                <CardTitle className="text-white">Actions</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="flex gap-4">
-                  <Button
-                    onClick={handleApprove}
-                    disabled={isProcessing}
-                    className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white"
-                  >
-                    <CheckCircle className="w-4 h-4" />
-                    {application.status === 'pending' 
-                      ? 'Approve & Schedule Meeting' 
-                      : 'Approve After Meeting'}
-                  </Button>
-                  {application.status === 'pending' && (
-                    <Button
-                      variant="destructive"
-                      onClick={handleReject}
-                      disabled={isProcessing}
-                      className="flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white"
-                    >
-                      <XCircle className="w-4 h-4" />
-                      Reject Application
-                    </Button>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {application.status === 'approved_for_contract' && (
-            <Card className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30">
-              <CardHeader>
-                <CardTitle className="text-white">Actions</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  <Button
-                    onClick={handleResendEmail}
-                    disabled={isProcessing}
-                    className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white"
-                  >
-                    <Mail className="w-4 h-4" />
-                    Resend Contract Email
-                  </Button>
-                  <p className="text-sm text-gray-400">
-                    Resend the contract terms link email. The email will be sent with the production URL (not localhost).
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-        </div>
+        {application.status === 'approved_for_contract' && (
+          <Card className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30">
+            <CardHeader>
+              <CardTitle className="text-white">Actions</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                <Button
+                  onClick={handleResendEmail}
+                  disabled={isProcessing}
+                  className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white"
+                >
+                  <Mail className="w-4 h-4" />
+                  Resend Contract Email
+                </Button>
+                <p className="text-sm text-gray-400">
+                  Resend the contract terms link email. The email will be sent with the production URL (not localhost).
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+      </div>
 
       {/* CV Modal */}
       {showCVModal && cvUrl && application && (
-        <div 
+        <div
           className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4"
           onClick={() => setShowCVModal(false)}
         >
-          <div 
+          <div
             className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30 rounded-lg shadow-2xl w-full max-w-6xl h-[90vh] flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
@@ -1146,28 +1129,28 @@ function ApplicationDetailContent() {
                 <p className="text-sm text-gray-400">{application?.cv_file_name || 'CV'}</p>
               </div>
               <div className="flex gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="flex items-center gap-2 border-gold-medium/50 bg-black/50 text-white hover:bg-gold-medium/30 hover:text-gold-light"
-                    onClick={async () => {
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="flex items-center gap-2 border-gold-medium/50 bg-black/50 text-white hover:bg-gold-medium/30 hover:text-gold-light"
+                  onClick={async () => {
                     if (!cvUrl || !application?.cv_file_name) return;
-                    
+
                     try {
                       // Fetch the file as blob
                       const response = await fetch(cvUrl);
                       const blob = await response.blob();
-                      
+
                       // Create a blob URL
                       const blobUrl = window.URL.createObjectURL(blob);
-                      
+
                       // Create a temporary anchor element to trigger download
                       const link = document.createElement('a');
                       link.href = blobUrl;
                       link.download = application.cv_file_name;
                       document.body.appendChild(link);
                       link.click();
-                      
+
                       // Clean up
                       document.body.removeChild(link);
                       window.URL.revokeObjectURL(blobUrl);
@@ -1190,7 +1173,7 @@ function ApplicationDetailContent() {
                 </Button>
               </div>
             </div>
-            
+
             {/* PDF Viewer */}
             <div className="flex-1 overflow-hidden">
               <iframe
@@ -1212,11 +1195,11 @@ function ApplicationDetailContent() {
           : handleMeetingSchedule}
         initialData={application?.status === 'approved_for_meeting' && application?.meeting_date
           ? {
-              meetingDate: application.meeting_date,
-              meetingTime: application.meeting_time || '',
-              meetingLink: application.meeting_link || '',
-              scheduledBy: application.meeting_scheduled_by || '',
-            }
+            meetingDate: application.meeting_date,
+            meetingTime: application.meeting_time || '',
+            meetingLink: application.meeting_link || '',
+            scheduledBy: application.meeting_scheduled_by || '',
+          }
           : undefined}
         isEditMode={application?.status === 'approved_for_meeting' && !!application?.meeting_date}
         isLoading={isProcessing}
@@ -1235,8 +1218,8 @@ function ApplicationDetailContent() {
         isOpen={showApproveConfirm}
         onClose={() => setShowApproveConfirm(false)}
         onConfirm={confirmApprove}
-        title={application?.status === 'approved_for_meeting' 
-          ? 'Approve After Meeting' 
+        title={application?.status === 'approved_for_meeting'
+          ? 'Approve After Meeting'
           : 'Approve Application'}
         message={application?.status === 'approved_for_meeting'
           ? `Are you sure you want to approve ${application?.full_name} after the meeting? This will send them an email with the contract terms link.`
@@ -1343,7 +1326,7 @@ function ApplicationDetailContent() {
         }}
         onConfirm={async (templateId: string | null) => {
           if (!pendingRejection) return;
-          
+
           setShowRejectTemplateSelector(false);
           setIsProcessing(true);
           try {
@@ -1358,8 +1341,8 @@ function ApplicationDetailContent() {
             if (result.success) {
               setAlertData({
                 title: 'Success',
-                message: templateId 
-                  ? 'Contract rejected and new contract link sent successfully.' 
+                message: templateId
+                  ? 'Contract rejected and new contract link sent successfully.'
                   : 'Contract rejected successfully.',
                 variant: 'success',
               });

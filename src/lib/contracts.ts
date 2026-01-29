@@ -97,19 +97,6 @@ export function getContractPdfUrl(contract: AcceptedContract): string | null {
   return contract.contract_pdf_url;
 }
 
-/**
- * Get public URL for a CV file
- */
-export function getCvFileUrl(cvPath: string | null): string | null {
-  if (!cvPath) {
-    return null;
-  }
-  
-  // Construct public URL for CV file
-  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-  const bucketName = 'cv-files';
-  return `${supabaseUrl}/storage/v1/object/public/${bucketName}/${cvPath}`;
-}
 
 /**
  * Get active contract version from application_terms table
