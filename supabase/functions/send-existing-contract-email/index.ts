@@ -72,7 +72,7 @@ async function processVisaContract(orderId: string, supabase: any) {
   const contract = getBucketAndPath(order.contract_pdf_url);
   if (contract) {
     attachments.push({
-      filename: `Contract_${order.order_number}_${order.client_name.replace(/\s+/g, '_')}.pdf`,
+      filename: `${order.client_name} - Contract - #${order.order_number}.pdf`,
       path: contract.path,
       bucket: contract.bucket
     });
@@ -82,7 +82,7 @@ async function processVisaContract(orderId: string, supabase: any) {
   const annex = getBucketAndPath(order.annex_pdf_url);
   if (annex) {
     attachments.push({
-      filename: `Annex_${order.order_number}_${order.client_name.replace(/\s+/g, '_')}.pdf`,
+      filename: `${order.client_name} - ANNEX I - #${order.order_number}.pdf`,
       path: annex.path,
       bucket: annex.bucket
     });
@@ -92,8 +92,21 @@ async function processVisaContract(orderId: string, supabase: any) {
   const invoiceUrl = order.payment_metadata?.invoice_pdf_url;
   const invoice = getBucketAndPath(invoiceUrl);
   if (invoice) {
+    // Fetch product name for the filename
+    let serviceNameForFile = "Service";
+    try {
+      const { data: productData } = await supabase
+        .from('visa_products')
+        .select('name')
+        .eq('slug', order.product_slug)
+        .single();
+      if (productData?.name) serviceNameForFile = productData.name;
+    } catch (e) {
+      serviceNameForFile = order.product_slug;
+    }
+
     attachments.push({
-      filename: `Invoice_${order.order_number}_${order.client_name.replace(/\s+/g, '_')}.pdf`,
+      filename: `INVOICE - ${order.client_name} - ${serviceNameForFile} - V2.pdf`,
       path: invoice.path,
       bucket: invoice.bucket
     });

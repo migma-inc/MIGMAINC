@@ -57,7 +57,14 @@ export const useSignatureOnlyHandlers = (
                 ? existingContractData.contract_selfie_url
                 : documentFiles?.selfie?.url || '';
 
-            // 2. Upload signature
+            // 2. Fetch product details
+            const { data: product } = await supabase
+                .from('visa_products')
+                .select('*')
+                .eq('slug', productSlug)
+                .single();
+
+            // 3. Upload signature
             let signatureUrl = '';
             if (signatureImageDataUrl) {
                 const uploadedUrl = await uploadSignature(signatureImageDataUrl, state.clientId);
@@ -76,9 +83,11 @@ export const useSignatureOnlyHandlers = (
                     product_slug: productSlug,
                     seller_id: sellerId || null,
                     service_request_id: serviceRequestId,
-                    base_price_usd: totalWithFees, // Using the total as base for manual
-                    price_per_dependent_usd: 0,
+                    base_price_usd: product?.base_price_usd || totalWithFees,
+                    price_per_dependent_usd: product?.price_per_dependent_usd || product?.extra_unit_price || 0,
+                    extra_unit_price_usd: product?.price_per_dependent_usd || product?.extra_unit_price || 0,
                     extra_units: extraUnits,
+                    extra_unit_label: product?.extra_unit_label || 'Additional Dependent',
                     dependent_names: dependentNames,
                     client_name: clientName,
                     client_email: clientEmail,

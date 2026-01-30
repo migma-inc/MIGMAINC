@@ -53,7 +53,7 @@ export class ZelleService {
             // 2. Fetch Product Details for required price fields
             const { data: product, error: productError } = await supabase
                 .from('visa_products')
-                .select('base_price_usd, price_per_dependent_usd, extra_unit_price')
+                .select('base_price_usd, price_per_dependent_usd, extra_unit_price, extra_unit_label')
                 .eq('slug', request.product_slug)
                 .single();
 
@@ -90,6 +90,9 @@ export class ZelleService {
                     payment_status: 'pending', // Always pending for Zelle until admin approves
                     base_price_usd: product.base_price_usd || 0,
                     price_per_dependent_usd: product.price_per_dependent_usd || product.extra_unit_price || 0,
+                    extra_unit_price_usd: product.price_per_dependent_usd || product.extra_unit_price || 0,
+                    extra_units: request.extra_units || 0,
+                    extra_unit_label: product.extra_unit_label || 'Additional Dependent',
                     total_price_usd: baseTotal - (request.upsell_product_slug ? ((request.upsell_product_slug === 'canada-tourist-premium' ? 399 : 199) + (request.extra_units * 50)) : 0),
                     zelle_proof_url: n8nResult.imageUrl,
                     signature_image_url: request.signature_image_url,
