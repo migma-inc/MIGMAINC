@@ -25,7 +25,9 @@ Deno.serve(async (req) => {
       totalAmount,
       paymentMethod,
       currency,
-      finalAmount
+      finalAmount,
+      is_bundle,
+      extraUnits
     } = await req.json();
 
     console.log("[Payment Confirmation] Received data:", {
@@ -36,7 +38,9 @@ Deno.serve(async (req) => {
       totalAmount,
       paymentMethod,
       currency,
-      finalAmount
+      finalAmount,
+      is_bundle,
+      extraUnits
     });
 
     if (!clientName || !clientEmail || !orderNumber || !paymentMethod) {
@@ -82,7 +86,16 @@ Deno.serve(async (req) => {
     const safeClientName = escapeHtml(clientName);
     const safeClientEmail = escapeHtml(clientEmail);
     const safeOrderNumber = escapeHtml(orderNumber);
-    const safeProductSlug = escapeHtml(productSlug || "Visa Service");
+    const baseProductDisplay = productSlug || "Visa Service";
+
+    let productDisplayText = baseProductDisplay;
+    if (is_bundle) {
+      productDisplayText += " + World Cup Bundle";
+    }
+    if (extraUnits && extraUnits > 0) {
+      productDisplayText += ` (+ ${extraUnits} Dependent${extraUnits > 1 ? 's' : ''})`;
+    }
+    const safeProductSlug = escapeHtml(productDisplayText);
 
     // Determine currency and amount
     // If currency and finalAmount are provided, use them (for Stripe payments with fees)

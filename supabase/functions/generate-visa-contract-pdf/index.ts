@@ -28,7 +28,7 @@ Deno.serve(async (req) => {
 
   try {
     console.log("[EDGE FUNCTION] ========== POST REQUEST STARTED (Contract) ==========");
-    const { order_id } = await req.json();
+    const { order_id, is_upsell, product_slug_override } = await req.json();
 
     if (!order_id) {
       return new Response(
@@ -38,6 +38,9 @@ Deno.serve(async (req) => {
     }
 
     console.log("[EDGE FUNCTION] Generating visa contract PDF for order:", order_id);
+    if (is_upsell) {
+      console.log("[EDGE FUNCTION] 🎁 This is an UPSELL contract for product:", product_slug_override);
+    }
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey, {
       auth: { autoRefreshToken: false, persistSession: false },
@@ -58,11 +61,14 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Fetch product data
+    // Fetch product data (use override for upsell)
+    const productSlugToUse = is_upsell && product_slug_override ? product_slug_override : order.product_slug;
+    console.log("[EDGE FUNCTION] Fetching product with slug:", productSlugToUse);
+
     const { data: product, error: productError } = await supabase
       .from('visa_products')
       .select('*')
-      .eq('slug', order.product_slug)
+      .eq('slug', productSlugToUse)
       .single();
 
     if (productError) {
@@ -71,20 +77,36 @@ Deno.serve(async (req) => {
 
     // Fetch contract template for this product
     let contractTemplate: { content: string } | null = null;
-    if (order.product_slug) {
+
+    // Priority 1: Specific template ID from order (SKIP IF UPSELL)
+    if (order.contract_template_id && !is_upsell) {
+      const { data: template, error: templateError } = await supabase
+        .from('contract_templates')
+        .select('content')
+        .eq('id', order.contract_template_id)
+        .single();
+
+      if (!templateError && template) {
+        contractTemplate = template;
+        console.log("[EDGE FUNCTION] Contract template found by ID:", order.contract_template_id);
+      }
+    }
+
+    // Priority 2: Fallback to template by product slug
+    if (!contractTemplate && productSlugToUse) {
       const { data: template, error: templateError } = await supabase
         .from('contract_templates')
         .select('content')
         .eq('template_type', 'visa_service')
-        .eq('product_slug', order.product_slug)
+        .eq('product_slug', productSlugToUse)
         .eq('is_active', true)
         .single();
 
       if (!templateError && template) {
         contractTemplate = template;
-        console.log("[EDGE FUNCTION] Contract template found for product:", order.product_slug);
+        console.log("[EDGE FUNCTION] Contract template found for product slug:", productSlugToUse);
       } else {
-        console.log("[EDGE FUNCTION] No contract template found for product:", order.product_slug);
+        console.log("[EDGE FUNCTION] No contract template found for product slug:", productSlugToUse);
       }
     }
 
@@ -349,8 +371,13 @@ Deno.serve(async (req) => {
     let displayAmount = parseFloat(order.total_price_usd);
     let currencySymbol = 'US$';
 
-    // Determine amount and currency based on payment method (not currency in metadata)
-    if (order.payment_method === 'stripe_pix') {
+    // If it's an upsell document, use the upsell price
+    if (is_upsell && order.upsell_price_usd) {
+      displayAmount = parseFloat(order.upsell_price_usd);
+      currencySymbol = 'US$'; // Force USD for upsell specific documents
+    }
+    // Otherwise use logic for main product/total
+    else if (order.payment_method === 'stripe_pix') {
       // PIX payments: use final_amount in BRL from metadata
       if (order.payment_metadata && typeof order.payment_metadata === 'object' && 'final_amount' in order.payment_metadata) {
         const finalAmount = parseFloat(order.payment_metadata.final_amount as string);
@@ -913,10 +940,13 @@ The client has electronically signed this contract by uploading a selfie with th
       .from(BUCKET_NAME)
       .getPublicUrl(filePath);
 
-    // Update order with PDF URL
+    // Update order (use correct field for upsell)
+    const updateField = is_upsell ? 'upsell_contract_pdf_url' : 'contract_pdf_url';
+    console.log(`[EDGE FUNCTION] Updating ${updateField} with:`, publicUrl);
+
     const { error: updateError } = await supabase
       .from('visa_orders')
-      .update({ contract_pdf_url: publicUrl })
+      .update({ [updateField]: publicUrl })
       .eq('id', order_id);
 
     if (updateError) {
@@ -935,7 +965,7 @@ The client has electronically signed this contract by uploading a selfie with th
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
 
-  } catch (error) {
+  } catch (error: any) {
     console.error("[EDGE FUNCTION] Error generating contract PDF:", error);
     return new Response(
       JSON.stringify({ success: false, error: error.message || "Internal server error" }),

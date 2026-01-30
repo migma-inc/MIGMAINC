@@ -36,653 +36,192 @@ function getStripeConfigForWebhook(verifiedEnvironment: 'production' | 'staging'
   };
 }
 
-// Normalize service name for grouped products (initial, cos, transfer)
-function normalizeServiceName(productSlug: string, productName: string): string {
-  // F1 Initial - agrupa os 3 produtos (selection-process, scholarship, i20-control)
-  if (productSlug.startsWith('initial-')) {
-    return 'F1 Initial';
-  }
-
-  // COS - agrupa os 3 produtos
-  if (productSlug.startsWith('cos-')) {
-    return 'COS & Transfer';
-  }
-
-  // Transfer - agrupa os 3 produtos
-  if (productSlug.startsWith('transfer-')) {
-    return 'COS & Transfer';
-  }
-
-  // Para outros produtos, retorna o nome original
-  return productName;
-}
-
-
 // CORS headers
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, stripe-signature",
 };
 
+/**
+ * Unified processing for successful checkout sessions
+ */
+async function processSuccessfulSession(session: Stripe.Checkout.Session, supabase: any) {
+  console.log(`[Webhook] Processing successful session: ${session.id}`);
+
+  // Fetch ALL orders associated with this session
+  const { data: orders, error: orderError } = await supabase
+    .from("visa_orders")
+    .select("*")
+    .eq("stripe_session_id", session.id);
+
+  if (orderError || !orders || orders.length === 0) {
+    console.error(`[Webhook] No orders found for session ${session.id}:`, orderError);
+    return;
+  }
+
+  const mainOrder = orders.find((o: any) => !o.payment_metadata?.is_upsell) || orders[0];
+
+  // Idempotency check: if main order is already completed, skip
+  if (mainOrder.payment_status === 'completed') {
+    console.log(`[Webhook] Session ${session.id} already processed (idempotency).`);
+    return;
+  }
+
+  const paymentMethod = session.payment_method_types?.[0] || "card";
+  const feeAmount = parseFloat(mainOrder.payment_metadata?.fee_amount || "0");
+
+  // 1. Update all orders
+  for (const orderItem of orders) {
+    await supabase
+      .from("visa_orders")
+      .update({
+        payment_status: "completed",
+        stripe_payment_intent_id: session.payment_intent as string || null,
+        payment_method: paymentMethod === "pix" ? "stripe_pix" : "stripe_card",
+        payment_metadata: {
+          ...orderItem.payment_metadata,
+          payment_method: paymentMethod,
+          completed_at: new Date().toISOString(),
+          session_id: session.id,
+          fee_amount: orderItem.id === mainOrder.id ? feeAmount : 0,
+        },
+      })
+      .eq("id", orderItem.id);
+  }
+
+  // 2. Update payment and service request
+  if (mainOrder.service_request_id) {
+    const { data: paymentRecord } = await supabase
+      .from("payments")
+      .select("id")
+      .eq("service_request_id", mainOrder.service_request_id)
+      .eq("external_payment_id", session.id)
+      .single();
+
+    if (paymentRecord) {
+      await supabase
+        .from("payments")
+        .update({
+          status: "paid",
+          external_payment_id: session.payment_intent as string || session.id,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", paymentRecord.id);
+    }
+
+    await supabase
+      .from("service_requests")
+      .update({ status: "paid", updated_at: new Date().toISOString() })
+      .eq("id", mainOrder.service_request_id);
+  }
+
+  // 3. Track funnel event
+  if (mainOrder.seller_id) {
+    try {
+      await supabase.from('seller_funnel_events').insert({
+        seller_id: mainOrder.seller_id,
+        product_slug: mainOrder.product_slug,
+        event_type: 'payment_completed',
+        session_id: `order_${mainOrder.id}`,
+        metadata: { order_id: mainOrder.id, has_bundle: orders.length > 1 },
+      });
+    } catch (e) { }
+  }
+
+  // 4. Generate PDFs for each order
+  for (const orderForPdf of orders) {
+    if (orderForPdf.product_slug !== 'consultation-common') {
+      try { await supabase.functions.invoke("generate-visa-contract-pdf", { body: { order_id: orderForPdf.id } }); } catch (e) { }
+    }
+    try { await supabase.functions.invoke("generate-annex-pdf", { body: { order_id: orderForPdf.id } }); } catch (e) { }
+    try { await supabase.functions.invoke("generate-invoice-pdf", { body: { order_id: orderForPdf.id } }); } catch (e) { }
+  }
+
+  // 5. Send confirmation email
+  try {
+    const totalPaid = orders.reduce((sum: number, o: any) => sum + parseFloat(o.total_price_usd || 0), 0);
+    await supabase.functions.invoke("send-payment-confirmation-email", {
+      body: {
+        clientName: mainOrder.client_name,
+        clientEmail: mainOrder.client_email,
+        orderNumber: mainOrder.order_number,
+        productSlug: mainOrder.product_slug,
+        totalAmount: totalPaid,
+        paymentMethod: paymentMethod === "pix" ? "stripe_pix" : "stripe_card",
+        currency: (mainOrder.payment_metadata as any)?.currency || (paymentMethod === "pix" ? "BRL" : "USD"),
+        finalAmount: totalPaid,
+        is_bundle: orders.length > 1,
+        extraUnits: mainOrder.extra_units
+      },
+    });
+  } catch (e) { }
+}
+
 Deno.serve(async (req: Request) => {
-  // Handle CORS preflight
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    // Initialize Supabase client
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Get raw body for signature verification
     const bodyArrayBuffer = await req.arrayBuffer();
     const body = new TextDecoder().decode(bodyArrayBuffer);
     const signature = req.headers.get("stripe-signature");
 
     if (!signature) {
-      console.error("[Webhook] No signature found");
-      return new Response(
-        JSON.stringify({ error: "No signature" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      return new Response(JSON.stringify({ error: "No signature" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
-    // Try all available webhook secrets (fail-safe approach)
     const allSecrets = getAllWebhookSecrets();
     let validConfig: { env: 'production' | 'staging' | 'test'; secret: string } | null = null;
     let event: Stripe.Event | null = null;
 
-    console.log(`[Webhook] Attempting signature verification with ${allSecrets.length} secrets...`);
-
     for (const secretConfig of allSecrets) {
       try {
-        // Initialize Stripe with temporary key to verify signature
         const tempKey = Deno.env.get(secretConfig.env === 'production' ? 'STRIPE_SECRET_KEY_PROD' : 'STRIPE_SECRET_KEY_TEST') || '';
-        const tempStripe = new Stripe(tempKey, {
-          apiVersion: "2024-12-18.acacia",
-        });
-
-        event = await tempStripe.webhooks.constructEventAsync(
-          body,
-          signature,
-          secretConfig.secret
-        );
-
-        // If we get here, signature verification succeeded
+        const tempStripe = new Stripe(tempKey, { apiVersion: "2024-12-18.acacia" });
+        event = await tempStripe.webhooks.constructEventAsync(body, signature, secretConfig.secret);
         validConfig = secretConfig;
-        console.log(`✅ [Webhook] Signature verified with ${secretConfig.env} secret`);
         break;
-      } catch (err) {
-        console.log(`❌ [Webhook] Signature verification failed with ${secretConfig.env} secret`);
-        continue;
-      }
+      } catch (err) { continue; }
     }
 
     if (!validConfig || !event) {
-      console.error("[Webhook] Signature verification failed with all available secrets");
-      return new Response(
-        JSON.stringify({ error: "Invalid signature" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      return new Response(JSON.stringify({ error: "Invalid signature" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
-    // Get the complete Stripe config for the verified environment
     const stripeConfig = getStripeConfigForWebhook(validConfig.env);
     const stripe = new Stripe(stripeConfig.secretKey, {
       apiVersion: stripeConfig.apiVersion as any,
       appInfo: stripeConfig.appInfo,
     });
 
-    console.log("[Webhook] Event received:", {
-      type: event.type,
-      id: event.id,
-      environment: validConfig.env,
-    });
+    console.log(`[Webhook] Event received: ${event.type} (${event.id}) in ${validConfig.env} mode`);
 
-    // Process the event
     switch (event.type) {
-      case "checkout.session.completed": {
-        const session = event.data.object as Stripe.Checkout.Session;
-        console.log("[Webhook] Checkout completed:", session.id);
-
-        // Get order from database
-        const { data: order, error: orderError } = await supabase
-          .from("visa_orders")
-          .select("*")
-          .eq("stripe_session_id", session.id)
-          .single();
-
-        if (orderError || !order) {
-          console.error("[Webhook] Order not found:", session.id);
-          break;
-        }
-
-        // Get payment intent to determine payment method
-        // First, try to use the payment_method already saved in the order (most reliable)
-        let paymentMethod = "card";
-        if (order.payment_method === "stripe_pix") {
-          paymentMethod = "pix";
-        } else if (order.payment_method === "stripe_card") {
-          paymentMethod = "card";
-        } else {
-          // Fallback: detect from payment intent
-          if (session.payment_intent) {
-            try {
-              const paymentIntent = await stripe.paymentIntents.retrieve(
-                session.payment_intent as string
-              );
-
-              if (paymentIntent.charges.data.length > 0) {
-                const charge = paymentIntent.charges.data[0];
-                if (charge.payment_method_details?.type === "pix") {
-                  paymentMethod = "pix";
-                }
-              }
-            } catch (error) {
-              console.error("[Webhook] Error retrieving payment intent:", error);
-            }
-          }
-          // Also check currency in metadata as fallback
-          const metadata = order.payment_metadata as any;
-          if (metadata?.currency === "BRL" || metadata?.currency === "brl") {
-            paymentMethod = "pix";
-          }
-        }
-
-        // Fetch fee amount from Stripe if possible
-        let feeAmount = 0;
-        if (session.payment_intent) {
-          try {
-            const paymentIntent = await stripe.paymentIntents.retrieve(
-              session.payment_intent as string,
-              { expand: ['latest_charge.balance_transaction'] }
-            );
-            const charge = paymentIntent.latest_charge as any;
-            if (charge?.balance_transaction?.fee) {
-              // Stripe fee is in cents
-              feeAmount = charge.balance_transaction.fee / 100;
-              console.log(`[Webhook] Stripe fee retrieved: $${feeAmount}`);
-            }
-          } catch (feeError) {
-            console.error("[Webhook] Error retrieving Stripe fee:", feeError);
-          }
-        }
-
-        // Update order status
-        const { error: updateError } = await supabase
-          .from("visa_orders")
-          .update({
-            payment_status: "completed",
-            stripe_payment_intent_id: session.payment_intent as string || null,
-            payment_method: paymentMethod === "pix" ? "stripe_pix" : "stripe_card",
-            payment_metadata: {
-              ...order.payment_metadata,
-              payment_method: paymentMethod,
-              completed_at: new Date().toISOString(),
-              session_id: session.id,
-              fee_amount: feeAmount, // Save the fee!
-            },
-          })
-          .eq("id", order.id);
-
-        if (updateError) {
-          console.error("[Webhook] Error updating order:", updateError);
-          break;
-        }
-
-        console.log("[Webhook] Order updated successfully:", order.id);
-
-        // Update payment record if exists
-        if (order.service_request_id) {
-          const { data: paymentRecord } = await supabase
-            .from("payments")
-            .select("id")
-            .eq("service_request_id", order.service_request_id)
-            .eq("external_payment_id", session.id)
-            .single();
-
-          if (paymentRecord) {
-            await supabase
-              .from("payments")
-              .update({
-                status: "paid",
-                external_payment_id: session.payment_intent as string || session.id,
-                raw_webhook_log: {
-                  event_type: event.type,
-                  event_id: event.id,
-                  session_id: session.id,
-                  payment_intent: session.payment_intent,
-                  completed_at: new Date().toISOString(),
-                },
-                updated_at: new Date().toISOString(),
-              })
-              .eq("id", paymentRecord.id);
-            console.log("[Webhook] Payment record updated:", paymentRecord.id);
-          }
-
-          // Update service_request status to 'paid'
-          await supabase
-            .from("service_requests")
-            .update({
-              status: "paid",
-              updated_at: new Date().toISOString(),
-            })
-            .eq("id", order.service_request_id);
-          console.log("[Webhook] Service request status updated to 'paid':", order.service_request_id);
-        }
-
-        // Track payment completed in funnel
-        if (order.seller_id) {
-          try {
-            await supabase
-              .from('seller_funnel_events')
-              .insert({
-                seller_id: order.seller_id,
-                product_slug: order.product_slug,
-                event_type: 'payment_completed',
-                session_id: `order_${order.id}`,
-                metadata: {
-                  order_id: order.id,
-                  order_number: order.order_number,
-                  payment_method: paymentMethod,
-                  total_amount: order.total_price_usd,
-                },
-              });
-            console.log("[Webhook] Payment completed tracked in funnel");
-          } catch (trackError) {
-            console.error("[Webhook] Error tracking payment completed:", trackError);
-            // Continue - tracking is not critical
-          }
-        }
-
-        // Generate contract PDF after payment confirmation
-        // ANNEX I is now required for ALL products (universal payment authorization)
-        // Always generate ANNEX I PDF for all products
-        // Also generate full contract PDF if it exists (optional, for additional terms)
-
-        // Generate full contract PDF (optional - if template exists)
-        if (order.product_slug !== 'consultation-common') {
-          try {
-            const { data: pdfData, error: pdfError } = await supabase.functions.invoke("generate-visa-contract-pdf", {
-              body: { order_id: order.id },
-            });
-
-            if (pdfError) {
-              console.error("[Webhook] Error generating contract PDF:", pdfError);
-            } else {
-              console.log("[Webhook] Contract PDF generated successfully:", pdfData?.pdf_url);
-            }
-          } catch (pdfError) {
-            console.error("[Webhook] Exception generating PDF:", pdfError);
-            // Continue - PDF generation is not critical for payment processing
-          }
-        }
-
-        // Generate ANNEX I PDF for ALL products (universal requirement)
-        {
-          try {
-            const { data: annexPdfData, error: annexPdfError } = await supabase.functions.invoke("generate-annex-pdf", {
-              body: { order_id: order.id },
-            });
-
-            if (annexPdfError) {
-              console.error("[Webhook] Error generating ANNEX I PDF:", annexPdfError);
-            } else {
-              console.log("[Webhook] ANNEX I PDF generated successfully:", annexPdfData?.pdf_url);
-            }
-          } catch (annexPdfError) {
-            console.error("[Webhook] Exception generating ANNEX I PDF:", annexPdfError);
-            // Continue - PDF generation is not critical for payment processing
-          }
-        }
-
-        // Generate Invoice PDF for ALL products
-        {
-          try {
-            const { data: invoiceData, error: invoiceError } = await supabase.functions.invoke("generate-invoice-pdf", {
-              body: { order_id: order.id },
-            });
-
-            if (invoiceError) {
-              console.error("[Webhook] Error generating Invoice PDF:", invoiceError);
-            } else {
-              console.log("[Webhook] Invoice PDF generated successfully:", invoiceData?.pdf_url);
-            }
-          } catch (invoiceError) {
-            console.error("[Webhook] Exception generating Invoice PDF:", invoiceError);
-          }
-        }
-
-        // Send confirmation email to client
-        try {
-          // Get currency and final amount from payment_metadata
-          const metadata = order.payment_metadata as any;
-          const currency = metadata?.currency || (paymentMethod === "pix" ? "BRL" : "USD");
-          const finalAmount = metadata?.final_amount || order.total_price_usd;
-
-          await supabase.functions.invoke("send-payment-confirmation-email", {
-            body: {
-              clientName: order.client_name,
-              clientEmail: order.client_email,
-              orderNumber: order.order_number,
-              productSlug: order.product_slug,
-              totalAmount: order.total_price_usd, // Fallback
-              paymentMethod: paymentMethod === "pix" ? "stripe_pix" : "stripe_card",
-              currency: currency,
-              finalAmount: finalAmount,
-            },
-          });
-          console.log("[Webhook] Payment confirmation email sent to client");
-        } catch (emailError) {
-          console.error("[Webhook] Error sending payment confirmation email:", emailError);
-        }
-
-        // Send webhook to client (n8n removed from automatic flow - now on manual approval)
-
-        // Send notification to seller if seller_id exists
-        if (order.seller_id) {
-          console.log("[Webhook] Seller notification:", order.seller_id);
-          // TODO: Implement seller notification when seller dashboard is ready
-        }
-
-        break;
-      }
-
+      case "checkout.session.completed":
       case "checkout.session.async_payment_succeeded": {
         const session = event.data.object as Stripe.Checkout.Session;
-        console.log("[Webhook] Async payment succeeded (PIX):", session.id);
-
-        // Get order from database
-        const { data: order, error: orderError } = await supabase
-          .from("visa_orders")
-          .select("*")
-          .eq("stripe_session_id", session.id)
-          .single();
-
-        if (orderError || !order) {
-          console.error("[Webhook] Order not found:", session.id);
-          break;
-        }
-
-        // Update order status
-        const { error: updateError } = await supabase
-          .from("visa_orders")
-          .update({
-            payment_status: "completed",
-            stripe_payment_intent_id: session.payment_intent as string || null,
-            payment_method: "stripe_pix",
-            payment_metadata: {
-              ...order.payment_metadata,
-              completed_at: new Date().toISOString(),
-              session_id: session.id,
-            },
-          })
-          .eq("id", order.id);
-
-        if (updateError) {
-          console.error("[Webhook] Error updating order:", updateError);
-          break;
-        }
-
-        // Update payment record if exists
-        if (order.service_request_id) {
-          const { data: paymentRecord } = await supabase
-            .from("payments")
-            .select("id")
-            .eq("service_request_id", order.service_request_id)
-            .eq("external_payment_id", session.id)
-            .single();
-
-          if (paymentRecord) {
-            await supabase
-              .from("payments")
-              .update({
-                status: "paid",
-                external_payment_id: session.payment_intent as string || session.id,
-                raw_webhook_log: {
-                  event_type: event.type,
-                  event_id: event.id,
-                  session_id: session.id,
-                  payment_intent: session.payment_intent,
-                  completed_at: new Date().toISOString(),
-                },
-                updated_at: new Date().toISOString(),
-              })
-              .eq("id", paymentRecord.id);
-            console.log("[Webhook] Payment record updated (PIX):", paymentRecord.id);
-          }
-
-          // Update service_request status to 'paid'
-          await supabase
-            .from("service_requests")
-            .update({
-              status: "paid",
-              updated_at: new Date().toISOString(),
-            })
-            .eq("id", order.service_request_id);
-          console.log("[Webhook] Service request status updated to 'paid' (PIX):", order.service_request_id);
-        }
-
-        // Track payment completed in funnel (PIX)
-        if (order.seller_id) {
-          try {
-            await supabase
-              .from('seller_funnel_events')
-              .insert({
-                seller_id: order.seller_id,
-                product_slug: order.product_slug,
-                event_type: 'payment_completed',
-                session_id: `order_${order.id}`,
-                metadata: {
-                  order_id: order.id,
-                  order_number: order.order_number,
-                  payment_method: 'stripe_pix',
-                  total_amount: order.total_price_usd,
-                },
-              });
-            console.log("[Webhook] Payment completed tracked in funnel (PIX)");
-          } catch (trackError) {
-            console.error("[Webhook] Error tracking payment completed:", trackError);
-          }
-        }
-
-        // Generate contract PDF after payment confirmation
-        // ANNEX I is now required for ALL products (universal payment authorization)
-        // Always generate ANNEX I PDF for all products
-        // Also generate full contract PDF if it exists (optional, for additional terms)
-
-        // Generate full contract PDF (optional - if template exists)
-        if (order.product_slug !== 'consultation-common') {
-          try {
-            const { data: pdfData, error: pdfError } = await supabase.functions.invoke("generate-visa-contract-pdf", {
-              body: { order_id: order.id },
-            });
-
-            if (pdfError) {
-              console.error("[Webhook] Error generating contract PDF:", pdfError);
-            } else {
-              console.log("[Webhook] Contract PDF generated successfully:", pdfData?.pdf_url);
-            }
-          } catch (pdfError) {
-            console.error("[Webhook] Exception generating PDF:", pdfError);
-            // Continue - PDF generation is not critical for payment processing
-          }
-        }
-
-        // Generate ANNEX I PDF for ALL products (universal requirement)
-        {
-          try {
-            const { data: annexPdfData, error: annexPdfError } = await supabase.functions.invoke("generate-annex-pdf", {
-              body: { order_id: order.id },
-            });
-
-            if (annexPdfError) {
-              console.error("[Webhook] Error generating ANNEX I PDF:", annexPdfError);
-            } else {
-              console.log("[Webhook] ANNEX I PDF generated successfully:", annexPdfData?.pdf_url);
-            }
-          } catch (annexPdfError) {
-            console.error("[Webhook] Exception generating ANNEX I PDF:", annexPdfError);
-            // Continue - PDF generation is not critical for payment processing
-          }
-        }
-
-        // Send confirmation email to client (PIX)
-        try {
-          // Get currency and final amount from payment_metadata
-          const metadata = order.payment_metadata as any;
-          const currency = metadata?.currency || "BRL";
-          const finalAmount = metadata?.final_amount || order.total_price_usd;
-
-          await supabase.functions.invoke("send-payment-confirmation-email", {
-            body: {
-              clientName: order.client_name,
-              clientEmail: order.client_email,
-              orderNumber: order.order_number,
-              productSlug: order.product_slug,
-              totalAmount: order.total_price_usd, // Fallback
-              paymentMethod: "stripe_pix",
-              currency: currency,
-              finalAmount: finalAmount,
-            },
-          });
-          console.log("[Webhook] Payment confirmation email sent to client (PIX)");
-        } catch (emailError) {
-          console.error("[Webhook] Error sending payment confirmation email (PIX):", emailError);
-        }
-
-        // Send webhook to client (n8n removed from automatic flow - now on manual approval)
-
+        await processSuccessfulSession(session, supabase);
         break;
       }
 
-      case "checkout.session.async_payment_failed": {
-        const session = event.data.object as Stripe.Checkout.Session;
-        console.log("[Webhook] Async payment failed:", session.id);
-
-        // Get order to find service_request_id
-        const { data: order } = await supabase
-          .from("visa_orders")
-          .select("id, service_request_id")
-          .eq("stripe_session_id", session.id)
-          .single();
-
-        // Update order status
-        const { error: updateError } = await supabase
-          .from("visa_orders")
-          .update({
-            payment_status: "failed",
-            stripe_payment_intent_id: session.payment_intent as string || null,
-          })
-          .eq("stripe_session_id", session.id);
-
-        if (updateError) {
-          console.error("[Webhook] Error updating order:", updateError);
-        }
-
-        // Update payment record if exists
-        if (order?.service_request_id) {
-          const { data: paymentRecord } = await supabase
-            .from("payments")
-            .select("id")
-            .eq("service_request_id", order.service_request_id)
-            .eq("external_payment_id", session.id)
-            .single();
-
-          if (paymentRecord) {
-            await supabase
-              .from("payments")
-              .update({
-                status: "failed",
-                raw_webhook_log: {
-                  event_type: event.type,
-                  event_id: event.id,
-                  session_id: session.id,
-                  failed_at: new Date().toISOString(),
-                },
-                updated_at: new Date().toISOString(),
-              })
-              .eq("id", paymentRecord.id);
-            console.log("[Webhook] Payment record updated to 'failed':", paymentRecord.id);
-          }
-        }
-
-        break;
-      }
-
+      case "checkout.session.async_payment_failed":
       case "checkout.session.expired": {
         const session = event.data.object as Stripe.Checkout.Session;
-        console.log("[Webhook] Session expired:", session.id);
-
-        // Get order to find service_request_id
-        const { data: order } = await supabase
-          .from("visa_orders")
-          .select("id, service_request_id")
-          .eq("stripe_session_id", session.id)
-          .single();
-
-        // Update order status
-        const { error: updateError } = await supabase
-          .from("visa_orders")
-          .update({
-            payment_status: "cancelled",
-          })
+        await supabase.from("visa_orders")
+          .update({ payment_status: event.type === "checkout.session.expired" ? "cancelled" : "failed" })
           .eq("stripe_session_id", session.id);
-
-        if (updateError) {
-          console.error("[Webhook] Error updating order:", updateError);
-        }
-
-        // Update payment record if exists
-        if (order?.service_request_id) {
-          const { data: paymentRecord } = await supabase
-            .from("payments")
-            .select("id")
-            .eq("service_request_id", order.service_request_id)
-            .eq("external_payment_id", session.id)
-            .single();
-
-          if (paymentRecord) {
-            await supabase
-              .from("payments")
-              .update({
-                status: "failed", // Expired is treated as failed
-                raw_webhook_log: {
-                  event_type: event.type,
-                  event_id: event.id,
-                  session_id: session.id,
-                  expired_at: new Date().toISOString(),
-                },
-                updated_at: new Date().toISOString(),
-              })
-              .eq("id", paymentRecord.id);
-            console.log("[Webhook] Payment record updated to 'failed' (expired):", paymentRecord.id);
-          }
-        }
-
         break;
       }
-
-      default:
-        console.log("[Webhook] Unhandled event type:", event.type);
     }
 
-    return new Response(
-      JSON.stringify({ received: true }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
-
-  } catch (error) {
+    return new Response(JSON.stringify({ received: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+  } catch (error: any) {
     console.error("[Webhook] Error:", error);
-    return new Response(
-      JSON.stringify({ error: error.message || "Internal server error" }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    return new Response(JSON.stringify({ error: error.message }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
   }
 });
-
-
-
-

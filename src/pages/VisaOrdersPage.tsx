@@ -21,6 +21,10 @@ interface VisaOrder {
   id: string;
   order_number: string;
   product_slug: string;
+  upsell_product_slug?: string | null;
+  upsell_price_usd?: string | null;
+  upsell_contract_pdf_url?: string | null;
+  upsell_annex_pdf_url?: string | null;
   seller_id: string | null;
   client_name: string;
   client_email: string;
@@ -150,7 +154,21 @@ const OrderTable = ({
                     <p className="text-gray-400 text-xs">{order.client_email}</p>
                   </div>
                 </td>
-                <td className="py-3 px-4 text-sm text-white">{order.product_slug}</td>
+                <td className="py-3 px-4 text-sm text-white">
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-medium truncate max-w-[120px]" title={order.product_slug}>
+                      {order.product_slug}
+                    </span>
+                    {order.upsell_product_slug && (
+                      <span
+                        className="text-[9px] bg-green-500/20 text-green-400 px-1.5 py-0.5 rounded whitespace-nowrap font-semibold"
+                        title={`+ ${order.upsell_product_slug} ($${parseFloat(order.upsell_price_usd || '0').toFixed(2)})`}
+                      >
+                        +${parseFloat(order.upsell_price_usd || '0').toFixed(0)}
+                      </span>
+                    )}
+                  </div>
+                </td>
                 <td className="py-3 px-4 text-sm text-gray-400">{order.seller_id || '-'}</td>
                 <td className={`py-3 px-4 text-sm font-bold ${isSignatureOnly ? 'text-blue-400' : 'text-gold-light'}`}>
                   ${totalPrice.toFixed(2)}
@@ -230,6 +248,35 @@ const OrderTable = ({
                         Invoice
                       </Button>
                     )}
+                    {/* Upsell PDFs */}
+                    {order.upsell_annex_pdf_url && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setSelectedPdfUrl(order.upsell_annex_pdf_url);
+                          setSelectedPdfTitle(`ANNEX I (Upsell) - ${order.order_number}`);
+                        }}
+                        className="border-green-500/50 bg-black/50 text-green-400 hover:bg-black hover:border-green-500 hover:text-green-500 text-xs"
+                      >
+                        <FileText className="w-3 h-3 mr-1" />
+                        ANNEX I (Upsell)
+                      </Button>
+                    )}
+                    {order.upsell_contract_pdf_url && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setSelectedPdfUrl(order.upsell_contract_pdf_url);
+                          setSelectedPdfTitle(`Contract (Upsell) - ${order.order_number}`);
+                        }}
+                        className="border-green-500/50 bg-black/50 text-green-400 hover:bg-black hover:border-green-500 hover:text-green-500 text-xs"
+                      >
+                        <FileText className="w-3 h-3 mr-1" />
+                        Contract (Upsell)
+                      </Button>
+                    )}
                     {!order.annex_pdf_url && !order.contract_pdf_url && !(order.payment_metadata as any)?.invoice_pdf_url && (
                       <span className="text-amber-500/70 text-[10px] font-medium italic">
                         {order.payment_method === 'manual' ? 'Awaiting Approval' : 'Generating...'}
@@ -291,6 +338,11 @@ const OrderTable = ({
                 <div>
                   <p className="text-gray-400">Product</p>
                   <p className="text-white break-words">{order.product_slug}</p>
+                  {order.upsell_product_slug && (
+                    <p className="text-xs text-green-400 mt-0.5">
+                      + {order.upsell_product_slug} (${parseFloat(order.upsell_price_usd || '0').toFixed(2)})
+                    </p>
+                  )}
                 </div>
                 <div>
                   <p className="text-gray-400">{isSignatureOnly ? 'Value' : 'Total (with fee)'}</p>
@@ -361,6 +413,39 @@ const OrderTable = ({
                     </Button>
                   )}
                 </div>
+                {/* Upsell PDFs Row */}
+                {(order.upsell_annex_pdf_url || order.upsell_contract_pdf_url) && (
+                  <div className="flex gap-2">
+                    {order.upsell_annex_pdf_url && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setSelectedPdfUrl(order.upsell_annex_pdf_url);
+                          setSelectedPdfTitle(`ANNEX I (Upsell) - ${order.order_number}`);
+                        }}
+                        className="flex-1 flex items-center justify-center gap-2 border-green-500/50 bg-black/50 text-green-400 hover:bg-black hover:border-green-500 hover:text-green-500 text-xs"
+                      >
+                        <FileText className="w-3 h-3" />
+                        ANNEX I (Upsell)
+                      </Button>
+                    )}
+                    {order.upsell_contract_pdf_url && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setSelectedPdfUrl(order.upsell_contract_pdf_url);
+                          setSelectedPdfTitle(`Contract (Upsell) - ${order.order_number}`);
+                        }}
+                        className="flex-1 flex items-center justify-center gap-2 border-green-500/50 bg-black/50 text-green-400 hover:bg-black hover:border-green-500 hover:text-green-500 text-xs"
+                      >
+                        <FileText className="w-3 h-3" />
+                        Contract (Upsell)
+                      </Button>
+                    )}
+                  </div>
+                )}
                 <Link to={`/dashboard/visa-orders/${order.id}`} className="w-full">
                   <Button
                     variant="outline"

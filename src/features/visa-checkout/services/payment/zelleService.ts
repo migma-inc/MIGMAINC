@@ -90,7 +90,7 @@ export class ZelleService {
                     payment_status: 'pending', // Always pending for Zelle until admin approves
                     base_price_usd: product.base_price_usd || 0,
                     price_per_dependent_usd: product.price_per_dependent_usd || product.extra_unit_price || 0,
-                    total_price_usd: baseTotal,
+                    total_price_usd: baseTotal - (request.upsell_product_slug ? ((request.upsell_product_slug === 'canada-tourist-premium' ? 399 : 199) + (request.extra_units * 50)) : 0),
                     zelle_proof_url: n8nResult.imageUrl,
                     signature_image_url: request.signature_image_url,
                     contract_accepted: request.contract_accepted,
@@ -120,7 +120,7 @@ export class ZelleService {
                     order_id: order.id,
                     service_request_id: request.service_request_id,
                     user_id: userId,
-                    amount: baseTotal,
+                    amount: order.total_price_usd,
                     currency: 'USD',
                     fee_type: request.product_slug,
                     screenshot_url: n8nResult.imageUrl,
@@ -133,6 +133,66 @@ export class ZelleService {
 
             if (paymentRecordError) {
                 console.error('[ZelleService] Error creating zelle_payment:', paymentRecordError);
+            }
+
+            // --- UPSELL HANDLING ---
+            if (request.upsell_product_slug) {
+                const baseUpsellPrice = request.upsell_product_slug === 'canada-tourist-premium' ? 399 : 199;
+                const upsellPrice = baseUpsellPrice + (request.extra_units * 50);
+                const upsellOrderNumber = `ORD-ZEL-UPS-${Date.now()}`;
+
+                const { data: upsellOrder, error: upsellOrderError } = await supabase
+                    .from('visa_orders')
+                    .insert({
+                        order_number: upsellOrderNumber,
+                        service_request_id: request.service_request_id,
+                        product_slug: request.upsell_product_slug,
+                        seller_id: request.seller_id,
+                        client_name: request.client_name,
+                        client_email: request.client_email,
+                        client_whatsapp: request.client_whatsapp,
+                        client_country: request.client_country,
+                        client_nationality: request.client_nationality,
+                        client_observations: request.client_observations,
+                        dependent_names: null,
+                        payment_method: 'zelle',
+                        payment_status: 'pending',
+                        base_price_usd: upsellPrice,
+                        price_per_dependent_usd: 0,
+                        total_price_usd: upsellPrice,
+                        zelle_proof_url: n8nResult.imageUrl,
+                        signature_image_url: request.signature_image_url,
+                        contract_accepted: true,
+                        contract_signed_at: request.contract_signed_at,
+                        contract_template_id: request.upsell_contract_template_id,
+                        payment_metadata: {
+                            is_upsell: true,
+                            parent_order_id: order.id
+                        }
+                    })
+                    .select()
+                    .single();
+
+                if (!upsellOrderError && upsellOrder) {
+                    // Create separate Zelle Payment for upsell so admin can approve separately
+                    await supabase
+                        .from('zelle_payments')
+                        .insert({
+                            payment_id: `${n8nResult.paymentId}-upsell`,
+                            order_id: upsellOrder.id,
+                            service_request_id: request.service_request_id,
+                            user_id: userId,
+                            amount: upsellPrice,
+                            currency: 'USD',
+                            fee_type: request.upsell_product_slug,
+                            screenshot_url: n8nResult.imageUrl,
+                            image_path: n8nResult.imagePath,
+                            n8n_response: n8nResult.n8nResponse,
+                            n8n_confidence: n8nResult.decision.confidence,
+                            n8n_validated_at: new Date().toISOString(),
+                            status: 'pending_verification'
+                        });
+                }
             }
 
             return {
