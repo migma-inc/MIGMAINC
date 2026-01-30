@@ -290,19 +290,25 @@ Deno.serve(async (req) => {
         pdf.line(margin, currentY, pageWidth - margin, currentY);
 
         // Item 2: Extra Units / Dependents if any (only show if there's a cost)
-        if (order.extra_units > 0) {
-            const extraUnitPrice = parseFloat(order.extra_unit_price_usd || '0');
-            const extraTotal = order.extra_units * extraUnitPrice;
+        const dbExtraUnits = order.extra_units || 0;
+        const dependentNamesCount = Array.isArray(order.dependent_names) ? order.dependent_names.length : 0;
 
-            // Only add this line if there's an actual cost
-            if (extraTotal > 0) {
-                pdf.text(order.extra_unit_label || 'Additional Services', margin + 5, currentY + 7);
-                pdf.text(order.extra_units.toString(), pageWidth - margin - 80, currentY + 7, { align: 'right' });
-                pdf.text(`$${extraUnitPrice.toFixed(2)}`, pageWidth - margin - 40, currentY + 7, { align: 'right' });
-                pdf.text(`$${extraTotal.toFixed(2)}`, pageWidth - margin - 5, currentY + 7, { align: 'right' });
-                currentY += 10;
-                pdf.line(margin, currentY, pageWidth - margin, currentY);
-            }
+        // Effective units: Trust DB extra_units first, fallback to dependents array length
+        const displayExtraUnits = dbExtraUnits > 0 ? dbExtraUnits : dependentNamesCount;
+
+        // Effective price: Trust DB price first, fallback to product price, fallback to 0
+        const displayExtraPrice = parseFloat(order.extra_unit_price_usd || order.price_per_dependent_usd || product?.price_per_dependent_usd || '0');
+
+        const extraTotal = displayExtraUnits * displayExtraPrice;
+
+        if (displayExtraUnits > 0 && extraTotal > 0) {
+            const label = order.extra_unit_label || product?.extra_unit_label || 'Additional Dependent';
+            pdf.text(label, margin + 5, currentY + 7);
+            pdf.text(displayExtraUnits.toString(), pageWidth - margin - 80, currentY + 7, { align: 'right' });
+            pdf.text(`$${displayExtraPrice.toFixed(2)}`, pageWidth - margin - 40, currentY + 7, { align: 'right' });
+            pdf.text(`$${extraTotal.toFixed(2)}`, pageWidth - margin - 5, currentY + 7, { align: 'right' });
+            currentY += 10;
+            pdf.line(margin, currentY, pageWidth - margin, currentY);
         }
 
         // Item 3: Upsell Product if any
@@ -432,8 +438,8 @@ Deno.serve(async (req) => {
         const safeClientName = normalizeForFileName(order.client_name);
         const safeServiceName = normalizeForFileName(product?.name || order.product_slug);
 
-        // Final pattern: INVOICE - CUSTOMER NAME - SERVICE NAME.pdf
-        const fileName = `INVOICE - ${safeClientName} - ${safeServiceName}.pdf`;
+        // Final pattern requested: INVOICE - CUSTOMER NAME - SERVICE NAME - V2.pdf
+        const fileName = `INVOICE - ${safeClientName} - ${safeServiceName} - V2.pdf`;
         const filePath = `invoices/${fileName}`;
 
         const { error: uploadError } = await supabase.storage
