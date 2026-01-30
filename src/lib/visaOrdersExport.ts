@@ -94,7 +94,7 @@ export async function exportVisaOrdersToExcel(orders: VisaOrder[]): Promise<void
     const rightAlign = { horizontal: 'right', vertical: 'middle' };
 
     // --- Título do Relatório ---
-    worksheet.mergeCells('A1:H1');
+    worksheet.mergeCells('A1:I1');
     const titleCell = worksheet.getCell('A1');
     titleCell.value = 'RELATÓRIO FINANCEIRO DE PEDIDOS';
     titleCell.font = { bold: true, size: 14, color: { argb: 'FFFFFFFF' } };
@@ -106,9 +106,10 @@ export async function exportVisaOrdersToExcel(orders: VisaOrder[]): Promise<void
     // --- Cabeçalhos das Colunas ---
     const headers = [
         'Data do Pagamento',
-        'Status', // Nova Coluna
+        'Status',
         'Nome do Cliente',
         'Tipo de Serviço',
+        'Método',
         'Valor Bruto',
         'Taxa (Fee)',
         'Valor Líquido',
@@ -141,11 +142,16 @@ export async function exportVisaOrdersToExcel(orders: VisaOrder[]): Promise<void
             order.payment_status === 'pending' ? 'Pendente' :
                 order.payment_status;
 
+        // Traduzir/Formatar método
+        const method = order.payment_method === 'manual' ? 'Manual/Seller' :
+            order.payment_method.charAt(0).toUpperCase() + order.payment_method.slice(1);
+
         row.values = [
             dateValue,              // Data
             status,                 // Status
             order.client_name,      // Cliente
             order.product_slug,     // Serviço
+            method,                 // Método
             totalPrice,             // Valor Bruto (Gross)
             feeAmount,              // Taxa (Fee)
             netAmount,              // Líquido (Net)
@@ -176,24 +182,28 @@ export async function exportVisaOrdersToExcel(orders: VisaOrder[]): Promise<void
         productCell.alignment = leftAlign as any;
         productCell.border = borderStyle as any;
 
-        const grossCell = row.getCell(5);
+        const methodCell = row.getCell(5);
+        methodCell.alignment = centerAlign as any;
+        methodCell.border = borderStyle as any;
+
+        const grossCell = row.getCell(6);
         grossCell.numFmt = '$#,##0.00';
         grossCell.alignment = rightAlign as any;
         grossCell.border = borderStyle as any;
 
-        const feeCell = row.getCell(6);
+        const feeCell = row.getCell(7);
         feeCell.numFmt = '$#,##0.00';
         feeCell.font = { color: { argb: 'FFFF0000' } }; // Vermelho para taxas
         feeCell.alignment = rightAlign as any;
         feeCell.border = borderStyle as any;
 
-        const netCell = row.getCell(7);
+        const netCell = row.getCell(8);
         netCell.numFmt = '$#,##0.00';
         netCell.font = { bold: true, color: { argb: 'FF000000' } };
         netCell.alignment = rightAlign as any;
         netCell.border = borderStyle as any;
 
-        const sellerCell = row.getCell(8);
+        const sellerCell = row.getCell(9);
         sellerCell.alignment = centerAlign as any;
         sellerCell.border = borderStyle as any;
 
@@ -206,6 +216,7 @@ export async function exportVisaOrdersToExcel(orders: VisaOrder[]): Promise<void
         { width: 15 }, // Status
         { width: 30 }, // Cliente
         { width: 25 }, // Serviço
+        { width: 15 }, // Método
         { width: 15 }, // Valor Bruto
         { width: 15 }, // Taxa
         { width: 15 }, // Valor Líquido
