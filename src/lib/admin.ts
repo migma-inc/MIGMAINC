@@ -400,33 +400,56 @@ export async function approveApplicationAfterMeeting(
 export async function getApplicationStats(): Promise<{
   total: number;
   pending: number;
-  approved: number;
   approved_for_meeting: number;
-  approved_for_contract: number;
+  awaiting_signature: number;
+  awaiting_verification: number;
+  active_partner: number;
   rejected: number;
 } | null> {
   try {
-    const { data, error } = await supabase
+    // 1. Fetch all applications
+    const { data: apps, error: appsError } = await supabase
       .from('global_partner_applications')
-      .select('status');
+      .select('id, status');
 
-    if (error) {
-      console.error('[ADMIN] Error fetching stats:', error);
-      return null;
-    }
+    if (appsError) throw appsError;
+
+    // 2. Fetch all pending verification IDs to cross-reference
+    const { data: pendingAcceptances, error: verifError } = await supabase
+      .from('partner_terms_acceptances')
+      .select('application_id')
+      .eq('verification_status', 'pending')
+      .not('accepted_at', 'is', null);
+
+    if (verifError) throw verifError;
+
+    const pendingVerifIds = new Set(pendingAcceptances?.map(a => String(a.application_id)) || []);
+    console.log('[DEBUG] pendingVerifIds size:', pendingVerifIds.size);
 
     const stats = {
-      total: data.length,
-      pending: data.filter((app) => app.status === 'pending').length,
-      approved: data.filter((app) => app.status === 'approved').length,
-      approved_for_meeting: data.filter((app) => app.status === 'approved_for_meeting').length,
-      approved_for_contract: data.filter((app) => app.status === 'approved_for_contract').length,
-      rejected: data.filter((app) => app.status === 'rejected').length,
+      total: apps.length,
+      pending: apps.filter(a => a.status === 'pending').length,
+      approved_for_meeting: apps.filter(a => a.status === 'approved_for_meeting').length,
+
+      // Awaiting Signature: Has the status but hasn't updated the acceptance table yet
+      awaiting_signature: apps.filter(a =>
+        a.status === 'approved_for_contract' && !pendingVerifIds.has(String(a.id))
+      ).length,
+
+      // Awaiting Verification: The count from the acceptances table
+      awaiting_verification: pendingVerifIds.size,
+
+      // Active: Verified partners or legacy approvals
+      active_partner: apps.filter(a => a.status === 'active_partner' || a.status === 'approved').length,
+
+      rejected: apps.filter(a => a.status === 'rejected').length,
     };
 
+    console.log('[DEBUG] Total Apps returned:', apps.length);
+    console.log('[DEBUG] Final Stats returning:', stats);
     return stats;
   } catch (error) {
-    console.error('[ADMIN] Error calculating stats:', error);
+    console.error('[ADMIN] Error calculating funnel stats:', error);
     return null;
   }
 }

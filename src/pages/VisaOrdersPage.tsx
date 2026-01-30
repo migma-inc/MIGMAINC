@@ -128,16 +128,14 @@ const OrderTable = ({
       <table className="w-full">
         <thead>
           <tr className="border-b border-gold-medium/30">
-            <th className="text-left py-3 px-4 text-sm text-gray-400 font-semibold">Order #</th>
+            <th className="text-left py-3 px-4 text-sm text-gray-400 font-semibold">Order # / Date</th>
             <th className="text-left py-3 px-4 text-sm text-gray-400 font-semibold">Client</th>
             <th className="text-left py-3 px-4 text-sm text-gray-400 font-semibold">Product</th>
             <th className="text-left py-3 px-4 text-sm text-gray-400 font-semibold">Seller</th>
-            <th className="text-left py-3 px-4 text-sm text-gray-400 font-semibold">{isSignatureOnly ? 'Contract Value' : 'Total (with fee)'}</th>
-            {!isSignatureOnly && <th className="text-left py-3 px-4 text-sm text-gray-400 font-semibold">Fee</th>}
+            <th className="text-left py-3 px-4 text-sm text-gray-400 font-semibold">{isSignatureOnly ? 'Contract Value' : 'Total / Fee'}</th>
             {!isSignatureOnly && <th className="text-left py-3 px-4 text-sm text-gray-400 font-semibold">Net Amount</th>}
             <th className="text-left py-3 px-4 text-sm text-gray-400 font-semibold">Method</th>
             <th className="text-left py-3 px-4 text-sm text-gray-400 font-semibold">Status</th>
-            <th className="text-left py-3 px-4 text-sm text-gray-400 font-semibold">Date</th>
             <th className="text-left py-3 px-4 text-sm text-gray-400 font-semibold">Contract</th>
             <th className="text-left py-3 px-4 text-sm text-gray-400 font-semibold">Actions</th>
           </tr>
@@ -147,7 +145,12 @@ const OrderTable = ({
             const { netAmount, feeAmount, totalPrice } = calculateNetAmountAndFee(order);
             return (
               <tr key={order.id} className="border-b border-gold-medium/10 hover:bg-white/5">
-                <td className="py-3 px-4 text-sm text-white font-mono">{order.order_number}</td>
+                <td className="py-3 px-4">
+                  <p className="text-sm text-white font-mono">{order.order_number}</p>
+                  <p className="text-[10px] text-gray-400 mt-0.5">
+                    {new Date(order.created_at).toLocaleDateString()}
+                  </p>
+                </td>
                 <td className="py-3 px-4">
                   <div className="text-sm">
                     <p className="text-white">{order.client_name}</p>
@@ -171,17 +174,17 @@ const OrderTable = ({
                 </td>
                 <td className="py-3 px-4 text-sm text-gray-400">{order.seller_id || '-'}</td>
                 <td className={`py-3 px-4 text-sm font-bold ${isSignatureOnly ? 'text-blue-400' : 'text-gold-light'}`}>
-                  ${totalPrice.toFixed(2)}
+                  <div>${totalPrice.toFixed(2)}</div>
+                  {!isSignatureOnly && (
+                    <div className="text-[10px] font-normal mt-0.5">
+                      {feeAmount > 0 ? (
+                        <span className="text-red-400">-${feeAmount.toFixed(2)} fee</span>
+                      ) : (
+                        <span className="text-gray-500">$0.00 fee</span>
+                      )}
+                    </div>
+                  )}
                 </td>
-                {!isSignatureOnly && (
-                  <td className="py-3 px-4 text-sm text-gray-400">
-                    {feeAmount > 0 ? (
-                      <span className="text-red-400">-${feeAmount.toFixed(2)}</span>
-                    ) : (
-                      <span className="text-gray-500">$0.00</span>
-                    )}
-                  </td>
-                )}
                 {!isSignatureOnly && (
                   <td className="py-3 px-4 text-sm text-white font-semibold">
                     ${netAmount.toFixed(2)}
@@ -201,9 +204,7 @@ const OrderTable = ({
                 <td className="py-3 px-4">
                   {getStatusBadge(order)}
                 </td>
-                <td className="py-3 px-4 text-sm text-gray-400">
-                  {new Date(order.created_at).toLocaleDateString()}
-                </td>
+
                 <td className="py-3 px-4">
                   <div className="flex flex-col gap-1">
                     {order.annex_pdf_url && (

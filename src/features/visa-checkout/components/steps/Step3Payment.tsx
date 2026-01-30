@@ -8,7 +8,7 @@ import { SignatureSection } from './step3/SignatureSection';
 import { PaymentMethodSelector } from './step3/PaymentMethodSelector';
 // Re-importing ZelleUpload to fix potential reference issues in HMR
 import { ZelleUpload } from './step3/ZelleUpload';
-import { UpsellSelection } from './step3/UpsellSelection';
+// import { UpsellSelection } from './step3/UpsellSelection';
 
 interface Step3Props {
     state: VisaCheckoutState;
@@ -22,14 +22,14 @@ interface Step3Props {
     productSlug?: string;
 }
 
-export const Step3Payment: React.FC<Step3Props> = ({ state, actions, handlers, onPrev, productSlug }) => {
+export const Step3Payment: React.FC<Step3Props> = ({ state, actions, handlers, onPrev /*, productSlug */ }) => {
     const {
         termsAccepted, dataAuthorization, contractTemplate, chargebackAnnexTemplate, upsellContractTemplate, paymentMethod,
-        zelleReceipt, signatureImageDataUrl, signatureConfirmed, selectedUpsell
+        zelleReceipt, signatureImageDataUrl, signatureConfirmed /*, selectedUpsell */
     } = state;
 
     const {
-        setTermsAccepted, setDataAuthorization, setPaymentMethod, setZelleReceipt, setSelectedUpsell
+        setTermsAccepted, setDataAuthorization, setPaymentMethod, setZelleReceipt /*, setSelectedUpsell */
     } = actions;
 
     return (
@@ -38,6 +38,7 @@ export const Step3Payment: React.FC<Step3Props> = ({ state, actions, handlers, o
                 <CardTitle className="text-white text-lg sm:text-xl">Step 3: Terms & Payment</CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
+                {/* Temporarily disabled: World Cup Bundle (Combo Copa) 
                 {(productSlug === 'b1-premium' || productSlug?.includes('premium')) && (
                     <div className="mb-6 border-b border-white/5 pb-6">
                         <UpsellSelection
@@ -47,6 +48,7 @@ export const Step3Payment: React.FC<Step3Props> = ({ state, actions, handlers, o
                         />
                     </div>
                 )}
+                */}
 
                 <ContractTermsSection
                     termsAccepted={termsAccepted}

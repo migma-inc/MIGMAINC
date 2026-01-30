@@ -122,13 +122,14 @@ export async function getSecureUrl(url: string | null): Promise<string | null> {
                 path = parts.slice(1).join('/');
             } else {
                 // Fallback guess baseado no conteúdo
-                if (url.toLowerCase().includes('resume_') || url.toLowerCase().includes('cv_') || url.endsWith('.pdf')) {
+                const lowerUrl = url.toLowerCase();
+                if (lowerUrl.includes('resume_') || lowerUrl.includes('cv_') || lowerUrl.endsWith('.pdf') || lowerUrl.startsWith('anonymous/applications/')) {
                     bucket = 'cv-files';
                     path = url.includes('/') ? url : `applications/${url}`;
-                } else if (url.toLowerCase().includes('sig') || url.toLowerCase().includes('assinatura')) {
+                } else if (lowerUrl.includes('sig') || lowerUrl.includes('assinatura')) {
                     bucket = 'visa-signatures';
                     path = url;
-                } else if (url.toLowerCase().includes('photo') || url.toLowerCase().includes('selfie')) {
+                } else if (lowerUrl.includes('photo') || lowerUrl.includes('selfie')) {
                     bucket = 'identity-photos';
                     path = url.includes('/') ? url : `photos/${url}`;
                 } else {
@@ -140,18 +141,32 @@ export async function getSecureUrl(url: string | null): Promise<string | null> {
 
         // Verificação final - Se identificamos que é um bucket privado, forçamos a segurança
         if (bucket && (privateBuckets.includes(bucket) || bucket === 'contracts')) {
-            // Tentar download direto (Blob URL) - Só funciona se o usuário estiver logado ou bucket for público por RLS
+            // 1. Tentar download direto (Blob URL) - Mais robusto para iFrames e visualização interna
             try {
                 const { data, error } = await supabase.storage.from(bucket).download(path || '');
                 if (!error && data) {
                     console.log(`[STORAGE] Direct download successful for ${bucket}/${path}`);
                     return URL.createObjectURL(data);
                 }
+                if (error) console.warn(`[STORAGE] Download error:`, error);
             } catch (err) {
                 console.warn('[STORAGE] Catch during direct download:', err);
             }
 
-            // Se o download direto falhar (usuário deslogado ou sem permissão direta), usamos o Proxy
+            // 2. Tentar gerar uma Signed URL (Fallback para visualização externa)
+            try {
+                console.log(`[STORAGE] Generating signed URL for ${bucket}/${path}`);
+                const { data: signedData, error: signedError } = await supabase.storage.from(bucket).createSignedUrl(path || '', 3600);
+
+                if (!signedError && signedData?.signedUrl) {
+                    return signedData.signedUrl;
+                }
+                if (signedError) console.warn('[STORAGE] createSignedUrl error:', signedError);
+            } catch (err) {
+                console.warn('[STORAGE] Catch during createSignedUrl:', err);
+            }
+
+            // 3. Fallback final: Proxy (Edge Function)
             console.log(`[STORAGE] Falling back to proxy for ${bucket}/${path}`);
             return `${SUPABASE_URL}/functions/v1/document-proxy?bucket=${bucket}&path=${encodeURIComponent(path || '')}`;
         }
