@@ -943,7 +943,8 @@ export const ZelleApprovalPage = () => {
                       <div className="flex-1" />
 
                       {/* VIEW BUTTONS */}
-                      {item.proof_url && (
+                      {/* Show View Receipt for orders with proof_url OR for migma items (fetch from storage) */}
+                      {(item.proof_url || item.type === 'migma') && (
                         <Button
                           variant="ghost"
                           size="sm"
@@ -952,6 +953,7 @@ export const ZelleApprovalPage = () => {
                               setSelectedZelleUrl(item.proof_url);
                               setSelectedZelleTitle(`Receipt - ${item.order_number}`);
                             } else {
+                              // For migma type, always fetch from storage using user_id
                               handleViewMigmaProof(item.user_id, item.client_name);
                             }
                           }}
