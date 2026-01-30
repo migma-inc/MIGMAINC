@@ -46,9 +46,11 @@ export const VisaCheckoutPage: React.FC = () => {
 
     // 4. Inicializar handlers especializados
     const { handleNextStep2 } = useDocumentUpload(state, actions);
-    useTemplateLoader(productSlug, actions);
+    useTemplateLoader(productSlug, state.selectedUpsell, actions);
 
-    const baseTotal = product ? calculateBaseTotal(product, state.extraUnits) : 0;
+    const baseUpsellPrice = state.selectedUpsell === 'canada-premium' ? 399 : (state.selectedUpsell === 'canada-revolution' ? 199 : 0);
+    const upsellPrice = baseUpsellPrice > 0 ? baseUpsellPrice + (state.extraUnits * 50) : 0;
+    const baseTotal = product ? calculateBaseTotal(product, state.extraUnits, upsellPrice) : 0;
     const totalWithFees = product ? calculateTotalWithFees(baseTotal, state.paymentMethod, state.exchangeRate || undefined) : 0;
 
     const paymentHandlers = usePaymentHandlers(
@@ -123,7 +125,7 @@ export const VisaCheckoutPage: React.FC = () => {
 
     return (
         <div className="min-h-screen bg-black py-8 sm:py-12 px-4 sm:px-6 lg:px-8">
-            <div className="max-w-4xl mx-auto">
+            <div className="max-w-6xl mx-auto">
                 <header className="flex flex-col mb-8 gap-2">
                     <Link to="/" className="inline-flex items-center text-gold-light hover:text-gold-medium transition-colors mb-2">
                         <ArrowLeft className="w-4 h-4 mr-2" /> Back to Home
@@ -143,8 +145,8 @@ export const VisaCheckoutPage: React.FC = () => {
                     </div>
                 )}
 
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
-                    <main className="lg:col-span-2 space-y-6">
+                <div className="grid grid-cols-1 lg:grid-cols-5 gap-8 items-start">
+                    <main className="lg:col-span-3 space-y-6">
                         {(state.currentStep === 1 || state.currentStep === 2) && (
                             <div className="bg-zinc-900/50 border border-gold-medium/20 rounded-xl p-6 space-y-4 animate-in fade-in slide-in-from-top-4 duration-500">
                                 <h2 className="text-gold-light font-bold text-lg">Product Details</h2>
@@ -179,13 +181,13 @@ export const VisaCheckoutPage: React.FC = () => {
                         )}
                         {state.currentStep === 3 && (
                             <div className="animate-in fade-in slide-in-from-left-4 duration-300">
-                                <Step3Payment state={state} actions={actions} handlers={paymentHandlers} onPrev={handlePrev} />
+                                <Step3Payment state={state} actions={actions} handlers={paymentHandlers} onPrev={handlePrev} productSlug={productSlug} />
                             </div>
                         )}
                     </main>
 
                     {state.currentStep === 3 && (
-                        <aside className="lg:col-span-1 sticky top-8">
+                        <aside className="lg:col-span-2 sticky top-8">
                             <OrderSummary
                                 product={product}
                                 extraUnits={state.extraUnits}
@@ -205,6 +207,8 @@ export const VisaCheckoutPage: React.FC = () => {
                                     else if (state.paymentMethod === 'parcelow') paymentHandlers.handleParcelowPayment?.();
                                     else paymentHandlers.handleStripeCheckout(state.paymentMethod as 'card' | 'pix');
                                 }}
+                                selectedUpsell={state.selectedUpsell}
+                                upsellPrice={upsellPrice}
                             />
                         </aside>
                     )}

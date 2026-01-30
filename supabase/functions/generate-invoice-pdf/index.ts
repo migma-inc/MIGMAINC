@@ -114,6 +114,14 @@ Deno.serve(async (req) => {
             );
         }
 
+        console.log('[EDGE FUNCTION] 🔍 Order fetched:', {
+            id: order.id,
+            order_number: order.order_number,
+            upsell_product_slug: order.upsell_product_slug,
+            upsell_price_usd: order.upsell_price_usd,
+            total_price_usd: order.total_price_usd
+        });
+
         // Fetch product data
         const { data: product, error: productError } = await supabase
             .from('visa_products')
@@ -281,16 +289,57 @@ Deno.serve(async (req) => {
         pdf.setDrawColor(240, 240, 240);
         pdf.line(margin, currentY, pageWidth - margin, currentY);
 
-        // Item 2: Extra Units / Dependents if any
+        // Item 2: Extra Units / Dependents if any (only show if there's a cost)
         if (order.extra_units > 0) {
             const extraUnitPrice = parseFloat(order.extra_unit_price_usd || '0');
             const extraTotal = order.extra_units * extraUnitPrice;
-            pdf.text(order.extra_unit_label || 'Additional Services', margin + 5, currentY + 7);
-            pdf.text(order.extra_units.toString(), pageWidth - margin - 80, currentY + 7, { align: 'right' });
-            pdf.text(`$${extraUnitPrice.toFixed(2)}`, pageWidth - margin - 40, currentY + 7, { align: 'right' });
-            pdf.text(`$${extraTotal.toFixed(2)}`, pageWidth - margin - 5, currentY + 7, { align: 'right' });
+
+            // Only add this line if there's an actual cost
+            if (extraTotal > 0) {
+                pdf.text(order.extra_unit_label || 'Additional Services', margin + 5, currentY + 7);
+                pdf.text(order.extra_units.toString(), pageWidth - margin - 80, currentY + 7, { align: 'right' });
+                pdf.text(`$${extraUnitPrice.toFixed(2)}`, pageWidth - margin - 40, currentY + 7, { align: 'right' });
+                pdf.text(`$${extraTotal.toFixed(2)}`, pageWidth - margin - 5, currentY + 7, { align: 'right' });
+                currentY += 10;
+                pdf.line(margin, currentY, pageWidth - margin, currentY);
+            }
+        }
+
+        // Item 3: Upsell Product if any
+        console.log('[EDGE FUNCTION] Checking for upsell:', {
+            has_slug: !!order.upsell_product_slug,
+            has_price: !!order.upsell_price_usd,
+            slug: order.upsell_product_slug,
+            price: order.upsell_price_usd
+        });
+
+        if (order.upsell_product_slug && order.upsell_price_usd) {
+            console.log('[EDGE FUNCTION] ✅ UPSELL DETECTED! Adding to invoice...');
+            const upsellPrice = parseFloat(order.upsell_price_usd);
+
+            // Fetch upsell product name
+            const { data: upsellProduct } = await supabase
+                .from('visa_products')
+                .select('name')
+                .eq('slug', order.upsell_product_slug)
+                .single();
+
+            const upsellName = upsellProduct?.name || order.upsell_product_slug;
+            console.log('[EDGE FUNCTION] Upsell product name:', upsellName);
+
+            // Shorten the name to fit in the table (max 35 chars)
+            const shortName = upsellName.length > 35
+                ? upsellName.substring(0, 32) + '...'
+                : upsellName;
+
+            pdf.text(`BUNDLE: ${shortName}`, margin + 5, currentY + 7);
+            pdf.text('1', pageWidth - margin - 80, currentY + 7, { align: 'right' });
+            pdf.text(`$${upsellPrice.toFixed(2)}`, pageWidth - margin - 40, currentY + 7, { align: 'right' });
+            pdf.text(`$${upsellPrice.toFixed(2)}`, pageWidth - margin - 5, currentY + 7, { align: 'right' });
             currentY += 10;
             pdf.line(margin, currentY, pageWidth - margin, currentY);
+        } else {
+            console.log('[EDGE FUNCTION] ❌ No upsell found in order');
         }
 
         currentY += 10;

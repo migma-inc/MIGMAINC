@@ -117,10 +117,20 @@
     border-color: hsl(var(--border));
   }
 
+  html,
   body {
     @apply font-sans;
-    background-color: hsl(var(--background));
+    background-color: #000;
     color: hsl(var(--foreground));
+    overflow-x: hidden;
+    max-width: 100vw;
+    position: relative;
+    min-height: 100%;
+  }
+
+  html {
+    height: auto;
+    background-color: #000;
   }
 }
 
@@ -133,12 +143,10 @@
   }
 
   .btn-primary {
-    background: linear-gradient(
-      180deg,
-      #F3E196 0%,
-      #CE9F48 50%,
-      #F3E196 100%
-    );
+    background: linear-gradient(180deg,
+        #F3E196 0%,
+        #CE9F48 50%,
+        #F3E196 100%);
     @apply text-black font-bold hover:opacity-90 transition-opacity shadow-lg;
     box-shadow: 0 4px 12px rgba(206, 159, 72, 0.4);
   }
@@ -155,14 +163,12 @@
   /* Títulos de Seção */
   .section-title {
     @apply text-center text-3xl md:text-[54px] md:leading-[60px] font-bold tracking-tighter;
-    background: linear-gradient(
-      180deg,
-      #8E6E2F 0%,
-      #F3E196 25%,
-      #CE9F48 50%,
-      #F3E196 75%,
-      #8E6E2F 100%
-    );
+    background: linear-gradient(180deg,
+        #8E6E2F 0%,
+        #F3E196 25%,
+        #CE9F48 50%,
+        #F3E196 75%,
+        #8E6E2F 100%);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
@@ -194,14 +200,12 @@
   }
 
   .gradient-text {
-    background: linear-gradient(
-      180deg,
-      #8E6E2F 0%,
-      #F3E196 25%,
-      #CE9F48 50%,
-      #F3E196 75%,
-      #8E6E2F 100%
-    );
+    background: linear-gradient(180deg,
+        #8E6E2F 0%,
+        #F3E196 25%,
+        #CE9F48 50%,
+        #F3E196 75%,
+        #8E6E2F 100%);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
@@ -212,14 +216,12 @@
   /* MIGMA Gold Text Effect */
   .migma-gold-text {
     font-weight: bold;
-    background: linear-gradient(
-      180deg,
-      #8E6E2F 0%,
-      #F3E196 25%,
-      #CE9F48 50%,
-      #F3E196 75%,
-      #8E6E2F 100%
-    );
+    background: linear-gradient(180deg,
+        #8E6E2F 0%,
+        #F3E196 25%,
+        #CE9F48 50%,
+        #F3E196 75%,
+        #8E6E2F 100%);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
@@ -229,12 +231,10 @@
 
   /* Gold Gradient Background */
   .bg-gold-gradient {
-    background: linear-gradient(
-      180deg,
-      #8E6E2F 0%,
-      #CE9F48 50%,
-      #8E6E2F 100%
-    );
+    background: linear-gradient(180deg,
+        #8E6E2F 0%,
+        #CE9F48 50%,
+        #8E6E2F 100%);
   }
 
   /* Gold Border */
@@ -244,13 +244,15 @@
 
   /* Card Gold Style */
   .card-gold {
-    @apply bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border-gold-medium/30 shadow-[0_7px_14px_rgba(206,159,72,0.1)];
+    @apply bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border-gold-medium/30 shadow-[0_7px_14px_rgba(206, 159, 72, 0.1)];
   }
 
   /* Gold Loader */
   .loader-gold {
-    --c1: #8E6E2F; /* gold-dark */
-    --c2: #CE9F48; /* gold-medium */
+    --c1: #8E6E2F;
+    /* gold-dark */
+    --c2: #CE9F48;
+    /* gold-medium */
     width: 40px;
     height: 80px;
     border-top: 4px solid var(--c1);
@@ -276,7 +278,7 @@
       linear-gradient(#000 0 0);
     -webkit-mask-composite: destination-out;
     mask-composite: exclude;
-    background: linear-gradient(var(--d,0deg), var(--c2) 50%, #0000 0) bottom /100% 205%,
+    background: linear-gradient(var(--d, 0deg), var(--c2) 50%, #0000 0) bottom /100% 205%,
       linear-gradient(var(--c2) 0 0) center/0 100%;
     background-repeat: no-repeat;
     animation: inherit;
@@ -294,16 +296,21 @@
     80% {
       transform: rotate(0);
     }
+
     100% {
       transform: rotate(0.5turn);
     }
   }
 
   @keyframes l5-1 {
-    10%, 70% {
-      background-size: 100% 205%, var(--s,0) 100%;
+
+    10%,
+    70% {
+      background-size: 100% 205%, var(--s, 0) 100%;
     }
-    70%, 100% {
+
+    70%,
+    100% {
       background-position: top, center;
     }
   }

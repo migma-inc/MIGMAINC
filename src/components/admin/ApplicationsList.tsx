@@ -4,10 +4,14 @@
 
 import { useApplications } from '@/hooks/useApplications';
 import type { Application } from '@/types/application';
-import { Eye, CheckCircle, XCircle, Calendar, Clock, Link as LinkIcon, Pencil, Mail } from 'lucide-react';
+import {
+  Eye, CheckCircle, XCircle, Calendar, Clock, Link as LinkIcon,
+  Pencil, Mail, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight
+} from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 
@@ -16,7 +20,11 @@ interface ApplicationsListProps {
   onReject?: (application: Application) => void;
   onEditMeeting?: (application: Application) => void;
   onResendEmail?: (application: Application) => void;
-  statusFilter?: 'pending' | 'approved' | 'approved_for_meeting' | 'approved_for_contract' | 'rejected';
+  statusFilter?: 'pending' | 'approved' | 'approved_for_meeting' | 'approved_for_contract' | 'active_partner' | 'rejected';
+  currentPage?: number;
+  pageSize?: number;
+  onPageChange?: (page: number) => void;
+  onPageSizeChange?: (size: number) => void;
   refreshKey?: number;
 }
 
@@ -26,14 +34,16 @@ function StatusBadge({ status }: { status: Application['status'] }) {
     approved: 'bg-green-900/30 text-green-300 border-green-500/50',
     approved_for_meeting: 'bg-yellow-900/30 text-yellow-300 border-yellow-500/50',
     approved_for_contract: 'bg-green-900/30 text-green-300 border-green-500/50',
+    active_partner: 'bg-green-900/30 text-green-300 border-green-500/50',
     rejected: 'bg-red-900/30 text-red-300 border-red-500/50',
   };
 
   const displayText: Record<string, string> = {
-    pending: 'Pending',
-    approved: 'Approved',
-    approved_for_meeting: 'Approved for Meeting',
-    approved_for_contract: 'Approved for Contract',
+    pending: 'New',
+    approved: 'Approved (Legacy)',
+    approved_for_meeting: 'For Meeting',
+    approved_for_contract: 'Awaiting Signature',
+    active_partner: 'Active Partner',
     rejected: 'Rejected',
   };
 
@@ -52,13 +62,31 @@ export function ApplicationsList({
   onEditMeeting,
   onResendEmail,
   statusFilter,
+  currentPage = 1,
+  pageSize = 10,
+  onPageChange,
+  onPageSizeChange,
   refreshKey,
 }: ApplicationsListProps) {
-  const { applications, loading, error, refetch } = useApplications({
+  const { applications, totalCount, totalPages, loading, error, refetch } = useApplications({
     status: statusFilter,
+    limit: pageSize,
+    page: currentPage,
     orderBy: 'created_at',
     orderDirection: 'desc',
   });
+
+  // Scroll to top when page changes
+  useEffect(() => {
+    if (currentPage > 1 || (currentPage === 1 && !loading)) {
+      const element = document.getElementById('applications-list-container');
+      if (element) {
+        element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }
+  }, [currentPage]);
+
+
 
   // Refetch when refreshKey changes
   useEffect(() => {
@@ -311,6 +339,75 @@ export function ApplicationsList({
           </CardContent>
         </Card>
       ))}
+
+      {/* Pagination Controls */}
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-6 p-4 bg-zinc-900/40 border border-white/5 rounded-lg">
+        <div className="flex items-center gap-4">
+          <p className="text-sm text-gray-400">
+            Total: <span className="text-white font-medium">{totalCount}</span> applications
+          </p>
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-gray-400">Show:</span>
+            <Select
+              value={pageSize.toString()}
+              onValueChange={(value) => onPageSizeChange?.(Number(value))}
+            >
+              <SelectTrigger className="w-[70px] h-8 bg-zinc-900/60 border-gold-medium/40 text-white text-xs hover:border-gold-medium/70 transition-colors">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="bg-zinc-950 border-gold-medium/30 shadow-2xl shadow-black/80">
+                <SelectItem value="10" className="text-white focus:bg-gold-medium/20 focus:text-gold-light cursor-pointer">10</SelectItem>
+                <SelectItem value="20" className="text-white focus:bg-gold-medium/20 focus:text-gold-light cursor-pointer">20</SelectItem>
+                <SelectItem value="50" className="text-white focus:bg-gold-medium/20 focus:text-gold-light cursor-pointer">50</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-1 sm:gap-2">
+          <Button
+            variant="outline"
+            size="icon"
+            className="h-8 w-8 border-gold-medium/30 bg-black text-white hover:bg-gold-medium/30 disabled:opacity-30"
+            onClick={() => onPageChange?.(1)}
+            disabled={currentPage === 1}
+          >
+            <ChevronsLeft className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="outline"
+            size="icon"
+            className="h-8 w-8 border-gold-medium/30 bg-black text-white hover:bg-gold-medium/30 disabled:opacity-30"
+            onClick={() => onPageChange?.(Math.max(1, currentPage - 1))}
+            disabled={currentPage === 1}
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </Button>
+
+          <div className="flex items-center px-3 h-8 rounded-md bg-gold-medium/20 border border-gold-medium/30 text-white text-sm font-medium">
+            Page {currentPage} of {totalPages || 1}
+          </div>
+
+          <Button
+            variant="outline"
+            size="icon"
+            className="h-8 w-8 border-gold-medium/30 bg-black text-white hover:bg-gold-medium/30 disabled:opacity-30"
+            onClick={() => onPageChange?.(Math.min(totalPages, currentPage + 1))}
+            disabled={currentPage === totalPages || totalPages === 0}
+          >
+            <ChevronRight className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="outline"
+            size="icon"
+            className="h-8 w-8 border-gold-medium/30 bg-black text-white hover:bg-gold-medium/30 disabled:opacity-30"
+            onClick={() => onPageChange?.(totalPages)}
+            disabled={currentPage === totalPages || totalPages === 0}
+          >
+            <ChevronsRight className="h-4 w-4" />
+          </Button>
+        </div>
+      </div>
     </div>
   );
 }

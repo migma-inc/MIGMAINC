@@ -8,6 +8,7 @@ interface ContractTermsSectionProps {
     dataAuthorization: boolean;
     contractTemplate: ContractTemplate | null;
     chargebackAnnexTemplate: ContractTemplate | null;
+    upsellContractTemplate?: ContractTemplate | null;
     onTermsChange: (val: boolean) => void;
     onDataAuthChange: (val: boolean) => void;
 }
@@ -17,6 +18,7 @@ export const ContractTermsSection: React.FC<ContractTermsSectionProps> = ({
     dataAuthorization,
     contractTemplate,
     chargebackAnnexTemplate,
+    upsellContractTemplate,
     onTermsChange,
     onDataAuthChange,
 }) => {
@@ -32,6 +34,25 @@ export const ContractTermsSection: React.FC<ContractTermsSectionProps> = ({
                             letterSpacing: '0.01em'
                         }}
                         dangerouslySetInnerHTML={{ __html: contractTemplate.content }}
+                    />
+                </div>
+            )}
+
+            {upsellContractTemplate && (
+                <div className="mt-4 p-3 sm:p-4 bg-gold-900/40 border-2 border-gold-500 rounded-md animate-in fade-in slide-in-from-top-4 duration-700 shadow-[0_0_30px_rgba(212,175,55,0.15)] relative">
+                    <div className="flex justify-start mb-2">
+                        <span className="bg-gold-medium text-black text-xs font-bold px-2 py-1 rounded shadow-sm inline-block">
+                            ADDITIONAL AGREEMENT
+                        </span>
+                    </div>
+                    <h3 className="text-gold-light font-bold mb-2 text-sm">{upsellContractTemplate.name}</h3>
+                    <div
+                        className="text-sm text-gray-200 max-h-48 overflow-y-auto prose prose-invert custom-scrollbar leading-relaxed"
+                        style={{
+                            lineHeight: '1.8',
+                            letterSpacing: '0.01em'
+                        }}
+                        dangerouslySetInnerHTML={{ __html: upsellContractTemplate.content }}
                     />
                 </div>
             )}

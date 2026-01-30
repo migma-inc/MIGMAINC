@@ -4,7 +4,7 @@
  */
 
 import { useState, useEffect } from 'react';
-import { Outlet } from 'react-router-dom';
+import { Outlet, useSearchParams, Link } from 'react-router-dom';
 import { getCurrentUser, signOut, signIn, isAuthenticated as checkIsAuthenticated, checkAdminAccess } from '@/lib/auth';
 import { supabase } from '@/lib/supabase';
 import { Button } from '@/components/ui/button';
@@ -13,7 +13,6 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { LogOut, Filter, AlertCircle, Menu, ArrowLeft } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Link } from 'react-router-dom';
 import { ApplicationsList } from '@/components/admin/ApplicationsList';
 import { PartnerContractsList } from '@/components/admin/PartnerContractsList';
 import { Sidebar } from '@/components/admin/Sidebar';
@@ -206,13 +205,51 @@ function DashboardLayout() {
 }
 
 export function DashboardContent() {
-  const [statusFilter, setStatusFilter] = useState<'pending' | 'approved' | 'approved_for_meeting' | 'approved_for_contract' | 'rejected' | undefined>(undefined);
-  const [stats, setStats] = useState<{ total: number; pending: number; approved: number; approved_for_meeting: number; approved_for_contract: number; rejected: number } | null>(null);
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  // URL bound states
+  const statusFilter = searchParams.get('status') as any || undefined;
+  const currentPage = parseInt(searchParams.get('page') || '1');
+  const pageSize = parseInt(searchParams.get('limit') || '10');
+
+  const [stats, setStats] = useState<{
+    total: number;
+    pending: number;
+    approved_for_meeting: number;
+    awaiting_signature: number;
+    awaiting_verification: number;
+    active_partner: number;
+    rejected: number
+  } | null>(null);
   const [pendingContractApprovals, setPendingContractApprovals] = useState(0);
   const [pendingPartnerContracts, setPendingPartnerContracts] = useState(0);
   const [isProcessing, setIsProcessing] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
   const [contractsRefreshKey, setContractsRefreshKey] = useState(0);
+
+  const updateSearchParams = (updates: Record<string, string | undefined>) => {
+    const newParams = new URLSearchParams(searchParams);
+    Object.entries(updates).forEach(([key, value]) => {
+      if (value === undefined) {
+        newParams.delete(key);
+      } else {
+        newParams.set(key, value);
+      }
+    });
+    setSearchParams(newParams);
+  };
+
+  const setStatusFilter = (val: string | undefined) => {
+    updateSearchParams({ status: val, page: '1' }); // Reset to page 1 on filter
+  };
+
+  const handlePageChange = (page: number) => {
+    updateSearchParams({ page: page.toString() });
+  };
+
+  const handlePageSizeChange = (size: number) => {
+    updateSearchParams({ limit: size.toString(), page: '1' });
+  };
 
   // Modal states
   const [showApproveConfirm, setShowApproveConfirm] = useState(false);
@@ -727,7 +764,7 @@ export function DashboardContent() {
                   </div>
                   <Link to="/dashboard/contracts">
                     <Button size="sm" className="bg-blue-600 hover:bg-blue-700 text-white text-xs h-8">
-                      Verify
+                      Review
                     </Button>
                   </Link>
                 </div>
@@ -739,28 +776,53 @@ export function DashboardContent() {
 
       {/* Statistics */}
       {!stats ? (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 mb-4 sm:mb-6">
-          {[1, 2, 3, 4].map(i => (
-            <Skeleton key={i} className="h-20 sm:h-24 rounded-lg bg-zinc-900/40 border-white/5" />
+        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3 sm:gap-4 mb-4 sm:mb-6">
+          {[1, 2, 3, 4, 5, 6, 7].map(i => (
+            <Skeleton key={i} className="h-16 sm:h-20 rounded-lg bg-zinc-900/40 border-white/5" />
           ))}
         </div>
       ) : (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 mb-4 sm:mb-6">
-          <div className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 rounded-lg shadow p-3 sm:p-4 border border-gold-medium/30">
-            <p className="text-xs sm:text-sm text-gray-300">Total</p>
-            <p className="text-xl sm:text-2xl font-bold text-white">{stats.total}</p>
+        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3 sm:gap-4 mb-4 sm:mb-6">
+          {/* Total */}
+          <div className="bg-gradient-to-br from-zinc-800/40 via-zinc-900/40 to-zinc-800/40 rounded-lg shadow p-2 sm:p-3 border border-white/10">
+            <p className="text-[10px] sm:text-xs text-gray-400 uppercase font-bold tracking-wider">Total</p>
+            <p className="text-lg sm:text-xl font-bold text-white">{stats.total ?? 0}</p>
           </div>
-          <div className="bg-gradient-to-br from-gold-light/20 via-gold-medium/10 to-gold-dark/20 rounded-lg shadow p-3 sm:p-4 border border-gold-medium/50">
-            <p className="text-xs sm:text-sm text-gray-300">Pending</p>
-            <p className="text-xl sm:text-2xl font-bold text-white">{stats.pending}</p>
+
+          {/* New (Pending) */}
+          <div className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 rounded-lg shadow p-2 sm:p-3 border border-gold-medium/30">
+            <p className="text-[10px] sm:text-xs text-gold-light uppercase font-bold tracking-wider">New</p>
+            <p className="text-lg sm:text-xl font-bold text-white">{stats.pending ?? 0}</p>
           </div>
-          <div className="bg-gradient-to-br from-green-900/30 via-green-800/20 to-green-900/30 rounded-lg shadow p-3 sm:p-4 border border-green-500/50">
-            <p className="text-xs sm:text-sm text-green-400">Approved</p>
-            <p className="text-xl sm:text-2xl font-bold text-green-300">{stats.approved}</p>
+
+          {/* Meeting (Approved for Meeting) */}
+          <div className="bg-gradient-to-br from-yellow-900/20 via-yellow-800/10 to-yellow-900/20 rounded-lg shadow p-2 sm:p-3 border border-yellow-500/30">
+            <p className="text-[10px] sm:text-xs text-yellow-400 uppercase font-bold tracking-wider">Meeting</p>
+            <p className="text-lg sm:text-xl font-bold text-white">{stats.approved_for_meeting ?? 0}</p>
           </div>
-          <div className="bg-gradient-to-br from-red-900/30 via-red-800/20 to-red-900/30 rounded-lg shadow p-3 sm:p-4 border border-red-500/50">
-            <p className="text-xs sm:text-sm text-red-400">Rejected</p>
-            <p className="text-xl sm:text-2xl font-bold text-red-300">{stats.rejected}</p>
+
+          {/* To Sign (Awaiting Signature) */}
+          <div className="bg-gradient-to-br from-blue-900/20 via-blue-800/10 to-blue-900/20 rounded-lg shadow p-2 sm:p-3 border border-blue-500/30">
+            <p className="text-[10px] sm:text-xs text-blue-400 uppercase font-bold tracking-wider">To Sign</p>
+            <p className="text-lg sm:text-xl font-bold text-white">{stats.awaiting_signature ?? 0}</p>
+          </div>
+
+          {/* To Verify (Awaiting Admin) */}
+          <div className="bg-gradient-to-br from-purple-900/40 via-purple-900/20 to-purple-900/40 rounded-lg shadow p-2 sm:p-3 border border-purple-500/50">
+            <p className="text-[10px] sm:text-xs text-purple-400 uppercase font-bold tracking-wider">To Verify</p>
+            <p className="text-lg sm:text-xl font-bold text-white">{stats.awaiting_verification ?? 0}</p>
+          </div>
+
+          {/* Active Partners (Active) */}
+          <div className="bg-gradient-to-br from-green-900/30 via-green-800/20 to-green-900/30 rounded-lg shadow p-2 sm:p-3 border border-green-500/50">
+            <p className="text-[10px] sm:text-xs text-green-400 uppercase font-bold tracking-wider">Active</p>
+            <p className="text-lg sm:text-xl font-bold text-green-300">{stats.active_partner ?? 0}</p>
+          </div>
+
+          {/* Rejected (Rejected) */}
+          <div className="bg-gradient-to-br from-red-900/30 via-red-800/20 to-red-900/30 rounded-lg shadow p-2 sm:p-3 border border-red-500/50">
+            <p className="text-[10px] sm:text-xs text-red-400 uppercase font-bold tracking-wider">Rejected</p>
+            <p className="text-lg sm:text-xl font-bold text-red-300">{stats.rejected ?? 0}</p>
           </div>
         </div>
       )}
@@ -772,16 +834,17 @@ export function DashboardContent() {
           <label className="text-xs sm:text-sm font-medium text-white whitespace-nowrap">Filter by Status:</label>
           <Select
             value={statusFilter || 'all'}
-            onValueChange={(value) => setStatusFilter(value === 'all' ? undefined : value as 'pending' | 'approved' | 'approved_for_meeting' | 'approved_for_contract' | 'rejected')}
+            onValueChange={(value) => setStatusFilter(value === 'all' ? undefined : value as 'pending' | 'approved' | 'approved_for_meeting' | 'approved_for_contract' | 'active_partner' | 'rejected')}
           >
             <SelectTrigger className="w-full sm:w-40 bg-black/50 border-gold-medium/50 text-white text-xs sm:text-sm">
               <SelectValue />
             </SelectTrigger>
             <SelectContent className="bg-black border-gold-medium/50">
               <SelectItem value="all" className="text-white focus:bg-gold-medium/20 focus:text-gold-light">All</SelectItem>
-              <SelectItem value="pending" className="text-white focus:bg-gold-medium/20 focus:text-gold-light">Pending</SelectItem>
-              <SelectItem value="approved_for_meeting" className="text-white focus:bg-gold-medium/20 focus:text-gold-light">Approved for Meeting</SelectItem>
-              <SelectItem value="approved_for_contract" className="text-white focus:bg-gold-medium/20 focus:text-gold-light">Approved for Contract</SelectItem>
+              <SelectItem value="pending" className="text-white focus:bg-gold-medium/20 focus:text-gold-light">New (Pending)</SelectItem>
+              <SelectItem value="approved_for_meeting" className="text-white focus:bg-gold-medium/20 focus:text-gold-light">Meeting</SelectItem>
+              <SelectItem value="approved_for_contract" className="text-white focus:bg-gold-medium/20 focus:text-gold-light">Awaiting Signature</SelectItem>
+              <SelectItem value="active_partner" className="text-white focus:bg-gold-medium/20 focus:text-gold-light">Active Partners</SelectItem>
               <SelectItem value="approved" className="text-white focus:bg-gold-medium/20 focus:text-gold-light">Approved (Legacy)</SelectItem>
               <SelectItem value="rejected" className="text-white focus:bg-gold-medium/20 focus:text-gold-light">Rejected</SelectItem>
             </SelectContent>
@@ -802,7 +865,7 @@ export function DashboardContent() {
       )}
 
       {/* Applications List */}
-      <div className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 rounded-lg shadow p-4 sm:p-6 border border-gold-medium/30">
+      <div id="applications-list-container" className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 rounded-lg shadow p-4 sm:p-6 border border-gold-medium/30">
         <h2 className="text-lg sm:text-xl font-semibold mb-3 sm:mb-4 migma-gold-text">Global Partner Applications</h2>
         <ApplicationsList
           onApprove={handleApprove}
@@ -810,6 +873,10 @@ export function DashboardContent() {
           onEditMeeting={handleEditMeeting}
           onResendEmail={handleResendEmail}
           statusFilter={statusFilter}
+          currentPage={currentPage}
+          pageSize={pageSize}
+          onPageChange={handlePageChange}
+          onPageSizeChange={handlePageSizeChange}
           refreshKey={refreshKey}
         />
       </div>

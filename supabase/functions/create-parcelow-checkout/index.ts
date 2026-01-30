@@ -389,7 +389,14 @@ Deno.serve(async (req: Request) => {
     // Parse request body
     console.log("[Parcelow Checkout] 📋 Step 3: Parsing request body...");
     const body = await req.json();
-    const { order_id, action = 'create', currency = "USD", amount_usd } = body;
+    const { order_id, upsell_order_id, action = 'create', currency = "USD", amount_usd } = body;
+
+    console.log("[Parcelow Checkout] 🔍 Request body parsed:", {
+      order_id,
+      upsell_order_id,
+      has_upsell: !!upsell_order_id,
+      action
+    });
 
     // Handle Simulation Action - NO DB REQUIRED
     if (action === 'simulate') {
@@ -537,44 +544,36 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    // Calculate amount early for simulation
-    const amountInCents = Math.round(parseFloat(order.total_price_usd) * 100);
+    // Calculate base amount (main product only)
+    const mainProductAmountInCents = Math.round(parseFloat(order.base_price_usd) * 100) +
+      (order.extra_units * Math.round(parseFloat(order.price_per_dependent_usd || 0) * 100));
 
-    // Handle Simulation Action
-    if (action === 'simulate') {
-      console.log(`[Parcelow Checkout] 🔄 Action: Simulate for amount ${amountInCents}`);
-      try {
-        const simulation = await parcelowClient.simulate(amountInCents);
-        console.log("[Parcelow Checkout] 🟢 Simulation result:", JSON.stringify(simulation));
+    let amountInCents = mainProductAmountInCents;
+    const items = [
+      {
+        reference: order.order_number,
+        description: `${order.product_slug} - ${order.client_name}`,
+        quantity: 1,
+        amount: mainProductAmountInCents,
+      },
+    ];
 
-        // Format to match expected frontend structure (partially)
-        const responseData = {
-          success: true,
-          action: 'simulate',
-          data: {
-            // Ensure these fields exist based on API doc: data.order (USD), data.ted.amount (BRL?) -> Wait doc says:
-            // data.order: "1042.93" (USD value?)
-            // data.dolar: "5.7333"
-            // data.ted.amount: "5869.50" (BRL value for TED)
-            // We want total_usd (input) and total_brl (output)
-            total_usd: amountInCents, // Input amount
-            total_brl: simulation.ted?.amount ? Math.round(parseFloat(simulation.ted.amount) * 100) : 0, // Convert string BRL to cents
-            exchange_rate: simulation.dolar,
-            rawRequest: simulation
-          }
-        };
+    // Handle Upsell if present in order fields
+    if (order.upsell_product_slug && order.upsell_price_usd) {
+      console.log(`[Parcelow Checkout] 📋 Step 5.5: Adding upsell from order fields...`);
+      console.log(`[Parcelow Checkout] Upsell product: ${order.upsell_product_slug}, price: $${order.upsell_price_usd}`);
 
-        return new Response(JSON.stringify(responseData), {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-
-      } catch (error: any) {
-        console.error("[Parcelow Checkout] ❌ Simulation failed:", error.message);
-        return new Response(
-          JSON.stringify({ error: `Simulation failed: ${error.message}` }),
-          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
+      const upsellAmountInCents = Math.round(parseFloat(order.upsell_price_usd) * 100);
+      amountInCents += upsellAmountInCents;
+      items.push({
+        reference: `${order.order_number}-UPSELL`,
+        description: `BUNDLE: ${order.upsell_product_slug}`,
+        quantity: 1,
+        amount: upsellAmountInCents,
+      });
+      console.log(`[Parcelow Checkout] ✅ Added upsell to items. New total: ${amountInCents}`);
+    } else {
+      console.log(`[Parcelow Checkout] ℹ️ No upsell in this order.`);
     }
 
     // Prepare client data
@@ -606,18 +605,6 @@ Deno.serve(async (req: Request) => {
       address_state: order.client_address_state || clientAddress?.state,
       address_complement: order.client_address_complement || clientAddress?.complement,
     };
-
-    // Prepare order items
-    // amountInCents is already calculated above
-
-    const items = [
-      {
-        reference: order.order_number,
-        description: `Order ${order.order_number} - ${order.client_name}`,
-        quantity: 1,
-        amount: amountInCents,
-      },
-    ];
 
     // Prepare redirect URLs
     const redirectUrls = {

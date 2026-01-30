@@ -75,6 +75,12 @@ export interface VisaCheckoutState {
     loadingTemplate: boolean;
     loadingAnnexTemplate: boolean;
     exchangeRate: number | null;
+
+    // Upsell
+    selectedUpsell: 'none' | 'canada-premium' | 'canada-revolution';
+    upsellProduct: any | null; // Product info for Canada
+    upsellContractTemplate: ContractTemplate | null;
+    loadingUpsellTemplate: boolean;
 }
 
 export interface VisaCheckoutActions {
@@ -127,4 +133,9 @@ export interface VisaCheckoutActions {
     setLoadingTemplate: (val: boolean) => void;
     setLoadingAnnexTemplate: (val: boolean) => void;
     setExchangeRate: (val: number | null) => void;
+    // Upsell
+    setSelectedUpsell: (val: 'none' | 'canada-premium' | 'canada-revolution') => void;
+    setUpsellProduct: (val: any | null) => void;
+    setUpsellContractTemplate: (val: ContractTemplate | null) => void;
+    setLoadingUpsellTemplate: (val: boolean) => void;
 }

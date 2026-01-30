@@ -39,18 +39,22 @@ export function getUserAgent(): string {
  * Calcula o total base (antes das taxas) baseado no tipo de cálculo do produto
  * @param product Produto visa
  * @param extraUnits Número de unidades extras (dependentes)
+ * @param upsellAmount Valor opcional do upsell em USD
  * @returns Total base em USD
  */
-export function calculateBaseTotal(product: VisaProduct, extraUnits: number): number {
+export function calculateBaseTotal(product: VisaProduct, extraUnits: number, upsellAmount: number = 0): number {
+  let totalUSD = 0;
   if (product.calculation_type === 'units_only') {
     // Se for units_only, o preço é apenas extra_units * extra_unit_price
-    return extraUnits * parseFloat(product.extra_unit_price);
+    totalUSD = extraUnits * parseFloat(product.extra_unit_price);
   } else {
     // base_plus_units: base_price + (extra_units * extra_unit_price)
     const basePrice = parseFloat(product.base_price_usd);
     const extraPrice = extraUnits * parseFloat(product.extra_unit_price);
-    return basePrice + extraPrice;
+    totalUSD = basePrice + extraPrice;
   }
+
+  return totalUSD + upsellAmount;
 }
 
 /**

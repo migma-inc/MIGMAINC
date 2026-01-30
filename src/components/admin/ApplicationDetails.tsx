@@ -23,6 +23,7 @@ function StatusBadge({ status }: { status: Application['status'] }) {
     approved: 'bg-green-100 text-green-800 border-green-200',
     approved_for_meeting: 'bg-blue-100 text-blue-800 border-blue-200',
     approved_for_contract: 'bg-purple-100 text-purple-800 border-purple-200',
+    active_partner: 'bg-green-100 text-green-800 border-green-200',
     rejected: 'bg-red-100 text-red-800 border-red-200',
   };
 
@@ -32,6 +33,7 @@ function StatusBadge({ status }: { status: Application['status'] }) {
       approved: 'Approved',
       approved_for_meeting: 'Approved for Meeting',
       approved_for_contract: 'Approved for Contract',
+      active_partner: 'Active Partner',
       rejected: 'Rejected',
     };
     return labels[status];
@@ -321,4 +323,3 @@ export function ApplicationDetails({
     </div>
   );
 }
-
