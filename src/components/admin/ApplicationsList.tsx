@@ -12,8 +12,10 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import { getSecureUrl } from '@/lib/storage';
+import { Download, Loader2, X } from 'lucide-react';
 
 interface ApplicationsListProps {
   onApprove?: (application: Application) => void;
@@ -68,6 +70,29 @@ export function ApplicationsList({
   onPageSizeChange,
   refreshKey,
 }: ApplicationsListProps) {
+  const [showPdfModal, setShowPdfModal] = useState(false);
+  const [cvUrl, setCvUrl] = useState<string | null>(null);
+  const [loadingCV, setLoadingCV] = useState<string | null>(null); // To track which CV is loading
+  const [viewingApplication, setViewingApplication] = useState<Application | null>(null);
+
+  const handleViewCV = async (application: Application) => {
+    if (!application.cv_file_path) return;
+
+    setLoadingCV(application.id);
+    try {
+      const secureUrl = await getSecureUrl(application.cv_file_path);
+      if (secureUrl) {
+        setCvUrl(secureUrl);
+        setViewingApplication(application);
+        setShowPdfModal(true);
+      }
+    } catch (error) {
+      console.error('Error loading CV:', error);
+    } finally {
+      setLoadingCV(null);
+    }
+  };
+
   const { applications, totalCount, totalPages, loading, error, refetch } = useApplications({
     status: statusFilter,
     limit: pageSize,
@@ -161,7 +186,7 @@ export function ApplicationsList({
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4" id="applications-list-container">
       {applications.map((application) => (
         <Card key={application.id} className="hover:shadow-md transition-shadow bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30">
           <CardHeader>
@@ -261,6 +286,23 @@ export function ApplicationsList({
                   <span className="sm:hidden">View</span>
                 </Button>
               </Link>
+
+              {application.cv_file_path && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleViewCV(application)}
+                  disabled={loadingCV === application.id}
+                  className="flex-1 sm:flex-none flex items-center justify-center gap-2 border-gold-medium/50 bg-black/50 text-gold-light hover:bg-gold-medium/30 hover:text-gold-light text-xs sm:text-sm"
+                >
+                  {loadingCV === application.id ? (
+                    <Loader2 className="w-3 h-3 sm:w-4 sm:h-4 animate-spin" />
+                  ) : (
+                    <Download className="w-3 h-3 sm:w-4 sm:h-4" />
+                  )}
+                  <span>CV</span>
+                </Button>
+              )}
               {application.status === 'pending' && (
                 <>
                   {onApprove && (
@@ -408,6 +450,71 @@ export function ApplicationsList({
           </Button>
         </div>
       </div>
+      {/* CV Modal - Replicating exactly what working in Detail view */}
+      {showPdfModal && cvUrl && viewingApplication && (
+        <div
+          className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[100] p-4"
+          onClick={() => setShowPdfModal(false)}
+        >
+          <div
+            className="bg-[#0f0f0f] border border-gold-medium/30 rounded-lg shadow-2xl w-full max-w-5xl h-[90vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="flex justify-between items-center p-4 border-b border-gold-medium/20 bg-black/40">
+              <div className="flex flex-col">
+                <h3 className="text-lg font-semibold text-white">CV - {viewingApplication.full_name}</h3>
+                <p className="text-xs text-gray-400">{viewingApplication.email}</p>
+              </div>
+              <div className="flex items-center gap-3">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="flex items-center gap-2 border-gold-medium/50 bg-gold-medium/10 text-gold-light hover:bg-gold-medium/20"
+                  onClick={async () => {
+                    if (!cvUrl) return;
+                    try {
+                      const response = await fetch(cvUrl);
+                      const blob = await response.blob();
+                      const blobUrl = window.URL.createObjectURL(blob);
+                      const link = document.createElement('a');
+                      link.href = blobUrl;
+                      link.download = `CV-${viewingApplication.full_name.replace(/\s+/g, '-')}.pdf`;
+                      document.body.appendChild(link);
+                      link.click();
+                      document.body.removeChild(link);
+                      window.URL.revokeObjectURL(blobUrl);
+                    } catch (err) {
+                      console.error('Download error:', err);
+                      window.open(cvUrl, '_blank');
+                    }
+                  }}
+                >
+                  <Download className="w-4 h-4" />
+                  <span>Download</span>
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setShowPdfModal(false)}
+                  className="text-gray-400 hover:text-white"
+                >
+                  <X className="w-5 h-5" />
+                </Button>
+              </div>
+            </div>
+
+            {/* PDF Viewer */}
+            <div className="flex-1 bg-zinc-900 overflow-hidden">
+              <iframe
+                src={cvUrl}
+                className="w-full h-full border-0"
+                title="CV Preview"
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
