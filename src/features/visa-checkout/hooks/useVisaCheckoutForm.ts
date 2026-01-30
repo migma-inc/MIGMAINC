@@ -65,6 +65,12 @@ export const useVisaCheckoutForm = () => {
     const [loadingAnnexTemplate, setLoadingAnnexTemplate] = useState(false);
     const [exchangeRate, setExchangeRate] = useState<number | null>(null);
 
+    // Upsell
+    const [selectedUpsell, setSelectedUpsell] = useState<'none' | 'canada-premium' | 'canada-revolution'>('none');
+    const [upsellProduct, setUpsellProduct] = useState<any | null>(null);
+    const [upsellContractTemplate, setUpsellContractTemplate] = useState<ContractTemplate | null>(null);
+    const [loadingUpsellTemplate, setLoadingUpsellTemplate] = useState(false);
+
     const state: VisaCheckoutState = {
         currentStep,
         loading,
@@ -110,6 +116,10 @@ export const useVisaCheckoutForm = () => {
         loadingTemplate,
         loadingAnnexTemplate,
         exchangeRate,
+        selectedUpsell,
+        upsellProduct,
+        upsellContractTemplate,
+        loadingUpsellTemplate,
     };
 
     const actions: VisaCheckoutActions = useMemo(() => ({
@@ -157,6 +167,10 @@ export const useVisaCheckoutForm = () => {
         setLoadingTemplate,
         setLoadingAnnexTemplate,
         setExchangeRate,
+        setSelectedUpsell,
+        setUpsellProduct,
+        setUpsellContractTemplate,
+        setLoadingUpsellTemplate,
     }), []);
 
     return { state, actions };

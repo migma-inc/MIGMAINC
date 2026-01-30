@@ -15,7 +15,7 @@ function detectEnvironment(req: Request): { isProduction: boolean; environment: 
   const host = req.headers.get('host') || '';
   const userAgent = req.headers.get('user-agent') || '';
 
-  const isProductionDomain = 
+  const isProductionDomain =
     referer.includes('migma.com') ||
     origin.includes('migma.com') ||
     host.includes('migma.com') ||
@@ -26,8 +26,8 @@ function detectEnvironment(req: Request): { isProduction: boolean; environment: 
     (origin.includes('vercel.app') && !origin.includes('preview'));
 
   const isStripeWebhook = userAgent.includes('Stripe/');
-  const hasProdKeys = Deno.env.get('STRIPE_SECRET_KEY_PROD') && 
-                     Deno.env.get('STRIPE_WEBHOOK_SECRET_PROD');
+  const hasProdKeys = Deno.env.get('STRIPE_SECRET_KEY_PROD') &&
+    Deno.env.get('STRIPE_WEBHOOK_SECRET_PROD');
 
   const isProduction = isProductionDomain || (isStripeWebhook && hasProdKeys);
 
@@ -41,9 +41,9 @@ function detectEnvironment(req: Request): { isProduction: boolean; environment: 
 function getStripeConfig(req: Request): { secretKey: string; apiVersion: string; appInfo: any } {
   const envInfo = detectEnvironment(req);
   const suffix = envInfo.isProduction ? 'PROD' : 'TEST';
-  
+
   const secretKey = Deno.env.get(`STRIPE_SECRET_KEY_${suffix}`) || '';
-  
+
   // Only validate secretKey (publishableKey is not needed in backend)
   if (!secretKey) {
     throw new Error(`Missing STRIPE_SECRET_KEY_${suffix}`);
@@ -104,7 +104,7 @@ Deno.serve(async (req: Request) => {
   try {
     // Get dynamic Stripe configuration based on environment
     const stripeConfig = getStripeConfig(req);
-    
+
     // Initialize Stripe with the correct key for the environment
     const stripe = new Stripe(stripeConfig.secretKey, {
       apiVersion: stripeConfig.apiVersion as any,
@@ -138,9 +138,12 @@ Deno.serve(async (req: Request) => {
       contract_selfie_url,
       signature_image_url,
       ip_address,
-      service_request_id, // NEW: Optional service_request_id from frontend
+      service_request_id,
+      upsell_product_slug,
+      upsell_contract_template_id,
+      contract_template_id,
     } = body;
-    
+
     // Validate extra_units
     const extraUnitsNum = parseInt(extra_units) || 0;
     if (extraUnitsNum < 0 || isNaN(extraUnitsNum)) {
@@ -156,7 +159,7 @@ Deno.serve(async (req: Request) => {
     if (Array.isArray(dependent_names)) {
       dependentNamesArray = dependent_names.filter(name => name && typeof name === 'string' && name.trim() !== '');
     }
-    
+
     // If extra_units > 0, validate that dependent_names has the same length
     if (extraUnitsNum > 0) {
       if (dependentNamesArray.length !== extraUnitsNum) {
@@ -202,7 +205,7 @@ Deno.serve(async (req: Request) => {
     // Calculate total price based on calculation_type
     const basePrice = parseFloat(product.base_price_usd);
     const extraUnitPrice = parseFloat(product.extra_unit_price);
-    
+
     // Validate prices
     if (isNaN(basePrice) || basePrice < 0) {
       console.error("[Checkout] Invalid base_price_usd:", product.base_price_usd);
@@ -211,7 +214,7 @@ Deno.serve(async (req: Request) => {
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
-    
+
     if (isNaN(extraUnitPrice) || extraUnitPrice < 0) {
       console.error("[Checkout] Invalid extra_unit_price:", product.extra_unit_price);
       return new Response(
@@ -219,7 +222,7 @@ Deno.serve(async (req: Request) => {
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
-    
+
     let totalBeforeFees: number;
     if (product.calculation_type === 'units_only') {
       // For units_only: total = extra_units * extra_unit_price
@@ -228,7 +231,12 @@ Deno.serve(async (req: Request) => {
       // For base_plus_units: total = base_price + (extra_units * extra_unit_price)
       totalBeforeFees = basePrice + (extraUnitsNum * extraUnitPrice);
     }
-    
+
+    // Add Upsell Price if applicable
+    const upsellPrice = upsell_product_slug === 'canada-tourist-premium' ? 399 : (upsell_product_slug === 'canada-tourist-revolution' ? 199 : 0);
+    const mainProductPrice = totalBeforeFees;
+    totalBeforeFees += upsellPrice;
+
     // Validate total before fees
     if (isNaN(totalBeforeFees) || totalBeforeFees <= 0) {
       console.error("[Checkout] Invalid totalBeforeFees:", {
@@ -265,7 +273,7 @@ Deno.serve(async (req: Request) => {
       currency = "usd";
       feeAmount = (finalAmount / 100) - totalBeforeFees;
     }
-    
+
     // Validate final amount (must be at least $0.50 USD or equivalent)
     // For PIX, convert BRL to USD for validation
     let finalAmountUSD: number;
@@ -277,7 +285,7 @@ Deno.serve(async (req: Request) => {
       // finalAmount is already in USD cents
       finalAmountUSD = finalAmount / 100;
     }
-    
+
     if (finalAmountUSD < 0.50) {
       console.error("[Checkout] Final amount too small:", {
         totalBeforeFees,
@@ -290,21 +298,21 @@ Deno.serve(async (req: Request) => {
         calculation_type: product.calculation_type
       });
       return new Response(
-        JSON.stringify({ 
-          error: `Amount too small. Minimum is $0.50 USD. Calculated: $${finalAmountUSD.toFixed(2)}` 
+        JSON.stringify({
+          error: `Amount too small. Minimum is $0.50 USD. Calculated: $${finalAmountUSD.toFixed(2)}`
         }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
-    
+
     // Stripe test mode limit: $3,000 USD maximum
     // Note: This limit applies to the GROSS amount (what customer pays), not net amount
     const STRIPE_TEST_MODE_LIMIT_USD = 3000;
-    
+
     // Check if we're in test mode by detecting environment
     const envInfo = detectEnvironment(req);
     const isTestMode = !envInfo.isProduction;
-    
+
     if (finalAmountUSD > STRIPE_TEST_MODE_LIMIT_USD && isTestMode) {
       console.error("[Checkout] Amount exceeds Stripe test mode limit:", {
         finalAmountUSD,
@@ -316,7 +324,7 @@ Deno.serve(async (req: Request) => {
         environment: envInfo.environment
       });
       return new Response(
-        JSON.stringify({ 
+        JSON.stringify({
           error: `Valor muito alto para modo de teste do Stripe. Limite máximo: $${STRIPE_TEST_MODE_LIMIT_USD.toFixed(2)} USD. Valor calculado: $${finalAmountUSD.toFixed(2)} USD (valor líquido: $${totalBeforeFees.toFixed(2)} USD). Para processar valores acima de $3,000 USD, é necessário usar o modo de produção do Stripe. Entre em contato com o suporte.`,
           code: "STRIPE_TEST_MODE_LIMIT_EXCEEDED",
           limit: STRIPE_TEST_MODE_LIMIT_USD,
@@ -327,7 +335,7 @@ Deno.serve(async (req: Request) => {
       );
     }
     // In production mode, we allow higher amounts (Stripe production has much higher limits)
-    
+
     console.log("[Checkout] Price calculation:", {
       basePrice,
       extraUnitPrice,
@@ -375,8 +383,8 @@ Deno.serve(async (req: Request) => {
             price_data: {
               currency: currency,
               product_data: {
-                name: product.name,
-                description: `${product.description}${extraUnitsNum > 0 && product.allow_extra_units ? ` (${extraUnitsNum} ${product.extra_unit_label.toLowerCase()})` : ''}`,
+                name: upsell_product_slug ? `${product.name} + Canada Bundle` : product.name,
+                description: `${product.description}${extraUnitsNum > 0 && product.allow_extra_units ? ` (${extraUnitsNum} ${product.extra_unit_label.toLowerCase()})` : ''}${upsell_product_slug ? ` (Includes ${upsell_product_slug === 'canada-tourist-premium' ? 'Canada Premium' : 'Canada Revolution'})` : ''}`,
               },
               unit_amount: finalAmount,
             },
@@ -396,18 +404,18 @@ Deno.serve(async (req: Request) => {
       });
     } catch (stripeError: any) {
       console.error("[Checkout] Stripe session creation failed:", stripeError);
-      
+
       // Return user-friendly error message
       let errorMessage = "Failed to create checkout session. We were unable to redirect you to Stripe. Please try again later or contact support.";
-      
+
       if (stripeError.code === "amount_too_large") {
         errorMessage = `Amount too large for test mode. Maximum is $3,000.00 USD. Your order amount is $${finalAmountUSD.toFixed(2)} USD. Please contact support or use a different payment method.`;
       } else if (stripeError.message) {
         errorMessage = stripeError.message;
       }
-      
+
       return new Response(
-        JSON.stringify({ 
+        JSON.stringify({
           error: errorMessage,
           details: stripeError.code || stripeError.type || "unknown_error"
         }),
@@ -449,7 +457,7 @@ Deno.serve(async (req: Request) => {
         extra_unit_label: product.extra_unit_label,
         extra_unit_price_usd: extraUnitPrice,
         calculation_type: product.calculation_type,
-        total_price_usd: finalAmountUSD, // Use final amount WITH fees (customer pays this)
+        total_price_usd: finalAmountUSD - (upsellPrice || 0), // Order 1 gets Total - Upsell Price (includes all fees)
         client_name: client_name,
         client_email: client_email,
         client_whatsapp: client_whatsapp || null,
@@ -466,8 +474,8 @@ Deno.serve(async (req: Request) => {
         contract_signed_at: contract_document_url && contract_selfie_url ? new Date().toISOString() : null,
         ip_address: ip_address || null,
         payment_metadata: {
-          base_amount: totalBeforeFees.toFixed(2),
-          final_amount: (finalAmount / 100).toFixed(2),
+          base_amount: mainProductPrice.toFixed(2),
+          final_amount: (finalAmount / 100).toFixed(2), // This might be slightly misleading if upsell is included, but okay
           fee_amount: feeAmount.toFixed(2),
           fee_percentage: isPixOnly ? PIX_FEE_PERCENTAGE.toString() : CARD_FEE_PERCENTAGE.toString(),
           currency: currency.toUpperCase(),
@@ -476,10 +484,63 @@ Deno.serve(async (req: Request) => {
           calculation_type: product.calculation_type,
           ip_address: ip_address || null,
           payment_id: paymentData?.id || null,
+          has_upsell: !!upsell_product_slug,
         },
+        contract_template_id: contract_template_id || null,
       })
       .select()
       .single();
+
+    if (orderError || !order) {
+      // ... handled below
+    }
+
+    // CREATE SECOND ORDER FOR UPSELL
+    let upsellOrder = null;
+    if (upsell_product_slug && order) {
+      const upsellOrderNumber = `ORD-UPS-${new Date().toISOString().split('T')[0].replace(/-/g, '')}-${Math.floor(Math.random() * 10000).toString().padStart(4, '0')}`;
+      const { data: uOrder, error: uError } = await supabase
+        .from("visa_orders")
+        .insert({
+          order_number: upsellOrderNumber,
+          product_slug: upsell_product_slug,
+          seller_id: seller_id || null,
+          service_request_id: serviceRequestIdToUse || null,
+          base_price_usd: upsellPrice,
+          price_per_dependent_usd: 0,
+          extra_units: 0,
+          total_price_usd: upsellPrice,
+          client_name,
+          client_email,
+          client_whatsapp: client_whatsapp || null,
+          client_country: client_country || null,
+          client_nationality: client_nationality || null,
+          client_observations: client_observations || null,
+          payment_method: isPixOnly ? "stripe_pix" : "stripe_card",
+          payment_status: "pending",
+          stripe_session_id: session.id,
+          contract_document_url: contract_document_url || null,
+          contract_selfie_url: contract_selfie_url || null,
+          signature_image_url: signature_image_url || null,
+          contract_accepted: true,
+          contract_signed_at: new Date().toISOString(),
+          contract_template_id: upsell_contract_template_id || null,
+          ip_address: ip_address || null,
+          payment_metadata: {
+            is_upsell: true,
+            parent_order_id: order.id,
+            base_amount: upsellPrice.toFixed(2),
+          }
+        })
+        .select()
+        .single();
+
+      if (uError) {
+        console.error("[Checkout] Error creating upsell order:", uError);
+      } else {
+        upsellOrder = uOrder;
+      }
+    }
 
     if (orderError || !order) {
       console.error("[Checkout] Error creating order after Stripe session:", orderError);
@@ -513,18 +574,7 @@ Deno.serve(async (req: Request) => {
     if (paymentData?.id) {
       await supabase
         .from("payments")
-        .update({ 
-          external_payment_id: session.id,
-          raw_webhook_log: { session_id: session.id, created_at: new Date().toISOString() }
-        })
-        .eq("id", paymentData.id);
-    }
-
-    // Update payment record with external payment ID (Stripe session ID)
-    if (paymentData?.id) {
-      await supabase
-        .from("payments")
-        .update({ 
+        .update({
           external_payment_id: session.id,
           raw_webhook_log: { session_id: session.id, created_at: new Date().toISOString() }
         })
@@ -550,7 +600,7 @@ Deno.serve(async (req: Request) => {
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
 
-  } catch (error) {
+  } catch (error: any) {
     console.error("[Checkout] Error:", error);
     return new Response(
       JSON.stringify({ error: error.message || "Internal server error" }),

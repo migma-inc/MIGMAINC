@@ -135,7 +135,7 @@ Deno.serve(async (req) => {
 
   try {
     console.log("[EDGE FUNCTION] ========== REQUEST RECEIVED (Annex) ==========");
-    const { order_id } = await req.json();
+    const { order_id, is_upsell, product_slug_override } = await req.json();
 
     if (!order_id) {
       return new Response(
@@ -145,6 +145,9 @@ Deno.serve(async (req) => {
     }
 
     console.log("[EDGE FUNCTION] Generating ANNEX I PDF for order:", order_id);
+    if (is_upsell) {
+      console.log("[EDGE FUNCTION] 🎁 This is an UPSELL annex for product:", product_slug_override);
+    }
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey, {
       auth: { autoRefreshToken: false, persistSession: false },
@@ -165,11 +168,14 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Fetch product data
+    // Fetch product data (use override for upsell)
+    const productSlugToUse = is_upsell && product_slug_override ? product_slug_override : order.product_slug;
+    console.log("[EDGE FUNCTION] Fetching product with slug:", productSlugToUse);
+
     const { data: product, error: productError } = await supabase
       .from('visa_products')
       .select('*')
-      .eq('slug', order.product_slug)
+      .eq('slug', productSlugToUse)
       .single();
 
     if (productError) {
@@ -510,7 +516,13 @@ Deno.serve(async (req) => {
     let displayAmount = parseFloat(order.total_price_usd);
     let currencySymbol = 'US$';
 
-    if (order.payment_method === 'stripe_pix') {
+    // If it's an upsell document, use the upsell price
+    if (is_upsell && order.upsell_price_usd) {
+      displayAmount = parseFloat(order.upsell_price_usd);
+      currencySymbol = 'US$'; // Force USD for upsell specific documents to be safe
+    }
+    // Otherwise use logic for main product/total
+    else if (order.payment_method === 'stripe_pix') {
       if (order.payment_metadata && typeof order.payment_metadata === 'object' && 'final_amount' in order.payment_metadata) {
         const finalAmount = parseFloat(order.payment_metadata.final_amount as string);
         if (!isNaN(finalAmount) && finalAmount > 0) {
@@ -994,10 +1006,13 @@ Deno.serve(async (req) => {
       .from(BUCKET_NAME)
       .getPublicUrl(filePath);
 
-    // Update order with PDF URL
+    // Update order with PDF URL (use correct field for upsell)
+    const updateField = is_upsell ? 'upsell_annex_pdf_url' : 'annex_pdf_url';
+    console.log(`[EDGE FUNCTION] Updating ${updateField} with:`, publicUrl);
+
     const { error: updateError } = await supabase
       .from('visa_orders')
-      .update({ annex_pdf_url: publicUrl })
+      .update({ [updateField]: publicUrl })
       .eq('id', order_id);
 
     if (updateError) {
