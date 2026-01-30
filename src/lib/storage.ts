@@ -91,6 +91,13 @@ export async function uploadCV(file: File): Promise<UploadCVResult> {
  */
 export async function getSecureUrl(url: string | null): Promise<string | null> {
     if (!url) return null;
+    url = url.trim();
+
+    // If it's already a blob or data URL, return as is
+    if (url.startsWith('blob:') || url.startsWith('data:')) return url;
+
+    // If it's already a public URL or has a token/signature, return as is
+    if (url.startsWith('http') && (url.includes('token=') || url.includes('token-visa=') || url.includes('signature='))) return url;
 
     try {
         // buckets que sabemos que são privados ou precisam de RLS
@@ -117,13 +124,21 @@ export async function getSecureUrl(url: string | null): Promise<string | null> {
         // Caso 2: Path relativo (ex: "visa-documents/path/to/file.jpg")
         else if (!url.startsWith('http')) {
             const parts = url.split('/');
+            const lowerUrl = url.toLowerCase();
+
+            // Se o primeiro segmento for um bucket privado conhecido
             if (parts.length > 1 && privateBuckets.includes(parts[0])) {
                 bucket = parts[0];
                 path = parts.slice(1).join('/');
-            } else {
-                // Fallback guess baseado no conteúdo
-                const lowerUrl = url.toLowerCase();
-                if (lowerUrl.includes('resume_') || lowerUrl.includes('cv_') || lowerUrl.endsWith('.pdf') || lowerUrl.startsWith('anonymous/applications/')) {
+            }
+            // Caso especial: anonymous/applications/... (comum em global partner)
+            else if (lowerUrl.startsWith('anonymous/') || lowerUrl.startsWith('applications/')) {
+                bucket = 'cv-files';
+                path = url;
+            }
+            else {
+                // Fallback guess baseado no conteúdo - se não houver slash, assumimos applications/
+                if (lowerUrl.includes('resume_') || lowerUrl.includes('cv_') || lowerUrl.endsWith('.pdf') || lowerUrl.includes('.pdf?')) {
                     bucket = 'cv-files';
                     path = url.includes('/') ? url : `applications/${url}`;
                 } else if (lowerUrl.includes('sig') || lowerUrl.includes('assinatura')) {
@@ -132,6 +147,9 @@ export async function getSecureUrl(url: string | null): Promise<string | null> {
                 } else if (lowerUrl.includes('photo') || lowerUrl.includes('selfie')) {
                     bucket = 'identity-photos';
                     path = url.includes('/') ? url : `photos/${url}`;
+                } else if (lowerUrl.includes('contract') || lowerUrl.includes('termo') || lowerUrl.includes('enelx')) {
+                    bucket = 'contracts';
+                    path = url;
                 } else {
                     bucket = 'visa-documents';
                     path = url;
@@ -139,8 +157,17 @@ export async function getSecureUrl(url: string | null): Promise<string | null> {
             }
         }
 
+        if (!bucket || !path) {
+            console.warn('[STORAGE] Could not identify bucket/path for:', url);
+            return url;
+        }
+
+        console.log(`[STORAGE] Resolving secure URL: bucket=${bucket}, path=${path}`);
+
         // Verificação final - Se identificamos que é um bucket privado, forçamos a segurança
         if (bucket && (privateBuckets.includes(bucket) || bucket === 'contracts')) {
+            console.log(`[STORAGE] Identified private file: ${bucket}/${path}`);
+
             // 1. Tentar download direto (Blob URL) - Mais robusto para iFrames e visualização interna
             try {
                 const { data, error } = await supabase.storage.from(bucket).download(path || '');
