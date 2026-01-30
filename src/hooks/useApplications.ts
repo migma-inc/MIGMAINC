@@ -11,32 +11,36 @@ import { getCachedData, setCachedData, generateCacheKey } from '@/lib/cache';
 export type { Application };
 
 export interface UseApplicationsOptions {
-  status?: 'pending' | 'approved' | 'approved_for_meeting' | 'approved_for_contract' | 'rejected';
+  status?: 'pending' | 'approved' | 'approved_for_meeting' | 'approved_for_contract' | 'active_partner' | 'rejected';
   limit?: number;
+  page?: number;
   orderBy?: 'created_at' | 'updated_at';
   orderDirection?: 'asc' | 'desc';
 }
 
 export function useApplications(options: UseApplicationsOptions = {}) {
   const [applications, setApplications] = useState<Application[]>([]);
+  const [totalCount, setTotalCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const {
     status,
-    limit,
+    limit = 10,
+    page = 1,
     orderBy = 'created_at',
     orderDirection = 'desc',
   } = options;
 
-  const cacheKey = generateCacheKey('applications', options);
+  const cacheKey = generateCacheKey('applications', { ...options });
 
   const fetchApplications = useCallback(async (useCache = true) => {
     // Check cache first
     if (useCache) {
-      const cached = getCachedData<Application[]>(cacheKey);
+      const cached = getCachedData<{ apps: Application[], total: number }>(cacheKey);
       if (cached) {
-        setApplications(cached);
+        setApplications(cached.apps);
+        setTotalCount(cached.total);
         setLoading(false);
         setError(null);
         return;
@@ -49,34 +53,43 @@ export function useApplications(options: UseApplicationsOptions = {}) {
 
       let query = supabase
         .from('global_partner_applications')
-        .select('*')
-        .order(orderBy, { ascending: orderDirection === 'asc' });
+        .select('*', { count: 'exact' });
 
       if (status) {
         query = query.eq('status', status);
       }
 
+      // Order
+      query = query.order(orderBy, { ascending: orderDirection === 'asc' });
+
+      // Pagination
       if (limit) {
-        query = query.limit(limit);
+        const from = (page - 1) * limit;
+        const to = from + limit - 1;
+        query = query.range(from, to);
       }
 
-      const { data, error: queryError } = await query;
+      const { data, error: queryError, count } = await query;
 
       if (queryError) {
         throw queryError;
       }
 
       const apps = (data as Application[]) || [];
+      const total = count || 0;
+
       setApplications(apps);
-      setCachedData(cacheKey, apps);
+      setTotalCount(total);
+      setCachedData(cacheKey, { apps, total });
     } catch (err) {
       console.error('[useApplications] Error fetching applications:', err);
       setError(err instanceof Error ? err.message : 'Failed to fetch applications');
       setApplications([]);
+      setTotalCount(0);
     } finally {
       setLoading(false);
     }
-  }, [status, limit, orderBy, orderDirection, cacheKey]);
+  }, [status, limit, page, orderBy, orderDirection, cacheKey]);
 
   useEffect(() => {
     fetchApplications(true);
@@ -84,6 +97,8 @@ export function useApplications(options: UseApplicationsOptions = {}) {
 
   return {
     applications,
+    totalCount,
+    totalPages: Math.ceil(totalCount / limit),
     loading,
     error,
     refetch: () => fetchApplications(false), // Force refetch without cache

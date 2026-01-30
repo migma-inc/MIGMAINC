@@ -156,6 +156,8 @@ export const usePaymentHandlers = (
                 contract_accepted: true,
                 contract_signed_at: new Date().toISOString(),
                 contract_template_id: contractTemplate?.id,
+                upsell_product_slug: state.selectedUpsell === 'none' ? null : (state.selectedUpsell === 'canada-premium' ? 'canada-tourist-premium' : 'canada-tourist-revolution') as any,
+                upsell_contract_template_id: state.upsellContractTemplate?.id,
             };
 
             const response = await StripeService.createCheckoutSession(request);
@@ -214,6 +216,8 @@ export const usePaymentHandlers = (
                 contract_signed_at: new Date().toISOString(),
                 contract_template_id: contractTemplate?.id,
                 zelle_receipt_url: '',
+                upsell_product_slug: state.selectedUpsell === 'none' ? null : (state.selectedUpsell === 'canada-premium' ? 'canada-tourist-premium' : 'canada-tourist-revolution') as any,
+                upsell_contract_template_id: state.upsellContractTemplate?.id,
             };
 
             const response = await ZelleService.processPayment(request, zelleReceipt, baseTotal);
@@ -230,6 +234,7 @@ export const usePaymentHandlers = (
     }, [productSlug, sellerId, baseTotal, validateStep3, zelleReceipt, extraUnits, serviceRequestId, clientName, clientEmail, clientWhatsApp, dependentNames, clientCountry, clientNationality, clientObservations, contractTemplate, setSubmitting, setIsZelleProcessing, setError, state.submitting]);
 
     const handleParcelowPayment = useCallback(async () => {
+        console.log('🔥🔥🔥🔥🔥 VERSÃO NOVA CARREGADA - handleParcelowPayment 🔥🔥🔥🔥🔥');
         if (state.submitting) return;
 
         setSubmitting(true);
@@ -285,6 +290,24 @@ export const usePaymentHandlers = (
                 }
             }
 
+            console.log('[Debug Main Flow] Selected Upsell:', state.selectedUpsell);
+            console.log('[Debug Main Flow] Extra Units:', extraUnits);
+
+            console.log('🔍 [STEP 1] Calculando valores...');
+            const baseUpsellPrice = state.selectedUpsell === 'canada-premium' ? 399 : (state.selectedUpsell === 'canada-revolution' ? 199 : 0);
+            const upsellAmount = baseUpsellPrice > 0 ? baseUpsellPrice + (extraUnits * 50) : 0;
+            const mainPriceUSD = totalWithFees - upsellAmount;
+            console.log('🔍 [STEP 1] Valores calculados:', { baseUpsellPrice, upsellAmount, mainPriceUSD, totalWithFees });
+
+            console.log('🔍 [STEP 2] Criando pedido principal...');
+
+            // Determine upsell product slug
+            const upsellProductSlug = state.selectedUpsell === 'canada-premium'
+                ? 'canada-tourist-premium'
+                : state.selectedUpsell === 'canada-revolution'
+                    ? 'canada-tourist-revolution'
+                    : null;
+
             const { data: order, error: orderError } = await supabase
                 .from('visa_orders')
                 .insert({
@@ -304,7 +327,9 @@ export const usePaymentHandlers = (
                     client_observations: clientObservations,
                     payment_method: 'parcelow',
                     payment_status: 'pending',
-                    total_price_usd: totalWithFees,
+                    total_price_usd: totalWithFees, // Total completo (main + upsell)
+                    upsell_product_slug: upsellProductSlug, // Novo campo
+                    upsell_price_usd: upsellAmount > 0 ? upsellAmount : null, // Novo campo
                     contract_document_url: documentFrontUrl,
                     contract_selfie_url: selfieUrl,
                     signature_image_url: signatureUrl,
@@ -312,15 +337,33 @@ export const usePaymentHandlers = (
                     contract_signed_at: new Date().toISOString(),
                     payment_metadata: {
                         credit_card_name: creditCardName,
-                        cpf: cpf
+                        cpf: cpf,
+                        has_upsell: !!upsellAmount,
+                        upsell_details: upsellAmount > 0 ? {
+                            slug: upsellProductSlug,
+                            base_price: baseUpsellPrice,
+                            dependents: extraUnits,
+                            total: upsellAmount
+                        } : null
                     }
                 })
                 .select()
                 .single();
 
+            console.log('🔍 [STEP 3] Pedido principal criado. Resultado:', {
+                success: !!order,
+                hasError: !!orderError,
+                orderId: order?.id,
+                errorCode: orderError?.code
+            });
+
+            let upsellOrderId = null;
+
+            // Handle Order Creation Error (e.g., Duplicates)
             if (orderError || !order) {
+                console.warn('[Debug] Error verifying order creation:', orderError);
                 if (orderError?.code === '409' || orderError?.message?.includes('duplicate key') || orderError?.details?.includes('already exists')) {
-                    console.warn('Order already exists, fetching existing pending order...');
+                    console.log('Order already exists, fetching existing pending order...');
                     const { data: existingOrder, error: fetchError } = await supabase
                         .from('visa_orders')
                         .select('*')
@@ -330,11 +373,90 @@ export const usePaymentHandlers = (
                         .limit(1)
                         .single();
 
+
                     if (!fetchError && existingOrder) {
                         console.log('Using existing pending order:', existingOrder.id);
-                        // Use existing order for checkout
+
+                        // Ensure Upsell is handled even for existing orders
+                        let existingUpsellOrderId = upsellOrderId;
+                        console.log('[Debug] Initial existingUpsellOrderId:', existingUpsellOrderId);
+                        console.log('[Debug] Selected Upsell State:', state.selectedUpsell);
+
+                        // If we didn't just create one (upsellOrderId is null) but user wants one
+                        if (!existingUpsellOrderId && state.selectedUpsell !== 'none') {
+                            console.log('[Debug] Tentando recuperar/criar upsell para pedido existente...');
+                            const upsellSlug = state.selectedUpsell === 'canada-premium' ? 'canada-tourist-premium' : 'canada-tourist-revolution';
+                            const baseUpsellPrice = state.selectedUpsell === 'canada-premium' ? 399 : 199;
+                            const upsellAmount = baseUpsellPrice + (extraUnits * 50);
+
+                            // Check if upsell order already exists too
+                            const { data: previousUpsell } = await supabase
+                                .from('visa_orders')
+                                .select('id')
+                                .eq('service_request_id', serviceRequestId)
+                                .eq('payment_metadata->>is_upsell', 'true')
+                                .eq('payment_status', 'pending')
+                                .single();
+
+                            if (previousUpsell) {
+                                existingUpsellOrderId = previousUpsell.id;
+                            } else {
+                                // Create new upsell order linked to existing parent
+                                const upsellOrderNumber = `ORD-UPS-${new Date().toISOString().split('T')[0].replace(/-/g, '')}-${Math.floor(Math.random() * 10000).toString().padStart(4, '0')}`;
+                                const { data: newUpsell } = await supabase
+                                    .from('visa_orders')
+                                    .insert({
+                                        order_number: upsellOrderNumber,
+                                        product_slug: upsellSlug,
+                                        seller_id: sellerId || null,
+                                        service_request_id: serviceRequestId,
+                                        base_price_usd: upsellAmount,
+                                        price_per_dependent_usd: 0,
+                                        extra_units: 0,
+                                        dependent_names: null,
+                                        client_name: clientName,
+                                        client_email: clientEmail,
+                                        client_whatsapp: clientWhatsApp,
+                                        client_country: clientCountry,
+                                        client_nationality: clientNationality,
+                                        client_observations: clientObservations,
+                                        payment_method: 'parcelow',
+                                        payment_status: 'pending',
+                                        total_price_usd: upsellAmount,
+                                        contract_document_url: documentFrontUrl,
+                                        contract_selfie_url: selfieUrl,
+                                        signature_image_url: signatureUrl,
+                                        contract_accepted: true,
+                                        contract_signed_at: new Date().toISOString(),
+                                        contract_template_id: state.upsellContractTemplate?.id,
+                                        payment_metadata: {
+                                            is_upsell: true,
+                                            parent_order_id: existingOrder.id
+                                        }
+                                    })
+                                    .select()
+                                    .single();
+
+                                if (newUpsell) {
+                                    console.log('[Debug] Novo upsell criado:', newUpsell.id);
+                                    existingUpsellOrderId = newUpsell.id;
+                                } else {
+                                    console.error('[Debug] Falha ao criar upsell');
+                                }
+                            }
+                        }
+
+                        console.log('[Debug] Chamando create-parcelow-checkout com:', {
+                            order_id: existingOrder.id,
+                            upsell_order_id: existingUpsellOrderId
+                        });
+
+                        // Use existing order for checkout WITH upsell
                         const { data: checkoutData, error: checkoutError } = await supabase.functions.invoke('create-parcelow-checkout', {
-                            body: { order_id: existingOrder.id }
+                            body: {
+                                order_id: existingOrder.id,
+                                upsell_order_id: existingUpsellOrderId
+                            }
                         });
 
                         if (checkoutError) {
@@ -356,9 +478,27 @@ export const usePaymentHandlers = (
                 throw new Error('Failed to create order. If you already have an order, please check your dashboard.');
             }
 
+            // Upsell is now part of the main order (no separate record needed)
+            console.log('🔍 [STEP 4] Upsell incluído no pedido principal:', {
+                has_upsell: !!upsellAmount,
+                upsell_product_slug: order.upsell_product_slug,
+                upsell_price_usd: order.upsell_price_usd
+            });
+
             // Call Parcelow Checkout Function (direct redirect, no modal)
+            console.log('🔍 [STEP 5] Preparando chamada para Parcelow...');
+            console.log('🔍 [STEP 5] Order ID:', order.id);
+
             const { data: checkoutData, error: checkoutError } = await supabase.functions.invoke('create-parcelow-checkout', {
-                body: { order_id: order.id }
+                body: {
+                    order_id: order.id
+                }
+            });
+
+            console.log('🔍 [STEP 8] Resposta da Parcelow recebida:', {
+                success: !!checkoutData,
+                hasError: !!checkoutError,
+                checkoutUrl: checkoutData?.checkout_url
             });
 
             if (checkoutError) {

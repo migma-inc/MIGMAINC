@@ -4,13 +4,16 @@ import type { VisaCheckoutActions } from '../types/form.types';
 
 export const useTemplateLoader = (
     productSlug: string | undefined,
+    selectedUpsell: 'none' | 'canada-premium' | 'canada-revolution',
     actions: VisaCheckoutActions
 ) => {
     const {
         setContractTemplate,
         setChargebackAnnexTemplate,
+        setUpsellContractTemplate,
         setLoadingTemplate,
-        setLoadingAnnexTemplate
+        setLoadingAnnexTemplate,
+        setLoadingUpsellTemplate
     } = actions;
 
     useEffect(() => {
@@ -42,4 +45,26 @@ export const useTemplateLoader = (
 
         loadTemplates();
     }, [productSlug, setContractTemplate, setChargebackAnnexTemplate, setLoadingTemplate, setLoadingAnnexTemplate]);
+
+    useEffect(() => {
+        const loadUpsellTemplate = async () => {
+            if (selectedUpsell === 'none') {
+                setUpsellContractTemplate(null);
+                return;
+            }
+
+            const upsellSlug = selectedUpsell === 'canada-premium' ? 'canada-tourist-premium' : 'canada-tourist-revolution';
+            setLoadingUpsellTemplate(true);
+            try {
+                const template = await getContractTemplateByProductSlug(upsellSlug);
+                setUpsellContractTemplate(template);
+            } catch (err) {
+                console.error('Error loading upsell contract template:', err);
+            } finally {
+                setLoadingUpsellTemplate(false);
+            }
+        };
+
+        loadUpsellTemplate();
+    }, [selectedUpsell, setUpsellContractTemplate, setLoadingUpsellTemplate]);
 };

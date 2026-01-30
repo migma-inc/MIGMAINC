@@ -178,7 +178,7 @@ export function PartnerContractsList({
                     <VerificationStatusBadge status={contract.verification_status} />
                     <span className="text-xs text-gray-400 flex items-center gap-1">
                       <Clock className="w-3 h-3" />
-                      Accepted: {formatDate(contract.accepted_at)}
+                      Accepted at: {formatDate(contract.accepted_at)}
                     </span>
                   </div>
                 </div>
@@ -236,11 +236,11 @@ export function PartnerContractsList({
 
                 {/* Action Buttons */}
                 {hasDocuments && (
-                  <div className="flex gap-2 pt-2 border-t border-gold-medium/20">
+                  <div className="flex flex-wrap gap-2 pt-4 border-t border-gold-medium/20">
                     {onApprove && (
                       <Button
                         onClick={() => onApprove(contract)}
-                        className="flex-1 bg-green-600 hover:bg-green-700 text-white"
+                        className="flex-1 sm:flex-none bg-green-600 hover:bg-green-700 text-white min-w-[120px]"
                         size="sm"
                       >
                         <CheckCircle className="w-4 h-4 mr-2" />
@@ -251,7 +251,7 @@ export function PartnerContractsList({
                       <Button
                         onClick={() => onReject(contract)}
                         variant="destructive"
-                        className="flex-1"
+                        className="flex-1 sm:flex-none min-w-[120px]"
                         size="sm"
                       >
                         <XCircle className="w-4 h-4 mr-2" />

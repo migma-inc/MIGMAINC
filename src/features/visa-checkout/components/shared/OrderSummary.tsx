@@ -12,6 +12,8 @@ interface OrderSummaryProps {
     isPaymentReady?: boolean;
     isSubmitting?: boolean;
     onPay?: () => void;
+    selectedUpsell?: 'none' | 'canada-premium' | 'canada-revolution';
+    upsellPrice?: number;
 }
 
 export const OrderSummary: React.FC<OrderSummaryProps> = ({
@@ -22,7 +24,9 @@ export const OrderSummary: React.FC<OrderSummaryProps> = ({
     showPaymentButton,
     isPaymentReady,
     isSubmitting,
-    onPay
+    onPay,
+    selectedUpsell = 'none',
+    upsellPrice = 0
 }) => {
     const basePrice = parseFloat(product.base_price_usd);
     const extraUnitPrice = parseFloat(product.extra_unit_price);
@@ -47,6 +51,15 @@ export const OrderSummary: React.FC<OrderSummaryProps> = ({
                                 </div>
                             )}
                         </>
+                    )}
+
+                    {selectedUpsell !== 'none' && upsellPrice > 0 && (
+                        <div className="flex justify-between text-xs sm:text-sm animate-in fade-in slide-in-from-left-2">
+                            <span className="text-gold-light font-medium italic">
+                                Bundle: {selectedUpsell === 'canada-premium' ? 'Canada Premium' : 'Canada Revolution'}
+                            </span>
+                            <span className="text-white">US$ {upsellPrice.toFixed(2)}</span>
+                        </div>
                     )}
                     {product.calculation_type === 'units_only' && (
                         <div className="flex justify-between text-xs sm:text-sm">

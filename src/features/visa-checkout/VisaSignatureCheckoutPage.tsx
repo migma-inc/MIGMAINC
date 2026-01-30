@@ -35,7 +35,7 @@ export const VisaSignatureCheckoutPage: React.FC = () => {
     const { handlePrev } = useCheckoutSteps(state, actions, productSlug);
     useDraftRecovery(productSlug, effectiveSellerId, loading, state, actions);
     const { handleNextStep2 } = useDocumentUpload(state, actions);
-    useTemplateLoader(productSlug, actions);
+    useTemplateLoader(productSlug, state.selectedUpsell, actions);
 
     const baseTotal = customPrice ? parseFloat(customPrice) : (product ? calculateBaseTotal(product, state.extraUnits) : 0);
     // No Signature Only flow, we don't apply payment gateway fees
