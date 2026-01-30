@@ -588,10 +588,17 @@ export const SellerZelleApprovalPage = () => {
                                                 >
                                                     <XCircle className="w-4 h-4 mr-1 sm:mr-2 shrink-0" /> Reject
                                                 </Button>
-                                                {item.proof_url && (
+                                                {(item.proof_url || item.type === 'migma') && (
                                                     <Button
                                                         variant="ghost"
-                                                        onClick={() => { setSelectedZelleUrl(item.proof_url); setSelectedZelleTitle(`Proof - ${item.client_name}`); }}
+                                                        onClick={() => {
+                                                            if (item.type === 'migma' && !item.proof_url) {
+                                                                handleViewMigmaProof(item.user_id, item.client_name);
+                                                            } else {
+                                                                setSelectedZelleUrl(item.proof_url);
+                                                                setSelectedZelleTitle(`Proof - ${item.client_name}`);
+                                                            }
+                                                        }}
                                                         className="flex-1 sm:flex-none sm:w-32 text-xs sm:text-sm h-9 sm:h-10 border border-gold-medium/20 text-gold-medium hover:bg-gold-medium/10 transition-colors"
                                                     >
                                                         <Eye className="w-4 h-4 mr-1 sm:mr-2 shrink-0 text-gold-medium" /> Proof
