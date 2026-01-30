@@ -111,6 +111,7 @@ const OrderTable = ({
   setSelectedPdfTitle,
   isUpdating,
   toggleHideOrder,
+  getProductName,
   isSignatureOnly = false
 }: {
   orders: VisaOrder[],
@@ -120,6 +121,7 @@ const OrderTable = ({
   setSelectedPdfTitle: any,
   isUpdating: string | null,
   toggleHideOrder: any,
+  getProductName: (slug: string) => string,
   isSignatureOnly?: boolean
 }) => (
   <>
@@ -213,7 +215,8 @@ const OrderTable = ({
                         size="sm"
                         onClick={() => {
                           setSelectedPdfUrl(order.annex_pdf_url);
-                          setSelectedPdfTitle(`ANNEX I - ${order.order_number}`);
+                          const productName = getProductName(order.product_slug);
+                          setSelectedPdfTitle(`${order.client_name} - ${productName} - ANNEX I`);
                         }}
                         className="border-gold-medium/50 bg-black/50 text-gold-light hover:bg-black hover:border-gold-medium hover:text-gold-medium text-xs"
                       >
@@ -227,7 +230,8 @@ const OrderTable = ({
                         size="sm"
                         onClick={() => {
                           setSelectedPdfUrl(order.contract_pdf_url);
-                          setSelectedPdfTitle(`Contract - ${order.order_number}`);
+                          const productName = getProductName(order.product_slug);
+                          setSelectedPdfTitle(`${order.client_name} - ${productName} - Contract`);
                         }}
                         className="border-gold-medium/50 bg-black/50 text-gold-light hover:bg-black hover:border-gold-medium hover:text-gold-medium text-xs"
                       >
@@ -241,7 +245,9 @@ const OrderTable = ({
                         size="sm"
                         onClick={() => {
                           setSelectedPdfUrl((order.payment_metadata as any).invoice_pdf_url);
-                          setSelectedPdfTitle(`Invoice - ${order.order_number}`);
+                          const productName = getProductName(order.product_slug);
+                          // Pattern: Client Name - Service Name - Invoice
+                          setSelectedPdfTitle(`${order.client_name} - ${productName} - Invoice`);
                         }}
                         className="border-gold-medium/50 bg-black/50 text-gold-light hover:bg-black hover:border-gold-medium hover:text-gold-medium text-xs"
                       >
@@ -391,7 +397,8 @@ const OrderTable = ({
                       size="sm"
                       onClick={() => {
                         setSelectedPdfUrl(order.annex_pdf_url);
-                        setSelectedPdfTitle(`ANNEX I - ${order.order_number}`);
+                        const productName = getProductName(order.product_slug);
+                        setSelectedPdfTitle(`${order.client_name} - ${productName} - ANNEX I`);
                       }}
                       className="flex-1 flex items-center justify-center gap-2 border-gold-medium/50 bg-black/50 text-gold-light hover:bg-black hover:border-gold-medium hover:text-gold-medium text-xs"
                     >
@@ -405,7 +412,8 @@ const OrderTable = ({
                       size="sm"
                       onClick={() => {
                         setSelectedPdfUrl(order.contract_pdf_url);
-                        setSelectedPdfTitle(`Contract - ${order.order_number}`);
+                        const productName = getProductName(order.product_slug);
+                        setSelectedPdfTitle(`${order.client_name} - ${productName} - Contract`);
                       }}
                       className="flex-1 flex items-center justify-center gap-2 border-gold-medium/50 bg-black/50 text-gold-light hover:bg-black hover:border-gold-medium hover:text-gold-medium text-xs"
                     >
@@ -485,31 +493,42 @@ export const VisaOrdersPage = () => {
   const [isUpdating, setIsUpdating] = useState<string | null>(null);
   const [selectedPdfUrl, setSelectedPdfUrl] = useState<string | null>(null);
   const [selectedPdfTitle, setSelectedPdfTitle] = useState<string>('Contract PDF');
+  const [products, setProducts] = useState<any[]>([]);
 
   useEffect(() => {
-    const loadOrders = async () => {
+    const loadData = async () => {
       try {
-        const { data, error } = await supabase
+        setLoading(true);
+        // Load Orders
+        const { data: ordersData, error: ordersError } = await supabase
           .from('visa_orders')
           .select('*')
           .order('created_at', { ascending: false })
           .limit(100);
 
-        if (error) {
-          console.error('Error loading orders:', error);
-          return;
-        }
+        if (ordersError) throw ordersError;
+        setOrders(ordersData || []);
 
-        setOrders(data || []);
+        // Load Products for names
+        const { data: productsData } = await supabase
+          .from('visa_products')
+          .select('slug, name');
+
+        setProducts(productsData || []);
       } catch (err) {
-        console.error('Error:', err);
+        console.error('Error loading data:', err);
       } finally {
         setLoading(false);
       }
     };
 
-    loadOrders();
+    loadData();
   }, []);
+
+  // Helper to get product name
+  const getProductName = (slug: string) => {
+    return products.find(p => p.slug === slug)?.name || slug;
+  };
 
   // Function updated to accept filter type
   const handleExportExcel = async (filterType: 'all' | 'completed' | 'pending' | 'real' = 'all') => {
@@ -555,8 +574,11 @@ export const VisaOrdersPage = () => {
       order.payment_status === 'pending' &&
       (order.parcelow_status === 'Open' || order.parcelow_status === 'Waiting Payment');
 
+    // Filtra para remover cancelados e failed da visualização padrão
+    const isCancelledOrFailed = order.payment_status === 'cancelled' || order.payment_status === 'failed';
+
     if (showHidden) return true;
-    return !order.is_hidden && !isPendingParcelow;
+    return !order.is_hidden && !isPendingParcelow && !isCancelledOrFailed;
   });
 
   const realOrders = visibleOrders.filter(order => order.payment_method !== 'manual');
@@ -775,6 +797,7 @@ export const VisaOrdersPage = () => {
                     getStatusBadge={getStatusBadge}
                     setSelectedPdfUrl={setSelectedPdfUrl}
                     setSelectedPdfTitle={setSelectedPdfTitle}
+                    getProductName={getProductName}
                     isUpdating={isUpdating}
                     toggleHideOrder={toggleHideOrder}
                   />
@@ -805,6 +828,7 @@ export const VisaOrdersPage = () => {
                     getStatusBadge={getStatusBadge}
                     setSelectedPdfUrl={setSelectedPdfUrl}
                     setSelectedPdfTitle={setSelectedPdfTitle}
+                    getProductName={getProductName}
                     isUpdating={isUpdating}
                     toggleHideOrder={toggleHideOrder}
                     isSignatureOnly={true}
