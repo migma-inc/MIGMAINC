@@ -50,8 +50,26 @@ export const VisaCheckoutPage: React.FC = () => {
 
     const baseUpsellPrice = state.selectedUpsell === 'canada-premium' ? 399 : (state.selectedUpsell === 'canada-revolution' ? 199 : 0);
     const upsellPrice = baseUpsellPrice > 0 ? baseUpsellPrice + (state.extraUnits * 50) : 0;
-    const baseTotal = product ? calculateBaseTotal(product, state.extraUnits, upsellPrice) : 0;
+    const initialBaseTotal = product ? calculateBaseTotal(product, state.extraUnits, upsellPrice) : 0;
+
+    // Calculate Discount
+    let discountAmount = 0;
+    if (state.appliedCoupon) {
+        if (state.appliedCoupon.discountType === 'fixed') {
+            discountAmount = state.appliedCoupon.discountValue;
+        } else {
+            discountAmount = initialBaseTotal * (state.appliedCoupon.discountValue / 100);
+        }
+    }
+    if (discountAmount > initialBaseTotal) discountAmount = initialBaseTotal;
+
+    const baseTotal = Math.max(0, initialBaseTotal - discountAmount);
     const totalWithFees = product ? calculateTotalWithFees(baseTotal, state.paymentMethod, state.exchangeRate || undefined) : 0;
+
+    // Sync discount amount to state
+    useEffect(() => {
+        actions.setDiscountAmount(discountAmount);
+    }, [discountAmount]);
 
     const paymentHandlers = usePaymentHandlers(
         productSlug,
@@ -209,6 +227,8 @@ export const VisaCheckoutPage: React.FC = () => {
                                 }}
                                 selectedUpsell={state.selectedUpsell}
                                 upsellPrice={upsellPrice}
+                                discountAmount={discountAmount}
+                                appliedCouponCode={state.appliedCoupon?.code}
                             />
                         </aside>
                     )}
