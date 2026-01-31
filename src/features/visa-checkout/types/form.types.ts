@@ -81,6 +81,15 @@ export interface VisaCheckoutState {
     upsellProduct: any | null; // Product info for Canada
     upsellContractTemplate: ContractTemplate | null;
     loadingUpsellTemplate: boolean;
+
+    // Coupon
+    couponCode: string;
+    appliedCoupon: {
+        code: string;
+        discountType: 'fixed' | 'percentage';
+        discountValue: number;
+    } | null;
+    discountAmount: number;
 }
 
 export interface VisaCheckoutActions {
@@ -138,4 +147,9 @@ export interface VisaCheckoutActions {
     setUpsellProduct: (val: any | null) => void;
     setUpsellContractTemplate: (val: ContractTemplate | null) => void;
     setLoadingUpsellTemplate: (val: boolean) => void;
+
+    // Coupon
+    setCouponCode: (val: string) => void;
+    setAppliedCoupon: (val: { code: string; discountType: 'fixed' | 'percentage'; discountValue: number; } | null) => void;
+    setDiscountAmount: (val: number) => void;
 }

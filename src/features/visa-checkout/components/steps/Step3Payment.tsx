@@ -8,6 +8,8 @@ import { SignatureSection } from './step3/SignatureSection';
 import { PaymentMethodSelector } from './step3/PaymentMethodSelector';
 // Re-importing ZelleUpload to fix potential reference issues in HMR
 import { ZelleUpload } from './step3/ZelleUpload';
+
+import { CouponSection } from './step3/CouponSection';
 // import { UpsellSelection } from './step3/UpsellSelection';
 
 interface Step3Props {
@@ -74,6 +76,12 @@ export const Step3Payment: React.FC<Step3Props> = ({ state, actions, handlers, o
                         onEdit={() => actions.setSignatureConfirmed(false)}
                     />
                 )}
+
+                <CouponSection
+                    actions={actions}
+                    couponCode={state.couponCode}
+                    appliedCoupon={state.appliedCoupon}
+                />
 
                 <PaymentMethodSelector
                     paymentMethod={paymentMethod}

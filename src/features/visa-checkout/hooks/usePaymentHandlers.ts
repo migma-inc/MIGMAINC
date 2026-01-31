@@ -45,7 +45,9 @@ export const usePaymentHandlers = (
         exchangeRate,
         zelleReceipt,
         creditCardName,
-        cpf
+        cpf,
+        couponCode,
+        discountAmount
     } = state;
 
     const {
@@ -347,7 +349,9 @@ export const usePaymentHandlers = (
                             dependents: extraUnits,
                             total: upsellAmount
                         } : null
-                    }
+                    },
+                    coupon_code: couponCode || null,
+                    discount_amount: discountAmount || 0
                 })
                 .select()
                 .single();

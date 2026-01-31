@@ -319,9 +319,10 @@ Deno.serve(async (req) => {
             price: order.upsell_price_usd
         });
 
+        let upsellPrice = 0;
         if (order.upsell_product_slug && order.upsell_price_usd) {
             console.log('[EDGE FUNCTION] ✅ UPSELL DETECTED! Adding to invoice...');
-            const upsellPrice = parseFloat(order.upsell_price_usd);
+            upsellPrice = parseFloat(order.upsell_price_usd);
 
             // Fetch upsell product name
             const { data: upsellProduct } = await supabase
@@ -353,13 +354,24 @@ Deno.serve(async (req) => {
         // ============================================
         // 5. Totals
         // ============================================
-        const totalAmount = parseFloat(order.total_price_usd || '0');
-        const subtotal = totalAmount; // For now assuming total is the sum
+        const discountAmount = parseFloat(order.discount_amount || '0');
+        const calculatedSubtotal = basePrice + extraTotal + upsellPrice;
+        const totalAmount = calculatedSubtotal - discountAmount;
 
         pdf.setFont('helvetica', 'normal');
         pdf.text('Subtotal', pageWidth - margin - 40, currentY, { align: 'right' });
         pdf.setFont('helvetica', 'bold');
-        pdf.text(`$${subtotal.toFixed(2)}`, pageWidth - margin - 5, currentY, { align: 'right' });
+        pdf.text(`$${calculatedSubtotal.toFixed(2)}`, pageWidth - margin - 5, currentY, { align: 'right' });
+
+        if (discountAmount > 0) {
+            currentY += 8;
+            pdf.setFont('helvetica', 'normal');
+            pdf.setTextColor(200, 0, 0); // Red for discount
+            pdf.text(`Discount (${order.coupon_code || 'Promo'})`, pageWidth - margin - 40, currentY, { align: 'right' });
+            pdf.setFont('helvetica', 'bold');
+            pdf.text(`-$${discountAmount.toFixed(2)}`, pageWidth - margin - 5, currentY, { align: 'right' });
+            pdf.setTextColor(0, 0, 0); // Reset
+        }
 
         currentY += 8;
         pdf.setFont('helvetica', 'normal');
@@ -479,7 +491,7 @@ Deno.serve(async (req) => {
             { headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
 
-    } catch (error) {
+    } catch (error: any) {
         console.error("[EDGE FUNCTION] Error generating invoice PDF:", error);
         return new Response(
             JSON.stringify({ success: false, error: error.message || "Internal server error" }),
