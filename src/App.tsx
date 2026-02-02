@@ -57,6 +57,7 @@ import { SlackReportsPage } from './pages/admin/SlackReportsPage';
 import { VisaContractApprovalPage } from './pages/VisaContractApprovalPage';
 import { AdminProfile } from './pages/admin/AdminProfile';
 import { SendExistingContracts } from './pages/admin/SendExistingContracts';
+import { CouponManagement } from './pages/admin/CouponManagement';
 import { NotFound } from './pages/NotFound';
 
 function App() {
@@ -130,6 +131,7 @@ function App() {
           <Route path="slack-reports" element={<SlackReportsPage />} />
           <Route path="profile" element={<AdminProfile />} />
           <Route path="send-existing-contracts" element={<SendExistingContracts />} />
+          <Route path="coupons" element={<CouponManagement />} />
         </Route>
 
         {/* Catch-all 404 Route */}

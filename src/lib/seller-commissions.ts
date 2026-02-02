@@ -41,12 +41,39 @@ export function calculateNetAmount(order: any): number {
   const metadata = order.payment_metadata as any;
   const paymentMethod = order.payment_method;
 
-  // If payment_metadata has fee_amount, subtract it
-  if (metadata?.fee_amount) {
-    let feeAmount = parseFloat(metadata.fee_amount);
-    if (feeAmount > 10000 && feeAmount > totalPrice) feeAmount = feeAmount / 100;
-    return Math.max(totalPrice - feeAmount, 0); // Ensure non-negative
+  // INTELLIGENT FEE CALCULATION
+  if (metadata) {
+    // Try to get the actual amount charged to the client (Gross Payment)
+    let chargedAmount = totalPrice; // Default to totalPrice
+
+    if (metadata.total_usd) {
+      chargedAmount = parseFloat(metadata.total_usd);
+      // Fix for cents
+      if (chargedAmount > 20000) {
+        chargedAmount = chargedAmount / 100;
+      }
+    }
+
+    if (metadata.fee_amount) {
+      let feeAmount = parseFloat(metadata.fee_amount);
+      // Fix for cents
+      if (feeAmount > 10000) feeAmount = feeAmount / 100;
+
+      // Calculate what we actually received
+      const calculatedNet = chargedAmount - feeAmount;
+
+      // If what we received covers the base price (allowing small float diffs), return base price
+      // This covers cases where client paid Surcharge (Base + Fee)
+      if (calculatedNet >= (totalPrice - 0.05)) {
+        return totalPrice;
+      } else {
+        // Otherwise, Fee was likely deducted from Base
+        return Math.max(calculatedNet, 0);
+      }
+    }
   }
+
+  // Fallback legacy logic if no 'fee_amount' in metadata
 
   // Fallback for Parcelow (5% markup in total_price_usd)
   if (paymentMethod === 'parcelow') {

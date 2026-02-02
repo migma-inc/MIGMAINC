@@ -186,6 +186,16 @@ async function sendVisaAdminNotification(order: any, supabase: any) {
 }
 
 async function sendClientWebhook(order: any, supabase: any) {
+  // TEST USER VALIDATION - Prevent webhook for internal tests
+  const isTestUser =
+    (order.client_name && order.client_name.trim() === "Paulo Victor Victor Ribeiro dos Santos") ||
+    (order.client_email && order.client_email.includes("@uorak"));
+
+  if (isTestUser) {
+    console.log(`[Webhook Client] 🛑 SKIPPING n8n webhook for Test User: ${order.client_name} (${order.client_email})`);
+    return;
+  }
+
   const webhookUrl = Deno.env.get('CLIENT_WEBHOOK_URL');
   if (!webhookUrl) {
     console.error('[Webhook Client] CLIENT_WEBHOOK_URL not set');
@@ -229,14 +239,48 @@ async function sendClientWebhook(order: any, supabase: any) {
 
     // Send dependents separately if any
     if (Array.isArray(order.dependent_names) && order.dependent_names.length > 0) {
-      const unitPrice = parseFloat(order.extra_unit_price_usd || '0');
+      console.log(`[Webhook Client] Processing ${order.dependent_names.length} dependents. Units Price Raw:`, order.extra_unit_price_usd);
+
+      let unitPrice = 0;
+      try {
+        // Handle both string and number inputs safely
+        const rawPrice = order.extra_unit_price_usd;
+        if (typeof rawPrice === 'number') {
+          unitPrice = rawPrice;
+        } else if (typeof rawPrice === 'string') {
+          unitPrice = parseFloat(rawPrice);
+        }
+
+        // Safety check: if price is 0, try to calculate from total if possible
+        if (unitPrice === 0 && order.extra_units > 0) {
+          const base = parseFloat(String(order.base_price_usd || '0'));
+          const total = parseFloat(String(order.total_price_usd || '0'));
+          if (total > base) {
+            unitPrice = (total - base) / order.extra_units;
+            console.log(`[Webhook Client] Recalculated unit price from total: ${unitPrice}`);
+          }
+        }
+      } catch (e) {
+        console.error('[Webhook Client] Error parsing unit price:', e);
+      }
+
       for (const depName of order.dependent_names) {
         if (!depName) continue;
         const depPayload = {
+          tipo: "dependente",
+          // Legacy fields (KEEP THESE):
           nome_completo_cliente_principal: order.client_name,
           nome_completo_dependente: depName,
           valor_servico: unitPrice.toFixed(2),
+
+          // Enriched fields (SAME NAMING AS MAIN PAYLOAD):
+          servico: serviceName,
+          plano_servico: order.product_slug,
+          email: order.client_email,
+          whatsapp: order.client_whatsapp || '',
+          vendedor: order.seller_id || '',
         };
+        console.log(`[Webhook Client] Sending dependent payload (${depName}) to n8n:`, JSON.stringify(depPayload));
         await fetch(webhookUrl, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },

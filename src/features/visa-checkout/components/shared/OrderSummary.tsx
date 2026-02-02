@@ -13,7 +13,10 @@ interface OrderSummaryProps {
     isSubmitting?: boolean;
     onPay?: () => void;
     selectedUpsell?: 'none' | 'canada-premium' | 'canada-revolution';
+
     upsellPrice?: number;
+    discountAmount?: number;
+    appliedCouponCode?: string | null;
 }
 
 export const OrderSummary: React.FC<OrderSummaryProps> = ({
@@ -26,7 +29,9 @@ export const OrderSummary: React.FC<OrderSummaryProps> = ({
     isSubmitting,
     onPay,
     selectedUpsell = 'none',
-    upsellPrice = 0
+    upsellPrice = 0,
+    discountAmount = 0,
+    appliedCouponCode
 }) => {
     const basePrice = parseFloat(product.base_price_usd);
     const extraUnitPrice = parseFloat(product.extra_unit_price);
@@ -65,6 +70,15 @@ export const OrderSummary: React.FC<OrderSummaryProps> = ({
                         <div className="flex justify-between text-xs sm:text-sm">
                             <span className="text-gray-400">Number of applicants ({extraUnits})</span>
                             <span className="text-white">US$ {(extraUnits * extraUnitPrice).toFixed(2)}</span>
+                        </div>
+                    )}
+
+                    {discountAmount > 0 && (
+                        <div className="flex justify-between text-xs sm:text-sm animate-in fade-in slide-in-from-left-2">
+                            <span className="text-green-400 font-medium">
+                                Discount ({appliedCouponCode})
+                            </span>
+                            <span className="text-green-400">- US$ {discountAmount.toFixed(2)}</span>
                         </div>
                     )}
 

@@ -311,7 +311,21 @@ Deno.serve(async (req) => {
             pdf.line(margin, currentY, pageWidth - margin, currentY);
         }
 
-        // Item 3: Upsell Product if any
+        // Item 3: Coupon Discount (if used)
+        const discountAmount = parseFloat(order.discount_amount || '0');
+        if (discountAmount > 0) {
+            pdf.setTextColor(200, 0, 0); // Red for discount
+            const couponLabel = `Discount (${order.coupon_code || 'Promo'})`;
+            pdf.text(couponLabel, margin + 5, currentY + 7);
+            pdf.text('1', pageWidth - margin - 80, currentY + 7, { align: 'right' });
+            pdf.text(`-$${discountAmount.toFixed(2)}`, pageWidth - margin - 40, currentY + 7, { align: 'right' });
+            pdf.text(`-$${discountAmount.toFixed(2)}`, pageWidth - margin - 5, currentY + 7, { align: 'right' });
+            pdf.setTextColor(0, 0, 0); // Reset to Black
+            currentY += 10;
+            pdf.line(margin, currentY, pageWidth - margin, currentY);
+        }
+
+        // Item 4: Upsell Product if any
         console.log('[EDGE FUNCTION] Checking for upsell:', {
             has_slug: !!order.upsell_product_slug,
             has_price: !!order.upsell_price_usd,
@@ -319,9 +333,10 @@ Deno.serve(async (req) => {
             price: order.upsell_price_usd
         });
 
+        let upsellPrice = 0;
         if (order.upsell_product_slug && order.upsell_price_usd) {
             console.log('[EDGE FUNCTION] ✅ UPSELL DETECTED! Adding to invoice...');
-            const upsellPrice = parseFloat(order.upsell_price_usd);
+            upsellPrice = parseFloat(order.upsell_price_usd);
 
             // Fetch upsell product name
             const { data: upsellProduct } = await supabase
@@ -353,13 +368,30 @@ Deno.serve(async (req) => {
         // ============================================
         // 5. Totals
         // ============================================
-        const totalAmount = parseFloat(order.total_price_usd || '0');
-        const subtotal = totalAmount; // For now assuming total is the sum
+        const calculatedSubtotal = basePrice + extraTotal + upsellPrice;
+        let totalAmount = calculatedSubtotal - discountAmount;
+
+        // Parcelow specific rule: Minimum 0.01 USD for transaction validity
+        let displayedDiscount = discountAmount;
+        if (totalAmount <= 0 && order.payment_method === 'parcelow') {
+            totalAmount = 0.01;
+            displayedDiscount = calculatedSubtotal - 0.01;
+        }
 
         pdf.setFont('helvetica', 'normal');
         pdf.text('Subtotal', pageWidth - margin - 40, currentY, { align: 'right' });
         pdf.setFont('helvetica', 'bold');
-        pdf.text(`$${subtotal.toFixed(2)}`, pageWidth - margin - 5, currentY, { align: 'right' });
+        pdf.text(`$${calculatedSubtotal.toFixed(2)}`, pageWidth - margin - 5, currentY, { align: 'right' });
+
+        if (discountAmount > 0) {
+            currentY += 8;
+            pdf.setFont('helvetica', 'normal');
+            pdf.setTextColor(200, 0, 0); // Red for discount
+            pdf.text(`Discount (${order.coupon_code || 'Promo'})`, pageWidth - margin - 40, currentY, { align: 'right' });
+            pdf.setFont('helvetica', 'bold');
+            pdf.text(`-$${displayedDiscount.toFixed(2)}`, pageWidth - margin - 5, currentY, { align: 'right' });
+            pdf.setTextColor(0, 0, 0); // Reset
+        }
 
         currentY += 8;
         pdf.setFont('helvetica', 'normal');
@@ -438,8 +470,8 @@ Deno.serve(async (req) => {
         const safeClientName = normalizeForFileName(order.client_name);
         const safeServiceName = normalizeForFileName(product?.name || order.product_slug);
 
-        // Final pattern requested: INVOICE - CUSTOMER NAME - SERVICE NAME - V2.pdf
-        const fileName = `INVOICE - ${safeClientName} - ${safeServiceName} - V2.pdf`;
+        // Final pattern requested: INVOICE - CUSTOMER NAME - ORDER NUMBER - SERVICE NAME - V2.pdf
+        const fileName = `INVOICE - ${safeClientName} - ${order.order_number} - ${safeServiceName} - V2.pdf`;
         const filePath = `invoices/${fileName}`;
 
         const { error: uploadError } = await supabase.storage
@@ -479,7 +511,7 @@ Deno.serve(async (req) => {
             { headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
 
-    } catch (error) {
+    } catch (error: any) {
         console.error("[EDGE FUNCTION] Error generating invoice PDF:", error);
         return new Response(
             JSON.stringify({ success: false, error: error.message || "Internal server error" }),

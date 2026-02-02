@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { adminSupabase } from '@/lib/auth';
+import { calculateNetAmount } from '@/lib/seller-commissions';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -11,13 +12,14 @@ import { ChevronDown, ChevronRight, DollarSign, Users, ShoppingCart, Eye, Coins,
 
 // Helper function to calculate net amount and fee
 const calculateNetAmountAndFee = (order: Order) => {
+  const netAmount = calculateNetAmount(order);
   const totalPrice = parseFloat(order.total_price_usd || '0');
-  const metadata = order.payment_metadata as any;
-  const feeAmount = metadata?.fee_amount ? parseFloat(metadata.fee_amount) : 0;
-  const netAmount = totalPrice - feeAmount;
+  // Fee is the difference between total price and net amount (what was deducted)
+  const feeAmount = Math.max(totalPrice - netAmount, 0);
+
   return {
-    netAmount: Math.max(netAmount, 0),
-    feeAmount: feeAmount,
+    netAmount,
+    feeAmount
   };
 };
 
@@ -154,11 +156,7 @@ export const SellersPage = () => {
         const totalRevenue = ordersList
           .filter(o => o.payment_status === 'paid' || o.payment_status === 'completed')
           .reduce((sum, o) => {
-            const totalPrice = parseFloat(o.total_price_usd || '0');
-            const metadata = o.payment_metadata as any;
-            const feeAmount = metadata?.fee_amount ? parseFloat(metadata.fee_amount) : 0;
-            const netAmount = totalPrice - feeAmount;
-            return sum + Math.max(netAmount, 0);
+            return sum + calculateNetAmount(o);
           }, 0);
 
         // Load balance using RPC
