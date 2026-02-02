@@ -101,7 +101,11 @@ export const CheckoutSuccess = () => {
                 <div className="flex justify-between">
                   <span className="text-gray-400">{method === 'manual' ? 'Contract Value (USD):' : 'Base Total (USD):'}</span>
                   <span className="text-white font-bold">
-                    US$ {parseFloat(order.total_price_usd).toFixed(2)}
+                    US$ {
+                      order.payment_method === 'parcelow' && parseFloat(order.total_price_usd) === 0
+                        ? '0.01' // Parcelow enforces a $0.01 minimum charge even for 100% off
+                        : parseFloat(order.total_price_usd).toFixed(2)
+                    }
                   </span>
                 </div>
                 {order.payment_method === 'parcelow' && (() => {

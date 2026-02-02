@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { PdfModal } from '@/components/ui/pdf-modal';
-import { FileText, Eye, Download, ChevronDown, EyeOff, Archive, Undo2 } from 'lucide-react';
+import { FileText, Eye, Download, ChevronDown, EyeOff, Archive, Undo2, Ticket } from 'lucide-react';
 import {
   Popover,
   PopoverContent,
@@ -37,6 +37,7 @@ interface VisaOrder {
   created_at: string;
   is_hidden?: boolean;
   parcelow_status?: string;
+  coupon_code?: string | null;
 }
 
 // Helper function to calculate net amount and fee
@@ -178,11 +179,18 @@ const OrderTable = ({
                 <td className={`py-3 px-4 text-sm font-bold ${isSignatureOnly ? 'text-blue-400' : 'text-gold-light'}`}>
                   <div>${totalPrice.toFixed(2)}</div>
                   {!isSignatureOnly && (
-                    <div className="text-[10px] font-normal mt-0.5">
+                    <div className="text-[10px] font-normal mt-0.5 flex flex-col gap-0.5">
                       {feeAmount > 0 ? (
                         <span className="text-red-400">-${feeAmount.toFixed(2)} fee</span>
                       ) : (
                         <span className="text-gray-500">$0.00 fee</span>
+                      )}
+
+                      {order.coupon_code && (
+                        <div className="flex items-center gap-1 text-green-400" title={`Cupom: ${order.coupon_code}`}>
+                          <Ticket className="w-3 h-3" />
+                          <span className="text-[10px] uppercase font-bold tracking-wider">{order.coupon_code}</span>
+                        </div>
                       )}
                     </div>
                   )}
@@ -354,6 +362,13 @@ const OrderTable = ({
                 <div>
                   <p className="text-gray-400">{isSignatureOnly ? 'Value' : 'Total (with fee)'}</p>
                   <p className="text-gold-light font-bold">${totalPrice.toFixed(2)}</p>
+
+                  {order.coupon_code && (
+                    <div className="flex items-center gap-1 text-green-400 mt-1" title={`Cupom: ${order.coupon_code}`}>
+                      <Ticket className="w-3 h-3" />
+                      <span className="text-[10px] uppercase font-bold tracking-wider">{order.coupon_code}</span>
+                    </div>
+                  )}
                 </div>
                 {!isSignatureOnly && (
                   <div>

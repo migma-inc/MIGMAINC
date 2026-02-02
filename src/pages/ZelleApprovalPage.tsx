@@ -407,6 +407,25 @@ export const ZelleApprovalPage = () => {
         console.error('Error sending webhook after Zelle approval:', webhookError);
       }
 
+      // Increment coupon usage if authorized
+      if (order.coupon_code) {
+        console.log(`[Zelle Approval] 🎟️ Incrementing usage for coupon: ${order.coupon_code}`);
+        const { error: rpcError } = await supabase.rpc('increment_coupon_usage', {
+          p_code: order.coupon_code
+        });
+
+        if (rpcError) {
+          console.error(`[Zelle Approval] ❌ Failed to increment coupon usage: ${rpcError.message}`);
+          setAlertData({
+            title: 'Warning',
+            message: 'Payment approved, but coupon usage update failed. Check logs.',
+            variant: 'error',
+          });
+        } else {
+          console.log(`[Zelle Approval] ✅ Coupon usage incremented successfully.`);
+        }
+      }
+
       setAlertData({
         title: 'Success',
         message: 'Payment approved successfully!',
