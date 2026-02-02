@@ -76,6 +76,7 @@ export const VisaCheckoutPage: React.FC = () => {
         effectiveSellerId,
         baseTotal,
         totalWithFees,
+        discountAmount, // Passing calculated discount directly
         state,
         actions
     );

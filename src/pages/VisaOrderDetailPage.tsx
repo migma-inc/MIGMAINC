@@ -50,6 +50,8 @@ interface Order {
   annex_approval_reviewed_by?: string | null;
   annex_approval_reviewed_at?: string | null;
   annex_rejection_reason?: string | null;
+  coupon_code?: string | null;
+  discount_amount?: number | null;
 }
 
 interface IdentityFile {
@@ -367,6 +369,19 @@ export const VisaOrderDetailPage = () => {
                   </div>
                 </>
               )}
+
+              {order.coupon_code && (
+                <div className="flex justify-between items-center py-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-green-400">Discount:</span>
+                    <Badge variant="secondary" className="bg-green-500/20 text-green-300 hover:bg-green-500/30 font-mono text-xs border border-green-500/30">
+                      {order.coupon_code}
+                    </Badge>
+                  </div>
+                  <span className="text-green-400 font-bold">-${parseFloat(String(order.discount_amount || 0)).toFixed(2)}</span>
+                </div>
+              )}
+
               <div className="border-t border-gold-medium/30 pt-3 mt-3 flex justify-between">
                 <span className="text-white font-bold">Total:</span>
                 <span className="text-xl sm:text-2xl font-bold text-gold-light">${parseFloat(order.total_price_usd).toFixed(2)}</span>

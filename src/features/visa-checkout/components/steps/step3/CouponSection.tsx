@@ -39,14 +39,14 @@ export const CouponSection = ({ actions, couponCode, appliedCoupon }: CouponSect
                     discountValue: data.value
                 });
                 actions.setCouponCode(data.code);
-                setMessage({ text: data.message || 'Cupom aplicado!', type: 'success' });
+                setMessage({ text: data.message || 'Coupon applied!', type: 'success' });
             } else {
-                setMessage({ text: data?.message || 'Cupom inválido.', type: 'error' });
+                setMessage({ text: data?.message || 'Invalid or inactive coupon.', type: 'error' });
                 actions.setAppliedCoupon(null);
             }
         } catch (err) {
             console.error('Coupon error:', err);
-            setMessage({ text: 'Erro ao validar cupom.', type: 'error' });
+            setMessage({ text: 'Error validating coupon.', type: 'error' });
             actions.setAppliedCoupon(null);
         } finally {
             setLoading(false);
@@ -64,14 +64,14 @@ export const CouponSection = ({ actions, couponCode, appliedCoupon }: CouponSect
         <div className="space-y-2 pt-2 animate-in fade-in slide-in-from-top-2">
             <h3 className="text-sm font-medium text-white flex items-center gap-2">
                 <Ticket className="w-4 h-4 text-gold-medium" />
-                Cupom de Desconto
+                Discount Coupon
             </h3>
 
             <div className="flex gap-2">
                 <Input
                     value={localCode}
                     onChange={(e) => setLocalCode(e.target.value.toUpperCase())}
-                    placeholder="Código do cupom"
+                    placeholder="Coupon code"
                     className="bg-black/50 border-gold-medium/30 text-white uppercase placeholder:normal-case placeholder:text-gray-500"
                     disabled={!!appliedCoupon || loading}
                 />
@@ -82,7 +82,7 @@ export const CouponSection = ({ actions, couponCode, appliedCoupon }: CouponSect
                         onClick={handleRemove}
                         className="border-red-500/50 text-red-400 hover:bg-red-500/10 hover:text-red-300"
                     >
-                        Remover
+                        Remove
                     </Button>
                 ) : (
                     <Button
@@ -90,7 +90,7 @@ export const CouponSection = ({ actions, couponCode, appliedCoupon }: CouponSect
                         disabled={!localCode || loading}
                         className="bg-gold-medium text-black hover:bg-gold-light font-medium"
                     >
-                        {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Aplicar'}
+                        {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Apply'}
                     </Button>
                 )}
             </div>

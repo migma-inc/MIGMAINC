@@ -93,12 +93,14 @@ export class ZelleService {
                     extra_unit_price_usd: product.price_per_dependent_usd || product.extra_unit_price || 0,
                     extra_units: request.extra_units || 0,
                     extra_unit_label: product.extra_unit_label || 'Additional Dependent',
-                    total_price_usd: baseTotal - (request.upsell_product_slug ? ((request.upsell_product_slug === 'canada-tourist-premium' ? 399 : 199) + (request.extra_units * 50)) : 0),
+                    total_price_usd: baseTotal - (request.upsell_product_slug ? ((request.upsell_product_slug === 'canada-tourist-premium' ? 399 : 199) + (request.extra_units * 50)) : 0) - (request.discount_amount || 0),
                     zelle_proof_url: n8nResult.imageUrl,
                     signature_image_url: request.signature_image_url,
                     contract_accepted: request.contract_accepted,
                     contract_signed_at: request.contract_signed_at,
                     contract_template_id: request.contract_template_id,
+                    coupon_code: request.coupon_code || null,
+                    discount_amount: request.discount_amount || 0,
                     payment_metadata: {
                         n8n_validation: {
                             status: n8nResult.decision.status,

@@ -69,3 +69,54 @@ export const deleteCoupon = async (id: string): Promise<void> => {
 
     if (error) throw error;
 };
+
+export const updateCoupon = async (id: string, coupon: Partial<CouponFormData>): Promise<Coupon> => {
+    const normalizedCoupon = {
+        ...coupon,
+        code: coupon.code ? coupon.code.toUpperCase().trim() : undefined,
+    };
+
+    const { data, error } = await supabase
+        .from('promotional_coupons')
+        .update(normalizedCoupon)
+        .eq('id', id)
+        .select()
+        .single();
+
+    if (error) throw error;
+    return data;
+};
+
+export interface CouponUsage {
+    id: string;
+    order_number: string;
+    client_name: string;
+    client_email: string;
+    product_slug: string;
+    created_at: string;
+    discount_amount: number;
+    total_price_usd: number;
+    payment_method?: string;
+}
+
+export const getCouponUsage = async (couponCode: string): Promise<CouponUsage[]> => {
+    const { data, error } = await supabase
+        .from('visa_orders')
+        .select(`
+            id,
+            order_number,
+            client_name,
+            client_email,
+            product_slug,
+            created_at,
+            discount_amount,
+            total_price_usd,
+            payment_method
+        `)
+        .eq('coupon_code', couponCode)
+        .neq('payment_status', 'cancelled') // Opcional: filtrar cancelados se desejar apenas usos efetivos
+        .order('created_at', { ascending: false });
+
+    if (error) throw error;
+    return data || [];
+};
