@@ -576,6 +576,31 @@ Deno.serve(async (req: Request) => {
       console.log(`[Parcelow Checkout] ℹ️ No upsell in this order.`);
     }
 
+    // Apply Discount if present
+    if (order.discount_amount && order.discount_amount > 0) {
+      console.log(`[Parcelow Checkout] 🏷️ Applying discount: -$${order.discount_amount}`);
+      const discountInCents = Math.round(parseFloat(order.discount_amount) * 100);
+
+      // Subtract from the first item to avoid negative line items in Parcelow
+      if (items.length > 0) {
+        // Ensure the item amount doesn't go below 1 cent (Parcelow limit)
+        const currentItemAmount = items[0].amount;
+        if (discountInCents >= currentItemAmount) {
+          console.warn(`[Parcelow Checkout] ⚠️ Discount (${discountInCents}) >= Item1 (${currentItemAmount}). Capping discount.`);
+          // If discount is huge, reduce item to 1 cent and log warning
+          // Ideally we shouldn't have discounts > price
+          items[0].amount = 1;
+          // Update description to reflect partial discount if needed
+          items[0].description += ` (Discount Applied)`;
+        } else {
+          items[0].amount -= discountInCents;
+          items[0].description += ` (Discount Applied)`;
+        }
+      }
+
+      console.log(`[Parcelow Checkout] ✅ Discount applied to first item. Final Item1 Amount: ${items[0].amount}`);
+    }
+
     // Prepare client data
     // Prioritize payment-specific CPF (from Step 3) over profile document (which might be a passport)
     const rawCpf = order.payment_metadata?.cpf || clientCpf || order.client_cpf || '';

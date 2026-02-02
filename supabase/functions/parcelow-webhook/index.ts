@@ -103,6 +103,21 @@ async function processParcelowWebhookEvent(event: ParcelowWebhookEvent, supabase
       } catch (e) { }
     }
 
+
+    // Increment coupon usage if authorized
+    if (mainOrder.coupon_code) {
+      console.log(`[parcelow-webhook] 🎟️ Incrementing usage for coupon: ${mainOrder.coupon_code}`);
+      const { error: rpcError } = await supabase.rpc('increment_coupon_usage', {
+        p_code: mainOrder.coupon_code
+      });
+
+      if (rpcError) {
+        console.error(`[parcelow-webhook] ❌ Failed to increment coupon usage: ${rpcError.message}`);
+      } else {
+        console.log(`[parcelow-webhook] ✅ Coupon usage incremented successfully.`);
+      }
+    }
+
     for (const orderItem of orders) {
       // Generate main product PDFs
       if (orderItem.product_slug !== 'consultation-common') {

@@ -71,6 +71,15 @@ export const useVisaCheckoutForm = () => {
     const [upsellContractTemplate, setUpsellContractTemplate] = useState<ContractTemplate | null>(null);
     const [loadingUpsellTemplate, setLoadingUpsellTemplate] = useState(false);
 
+    // Coupon
+    const [couponCode, setCouponCode] = useState('');
+    const [appliedCoupon, setAppliedCoupon] = useState<{
+        code: string;
+        discountType: 'fixed' | 'percentage';
+        discountValue: number;
+    } | null>(null);
+    const [discountAmount, setDiscountAmount] = useState(0);
+
     const state: VisaCheckoutState = {
         currentStep,
         loading,
@@ -120,6 +129,9 @@ export const useVisaCheckoutForm = () => {
         upsellProduct,
         upsellContractTemplate,
         loadingUpsellTemplate,
+        couponCode,
+        appliedCoupon,
+        discountAmount,
     };
 
     const actions: VisaCheckoutActions = useMemo(() => ({
@@ -171,6 +183,9 @@ export const useVisaCheckoutForm = () => {
         setUpsellProduct,
         setUpsellContractTemplate,
         setLoadingUpsellTemplate,
+        setCouponCode,
+        setAppliedCoupon,
+        setDiscountAmount,
     }), []);
 
     return { state, actions };

@@ -21,6 +21,7 @@ export const usePaymentHandlers = (
     sellerId: string | null,
     baseTotal: number,
     totalWithFees: number,
+    discountAmountExplicit: number,
     state: VisaCheckoutState,
     actions: VisaCheckoutActions
 ) => {
@@ -45,8 +46,13 @@ export const usePaymentHandlers = (
         exchangeRate,
         zelleReceipt,
         creditCardName,
-        cpf
+        cpf,
+        couponCode,
+        // discountAmount removed from state destructuring to avoid conflict
     } = state;
+
+    // Use the explicit value passed from parent which is calculated in render
+    const discountAmount = discountAmountExplicit;
 
     const {
         setError,
@@ -218,6 +224,8 @@ export const usePaymentHandlers = (
                 zelle_receipt_url: '',
                 upsell_product_slug: state.selectedUpsell === 'none' ? null : (state.selectedUpsell === 'canada-premium' ? 'canada-tourist-premium' : 'canada-tourist-revolution') as any,
                 upsell_contract_template_id: state.upsellContractTemplate?.id,
+                coupon_code: couponCode,
+                discount_amount: discountAmount,
             };
 
             const response = await ZelleService.processPayment(request, zelleReceipt, baseTotal);
@@ -231,7 +239,7 @@ export const usePaymentHandlers = (
             setSubmitting(false);
             setIsZelleProcessing(false);
         }
-    }, [productSlug, sellerId, baseTotal, validateStep3, zelleReceipt, extraUnits, serviceRequestId, clientName, clientEmail, clientWhatsApp, dependentNames, clientCountry, clientNationality, clientObservations, contractTemplate, setSubmitting, setIsZelleProcessing, setError, state.submitting]);
+    }, [productSlug, sellerId, baseTotal, validateStep3, zelleReceipt, extraUnits, serviceRequestId, clientName, clientEmail, clientWhatsApp, dependentNames, clientCountry, clientNationality, clientObservations, contractTemplate, setSubmitting, setIsZelleProcessing, setError, state.submitting, couponCode, discountAmount]);
 
     const handleParcelowPayment = useCallback(async () => {
         console.log('🔥🔥🔥🔥🔥 VERSÃO NOVA CARREGADA - handleParcelowPayment 🔥🔥🔥🔥🔥');
@@ -347,7 +355,9 @@ export const usePaymentHandlers = (
                             dependents: extraUnits,
                             total: upsellAmount
                         } : null
-                    }
+                    },
+                    coupon_code: couponCode || null,
+                    discount_amount: discountAmount || 0
                 })
                 .select()
                 .single();
@@ -453,6 +463,33 @@ export const usePaymentHandlers = (
                             upsell_order_id: existingUpsellOrderId
                         });
 
+                        // Update existing order with current details (especially coupon)
+                        const { error: updateError } = await supabase
+                            .from('visa_orders')
+                            .update({
+                                coupon_code: couponCode || null,
+                                discount_amount: discountAmount || 0,
+                                total_price_usd: totalWithFees,
+                                upsell_product_slug: upsellProductSlug,
+                                upsell_price_usd: upsellAmount > 0 ? upsellAmount : null,
+                                payment_metadata: {
+                                    ...existingOrder.payment_metadata,
+                                    has_upsell: !!upsellAmount,
+                                    upsell_details: upsellAmount > 0 ? {
+                                        slug: upsellProductSlug,
+                                        base_price: baseUpsellPrice,
+                                        dependents: extraUnits,
+                                        total: upsellAmount
+                                    } : null
+                                }
+                            })
+                            .eq('id', existingOrder.id);
+
+                        if (updateError) {
+                            console.error('Failed to update existing order:', updateError);
+                            // We proceed anyway, but warn
+                        }
+
                         // Use existing order for checkout WITH upsell
                         const { data: checkoutData, error: checkoutError } = await supabase.functions.invoke('create-parcelow-checkout', {
                             body: {
@@ -521,7 +558,7 @@ export const usePaymentHandlers = (
             setError(err instanceof Error ? err.message : 'Parcelow payment failed');
             setSubmitting(false);
         }
-    }, [productSlug, sellerId, totalWithFees, extraUnits, serviceRequestId, clientName, clientEmail, clientWhatsApp, validateStep3, documentFiles, hasExistingContract, existingContractData, dependentNames, clientCountry, clientNationality, clientObservations, setSubmitting, setError, contractTemplate, creditCardName, cpf, state.submitting]);
+    }, [productSlug, sellerId, totalWithFees, extraUnits, serviceRequestId, clientName, clientEmail, clientWhatsApp, validateStep3, documentFiles, hasExistingContract, existingContractData, dependentNames, clientCountry, clientNationality, clientObservations, setSubmitting, setError, contractTemplate, creditCardName, cpf, state.submitting, couponCode, discountAmount]);
 
     return {
         handleStripeCheckout,
