@@ -280,6 +280,7 @@ async function sendClientWebhook(order: any, supabase: any) {
           whatsapp: order.client_whatsapp || '',
           vendedor: order.seller_id || '',
         };
+        console.log(`[Webhook Client] Sending dependent payload (${depName}) to n8n:`, JSON.stringify(depPayload));
         await fetch(webhookUrl, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
