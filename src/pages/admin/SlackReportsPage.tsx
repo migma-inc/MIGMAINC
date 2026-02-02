@@ -1,9 +1,12 @@
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { supabase } from '@/lib/supabase';
-import { Activity, Users, Calendar, BarChart3, MessageSquare, FileText, FileJson, FileCode } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Activity, Users, Calendar, BarChart3, MessageSquare, FileText, FileJson, FileCode, Clock, Coffee, AlertTriangle, ChevronRight, Download } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
-import { format } from 'date-fns';
+import { format, subDays, startOfDay } from 'date-fns';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { exportIdleDataToExcel } from '@/lib/slackIdleExport';
 import {
     Dialog,
     DialogContent,
@@ -54,9 +57,43 @@ interface ReportMessage {
     isPrivate: boolean;
 }
 
+interface IdleStats {
+    date: Date;
+    users: {
+        userId: string;
+        userName: string;
+        gapsCount: number;
+        totalMinutes: number;
+        totalHoursFormatted: string;
+        gaps: { start: Date; end: Date; minutes: number }[];
+    }[];
+}
+
+const USER_NAME_MAP: Record<string, string> = {
+    'U0A7T9TCX8B': 'ADM MIGMA',
+    'U0A83923VHA': 'Paulo Victor',
+    'U0A8MHPPRPE': 'Larissa Costa',
+    'U0A8WL16G9X': 'Miriã',
+    'U0A9DQHUU04': 'Ceme Suaiden',
+    'U0A9HSNRV6U': 'Alfeu Wartully',
+    'U0A9XERBUGL': 'Vinicius Aguiar',
+    'U0ABY0TGWBW': 'Arthur',
+    'U0ACA4RG63E': 'Renata Nogueira',
+    'U0AC7T8TBTM': 'Romulo Pimentel',
+    'U0ABZ4SA7TN': 'Larissa Costa',
+    'U0ABNH1RBUK': 'Thayrine Prado',
+    'U0ACPRGVC3S': 'Vinicius Aguiar',
+    'U0AC3EU30N8': 'Thayrine Prado',
+    'U0AAFT96KKK': 'mentorclickup03'
+};
+
 export function SlackReportsPage() {
     const [reports, setReports] = useState<SlackReport[]>([]);
+    const [idleData, setIdleData] = useState<IdleStats[]>([]);
     const [loading, setLoading] = useState(true);
+    const [loadingIdle, setLoadingIdle] = useState(false);
+    const [activeTab, setActiveTab] = useState('reports');
+    const [daysToShow, setDaysToShow] = useState(7); // Período padrão: 7 dias
     const [selectedReport, setSelectedReport] = useState<SlackReport | null>(null);
     const [selectedChannel, setSelectedChannel] = useState<string | null>(null);
     const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -94,7 +131,14 @@ export function SlackReportsPage() {
 
     useEffect(() => {
         fetchReports();
+        fetchIdleStats();
     }, []);
+
+    useEffect(() => {
+        if (activeTab === 'idle') {
+            fetchIdleStats();
+        }
+    }, [daysToShow, activeTab]);
 
     const fetchReports = async () => {
         try {
@@ -112,6 +156,162 @@ export function SlackReportsPage() {
             console.error('Error fetching slack reports:', error);
         } finally {
             setLoading(false);
+        }
+    };
+
+    const fetchIdleStats = async () => {
+        try {
+            setLoadingIdle(true);
+
+            const startDate = subDays(new Date(), daysToShow);
+            console.log('🔍 Calculando gaps de ociosidade de', startOfDay(startDate).toISOString(), 'até', new Date().toISOString());
+
+            // Calcular gaps diretamente no banco de dados usando SQL
+            const { data: gapsData, error } = await supabase.rpc('calculate_idle_gaps', {
+                start_date: startOfDay(startDate).toISOString(),
+                end_date: new Date().toISOString(),
+                min_gap_minutes: 30
+            });
+
+            if (error) {
+                console.error('Erro ao calcular gaps:', error);
+                // Fallback: se a função não existir, vamos criar ela
+                console.log('⚠️ Função calculate_idle_gaps não encontrada. Usando query direta...');
+
+                const { data: rawGaps, error: queryError } = await supabase.from('slack_raw_events').select(`
+                    user_id,
+                    slack_timestamp,
+                    metadata
+                `).gte('slack_timestamp', startOfDay(startDate).toISOString())
+                    .lte('slack_timestamp', new Date().toISOString())
+                    .order('user_id, slack_timestamp', { ascending: true });
+
+                if (queryError) throw queryError;
+
+                // Processar gaps no frontend como fallback
+                const userEvents: Record<string, any[]> = {};
+                (rawGaps || []).forEach(event => {
+                    if (!userEvents[event.user_id]) userEvents[event.user_id] = [];
+                    userEvents[event.user_id].push(event);
+                });
+
+                const dailyStats: Record<string, IdleStats> = {};
+
+                Object.keys(userEvents).forEach(userId => {
+                    const events = userEvents[userId];
+                    for (let i = 1; i < events.length; i++) {
+                        const prev = new Date(events[i - 1].slack_timestamp);
+                        const curr = new Date(events[i].slack_timestamp);
+                        const diffMinutes = (curr.getTime() - prev.getTime()) / (1000 * 60);
+
+                        if (diffMinutes > 30) {
+                            const dateKey = format(curr, 'yyyy-MM-dd');
+                            if (!dailyStats[dateKey]) {
+                                dailyStats[dateKey] = { date: startOfDay(curr), users: [] };
+                            }
+
+                            let userStat = dailyStats[dateKey].users.find(u => u.userId === userId);
+                            if (!userStat) {
+                                userStat = {
+                                    userId,
+                                    userName: USER_NAME_MAP[userId] || events[i].metadata?.userName || userId,
+                                    gapsCount: 0,
+                                    totalMinutes: 0,
+                                    totalHoursFormatted: '0h 0m',
+                                    gaps: []
+                                };
+                                dailyStats[dateKey].users.push(userStat);
+                            }
+
+                            userStat.gapsCount++;
+                            userStat.totalMinutes += diffMinutes;
+                            userStat.gaps.push({ start: prev, end: curr, minutes: diffMinutes });
+                        }
+                    }
+                });
+
+                const result = Object.values(dailyStats).map(day => {
+                    day.users = day.users.map(u => {
+                        const hours = Math.floor(u.totalMinutes / 60);
+                        const mins = Math.round(u.totalMinutes % 60);
+                        u.totalHoursFormatted = `${hours}h ${mins}m`;
+                        return u;
+                    }).sort((a, b) => b.totalMinutes - a.totalMinutes);
+                    return day;
+                }).sort((a, b) => b.date.getTime() - a.date.getTime());
+
+                console.log('📅 Dados processados (fallback):', result.length, 'dias');
+                setIdleData(result);
+                return;
+            }
+
+            console.log('✅ Gaps calculados no servidor:', gapsData?.length || 0);
+
+            // Processar dados retornados do servidor
+            const dailyStats: Record<string, IdleStats> = {};
+
+            (gapsData || []).forEach((gap: any) => {
+                const gapStart = new Date(gap.gap_start);
+                const gapEnd = new Date(gap.gap_end);
+
+                // Apenas contar gaps que começam e terminam no mesmo dia
+                const startDate = format(gapStart, 'yyyy-MM-dd');
+                const endDate = format(gapEnd, 'yyyy-MM-dd');
+
+                if (startDate !== endDate) {
+                    // Gap atravessa dias - ignorar para evitar contagens acima de 24h
+                    return;
+                }
+
+                // Ignorar usuários sem nome mapeado
+                if (!USER_NAME_MAP[gap.user_id]) {
+                    return;
+                }
+
+                const dateKey = endDate;
+                if (!dailyStats[dateKey]) {
+                    dailyStats[dateKey] = { date: startOfDay(gapEnd), users: [] };
+                }
+
+                let userStat = dailyStats[dateKey].users.find(u => u.userId === gap.user_id);
+                if (!userStat) {
+                    userStat = {
+                        userId: gap.user_id,
+                        userName: USER_NAME_MAP[gap.user_id],
+                        gapsCount: 0,
+                        totalMinutes: 0,
+                        totalHoursFormatted: '0h 0m',
+                        gaps: []
+                    };
+                    dailyStats[dateKey].users.push(userStat);
+                }
+
+                userStat.gapsCount++;
+                userStat.totalMinutes += gap.gap_minutes;
+                userStat.gaps.push({
+                    start: gapStart,
+                    end: gapEnd,
+                    minutes: gap.gap_minutes
+                });
+            });
+
+            // Formatação final
+            const result = Object.values(dailyStats).map(day => {
+                day.users = day.users.map(u => {
+                    const hours = Math.floor(u.totalMinutes / 60);
+                    const mins = Math.round(u.totalMinutes % 60);
+                    u.totalHoursFormatted = `${hours}h ${mins}m`;
+                    return u;
+                }).sort((a, b) => b.totalMinutes - a.totalMinutes);
+                return day;
+            }).sort((a, b) => b.date.getTime() - a.date.getTime());
+
+            console.log('📅 Dias com dados:', result.length);
+            setIdleData(result);
+        } catch (error) {
+            console.error('Error fetching idle stats:', error);
+        } finally {
+            setLoadingIdle(false);
         }
     };
 
@@ -367,7 +567,7 @@ export function SlackReportsPage() {
                 </button>
             </div>
 
-            {latestReport && (
+            {latestReport && activeTab === 'reports' && (
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <Card className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30">
                         <CardHeader className="pb-2">
@@ -410,81 +610,234 @@ export function SlackReportsPage() {
                 </div>
             )}
 
-            <Card className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30">
-                <CardHeader>
-                    <CardTitle className="text-white flex items-center gap-2">
-                        <BarChart3 className="w-5 h-5" />
-                        Activity History
-                    </CardTitle>
-                </CardHeader>
-                <CardContent>
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-sm text-left">
-                            <thead className="text-xs text-gray-400 uppercase border-b border-gold-medium/30">
-                                <tr>
-                                    <th className="px-4 py-3">Date</th>
-                                    <th className="px-4 py-3">Events</th>
-                                    <th className="px-4 py-3">Unique Users</th>
-                                    <th className="px-4 py-3 text-right">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {reports.map((report) => (
-                                    <tr key={report.id} className="border-b border-gold-medium/10 hover:bg-gold-medium/5 transition-colors">
-                                        <td className="px-4 py-3 font-medium text-white">
-                                            {safeFormat(report.date, 'PPP')}
-                                        </td>
-                                        <td className="px-4 py-3 text-gray-300">
-                                            <div className="flex items-center gap-2">
-                                                <MessageSquare className="w-3 h-3 text-gold-medium/70" />
-                                                {report.total_events}
-                                            </div>
-                                        </td>
-                                        <td className="px-4 py-3 text-gray-300">
-                                            <div className="flex items-center gap-2">
-                                                <Users className="w-3 h-3 text-gold-medium/70" />
-                                                {report.unique_users}
-                                            </div>
-                                        </td>
-                                        <td className="px-4 py-3 text-right">
-                                            <div className="flex items-center justify-end gap-2">
-                                                <button
-                                                    onClick={() => handleDownloadJSON(report)}
-                                                    className="p-1.5 text-gray-400 hover:text-gold-light hover:bg-gold-medium/10 rounded transition-colors"
-                                                    title="Download JSON"
-                                                >
-                                                    <FileJson className="w-4 h-4" />
-                                                </button>
-                                                <button
-                                                    onClick={() => handleDownloadHTML(report)}
-                                                    className="p-1.5 text-gray-400 hover:text-gold-light hover:bg-gold-medium/10 rounded transition-colors"
-                                                    title="Download HTML"
-                                                >
-                                                    <FileCode className="w-4 h-4" />
-                                                </button>
-                                                <button
-                                                    onClick={() => handleViewReport(report)}
-                                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gold-light bg-gold-medium/10 border border-gold-medium/30 rounded-md hover:bg-gold-medium/20 transition-colors"
-                                                >
-                                                    <FileText className="w-3 h-3" />
-                                                    View
-                                                </button>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                ))}
-                                {reports.length === 0 && (
-                                    <tr>
-                                        <td colSpan={4} className="px-4 py-8 text-center text-gray-400">
-                                            No reports found.
-                                        </td>
-                                    </tr>
-                                )}
-                            </tbody>
-                        </table>
+            <Tabs defaultValue="reports" className="w-full" onValueChange={setActiveTab}>
+                <TabsList className="bg-black/40 border border-white/5 p-1 mb-6">
+                    <TabsTrigger value="reports" className="data-[state=active]:bg-gold-medium data-[state=active]:text-black">
+                        <BarChart3 className="w-4 h-4 mr-2" />
+                        Historical Reports
+                    </TabsTrigger>
+                    <TabsTrigger value="idle" className="data-[state=active]:bg-gold-medium data-[state=active]:text-black">
+                        <Clock className="w-4 h-4 mr-2" />
+                        Idle Monitoring
+                    </TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="reports" className="space-y-6">
+                    <Card className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30">
+                        <CardHeader>
+                            <CardTitle className="text-white flex items-center gap-2">
+                                <BarChart3 className="w-5 h-5" />
+                                Activity History
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-sm text-left">
+                                    <thead className="text-xs text-gray-400 uppercase border-b border-gold-medium/30">
+                                        <tr>
+                                            <th className="px-4 py-3">Date</th>
+                                            <th className="px-4 py-3">Events</th>
+                                            <th className="px-4 py-3">Unique Users</th>
+                                            <th className="px-4 py-3 text-right">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {reports.map((report) => (
+                                            <tr key={report.id} className="border-b border-gold-medium/10 hover:bg-gold-medium/5 transition-colors">
+                                                <td className="px-4 py-3 font-medium text-white">
+                                                    {safeFormat(report.date, 'PPP')}
+                                                </td>
+                                                <td className="px-4 py-3 text-gray-300">
+                                                    <div className="flex items-center gap-2">
+                                                        <MessageSquare className="w-3 h-3 text-gold-medium/70" />
+                                                        {report.total_events}
+                                                    </div>
+                                                </td>
+                                                <td className="px-4 py-3 text-gray-300">
+                                                    <div className="flex items-center gap-2">
+                                                        <Users className="w-3 h-3 text-gold-medium/70" />
+                                                        {report.unique_users}
+                                                    </div>
+                                                </td>
+                                                <td className="px-4 py-3 text-right">
+                                                    <div className="flex items-center justify-end gap-2">
+                                                        <button
+                                                            onClick={() => handleDownloadJSON(report)}
+                                                            className="p-1.5 text-gray-400 hover:text-gold-light hover:bg-gold-medium/10 rounded transition-colors"
+                                                            title="Download JSON"
+                                                        >
+                                                            <FileJson className="w-4 h-4" />
+                                                        </button>
+                                                        <button
+                                                            onClick={() => handleDownloadHTML(report)}
+                                                            className="p-1.5 text-gray-400 hover:text-gold-light hover:bg-gold-medium/10 rounded transition-colors"
+                                                            title="Download HTML"
+                                                        >
+                                                            <FileCode className="w-4 h-4" />
+                                                        </button>
+                                                        <button
+                                                            onClick={() => handleViewReport(report)}
+                                                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gold-light bg-gold-medium/10 border border-gold-medium/30 rounded-md hover:bg-gold-medium/20 transition-colors"
+                                                        >
+                                                            <FileText className="w-3 h-3" />
+                                                            View
+                                                        </button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                        {reports.length === 0 && (
+                                            <tr>
+                                                <td colSpan={4} className="px-4 py-8 text-center text-gray-400">
+                                                    No reports found.
+                                                </td>
+                                            </tr>
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </CardContent>
+                    </Card>
+                </TabsContent>
+
+                <TabsContent value="idle" className="space-y-6">
+                    <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between mb-6">
+                        <div>
+                            <h3 className="text-lg font-bold text-white">Idle Analysis</h3>
+                            <p className="text-sm text-gray-400 mt-1">
+                                Periods without activity over 30 minutes
+                            </p>
+                        </div>
+                        <div className="flex gap-2">
+                            {[7, 15, 30].map((days) => (
+                                <button
+                                    key={days}
+                                    onClick={() => setDaysToShow(days)}
+                                    className={cn(
+                                        "px-4 py-2 rounded-lg font-bold text-sm transition-all",
+                                        daysToShow === days
+                                            ? "bg-gold-medium text-black"
+                                            : "bg-black/40 border border-white/10 text-white hover:bg-white/5 hover:text-gold-light"
+                                    )}
+                                >
+                                    {days} days
+                                </button>
+                            ))}
+                            <div className="w-px bg-white/10 mx-2" />
+                            <button
+                                onClick={() => exportIdleDataToExcel(idleData, daysToShow)}
+                                disabled={idleData.length === 0 || loadingIdle}
+                                className="flex items-center gap-2 px-4 py-2 bg-green-600/80 hover:bg-green-600 disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-bold rounded-lg transition-all"
+                                title="Exportar para Excel"
+                            >
+                                <Download className="w-4 h-4" />
+                                Excel
+                            </button>
+                        </div>
                     </div>
-                </CardContent>
-            </Card>
+                    <div className="grid grid-cols-1 gap-6">
+                        {loadingIdle ? (
+                            <div className="space-y-4">
+                                {[1, 2, 3].map(i => (
+                                    <Card key={i} className="bg-zinc-900/40 border-white/5 p-6">
+                                        <Skeleton className="h-6 w-48 mb-4" />
+                                        <div className="space-y-2">
+                                            <Skeleton className="h-10 w-full" />
+                                            <Skeleton className="h-10 w-full" />
+                                        </div>
+                                    </Card>
+                                ))}
+                            </div>
+                        ) : (
+                            idleData.map((day) => (
+                                <Card key={day.date.toISOString()} className="bg-gradient-to-br from-zinc-900/80 to-black border border-white/5 overflow-hidden">
+                                    <div className="p-4 bg-white/5 border-b border-white/5 flex items-center justify-between">
+                                        <div className="flex items-center gap-3">
+                                            <Calendar className="w-5 h-5 text-gold-light" />
+                                            <h3 className="font-bold text-lg text-white">
+                                                {format(day.date, 'PPPP', { locale: undefined })}
+                                            </h3>
+                                        </div>
+                                        <Badge variant="outline" className="bg-gold-medium/10 text-gold-light border-gold-medium/30">
+                                            {day.users.length} Active Users
+                                        </Badge>
+                                    </div>
+                                    <CardContent className="p-0">
+                                        <div className="divide-y divide-white/5">
+                                            {day.users.map((user) => (
+                                                <div key={user.userId} className="p-4 hover:bg-white/5 transition-colors group">
+                                                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                                                        <div className="flex items-center gap-4">
+                                                            <div className="w-12 h-12 rounded-full bg-gradient-to-br from-gold-medium/20 to-gold-dark/20 flex items-center justify-center text-gold-light font-bold text-xl border border-gold-medium/20">
+                                                                {user.userName.charAt(0).toUpperCase()}
+                                                            </div>
+                                                            <div>
+                                                                <h4 className="text-white font-bold text-lg flex items-center gap-2">
+                                                                    {user.userName}
+                                                                    {user.totalMinutes > 480 && (
+                                                                        <span title="High idle time detected">
+                                                                            <AlertTriangle className="w-4 h-4 text-amber-500" />
+                                                                        </span>
+                                                                    )}
+                                                                </h4>
+                                                                <p className="text-xs text-gray-500 font-mono">{user.userId}</p>
+                                                            </div>
+                                                        </div>
+
+                                                        <div className="flex items-center gap-6">
+                                                            <div className="text-right">
+                                                                <p className="text-xs text-gray-500 uppercase font-bold tracking-wider">Idle Periods</p>
+                                                                <div className="flex items-center justify-end gap-2 text-white font-bold">
+                                                                    <Coffee className="w-4 h-4 text-gold-medium" />
+                                                                    {user.gapsCount} breaks
+                                                                </div>
+                                                            </div>
+                                                            <div className="text-right min-w-[120px]">
+                                                                <p className="text-xs text-gray-500 uppercase font-bold tracking-wider">Total Time</p>
+                                                                <div className="text-xl font-black text-gold-light">
+                                                                    {user.totalHoursFormatted}
+                                                                </div>
+                                                            </div>
+                                                            <div className="hidden sm:block">
+                                                                <ChevronRight className="w-5 h-5 text-gray-700 group-hover:text-gold-light transition-colors" />
+                                                            </div>
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Detalhes das pausas (mini timeline) */}
+                                                    <div className="mt-4 flex gap-1 h-1.5 w-full bg-white/5 rounded-full overflow-hidden">
+                                                        {user.gaps.map((gap, idx) => (
+                                                            <div
+                                                                key={idx}
+                                                                className={cn(
+                                                                    "h-full rounded-full transition-all",
+                                                                    gap.minutes > 120 ? "bg-red-500" : gap.minutes > 60 ? "bg-amber-500" : "bg-gold-medium"
+                                                                )}
+                                                                style={{ width: `${Math.min((gap.minutes / 480) * 100, 50)}%` }}
+                                                                title={`Start: ${format(gap.start, 'HH:mm')} - End: ${format(gap.end, 'HH:mm')} (${Math.round(gap.minutes)} min)`}
+                                                            />
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </CardContent>
+                                </Card>
+                            ))
+                        )}
+
+                        {!loadingIdle && idleData.length === 0 && (
+                            <div className="flex flex-col items-center justify-center p-12 text-center bg-zinc-900/40 border border-dashed border-white/10 rounded-xl">
+                                <Activity className="w-12 h-12 text-gray-600 mb-4" />
+                                <h3 className="text-lg font-bold text-white">No idle data found</h3>
+                                <p className="text-gray-400 mt-2 max-w-sm">
+                                    There are no records of inactivity over 30 minutes linked to users in the logs from recent days.
+                                </p>
+                            </div>
+                        )}
+                    </div>
+                </TabsContent>
+            </Tabs>
 
             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
                 <DialogContent className="max-w-6xl w-[95vw] h-[85vh] flex flex-col p-0 gap-0 bg-[#1A1D21] border-gold-medium/30 overflow-hidden">

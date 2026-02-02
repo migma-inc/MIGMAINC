@@ -372,10 +372,12 @@ Deno.serve(async (req) => {
         let totalAmount = calculatedSubtotal - discountAmount;
 
         // Parcelow specific rule: Minimum 0.01 USD for transaction validity
-        let displayedDiscount = discountAmount;
-        if (totalAmount <= 0 && order.payment_method === 'parcelow') {
+        const method = (order.payment_method || '').toLowerCase().trim();
+        console.log(`[EDGE FUNCTION] Invoice Calculation: Subtotal=${calculatedSubtotal}, Discount=${discountAmount}, Method=${method}`);
+
+        if (totalAmount <= 0.001 && method === 'parcelow') {
+            console.log('[EDGE FUNCTION] ⚖️ Total is 0 but method is Parcelow. Forcing $0.01 to match gateway.');
             totalAmount = 0.01;
-            displayedDiscount = calculatedSubtotal - 0.01;
         }
 
         pdf.setFont('helvetica', 'normal');
@@ -389,7 +391,7 @@ Deno.serve(async (req) => {
             pdf.setTextColor(200, 0, 0); // Red for discount
             pdf.text(`Discount (${order.coupon_code || 'Promo'})`, pageWidth - margin - 40, currentY, { align: 'right' });
             pdf.setFont('helvetica', 'bold');
-            pdf.text(`-$${displayedDiscount.toFixed(2)}`, pageWidth - margin - 5, currentY, { align: 'right' });
+            pdf.text(`-$${discountAmount.toFixed(2)}`, pageWidth - margin - 5, currentY, { align: 'right' });
             pdf.setTextColor(0, 0, 0); // Reset
         }
 
