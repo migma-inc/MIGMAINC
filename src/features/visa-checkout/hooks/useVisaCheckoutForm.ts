@@ -80,6 +80,10 @@ export const useVisaCheckoutForm = () => {
     } | null>(null);
     const [discountAmount, setDiscountAmount] = useState(0);
 
+    // Split Payment
+    const [splitPaymentConfig, setSplitPaymentConfig] = useState<any | null>(null);
+    const [totalPriceUsd, setTotalPriceUsd] = useState('0');
+
     const state: VisaCheckoutState = {
         currentStep,
         loading,
@@ -132,6 +136,8 @@ export const useVisaCheckoutForm = () => {
         couponCode,
         appliedCoupon,
         discountAmount,
+        splitPaymentConfig,
+        totalPriceUsd,
     };
 
     const actions: VisaCheckoutActions = useMemo(() => ({
@@ -186,6 +192,7 @@ export const useVisaCheckoutForm = () => {
         setCouponCode,
         setAppliedCoupon,
         setDiscountAmount,
+        setSplitPaymentConfig,
     }), []);
 
     return { state, actions };
