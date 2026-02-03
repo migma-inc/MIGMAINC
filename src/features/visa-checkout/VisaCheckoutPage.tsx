@@ -200,7 +200,14 @@ export const VisaCheckoutPage: React.FC = () => {
                         )}
                         {state.currentStep === 3 && (
                             <div className="animate-in fade-in slide-in-from-left-4 duration-300">
-                                <Step3Payment state={state} actions={actions} handlers={paymentHandlers} onPrev={handlePrev} productSlug={productSlug} />
+                                <Step3Payment
+                                    state={state}
+                                    actions={actions}
+                                    handlers={paymentHandlers}
+                                    onPrev={handlePrev}
+                                    productSlug={productSlug}
+                                    totalWithFees={totalWithFees}
+                                />
                             </div>
                         )}
                     </main>
@@ -218,7 +225,10 @@ export const VisaCheckoutPage: React.FC = () => {
                                     state.signatureConfirmed &&
                                     state.termsAccepted &&
                                     (state.paymentMethod !== 'zelle' || !!state.zelleReceipt) &&
-                                    (state.paymentMethod !== 'parcelow' || (!!state.creditCardName && !!state.cpf && state.cpf.length >= 11))
+                                    (state.paymentMethod !== 'parcelow' ||
+                                        (state.splitPaymentConfig?.enabled) || // Se for Split, libera
+                                        (!!state.creditCardName && !!state.cpf && state.cpf.length >= 11) // Se não for split, exige dados
+                                    )
                                 }
                                 onPay={() => {
                                     if (state.submitting) return;

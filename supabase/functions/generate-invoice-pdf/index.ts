@@ -369,7 +369,14 @@ Deno.serve(async (req) => {
         // 5. Totals
         // ============================================
         const calculatedSubtotal = basePrice + extraTotal + upsellPrice;
-        let totalAmount = calculatedSubtotal - discountAmount;
+
+        // Fee handling (from metadata)
+        let feeAmount = 0;
+        if (order.payment_metadata && typeof order.payment_metadata === 'object' && 'fee_amount' in order.payment_metadata) {
+            feeAmount = parseFloat(String(order.payment_metadata.fee_amount));
+        }
+
+        let totalAmount = calculatedSubtotal - discountAmount + feeAmount;
 
         // Parcelow specific rule: Minimum 0.01 USD for transaction validity
         const method = (order.payment_method || '').toLowerCase().trim();
@@ -397,9 +404,9 @@ Deno.serve(async (req) => {
 
         currentY += 8;
         pdf.setFont('helvetica', 'normal');
-        pdf.text('Taxes (0%)', pageWidth - margin - 40, currentY, { align: 'right' });
+        pdf.text('Service & Processing Fees', pageWidth - margin - 40, currentY, { align: 'right' });
         pdf.setFont('helvetica', 'bold');
-        pdf.text('$0.00', pageWidth - margin - 5, currentY, { align: 'right' });
+        pdf.text(`$${feeAmount.toFixed(2)}`, pageWidth - margin - 5, currentY, { align: 'right' });
 
         currentY += 10;
         pdf.setFillColor(248, 248, 248);

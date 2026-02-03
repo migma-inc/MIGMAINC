@@ -10,6 +10,7 @@ import { PaymentMethodSelector } from './step3/PaymentMethodSelector';
 import { ZelleUpload } from './step3/ZelleUpload';
 
 import { CouponSection } from './step3/CouponSection';
+import { SplitPaymentSelector } from './step3/SplitPaymentSelector';
 // import { UpsellSelection } from './step3/UpsellSelection';
 
 interface Step3Props {
@@ -22,9 +23,10 @@ interface Step3Props {
     };
     onPrev: () => void;
     productSlug?: string;
+    totalWithFees: number;
 }
 
-export const Step3Payment: React.FC<Step3Props> = ({ state, actions, handlers, onPrev /*, productSlug */ }) => {
+export const Step3Payment: React.FC<Step3Props> = ({ state, actions, handlers, onPrev, totalWithFees /*, productSlug */ }) => {
     const {
         termsAccepted, dataAuthorization, contractTemplate, chargebackAnnexTemplate, upsellContractTemplate, paymentMethod,
         zelleReceipt, signatureImageDataUrl, signatureConfirmed /*, selectedUpsell */
@@ -87,6 +89,20 @@ export const Step3Payment: React.FC<Step3Props> = ({ state, actions, handlers, o
                     paymentMethod={paymentMethod}
                     onMethodChange={setPaymentMethod}
                 />
+
+                {/* 🆕 Split Payment Selector - Apenas para Parcelow */}
+                {paymentMethod === 'parcelow' && (
+                    <div className="animate-in fade-in slide-in-from-top-2">
+                        <SplitPaymentSelector
+                            totalAmount={totalWithFees}
+                            onSplitChange={(config) => {
+                                // Armazenar configuração de split no estado
+                                actions.setSplitPaymentConfig(config);
+                            }}
+                            disabled={state.submitting}
+                        />
+                    </div>
+                )}
 
                 {paymentMethod === 'parcelow' && (
                     <div className="space-y-2 pt-2 animate-in fade-in slide-in-from-top-2">
