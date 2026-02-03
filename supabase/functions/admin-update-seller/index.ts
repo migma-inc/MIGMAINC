@@ -118,15 +118,18 @@ Deno.serve(async (req) => {
         const authUpdates: any = {};
         if (email !== oldEmail) {
             authUpdates.email = email;
-            // Set email_confirm_status to false to require confirmation
-            authUpdates.email_confirm_status = false;
+            authUpdates.email_confirm = true;
+            console.log(`[LOG] Solicitando troca de e-mail para: ${email}`);
+
         }
         if (new_password) {
             authUpdates.password = new_password;
         }
 
         if (Object.keys(authUpdates).length > 0) {
-            const { error: authUpdateError } = await supabaseAdmin.auth.admin.updateUserById(
+            console.log(`[LOG] Atualizando Auth para user id: ${sellerUserId}`);
+
+            const { data: updateData, error: authUpdateError } = await supabaseAdmin.auth.admin.updateUserById(
                 sellerUserId,
                 authUpdates
             );
@@ -142,14 +145,139 @@ Deno.serve(async (req) => {
                     });
                 }
 
+
                 return new Response(JSON.stringify({ error: 'Erro ao atualizar credenciais do vendedor' }), {
                     status: 500,
                     headers: { ...corsHeaders, 'Content-Type': 'application/json' },
                 });
             }
-
+            console.log('[LOG] Sucesso no auth! resultado:', updateData.user.new_email ? 'Email pendente de confirmação' : 'Email confirmado');
             console.log('[admin-update-seller] Auth updated successfully');
         }
+
+        // If email was changed, send a manual notification via our Edge Function
+        const cleanEmail = email.trim().toLowerCase();
+        const cleanOldEmail = oldEmail.trim().toLowerCase();
+
+        console.log(`[admin-update-seller] Email comparison: Old=${cleanOldEmail} | New=${cleanEmail}`);
+
+        // Send manual notification if credentials were changed
+        if (cleanEmail !== cleanOldEmail || new_password) {
+            try {
+                const targetEmail = cleanEmail; // Always send to the NEW email address
+                console.log(`[admin-update-seller] Dispatching security notification to: ${targetEmail}`);
+
+                let updateDetailsHtml = '';
+                let subject = "Security Update: Account Credentials Modified - Migma Inc.";
+
+                if (cleanEmail !== cleanOldEmail && new_password) {
+                    subject = "Security Update: Email and Password Changed - Migma Inc.";
+                    updateDetailsHtml = `
+                        <tr>
+                            <td width="40%" style="padding: 8px 0; color: #CE9F48; font-weight: 600;">New Login Email:</td>
+                            <td style="padding: 8px 0; color: #e0e0e0; font-family: monospace;">${cleanEmail}</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 8px 0; color: #CE9F48; font-weight: 600;">Password:</td>
+                            <td style="padding: 8px 0; color: #e0e0e0;">Successfully Updated</td>
+                        </tr>
+                    `;
+                } else if (cleanEmail !== cleanOldEmail) {
+                    subject = "Security Update: Login Email Changed - Migma Inc.";
+                    updateDetailsHtml = `
+                        <tr>
+                            <td width="40%" style="padding: 8px 0; color: #CE9F48; font-weight: 600;">New Login Email:</td>
+                            <td style="padding: 8px 0; color: #e0e0e0; font-family: monospace;">${cleanEmail}</td>
+                        </tr>
+                    `;
+                } else if (new_password) {
+                    subject = "Security Update: Password Changed - Migma Inc.";
+                    updateDetailsHtml = `
+                        <tr>
+                            <td width="40%" style="padding: 8px 0; color: #CE9F48; font-weight: 600;">Password:</td>
+                            <td style="padding: 8px 0; color: #e0e0e0;">Successfully Updated</td>
+                        </tr>
+                    `;
+                }
+
+                const { data: emailData, error: emailInvokeError } = await supabaseAdmin.functions.invoke('send-email', {
+                    body: {
+                        to: targetEmail,
+                        subject: subject,
+                        html: `
+                            <!DOCTYPE html>
+                            <html>
+                            <head>
+                                <meta charset="utf-8">
+                                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                                <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+                            </head>
+                            <body style="margin: 0; padding: 0; font-family: 'Plus Jakarta Sans', sans-serif; background-color: #000000; color: #ffffff;">
+                                <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background-color: #000000;">
+                                    <tr>
+                                        <td align="center" style="padding: 30px 20px;">
+                                            <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="600" style="max-width: 600px; background-color: #0a0a0a; border: 1px solid #CE9F48; border-radius: 12px; overflow: hidden;">
+                                                <tr>
+                                                    <td align="center" style="padding: 30px; background-color: #000000; border-bottom: 1px solid #1a1a1a;">
+                                                        <img src="https://ekxftwrjvxtpnqbraszv.supabase.co/storage/v1/object/public/logo/logo2.png" alt="MIGMA Logo" width="150" style="display: block;">
+                                                    </td>
+                                                </tr>
+                                                <tr>
+                                                    <td style="padding: 40px;">
+                                                        <h2 style="margin: 0 0 25px 0; font-size: 22px; color: #F3E196; text-align: center; text-transform: uppercase; letter-spacing: 2px;">
+                                                            Account Security Update
+                                                        </h2>
+                                                        
+                                                        <p style="font-size: 16px; line-height: 1.6; color: #cccccc; margin-bottom: 25px;">
+                                                            Hello <strong>${full_name}</strong>,
+                                                        </p>
+                                                        
+                                                        <p style="font-size: 15px; line-height: 1.6; color: #cccccc; margin-bottom: 25px;">
+                                                            This is a formal notification that your account credentials at <strong>Migma Inc.</strong> have been updated by an administrator.
+                                                        </p>
+
+                                                        <div style="background-color: #111111; border-radius: 8px; padding: 25px; border-left: 4px solid #CE9F48; margin-bottom: 30px;">
+                                                            <p style="margin: 0 0 12px 0; font-size: 14px; color: #888; text-transform: uppercase;">Modified Information</p>
+                                                            <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
+                                                                ${updateDetailsHtml}
+                                                            </table>
+                                                        </div>
+
+                                                        <p style="font-size: 14px; line-height: 1.6; color: #888; margin-bottom: 20px;">
+                                                            If you did not authorize this change, please contact our support team immediately. You can now use your updated credentials to access your seller dashboard.
+                                                        </p>
+                                                    </td>
+                                                </tr>
+                                                <tr>
+                                                    <td align="center" style="padding: 20px; background-color: #000000; border-top: 1px solid #1a1a1a;">
+                                                        <p style="margin: 0; font-size: 10px; color: #555; text-transform: uppercase; letter-spacing: 1px;">
+                                                            © 2026 MIGMA GLOBAL • SECURE ADMINISTRATION
+                                                        </p>
+                                                    </td>
+                                                </tr>
+                                            </table>
+                                        </td>
+                                    </tr>
+                                </table>
+                            </body>
+                            </html>
+                        `
+                    }
+                });
+
+                if (emailInvokeError) {
+                    console.error('[admin-update-seller] Failed to invoke security notification:', emailInvokeError);
+                } else {
+                    console.log('[admin-update-seller] Security notification dispatched successfully');
+                }
+            } catch (sendEmailError) {
+                console.error('[admin-update-seller] Unexpected error in security notification:', sendEmailError);
+            }
+        } else {
+            console.log('[admin-update-seller] No sensitive credentials changed. Skipping notification.');
+        }
+
+
 
         // Update sellers table
         const { error: sellersUpdateError } = await supabaseAdmin
