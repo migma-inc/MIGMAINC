@@ -110,6 +110,17 @@ export const VisaCheckoutPage: React.FC = () => {
         loadProduct();
     }, [productSlug, effectiveSellerId]);
 
+    // Calcular passo exibido para o StepIndicator se for consulta comum
+    const displayStep = (productSlug === 'consultation-common' && state.currentStep === 3) ? 2 : state.currentStep;
+    const totalStepsCount = productSlug === 'consultation-common' ? 2 : 3;
+
+    // Auto-scroll to error on mobile
+    useEffect(() => {
+        if (state.error) {
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+    }, [state.error]);
+
     if (loading || isLoadingPrefill) {
         return (
             <div className="min-h-screen bg-black flex flex-col items-center justify-center text-white p-4">
@@ -132,9 +143,7 @@ export const VisaCheckoutPage: React.FC = () => {
         );
     }
 
-    // Calcular passo exibido para o StepIndicator se for consulta comum
-    const displayStep = (productSlug === 'consultation-common' && state.currentStep === 3) ? 2 : state.currentStep;
-    const totalStepsCount = productSlug === 'consultation-common' ? 2 : 3;
+
 
     if (state.isZelleProcessing) {
         return (
