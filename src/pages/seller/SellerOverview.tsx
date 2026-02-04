@@ -166,47 +166,53 @@ export function SellerOverview() {
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-        <Card className="bg-zinc-950 border border-zinc-900 transform transition-all duration-300 hover:border-gold-medium/50 hover:bg-zinc-900/50">
-          <CardContent className="p-6">
-            <div className="flex items-start justify-between">
-              <div className="space-y-1">
-                <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">Total Sales</p>
-                <p className="text-3xl font-bold text-white">{stats.totalSales}</p>
+        <Link to="/seller/dashboard/orders">
+          <Card className="bg-zinc-950 border border-zinc-900 transform transition-all duration-300 hover:border-gold-medium/50 hover:bg-zinc-900/50 cursor-pointer h-full group">
+            <CardContent className="p-6">
+              <div className="flex items-start justify-between">
+                <div className="space-y-1">
+                  <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wider group-hover:text-gold-light transition-colors">Total Sales</p>
+                  <p className="text-3xl font-bold text-white">{stats.totalSales}</p>
+                </div>
+                <div className="p-2 bg-gold-medium/10 rounded-lg group-hover:bg-gold-medium/20 transition-colors">
+                  <ShoppingCart className="w-5 h-5 text-gold-medium" />
+                </div>
               </div>
-              <div className="p-2 bg-gold-medium/10 rounded-lg">
-                <ShoppingCart className="w-5 h-5 text-gold-medium" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        </Link>
 
-        <Card className="bg-zinc-950 border border-zinc-900 transform transition-all duration-300 hover:border-green-500/50 hover:bg-zinc-900/50">
-          <CardContent className="p-6">
-            <div className="flex items-start justify-between">
-              <div className="space-y-1">
-                <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">Completed</p>
-                <p className="text-3xl font-bold text-green-500">{stats.completedSales}</p>
+        <Link to="/seller/dashboard/orders?status=completed">
+          <Card className="bg-zinc-950 border border-zinc-900 transform transition-all duration-300 hover:border-green-500/50 hover:bg-zinc-900/50 cursor-pointer h-full group">
+            <CardContent className="p-6">
+              <div className="flex items-start justify-between">
+                <div className="space-y-1">
+                  <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wider group-hover:text-green-400 transition-colors">Completed</p>
+                  <p className="text-3xl font-bold text-green-500">{stats.completedSales}</p>
+                </div>
+                <div className="p-2 bg-green-500/10 rounded-lg group-hover:bg-green-500/20 transition-colors">
+                  <CheckCircle className="w-5 h-5 text-green-500" />
+                </div>
               </div>
-              <div className="p-2 bg-green-500/10 rounded-lg">
-                <CheckCircle className="w-5 h-5 text-green-500" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        </Link>
 
-        <Card className="bg-zinc-950 border border-zinc-900 transform transition-all duration-300 hover:border-yellow-500/50 hover:bg-zinc-900/50">
-          <CardContent className="p-6">
-            <div className="flex items-start justify-between">
-              <div className="space-y-1">
-                <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">Pending</p>
-                <p className="text-3xl font-bold text-yellow-500">{stats.pendingSales}</p>
+        <Link to="/seller/dashboard/orders?status=pending">
+          <Card className="bg-zinc-950 border border-zinc-900 transform transition-all duration-300 hover:border-yellow-500/50 hover:bg-zinc-900/50 cursor-pointer h-full group">
+            <CardContent className="p-6">
+              <div className="flex items-start justify-between">
+                <div className="space-y-1">
+                  <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wider group-hover:text-yellow-400 transition-colors">Pending</p>
+                  <p className="text-3xl font-bold text-yellow-500">{stats.pendingSales}</p>
+                </div>
+                <div className="p-2 bg-yellow-500/10 rounded-lg group-hover:bg-yellow-500/20 transition-colors">
+                  <Clock className="w-5 h-5 text-yellow-500" />
+                </div>
               </div>
-              <div className="p-2 bg-yellow-500/10 rounded-lg">
-                <Clock className="w-5 h-5 text-yellow-500" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        </Link>
 
         <Card className="bg-zinc-950 border border-zinc-900 transform transition-all duration-300 hover:border-gold-medium/50 hover:bg-zinc-900/50">
           <CardContent className="p-6">

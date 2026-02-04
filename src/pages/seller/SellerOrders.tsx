@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Link, useOutletContext } from 'react-router-dom';
+import { Link, useOutletContext, useSearchParams } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -7,8 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Pagination } from '@/components/ui/pagination';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { PdfModal } from '@/components/ui/pdf-modal';
-import { Eye, FileText, X, Search, ShoppingBag, FileSignature } from 'lucide-react';
+import { Eye, X, Search, ShoppingBag, FileSignature } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 interface SellerInfo {
@@ -36,10 +35,11 @@ interface Order {
 }
 
 // Helper function to calculate net amount and fee
+// Helper function to calculate net amount and fee
 const calculateNetAmountAndFee = (order: Order) => {
   let dbPrice = parseFloat(order.total_price_usd || '0');
 
-  // Fix for total_price_usd being in cents
+  // Fix for total_price_usd being in cents (Heuristic: > 10000 means likely cents for values > $100)
   if (dbPrice > 10000) {
     dbPrice = dbPrice / 100;
   }
@@ -49,41 +49,47 @@ const calculateNetAmountAndFee = (order: Order) => {
   let totalPrice = dbPrice;
   let netAmount = dbPrice;
 
-  // Main calculation logic: Net = Gross - Fee
-  // 1. Determine Gross Total
+  // Parcelow Logic: Fees are added ON TOP of the base price
+  // DB Price = Net Amount (Base)
+  // Metadata Total = Gross Amount (Total Paid)
   if (order.payment_method === 'parcelow') {
-    // For Parcelow, total_price_usd in DB is the Gross amount (including markup)
-    totalPrice = dbPrice;
-  } else {
-    // For Stripe/Zelle, total_price_usd in DB is the Gross amount (amount paid by client)
-    totalPrice = dbPrice;
-  }
+    let paidTotal = dbPrice; // Fallback
 
-  // 2. Determine Fee
-  if (metadata?.fee_amount) {
-    let val = parseFloat(metadata.fee_amount.toString());
-    // If val is > 10000, it's likely in cents, but Parcelow fee might be large? 
-    // Usually fees are < 10% of total. 
-    // Let's assume if it matches total_price_usd it might be cents
-    if (val > 10000 && val > dbPrice) val = val / 100;
-    feeAmount = val;
-  }
-  // Fallback for Parcelow if fee_amount is missing: 5% markup
-  else if (order.payment_method === 'parcelow') {
-    // Estimate: Net = Gross / 1.05 -> Fee = Gross - Net
-    feeAmount = totalPrice - (totalPrice / 1.05);
-  }
-  // Fallback for Stripe if fee_amount is missing: ~3.5%
-  else if (order.payment_method?.startsWith('stripe')) {
-    feeAmount = totalPrice * 0.035;
-  }
+    if (metadata?.total_usd) {
+      let val = parseFloat(metadata.total_usd.toString());
+      // Heuristic: If metadata total is > 5x the DB price, it's likely in cents (e.g. 29.00 vs 3387)
+      if (val > (dbPrice * 5) && val > 100) val = val / 100;
+      if (val > 0) paidTotal = val;
+    } else if (metadata?.final_amount) {
+      let val = parseFloat(metadata.final_amount.toString());
+      if (val > (dbPrice * 5) && val > 100) val = val / 100;
+      if (val > 0) paidTotal = val;
+    }
 
-  // 3. Final Net Amount
-  netAmount = totalPrice - feeAmount;
+    totalPrice = paidTotal;
+    netAmount = dbPrice;
+    feeAmount = Math.max(totalPrice - netAmount, 0);
+  }
+  // Stripe Logic (Card/Pix) / Default: Fees are DEDUCTED from the total
+  // DB Price = Gross Amount (Total Paid)
+  // Metadata Fee = Fee Amount
+  // Net Amount = Total - Fee
+  else {
+    totalPrice = dbPrice;
+
+    if (metadata?.fee_amount) {
+      let val = parseFloat(metadata.fee_amount.toString());
+      // If fee is suspiciously high (e.g. > total/2), it might be in cents
+      if (val > (totalPrice / 2) && val > 100) val = val / 100;
+      feeAmount = val;
+    }
+
+    netAmount = totalPrice - feeAmount;
+  }
 
   return {
     netAmount: Math.max(netAmount, 0),
-    feeAmount: Math.max(feeAmount, 0),
+    feeAmount: feeAmount,
     totalPrice: totalPrice
   };
 };
@@ -95,8 +101,6 @@ const OrderTableSection = ({
   orders,
   calculateNetAmountAndFee,
   getStatusBadge,
-  setSelectedPdfUrl,
-  setSelectedPdfTitle,
   currentPage,
   setCurrentPage,
   ITEMS_PER_PAGE,
@@ -105,8 +109,6 @@ const OrderTableSection = ({
   orders: Order[],
   calculateNetAmountAndFee: any,
   getStatusBadge: any,
-  setSelectedPdfUrl: any,
-  setSelectedPdfTitle: any,
   currentPage: number,
   setCurrentPage: (p: number) => void,
   ITEMS_PER_PAGE: number,
@@ -136,96 +138,73 @@ const OrderTableSection = ({
       <div className="hidden md:block overflow-x-auto">
         <table className="w-full">
           <thead>
-            <tr className="border-b border-zinc-900 bg-zinc-900/20">
-              <th className="text-left py-4 px-6 text-xs font-bold text-zinc-500 uppercase tracking-wider">Order</th>
-              <th className="text-left py-4 px-6 text-xs font-bold text-zinc-500 uppercase tracking-wider">Client</th>
-              <th className="text-left py-4 px-6 text-xs font-bold text-zinc-500 uppercase tracking-wider">Product</th>
-              <th className="text-left py-4 px-6 text-xs font-bold text-zinc-500 uppercase tracking-wider">{isSignatureOnly ? 'Value' : 'Gross Total'}</th>
-              {!isSignatureOnly && <th className="text-left py-4 px-6 text-xs font-bold text-zinc-500 uppercase tracking-wider">Fee</th>}
-              {!isSignatureOnly && <th className="text-left py-4 px-6 text-xs font-bold text-zinc-500 uppercase tracking-wider">Net Amount</th>}
-              <th className="text-left py-4 px-6 text-xs font-bold text-zinc-500 uppercase tracking-wider">Status</th>
-              <th className="text-left py-4 px-6 text-xs font-bold text-zinc-500 uppercase tracking-wider">Date</th>
-              <th className="text-right py-4 px-6 text-xs font-bold text-zinc-500 uppercase tracking-wider">Actions</th>
+            <tr className="border-b border-gold-medium/30">
+              <th className="text-left py-3 px-4 text-sm text-gray-400 font-semibold">Order # / Date</th>
+              <th className="text-left py-3 px-4 text-sm text-gray-400 font-semibold">Client</th>
+              <th className="text-left py-3 px-4 text-sm text-gray-400 font-semibold">Product</th>
+              <th className="text-left py-3 px-4 text-sm text-gray-400 font-semibold">Method</th>
+              <th className="text-left py-3 px-4 text-sm text-gray-400 font-semibold">{isSignatureOnly ? 'Value' : 'Total / Fee'}</th>
+              {!isSignatureOnly && <th className="text-left py-3 px-4 text-sm text-gray-400 font-semibold">Net Amount</th>}
+              <th className="text-left py-3 px-4 text-sm text-gray-400 font-semibold">Status</th>
+              <th className="text-left py-3 px-4 text-sm text-gray-400 font-semibold">Actions</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-zinc-900">
+          <tbody>
             {paginatedOrders.map((order) => {
               const { netAmount, feeAmount, totalPrice } = calculateNetAmountAndFee(order);
               return (
-                <tr key={order.id} className="hover:bg-zinc-900/30 transition-colors group">
-                  <td className="py-4 px-6">
-                    <span className="text-sm font-mono text-zinc-400">{order.order_number}</span>
+                <tr key={order.id} className="border-b border-gold-medium/10 hover:bg-white/5 transition-colors">
+                  <td className="py-3 px-4">
+                    <p className="text-sm text-white font-mono">{order.order_number}</p>
+                    <p className="text-[10px] text-gray-400 mt-0.5">
+                      {new Date(order.created_at).toLocaleDateString()}
+                    </p>
                   </td>
-                  <td className="py-4 px-6">
-                    <div className="flex flex-col">
-                      <span className="text-sm font-medium text-white">{order.client_name}</span>
-                      <span className="text-xs text-zinc-500">{order.client_email}</span>
+                  <td className="py-3 px-4">
+                    <div className="text-sm">
+                      <p className="text-white">{order.client_name}</p>
+                      <p className="text-gray-400 text-xs">{order.client_email}</p>
                     </div>
                   </td>
-                  <td className="py-4 px-6">
+                  <td className="py-3 px-4">
                     <Badge variant="outline" className="text-[10px] border-zinc-800 text-zinc-400 bg-transparent uppercase font-medium">
                       {order.product_slug}
                     </Badge>
                   </td>
-                  <td className="py-4 px-6">
-                    <span className={`text-sm font-bold ${isSignatureOnly ? 'text-blue-400' : 'migma-gold-text'}`}>
-                      ${totalPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                    </span>
+                  <td className="py-3 px-4">
+                    <Badge variant="outline" className="text-[10px] border-zinc-800 text-zinc-300 bg-zinc-900/50 uppercase font-medium">
+                      {order.payment_method === 'stripe' ? 'Credit Card' : order.payment_method}
+                    </Badge>
+                  </td>
+                  <td className={`py-3 px-4 text-sm font-bold ${isSignatureOnly ? 'text-blue-400' : 'text-gold-light'}`}>
+                    <div>${totalPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                    {!isSignatureOnly && (
+                      <div className="text-[10px] font-normal mt-0.5 flex flex-col gap-0.5">
+                        <span className={`text-[10px] ${feeAmount > 0 ? 'text-red-400' : 'text-zinc-600'}`}>
+                          {feeAmount > 0 ? `-$${feeAmount.toFixed(2)} fee` : '$0.00 fee'}
+                        </span>
+                      </div>
+                    )}
                   </td>
                   {!isSignatureOnly && (
-                    <td className="py-4 px-6">
-                      <span className={`text-xs ${feeAmount > 0 ? 'text-red-400' : 'text-zinc-600'}`}>
-                        {feeAmount > 0 ? `-$${feeAmount.toFixed(2)}` : '$0.00'}
-                      </span>
+                    <td className="py-3 px-4 text-sm text-white font-semibold">
+                      ${netAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </td>
                   )}
-                  {!isSignatureOnly && (
-                    <td className="py-4 px-6">
-                      <span className="text-sm font-semibold text-white">
-                        ${netAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                      </span>
-                    </td>
-                  )}
-                  <td className="py-4 px-6">
+                  <td className="py-3 px-4">
                     {getStatusBadge(order.payment_status)}
                   </td>
-                  <td className="py-4 px-6">
-                    <span className="text-xs text-zinc-500">
-                      {new Date(order.created_at).toLocaleDateString()}
-                    </span>
-                  </td>
-                  <td className="py-4 px-6">
-                    <div className="flex items-center justify-end gap-2">
-                      {order.annex_pdf_url && (
-                        <button
-                          onClick={() => { setSelectedPdfUrl(order.annex_pdf_url); setSelectedPdfTitle(`Annex I - ${order.order_number}`); }}
-                          className="p-2 text-zinc-500 hover:text-gold-light hover:bg-zinc-800 rounded-md transition-all"
-                          title="Annex I"
-                        >
-                          <FileText className="w-4 h-4" />
-                        </button>
-                      )}
-                      {order.contract_pdf_url && (
-                        <button
-                          onClick={() => { setSelectedPdfUrl(order.contract_pdf_url); setSelectedPdfTitle(`Contract - ${order.order_number}`); }}
-                          className="p-2 text-zinc-500 hover:text-gold-light hover:bg-zinc-800 rounded-md transition-all"
-                          title="Contract"
-                        >
-                          <FileText className="w-4 h-4" />
-                        </button>
-                      )}
-                      {!order.annex_pdf_url && !order.contract_pdf_url && (
-                        <span className="text-amber-500/50 text-[10px] italic mr-2">
-                          {order.payment_method === 'manual' ? 'Awaiting Approval' : 'Generating...'}
-                        </span>
-                      )}
-                      <Link to={`/seller/orders/${order.id}`}>
-                        <Button variant="outline" size="sm" className="h-8 border-zinc-800 bg-zinc-900/50 text-xs text-white hover:bg-zinc-800 hover:border-gold-medium/50">
-                          <Eye className="w-3.5 h-3.5 mr-1.5" />
-                          View
-                        </Button>
-                      </Link>
-                    </div>
+                  <td className="py-3 px-4">
+                    <Link to={`/seller/orders/${order.id}`}>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="flex items-center gap-2 border-gold-medium/50 bg-black/50 text-white hover:bg-gold-medium/30 hover:text-gold-light h-8"
+                      >
+                        <Eye className="w-3.5 h-3.5" />
+                        Details
+                      </Button>
+                    </Link>
                   </td>
                 </tr>
               );
@@ -237,34 +216,55 @@ const OrderTableSection = ({
       {/* Mobile view for OrderTableSection */}
       <div className="md:hidden space-y-4 p-4">
         {paginatedOrders.map((order) => {
-          const { netAmount, totalPrice } = calculateNetAmountAndFee(order);
+          const { netAmount, feeAmount, totalPrice } = calculateNetAmountAndFee(order);
           return (
-            <Card key={order.id} className="bg-zinc-900 border border-zinc-800">
-              <CardContent className="p-4 space-y-4">
+            <Card key={order.id} className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30">
+              <CardContent className="p-4 space-y-3">
                 <div className="flex justify-between items-start">
                   <div className="flex flex-col">
-                    <span className="text-[10px] font-mono text-zinc-500 uppercase">{order.order_number}</span>
-                    <span className="text-sm font-semibold text-white mt-1">{order.client_name}</span>
+                    <span className="text-sm font-mono text-gold-light font-semibold">{order.order_number}</span>
+                    <span className="text-base font-semibold text-white mt-1">{order.client_name}</span>
+                    <span className="text-xs text-gray-400">{order.client_email}</span>
                   </div>
                   {getStatusBadge(order.payment_status)}
                 </div>
-                <div className="grid grid-cols-2 gap-4 pt-4 border-t border-zinc-800">
+
+                <div className="grid grid-cols-2 gap-2 text-xs sm:text-sm pt-2">
                   <div>
-                    <span className="text-[10px] text-zinc-500 uppercase font-bold block mb-1">Total</span>
-                    <span className={`text-sm font-bold ${isSignatureOnly ? 'text-blue-400' : 'migma-gold-text'}`}>${totalPrice.toFixed(2)}</span>
+                    <p className="text-gray-400">Product</p>
+                    <p className="text-white break-words">{order.product_slug}</p>
+                  </div>
+                  <div>
+                    <p className="text-gray-400">{isSignatureOnly ? 'Value' : 'Total (with fee)'}</p>
+                    <p className="text-gold-light font-bold">${totalPrice.toFixed(2)}</p>
                   </div>
                   {!isSignatureOnly && (
                     <div>
-                      <span className="text-[10px] text-zinc-500 uppercase font-bold block mb-1">Net</span>
-                      <span className="text-sm font-semibold text-white">${netAmount.toFixed(2)}</span>
+                      <p className="text-gray-400">Net Amount</p>
+                      <p className="text-white font-semibold">${netAmount.toFixed(2)}</p>
                     </div>
                   )}
+                  {!isSignatureOnly && (
+                    <div>
+                      <p className="text-gray-400">Fee</p>
+                      <p className="text-red-400">${feeAmount > 0 ? `-${feeAmount.toFixed(2)}` : '0.00'}</p>
+                    </div>
+                  )}
+                  <div>
+                    <p className="text-gray-400">Date</p>
+                    <p className="text-white">{new Date(order.created_at).toLocaleDateString()}</p>
+                  </div>
                 </div>
-                <div className="flex items-center justify-between pt-4 border-t border-zinc-800">
-                  <span className="text-xs text-zinc-500">{new Date(order.created_at).toLocaleDateString()}</span>
+
+                <div className="flex flex-col gap-2 pt-2 border-t border-gold-medium/20">
                   <Link to={`/seller/orders/${order.id}`}>
-                    <Button variant="outline" size="sm" className="h-8 border-zinc-800 bg-zinc-900 text-xs">
-                      View
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="w-full flex items-center justify-center gap-2 border-gold-medium/50 bg-black/50 text-white hover:bg-gold-medium/30 hover:text-gold-light text-xs"
+                    >
+                      <Eye className="w-3 h-3" />
+                      View Details
                     </Button>
                   </Link>
                 </div>
@@ -290,16 +290,14 @@ const OrderTableSection = ({
 export function SellerOrders() {
   const { seller } = useOutletContext<{ seller: SellerInfo }>();
   const [orders, setOrders] = useState<Order[]>([]);
+  const [searchParams, setSearchParams] = useSearchParams();
   const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
 
   // Filters
+  const [statusFilter, setStatusFilter] = useState<string>(searchParams.get('status') || 'all');
   const [productFilter, setProductFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
-
-  // PDF Modal
-  const [selectedPdfUrl, setSelectedPdfUrl] = useState<string | null>(null);
-  const [selectedPdfTitle, setSelectedPdfTitle] = useState<string>('Contract PDF');
 
   useEffect(() => {
     const loadOrders = async () => {
@@ -362,6 +360,15 @@ export function SellerOrders() {
       filtered = filtered.filter(order => order.product_slug === productFilter);
     }
 
+    // Filter by status
+    if (statusFilter !== 'all') {
+      if (statusFilter === 'completed') {
+        filtered = filtered.filter(order => order.payment_status === 'completed' || order.payment_status === 'paid');
+      } else {
+        filtered = filtered.filter(order => order.payment_status === statusFilter);
+      }
+    }
+
     // Search filter (by name, email, or order number)
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
@@ -373,23 +380,52 @@ export function SellerOrders() {
     }
 
     return filtered;
-  }, [orders, productFilter, searchQuery]);
+  }, [orders, productFilter, statusFilter, searchQuery]);
 
-  const realOrders = useMemo(() => orders.filter(o => o.payment_method !== 'manual'), [orders]);
-  const signatureOrders = useMemo(() => orders.filter(o => o.payment_method === 'manual'), [orders]);
+  // Update status filter when URL params change
+  useEffect(() => {
+    const status = searchParams.get('status');
+    if (status) {
+      setStatusFilter(status);
+    }
+  }, [searchParams]);
+
+  // Handle status filter change
+  const handleStatusFilterChange = (value: string) => {
+    setStatusFilter(value);
+
+    // Update URL params
+    const newParams = new URLSearchParams(searchParams);
+    if (value === 'all') {
+      newParams.delete('status');
+    } else {
+      newParams.set('status', value);
+    }
+    setSearchParams(newParams);
+  };
+
+  const displayedRealOrders = useMemo(() =>
+    filteredOrders.filter(o => o.payment_method !== 'manual'),
+    [filteredOrders]);
+
+  const displayedSignatureOrders = useMemo(() =>
+    filteredOrders.filter(o => o.payment_method === 'manual'),
+    [filteredOrders]);
 
   // Reset to page 1 when filters change
   useEffect(() => {
     setCurrentPage(1);
   }, [productFilter, searchQuery, filteredOrders.length]);
 
+  const hasActiveFilters = productFilter !== 'all' || statusFilter !== 'all' || searchQuery.trim() !== '';
+
   // Clear all filters
   const clearFilters = () => {
     setProductFilter('all');
+    setStatusFilter('all');
+    setSearchParams(new URLSearchParams());
     setSearchQuery('');
   };
-
-  const hasActiveFilters = productFilter !== 'all' || searchQuery.trim() !== '';
 
   if (loading) {
     return (
@@ -401,6 +437,7 @@ export function SellerOrders() {
 
   return (
     <div className="space-y-6">
+      {/* ... Header ... */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold migma-gold-text">Your Orders</h1>
@@ -423,6 +460,19 @@ export function SellerOrders() {
                   className="pl-9 h-9 w-full sm:w-64 bg-zinc-900/50 border-zinc-800 text-white placeholder:text-zinc-500 focus:border-gold-medium focus:ring-gold-medium/20"
                 />
               </div>
+
+              <Select value={statusFilter} onValueChange={handleStatusFilterChange}>
+                <SelectTrigger className="h-9 w-full sm:w-40 bg-zinc-900/50 border-zinc-800 text-white focus:border-gold-medium focus:ring-gold-medium/20">
+                  <SelectValue placeholder="All Status" />
+                </SelectTrigger>
+                <SelectContent className="bg-zinc-950 border-zinc-800 text-white">
+                  <SelectItem value="all">All Status</SelectItem>
+                  <SelectItem value="completed">Paid / Completed</SelectItem>
+                  <SelectItem value="pending">Pending</SelectItem>
+                  <SelectItem value="failed">Failed</SelectItem>
+                  <SelectItem value="cancelled">Cancelled</SelectItem>
+                </SelectContent>
+              </Select>
 
               <Select value={productFilter} onValueChange={setProductFilter}>
                 <SelectTrigger className="h-9 w-full sm:w-48 bg-zinc-900/50 border-zinc-800 text-white focus:border-gold-medium focus:ring-gold-medium/20">
@@ -460,31 +510,23 @@ export function SellerOrders() {
                   className="data-[state=active]:bg-transparent data-[state=active]:text-gold-medium data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-gold-medium rounded-none bg-transparent text-zinc-500 h-12 px-2 gap-2"
                 >
                   <ShoppingBag className="w-4 h-4" />
-                  Paid Orders ({realOrders.length})
+                  Paid Orders ({displayedRealOrders.length})
                 </TabsTrigger>
                 <TabsTrigger
                   value="signatures"
                   className="data-[state=active]:bg-transparent data-[state=active]:text-gold-medium data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-gold-medium rounded-none bg-transparent text-zinc-500 h-12 px-2 gap-2"
                 >
                   <FileSignature className="w-4 h-4" />
-                  Contract Signatures ({signatureOrders.length})
+                  Contract Signatures ({displayedSignatureOrders.length})
                 </TabsTrigger>
               </TabsList>
             </div>
 
             <TabsContent value="real" className="m-0">
               <OrderTableSection
-                orders={realOrders.filter(o =>
-                  productFilter === 'all' || o.product_slug === productFilter
-                ).filter(o =>
-                  !searchQuery ||
-                  o.client_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                  o.order_number.toLowerCase().includes(searchQuery.toLowerCase())
-                )}
+                orders={displayedRealOrders}
                 calculateNetAmountAndFee={calculateNetAmountAndFee}
                 getStatusBadge={getStatusBadge}
-                setSelectedPdfUrl={setSelectedPdfUrl}
-                setSelectedPdfTitle={setSelectedPdfTitle}
                 currentPage={currentPage}
                 setCurrentPage={setCurrentPage}
                 ITEMS_PER_PAGE={ITEMS_PER_PAGE}
@@ -493,17 +535,9 @@ export function SellerOrders() {
 
             <TabsContent value="signatures" className="m-0">
               <OrderTableSection
-                orders={signatureOrders.filter(o =>
-                  productFilter === 'all' || o.product_slug === productFilter
-                ).filter(o =>
-                  !searchQuery ||
-                  o.client_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                  o.order_number.toLowerCase().includes(searchQuery.toLowerCase())
-                )}
+                orders={displayedSignatureOrders}
                 calculateNetAmountAndFee={calculateNetAmountAndFee}
                 getStatusBadge={getStatusBadge}
-                setSelectedPdfUrl={setSelectedPdfUrl}
-                setSelectedPdfTitle={setSelectedPdfTitle}
                 currentPage={currentPage}
                 setCurrentPage={setCurrentPage}
                 ITEMS_PER_PAGE={ITEMS_PER_PAGE}
@@ -516,14 +550,6 @@ export function SellerOrders() {
 
 
       {/* PDF Modal */}
-      {selectedPdfUrl && (
-        <PdfModal
-          isOpen={!!selectedPdfUrl}
-          onClose={() => setSelectedPdfUrl(null)}
-          pdfUrl={selectedPdfUrl}
-          title={selectedPdfTitle}
-        />
-      )}
     </div>
   );
 }

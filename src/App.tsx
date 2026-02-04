@@ -53,6 +53,7 @@ import { ViewSignedContract } from './pages/ViewSignedContract';
 import { ViewVisaOrderContract } from './pages/ViewVisaOrderContract';
 import { ScheduleMeetingPage } from './pages/admin/ScheduleMeetingPage';
 import { AdminSellerAnalytics } from './pages/admin/AdminSellerAnalytics';
+import { AdminSellerOrders } from './pages/admin/AdminSellerOrders';
 import { AdminRoute } from './components/admin/AdminRoute';
 import { SlackReportsPage } from './pages/admin/SlackReportsPage';
 import { VisaContractApprovalPage } from './pages/VisaContractApprovalPage';
@@ -127,6 +128,7 @@ function App() {
           <Route path="zelle-approval" element={<ZelleApprovalPage />} />
           <Route path="sellers" element={<SellersPage />} />
           <Route path="sellers/:sellerId/analytics" element={<AdminRoute><AdminSellerAnalytics /></AdminRoute>} />
+          <Route path="sellers/:sellerId/orders" element={<AdminRoute><AdminSellerOrders /></AdminRoute>} />
           <Route path="contact-messages" element={<ContactMessagesPage />} />
           <Route path="contact-messages/:id" element={<ContactMessageDetail />} />
           <Route path="contract-templates" element={<ContractTemplatesPage />} />

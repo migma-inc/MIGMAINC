@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, Link } from 'react-router-dom';
 import { adminSupabase } from '@/lib/auth';
 import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -124,8 +125,8 @@ export function AdminSellerAnalytics() {
       try {
         // Se for período customizado, passar as datas customizadas
         const data = await getAnalyticsData(
-          seller.seller_id_public, 
-          periodFilter === 'custom' ? 'custom' : periodFilter, 
+          seller.seller_id_public,
+          periodFilter === 'custom' ? 'custom' : periodFilter,
           enableComparison,
           periodFilter === 'custom' ? customDateRange : undefined
         );
@@ -177,12 +178,13 @@ export function AdminSellerAnalytics() {
 
   const periodLabel = periodFilter === 'thismonth' ? 'This Month' :
     periodFilter === 'lastmonth' ? 'Last Month' :
-    periodFilter === 'last7days' ? 'Last 7 Days' :
-    periodFilter === 'last30days' ? 'Last 30 Days' :
-    periodFilter === 'last3months' ? 'Last 3 Months' :
-    periodFilter === 'last6months' ? 'Last 6 Months' :
-    periodFilter === 'lastyear' ? 'Last Year' :
-    periodFilter === 'custom' ? `${customDateRange.start} to ${customDateRange.end}` : 'Period';
+      periodFilter === 'last7days' ? 'Last 7 Days' :
+        periodFilter === 'last30days' ? 'Last 30 Days' :
+          periodFilter === 'last3months' ? 'Last 3 Months' :
+            periodFilter === 'last6months' ? 'Last 6 Months' :
+              periodFilter === 'lastyear' ? 'Last Year' :
+                periodFilter === 'all_time' ? 'All Time' :
+                  periodFilter === 'custom' ? `${customDateRange.start} to ${customDateRange.end}` : 'Period';
 
   // Calcular valores do período anterior para comparação
   const previousSummary = analyticsData?.comparison ? {
@@ -190,11 +192,11 @@ export function AdminSellerAnalytics() {
     sales: analyticsData.summary.totalSales - Math.round((analyticsData.summary.totalSales * analyticsData.comparison.salesChange / 100)),
     soldContracts: analyticsData.summary.soldContracts - Math.round((analyticsData.summary.soldContracts * analyticsData.comparison.salesChange / 100)),
     completedOrders: analyticsData.summary.completedOrders - Math.round((analyticsData.summary.completedOrders * analyticsData.comparison.completedOrdersChange / 100)),
-    commissions: analyticsData.commissionSummary?.totalCommissions 
+    commissions: analyticsData.commissionSummary?.totalCommissions
       ? analyticsData.commissionSummary.totalCommissions - (analyticsData.commissionSummary.totalCommissions * analyticsData.comparison.commissionChange / 100)
       : 0,
   } : null;
-  
+
   // Calculate previous commission rate
   const previousCommissionRate = previousSummary && analyticsData?.commissionSummary
     ? (previousSummary.commissions / (previousSummary.revenue || 1)) * 100
@@ -225,7 +227,7 @@ export function AdminSellerAnalytics() {
     <div className="min-h-screen bg-gradient-to-b from-black via-[#1a1a1a] to-black p-4 sm:p-6 lg:p-8">
       <div>
         {/* Header com informação do seller */}
-        <div className="mb-4 sm:mb-6">
+        <div className="mb-4 sm:mb-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div className="mb-2">
             <h1 className="text-xl sm:text-2xl font-bold migma-gold-text flex items-center gap-2">
               <BarChart3 className="w-5 h-5 sm:w-6 sm:h-6" />
@@ -235,6 +237,12 @@ export function AdminSellerAnalytics() {
               Seller ID: {seller.seller_id_public} | Sales and commission performance
             </p>
           </div>
+          <Link to={`/dashboard/sellers/${seller.seller_id_public}/orders`}>
+            <Button variant="outline" className="border-gold-medium/50 text-gold-light hover:bg-gold-medium/10">
+              <ShoppingCart className="w-4 h-4 mr-2" />
+              View Orders
+            </Button>
+          </Link>
         </div>
 
         {/* Header Simplificado */}
@@ -254,14 +262,14 @@ export function AdminSellerAnalytics() {
 
           {/* Filtros Compactos */}
           <div className="flex flex-col sm:flex-row sm:flex-wrap items-stretch sm:items-center gap-2 sm:gap-3 p-3 bg-black/20 rounded-lg border border-gold-medium/10">
-            <PeriodFilter 
-              value={periodFilter} 
-              onChange={setPeriodFilter} 
+            <PeriodFilter
+              value={periodFilter}
+              onChange={setPeriodFilter}
               showLabel={true}
               customDateRange={customDateRange}
               onCustomDateRangeChange={setCustomDateRange}
             />
-            
+
             <div className="flex items-center gap-2">
               <Label htmlFor="granularity" className="text-gray-400 text-xs whitespace-nowrap">
                 Group by:
@@ -270,7 +278,7 @@ export function AdminSellerAnalytics() {
                 value={granularity}
                 onValueChange={(value) => setGranularity(value as 'day' | 'week' | 'month')}
               >
-                <SelectTrigger 
+                <SelectTrigger
                   id="granularity"
                   className="flex-1 sm:w-[100px] h-8 bg-black/50 border-gold-medium/30 text-white text-xs hover:bg-black/70"
                 >
@@ -460,8 +468,8 @@ export function AdminSellerAnalytics() {
                 {loadingComparison && enableComparison ? (
                   <Skeleton className="h-[350px]" />
                 ) : (
-                  <RevenueChart 
-                    data={analyticsData.chartData} 
+                  <RevenueChart
+                    data={analyticsData.chartData}
                     comparisonData={enableComparison ? comparisonChartData : undefined}
                     showComparison={enableComparison}
                   />
