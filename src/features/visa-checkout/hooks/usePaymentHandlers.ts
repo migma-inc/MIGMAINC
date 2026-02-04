@@ -268,6 +268,144 @@ export const usePaymentHandlers = (
                 });
             }
 
+            // 🆕 DETECTAR SPLIT PAYMENT
+            console.log('[Parcelow] 🔍 Verificando se é split payment...');
+            console.log('[Parcelow] Split Config:', state.splitPaymentConfig);
+
+            if (state.splitPaymentConfig && state.splitPaymentConfig.enabled) {
+                console.log('[Parcelow] 🎯 SPLIT PAYMENT DETECTADO!');
+                console.log('[Parcelow] Configuração:', {
+                    part1: `${state.splitPaymentConfig.part1_method} - $${state.splitPaymentConfig.part1_amount}`,
+                    part2: `${state.splitPaymentConfig.part2_method} - $${state.splitPaymentConfig.part2_amount}`,
+                });
+
+                // Upload signature
+                let signatureUrl = '';
+                if (signatureImageDataUrl) {
+                    const uploadedUrl = await uploadSignature(signatureImageDataUrl, state.clientId);
+                    if (uploadedUrl) {
+                        signatureUrl = uploadedUrl;
+                    }
+                }
+
+                const documentFrontUrl = (hasExistingContract && existingContractData)
+                    ? existingContractData.contract_document_url
+                    : documentFiles?.documentFront?.url || '';
+                const selfieUrl = (hasExistingContract && existingContractData)
+                    ? existingContractData.contract_selfie_url
+                    : documentFiles?.selfie?.url || '';
+
+                // Fetch product
+                const { data: product, error: productError } = await supabase
+                    .from('visa_products')
+                    .select('*')
+                    .eq('slug', productSlug)
+                    .single();
+
+                if (productError || !product) {
+                    throw new Error('Product not found');
+                }
+
+                // Create Order
+                const orderNumber = `ORD-${new Date().toISOString().split('T')[0].replace(/-/g, '')}-${Math.floor(Math.random() * 10000).toString().padStart(4, '0')}`;
+
+                const upsellProductSlug = state.selectedUpsell === 'canada-premium'
+                    ? 'canada-tourist-premium'
+                    : state.selectedUpsell === 'canada-revolution'
+                        ? 'canada-tourist-revolution'
+                        : null;
+
+                const baseUpsellPrice = state.selectedUpsell === 'canada-premium' ? 399 : (state.selectedUpsell === 'canada-revolution' ? 199 : 0);
+                const upsellAmount = baseUpsellPrice > 0 ? baseUpsellPrice + (extraUnits * 50) : 0;
+
+                const { data: order, error: orderError } = await supabase
+                    .from('visa_orders')
+                    .insert({
+                        order_number: orderNumber,
+                        product_slug: productSlug,
+                        seller_id: sellerId || null,
+                        service_request_id: serviceRequestId,
+                        base_price_usd: product.base_price_usd,
+                        price_per_dependent_usd: product.price_per_dependent_usd || 0,
+                        extra_unit_price_usd: product.price_per_dependent_usd || product.extra_unit_price || 0,
+                        extra_units: extraUnits,
+                        extra_unit_label: product.extra_unit_label || 'Additional Dependent',
+                        dependent_names: dependentNames,
+                        client_name: clientName,
+                        client_email: clientEmail,
+                        client_whatsapp: clientWhatsApp,
+                        client_country: clientCountry,
+                        client_nationality: clientNationality,
+                        client_observations: clientObservations,
+                        payment_method: 'parcelow',
+                        payment_status: 'pending',
+                        total_price_usd: totalWithFees,
+                        upsell_product_slug: upsellProductSlug,
+                        upsell_price_usd: upsellAmount > 0 ? upsellAmount : null,
+                        contract_document_url: documentFrontUrl,
+                        contract_selfie_url: selfieUrl,
+                        signature_image_url: signatureUrl,
+                        contract_accepted: true,
+                        contract_signed_at: new Date().toISOString(),
+                        is_split_payment: true, // 🆕 Marcar como split
+                        payment_metadata: {
+                            credit_card_name: creditCardName,
+                            cpf: cpf,
+                            has_upsell: !!upsellAmount,
+                            is_split_payment: true,
+                            upsell_details: upsellAmount > 0 ? {
+                                slug: upsellProductSlug,
+                                base_price: baseUpsellPrice,
+                                dependents: extraUnits,
+                                total: upsellAmount
+                            } : null
+                        },
+                        coupon_code: couponCode || null,
+                        discount_amount: discountAmount || 0
+                    })
+                    .select()
+                    .single();
+
+                if (orderError || !order) {
+                    console.error('[Parcelow Split] Erro ao criar order:', orderError);
+                    throw new Error('Failed to create order for split payment');
+                }
+
+                console.log('[Parcelow Split] ✅ Order criada:', order.id);
+
+                // Chamar create-split-parcelow-checkout
+                console.log('[Parcelow Split] 🔄 Chamando create-split-parcelow-checkout...');
+                const { data: splitCheckoutData, error: splitCheckoutError } = await supabase.functions.invoke('create-split-parcelow-checkout', {
+                    body: {
+                        order_id: order.id,
+                        part1_amount: state.splitPaymentConfig.part1_amount,
+                        part1_method: state.splitPaymentConfig.part1_method,
+                        part2_amount: state.splitPaymentConfig.part2_amount,
+                        part2_method: state.splitPaymentConfig.part2_method,
+                    }
+                });
+
+                if (splitCheckoutError) {
+                    console.error('[Parcelow Split] ❌ Erro ao criar split checkout:', splitCheckoutError);
+                    throw new Error('Failed to create split payment checkout');
+                }
+
+                console.log('[Parcelow Split] ✅ Split checkout criado:', splitCheckoutData);
+
+                // Redirecionar para Part 1
+                const part1CheckoutUrl = splitCheckoutData?.part1_checkout_url;
+                if (part1CheckoutUrl) {
+                    console.log('[Parcelow Split] 🚀 Redirecionando para Part 1...');
+                    window.location.href = part1CheckoutUrl;
+                } else {
+                    throw new Error('Missing Part 1 checkout URL');
+                }
+
+                return; // Sai da função, não executa fluxo normal
+            }
+
+            console.log('[Parcelow] ℹ️ Pagamento normal (não é split)');
+
             // Fetch product
             const { data: product, error: productError } = await supabase
                 .from('visa_products')
@@ -305,7 +443,18 @@ export const usePaymentHandlers = (
             const baseUpsellPrice = state.selectedUpsell === 'canada-premium' ? 399 : (state.selectedUpsell === 'canada-revolution' ? 199 : 0);
             const upsellAmount = baseUpsellPrice > 0 ? baseUpsellPrice + (extraUnits * 50) : 0;
             const mainPriceUSD = totalWithFees - upsellAmount;
-            console.log('🔍 [STEP 1] Valores calculados:', { baseUpsellPrice, upsellAmount, mainPriceUSD, totalWithFees });
+
+            console.log('🔥 [Parcelow Debug] Calculando preços:', {
+                productSlug,
+                productBasePrice: product.base_price_usd,
+                productExtraPrice: product.extra_unit_price,
+                productDependentPrice: product.price_per_dependent_usd,
+                extraUnits,
+                upsellAmount,
+                totalWithFees,
+                mainPriceUSD,
+                calculationType: product.calculation_type
+            });
 
             console.log('🔍 [STEP 2] Criando pedido principal...');
 
@@ -323,9 +472,9 @@ export const usePaymentHandlers = (
                     product_slug: productSlug,
                     seller_id: sellerId || null,
                     service_request_id: serviceRequestId,
-                    base_price_usd: product.base_price_usd,
-                    price_per_dependent_usd: product.price_per_dependent_usd || 0,
-                    extra_unit_price_usd: product.price_per_dependent_usd || product.extra_unit_price || 0,
+                    base_price_usd: product.base_price_usd || "0",
+                    price_per_dependent_usd: product.price_per_dependent_usd || product.extra_unit_price || "0",
+                    extra_unit_price_usd: product.price_per_dependent_usd || product.extra_unit_price || "0",
                     extra_units: extraUnits,
                     extra_unit_label: product.extra_unit_label || 'Additional Dependent',
                     dependent_names: dependentNames,
