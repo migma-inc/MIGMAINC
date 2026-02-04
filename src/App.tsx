@@ -134,6 +134,7 @@ function App() {
           <Route path="slack-reports" element={<SlackReportsPage />} />
           <Route path="profile" element={<AdminProfile />} />
           <Route path="send-existing-contracts" element={<SendExistingContracts />} />
+          <Route path="links" element={<SellerLinks />} />
           <Route path="coupons" element={<CouponManagement />} />
         </Route>
 
