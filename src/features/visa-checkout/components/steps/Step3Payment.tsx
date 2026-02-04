@@ -121,7 +121,10 @@ export const Step3Payment: React.FC<Step3Props> = ({ state, actions, handlers, o
                             <Input
                                 id="cardName"
                                 value={state.creditCardName || ''}
-                                onChange={(e) => actions.setCreditCardName(e.target.value.toUpperCase())}
+                                onChange={(e) => {
+                                    const val = e.target.value.replace(/[^a-zA-ZÀ-ÿ\s]/g, '').toUpperCase();
+                                    actions.setCreditCardName(val);
+                                }}
                                 placeholder=""
                                 className="bg-white text-black uppercase"
                             />
