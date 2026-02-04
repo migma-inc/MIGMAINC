@@ -68,13 +68,11 @@ export const SplitPaymentSelector: React.FC<SplitPaymentSelectorProps> = ({
     };
 
     const MethodButton = ({
-        method,
         selected,
         onClick,
         label,
         icon: Icon
     }: {
-        method: PaymentMethod,
         selected: boolean,
         onClick: () => void,
         label: string,
@@ -156,15 +154,15 @@ export const SplitPaymentSelector: React.FC<SplitPaymentSelectorProps> = ({
 
                             <div className="flex gap-2">
                                 <MethodButton
-                                    method="card" label="Card" icon={CreditCard}
+                                    label="Card" icon={CreditCard}
                                     selected={part1Method === 'card'} onClick={() => setPart1Method('card')}
                                 />
                                 <MethodButton
-                                    method="pix" label="PIX" icon={QrCode}
+                                    label="PIX" icon={QrCode}
                                     selected={part1Method === 'pix'} onClick={() => setPart1Method('pix')}
                                 />
                                 <MethodButton
-                                    method="ted" label="TED" icon={Landmark}
+                                    label="TED" icon={Landmark}
                                     selected={part1Method === 'ted'} onClick={() => setPart1Method('ted')}
                                 />
                             </div>
@@ -192,15 +190,15 @@ export const SplitPaymentSelector: React.FC<SplitPaymentSelectorProps> = ({
 
                             <div className="flex gap-2">
                                 <MethodButton
-                                    method="card" label="Card" icon={CreditCard}
+                                    label="Card" icon={CreditCard}
                                     selected={part2Method === 'card'} onClick={() => setPart2Method('card')}
                                 />
                                 <MethodButton
-                                    method="pix" label="PIX" icon={QrCode}
+                                    label="PIX" icon={QrCode}
                                     selected={part2Method === 'pix'} onClick={() => setPart2Method('pix')}
                                 />
                                 <MethodButton
-                                    method="ted" label="TED" icon={Landmark}
+                                    label="TED" icon={Landmark}
                                     selected={part2Method === 'ted'} onClick={() => setPart2Method('ted')}
                                 />
                             </div>

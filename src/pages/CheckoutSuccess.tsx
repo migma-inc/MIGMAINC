@@ -3,7 +3,7 @@ import { useSearchParams, Link } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { CheckCircle, ArrowRight, Loader2, AlertCircle, RefreshCw } from 'lucide-react';
+import { CheckCircle, ArrowRight, Loader2, RefreshCw } from 'lucide-react';
 
 export const CheckoutSuccess = () => {
   const [searchParams] = useSearchParams();
