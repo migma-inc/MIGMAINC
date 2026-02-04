@@ -23,6 +23,7 @@ import { VisaCheckoutPage as VisaCheckout, VisaSignatureCheckoutPage as VisaSign
 import { CheckoutSuccess } from './pages/CheckoutSuccess';
 import { CheckoutCancel } from './pages/CheckoutCancel';
 import { ZellePaymentProcessing } from './pages/ZellePaymentProcessing';
+import { SplitPaymentRedirect } from './pages/SplitPaymentRedirect';
 import { VisaServiceTerms } from './pages/VisaServiceTerms';
 import { SellerLogin } from './pages/SellerLogin';
 import { ForgotPassword } from './pages/ForgotPassword';
@@ -83,6 +84,7 @@ function App() {
         <Route path="/checkout/success" element={<CheckoutSuccess />} />
         <Route path="/checkout/cancel" element={<CheckoutCancel />} />
         <Route path="/checkout/zelle/processing" element={<ZellePaymentProcessing />} />
+        <Route path="/checkout/split-payment/redirect" element={<SplitPaymentRedirect />} />
 
         {/* Generic Password Recovery Routes */}
         <Route path="/forgot-password" element={<ForgotPassword />} />
