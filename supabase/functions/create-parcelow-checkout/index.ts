@@ -555,10 +555,31 @@ Deno.serve(async (req: Request) => {
         ? `Payment Part ${body.split_part_number || 1} - ${order.order_number}`
         : `${order.product_slug} - ${order.client_name}`;
     } else {
-      const mainProductAmountInCents = Math.round(parseFloat(order.base_price_usd) * 100) +
-        (order.extra_units * Math.round(parseFloat(order.price_per_dependent_usd || 0) * 100));
-      amountInCents = mainProductAmountInCents;
+      // Calculate from components first
+      const baseAmount = parseFloat(order.base_price_usd || "0");
+      const dependentAmount = (order.extra_units || 0) * parseFloat(order.price_per_dependent_usd || "0");
+      const totalFromComponents = baseAmount + dependentAmount;
+
+      // FALLBACK: If components sum to 0 but we have a total_price_usd, use the total_price_usd
+      // This happens when sellers set a manual price without updating base_price fields
+      const finalAmountUsd = (totalFromComponents > 0)
+        ? totalFromComponents
+        : parseFloat(order.total_price_usd || "0");
+
+      amountInCents = Math.round(finalAmountUsd * 100);
       itemDescription = `${order.product_slug} - ${order.client_name}`;
+    }
+
+    // Safety check: Parcelow requires at least 1 cent
+    if (amountInCents <= 0) {
+      console.error("[Parcelow Checkout] ❌ INVALID AMOUNT: Calculated 0 cents for order", order.order_number);
+      return new Response(
+        JSON.stringify({
+          error: "Invalid order amount. Price must be greater than 0.",
+          details: `Calculated amount: ${amountInCents}`
+        }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
 
     const items = [
