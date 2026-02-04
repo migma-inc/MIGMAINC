@@ -96,7 +96,11 @@ function setCachedProducts(products: VisaProduct[]): void {
 }
 
 export function SellerLinks() {
-  const { seller } = useOutletContext<{ seller: SellerInfo }>();
+  const context = useOutletContext<{ seller?: SellerInfo }>();
+  const [seller, setSeller] = useState<SellerInfo | null>(context?.seller || null);
+  const [isSearchingSeller, setIsSearchingSeller] = useState(true);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const isSharedInAdmin = !context?.seller;
 
   // Tenta carregar do cache imediatamente
   const cachedProducts = getCachedProducts();
@@ -306,6 +310,83 @@ export function SellerLinks() {
   }
 
   useEffect(() => {
+    async function loadSellerInfo() {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) {
+          setIsSearchingSeller(false);
+          return;
+        }
+
+        const userIsAdmin = session.user.user_metadata?.role === 'admin';
+        setIsAdmin(userIsAdmin);
+
+        if (seller) {
+          setIsSearchingSeller(false);
+          return;
+        }
+
+        // 1. Tenta carregar o vendedor específico do usuário
+        const { data: sellerData } = await supabase
+          .from('sellers')
+          .select('*')
+          .eq('user_id', session.user.id)
+          .eq('status', 'active')
+          .single();
+
+        if (sellerData) {
+          setSeller(sellerData);
+          setIsSearchingSeller(false);
+          return;
+        }
+
+        // 2. Se não encontrou e é Admin, busca por "Migma" ou qualquer vendedor ativo
+        if (userIsAdmin) {
+          // Tenta encontrar "Migma"
+          const { data: migmaSeller } = await supabase
+            .from('sellers')
+            .select('*')
+            .ilike('full_name', '%Migma%')
+            .eq('status', 'active')
+            .limit(1)
+            .maybeSingle();
+
+          if (migmaSeller) {
+            setSeller(migmaSeller);
+          } else {
+            // Se ainda não encontrou, pega o primeiro vendedor ativo da lista
+            const { data: anySeller } = await supabase
+              .from('sellers')
+              .select('*')
+              .eq('status', 'active')
+              .limit(1)
+              .maybeSingle();
+
+            if (anySeller) {
+              setSeller(anySeller);
+            } else {
+              // Fallback extremo: Perfil Virtual Admin
+              setSeller({
+                id: 'admin',
+                seller_id_public: 'MIGMA', // Tenta usar um slug que provavelmente existe ou é aceito
+                full_name: 'Migma Admin',
+                email: session.user.email || '',
+                status: 'active'
+              } as SellerInfo);
+            }
+          }
+        }
+      } catch (err) {
+        console.error('[SellerLinks] Error loading seller info:', err);
+      } finally {
+        setIsSearchingSeller(false);
+      }
+    }
+
+    loadSellerInfo();
+  }, [seller]);
+
+  useEffect(() => {
     // Se já temos produtos no estado e já carregou, não precisa fazer nada
     if (products.length > 0 && hasLoadedRef.current) {
       return;
@@ -382,10 +463,6 @@ export function SellerLinks() {
         }
 
         console.log('[SellerLinks] Products loaded:', productsData?.length || 0);
-        console.log('[SellerLinks] Contracts result type:', typeof contractsResult);
-        console.log('[SellerLinks] Contracts result:', contractsResult);
-        console.log('[SellerLinks] Contracts result size:', contractsResult?.size || 0);
-        console.log('[SellerLinks] Contracts result values:', contractsResult ? Array.from(contractsResult) : []);
 
         // SEMPRE salva no cache, mesmo se desmontado
         if (productsData && productsData.length > 0) {
@@ -401,15 +478,7 @@ export function SellerLinks() {
 
           // Ensure contractsResult is a Set
           const contractsSet = contractsResult instanceof Set ? contractsResult : new Set<string>();
-          console.log('[SellerLinks] Setting contracts Set:', contractsSet);
-          console.log('[SellerLinks] Contracts Set size before setState:', contractsSet.size);
-          console.log('[SellerLinks] Contracts Set values before setState:', Array.from(contractsSet));
           setProductsWithContracts(contractsSet);
-
-          // Log after a small delay to see if state was updated
-          setTimeout(() => {
-            console.log('[SellerLinks] State should be updated now. Check productsWithContracts in next render.');
-          }, 100);
 
           setLoading(false);
         } else {
@@ -439,298 +508,237 @@ export function SellerLinks() {
       }
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-  if (loading) {
+  if (loading || (isSearchingSeller && !seller)) {
     return (
-      <div>
-        <div className="mb-8">
-          <Skeleton className="h-9 w-48 mb-2" />
-          <Skeleton className="h-5 w-80" />
-        </div>
+      <div className={isSharedInAdmin ? "p-4 sm:p-6 lg:p-8" : ""}>
+        <div className={isSharedInAdmin ? "max-w-7xl mx-auto" : ""}>
+          <div className="mb-8">
+            <Skeleton className="h-9 w-48 mb-2" />
+            <Skeleton className="h-5 w-80" />
+          </div>
 
-        <Card className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30">
-          <CardHeader>
-            <Skeleton className="h-6 w-56" />
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {[1, 2, 3].map((i) => (
-                <div
-                  key={i}
-                  className="flex items-center justify-between p-4 bg-black/50 rounded-lg border border-gold-medium/20"
-                >
-                  <div className="flex-1">
-                    <Skeleton className="h-5 w-40 mb-2" />
-                    <Skeleton className="h-3 w-full max-w-md" />
+          <Card className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30">
+            <CardHeader>
+              <Skeleton className="h-6 w-56" />
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {[1, 2, 3].map((i) => (
+                  <div
+                    key={i}
+                    className="flex items-center justify-between p-4 bg-black/50 rounded-lg border border-gold-medium/20"
+                  >
+                    <div className="flex-1">
+                      <Skeleton className="h-5 w-40 mb-2" />
+                      <Skeleton className="h-3 w-full max-w-md" />
+                    </div>
+                    <Skeleton className="h-8 w-20 ml-4" />
                   </div>
-                  <Skeleton className="h-8 w-20 ml-4" />
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+
+  if (!seller && !isAdmin) {
+    return (
+      <div className={isSharedInAdmin ? "p-4 sm:p-6 lg:p-8 flex flex-col items-center justify-center p-12 text-center" : "flex flex-col items-center justify-center p-12 text-center"}>
+        <div className={isSharedInAdmin ? "max-w-7xl mx-auto" : ""}>
+          <AlertCircle className="w-12 h-12 text-yellow-500 mb-4" />
+          <h2 className="text-xl font-bold text-white mb-2">Vendedor não configurado</h2>
+          <p className="text-gray-400 max-w-md">
+            Não foi possível encontrar um perfil de vendedor para gerar os links.
+            Entre em contato com o administrador do sistema.
+          </p>
+        </div>
       </div>
     );
   }
 
   return (
-    <div>
-      <div className="mb-6 sm:mb-8">
-        <h1 className="text-2xl sm:text-3xl font-bold migma-gold-text mb-2">Sales Links</h1>
-        <p className="text-sm sm:text-base text-gray-400">Generate and copy your personalized checkout links</p>
-      </div>
+    <div className={isSharedInAdmin ? "p-4 sm:p-6 lg:p-8" : ""}>
+      <div className={isSharedInAdmin ? "max-w-7xl mx-auto" : ""}>
+        <div className="mb-6 sm:mb-8">
+          <h1 className="text-2xl sm:text-3xl font-bold migma-gold-text mb-2">Sales Links</h1>
+          <p className="text-sm sm:text-base text-gray-400">Generate and copy your personalized checkout links</p>
+        </div>
 
-      {/* Quick Client Setup Form */}
-      <Card
-        className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30 mb-8 cursor-pointer hover:border-gold-medium/50 transition-colors"
-        onClick={() => {
-          if (!prefillFormExpanded) {
-            setPrefillFormExpanded(true);
-          }
-        }}
-      >
-        <CardHeader
-          onClick={(e) => {
-            e.stopPropagation();
-            setPrefillFormExpanded(!prefillFormExpanded);
-            // Reset to step 1 when closing
-            if (prefillFormExpanded) {
-              setPrefillFormStep(1);
+        {/* Quick Client Setup Form */}
+        <Card
+          className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30 mb-8 cursor-pointer hover:border-gold-medium/50 transition-colors"
+          onClick={() => {
+            if (!prefillFormExpanded) {
+              setPrefillFormExpanded(true);
             }
           }}
-          className="cursor-pointer"
         >
-          <div className="flex items-center justify-between">
-            <div className="flex items-center">
-              {prefillFormExpanded ? (
-                <ChevronUp className="w-5 h-5 text-gold-light mr-2" />
-              ) : (
-                <ChevronDown className="w-5 h-5 text-gold-light mr-2" />
-              )}
-              <CardTitle className="text-white flex items-center">
-                <FileEdit className="w-5 h-5 mr-2" />
-                Quick Client Setup
-              </CardTitle>
-            </div>
-            <p className="text-sm text-gray-400">
-              {prefillFormExpanded ? 'Click to collapse' : 'Click to expand'}
-            </p>
-          </div>
-          {!prefillFormExpanded && (
-            <p className="text-sm text-gray-400 mt-2 ml-7">
-              Pre-fill client information to generate a personalized checkout link
-            </p>
-          )}
-        </CardHeader>
-        {prefillFormExpanded && (
-          <CardContent onClick={(e) => e.stopPropagation()}>
-            {/* Step Indicator */}
-            <div className="mb-6 flex items-center justify-center gap-2">
-              <div className={`flex items-center gap-2 ${prefillFormStep === 1 ? 'text-gold-light' : 'text-gray-400'}`}>
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center ${prefillFormStep === 1 ? 'bg-gold-medium/20 border-2 border-gold-medium' : 'bg-gray-700 border-2 border-gray-600'}`}>
-                  1
-                </div>
-                <span className="text-sm font-medium">Basic Info</span>
+          <CardHeader
+            onClick={(e) => {
+              e.stopPropagation();
+              setPrefillFormExpanded(!prefillFormExpanded);
+              // Reset to step 1 when closing
+              if (prefillFormExpanded) {
+                setPrefillFormStep(1);
+              }
+            }}
+            className="cursor-pointer"
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center">
+                {prefillFormExpanded ? (
+                  <ChevronUp className="w-5 h-5 text-gold-light mr-2" />
+                ) : (
+                  <ChevronDown className="w-5 h-5 text-gold-light mr-2" />
+                )}
+                <CardTitle className="text-white flex items-center">
+                  <FileEdit className="w-5 h-5 mr-2" />
+                  Quick Client Setup
+                </CardTitle>
               </div>
-              <div className="w-12 h-0.5 bg-gray-600"></div>
-              <div className={`flex items-center gap-2 ${prefillFormStep === 2 ? 'text-gold-light' : 'text-gray-400'}`}>
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center ${prefillFormStep === 2 ? 'bg-gold-medium/20 border-2 border-gold-medium' : 'bg-gray-700 border-2 border-gray-600'}`}>
-                  2
-                </div>
-                <span className="text-sm font-medium">Address & Details</span>
-              </div>
+              <p className="text-sm text-gray-400">
+                {prefillFormExpanded ? 'Click to collapse' : 'Click to expand'}
+              </p>
             </div>
-
-            <div className="space-y-4 max-w-4xl mx-auto" onClick={(e) => e.stopPropagation()}>
-              {/* STEP 1: Basic Info */}
-              {prefillFormStep === 1 && (
-                <>
-                  {/* Product Selection - full width row */}
-                  <div className="space-y-1.5">
-                    <Label htmlFor="prefill-product" className="text-white text-sm">Select Product</Label>
-                    <Select
-                      value={prefillFormData.productSlug}
-                      onValueChange={(value) => {
-                        setPrefillFormData({ ...prefillFormData, productSlug: value });
-                        if (prefillFieldErrors.productSlug) {
-                          setPrefillFieldErrors(prev => {
-                            const next = { ...prev };
-                            delete next.productSlug;
-                            return next;
-                          });
-                        }
-                      }}
-                    >
-                      <SelectTrigger
-                        id="prefill-product"
-                        className={`bg-white text-black h-9 text-sm ${prefillFieldErrors.productSlug ? 'border-2 border-red-500' : ''}`}
-                      >
-                        <SelectValue placeholder="Select a product" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {products.map((product) => {
-                          // Debug: log contracts set on first render
-                          if (products.length > 0 && productsWithContracts.size > 0 && product.slug === products[0].slug) {
-                            console.log('[SellerLinks] Render - Contracts Set size:', productsWithContracts.size);
-                            console.log('[SellerLinks] Render - Contracts Set values:', Array.from(productsWithContracts));
-                          }
-
-                          const hasContract = productsWithContracts.has(product.slug);
-
-                          // Debug log for specific products
-                          if (product.slug === 'cos-selection-process' || product.slug === 'transfer-selection-process') {
-                            console.log(`[SellerLinks] Product ${product.slug}: hasContract=${hasContract}, contractsSet has:`, productsWithContracts.has(product.slug));
-                          }
-
-                          // Check if this is a scholarship or i20-control product that inherits from selection-process
-                          const isScholarshipOrI20 = product.slug.includes('-scholarship') || product.slug.includes('-i20-control');
-                          let inheritsContract = false;
-
-                          if (isScholarshipOrI20 && hasContract) {
-                            // Extract the prefix (initial, cos, or transfer)
-                            const prefix = product.slug.split('-')[0];
-                            const selectionProcessSlug = `${prefix}-selection-process`;
-                            // If selection-process also has contract, this product inherits it
-                            inheritsContract = productsWithContracts.has(selectionProcessSlug);
-                          }
-
-                          return (
-                            <SelectItem key={product.slug} value={product.slug}>
-                              <div className="flex items-center justify-between w-full pr-6">
-                                <span className="flex-1">{product.name}</span>
-                                {hasContract ? (
-                                  <div className="flex items-center gap-1.5 ml-2 flex-shrink-0">
-                                    {inheritsContract ? (
-                                      <>
-                                        <Info className="w-4 h-4 text-blue-500" />
-                                        <span className="text-xs text-gray-600 dark:text-gray-400" title="Inherits contract from Selection Process">Inherits contract</span>
-                                      </>
-                                    ) : (
-                                      <>
-                                        <FileText className="w-4 h-4 text-green-500" />
-                                        <span className="text-xs text-gray-600 dark:text-gray-400" title="Has contract template">Contract</span>
-                                      </>
-                                    )}
-                                  </div>
-                                ) : (
-                                  <div className="flex items-center gap-1.5 ml-2 flex-shrink-0">
-                                    <AlertCircle className="w-4 h-4 text-yellow-500" />
-                                    <span className="text-xs text-gray-600 dark:text-gray-400">No contract yet</span>
-                                  </div>
-                                )}
-                              </div>
-                            </SelectItem>
-                          );
-                        })}
-                      </SelectContent>
-                    </Select>
-                    {prefillFieldErrors.productSlug && (
-                      <p className="text-red-400 text-xs mt-1">{prefillFieldErrors.productSlug}</p>
-                    )}
+            {!prefillFormExpanded && (
+              <p className="text-sm text-gray-400 mt-2 ml-7">
+                Pre-fill client information to generate a personalized checkout link
+              </p>
+            )}
+          </CardHeader>
+          {prefillFormExpanded && (
+            <CardContent onClick={(e) => e.stopPropagation()}>
+              {/* Step Indicator */}
+              <div className="mb-6 flex items-center justify-center gap-2">
+                <div className={`flex items-center gap-2 ${prefillFormStep === 1 ? 'text-gold-light' : 'text-gray-400'}`}>
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center ${prefillFormStep === 1 ? 'bg-gold-medium/20 border-2 border-gold-medium' : 'bg-gray-700 border-2 border-gray-600'}`}>
+                    1
                   </div>
+                  <span className="text-sm font-medium">Basic Info</span>
+                </div>
+                <div className="w-12 h-0.5 bg-gray-600"></div>
+                <div className={`flex items-center gap-2 ${prefillFormStep === 2 ? 'text-gold-light' : 'text-gray-400'}`}>
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center ${prefillFormStep === 2 ? 'bg-gold-medium/20 border-2 border-gold-medium' : 'bg-gray-700 border-2 border-gray-600'}`}>
+                    2
+                  </div>
+                  <span className="text-sm font-medium">Address & Details</span>
+                </div>
+              </div>
 
-                  {/* Dependents & Full Name */}
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    {/* Number of Dependents */}
+              <div className="space-y-4 max-w-4xl mx-auto" onClick={(e) => e.stopPropagation()}>
+                {/* STEP 1: Basic Info */}
+                {prefillFormStep === 1 && (
+                  <>
+                    {/* Product Selection - full width row */}
                     <div className="space-y-1.5">
-                      <Label htmlFor="prefill-extra-units" className="text-white text-sm">Number of Dependents</Label>
-                      <div className="relative">
-                        <Select
-                          value={prefillFormData.extraUnits.toString()}
-                          onValueChange={(value) => {
-                            const newExtraUnits = parseInt(value);
-                            setPrefillFormData((prev) => {
-                              let newDependentNames = prev.dependentNames;
-                              if (newExtraUnits === 0) {
-                                newDependentNames = [];
-                              } else if (newExtraUnits < prev.dependentNames.length) {
-                                newDependentNames = prev.dependentNames.slice(0, newExtraUnits);
-                              } else if (newExtraUnits > prev.dependentNames.length) {
-                                newDependentNames = [...prev.dependentNames];
-                                while (newDependentNames.length < newExtraUnits) {
-                                  newDependentNames.push('');
-                                }
-                              }
-                              return { ...prev, extraUnits: newExtraUnits, dependentNames: newDependentNames };
-                            });
-                            if (prefillFieldErrors.dependentNames) {
-                              setPrefillFieldErrors(prev => {
-                                const next = { ...prev };
-                                delete next.dependentNames;
-                                return next;
-                              });
-                            }
-                          }}
-                        >
-                          <SelectTrigger
-                            id="prefill-extra-units"
-                            className="bg-white text-black h-9 text-sm"
-                          >
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {[0, 1, 2, 3, 4, 5].map((num) => (
-                              <SelectItem key={num} value={num.toString()}>
-                                {num}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        {/* Overlay para garantir que "0" seja sempre exibido */}
-                        {prefillFormData.extraUnits === 0 && (
-                          <span
-                            className="absolute left-3 top-1/2 -translate-y-1/2 text-black pointer-events-none select-none"
-                            style={{
-                              lineHeight: '1.5rem',
-                              fontSize: '0.875rem',
-                              zIndex: 1
-                            }}
-                          >
-                            0
-                          </span>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Client Name */}
-                    <div className="space-y-1.5">
-                      <Label htmlFor="prefill-name" className="text-white text-sm">Full Name</Label>
-                      <Input
-                        id="prefill-name"
-                        value={prefillFormData.clientName}
-                        onChange={(e) => {
-                          setPrefillFormData({ ...prefillFormData, clientName: e.target.value });
-                          if (prefillFieldErrors.clientName) {
+                      <Label htmlFor="prefill-product" className="text-white text-sm">Select Product</Label>
+                      <Select
+                        value={prefillFormData.productSlug}
+                        onValueChange={(value) => {
+                          setPrefillFormData({ ...prefillFormData, productSlug: value });
+                          if (prefillFieldErrors.productSlug) {
                             setPrefillFieldErrors(prev => {
                               const next = { ...prev };
-                              delete next.clientName;
+                              delete next.productSlug;
                               return next;
                             });
                           }
                         }}
-                        className={`bg-white text-black h-9 text-sm ${prefillFieldErrors.clientName ? 'border-2 border-red-500' : ''}`}
-                      />
-                      {prefillFieldErrors.clientName && (
-                        <p className="text-red-400 text-xs mt-1">{prefillFieldErrors.clientName}</p>
+                      >
+                        <SelectTrigger
+                          id="prefill-product"
+                          className={`bg-white text-black h-9 text-sm ${prefillFieldErrors.productSlug ? 'border-2 border-red-500' : ''}`}
+                        >
+                          <SelectValue placeholder="Select a product" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {products.map((product) => {
+                            // Debug: log contracts set on first render
+                            if (products.length > 0 && productsWithContracts.size > 0 && product.slug === products[0].slug) {
+                              console.log('[SellerLinks] Render - Contracts Set size:', productsWithContracts.size);
+                              console.log('[SellerLinks] Render - Contracts Set values:', Array.from(productsWithContracts));
+                            }
+
+                            const hasContract = productsWithContracts.has(product.slug);
+
+                            // Debug log for specific products
+                            if (product.slug === 'cos-selection-process' || product.slug === 'transfer-selection-process') {
+                              console.log(`[SellerLinks] Product ${product.slug}: hasContract=${hasContract}, contractsSet has:`, productsWithContracts.has(product.slug));
+                            }
+
+                            // Check if this is a scholarship or i20-control product that inherits from selection-process
+                            const isScholarshipOrI20 = product.slug.includes('-scholarship') || product.slug.includes('-i20-control');
+                            let inheritsContract = false;
+
+                            if (isScholarshipOrI20 && hasContract) {
+                              // Extract the prefix (initial, cos, or transfer)
+                              const prefix = product.slug.split('-')[0];
+                              const selectionProcessSlug = `${prefix}-selection-process`;
+                              // If selection-process also has contract, this product inherits it
+                              inheritsContract = productsWithContracts.has(selectionProcessSlug);
+                            }
+
+                            return (
+                              <SelectItem key={product.slug} value={product.slug}>
+                                <div className="flex items-center justify-between w-full pr-6">
+                                  <span className="flex-1">{product.name}</span>
+                                  {hasContract ? (
+                                    <div className="flex items-center gap-1.5 ml-2 flex-shrink-0">
+                                      {inheritsContract ? (
+                                        <>
+                                          <Info className="w-4 h-4 text-blue-500" />
+                                          <span className="text-xs text-gray-600 dark:text-gray-400" title="Inherits contract from Selection Process">Inherits contract</span>
+                                        </>
+                                      ) : (
+                                        <>
+                                          <FileText className="w-4 h-4 text-green-500" />
+                                          <span className="text-xs text-gray-600 dark:text-gray-400" title="Has contract template">Contract</span>
+                                        </>
+                                      )}
+                                    </div>
+                                  ) : (
+                                    <div className="flex items-center gap-1.5 ml-2 flex-shrink-0">
+                                      <AlertCircle className="w-4 h-4 text-yellow-500" />
+                                      <span className="text-xs text-gray-600 dark:text-gray-400">No contract yet</span>
+                                    </div>
+                                  )}
+                                </div>
+                              </SelectItem>
+                            );
+                          })}
+                        </SelectContent>
+                      </Select>
+                      {prefillFieldErrors.productSlug && (
+                        <p className="text-red-400 text-xs mt-1">{prefillFieldErrors.productSlug}</p>
                       )}
                     </div>
-                  </div>
 
-                  {/* Dependent Names - Dynamic inputs */}
-                  {prefillFormData.extraUnits > 0 && (
-                    <div className="space-y-2">
-                      {Array.from({ length: prefillFormData.extraUnits }, (_, i) => (
-                        <div key={i} className="space-y-1.5">
-                          <Label htmlFor={`prefill-dependent-name-${i}`} className="text-white text-sm">
-                            Dependent Name {i + 1}
-                          </Label>
-                          <Input
-                            id={`prefill-dependent-name-${i}`}
-                            value={prefillFormData.dependentNames[i] || ''}
-                            onChange={(e) => {
-                              const newNames = [...prefillFormData.dependentNames];
-                              newNames[i] = e.target.value;
-                              setPrefillFormData({ ...prefillFormData, dependentNames: newNames });
+                    {/* Dependents & Full Name */}
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      {/* Number of Dependents */}
+                      <div className="space-y-1.5">
+                        <Label htmlFor="prefill-extra-units" className="text-white text-sm">Number of Dependents</Label>
+                        <div className="relative">
+                          <Select
+                            value={prefillFormData.extraUnits.toString()}
+                            onValueChange={(value) => {
+                              const newExtraUnits = parseInt(value);
+                              setPrefillFormData((prev) => {
+                                let newDependentNames = prev.dependentNames;
+                                if (newExtraUnits === 0) {
+                                  newDependentNames = [];
+                                } else if (newExtraUnits < prev.dependentNames.length) {
+                                  newDependentNames = prev.dependentNames.slice(0, newExtraUnits);
+                                } else if (newExtraUnits > prev.dependentNames.length) {
+                                  newDependentNames = [...prev.dependentNames];
+                                  while (newDependentNames.length < newExtraUnits) {
+                                    newDependentNames.push('');
+                                  }
+                                }
+                                return { ...prev, extraUnits: newExtraUnits, dependentNames: newDependentNames };
+                              });
                               if (prefillFieldErrors.dependentNames) {
                                 setPrefillFieldErrors(prev => {
                                   const next = { ...prev };
@@ -739,1047 +747,1126 @@ export function SellerLinks() {
                                 });
                               }
                             }}
-                            className="bg-white text-black h-9 text-sm"
-                            required
-                          />
+                          >
+                            <SelectTrigger
+                              id="prefill-extra-units"
+                              className="bg-white text-black h-9 text-sm"
+                            >
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {[0, 1, 2, 3, 4, 5].map((num) => (
+                                <SelectItem key={num} value={num.toString()}>
+                                  {num}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          {/* Overlay para garantir que "0" seja sempre exibido */}
+                          {prefillFormData.extraUnits === 0 && (
+                            <span
+                              className="absolute left-3 top-1/2 -translate-y-1/2 text-black pointer-events-none select-none"
+                              style={{
+                                lineHeight: '1.5rem',
+                                fontSize: '0.875rem',
+                                zIndex: 1
+                              }}
+                            >
+                              0
+                            </span>
+                          )}
                         </div>
-                      ))}
-                      {prefillFieldErrors.dependentNames && (
-                        <p className="text-red-400 text-xs mt-1">{prefillFieldErrors.dependentNames}</p>
-                      )}
-                    </div>
-                  )}
+                      </div>
 
-                  {/* Email & Date of Birth */}
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    {/* Email */}
-                    <div className="space-y-1.5">
-                      <Label htmlFor="prefill-email" className="text-white text-sm">Email</Label>
-                      <Input
-                        id="prefill-email"
-                        type="email"
-                        value={prefillFormData.clientEmail}
-                        onChange={(e) => {
-                          const value = e.target.value.replace(/\s/g, '');
-                          setPrefillFormData({ ...prefillFormData, clientEmail: value });
-                          if (prefillFieldErrors.clientEmail) {
-                            setPrefillFieldErrors(prev => {
-                              const next = { ...prev };
-                              delete next.clientEmail;
-                              return next;
-                            });
-                          }
-                        }}
-                        className={`bg-white text-black h-9 text-sm ${prefillFieldErrors.clientEmail ? 'border-2 border-red-500' : ''}`}
-                      />
-                      {prefillFieldErrors.clientEmail && (
-                        <p className="text-red-400 text-xs mt-1">{prefillFieldErrors.clientEmail}</p>
-                      )}
+                      {/* Client Name */}
+                      <div className="space-y-1.5">
+                        <Label htmlFor="prefill-name" className="text-white text-sm">Full Name</Label>
+                        <Input
+                          id="prefill-name"
+                          value={prefillFormData.clientName}
+                          onChange={(e) => {
+                            setPrefillFormData({ ...prefillFormData, clientName: e.target.value });
+                            if (prefillFieldErrors.clientName) {
+                              setPrefillFieldErrors(prev => {
+                                const next = { ...prev };
+                                delete next.clientName;
+                                return next;
+                              });
+                            }
+                          }}
+                          className={`bg-white text-black h-9 text-sm ${prefillFieldErrors.clientName ? 'border-2 border-red-500' : ''}`}
+                        />
+                        {prefillFieldErrors.clientName && (
+                          <p className="text-red-400 text-xs mt-1">{prefillFieldErrors.clientName}</p>
+                        )}
+                      </div>
                     </div>
 
-                    {/* Date of Birth */}
-                    <div className="space-y-1.5">
-                      <Label htmlFor="prefill-dob" className="text-white text-sm">Date of Birth</Label>
-                      <Input
-                        id="prefill-dob"
-                        type="date"
-                        min="1900-01-01"
-                        value={prefillFormData.dateOfBirth}
-                        onChange={(e) => {
-                          setPrefillFormData({ ...prefillFormData, dateOfBirth: e.target.value });
-                          if (prefillFieldErrors.dateOfBirth) {
-                            setPrefillFieldErrors(prev => {
-                              const next = { ...prev };
-                              delete next.dateOfBirth;
-                              return next;
-                            });
-                          }
-                        }}
-                        className={`bg-white text-black h-9 text-sm ${prefillFieldErrors.dateOfBirth ? 'border-2 border-red-500' : ''}`}
-                      />
-                      {prefillFieldErrors.dateOfBirth && (
-                        <p className="text-red-400 text-xs mt-1">{prefillFieldErrors.dateOfBirth}</p>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Document Type and Number */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div className="space-y-1.5">
-                      <Label htmlFor="prefill-doc-type" className="text-white text-sm">Document Type</Label>
-                      <Select
-                        value={prefillFormData.documentType}
-                        onValueChange={(value: any) => {
-                          setPrefillFormData({ ...prefillFormData, documentType: value });
-                          if (prefillFieldErrors.documentType) {
-                            setPrefillFieldErrors(prev => {
-                              const next = { ...prev };
-                              delete next.documentType;
-                              return next;
-                            });
-                          }
-                        }}
-                      >
-                        <SelectTrigger
-                          id="prefill-doc-type"
-                          className={`bg-white text-black h-9 text-sm ${prefillFieldErrors.documentType ? 'border-2 border-red-500' : ''}`}
-                        >
-                          <SelectValue placeholder="Select type" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="passport">Passport</SelectItem>
-                          <SelectItem value="id">ID</SelectItem>
-                          <SelectItem value="driver_license">Driver's License</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      {prefillFieldErrors.documentType && (
-                        <p className="text-red-400 text-xs mt-1">{prefillFieldErrors.documentType}</p>
-                      )}
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label htmlFor="prefill-doc-number" className="text-white text-sm">Document Number</Label>
-                      <Input
-                        id="prefill-doc-number"
-                        value={prefillFormData.documentNumber}
-                        onChange={(e) => {
-                          setPrefillFormData({ ...prefillFormData, documentNumber: e.target.value });
-                          if (prefillFieldErrors.documentNumber) {
-                            setPrefillFieldErrors(prev => {
-                              const next = { ...prev };
-                              delete next.documentNumber;
-                              return next;
-                            });
-                          }
-                        }}
-                        className={`bg-white text-black h-9 text-sm ${prefillFieldErrors.documentNumber ? 'border-2 border-red-500' : ''}`}
-                      />
-                      {prefillFieldErrors.documentNumber && (
-                        <p className="text-red-400 text-xs mt-1">{prefillFieldErrors.documentNumber}</p>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Navigation */}
-                  <div className="flex justify-end pt-2">
-                    <Button
-                      onClick={() => {
-                        setPrefillError('');
-                        // Only validate format, not required fields
-                        const result = validatePrefillStep1(prefillFormData);
-                        if (!result.valid && result.errors) {
-                          setPrefillFieldErrors(result.errors);
-                          if (result.firstErrorField) {
-                            scrollToPrefillFirstError(result.firstErrorField);
-                          }
-                          return;
-                        }
-                        setPrefillFieldErrors({});
-                        setPrefillFormStep(2);
-                      }}
-                      className="bg-gold-medium hover:bg-gold-light text-black h-9 text-sm"
-                    >
-                      Next: Address & Details
-                      <ChevronRight className="w-4 h-4 ml-2" />
-                    </Button>
-                  </div>
-                </>
-              )}
-
-              {/* STEP 2: Address & Details */}
-              {prefillFormStep === 2 && (
-                <>
-                  {/* Address */}
-                  <div className="space-y-1.5">
-                    <Label htmlFor="prefill-address" className="text-white text-sm">Address Line</Label>
-                    <Input
-                      id="prefill-address"
-                      value={prefillFormData.addressLine}
-                      onChange={(e) => {
-                        setPrefillFormData({ ...prefillFormData, addressLine: e.target.value });
-                        if (prefillFieldErrors.addressLine) {
-                          setPrefillFieldErrors(prev => {
-                            const next = { ...prev };
-                            delete next.addressLine;
-                            return next;
-                          });
-                        }
-                      }}
-                      className={`bg-white text-black h-9 text-sm ${prefillFieldErrors.addressLine ? 'border-2 border-red-500' : ''}`}
-                    />
-                    {prefillFieldErrors.addressLine && (
-                      <p className="text-red-400 text-xs mt-1">{prefillFieldErrors.addressLine}</p>
+                    {/* Dependent Names - Dynamic inputs */}
+                    {prefillFormData.extraUnits > 0 && (
+                      <div className="space-y-2">
+                        {Array.from({ length: prefillFormData.extraUnits }, (_, i) => (
+                          <div key={i} className="space-y-1.5">
+                            <Label htmlFor={`prefill-dependent-name-${i}`} className="text-white text-sm">
+                              Dependent Name {i + 1}
+                            </Label>
+                            <Input
+                              id={`prefill-dependent-name-${i}`}
+                              value={prefillFormData.dependentNames[i] || ''}
+                              onChange={(e) => {
+                                const newNames = [...prefillFormData.dependentNames];
+                                newNames[i] = e.target.value;
+                                setPrefillFormData({ ...prefillFormData, dependentNames: newNames });
+                                if (prefillFieldErrors.dependentNames) {
+                                  setPrefillFieldErrors(prev => {
+                                    const next = { ...prev };
+                                    delete next.dependentNames;
+                                    return next;
+                                  });
+                                }
+                              }}
+                              className="bg-white text-black h-9 text-sm"
+                              required
+                            />
+                          </div>
+                        ))}
+                        {prefillFieldErrors.dependentNames && (
+                          <p className="text-red-400 text-xs mt-1">{prefillFieldErrors.dependentNames}</p>
+                        )}
+                      </div>
                     )}
-                  </div>
 
-                  {/* City, State, Postal Code */}
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    {/* Email & Date of Birth */}
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      {/* Email */}
+                      <div className="space-y-1.5">
+                        <Label htmlFor="prefill-email" className="text-white text-sm">Email</Label>
+                        <Input
+                          id="prefill-email"
+                          type="email"
+                          value={prefillFormData.clientEmail}
+                          onChange={(e) => {
+                            const value = e.target.value.replace(/\s/g, '');
+                            setPrefillFormData({ ...prefillFormData, clientEmail: value });
+                            if (prefillFieldErrors.clientEmail) {
+                              setPrefillFieldErrors(prev => {
+                                const next = { ...prev };
+                                delete next.clientEmail;
+                                return next;
+                              });
+                            }
+                          }}
+                          className={`bg-white text-black h-9 text-sm ${prefillFieldErrors.clientEmail ? 'border-2 border-red-500' : ''}`}
+                        />
+                        {prefillFieldErrors.clientEmail && (
+                          <p className="text-red-400 text-xs mt-1">{prefillFieldErrors.clientEmail}</p>
+                        )}
+                      </div>
+
+                      {/* Date of Birth */}
+                      <div className="space-y-1.5">
+                        <Label htmlFor="prefill-dob" className="text-white text-sm">Date of Birth</Label>
+                        <Input
+                          id="prefill-dob"
+                          type="date"
+                          min="1900-01-01"
+                          value={prefillFormData.dateOfBirth}
+                          onChange={(e) => {
+                            setPrefillFormData({ ...prefillFormData, dateOfBirth: e.target.value });
+                            if (prefillFieldErrors.dateOfBirth) {
+                              setPrefillFieldErrors(prev => {
+                                const next = { ...prev };
+                                delete next.dateOfBirth;
+                                return next;
+                              });
+                            }
+                          }}
+                          className={`bg-white text-black h-9 text-sm ${prefillFieldErrors.dateOfBirth ? 'border-2 border-red-500' : ''}`}
+                        />
+                        {prefillFieldErrors.dateOfBirth && (
+                          <p className="text-red-400 text-xs mt-1">{prefillFieldErrors.dateOfBirth}</p>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Document Type and Number */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div className="space-y-1.5">
+                        <Label htmlFor="prefill-doc-type" className="text-white text-sm">Document Type</Label>
+                        <Select
+                          value={prefillFormData.documentType}
+                          onValueChange={(value: any) => {
+                            setPrefillFormData({ ...prefillFormData, documentType: value });
+                            if (prefillFieldErrors.documentType) {
+                              setPrefillFieldErrors(prev => {
+                                const next = { ...prev };
+                                delete next.documentType;
+                                return next;
+                              });
+                            }
+                          }}
+                        >
+                          <SelectTrigger
+                            id="prefill-doc-type"
+                            className={`bg-white text-black h-9 text-sm ${prefillFieldErrors.documentType ? 'border-2 border-red-500' : ''}`}
+                          >
+                            <SelectValue placeholder="Select type" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="passport">Passport</SelectItem>
+                            <SelectItem value="id">ID</SelectItem>
+                            <SelectItem value="driver_license">Driver's License</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        {prefillFieldErrors.documentType && (
+                          <p className="text-red-400 text-xs mt-1">{prefillFieldErrors.documentType}</p>
+                        )}
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label htmlFor="prefill-doc-number" className="text-white text-sm">Document Number</Label>
+                        <Input
+                          id="prefill-doc-number"
+                          value={prefillFormData.documentNumber}
+                          onChange={(e) => {
+                            setPrefillFormData({ ...prefillFormData, documentNumber: e.target.value });
+                            if (prefillFieldErrors.documentNumber) {
+                              setPrefillFieldErrors(prev => {
+                                const next = { ...prev };
+                                delete next.documentNumber;
+                                return next;
+                              });
+                            }
+                          }}
+                          className={`bg-white text-black h-9 text-sm ${prefillFieldErrors.documentNumber ? 'border-2 border-red-500' : ''}`}
+                        />
+                        {prefillFieldErrors.documentNumber && (
+                          <p className="text-red-400 text-xs mt-1">{prefillFieldErrors.documentNumber}</p>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Navigation */}
+                    <div className="flex justify-end pt-2">
+                      <Button
+                        onClick={() => {
+                          setPrefillError('');
+                          // Only validate format, not required fields
+                          const result = validatePrefillStep1(prefillFormData);
+                          if (!result.valid && result.errors) {
+                            setPrefillFieldErrors(result.errors);
+                            if (result.firstErrorField) {
+                              scrollToPrefillFirstError(result.firstErrorField);
+                            }
+                            return;
+                          }
+                          setPrefillFieldErrors({});
+                          setPrefillFormStep(2);
+                        }}
+                        className="bg-gold-medium hover:bg-gold-light text-black h-9 text-sm"
+                      >
+                        Next: Address & Details
+                        <ChevronRight className="w-4 h-4 ml-2" />
+                      </Button>
+                    </div>
+                  </>
+                )}
+
+                {/* STEP 2: Address & Details */}
+                {prefillFormStep === 2 && (
+                  <>
+                    {/* Address */}
                     <div className="space-y-1.5">
-                      <Label htmlFor="prefill-city" className="text-white text-sm">City</Label>
+                      <Label htmlFor="prefill-address" className="text-white text-sm">Address Line</Label>
                       <Input
-                        id="prefill-city"
-                        value={prefillFormData.city}
+                        id="prefill-address"
+                        value={prefillFormData.addressLine}
                         onChange={(e) => {
-                          const value = e.target.value.replace(/[^a-zA-Z\s\-']/g, '');
-                          setPrefillFormData({ ...prefillFormData, city: value });
-                          if (prefillFieldErrors.city) {
+                          setPrefillFormData({ ...prefillFormData, addressLine: e.target.value });
+                          if (prefillFieldErrors.addressLine) {
                             setPrefillFieldErrors(prev => {
                               const next = { ...prev };
-                              delete next.city;
+                              delete next.addressLine;
                               return next;
                             });
                           }
                         }}
-                        className={`bg-white text-black h-9 text-sm ${prefillFieldErrors.city ? 'border-2 border-red-500' : ''}`}
+                        className={`bg-white text-black h-9 text-sm ${prefillFieldErrors.addressLine ? 'border-2 border-red-500' : ''}`}
                       />
-                      {prefillFieldErrors.city && (
-                        <p className="text-red-400 text-xs mt-1">{prefillFieldErrors.city}</p>
+                      {prefillFieldErrors.addressLine && (
+                        <p className="text-red-400 text-xs mt-1">{prefillFieldErrors.addressLine}</p>
                       )}
                     </div>
-                    <div className="space-y-1.5">
-                      <Label htmlFor="prefill-state" className="text-white text-sm">State</Label>
-                      <Input
-                        id="prefill-state"
-                        value={prefillFormData.state}
-                        onChange={(e) => {
-                          const value = e.target.value.replace(/[^a-zA-Z\s\-']/g, '');
-                          setPrefillFormData({ ...prefillFormData, state: value });
-                          if (prefillFieldErrors.state) {
-                            setPrefillFieldErrors(prev => {
-                              const next = { ...prev };
-                              delete next.state;
-                              return next;
-                            });
-                          }
-                        }}
-                        className={`bg-white text-black h-9 text-sm ${prefillFieldErrors.state ? 'border-2 border-red-500' : ''}`}
-                      />
-                      {prefillFieldErrors.state && (
-                        <p className="text-red-400 text-xs mt-1">{prefillFieldErrors.state}</p>
-                      )}
+
+                    {/* City, State, Postal Code */}
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <div className="space-y-1.5">
+                        <Label htmlFor="prefill-city" className="text-white text-sm">City</Label>
+                        <Input
+                          id="prefill-city"
+                          value={prefillFormData.city}
+                          onChange={(e) => {
+                            const value = e.target.value.replace(/[^a-zA-Z\s\-']/g, '');
+                            setPrefillFormData({ ...prefillFormData, city: value });
+                            if (prefillFieldErrors.city) {
+                              setPrefillFieldErrors(prev => {
+                                const next = { ...prev };
+                                delete next.city;
+                                return next;
+                              });
+                            }
+                          }}
+                          className={`bg-white text-black h-9 text-sm ${prefillFieldErrors.city ? 'border-2 border-red-500' : ''}`}
+                        />
+                        {prefillFieldErrors.city && (
+                          <p className="text-red-400 text-xs mt-1">{prefillFieldErrors.city}</p>
+                        )}
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label htmlFor="prefill-state" className="text-white text-sm">State</Label>
+                        <Input
+                          id="prefill-state"
+                          value={prefillFormData.state}
+                          onChange={(e) => {
+                            const value = e.target.value.replace(/[^a-zA-Z\s\-']/g, '');
+                            setPrefillFormData({ ...prefillFormData, state: value });
+                            if (prefillFieldErrors.state) {
+                              setPrefillFieldErrors(prev => {
+                                const next = { ...prev };
+                                delete next.state;
+                                return next;
+                              });
+                            }
+                          }}
+                          className={`bg-white text-black h-9 text-sm ${prefillFieldErrors.state ? 'border-2 border-red-500' : ''}`}
+                        />
+                        {prefillFieldErrors.state && (
+                          <p className="text-red-400 text-xs mt-1">{prefillFieldErrors.state}</p>
+                        )}
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label htmlFor="prefill-postal" className="text-white text-sm">Postal Code</Label>
+                        <Input
+                          id="prefill-postal"
+                          value={prefillFormData.postalCode}
+                          onChange={(e) => {
+                            setPrefillFormData({ ...prefillFormData, postalCode: e.target.value });
+                            if (prefillFieldErrors.postalCode) {
+                              setPrefillFieldErrors(prev => {
+                                const next = { ...prev };
+                                delete next.postalCode;
+                                return next;
+                              });
+                            }
+                          }}
+                          className={`bg-white text-black h-9 text-sm ${prefillFieldErrors.postalCode ? 'border-2 border-red-500' : ''}`}
+                        />
+                        {prefillFieldErrors.postalCode && (
+                          <p className="text-red-400 text-xs mt-1">{prefillFieldErrors.postalCode}</p>
+                        )}
+                      </div>
                     </div>
-                    <div className="space-y-1.5">
-                      <Label htmlFor="prefill-postal" className="text-white text-sm">Postal Code</Label>
-                      <Input
-                        id="prefill-postal"
-                        value={prefillFormData.postalCode}
-                        onChange={(e) => {
-                          setPrefillFormData({ ...prefillFormData, postalCode: e.target.value });
-                          if (prefillFieldErrors.postalCode) {
-                            setPrefillFieldErrors(prev => {
-                              const next = { ...prev };
-                              delete next.postalCode;
-                              return next;
+
+                    {/* Country and Nationality */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div className="space-y-1.5">
+                        <Label htmlFor="prefill-country" className="text-white text-sm">Country of Residence</Label>
+                        <Select
+                          value={prefillFormData.clientCountry}
+                          onValueChange={(value) => {
+                            const phoneCode = getPhoneCodeFromCountry(value);
+                            let newWhatsApp = prefillFormData.clientWhatsApp;
+                            if (newWhatsApp) {
+                              const withoutCode = newWhatsApp.replace(/^\+\d{1,4}\s*/, '');
+                              newWhatsApp = phoneCode + (withoutCode ? ' ' + withoutCode : '');
+                            } else {
+                              newWhatsApp = phoneCode;
+                            }
+                            setPrefillFormData({
+                              ...prefillFormData,
+                              clientCountry: value,
+                              clientWhatsApp: newWhatsApp
                             });
-                          }
-                        }}
-                        className={`bg-white text-black h-9 text-sm ${prefillFieldErrors.postalCode ? 'border-2 border-red-500' : ''}`}
+                            if (prefillFieldErrors.clientCountry) {
+                              setPrefillFieldErrors(prev => {
+                                const next = { ...prev };
+                                delete next.clientCountry;
+                                return next;
+                              });
+                            }
+                          }}
+                        >
+                          <SelectTrigger
+                            id="prefill-country"
+                            className={`bg-white text-black h-9 text-sm ${prefillFieldErrors.clientCountry ? 'border-2 border-red-500' : ''}`}
+                          >
+                            <SelectValue placeholder="Select country" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {countries.map((country) => (
+                              <SelectItem key={country} value={country}>
+                                {country}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        {prefillFieldErrors.clientCountry && (
+                          <p className="text-red-400 text-xs mt-1">{prefillFieldErrors.clientCountry}</p>
+                        )}
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label htmlFor="prefill-nationality" className="text-white text-sm">Nationality *</Label>
+                        <Select
+                          value={prefillFormData.clientNationality}
+                          onValueChange={(value) => {
+                            setPrefillFormData({ ...prefillFormData, clientNationality: value });
+                            if (prefillFieldErrors.clientNationality) {
+                              setPrefillFieldErrors(prev => {
+                                const next = { ...prev };
+                                delete next.clientNationality;
+                                return next;
+                              });
+                            }
+                          }}
+                        >
+                          <SelectTrigger
+                            id="prefill-nationality"
+                            className={`bg-white text-black h-9 text-sm ${prefillFieldErrors.clientNationality ? 'border-2 border-red-500' : ''}`}
+                          >
+                            <SelectValue placeholder="Select nationality" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {countries.map((country) => (
+                              <SelectItem key={country} value={country}>
+                                {country}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        {prefillFieldErrors.clientNationality && (
+                          <p className="text-red-400 text-xs mt-1">{prefillFieldErrors.clientNationality}</p>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* WhatsApp and Marital Status */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div className="space-y-1.5">
+                        <Label htmlFor="prefill-whatsapp" className="text-white text-sm">WhatsApp (with country code)</Label>
+                        <Input
+                          id="prefill-whatsapp"
+                          type="tel"
+                          placeholder="+55 11 98765 4321"
+                          value={prefillFormData.clientWhatsApp}
+                          onChange={(e) => {
+                            setPrefillFormData({ ...prefillFormData, clientWhatsApp: e.target.value });
+                            if (prefillFieldErrors.clientWhatsApp) {
+                              setPrefillFieldErrors(prev => {
+                                const next = { ...prev };
+                                delete next.clientWhatsApp;
+                                return next;
+                              });
+                            }
+                          }}
+                          className={`bg-white text-black h-9 text-sm ${prefillFieldErrors.clientWhatsApp ? 'border-2 border-red-500' : ''}`}
+                        />
+                        {prefillFieldErrors.clientWhatsApp && (
+                          <p className="text-red-400 text-xs mt-1">{prefillFieldErrors.clientWhatsApp}</p>
+                        )}
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label htmlFor="prefill-marital" className="text-white text-sm">Marital Status</Label>
+                        <Select
+                          value={prefillFormData.maritalStatus}
+                          onValueChange={(value: any) => {
+                            setPrefillFormData({ ...prefillFormData, maritalStatus: value });
+                            if (prefillFieldErrors.maritalStatus) {
+                              setPrefillFieldErrors(prev => {
+                                const next = { ...prev };
+                                delete next.maritalStatus;
+                                return next;
+                              });
+                            }
+                          }}
+                        >
+                          <SelectTrigger
+                            id="prefill-marital"
+                            className={`bg-white text-black h-9 text-sm ${prefillFieldErrors.maritalStatus ? 'border-2 border-red-500' : ''}`}
+                          >
+                            <SelectValue placeholder="Select status" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="single">Single</SelectItem>
+                            <SelectItem value="married">Married</SelectItem>
+                            <SelectItem value="divorced">Divorced</SelectItem>
+                            <SelectItem value="widowed">Widowed</SelectItem>
+                            <SelectItem value="other">Other</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        {prefillFieldErrors.maritalStatus && (
+                          <p className="text-red-400 text-xs mt-1">{prefillFieldErrors.maritalStatus}</p>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Observations */}
+                    <div className="space-y-1.5">
+                      <Label htmlFor="prefill-observations" className="text-white text-sm">Observations (optional)</Label>
+                      <Textarea
+                        id="prefill-observations"
+                        value={prefillFormData.clientObservations}
+                        onChange={(e) => setPrefillFormData({ ...prefillFormData, clientObservations: e.target.value })}
+                        className="bg-white text-black min-h-[80px] text-sm"
+                        placeholder="Any additional information..."
                       />
-                      {prefillFieldErrors.postalCode && (
-                        <p className="text-red-400 text-xs mt-1">{prefillFieldErrors.postalCode}</p>
-                      )}
+                    </div>
+
+                    {/* Navigation */}
+                    <div className="flex justify-between pt-2">
+                      <Button
+                        onClick={() => setPrefillFormStep(1)}
+                        variant="outline"
+                        className="border-gold-medium/50 bg-black/50 text-gold-light hover:bg-gold-medium/30 h-9 text-sm"
+                      >
+                        <ChevronLeft className="w-4 h-4 mr-2" />
+                        Back
+                      </Button>
+                    </div>
+                  </>
+                )}
+
+                {/* Error Message */}
+                {prefillError && (
+                  <div className="bg-red-500/10 border border-red-500/50 text-red-300 p-3 rounded-md text-sm">
+                    {prefillError}
+                  </div>
+                )}
+
+                {/* Generated Link */}
+                {generatedPrefillLink && (
+                  <div className="bg-green-500/10 border border-green-500/50 text-green-300 p-3 rounded-md">
+                    <p className="font-semibold mb-2 text-sm">Link Generated Successfully!</p>
+                    <div className="flex items-center gap-2">
+                      <Input
+                        value={generatedPrefillLink}
+                        readOnly
+                        className="bg-white text-black flex-1 h-9 text-xs"
+                      />
+                      <Button
+                        onClick={() => {
+                          navigator.clipboard.writeText(generatedPrefillLink);
+                          setCopiedLink(generatedPrefillLink);
+                          copyTimeoutRef.current = setTimeout(() => {
+                            setCopiedLink(null);
+                            copyTimeoutRef.current = null;
+                          }, 3000);
+                        }}
+                        className="bg-gold-medium hover:bg-gold-light text-black h-9 text-sm"
+                      >
+                        {copiedLink === generatedPrefillLink ? (
+                          <>
+                            <CheckCircle className="w-4 h-4 mr-1" />
+                            Copied!
+                          </>
+                        ) : (
+                          <>
+                            <Copy className="w-4 h-4 mr-1" />
+                            Copy
+                          </>
+                        )}
+                      </Button>
                     </div>
                   </div>
+                )}
 
-                  {/* Country and Nationality */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div className="space-y-1.5">
-                      <Label htmlFor="prefill-country" className="text-white text-sm">Country of Residence</Label>
-                      <Select
-                        value={prefillFormData.clientCountry}
-                        onValueChange={(value) => {
-                          const phoneCode = getPhoneCodeFromCountry(value);
-                          let newWhatsApp = prefillFormData.clientWhatsApp;
-                          if (newWhatsApp) {
-                            const withoutCode = newWhatsApp.replace(/^\+\d{1,4}\s*/, '');
-                            newWhatsApp = phoneCode + (withoutCode ? ' ' + withoutCode : '');
-                          } else {
-                            newWhatsApp = phoneCode;
-                          }
-                          setPrefillFormData({
-                            ...prefillFormData,
-                            clientCountry: value,
-                            clientWhatsApp: newWhatsApp
+                {/* Generate Link Button - Only show on Step 2 */}
+                {prefillFormStep === 2 && (
+                  <Button
+                    onClick={async () => {
+                      // Check if product is selected (required for URL)
+                      if (!prefillFormData.productSlug.trim()) {
+                        setPrefillError('Please select a product to generate the link');
+                        setPrefillFieldErrors({ productSlug: 'Product is required to generate link' });
+                        return;
+                      }
+
+                      // Only validate format, not required fields
+                      const validation = validatePrefillForm(prefillFormData);
+                      if (!validation.valid) {
+                        setPrefillFieldErrors(validation.errors || {});
+                        if (validation.firstErrorField) {
+                          scrollToPrefillFirstError(validation.firstErrorField);
+                        }
+                        return;
+                      }
+
+                      setPrefillError('');
+                      setPrefillFieldErrors({});
+
+                      // Generate token and create prefill record
+                      try {
+                        const token = crypto.randomUUID();
+                        const expiresAt = new Date();
+                        expiresAt.setDate(expiresAt.getDate() + 30); // 30 days validity
+
+                        const { error: insertError } = await supabase
+                          .from('checkout_prefill_tokens')
+                          .insert({
+                            token,
+                            seller_id: seller?.seller_id_public,
+                            product_slug: prefillFormData.productSlug,
+                            client_data: {
+                              clientName: prefillFormData.clientName,
+                              clientEmail: prefillFormData.clientEmail,
+                              clientWhatsApp: prefillFormData.clientWhatsApp,
+                              clientCountry: prefillFormData.clientCountry,
+                              clientNationality: prefillFormData.clientNationality,
+                              dateOfBirth: prefillFormData.dateOfBirth,
+                              documentType: prefillFormData.documentType,
+                              documentNumber: prefillFormData.documentNumber,
+                              addressLine: prefillFormData.addressLine,
+                              city: prefillFormData.city,
+                              state: prefillFormData.state,
+                              postalCode: prefillFormData.postalCode,
+                              maritalStatus: prefillFormData.maritalStatus,
+                              clientObservations: prefillFormData.clientObservations,
+                              extraUnits: prefillFormData.extraUnits,
+                              dependentNames: prefillFormData.dependentNames.length > 0 ? prefillFormData.dependentNames : null,
+                            },
+                            expires_at: expiresAt.toISOString(),
                           });
-                          if (prefillFieldErrors.clientCountry) {
-                            setPrefillFieldErrors(prev => {
-                              const next = { ...prev };
-                              delete next.clientCountry;
-                              return next;
-                            });
-                          }
-                        }}
-                      >
-                        <SelectTrigger
-                          id="prefill-country"
-                          className={`bg-white text-black h-9 text-sm ${prefillFieldErrors.clientCountry ? 'border-2 border-red-500' : ''}`}
-                        >
-                          <SelectValue placeholder="Select country" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {countries.map((country) => (
-                            <SelectItem key={country} value={country}>
-                              {country}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      {prefillFieldErrors.clientCountry && (
-                        <p className="text-red-400 text-xs mt-1">{prefillFieldErrors.clientCountry}</p>
-                      )}
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label htmlFor="prefill-nationality" className="text-white text-sm">Nationality *</Label>
-                      <Select
-                        value={prefillFormData.clientNationality}
-                        onValueChange={(value) => {
-                          setPrefillFormData({ ...prefillFormData, clientNationality: value });
-                          if (prefillFieldErrors.clientNationality) {
-                            setPrefillFieldErrors(prev => {
-                              const next = { ...prev };
-                              delete next.clientNationality;
-                              return next;
-                            });
-                          }
-                        }}
-                      >
-                        <SelectTrigger
-                          id="prefill-nationality"
-                          className={`bg-white text-black h-9 text-sm ${prefillFieldErrors.clientNationality ? 'border-2 border-red-500' : ''}`}
-                        >
-                          <SelectValue placeholder="Select nationality" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {countries.map((country) => (
-                            <SelectItem key={country} value={country}>
-                              {country}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      {prefillFieldErrors.clientNationality && (
-                        <p className="text-red-400 text-xs mt-1">{prefillFieldErrors.clientNationality}</p>
-                      )}
-                    </div>
-                  </div>
 
-                  {/* WhatsApp and Marital Status */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div className="space-y-1.5">
-                      <Label htmlFor="prefill-whatsapp" className="text-white text-sm">WhatsApp (with country code)</Label>
-                      <Input
-                        id="prefill-whatsapp"
-                        type="tel"
-                        placeholder="+55 11 98765 4321"
-                        value={prefillFormData.clientWhatsApp}
-                        onChange={(e) => {
-                          setPrefillFormData({ ...prefillFormData, clientWhatsApp: e.target.value });
-                          if (prefillFieldErrors.clientWhatsApp) {
-                            setPrefillFieldErrors(prev => {
-                              const next = { ...prev };
-                              delete next.clientWhatsApp;
-                              return next;
-                            });
-                          }
-                        }}
-                        className={`bg-white text-black h-9 text-sm ${prefillFieldErrors.clientWhatsApp ? 'border-2 border-red-500' : ''}`}
-                      />
-                      {prefillFieldErrors.clientWhatsApp && (
-                        <p className="text-red-400 text-xs mt-1">{prefillFieldErrors.clientWhatsApp}</p>
-                      )}
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label htmlFor="prefill-marital" className="text-white text-sm">Marital Status</Label>
-                      <Select
-                        value={prefillFormData.maritalStatus}
-                        onValueChange={(value: any) => {
-                          setPrefillFormData({ ...prefillFormData, maritalStatus: value });
-                          if (prefillFieldErrors.maritalStatus) {
-                            setPrefillFieldErrors(prev => {
-                              const next = { ...prev };
-                              delete next.maritalStatus;
-                              return next;
-                            });
-                          }
-                        }}
-                      >
-                        <SelectTrigger
-                          id="prefill-marital"
-                          className={`bg-white text-black h-9 text-sm ${prefillFieldErrors.maritalStatus ? 'border-2 border-red-500' : ''}`}
-                        >
-                          <SelectValue placeholder="Select status" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="single">Single</SelectItem>
-                          <SelectItem value="married">Married</SelectItem>
-                          <SelectItem value="divorced">Divorced</SelectItem>
-                          <SelectItem value="widowed">Widowed</SelectItem>
-                          <SelectItem value="other">Other</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      {prefillFieldErrors.maritalStatus && (
-                        <p className="text-red-400 text-xs mt-1">{prefillFieldErrors.maritalStatus}</p>
-                      )}
-                    </div>
-                  </div>
+                        if (insertError) {
+                          throw insertError;
+                        }
 
-                  {/* Observations */}
-                  <div className="space-y-1.5">
-                    <Label htmlFor="prefill-observations" className="text-white text-sm">Observations (optional)</Label>
-                    <Textarea
-                      id="prefill-observations"
-                      value={prefillFormData.clientObservations}
-                      onChange={(e) => setPrefillFormData({ ...prefillFormData, clientObservations: e.target.value })}
-                      className="bg-white text-black min-h-[80px] text-sm"
-                      placeholder="Any additional information..."
-                    />
-                  </div>
+                        // Generate link
+                        const siteUrl = window.location.origin;
+                        // When using prefill token, we don't need seller ID in the URL as it's included in the token
+                        const link = `${siteUrl}/checkout/visa/${prefillFormData.productSlug}?prefill=${token}`;
+                        setGeneratedPrefillLink(link);
 
-                  {/* Navigation */}
-                  <div className="flex justify-between pt-2">
-                    <Button
-                      onClick={() => setPrefillFormStep(1)}
-                      variant="outline"
-                      className="border-gold-medium/50 bg-black/50 text-gold-light hover:bg-gold-medium/30 h-9 text-sm"
-                    >
-                      <ChevronLeft className="w-4 h-4 mr-2" />
-                      Back
-                    </Button>
-                  </div>
-                </>
-              )}
-
-              {/* Error Message */}
-              {prefillError && (
-                <div className="bg-red-500/10 border border-red-500/50 text-red-300 p-3 rounded-md text-sm">
-                  {prefillError}
-                </div>
-              )}
-
-              {/* Generated Link */}
-              {generatedPrefillLink && (
-                <div className="bg-green-500/10 border border-green-500/50 text-green-300 p-3 rounded-md">
-                  <p className="font-semibold mb-2 text-sm">Link Generated Successfully!</p>
-                  <div className="flex items-center gap-2">
-                    <Input
-                      value={generatedPrefillLink}
-                      readOnly
-                      className="bg-white text-black flex-1 h-9 text-xs"
-                    />
-                    <Button
-                      onClick={() => {
-                        navigator.clipboard.writeText(generatedPrefillLink);
-                        setCopiedLink(generatedPrefillLink);
+                        // Auto-copy to clipboard
+                        navigator.clipboard.writeText(link);
+                        setCopiedLink(link);
+                        if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current);
                         copyTimeoutRef.current = setTimeout(() => {
                           setCopiedLink(null);
                           copyTimeoutRef.current = null;
                         }, 3000);
-                      }}
-                      className="bg-gold-medium hover:bg-gold-light text-black h-9 text-sm"
-                    >
-                      {copiedLink === generatedPrefillLink ? (
-                        <>
-                          <CheckCircle className="w-4 h-4 mr-1" />
-                          Copied!
-                        </>
-                      ) : (
-                        <>
-                          <Copy className="w-4 h-4 mr-1" />
-                          Copy
-                        </>
-                      )}
-                    </Button>
-                  </div>
-                </div>
-              )}
-
-              {/* Generate Link Button - Only show on Step 2 */}
-              {prefillFormStep === 2 && (
-                <Button
-                  onClick={async () => {
-                    // Check if product is selected (required for URL)
-                    if (!prefillFormData.productSlug.trim()) {
-                      setPrefillError('Please select a product to generate the link');
-                      setPrefillFieldErrors({ productSlug: 'Product is required to generate link' });
-                      return;
-                    }
-
-                    // Only validate format, not required fields
-                    const validation = validatePrefillForm(prefillFormData);
-                    if (!validation.valid) {
-                      setPrefillFieldErrors(validation.errors || {});
-                      if (validation.firstErrorField) {
-                        scrollToPrefillFirstError(validation.firstErrorField);
+                      } catch (err: any) {
+                        console.error('Error generating prefill link:', err);
+                        setPrefillError(err.message || 'Failed to generate link. Please try again.');
                       }
-                      return;
+                    }}
+                    className="w-full bg-gold-medium hover:bg-gold-light text-black h-9 text-sm"
+                  >
+                    Generate Link for Client
+                  </Button>
+                )}
+              </div>
+            </CardContent>
+          )}
+        </Card>
+
+        <Card className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30">
+          <CardHeader>
+            <CardTitle className="text-white flex items-center">
+              <LinkIcon className="w-5 h-5 mr-2" />
+              Generate Your Sales Links
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {products.length === 0 ? (
+                <p className="text-gray-400 text-center py-8">No active products available</p>
+              ) : (
+                (() => {
+                  // Group products by service type
+                  const serviceGroups: { [key: string]: { name: string; products: VisaProduct[] } } = {
+                    initial: { name: 'INITIAL Application', products: [] },
+                    cos: { name: 'Change of Status (COS)', products: [] },
+                    transfer: { name: 'TRANSFER', products: [] },
+                    other: { name: 'Other Services', products: [] },
+                  };
+
+                  products.forEach((product) => {
+                    if (product.slug.startsWith('initial-')) {
+                      serviceGroups.initial.products.push(product);
+                    } else if (product.slug.startsWith('cos-')) {
+                      serviceGroups.cos.products.push(product);
+                    } else if (product.slug.startsWith('transfer-')) {
+                      serviceGroups.transfer.products.push(product);
+                    } else {
+                      serviceGroups.other.products.push(product);
+                    }
+                  });
+
+                  // Sort products within each group
+                  const sortProducts = (products: VisaProduct[]) => {
+                    const order = ['selection-process', 'scholarship', 'i20-control'];
+                    return products.sort((a, b) => {
+                      const aIndex = order.findIndex(o => a.slug.includes(o));
+                      const bIndex = order.findIndex(o => b.slug.includes(o));
+                      return (aIndex === -1 ? 999 : aIndex) - (bIndex === -1 ? 999 : bIndex);
+                    });
+                  };
+
+                  const paymentLabels = ['Selection Process', 'Scholarship', 'I-20 Control'];
+
+                  return Object.entries(serviceGroups).map(([key, group]) => {
+                    if (group.products.length === 0) return null;
+
+                    const sortedProducts = sortProducts(group.products);
+                    const isServiceGroup = ['initial', 'cos', 'transfer'].includes(key);
+                    const isExpanded = expandedServices[key] ?? false;
+
+                    // For INITIAL, COS, TRANSFER - use dropdown
+                    if (isServiceGroup) {
+                      return (
+                        <div key={key} className="border border-gold-medium/30 rounded-lg overflow-hidden">
+                          {/* Dropdown Header */}
+                          <button
+                            onClick={() => setExpandedServices({ ...expandedServices, [key]: !isExpanded })}
+                            className="w-full flex items-center justify-between p-5 bg-black/50 hover:bg-black/70 transition-colors"
+                          >
+                            <div className="flex items-center gap-3">
+                              {isExpanded ? (
+                                <ChevronUp className="w-5 h-5 text-gold-light" />
+                              ) : (
+                                <ChevronDown className="w-5 h-5 text-gold-light" />
+                              )}
+                              <div className="text-left">
+                                <h3 className="text-lg font-bold text-gold-light">{group.name}</h3>
+                                <p className="text-xs text-gray-400 mt-1">
+                                  {sortedProducts.length} sequential payments
+                                </p>
+                              </div>
+                            </div>
+                          </button>
+
+                          {/* Dropdown Content */}
+                          {isExpanded && (
+                            <div className="border-t border-gold-medium/20 bg-black/30 p-4 space-y-3">
+                              {sortedProducts.map((product, index) => {
+                                const isCopied = copiedLink === productGeneratedLinks[product.slug];
+                                const paymentNumber = index + 1;
+                                const paymentLabel = paymentLabels[index] || `Payment ${paymentNumber}`;
+                                const basePrice = parseFloat(product.base_price_usd || '0');
+                                const extraPrice = parseFloat(product.extra_unit_price || '0');
+                                const hasExtraUnits = product.allow_extra_units && extraPrice > 0;
+
+                                return (
+                                  <div
+                                    key={product.slug}
+                                    className="p-4 bg-black/50 rounded-lg border border-gold-medium/20 hover:border-gold-medium/40 transition-colors"
+                                  >
+                                    <div className="flex flex-col sm:flex-row items-start justify-between gap-4">
+                                      <div className="flex-1 space-y-2 w-full">
+                                        {/* Payment Label with Number */}
+                                        <div className="flex items-center gap-2">
+                                          <span className="text-xs font-semibold text-gold-light bg-gold-medium/20 px-2 py-1 rounded">
+                                            {paymentNumber}/{sortedProducts.length}
+                                          </span>
+                                          <h4 className="text-white font-semibold">{paymentLabel}</h4>
+                                        </div>
+
+                                        {/* Price Info */}
+                                        <div className="flex flex-wrap gap-4 items-center">
+                                          {basePrice > 0 && (
+                                            <div className="flex items-center gap-2 text-gold-light">
+                                              <DollarSign className="w-4 h-4" />
+                                              <span className="text-sm font-medium">
+                                                Base: <span className="text-white">${basePrice.toFixed(2)}</span>
+                                              </span>
+                                            </div>
+                                          )}
+
+                                          {hasExtraUnits && (
+                                            <div className="flex items-center gap-2 text-gold-light">
+                                              <Users className="w-4 h-4" />
+                                              <span className="text-sm font-medium">
+                                                Per dependent: <span className="text-white">${extraPrice.toFixed(2)}</span>
+                                              </span>
+                                            </div>
+                                          )}
+                                        </div>
+
+                                      </div>
+
+                                      {/* Botões Generate Link */}
+                                      <div className="flex gap-2 shrink-0">
+                                        <Button
+                                          onClick={async () => {
+                                            try {
+                                              const token = crypto.randomUUID();
+                                              const expiresAt = new Date();
+                                              expiresAt.setDate(expiresAt.getDate() + 30);
+
+                                              const { error: insertError } = await supabase
+                                                .from('checkout_prefill_tokens')
+                                                .insert({
+                                                  token,
+                                                  seller_id: seller?.seller_id_public,
+                                                  product_slug: product.slug,
+                                                  client_data: {},
+                                                  expires_at: expiresAt.toISOString(),
+                                                });
+
+                                              if (insertError) throw insertError;
+
+                                              const siteUrl = window.location.origin;
+                                              const link = `${siteUrl}/checkout/visa/${product.slug}?prefill=${token}`;
+                                              setProductGeneratedLinks({
+                                                ...productGeneratedLinks,
+                                                [product.slug]: link,
+                                              });
+
+                                              // Copy to clipboard automatically
+                                              navigator.clipboard.writeText(link);
+                                              setCopiedLink(link);
+                                              setTimeout(() => setCopiedLink(null), 3000);
+
+                                              setPrefillError('');
+                                            } catch (err: any) {
+                                              console.error('Error generating prefill link:', err);
+                                              setPrefillError(err.message || 'Erro ao gerar link');
+                                            }
+                                          }}
+                                          size="sm"
+                                          variant="outline"
+                                          className="bg-gold-medium/20 border-gold-medium/50 text-gold-light hover:bg-gold-medium/30 hover:border-gold-medium"
+                                        >
+                                          <DollarSign className="w-4 h-4 mr-1" />
+                                          Get Pay Link
+                                        </Button>
+                                        <Button
+                                          onClick={async () => {
+                                            try {
+                                              const token = crypto.randomUUID();
+                                              const expiresAt = new Date();
+                                              expiresAt.setDate(expiresAt.getDate() + 30);
+
+                                              const { error: insertError } = await supabase
+                                                .from('checkout_prefill_tokens')
+                                                .insert({
+                                                  token,
+                                                  seller_id: seller?.seller_id_public,
+                                                  product_slug: product.slug,
+                                                  client_data: {},
+                                                  expires_at: expiresAt.toISOString(),
+                                                });
+
+                                              if (insertError) throw insertError;
+
+                                              const siteUrl = window.location.origin;
+                                              const link = `${siteUrl}/checkout/contract/${product.slug}?prefill=${token}`;
+                                              setProductGeneratedLinks({
+                                                ...productGeneratedLinks,
+                                                [product.slug]: link,
+                                              });
+
+                                              // Copy to clipboard automatically
+                                              navigator.clipboard.writeText(link);
+                                              setCopiedLink(link);
+                                              setTimeout(() => setCopiedLink(null), 3000);
+
+                                              setPrefillError('');
+                                            } catch (err: any) {
+                                              console.error('Error generating contract link:', err);
+                                              setPrefillError(err.message || 'Erro ao gerar link');
+                                            }
+                                          }}
+                                          size="sm"
+                                          variant="outline"
+                                          className="bg-zinc-800 border-zinc-600 text-zinc-300 hover:bg-zinc-700 hover:text-white"
+                                        >
+                                          <FileText className="w-4 h-4 mr-1" />
+                                          Sign Link
+                                        </Button>
+                                      </div>
+                                    </div>
+
+                                    {/* Link gerado */}
+                                    {productGeneratedLinks[product.slug] && (
+                                      <div className="mt-4 pt-4 border-t border-gold-medium/20">
+                                        <div className="p-3 bg-green-500/10 border border-green-500/30 rounded-lg">
+                                          <p className="text-sm text-green-300 font-medium mb-2">Link gerado com sucesso!</p>
+                                          <p className="text-xs text-gray-400 font-mono break-all mb-3">{productGeneratedLinks[product.slug]}</p>
+                                          <div className="flex gap-2">
+                                            <Button
+                                              onClick={() => {
+                                                navigator.clipboard.writeText(productGeneratedLinks[product.slug]);
+                                                setCopiedLink(productGeneratedLinks[product.slug]);
+                                                setTimeout(() => setCopiedLink(null), 3000);
+                                              }}
+                                              size="sm"
+                                              variant="outline"
+                                              className={`${isCopied
+                                                ? 'bg-green-500/20 border-green-500/50 text-green-300 hover:bg-green-500/30'
+                                                : 'bg-green-500/20 border-green-500/50 text-green-300 hover:bg-green-500/30'
+                                                }`}
+                                            >
+                                              {isCopied ? (
+                                                <>
+                                                  <CheckCircle className="w-4 h-4 mr-1" />
+                                                  Copied!
+                                                </>
+                                              ) : (
+                                                <>
+                                                  <Copy className="w-4 h-4 mr-1" />
+                                                  Copy Link
+                                                </>
+                                              )}
+                                            </Button>
+                                            <Button
+                                              onClick={() => {
+                                                setProductGeneratedLinks(prev => {
+                                                  const next = { ...prev };
+                                                  delete next[product.slug];
+                                                  return next;
+                                                });
+                                              }}
+                                              size="sm"
+                                              variant="outline"
+                                              className="bg-black/50 border-gold-medium/50 text-gold-light hover:bg-black hover:border-gold-medium"
+                                            >
+                                              Close
+                                            </Button>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    )}
+                                    {prefillError && (
+                                      <div className="mt-2">
+                                        <p className="text-xs text-red-400">{prefillError}</p>
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      );
                     }
 
-                    setPrefillError('');
-                    setPrefillFieldErrors({});
+                    // For other products - show normally
+                    return (
+                      <div key={key} className="space-y-3">
+                        {sortedProducts.map((product) => {
+                          const isCopied = copiedLink === productGeneratedLinks[product.slug];
+                          const basePrice = parseFloat(product.base_price_usd || '0');
+                          const extraPrice = parseFloat(product.extra_unit_price || '0');
+                          const hasExtraUnits = extraPrice > 0;
+                          const isUnitsOnly = product.calculation_type === 'units_only';
 
-                    // Generate token and create prefill record
-                    try {
-                      const token = crypto.randomUUID();
-                      const expiresAt = new Date();
-                      expiresAt.setDate(expiresAt.getDate() + 30); // 30 days validity
+                          return (
+                            <div
+                              key={product.slug}
+                              className="p-5 bg-black/50 rounded-lg border border-gold-medium/20 hover:border-gold-medium/40 transition-colors"
+                            >
+                              <div className="flex flex-col sm:flex-row items-start justify-between gap-4">
+                                <div className="flex-1 space-y-3 w-full">
+                                  {/* Nome do Produto */}
+                                  <div>
+                                    <h3 className="text-white font-semibold text-lg mb-1">{product.name}</h3>
+                                    {product.description && (
+                                      <p className="text-sm text-gray-400 line-clamp-2">{product.description}</p>
+                                    )}
+                                  </div>
 
-                      const { error: insertError } = await supabase
-                        .from('checkout_prefill_tokens')
-                        .insert({
-                          token,
-                          seller_id: seller.seller_id_public,
-                          product_slug: prefillFormData.productSlug,
-                          client_data: {
-                            clientName: prefillFormData.clientName,
-                            clientEmail: prefillFormData.clientEmail,
-                            clientWhatsApp: prefillFormData.clientWhatsApp,
-                            clientCountry: prefillFormData.clientCountry,
-                            clientNationality: prefillFormData.clientNationality,
-                            dateOfBirth: prefillFormData.dateOfBirth,
-                            documentType: prefillFormData.documentType,
-                            documentNumber: prefillFormData.documentNumber,
-                            addressLine: prefillFormData.addressLine,
-                            city: prefillFormData.city,
-                            state: prefillFormData.state,
-                            postalCode: prefillFormData.postalCode,
-                            maritalStatus: prefillFormData.maritalStatus,
-                            clientObservations: prefillFormData.clientObservations,
-                            extraUnits: prefillFormData.extraUnits,
-                            dependentNames: prefillFormData.dependentNames.length > 0 ? prefillFormData.dependentNames : null,
-                          },
-                          expires_at: expiresAt.toISOString(),
-                        });
+                                  {/* Informações de Preço */}
+                                  <div className="flex flex-wrap gap-4 items-center">
+                                    {!isUnitsOnly && basePrice > 0 && (
+                                      <div className="flex items-center gap-2 text-gold-light">
+                                        <DollarSign className="w-4 h-4" />
+                                        <span className="text-sm font-medium">
+                                          Base: <span className="text-white">${basePrice.toFixed(2)}</span>
+                                        </span>
+                                      </div>
+                                    )}
 
-                      if (insertError) {
-                        throw insertError;
-                      }
+                                    {hasExtraUnits && (
+                                      <div className="flex items-center gap-2 text-gold-light">
+                                        <Users className="w-4 h-4" />
+                                        <span className="text-sm font-medium">
+                                          {product.extra_unit_label || 'Per Unit'}: <span className="text-white">${extraPrice.toFixed(2)}</span>
+                                        </span>
+                                      </div>
+                                    )}
 
-                      // Generate link
-                      const siteUrl = window.location.origin;
-                      // When using prefill token, we don't need seller ID in the URL as it's included in the token
-                      const link = `${siteUrl}/checkout/visa/${prefillFormData.productSlug}?prefill=${token}`;
-                      setGeneratedPrefillLink(link);
+                                    {isUnitsOnly && (
+                                      <div className="flex items-center gap-2 text-gold-light">
+                                        <Info className="w-4 h-4" />
+                                        <span className="text-sm font-medium">
+                                          Price per unit: <span className="text-white">${extraPrice.toFixed(2)}</span>
+                                        </span>
+                                      </div>
+                                    )}
+                                  </div>
 
-                      // Auto-copy to clipboard
-                      navigator.clipboard.writeText(link);
-                      setCopiedLink(link);
-                      if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current);
-                      copyTimeoutRef.current = setTimeout(() => {
-                        setCopiedLink(null);
-                        copyTimeoutRef.current = null;
-                      }, 3000);
-                    } catch (err: any) {
-                      console.error('Error generating prefill link:', err);
-                      setPrefillError(err.message || 'Failed to generate link. Please try again.');
-                    }
-                  }}
-                  className="w-full bg-gold-medium hover:bg-gold-light text-black h-9 text-sm"
-                >
-                  Generate Link for Client
-                </Button>
+                                </div>
+
+                                {/* Botões Generate Link */}
+                                <div className="flex gap-2 shrink-0">
+                                  <Button
+                                    onClick={async () => {
+                                      try {
+                                        const token = crypto.randomUUID();
+                                        const expiresAt = new Date();
+                                        expiresAt.setDate(expiresAt.getDate() + 30);
+
+                                        const { error: insertError } = await supabase
+                                          .from('checkout_prefill_tokens')
+                                          .insert({
+                                            token,
+                                            seller_id: seller?.seller_id_public,
+                                            product_slug: product.slug,
+                                            client_data: {},
+                                            expires_at: expiresAt.toISOString(),
+                                          });
+
+                                        if (insertError) throw insertError;
+
+                                        const siteUrl = window.location.origin;
+                                        const link = `${siteUrl}/checkout/visa/${product.slug}?prefill=${token}`;
+                                        setProductGeneratedLinks({
+                                          ...productGeneratedLinks,
+                                          [product.slug]: link,
+                                        });
+
+                                        // Copy to clipboard automatically
+                                        navigator.clipboard.writeText(link);
+                                        setCopiedLink(link);
+                                        setTimeout(() => setCopiedLink(null), 3000);
+
+                                        setPrefillError('');
+                                      } catch (err: any) {
+                                        console.error('Error generating prefill link:', err);
+                                        setPrefillError(err.message || 'Erro ao gerar link');
+                                      }
+                                    }}
+                                    size="sm"
+                                    variant="outline"
+                                    className="bg-gold-medium/20 border-gold-medium/50 text-gold-light hover:bg-gold-medium/30 hover:border-gold-medium"
+                                  >
+                                    <DollarSign className="w-4 h-4 mr-1" />
+                                    Get Pay Link
+                                  </Button>
+                                  <Button
+                                    onClick={async () => {
+                                      try {
+                                        const token = crypto.randomUUID();
+                                        const expiresAt = new Date();
+                                        expiresAt.setDate(expiresAt.getDate() + 30);
+
+                                        const { error: insertError } = await supabase
+                                          .from('checkout_prefill_tokens')
+                                          .insert({
+                                            token,
+                                            seller_id: seller?.seller_id_public,
+                                            product_slug: product.slug,
+                                            client_data: {},
+                                            expires_at: expiresAt.toISOString(),
+                                          });
+
+                                        if (insertError) throw insertError;
+
+                                        const siteUrl = window.location.origin;
+                                        const link = `${siteUrl}/checkout/contract/${product.slug}?prefill=${token}`;
+                                        setProductGeneratedLinks({
+                                          ...productGeneratedLinks,
+                                          [product.slug]: link,
+                                        });
+
+                                        // Copy to clipboard automatically
+                                        navigator.clipboard.writeText(link);
+                                        setCopiedLink(link);
+                                        setTimeout(() => setCopiedLink(null), 3000);
+
+                                        setPrefillError('');
+                                      } catch (err: any) {
+                                        console.error('Error generating contract link:', err);
+                                        setPrefillError(err.message || 'Erro ao gerar link');
+                                      }
+                                    }}
+                                    size="sm"
+                                    variant="outline"
+                                    className="bg-zinc-800 border-zinc-600 text-zinc-300 hover:bg-zinc-700 hover:text-white"
+                                  >
+                                    <FileText className="w-4 h-4 mr-1" />
+                                    Sign Link
+                                  </Button>
+                                </div>
+                              </div>
+
+                              {/* Link gerado */}
+                              {productGeneratedLinks[product.slug] && (
+                                <div className="mt-4 pt-4 border-t border-gold-medium/20">
+                                  <div className="p-3 bg-green-500/10 border border-green-500/30 rounded-lg">
+                                    <p className="text-sm text-green-300 font-medium mb-2">Link gerado com sucesso!</p>
+                                    <p className="text-xs text-gray-400 font-mono break-all mb-3">{productGeneratedLinks[product.slug]}</p>
+                                    <div className="flex gap-2">
+                                      <Button
+                                        onClick={() => {
+                                          navigator.clipboard.writeText(productGeneratedLinks[product.slug]);
+                                          setCopiedLink(productGeneratedLinks[product.slug]);
+                                          setTimeout(() => setCopiedLink(null), 3000);
+                                        }}
+                                        size="sm"
+                                        variant="outline"
+                                        className={`${isCopied
+                                          ? 'bg-green-500/20 border-green-500/50 text-green-300 hover:bg-green-500/30'
+                                          : 'bg-green-500/20 border-green-500/50 text-green-300 hover:bg-green-500/30'
+                                          }`}
+                                      >
+                                        {isCopied ? (
+                                          <>
+                                            <CheckCircle className="w-4 h-4 mr-1" />
+                                            Copied!
+                                          </>
+                                        ) : (
+                                          <>
+                                            <Copy className="w-4 h-4 mr-1" />
+                                            Copy Link
+                                          </>
+                                        )}
+                                      </Button>
+                                      <Button
+                                        onClick={() => {
+                                          setProductGeneratedLinks(prev => {
+                                            const next = { ...prev };
+                                            delete next[product.slug];
+                                            return next;
+                                          });
+                                        }}
+                                        size="sm"
+                                        variant="outline"
+                                        className="bg-black/50 border-gold-medium/50 text-gold-light hover:bg-black hover:border-gold-medium"
+                                      >
+                                        Close
+                                      </Button>
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+                              {prefillError && (
+                                <div className="mt-2">
+                                  <p className="text-xs text-red-400">{prefillError}</p>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    );
+                  });
+                })()
               )}
             </div>
           </CardContent>
-        )}
-      </Card>
-
-      <Card className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30">
-        <CardHeader>
-          <CardTitle className="text-white flex items-center">
-            <LinkIcon className="w-5 h-5 mr-2" />
-            Generate Your Sales Links
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            {products.length === 0 ? (
-              <p className="text-gray-400 text-center py-8">No active products available</p>
-            ) : (
-              (() => {
-                // Group products by service type
-                const serviceGroups: { [key: string]: { name: string; products: VisaProduct[] } } = {
-                  initial: { name: 'INITIAL Application', products: [] },
-                  cos: { name: 'Change of Status (COS)', products: [] },
-                  transfer: { name: 'TRANSFER', products: [] },
-                  other: { name: 'Other Services', products: [] },
-                };
-
-                products.forEach((product) => {
-                  if (product.slug.startsWith('initial-')) {
-                    serviceGroups.initial.products.push(product);
-                  } else if (product.slug.startsWith('cos-')) {
-                    serviceGroups.cos.products.push(product);
-                  } else if (product.slug.startsWith('transfer-')) {
-                    serviceGroups.transfer.products.push(product);
-                  } else {
-                    serviceGroups.other.products.push(product);
-                  }
-                });
-
-                // Sort products within each group
-                const sortProducts = (products: VisaProduct[]) => {
-                  const order = ['selection-process', 'scholarship', 'i20-control'];
-                  return products.sort((a, b) => {
-                    const aIndex = order.findIndex(o => a.slug.includes(o));
-                    const bIndex = order.findIndex(o => b.slug.includes(o));
-                    return (aIndex === -1 ? 999 : aIndex) - (bIndex === -1 ? 999 : bIndex);
-                  });
-                };
-
-                const paymentLabels = ['Selection Process', 'Scholarship', 'I-20 Control'];
-
-                return Object.entries(serviceGroups).map(([key, group]) => {
-                  if (group.products.length === 0) return null;
-
-                  const sortedProducts = sortProducts(group.products);
-                  const isServiceGroup = ['initial', 'cos', 'transfer'].includes(key);
-                  const isExpanded = expandedServices[key] ?? false;
-
-                  // For INITIAL, COS, TRANSFER - use dropdown
-                  if (isServiceGroup) {
-                    return (
-                      <div key={key} className="border border-gold-medium/30 rounded-lg overflow-hidden">
-                        {/* Dropdown Header */}
-                        <button
-                          onClick={() => setExpandedServices({ ...expandedServices, [key]: !isExpanded })}
-                          className="w-full flex items-center justify-between p-5 bg-black/50 hover:bg-black/70 transition-colors"
-                        >
-                          <div className="flex items-center gap-3">
-                            {isExpanded ? (
-                              <ChevronUp className="w-5 h-5 text-gold-light" />
-                            ) : (
-                              <ChevronDown className="w-5 h-5 text-gold-light" />
-                            )}
-                            <div className="text-left">
-                              <h3 className="text-lg font-bold text-gold-light">{group.name}</h3>
-                              <p className="text-xs text-gray-400 mt-1">
-                                {sortedProducts.length} sequential payments
-                              </p>
-                            </div>
-                          </div>
-                        </button>
-
-                        {/* Dropdown Content */}
-                        {isExpanded && (
-                          <div className="border-t border-gold-medium/20 bg-black/30 p-4 space-y-3">
-                            {sortedProducts.map((product, index) => {
-                              const isCopied = copiedLink === productGeneratedLinks[product.slug];
-                              const paymentNumber = index + 1;
-                              const paymentLabel = paymentLabels[index] || `Payment ${paymentNumber}`;
-                              const basePrice = parseFloat(product.base_price_usd || '0');
-                              const extraPrice = parseFloat(product.extra_unit_price || '0');
-                              const hasExtraUnits = product.allow_extra_units && extraPrice > 0;
-
-                              return (
-                                <div
-                                  key={product.slug}
-                                  className="p-4 bg-black/50 rounded-lg border border-gold-medium/20 hover:border-gold-medium/40 transition-colors"
-                                >
-                                  <div className="flex flex-col sm:flex-row items-start justify-between gap-4">
-                                    <div className="flex-1 space-y-2 w-full">
-                                      {/* Payment Label with Number */}
-                                      <div className="flex items-center gap-2">
-                                        <span className="text-xs font-semibold text-gold-light bg-gold-medium/20 px-2 py-1 rounded">
-                                          {paymentNumber}/{sortedProducts.length}
-                                        </span>
-                                        <h4 className="text-white font-semibold">{paymentLabel}</h4>
-                                      </div>
-
-                                      {/* Price Info */}
-                                      <div className="flex flex-wrap gap-4 items-center">
-                                        {basePrice > 0 && (
-                                          <div className="flex items-center gap-2 text-gold-light">
-                                            <DollarSign className="w-4 h-4" />
-                                            <span className="text-sm font-medium">
-                                              Base: <span className="text-white">${basePrice.toFixed(2)}</span>
-                                            </span>
-                                          </div>
-                                        )}
-
-                                        {hasExtraUnits && (
-                                          <div className="flex items-center gap-2 text-gold-light">
-                                            <Users className="w-4 h-4" />
-                                            <span className="text-sm font-medium">
-                                              Per dependent: <span className="text-white">${extraPrice.toFixed(2)}</span>
-                                            </span>
-                                          </div>
-                                        )}
-                                      </div>
-
-                                    </div>
-
-                                    {/* Botões Generate Link */}
-                                    <div className="flex gap-2 shrink-0">
-                                      <Button
-                                        onClick={async () => {
-                                          try {
-                                            const token = crypto.randomUUID();
-                                            const expiresAt = new Date();
-                                            expiresAt.setDate(expiresAt.getDate() + 30);
-
-                                            const { error: insertError } = await supabase
-                                              .from('checkout_prefill_tokens')
-                                              .insert({
-                                                token,
-                                                seller_id: seller.seller_id_public,
-                                                product_slug: product.slug,
-                                                client_data: {},
-                                                expires_at: expiresAt.toISOString(),
-                                              });
-
-                                            if (insertError) throw insertError;
-
-                                            const siteUrl = window.location.origin;
-                                            const link = `${siteUrl}/checkout/visa/${product.slug}?prefill=${token}`;
-                                            setProductGeneratedLinks({
-                                              ...productGeneratedLinks,
-                                              [product.slug]: link,
-                                            });
-
-                                            // Copy to clipboard automatically
-                                            navigator.clipboard.writeText(link);
-                                            setCopiedLink(link);
-                                            setTimeout(() => setCopiedLink(null), 3000);
-
-                                            setPrefillError('');
-                                          } catch (err: any) {
-                                            console.error('Error generating prefill link:', err);
-                                            setPrefillError(err.message || 'Erro ao gerar link');
-                                          }
-                                        }}
-                                        size="sm"
-                                        variant="outline"
-                                        className="bg-gold-medium/20 border-gold-medium/50 text-gold-light hover:bg-gold-medium/30 hover:border-gold-medium"
-                                      >
-                                        <DollarSign className="w-4 h-4 mr-1" />
-                                        Get Pay Link
-                                      </Button>
-                                      <Button
-                                        onClick={async () => {
-                                          try {
-                                            const token = crypto.randomUUID();
-                                            const expiresAt = new Date();
-                                            expiresAt.setDate(expiresAt.getDate() + 30);
-
-                                            const { error: insertError } = await supabase
-                                              .from('checkout_prefill_tokens')
-                                              .insert({
-                                                token,
-                                                seller_id: seller.seller_id_public,
-                                                product_slug: product.slug,
-                                                client_data: {},
-                                                expires_at: expiresAt.toISOString(),
-                                              });
-
-                                            if (insertError) throw insertError;
-
-                                            const siteUrl = window.location.origin;
-                                            const link = `${siteUrl}/checkout/contract/${product.slug}?prefill=${token}`;
-                                            setProductGeneratedLinks({
-                                              ...productGeneratedLinks,
-                                              [product.slug]: link,
-                                            });
-
-                                            // Copy to clipboard automatically
-                                            navigator.clipboard.writeText(link);
-                                            setCopiedLink(link);
-                                            setTimeout(() => setCopiedLink(null), 3000);
-
-                                            setPrefillError('');
-                                          } catch (err: any) {
-                                            console.error('Error generating contract link:', err);
-                                            setPrefillError(err.message || 'Erro ao gerar link');
-                                          }
-                                        }}
-                                        size="sm"
-                                        variant="outline"
-                                        className="bg-zinc-800 border-zinc-600 text-zinc-300 hover:bg-zinc-700 hover:text-white"
-                                      >
-                                        <FileText className="w-4 h-4 mr-1" />
-                                        Sign Link
-                                      </Button>
-                                    </div>
-                                  </div>
-
-                                  {/* Link gerado */}
-                                  {productGeneratedLinks[product.slug] && (
-                                    <div className="mt-4 pt-4 border-t border-gold-medium/20">
-                                      <div className="p-3 bg-green-500/10 border border-green-500/30 rounded-lg">
-                                        <p className="text-sm text-green-300 font-medium mb-2">Link gerado com sucesso!</p>
-                                        <p className="text-xs text-gray-400 font-mono break-all mb-3">{productGeneratedLinks[product.slug]}</p>
-                                        <div className="flex gap-2">
-                                          <Button
-                                            onClick={() => {
-                                              navigator.clipboard.writeText(productGeneratedLinks[product.slug]);
-                                              setCopiedLink(productGeneratedLinks[product.slug]);
-                                              setTimeout(() => setCopiedLink(null), 3000);
-                                            }}
-                                            size="sm"
-                                            variant="outline"
-                                            className={`${isCopied
-                                              ? 'bg-green-500/20 border-green-500/50 text-green-300 hover:bg-green-500/30'
-                                              : 'bg-green-500/20 border-green-500/50 text-green-300 hover:bg-green-500/30'
-                                              }`}
-                                          >
-                                            {isCopied ? (
-                                              <>
-                                                <CheckCircle className="w-4 h-4 mr-1" />
-                                                Copied!
-                                              </>
-                                            ) : (
-                                              <>
-                                                <Copy className="w-4 h-4 mr-1" />
-                                                Copy Link
-                                              </>
-                                            )}
-                                          </Button>
-                                          <Button
-                                            onClick={() => {
-                                              setProductGeneratedLinks(prev => {
-                                                const next = { ...prev };
-                                                delete next[product.slug];
-                                                return next;
-                                              });
-                                            }}
-                                            size="sm"
-                                            variant="outline"
-                                            className="bg-black/50 border-gold-medium/50 text-gold-light hover:bg-black hover:border-gold-medium"
-                                          >
-                                            Close
-                                          </Button>
-                                        </div>
-                                      </div>
-                                    </div>
-                                  )}
-                                  {prefillError && (
-                                    <div className="mt-2">
-                                      <p className="text-xs text-red-400">{prefillError}</p>
-                                    </div>
-                                  )}
-                                </div>
-                              );
-                            })}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  }
-
-                  // For other products - show normally
-                  return (
-                    <div key={key} className="space-y-3">
-                      {sortedProducts.map((product) => {
-                        const isCopied = copiedLink === productGeneratedLinks[product.slug];
-                        const basePrice = parseFloat(product.base_price_usd || '0');
-                        const extraPrice = parseFloat(product.extra_unit_price || '0');
-                        const hasExtraUnits = extraPrice > 0;
-                        const isUnitsOnly = product.calculation_type === 'units_only';
-
-                        return (
-                          <div
-                            key={product.slug}
-                            className="p-5 bg-black/50 rounded-lg border border-gold-medium/20 hover:border-gold-medium/40 transition-colors"
-                          >
-                            <div className="flex flex-col sm:flex-row items-start justify-between gap-4">
-                              <div className="flex-1 space-y-3 w-full">
-                                {/* Nome do Produto */}
-                                <div>
-                                  <h3 className="text-white font-semibold text-lg mb-1">{product.name}</h3>
-                                  {product.description && (
-                                    <p className="text-sm text-gray-400 line-clamp-2">{product.description}</p>
-                                  )}
-                                </div>
-
-                                {/* Informações de Preço */}
-                                <div className="flex flex-wrap gap-4 items-center">
-                                  {!isUnitsOnly && basePrice > 0 && (
-                                    <div className="flex items-center gap-2 text-gold-light">
-                                      <DollarSign className="w-4 h-4" />
-                                      <span className="text-sm font-medium">
-                                        Base: <span className="text-white">${basePrice.toFixed(2)}</span>
-                                      </span>
-                                    </div>
-                                  )}
-
-                                  {hasExtraUnits && (
-                                    <div className="flex items-center gap-2 text-gold-light">
-                                      <Users className="w-4 h-4" />
-                                      <span className="text-sm font-medium">
-                                        {product.extra_unit_label || 'Per Unit'}: <span className="text-white">${extraPrice.toFixed(2)}</span>
-                                      </span>
-                                    </div>
-                                  )}
-
-                                  {isUnitsOnly && (
-                                    <div className="flex items-center gap-2 text-gold-light">
-                                      <Info className="w-4 h-4" />
-                                      <span className="text-sm font-medium">
-                                        Price per unit: <span className="text-white">${extraPrice.toFixed(2)}</span>
-                                      </span>
-                                    </div>
-                                  )}
-                                </div>
-
-                              </div>
-
-                              {/* Botões Generate Link */}
-                              <div className="flex gap-2 shrink-0">
-                                <Button
-                                  onClick={async () => {
-                                    try {
-                                      const token = crypto.randomUUID();
-                                      const expiresAt = new Date();
-                                      expiresAt.setDate(expiresAt.getDate() + 30);
-
-                                      const { error: insertError } = await supabase
-                                        .from('checkout_prefill_tokens')
-                                        .insert({
-                                          token,
-                                          seller_id: seller.seller_id_public,
-                                          product_slug: product.slug,
-                                          client_data: {},
-                                          expires_at: expiresAt.toISOString(),
-                                        });
-
-                                      if (insertError) throw insertError;
-
-                                      const siteUrl = window.location.origin;
-                                      const link = `${siteUrl}/checkout/visa/${product.slug}?prefill=${token}`;
-                                      setProductGeneratedLinks({
-                                        ...productGeneratedLinks,
-                                        [product.slug]: link,
-                                      });
-
-                                      // Copy to clipboard automatically
-                                      navigator.clipboard.writeText(link);
-                                      setCopiedLink(link);
-                                      setTimeout(() => setCopiedLink(null), 3000);
-
-                                      setPrefillError('');
-                                    } catch (err: any) {
-                                      console.error('Error generating prefill link:', err);
-                                      setPrefillError(err.message || 'Erro ao gerar link');
-                                    }
-                                  }}
-                                  size="sm"
-                                  variant="outline"
-                                  className="bg-gold-medium/20 border-gold-medium/50 text-gold-light hover:bg-gold-medium/30 hover:border-gold-medium"
-                                >
-                                  <DollarSign className="w-4 h-4 mr-1" />
-                                  Get Pay Link
-                                </Button>
-                                <Button
-                                  onClick={async () => {
-                                    try {
-                                      const token = crypto.randomUUID();
-                                      const expiresAt = new Date();
-                                      expiresAt.setDate(expiresAt.getDate() + 30);
-
-                                      const { error: insertError } = await supabase
-                                        .from('checkout_prefill_tokens')
-                                        .insert({
-                                          token,
-                                          seller_id: seller.seller_id_public,
-                                          product_slug: product.slug,
-                                          client_data: {},
-                                          expires_at: expiresAt.toISOString(),
-                                        });
-
-                                      if (insertError) throw insertError;
-
-                                      const siteUrl = window.location.origin;
-                                      const link = `${siteUrl}/checkout/contract/${product.slug}?prefill=${token}`;
-                                      setProductGeneratedLinks({
-                                        ...productGeneratedLinks,
-                                        [product.slug]: link,
-                                      });
-
-                                      // Copy to clipboard automatically
-                                      navigator.clipboard.writeText(link);
-                                      setCopiedLink(link);
-                                      setTimeout(() => setCopiedLink(null), 3000);
-
-                                      setPrefillError('');
-                                    } catch (err: any) {
-                                      console.error('Error generating contract link:', err);
-                                      setPrefillError(err.message || 'Erro ao gerar link');
-                                    }
-                                  }}
-                                  size="sm"
-                                  variant="outline"
-                                  className="bg-zinc-800 border-zinc-600 text-zinc-300 hover:bg-zinc-700 hover:text-white"
-                                >
-                                  <FileText className="w-4 h-4 mr-1" />
-                                  Sign Link
-                                </Button>
-                              </div>
-                            </div>
-
-                            {/* Link gerado */}
-                            {productGeneratedLinks[product.slug] && (
-                              <div className="mt-4 pt-4 border-t border-gold-medium/20">
-                                <div className="p-3 bg-green-500/10 border border-green-500/30 rounded-lg">
-                                  <p className="text-sm text-green-300 font-medium mb-2">Link gerado com sucesso!</p>
-                                  <p className="text-xs text-gray-400 font-mono break-all mb-3">{productGeneratedLinks[product.slug]}</p>
-                                  <div className="flex gap-2">
-                                    <Button
-                                      onClick={() => {
-                                        navigator.clipboard.writeText(productGeneratedLinks[product.slug]);
-                                        setCopiedLink(productGeneratedLinks[product.slug]);
-                                        setTimeout(() => setCopiedLink(null), 3000);
-                                      }}
-                                      size="sm"
-                                      variant="outline"
-                                      className={`${isCopied
-                                        ? 'bg-green-500/20 border-green-500/50 text-green-300 hover:bg-green-500/30'
-                                        : 'bg-green-500/20 border-green-500/50 text-green-300 hover:bg-green-500/30'
-                                        }`}
-                                    >
-                                      {isCopied ? (
-                                        <>
-                                          <CheckCircle className="w-4 h-4 mr-1" />
-                                          Copied!
-                                        </>
-                                      ) : (
-                                        <>
-                                          <Copy className="w-4 h-4 mr-1" />
-                                          Copy Link
-                                        </>
-                                      )}
-                                    </Button>
-                                    <Button
-                                      onClick={() => {
-                                        setProductGeneratedLinks(prev => {
-                                          const next = { ...prev };
-                                          delete next[product.slug];
-                                          return next;
-                                        });
-                                      }}
-                                      size="sm"
-                                      variant="outline"
-                                      className="bg-black/50 border-gold-medium/50 text-gold-light hover:bg-black hover:border-gold-medium"
-                                    >
-                                      Close
-                                    </Button>
-                                  </div>
-                                </div>
-                              </div>
-                            )}
-                            {prefillError && (
-                              <div className="mt-2">
-                                <p className="text-xs text-red-400">{prefillError}</p>
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  );
-                });
-              })()
-            )}
-          </div>
-        </CardContent>
-      </Card>
+        </Card>
+      </div>
     </div>
   );
 }
