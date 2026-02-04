@@ -591,30 +591,29 @@ Deno.serve(async (req) => {
     pdf.text('TERMS AND CONDITIONS', margin, currentY);
     currentY += 12;
 
-    // Use contract template content if available, otherwise use default
-    let termsContent: string;
-    if (contractTemplate && contractTemplate.content) {
-      // Convert HTML template to plain text for PDF
-      termsContent = convertHtmlToText(contractTemplate.content);
-      console.log("[EDGE FUNCTION] Using contract template from database");
-    } else {
-      // Fallback to default terms if no template found
-      termsContent = `
-By signing this contract, the client agrees to the following terms:
+    // Check if contract template exists. If not, do not generate contract.
+    if (!contractTemplate) {
+      console.log("[EDGE FUNCTION] ⚠️ No contract template found for this product. Skipping contract generation.");
 
-1. The client confirms that all information provided is accurate and truthful.
-2. The client understands that providing false information may result in cancellation of services and legal action.
-3. The client agrees to pay the total amount specified in this contract.
-4. MIGMA INC. will provide visa consultation services as described in the service package.
-5. The client acknowledges that visa approval is subject to immigration authorities and MIGMA INC. cannot guarantee approval.
-6. Refunds are subject to MIGMA INC.'s refund policy as outlined in the service terms.
-7. The client agrees to provide all necessary documentation in a timely manner.
-8. This contract is legally binding and enforceable.
+      // Safety: Clear any existing contract URL if generation was skipped/not needed
+      const clearField = is_upsell ? 'upsell_contract_pdf_url' : 'contract_pdf_url';
+      await supabase
+        .from('visa_orders')
+        .update({ [clearField]: null })
+        .eq('id', order_id);
 
-The client has electronically signed this contract by uploading a selfie with their identity document, confirming their identity and acceptance of these terms.
-    `.trim();
-      console.log("[EDGE FUNCTION] Using default terms (no template found)");
+      return new Response(
+        JSON.stringify({
+          success: true,
+          message: "No contract template found for this product, skipping PDF generation.",
+          skipped: true
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
+
+    let termsContent = convertHtmlToText(contractTemplate.content);
+    console.log("[EDGE FUNCTION] Using contract template from database");
 
     pdf.setFontSize(10);
     pdf.setFont('helvetica', 'normal');
