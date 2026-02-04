@@ -1247,7 +1247,7 @@ export function SellerLinks() {
                     <p className="font-semibold mb-2 text-sm">Link Generated Successfully!</p>
                     <div className="flex items-center gap-2">
                       <Input
-                        value={generatedPrefillLink}
+                        value={generatedPrefillLink || ''}
                         readOnly
                         className="bg-white text-black flex-1 h-9 text-xs"
                       />
@@ -1312,7 +1312,6 @@ export function SellerLinks() {
                           .from('checkout_prefill_tokens')
                           .insert({
                             token,
-                            seller_id: seller?.seller_id_public,
                             product_slug: prefillFormData.productSlug,
                             client_data: {
                               clientName: prefillFormData.clientName,
@@ -1506,7 +1505,6 @@ export function SellerLinks() {
                                                 .from('checkout_prefill_tokens')
                                                 .insert({
                                                   token,
-                                                  seller_id: seller?.seller_id_public,
                                                   product_slug: product.slug,
                                                   client_data: {},
                                                   expires_at: expiresAt.toISOString(),
@@ -1550,7 +1548,6 @@ export function SellerLinks() {
                                                 .from('checkout_prefill_tokens')
                                                 .insert({
                                                   token,
-                                                  seller_id: seller?.seller_id_public,
                                                   product_slug: product.slug,
                                                   client_data: {},
                                                   expires_at: expiresAt.toISOString(),
@@ -1720,7 +1717,6 @@ export function SellerLinks() {
                                           .from('checkout_prefill_tokens')
                                           .insert({
                                             token,
-                                            seller_id: seller?.seller_id_public,
                                             product_slug: product.slug,
                                             client_data: {},
                                             expires_at: expiresAt.toISOString(),
@@ -1764,7 +1760,6 @@ export function SellerLinks() {
                                           .from('checkout_prefill_tokens')
                                           .insert({
                                             token,
-                                            seller_id: seller?.seller_id_public,
                                             product_slug: product.slug,
                                             client_data: {},
                                             expires_at: expiresAt.toISOString(),
