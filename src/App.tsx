@@ -113,6 +113,7 @@ function App() {
         <Route path="/onboarding/closer" element={<iframe src="/onboarding/closer.html" style={{ width: '100%', height: '100vh', border: 'none' }} />} />
         <Route path="/onboarding/operations" element={<iframe src="/onboarding/operations.html" style={{ width: '100%', height: '100vh', border: 'none' }} />} />
         <Route path="/onboarding/mentor" element={<iframe src="/onboarding/mentor.html" style={{ width: '100%', height: '100vh', border: 'none' }} />} />
+        <Route path="/pipeline-manager-reports" element={<iframe src="/pipeline-manager-reports.html" style={{ width: '100%', height: '100vh', border: 'none' }} />} />
 
         <Route path="/dashboard" element={<Dashboard />}>
           <Route index element={<DashboardContent />} />

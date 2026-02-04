@@ -1,0 +1,2098 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Manual do Gestor + Dashboard BI Interativo — MIGMA INC v7.0 — Documento Consolidado">
+    <meta name="author" content="MIGMA INC">
+    <meta name="robots" content="noindex, nofollow">
+    <meta name="theme-color" content="#000000">
+    <title>Manual do Gestor v7.0 | Manual + Dashboard BI | MIGMA INC</title>
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' stop-color='%23F5E6C8'/%3E%3Cstop offset='50%25' stop-color='%23D4AF37'/%3E%3Cstop offset='100%25' stop-color='%23BFA02E'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='32' height='32' fill='%23000'/%3E%3Ctext x='50%25' y='58%25' dominant-baseline='middle' text-anchor='middle' font-family='Georgia,serif' font-size='18' font-weight='bold' fill='url(%23g)'%3EM%3C/text%3E%3C/svg%3E">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.0.3/src/regular/style.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+    <style>
+        :root {
+            --gold-100:#FDF6E3;--gold-200:#F5E6C8;--gold-300:#E8D4A8;--gold-400:#D4AF37;--gold-500:#BFA02E;--gold-600:#A68B1E;--gold-700:#8B7419;
+            --gold-gradient:linear-gradient(135deg,#D4AF37 0%,#F5E6C8 25%,#D4AF37 50%,#BFA02E 75%,#D4AF37 100%);
+            --gold-gradient-text:linear-gradient(90deg,#F5E6C8 0%,#D4AF37 50%,#F5E6C8 100%);
+            --gold-glow:0 0 40px rgba(212,175,55,.15),0 0 80px rgba(212,175,55,.1);
+            --black-pure:#000;--black-card:#080808;--black-elevated:#0c0c0c;
+            --src-clickup:#3B82F6;--src-calendly:#22C55E;--src-whatsapp:#D4AF37;
+            --success:#22C55E;--success-bg:rgba(34,197,94,.08);
+            --warning:#EAB308;--warning-bg:rgba(234,179,8,.08);
+            --danger:#EF4444;--danger-bg:rgba(239,68,68,.08);
+            --info:#3B82F6;--info-bg:rgba(59,130,246,.08);
+            --purple:#A855F7;--purple-bg:rgba(168,85,247,.08);
+            --border-subtle:rgba(212,175,55,.06);--border-light:rgba(212,175,55,.1);--border-medium:rgba(212,175,55,.18);--border-strong:rgba(212,175,55,.35);
+            --font-display:'Playfair Display',Georgia,serif;--font-body:'Inter',-apple-system,BlinkMacSystemFont,sans-serif;
+            --ease:cubic-bezier(.16,1,.3,1);
+            --section-padding:clamp(3rem,8vw,5rem);--container-padding:clamp(1.25rem,4vw,2rem);
+        }
+        *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+        html{scroll-behavior:smooth;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+        body{font-family:var(--font-body);background:var(--black-pure);color:var(--gold-300);line-height:1.7;font-size:15px;overflow-x:hidden;min-height:100vh}
+        ::selection{background:var(--gold-400);color:var(--black-pure)}
+        :focus-visible{outline:2px solid var(--gold-400);outline-offset:2px}
+        .skip-link{position:absolute;top:-100px;left:50%;transform:translateX(-50%);background:var(--gold-400);color:var(--black-pure);padding:.75rem 1.5rem;font-weight:600;z-index:99999}
+        .skip-link:focus{top:10px}
+
+        /* BG */
+        .bg-effects{position:fixed;inset:0;pointer-events:none;z-index:-1}
+        .bg-gradient{position:absolute;inset:0;background:radial-gradient(ellipse 100% 70% at 50% -30%,rgba(212,175,55,.08) 0%,transparent 60%),radial-gradient(ellipse 80% 50% at 0% 50%,rgba(212,175,55,.03) 0%,transparent 50%),radial-gradient(ellipse 80% 50% at 100% 50%,rgba(212,175,55,.03) 0%,transparent 50%)}
+        .bg-noise{position:absolute;inset:0;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 512 512' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.7' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");opacity:.015}
+        .bg-grid{position:absolute;inset:0;background-image:linear-gradient(rgba(212,175,55,.02) 1px,transparent 1px),linear-gradient(90deg,rgba(212,175,55,.02) 1px,transparent 1px);background-size:60px 60px;mask-image:radial-gradient(ellipse 80% 60% at 50% 30%,black 0%,transparent 70%)}
+
+        /* PROGRESS */
+        .progress-bar{position:fixed;top:0;left:0;right:0;height:2px;background:rgba(212,175,55,.1);z-index:10001}
+        .progress-bar-fill{height:100%;width:0;background:var(--gold-gradient);box-shadow:0 0 20px rgba(212,175,55,.5);transition:width .15s ease-out}
+        .progress-widget{position:fixed;bottom:1.5rem;right:1.5rem;display:flex;align-items:center;gap:1rem;padding:.875rem 1.25rem;background:rgba(8,8,8,.95);backdrop-filter:blur(20px);border:1px solid var(--border-light);z-index:10000;cursor:pointer;transition:all .4s var(--ease)}
+        .progress-widget:hover{border-color:var(--gold-400);transform:translateY(-4px);box-shadow:var(--gold-glow)}
+        .progress-ring-wrap{position:relative;width:44px;height:44px}
+        .progress-ring{transform:rotate(-90deg);width:100%;height:100%}
+        .progress-ring circle{fill:none;stroke-width:2.5}
+        .progress-ring .ring-bg{stroke:rgba(212,175,55,.1)}
+        .progress-ring .ring-fill{stroke:var(--gold-400);stroke-linecap:round;stroke-dasharray:126;stroke-dashoffset:126;transition:stroke-dashoffset .4s var(--ease)}
+        .progress-percent{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:var(--font-display);font-size:.75rem;font-weight:600;color:var(--gold-400)}
+        .progress-info{display:flex;flex-direction:column;gap:.15rem}
+        .progress-label{font-size:.55rem;letter-spacing:.2em;text-transform:uppercase;color:var(--gold-600)}
+        .progress-section{font-family:var(--font-display);font-size:.85rem;color:var(--gold-200);max-width:120px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+        .print-btn{position:fixed;bottom:1.5rem;left:1.5rem;display:flex;align-items:center;gap:.5rem;padding:.75rem 1rem;background:rgba(8,8,8,.95);backdrop-filter:blur(20px);border:1px solid var(--border-light);color:var(--gold-400);font-size:.65rem;font-weight:500;letter-spacing:.1em;text-transform:uppercase;cursor:pointer;z-index:10000;transition:all .4s var(--ease);font-family:var(--font-body)}
+        .print-btn:hover{border-color:var(--gold-400);color:var(--gold-200);transform:translateY(-4px);box-shadow:var(--gold-glow)}
+        .print-btn i{font-size:1rem}
+
+        /* HEADER */
+        header{min-height:100vh;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;padding:3rem var(--container-padding);position:relative;overflow:hidden}
+        .header-glow{position:absolute;width:600px;height:600px;border-radius:50%;background:radial-gradient(circle,rgba(212,175,55,.1) 0%,transparent 70%);filter:blur(80px);top:50%;left:50%;transform:translate(-50%,-50%);animation:headerPulse 8s ease-in-out infinite;pointer-events:none}
+        @keyframes headerPulse{0%,100%{opacity:.6;transform:translate(-50%,-50%) scale(1)}50%{opacity:1;transform:translate(-50%,-50%) scale(1.1)}}
+        .logo{font-family:var(--font-body);font-size:clamp(1rem,2.5vw,1.25rem);font-weight:700;letter-spacing:.4em;background:var(--gold-gradient-text);background-size:200% 100%;-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin-bottom:2.5rem;animation:shimmer 3s ease-in-out infinite,fadeUp .8s var(--ease)}
+        @keyframes shimmer{0%,100%{background-position:0% 50%}50%{background-position:100% 50%}}
+        .hero-meta{display:flex;align-items:center;gap:1.5rem;margin-bottom:1.75rem;flex-wrap:wrap;justify-content:center;animation:fadeUp .8s var(--ease) .1s both}
+        .hero-badge{display:inline-flex;align-items:center;gap:.6rem;padding:.6rem 1.25rem;background:rgba(234,179,8,.08);border:1px solid rgba(234,179,8,.2);border-radius:100px}
+        .hero-badge-dot{width:6px;height:6px;background:var(--warning);border-radius:50%;box-shadow:0 0 10px var(--warning);animation:pulse 2s ease-in-out infinite}
+        @keyframes pulse{0%,100%{opacity:1;box-shadow:0 0 10px var(--warning)}50%{opacity:.6;box-shadow:0 0 20px var(--warning)}}
+        .hero-badge-text{font-size:.65rem;letter-spacing:.15em;text-transform:uppercase;color:var(--warning)}
+        .hero-reading-time{display:inline-flex;align-items:center;gap:.5rem;padding:.5rem 1rem;background:rgba(212,175,55,.05);border:1px solid var(--border-subtle);border-radius:100px;font-size:.65rem;letter-spacing:.1em;text-transform:uppercase;color:var(--gold-500)}
+        .hero-reading-time i{font-size:.9rem;color:var(--gold-400)}
+        .hero-title{font-family:var(--font-display);font-size:clamp(2.2rem,6vw,4rem);font-weight:500;font-style:italic;color:var(--gold-100);line-height:1.15;margin-bottom:1.25rem;animation:fadeUp .8s var(--ease) .2s both}
+        .hero-subtitle{font-size:clamp(.95rem,2.5vw,1.1rem);color:var(--gold-400);max-width:600px;margin-bottom:2rem;animation:fadeUp .8s var(--ease) .3s both}
+        .hero-subtitle strong{color:var(--gold-200);font-weight:500}
+
+        /* HERO ACTIONS */
+        .hero-actions{display:flex;gap:1rem;margin-bottom:2rem;animation:fadeUp .8s var(--ease) .4s both;flex-wrap:wrap;justify-content:center}
+        .hero-cta{display:inline-flex;align-items:center;gap:.85rem;padding:.9rem 1.75rem;border:1px solid var(--border-medium);text-decoration:none;transition:all .5s var(--ease);cursor:pointer}
+        .hero-cta:hover{transform:translateY(-3px);box-shadow:var(--gold-glow)}
+        .hero-cta i{font-size:1.4rem;transition:transform .4s var(--ease)}
+        .hero-cta:hover i{transform:scale(1.15)}
+        .hero-cta-text{font-family:var(--font-display);font-size:.95rem;font-weight:600;line-height:1.2}
+        .hero-cta-sub{font-size:.6rem;letter-spacing:.12em;text-transform:uppercase;margin-top:.15rem}
+        .hero-cta.primary{background:linear-gradient(135deg,rgba(212,175,55,.12) 0%,rgba(212,175,55,.03) 100%);border-color:var(--border-strong)}
+        .hero-cta.primary i{color:var(--gold-400)}
+        .hero-cta.primary .hero-cta-text{color:var(--gold-100)}
+        .hero-cta.primary .hero-cta-sub{color:var(--gold-500)}
+        .hero-cta.primary:hover{border-color:var(--gold-400);background:linear-gradient(135deg,rgba(212,175,55,.18) 0%,rgba(212,175,55,.06) 100%)}
+        .hero-cta.secondary{background:linear-gradient(135deg,rgba(212,175,55,.04) 0%,transparent 100%)}
+        .hero-cta.secondary i{color:var(--gold-500)}
+        .hero-cta.secondary .hero-cta-text{color:var(--gold-200)}
+        .hero-cta.secondary .hero-cta-sub{color:var(--gold-600)}
+        .hero-cta.secondary:hover{border-color:var(--gold-500);background:linear-gradient(135deg,rgba(212,175,55,.10) 0%,rgba(212,175,55,.03) 100%)}
+
+        .hero-stats{display:flex;gap:clamp(1.5rem,4vw,3rem);flex-wrap:wrap;justify-content:center;animation:fadeUp .8s var(--ease) .5s both}
+        .hero-stat{text-align:center;padding:.5rem}
+        .hero-stat-value{font-family:var(--font-display);font-size:clamp(1.75rem,4.5vw,2.75rem);font-weight:600;background:var(--gold-gradient-text);background-size:200% 100%;-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+        .hero-stat-label{font-size:.6rem;letter-spacing:.2em;text-transform:uppercase;color:var(--gold-500);margin-top:.25rem}
+        .scroll-indicator{position:absolute;bottom:2.5rem;display:flex;flex-direction:column;align-items:center;gap:.6rem;animation:float 3s ease-in-out infinite}
+        .scroll-text{font-size:.55rem;letter-spacing:.3em;text-transform:uppercase;color:var(--gold-500)}
+        .scroll-arrow{width:1px;height:40px;background:linear-gradient(to bottom,var(--gold-400),transparent);position:relative}
+        .scroll-arrow::after{content:'';position:absolute;bottom:0;left:50%;width:8px;height:8px;border-right:1px solid var(--gold-400);border-bottom:1px solid var(--gold-400);transform:translateX(-50%) rotate(45deg)}
+        @keyframes float{0%,100%{transform:translateY(0);opacity:1}50%{transform:translateY(8px);opacity:.7}}
+        @keyframes fadeUp{from{opacity:0;transform:translateY(30px)}to{opacity:1;transform:translateY(0)}}
+
+        /* NAV */
+        nav{position:sticky;top:0;background:rgba(0,0,0,.92);backdrop-filter:blur(24px);border-bottom:1px solid var(--border-subtle);z-index:1000}
+        .nav-container{position:relative;max-width:1200px;margin:0 auto}
+        .nav-fade-left,.nav-fade-right{position:absolute;top:0;bottom:0;width:40px;pointer-events:none;z-index:2}
+        .nav-fade-left{left:0;background:linear-gradient(to right,rgba(0,0,0,.95),transparent)}
+        .nav-fade-right{right:0;background:linear-gradient(to left,rgba(0,0,0,.95),transparent)}
+        .nav-inner{display:flex;justify-content:center;gap:.25rem;padding:.5rem 2rem;overflow-x:auto;scrollbar-width:none}
+        .nav-inner::-webkit-scrollbar{display:none}
+        .nav-link{position:relative;padding:.65rem 1rem;color:var(--gold-500);text-decoration:none;font-size:.6rem;font-weight:500;letter-spacing:.12em;text-transform:uppercase;white-space:nowrap;transition:color .3s ease}
+        .nav-link::before{content:'';position:absolute;bottom:0;left:50%;width:0;height:1px;background:var(--gold-400);transform:translateX(-50%);transition:width .3s var(--ease)}
+        .nav-link:hover,.nav-link.active{color:var(--gold-200)}
+        .nav-link:hover::before,.nav-link.active::before{width:50%}
+        .nav-shortcut{font-size:.45rem;opacity:.4;margin-left:.25rem;font-weight:400}
+
+        /* MAIN */
+        main{max-width:1000px;margin:0 auto;padding:0 var(--container-padding)}
+        section{padding:var(--section-padding) 0}
+        .section-header{margin-bottom:2rem}
+        .section-label{display:inline-flex;align-items:center;gap:.75rem;font-size:.55rem;font-weight:600;letter-spacing:.35em;text-transform:uppercase;color:var(--gold-500);margin-bottom:.75rem}
+        .section-label::before{content:'';width:20px;height:1px;background:linear-gradient(to right,var(--gold-500),transparent)}
+        .section-title{font-family:var(--font-display);font-size:clamp(1.75rem,5vw,2.5rem);font-weight:500;color:var(--gold-100);line-height:1.2;margin-bottom:.5rem}
+        .section-desc{font-size:.95rem;color:var(--gold-400);max-width:520px}
+
+        /* PROCESS FLOW */
+        .process-flow{display:flex;align-items:center;justify-content:center;gap:0;margin:2rem 0;flex-wrap:wrap}
+        .process-step{flex:1;min-width:100px;max-width:160px;text-align:center;padding:.75rem .5rem;position:relative;z-index:1}
+        .process-icon-wrap{width:52px;height:52px;margin:0 auto .65rem;display:flex;align-items:center;justify-content:center;font-size:1.25rem;background:var(--black-elevated);border:1px solid var(--border-medium);transition:all .4s var(--ease)}
+        .process-step:hover .process-icon-wrap{border-color:var(--gold-400);box-shadow:var(--gold-glow);transform:scale(1.1)}
+        .process-step.done .process-icon-wrap{border-color:var(--success);background:rgba(34,197,94,.08)}
+        .process-step.done .process-icon-wrap i{color:var(--success)}
+        .process-name{font-family:var(--font-display);font-size:.85rem;color:var(--gold-200);margin-bottom:.1rem}
+        .process-time{font-size:.55rem;letter-spacing:.1em;text-transform:uppercase;color:var(--gold-500)}
+        .process-connector{width:24px;height:1px;background:linear-gradient(90deg,var(--gold-400),rgba(212,175,55,.3));position:relative;flex-shrink:0}
+        .process-connector::after{content:'→';position:absolute;right:-2px;top:50%;transform:translateY(-50%);font-size:.7rem;color:var(--gold-400)}
+
+        /* CHANNEL */
+        .channel-card{display:flex;align-items:center;gap:1.25rem;padding:1.5rem;margin:2rem 0;background:linear-gradient(135deg,var(--purple-bg) 0%,transparent 100%);border:1px solid rgba(168,85,247,.2);transition:all .3s ease}
+        .channel-card:hover{border-color:rgba(168,85,247,.4);transform:translateY(-2px)}
+        .channel-icon-wrap{width:52px;height:52px;display:flex;align-items:center;justify-content:center;border:2px solid var(--purple);font-size:1.4rem;color:var(--purple);flex-shrink:0}
+        .channel-info{flex:1}
+        .channel-title{font-family:var(--font-display);font-size:1rem;color:var(--gold-200);margin-bottom:.2rem}
+        .channel-desc{font-size:.8rem;color:var(--gold-400)}
+        .channel-dest{margin-top:.3rem;font-size:.65rem;font-weight:600;color:var(--purple);letter-spacing:.05em}
+
+        /* SOURCE CARDS — color-coded #13 */
+        .source-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;margin:2rem 0}
+        .source-card{padding:1.5rem;background:var(--black-card);border:1px solid var(--border-subtle);transition:all .4s var(--ease);position:relative;overflow:hidden}
+        .source-card::after{content:'';position:absolute;top:0;left:0;width:100%;height:3px;transform:scaleX(0);transform-origin:left;transition:transform .4s var(--ease)}
+        .source-card:hover{border-color:var(--border-medium);transform:translateY(-3px)}
+        .source-card:hover::after{transform:scaleX(1)}
+        .source-card.clickup::after{background:var(--src-clickup)}.source-card.clickup .source-icon{color:var(--src-clickup)}
+        .source-card.calendly::after{background:var(--src-calendly)}.source-card.calendly .source-icon{color:var(--src-calendly)}
+        .source-card.whatsapp::after{background:var(--src-whatsapp)}.source-card.whatsapp .source-icon{color:var(--src-whatsapp)}
+        .source-icon{font-size:1.75rem;margin-bottom:.875rem}
+        .source-title{font-family:var(--font-display);font-size:1.1rem;color:var(--gold-200);margin-bottom:.5rem}
+        .source-desc{font-size:.8rem;color:var(--gold-400);line-height:1.55}
+        .source-time-badge{display:inline-block;margin-top:.625rem;font-size:.5rem;font-weight:600;letter-spacing:.05em;text-transform:uppercase;padding:.2rem .5rem}
+        .source-time-badge.clickup{background:rgba(59,130,246,.08);border:1px solid rgba(59,130,246,.2);color:var(--src-clickup)}
+        .source-time-badge.calendly{background:rgba(34,197,94,.08);border:1px solid rgba(34,197,94,.2);color:var(--src-calendly)}
+        .source-time-badge.whatsapp{background:rgba(212,175,55,.08);border:1px solid rgba(212,175,55,.2);color:var(--src-whatsapp)}
+
+        /* STEP BLOCKS — color-coded #13, step tracker #6 */
+        .step-block{background:var(--black-card);border:1px solid var(--border-subtle);margin-bottom:1rem;overflow:hidden;transition:all .4s var(--ease)}
+        .step-block:hover{border-color:var(--border-light)}
+        .step-block.open{border-color:var(--gold-400)}
+        .step-block.clickup.open{border-color:var(--src-clickup)}.step-block.calendly.open{border-color:var(--src-calendly)}.step-block.whatsapp.open{border-color:var(--src-whatsapp)}
+        .step-header{padding:1rem 1.5rem;display:flex;justify-content:space-between;align-items:center;cursor:pointer;background:linear-gradient(135deg,rgba(212,175,55,.03) 0%,transparent 100%);transition:background .3s ease}
+        .step-header:hover{background:rgba(212,175,55,.05)}
+        .step-header-left{display:flex;align-items:center;gap:1rem}
+        .step-number{font-family:var(--font-display);font-size:1.75rem;font-weight:600;min-width:45px}
+        .step-block.clickup .step-number{color:var(--src-clickup)}.step-block.calendly .step-number{color:var(--src-calendly)}.step-block.whatsapp .step-number{color:var(--src-whatsapp)}
+        .step-title{font-family:var(--font-display);font-size:1.05rem;color:var(--gold-200)}
+        .step-subtitle{font-size:.7rem;color:var(--gold-500)}
+        .step-time-badge{display:inline-flex;align-items:center;gap:.3rem;font-size:.5rem;font-weight:600;letter-spacing:.05em;text-transform:uppercase;padding:.2rem .5rem;margin-left:.5rem}
+        .step-time-badge.clickup{background:rgba(59,130,246,.08);border:1px solid rgba(59,130,246,.2);color:var(--src-clickup)}
+        .step-time-badge.calendly{background:rgba(34,197,94,.08);border:1px solid rgba(34,197,94,.2);color:var(--src-calendly)}
+        .step-time-badge.whatsapp{background:rgba(212,175,55,.08);border:1px solid rgba(212,175,55,.2);color:var(--src-whatsapp)}
+        .step-toggle{width:26px;height:26px;display:flex;align-items:center;justify-content:center;border:1px solid var(--border-subtle);color:var(--gold-400);font-size:.7rem;transition:all .3s var(--ease)}
+        .step-block.open .step-toggle{transform:rotate(180deg);background:var(--gold-400);border-color:var(--gold-400);color:var(--black-pure)}
+        .step-content{max-height:0;overflow:hidden;transition:max-height .5s var(--ease)}
+        .step-block.open .step-content{max-height:4000px}
+        .step-content-inner{padding:1.5rem}
+
+        /* STEP TRACKER #6 */
+        .step-tracker{display:flex;align-items:center;justify-content:center;gap:.5rem;margin-bottom:1.5rem;padding:.75rem 1rem;background:rgba(212,175,55,.03);border:1px solid var(--border-subtle)}
+        .tracker-dot{width:32px;height:32px;display:flex;align-items:center;justify-content:center;border:2px solid var(--border-medium);font-family:var(--font-display);font-size:.75rem;font-weight:600;color:var(--gold-500);transition:all .4s var(--ease)}
+        .tracker-dot.completed{border-color:var(--success);color:var(--success);background:rgba(34,197,94,.08)}
+        .tracker-dot.completed::after{content:'✓'}
+        .tracker-dot.active{border-color:var(--gold-400);color:var(--gold-400);box-shadow:0 0 12px rgba(212,175,55,.3)}
+        .tracker-connector{width:30px;height:2px;background:var(--border-subtle);transition:background .4s ease}
+        .tracker-connector.completed{background:var(--success)}
+        .tracker-label{font-size:.5rem;letter-spacing:.15em;text-transform:uppercase;color:var(--gold-500);margin-left:.5rem}
+
+        /* EXTRACT */
+        .extract-grid{display:grid;gap:.625rem}
+        .extract-item{display:flex;align-items:flex-start;gap:.875rem;padding:.875rem 1rem;background:rgba(212,175,55,.02);border:1px solid var(--border-subtle);transition:all .3s ease}
+        .extract-item:hover{border-color:var(--border-medium);transform:translateX(4px)}
+        .extract-icon{width:32px;height:32px;display:flex;align-items:center;justify-content:center;border:1px solid var(--border-medium);flex-shrink:0;font-size:.85rem;color:var(--gold-400)}
+        .extract-label{font-size:.85rem;font-weight:500;color:var(--gold-200)}
+        .extract-detail{font-size:.7rem;color:var(--gold-500);margin-top:.15rem}
+
+        /* HOWTO */
+        .howto-box{margin-top:1.25rem;padding:1rem;border-left:2px solid}
+        .howto-box.clickup{background:rgba(59,130,246,.04);border-color:var(--src-clickup)}
+        .howto-box.calendly{background:rgba(34,197,94,.04);border-color:var(--src-calendly)}
+        .howto-box.whatsapp{background:rgba(212,175,55,.04);border-color:var(--src-whatsapp)}
+        .howto-title{font-size:.6rem;font-weight:600;letter-spacing:.15em;text-transform:uppercase;margin-bottom:.5rem}
+        .howto-title.clickup{color:var(--src-clickup)}.howto-title.calendly{color:var(--src-calendly)}.howto-title.whatsapp{color:var(--src-whatsapp)}
+        .howto-steps{list-style:none}
+        .howto-steps li{padding:.25rem 0;padding-left:1.25rem;position:relative;font-size:.8rem;color:var(--gold-300);line-height:1.55}
+        .howto-steps li::before{content:attr(data-step);position:absolute;left:0;font-family:var(--font-display);font-weight:600;font-size:.75rem}
+        .howto-box.clickup .howto-steps li::before{color:var(--src-clickup)}.howto-box.calendly .howto-steps li::before{color:var(--src-calendly)}.howto-box.whatsapp .howto-steps li::before{color:var(--src-whatsapp)}
+
+        /* QUALITY / RUBRIC */
+        .quality-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:.5rem;margin-top:1rem}
+        .quality-item{padding:.75rem;background:rgba(34,197,94,.04);border:1px solid rgba(34,197,94,.1);display:flex;align-items:center;gap:.5rem;font-size:.75rem;color:var(--gold-300);transition:all .3s ease}
+        .quality-item:hover{border-color:rgba(34,197,94,.3);transform:translateY(-2px)}
+        .quality-check{width:18px;height:18px;flex-shrink:0;border:1px solid var(--success);display:flex;align-items:center;justify-content:center;font-size:.55rem;color:var(--success)}
+        .rubric-section{margin-top:1.5rem}
+        .rubric-title{font-family:var(--font-display);font-size:.95rem;color:var(--gold-200);margin-bottom:.75rem;display:flex;align-items:center;gap:.5rem}
+        .rubric-table{width:100%;border-collapse:collapse;font-size:.75rem}
+        .rubric-table th{text-align:left;padding:.625rem .75rem;background:rgba(212,175,55,.05);border:1px solid var(--border-subtle);color:var(--gold-400);font-weight:600;font-size:.6rem;letter-spacing:.1em;text-transform:uppercase}
+        .rubric-table td{padding:.5rem .75rem;border:1px solid var(--border-subtle);color:var(--gold-300);vertical-align:top}
+        .rubric-table tr:hover td{background:rgba(212,175,55,.02)}
+        .rubric-score{font-family:var(--font-display);font-weight:600;text-align:center}
+        .rubric-score.good{color:var(--success)}.rubric-score.ok{color:var(--warning)}.rubric-score.bad{color:var(--danger)}
+
+        /* TEAM */
+        .team-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:.75rem;margin-top:2rem}
+        .team-card{padding:1.25rem;background:var(--black-card);border:1px solid var(--border-subtle);text-align:center;transition:all .4s var(--ease);position:relative;overflow:hidden}
+        .team-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:var(--gold-gradient);transform:scaleX(0);transition:transform .4s var(--ease)}
+        .team-card:hover{border-color:var(--border-medium);transform:translateY(-4px)}
+        .team-card:hover::before{transform:scaleX(1)}
+        .team-avatar{width:48px;height:48px;border:2px solid var(--gold-400);border-radius:50%;margin:0 auto .75rem;display:flex;align-items:center;justify-content:center;font-family:var(--font-display);font-size:1.1rem;font-weight:600;color:var(--gold-100);background:rgba(212,175,55,.08)}
+        .team-name{font-family:var(--font-display);font-size:.95rem;color:var(--gold-200);margin-bottom:.15rem}
+        .team-role{font-size:.6rem;letter-spacing:.15em;text-transform:uppercase;color:var(--gold-500)}
+        .team-service{font-size:.6rem;color:var(--gold-400);margin-top:.25rem;line-height:1.3;font-style:italic}
+        .team-badge{display:inline-block;margin-top:.5rem;font-size:.5rem;font-weight:600;letter-spacing:.05em;text-transform:uppercase;padding:.2rem .5rem}
+        .team-badge.sales{background:rgba(59,130,246,.08);border:1px solid rgba(59,130,246,.2);color:var(--info)}
+        .team-badge.mentorship{background:rgba(34,197,94,.08);border:1px solid rgba(34,197,94,.2);color:var(--success)}
+
+        /* BENCHMARKS #4 */
+        .benchmark-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:1rem;margin:2rem 0}
+        .benchmark-card{padding:1.25rem;background:var(--black-card);border:1px solid var(--border-subtle);text-align:center;transition:all .3s ease}
+        .benchmark-card:hover{border-color:var(--border-medium);transform:translateY(-3px)}
+        .benchmark-icon{font-size:1.5rem;margin-bottom:.5rem}
+        .benchmark-metric{font-family:var(--font-display);font-size:1.5rem;font-weight:600;color:var(--gold-100);margin-bottom:.15rem}
+        .benchmark-label{font-size:.75rem;color:var(--gold-400);margin-bottom:.5rem}
+        .benchmark-range{display:flex;justify-content:space-between;font-size:.55rem;letter-spacing:.05em;text-transform:uppercase;padding:.35rem .5rem;background:rgba(212,175,55,.03);border:1px solid var(--border-subtle)}
+        .benchmark-range .low{color:var(--danger)}.benchmark-range .mid{color:var(--warning)}.benchmark-range .high{color:var(--success)}
+
+        /* TEMPLATE */
+        .template-section{margin:2.5rem 0;padding:2rem;background:var(--black-card);border:1px solid var(--border-medium);position:relative}
+        .template-section::before{content:'';position:absolute;top:-1px;left:0;right:0;height:2px;background:var(--gold-gradient)}
+        .template-header{display:flex;align-items:center;justify-content:space-between;gap:.875rem;margin-bottom:1.5rem;flex-wrap:wrap}
+        .template-header-left{display:flex;align-items:center;gap:.875rem}
+        .template-icon{width:44px;height:44px;display:flex;align-items:center;justify-content:center;border:1px solid var(--gold-400);font-size:1.15rem;color:var(--gold-400)}
+        .template-title-text{font-family:var(--font-display);font-size:1.2rem;color:var(--gold-200)}
+        .template-subtitle{font-size:.7rem;color:var(--gold-500)}
+        .template-actions{display:flex;gap:.5rem;flex-wrap:wrap}
+        .action-btn{display:flex;align-items:center;gap:.5rem;padding:.6rem 1.2rem;font-size:.65rem;font-weight:600;letter-spacing:.1em;text-transform:uppercase;cursor:pointer;transition:all .3s ease;border:1px solid;font-family:var(--font-body)}
+        .action-btn.copy{background:rgba(34,197,94,.08);border-color:rgba(34,197,94,.25);color:var(--success)}
+        .action-btn.copy:hover{background:rgba(34,197,94,.15);border-color:var(--success);transform:translateY(-2px)}
+        .action-btn.copy.copied{background:var(--success);color:var(--black-pure);border-color:var(--success)}
+        .action-btn.download{background:rgba(59,130,246,.08);border-color:rgba(59,130,246,.25);color:var(--info)}
+        .action-btn.download:hover{background:rgba(59,130,246,.15);border-color:var(--info);transform:translateY(-2px)}
+        .action-btn i{font-size:1rem}
+        .template-block{margin-bottom:1.5rem;padding-bottom:1.5rem;border-bottom:1px solid var(--border-subtle)}
+        .template-block:last-child{margin-bottom:0;padding-bottom:0;border-bottom:none}
+        .template-block-title{font-family:var(--font-display);font-size:1rem;color:var(--gold-200);margin-bottom:.75rem;display:flex;align-items:center;gap:.5rem}
+        .template-block-num{width:24px;height:24px;display:flex;align-items:center;justify-content:center;background:rgba(212,175,55,.08);border:1px solid var(--border-medium);font-family:var(--font-display);font-size:.75rem;font-weight:600;color:var(--gold-400)}
+        .template-field{display:grid;grid-template-columns:200px 1fr;gap:.5rem;padding:.35rem 0;font-size:.8rem}
+        .template-field-label{color:var(--gold-400);font-weight:500}
+        .template-field-value{color:var(--gold-500);border-bottom:1px dotted var(--border-subtle);min-height:1.2em}
+        .template-person-block{margin-top:1rem;padding:1rem;background:rgba(212,175,55,.02);border:1px solid var(--border-subtle)}
+        .template-person-name{font-family:var(--font-display);font-size:.9rem;color:var(--gold-200);margin-bottom:.5rem}
+        .template-person-row{display:flex;flex-wrap:wrap;gap:.75rem;font-size:.75rem;color:var(--gold-400);padding:.25rem 0}
+        .template-person-row strong{color:var(--gold-300)}
+        /* QUOTE */
+        .quote-block{padding:1.75rem;margin:0 0 2rem;background:linear-gradient(135deg,rgba(212,175,55,.06) 0%,transparent 100%);border:1px solid var(--border-medium);border-left:3px solid var(--gold-400)}
+        .quote-text{font-size:.95rem;color:var(--gold-200);line-height:1.75;margin-bottom:.5rem}
+        .quote-text:last-child{margin-bottom:0}
+
+        /* HIGHLIGHT BOX (Regra Fixa) */
+        .highlight-box{text-align:center;margin:2rem 0;padding:1.75rem;background:linear-gradient(135deg,rgba(212,175,55,.06) 0%,transparent 100%);border:1px solid var(--border-medium)}
+        .highlight-icon{font-size:2rem;margin-bottom:.5rem;color:var(--gold-400)}
+        .highlight-heading{font-family:var(--font-display);font-size:1.15rem;color:var(--gold-200);margin-bottom:.5rem}
+
+        /* STEP INSTRUCTION */
+        .step-instruction{font-size:.85rem;color:var(--gold-400);margin-bottom:1rem}
+
+        /* EXAMPLE COMPARISON HELPERS */
+        .example-subtitle{font-size:.6rem;letter-spacing:.1em;color:var(--gold-500);margin-bottom:.75rem}
+        .example-detail{font-size:.65rem;color:var(--gold-300)}
+        .example-detail+.example-detail{margin-top:.25rem}
+        .example-problem{font-size:.65rem;color:var(--gold-400)}
+        .example-problem+.example-problem{margin-top:0}
+        .example-actions{margin-top:.5rem;font-size:.65rem}
+
+        /* TEMPLATE AREA LABEL */
+        .template-area-label{font-size:.7rem;letter-spacing:.12em;text-transform:uppercase;font-weight:600;margin-bottom:.5rem}
+        .template-area-label.sales{color:var(--src-clickup)}
+        .template-area-label.mentorship{color:var(--success)}
+        .template-area-block{margin-bottom:1rem}
+        .template-meta-row{display:flex;gap:2rem;flex-wrap:wrap;font-size:.8rem;color:var(--gold-400);margin-bottom:1rem}
+
+        /* BI KPI COLOR VARIANTS */
+        .bi-kpi-value.kpi-clickup{color:var(--src-clickup)}
+        .bi-kpi-value.kpi-calendly{color:var(--src-calendly)}
+        .bi-kpi-value.kpi-whatsapp{color:var(--src-whatsapp)}
+        .bi-kpi-value.kpi-danger{color:var(--danger)}
+        .bi-kpi-value.kpi-warning{color:var(--warning)}
+        .bi-kpi-value.kpi-success{color:var(--success)}
+
+        /* CHECKLIST #1 */
+        .checklist-section{margin-top:2rem;padding:1.5rem;background:linear-gradient(135deg,rgba(234,179,8,.06) 0%,transparent 100%);border:1px solid rgba(234,179,8,.2)}
+        .checklist-header{display:flex;align-items:center;justify-content:space-between;gap:1rem;margin-bottom:1rem}
+        .checklist-title{font-family:var(--font-display);font-size:1.1rem;color:var(--warning);display:flex;align-items:center;gap:.5rem}
+        .checklist-counter{font-size:.65rem;font-weight:600;letter-spacing:.1em;color:var(--gold-500)}
+        .checklist-item{display:flex;align-items:center;gap:.75rem;padding:.6rem .5rem;cursor:pointer;transition:all .2s ease;border-bottom:1px solid rgba(234,179,8,.06)}
+        .checklist-item:last-child{border-bottom:none}
+        .checklist-item:hover{background:rgba(234,179,8,.03)}
+        .checklist-box{width:22px;height:22px;border:2px solid var(--border-medium);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:.65rem;transition:all .3s var(--ease);cursor:pointer}
+        .checklist-item.checked .checklist-box{border-color:var(--success);background:var(--success);color:var(--black-pure)}
+        .checklist-item.checked .checklist-text{color:var(--gold-500);text-decoration:line-through}
+        .checklist-text{font-size:.8rem;color:var(--gold-200);transition:all .3s ease}
+        .checklist-all-done{display:none;text-align:center;padding:1rem;margin-top:.5rem;background:rgba(34,197,94,.06);border:1px solid rgba(34,197,94,.2)}
+        .checklist-all-done.visible{display:block}
+        .checklist-all-done p{font-size:.85rem;color:var(--success);font-weight:500}
+
+        /* EXAMPLE — good vs bad #3 */
+        .example-comparison{display:grid;grid-template-columns:1fr 1fr;gap:1.25rem;margin:2rem 0}
+        .example-card{padding:1.5rem;position:relative;overflow:hidden}
+        .example-card::before{content:'';position:absolute;top:-1px;left:0;right:0;height:3px}
+        .example-card.good{background:var(--black-card);border:1px solid rgba(34,197,94,.15)}.example-card.good::before{background:linear-gradient(90deg,var(--success),rgba(34,197,94,.3))}
+        .example-card.bad{background:var(--black-card);border:1px solid rgba(239,68,68,.15)}.example-card.bad::before{background:linear-gradient(90deg,var(--danger),rgba(239,68,68,.3))}
+        .example-label{font-size:.55rem;font-weight:700;letter-spacing:.15em;text-transform:uppercase;margin-bottom:1rem;display:flex;align-items:center;gap:.5rem}
+        .example-label.good{color:var(--success)}.example-label.bad{color:var(--danger)}
+        .example-field{display:grid;grid-template-columns:160px 1fr;gap:.35rem;padding:.25rem 0;font-size:.75rem}
+        .example-field-label{color:var(--gold-400);font-weight:500}
+        .example-field-value{color:var(--gold-200)}
+        .example-card.bad .example-field-value{color:var(--gold-400)}
+        .example-person-block{margin-top:.75rem;padding:.75rem;font-size:.7rem;color:var(--gold-300);line-height:1.5}
+        .example-card.good .example-person-block{background:rgba(34,197,94,.03);border:1px solid rgba(34,197,94,.08)}
+        .example-card.bad .example-person-block{background:rgba(239,68,68,.03);border:1px solid rgba(239,68,68,.08)}
+        .example-annotation{font-size:.6rem;font-weight:600;padding:.15rem .4rem;display:inline;margin-left:.25rem}
+        .example-annotation.error{background:rgba(239,68,68,.12);color:var(--danger)}
+
+        /* SCENARIOS */
+        .scenario-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:1rem;margin-top:1.5rem}
+        .scenario-card{padding:1.25rem;background:var(--black-card);border:1px solid var(--border-subtle);transition:all .3s ease;position:relative;overflow:hidden}
+        .scenario-card::after{content:'';position:absolute;top:0;left:0;width:3px;height:0;background:var(--gold-gradient);transition:height .4s var(--ease)}
+        .scenario-card:hover{border-color:var(--border-medium);transform:translateY(-2px)}
+        .scenario-card:hover::after{height:100%}
+        .scenario-emoji{font-size:1.5rem;margin-bottom:.5rem}
+        .scenario-title{font-family:var(--font-display);font-size:.95rem;color:var(--gold-200);margin-bottom:.35rem}
+        .scenario-desc{font-size:.75rem;color:var(--gold-400);line-height:1.5}
+        .scenario-action{margin-top:.5rem;padding:.5rem;background:rgba(212,175,55,.03);border-left:2px solid var(--gold-400);font-size:.7rem;color:var(--gold-300)}
+
+        /* ESCALATION #7 */
+        .escalation-flow{margin:2rem 0;padding:1.5rem;background:var(--black-card);border:1px solid rgba(239,68,68,.15)}
+        .escalation-title{font-family:var(--font-display);font-size:1.1rem;color:var(--danger);margin-bottom:1rem;display:flex;align-items:center;gap:.5rem}
+        .escalation-step{display:flex;gap:1rem;padding:.75rem 0;border-bottom:1px solid var(--border-subtle);align-items:flex-start}
+        .escalation-step:last-child{border-bottom:none}
+        .escalation-level{font-family:var(--font-display);font-size:.65rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;padding:.25rem .6rem;flex-shrink:0;min-width:70px;text-align:center}
+        .escalation-level.l1{background:rgba(234,179,8,.08);border:1px solid rgba(234,179,8,.2);color:var(--warning)}
+        .escalation-level.l2{background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.2);color:var(--danger)}
+        .escalation-level.l3{background:rgba(168,85,247,.08);border:1px solid rgba(168,85,247,.2);color:var(--purple)}
+        .escalation-content{flex:1}
+        .escalation-trigger{font-size:.8rem;color:var(--gold-200);font-weight:500;margin-bottom:.15rem}
+        .escalation-action{font-size:.7rem;color:var(--gold-400)}
+
+        /* GOLDEN RULES */
+        .golden-rules{text-align:center;margin:2.5rem 0}
+        .golden-rules-title{font-family:var(--font-display);font-size:1.25rem;color:var(--gold-200);margin-bottom:.5rem}
+        .golden-rules-desc{font-size:.85rem;color:var(--gold-500);margin-bottom:1.25rem}
+        .rules-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:0}
+        .rule{padding:1.25rem .875rem;border:1px solid var(--border-subtle);transition:all .3s ease}
+        .rule:hover{background:rgba(212,175,55,.02);border-color:var(--border-medium)}
+        .rule-num{font-family:var(--font-display);font-size:1.75rem;font-weight:600;background:var(--gold-gradient-text);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+        .rule-title{font-family:var(--font-display);font-size:.95rem;color:var(--gold-200);margin:.25rem 0}
+        .rule-desc{font-size:.7rem;color:var(--gold-500)}
+
+        /* FLAGS */
+        .flags-section{margin:2.5rem 0}
+        .flags-header{display:flex;align-items:center;gap:.875rem;margin-bottom:1.25rem}
+        .flags-icon{width:40px;height:40px;display:flex;align-items:center;justify-content:center;border:2px solid;font-size:1.1rem}
+        .flags-icon.danger{border-color:var(--danger);color:var(--danger)}.flags-icon.success{border-color:var(--success);color:var(--success)}
+        .flags-title{font-family:var(--font-display);font-size:1.15rem}
+        .flags-title.danger{color:var(--danger)}.flags-title.success{color:var(--success)}
+        .flags-subtitle{font-size:.75rem;color:var(--gold-500)}
+        .flags-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:.75rem}
+        .flag-item{padding:1rem;transition:all .3s ease}
+        .flag-item.danger{background:var(--danger-bg);border:1px solid rgba(239,68,68,.12)}
+        .flag-item.danger:hover{border-color:rgba(239,68,68,.3);transform:translateY(-2px)}
+        .flag-item h4{font-size:.8rem;margin-bottom:.25rem;display:flex;align-items:center;gap:.35rem}
+        .flag-item.danger h4{color:var(--danger)}.flag-item.danger h4::before{content:'✕';font-size:.65rem}
+        .flag-item p{font-size:.7rem;color:var(--gold-500)}
+        .wins-list{display:grid;gap:.5rem}
+        .win-item{display:flex;align-items:flex-start;gap:.875rem;padding:1rem;background:var(--success-bg);border:1px solid rgba(34,197,94,.12);transition:all .3s ease}
+        .win-item:hover{border-color:rgba(34,197,94,.3);transform:translateX(6px)}
+        .win-num{width:26px;height:26px;display:flex;align-items:center;justify-content:center;border:1px solid var(--success);font-family:var(--font-display);font-size:.8rem;color:var(--success);flex-shrink:0}
+        .win-content h4{font-size:.85rem;color:var(--gold-200);margin-bottom:.15rem}
+        .win-content p{font-size:.7rem;color:var(--gold-500)}
+
+        /* GLOSSARY #5 */
+        .glossary-section{margin:2rem 0;padding:1.5rem;background:var(--black-card);border:1px solid var(--border-subtle)}
+        .glossary-title{font-family:var(--font-display);font-size:1.1rem;color:var(--gold-200);margin-bottom:1rem;display:flex;align-items:center;gap:.5rem}
+        .glossary-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:.75rem}
+        .glossary-item{padding:.75rem;background:rgba(212,175,55,.02);border:1px solid var(--border-subtle);transition:all .3s ease}
+        .glossary-item:hover{border-color:var(--border-medium);transform:translateY(-2px)}
+        .glossary-term{font-family:var(--font-display);font-size:.85rem;color:var(--gold-200);margin-bottom:.15rem}
+        .glossary-def{font-size:.7rem;color:var(--gold-400);line-height:1.45}
+
+        /* FAQ */
+        .faq-list{margin-top:2rem}
+        .faq-item{background:var(--black-card);border:1px solid var(--border-subtle);margin-bottom:.5rem;overflow:hidden;transition:all .3s ease}
+        .faq-item:hover{border-color:var(--border-light)}
+        .faq-item.open{border-color:var(--gold-400)}
+        .faq-question{padding:1rem 1.25rem;display:flex;justify-content:space-between;align-items:center;cursor:pointer;transition:background .3s ease}
+        .faq-question:hover{background:rgba(212,175,55,.02)}
+        .faq-question h4{font-family:var(--font-display);font-size:.95rem;color:var(--gold-200)}
+        .faq-toggle{font-size:.7rem;color:var(--gold-400);transition:transform .3s var(--ease)}
+        .faq-item.open .faq-toggle{transform:rotate(180deg)}
+        .faq-answer{max-height:0;overflow:hidden;transition:max-height .4s var(--ease)}
+        .faq-item.open .faq-answer{max-height:800px}
+        .faq-answer-content{padding:0 1.25rem 1.25rem;font-size:.85rem;color:var(--gold-400);line-height:1.7}
+
+        /* ALERT */
+        .alert-box{padding:1.5rem;margin:2rem 0;border:1px solid}
+        .alert-box.warning{background:linear-gradient(135deg,var(--warning-bg) 0%,transparent 100%);border-color:rgba(234,179,8,.2)}
+        .alert-box.danger{background:linear-gradient(135deg,var(--danger-bg) 0%,transparent 100%);border-color:rgba(239,68,68,.2)}
+        .alert-box.info{background:linear-gradient(135deg,var(--info-bg) 0%,transparent 100%);border-color:rgba(59,130,246,.2)}
+        .alert-header{display:flex;align-items:center;gap:.875rem;margin-bottom:.75rem}
+        .alert-icon{font-size:1.3rem}
+        .alert-icon.warning{color:var(--warning)}.alert-icon.danger{color:var(--danger)}.alert-icon.info{color:var(--info)}
+        .alert-title{font-family:var(--font-display);font-size:1rem}
+        .alert-title.warning{color:var(--warning)}.alert-title.danger{color:var(--danger)}.alert-title.info{color:var(--info)}
+        .alert-content{font-size:.85rem;color:var(--gold-300);line-height:1.7}
+        .alert-content strong{color:var(--gold-200)}
+
+        /* CHANGELOG #10 */
+        .changelog{margin-top:2rem;padding:1.25rem;background:var(--black-card);border:1px solid var(--border-subtle)}
+        .changelog-header{display:flex;justify-content:space-between;align-items:center;cursor:pointer;padding:.25rem 0}
+        .changelog-header h4{font-family:var(--font-display);font-size:.85rem;color:var(--gold-400)}
+        .changelog-toggle{font-size:.7rem;color:var(--gold-500);transition:transform .3s var(--ease)}
+        .changelog.open .changelog-toggle{transform:rotate(180deg)}
+        .changelog-body{max-height:0;overflow:hidden;transition:max-height .4s var(--ease)}
+        .changelog.open .changelog-body{max-height:600px}
+        .changelog-version{margin-top:.75rem;padding:.75rem;background:rgba(212,175,55,.02);border-left:2px solid var(--gold-400)}
+        .changelog-version h5{font-size:.7rem;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--gold-400);margin-bottom:.35rem}
+        .changelog-version ul{list-style:none}
+        .changelog-version ul li{font-size:.7rem;color:var(--gold-400);padding:.1rem 0;padding-left:.75rem;position:relative}
+        .changelog-version ul li::before{content:'+';position:absolute;left:0;color:var(--success);font-weight:700}
+
+        /* BI SPREADSHEET SECTION */
+        .bi-flow{display:flex;align-items:center;justify-content:center;gap:0;margin:2rem 0;flex-wrap:wrap}
+        .bi-flow-step{flex:1;min-width:120px;max-width:180px;text-align:center;padding:1rem .75rem}
+        .bi-flow-icon{width:56px;height:56px;margin:0 auto .5rem;display:flex;align-items:center;justify-content:center;font-size:1.4rem;border:2px solid var(--border-medium);transition:all .4s var(--ease)}
+        .bi-flow-step:hover .bi-flow-icon{border-color:var(--gold-400);box-shadow:var(--gold-glow);transform:scale(1.08)}
+        .bi-flow-icon.daily{border-color:var(--warning);color:var(--warning);background:rgba(234,179,8,.06)}
+        .bi-flow-icon.excel{border-color:var(--success);color:var(--success);background:rgba(34,197,94,.06)}
+        .bi-flow-icon.bi{border-color:var(--purple);color:var(--purple);background:rgba(168,85,247,.06)}
+        .bi-flow-name{font-family:var(--font-display);font-size:.9rem;color:var(--gold-200)}
+        .bi-flow-desc{font-size:.6rem;color:var(--gold-500);margin-top:.1rem}
+        .bi-flow-connector{width:32px;height:2px;background:linear-gradient(90deg,var(--gold-400),rgba(212,175,55,.3));position:relative;flex-shrink:0}
+        .bi-flow-connector::after{content:'→';position:absolute;right:-4px;top:50%;transform:translateY(-50%);font-size:.8rem;color:var(--gold-400)}
+        .bi-tab-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:1rem;margin:2rem 0}
+        .bi-tab-card{padding:1.5rem;background:var(--black-card);border:1px solid var(--border-subtle);transition:all .4s var(--ease);position:relative;overflow:hidden}
+        .bi-tab-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;transition:transform .4s var(--ease);transform:scaleX(0);transform-origin:left}
+        .bi-tab-card:hover{border-color:var(--border-medium);transform:translateY(-3px)}
+        .bi-tab-card:hover::before{transform:scaleX(1)}
+        .bi-tab-card.tab-daily::before{background:var(--warning)}.bi-tab-card.tab-weekly::before{background:var(--info)}.bi-tab-card.tab-monthly::before{background:var(--success)}.bi-tab-card.tab-quarterly::before{background:var(--purple)}
+        .bi-tab-icon{font-size:1.5rem;margin-bottom:.5rem}
+        .bi-tab-card.tab-daily .bi-tab-icon{color:var(--warning)}.bi-tab-card.tab-weekly .bi-tab-icon{color:var(--info)}.bi-tab-card.tab-monthly .bi-tab-icon{color:var(--success)}.bi-tab-card.tab-quarterly .bi-tab-icon{color:var(--purple)}
+        .bi-tab-name{font-family:var(--font-display);font-size:1.05rem;color:var(--gold-200);margin-bottom:.35rem}
+        .bi-tab-cadence{font-size:.55rem;font-weight:600;letter-spacing:.1em;text-transform:uppercase;margin-bottom:.75rem;display:inline-block;padding:.15rem .5rem}
+        .bi-tab-card.tab-daily .bi-tab-cadence{background:rgba(234,179,8,.08);color:var(--warning);border:1px solid rgba(234,179,8,.2)}
+        .bi-tab-card.tab-weekly .bi-tab-cadence{background:rgba(59,130,246,.08);color:var(--info);border:1px solid rgba(59,130,246,.2)}
+        .bi-tab-card.tab-monthly .bi-tab-cadence{background:rgba(34,197,94,.08);color:var(--success);border:1px solid rgba(34,197,94,.2)}
+        .bi-tab-card.tab-quarterly .bi-tab-cadence{background:rgba(168,85,247,.08);color:var(--purple);border:1px solid rgba(168,85,247,.2)}
+        .bi-tab-desc{font-size:.75rem;color:var(--gold-400);line-height:1.55;margin-bottom:.75rem}
+        .bi-col-list{list-style:none}
+        .bi-col-list li{font-size:.7rem;color:var(--gold-300);padding:.2rem 0 .2rem 1rem;position:relative;border-bottom:1px solid var(--border-subtle)}
+        .bi-col-list li:last-child{border-bottom:none}
+        .bi-col-list li::before{content:'›';position:absolute;left:.25rem;color:var(--gold-400);font-weight:700;font-size:.85rem}
+        .bi-kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:.75rem;margin:1.5rem 0}
+        .bi-kpi{padding:1rem;background:var(--black-card);border:1px solid var(--border-subtle);text-align:center;transition:all .3s ease}
+        .bi-kpi:hover{border-color:var(--border-medium);transform:translateY(-2px)}
+        .bi-kpi-value{font-family:var(--font-display);font-size:1.3rem;font-weight:600;color:var(--gold-100);margin-bottom:.15rem}
+        .bi-kpi-label{font-size:.65rem;color:var(--gold-400)}
+        .bi-kpi-sub{font-size:.5rem;color:var(--gold-600);margin-top:.2rem;letter-spacing:.05em}
+        .bi-spreadsheet{margin:2rem 0;overflow-x:auto}
+        .bi-spreadsheet table{width:100%;border-collapse:collapse;font-size:.7rem;min-width:700px}
+        .bi-spreadsheet th{padding:.5rem .6rem;background:rgba(34,197,94,.08);border:1px solid rgba(34,197,94,.15);color:var(--success);font-weight:600;font-size:.55rem;letter-spacing:.08em;text-transform:uppercase;white-space:nowrap}
+        .bi-spreadsheet td{padding:.4rem .6rem;border:1px solid var(--border-subtle);color:var(--gold-300)}
+        .bi-spreadsheet tr:hover td{background:rgba(212,175,55,.02)}
+        .bi-spreadsheet .col-date{color:var(--gold-200);font-weight:500}
+        .bi-spreadsheet .col-name{color:var(--gold-200)}
+        .bi-spreadsheet .col-service{color:var(--gold-400);font-style:italic;font-size:.6rem}
+        .bi-spreadsheet .col-num{text-align:center;font-family:var(--font-display);font-weight:500}
+        .bi-spreadsheet .col-quality{text-align:center;font-family:var(--font-display);font-weight:600}
+        .bi-spreadsheet .col-quality.good{color:var(--success)}.bi-spreadsheet .col-quality.ok{color:var(--warning)}.bi-spreadsheet .col-quality.bad{color:var(--danger)}
+        .bi-spreadsheet .col-obs{font-size:.6rem;color:var(--gold-400)}
+        .bi-spreadsheet .th-clickup{color:var(--src-clickup)}.bi-spreadsheet .th-calendly{color:var(--src-calendly)}.bi-spreadsheet .th-whatsapp{color:var(--src-whatsapp)}
+        .sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap}
+        .bi-tool-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:.75rem;margin:1.5rem 0}
+        .bi-tool{padding:1rem;background:var(--black-card);border:1px solid var(--border-subtle);text-align:center;transition:all .3s ease}
+        .bi-tool:hover{border-color:var(--border-medium);transform:translateY(-2px)}
+        .bi-tool-icon{font-size:1.5rem;margin-bottom:.35rem;color:var(--gold-400)}
+        .bi-tool-name{font-family:var(--font-display);font-size:.9rem;color:var(--gold-200)}
+        .bi-tool-desc{font-size:.6rem;color:var(--gold-500);margin-top:.15rem}
+        .bi-section-heading{font-family:var(--font-display);font-size:1.05rem;color:var(--gold-200);margin-bottom:.35rem}
+        .bi-section-heading.lg{font-size:1.15rem}
+        .bi-section-sub{font-size:.7rem;color:var(--gold-500);margin-bottom:1rem}
+        .bi-section-sub.lg{font-size:.75rem;margin-bottom:1.25rem}
+        .bi-center-block{text-align:center;margin:2.5rem 0}
+        .bi-rule-box{text-align:center;margin:2rem 0;padding:1.25rem;background:linear-gradient(135deg,rgba(34,197,94,.06) 0%,transparent 100%);border:1px solid rgba(34,197,94,.2)}
+        .bi-rule-text{font-size:.9rem;color:var(--gold-200)}
+        .bi-formula-box{margin:2rem 0;padding:1.5rem;background:var(--black-card);border:1px solid var(--border-medium)}
+        .bi-formula-title{font-family:var(--font-display);font-size:.95rem;color:var(--gold-200);margin-bottom:.75rem;display:flex;align-items:center;gap:.5rem}
+        .bi-formula-code{padding:1rem;background:rgba(212,175,55,.03);border:1px solid var(--border-subtle);font-family:'Courier New',Consolas,monospace;font-size:.8rem;color:var(--gold-200);letter-spacing:.02em;line-height:1.8}
+        .bi-formula-note{font-size:.7rem;color:var(--gold-500);margin-top:.5rem}
+        .bi-subsection{margin-top:2.5rem}
+        .bi-subsection-sm{margin-top:2rem}
+
+        /* UTILITY CLASSES */
+        .text-center{text-align:center}
+        .icon-clickup{color:var(--src-clickup)}.icon-calendly{color:var(--src-calendly)}.icon-whatsapp{color:var(--src-whatsapp)}.icon-gold{color:var(--gold-400)}.icon-purple{color:var(--purple)}
+        .rubric-note{font-size:.7rem;color:var(--gold-500);margin-top:.5rem}
+        .rubric-table th{text-align:center}
+        .rubric-table th:first-child{text-align:left}
+        .quote-emphasis{color:var(--gold-100);font-weight:600}
+        .highlight-text{font-size:.9rem;color:var(--gold-300)}
+        .example-person-label{font-size:.65rem;letter-spacing:.1em}
+        .example-person-label.good{color:var(--success)}.example-person-label.bad{color:var(--danger)}
+        .changelog-footer{max-width:600px;margin:2rem auto 0}
+        .changelog-version.v2{margin-top:.5rem;border-color:var(--gold-500)}
+        .example-actions.good{color:var(--gold-200)}
+        .example-actions.bad{color:var(--gold-500)}
+        .alert-box+.alert-box,.alert-box.mt{margin-top:2rem}
+        .alert-box.mt-sm{margin-top:1.5rem}
+        .text-gold-100{color:var(--gold-100)}.text-gold-200{color:var(--gold-200)}.text-gold-400{color:var(--gold-400)}.text-gold-600{color:var(--gold-600)}
+        .text-clickup{color:var(--src-clickup)}.text-calendly{color:var(--src-calendly)}.text-whatsapp{color:var(--src-whatsapp)}
+        .text-success{color:var(--success)}.text-warning{color:var(--warning)}
+        .step-instruction.gap{margin-top:1.25rem}
+        .example-detail.sm,.example-problem.sm{margin-top:.25rem}
+
+        /* FOOTER */
+        footer{text-align:center;padding:4rem var(--container-padding);border-top:1px solid var(--border-subtle)}
+        .footer-message{max-width:500px;margin:0 auto 2rem}
+        .footer-message h3{font-family:var(--font-display);font-size:1.35rem;font-style:italic;color:var(--gold-200);margin-bottom:.625rem}
+        .footer-message p{font-size:.9rem;color:var(--gold-400)}
+        .footer-logo{font-family:var(--font-body);font-size:1rem;font-weight:700;letter-spacing:.35em;background:var(--gold-gradient-text);background-size:200% 100%;-webkit-background-clip:text;-webkit-text-fill-color:transparent;animation:shimmer 3s ease-in-out infinite}
+        .footer-version{font-size:.55rem;letter-spacing:.2em;color:var(--gold-600);margin-top:.5rem}
+
+        .animate{opacity:0;transform:translateY(30px);transition:all .8s var(--ease)}
+        .animate.visible{opacity:1;transform:translateY(0)}
+
+        /* #9 ACCESSIBILITY */
+        @media(prefers-reduced-motion:reduce){
+            *,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important;scroll-behavior:auto!important}
+        }
+
+        /* RESPONSIVE */
+        @media(max-width:900px){.rules-grid{grid-template-columns:repeat(2,1fr)}.source-grid{grid-template-columns:1fr}.process-flow,.bi-flow{flex-direction:column}.process-connector,.bi-flow-connector{width:1px;height:16px;background:linear-gradient(to bottom,var(--gold-400),rgba(212,175,55,.3))}.process-connector::after,.bi-flow-connector::after{content:'↓';right:auto;left:50%;top:auto;bottom:-2px;transform:translateX(-50%)}.example-comparison{grid-template-columns:1fr}}
+        @media(max-width:768px){.team-grid{grid-template-columns:repeat(2,1fr)}.progress-widget{bottom:1rem;right:1rem;padding:.75rem 1rem}.print-btn{bottom:1rem;left:1rem;padding:.625rem .875rem}.hero-meta{flex-direction:column;gap:.75rem}.template-field,.example-field{grid-template-columns:1fr;gap:.15rem}.channel-card{flex-direction:column;text-align:center}.rubric-table{font-size:.65rem}.benchmark-grid,.bi-tab-grid{grid-template-columns:repeat(2,1fr)}.bi-kpi-grid,.bi-tool-grid{grid-template-columns:repeat(2,1fr)}}
+        @media(max-width:600px){.rules-grid,.source-grid,.team-grid,.quality-grid,.flags-grid,.scenario-grid,.glossary-grid,.benchmark-grid,.bi-tab-grid,.bi-kpi-grid,.bi-tool-grid{grid-template-columns:1fr}.nav-link{padding:.6rem .75rem;font-size:.55rem}header{padding:2rem 1.5rem}.nav-shortcut{display:none}}
+
+        @media print{
+            .bg-effects,.progress-bar,.progress-widget,.print-btn,nav,.scroll-indicator,.action-btn,.hero-actions,.checklist-section,.step-tracker{display:none!important}
+            body{background:#fff;color:#333;font-size:12px}
+            header{min-height:auto;padding:2rem}
+            section{padding:1.5rem 0;page-break-inside:avoid}
+            .step-content,.faq-answer,.changelog-body{max-height:none!important}
+            .template-section,.source-card,.team-card,.flag-item,.win-item,.quality-item,.extract-item,.step-block,.scenario-card,.example-card,.faq-item,.channel-card,.benchmark-card,.glossary-item,.escalation-flow,.checklist-section,.bi-tab-card,.bi-kpi,.bi-tool,.bi-spreadsheet table,.bi-formula-box,.bi-rule-box,.quote-block,.highlight-box{background:#f9f9f9!important;border-color:#ddd!important;box-shadow:none!important}
+            .hero-title,.section-title,.golden-rules-title,.template-title-text,.bi-section-heading,.bi-tab-name,.bi-flow-name,.bi-formula-title,.highlight-heading{color:#000!important}
+            .bi-kpi-value,.bi-formula-code,.bi-rule-text,.bi-tab-cadence,.bi-formula-note,.quote-text{color:#333!important}
+            .text-gold-100,.text-gold-200,.text-gold-400,.text-gold-600,.text-clickup,.text-calendly,.text-whatsapp,.text-success,.text-warning,.icon-clickup,.icon-calendly,.icon-whatsapp,.icon-gold,.icon-purple,.quote-emphasis,.rubric-note,.example-person-label,.example-actions{color:#333!important}
+            .bi-spreadsheet th{background:#e8e8e8!important;color:#333!important;border-color:#ccc!important}
+            .bi-spreadsheet td{color:#333!important;border-color:#ddd!important}
+            .bi-col-list li{color:#333!important;border-color:#eee!important}
+            .bi-flow-connector{background:#999!important}
+            .bi-flow-connector::after{color:#666!important}
+            a{color:#333;text-decoration:none}
+        }
+
+        /* ═══════════════════════════════════════════════════════════
+           VIEW TOGGLE BAR
+           ═══════════════════════════════════════════════════════════ */
+        .view-bar{position:fixed;top:0;left:0;right:0;z-index:10002;display:flex;justify-content:center;align-items:center;gap:2px;padding:.45rem 1rem;background:rgba(0,0,0,.94);backdrop-filter:blur(24px);border-bottom:1px solid rgba(212,175,55,.06)}
+        .view-bar-logo{font-family:var(--font-body);font-size:.45rem;font-weight:700;letter-spacing:.4em;background:var(--gold-gradient-text);background-size:200% 100%;-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-right:1.5rem}
+        .vb{padding:.42rem 1.3rem;font-family:var(--font-body);font-size:.5rem;font-weight:500;letter-spacing:.14em;text-transform:uppercase;color:var(--gold-600);background:transparent;border:1px solid transparent;cursor:pointer;transition:all .3s var(--ease);position:relative}
+        .vb::after{content:'';position:absolute;bottom:0;left:50%;width:0;height:1.5px;background:var(--gold-400);transform:translateX(-50%);transition:width .3s var(--ease)}
+        .vb:hover{color:var(--gold-300)}
+        .vb.on{color:var(--gold-200);border-color:rgba(212,175,55,.12);background:rgba(212,175,55,.04)}
+        .vb.on::after{width:50%}
+        @media(max-width:500px){.view-bar-logo{display:none}.vb{padding:.38rem .85rem;font-size:.44rem;letter-spacing:.1em}}
+
+        /* View wrappers */
+        #manualView{padding-top:42px}
+        #dashboardView{display:none;padding-top:42px}
+        body.dash-mode #manualView{display:none}
+        body.dash-mode #dashboardView{display:block}
+        body.dash-mode nav[role="navigation"]{display:none}
+        body.dash-mode .progress-widget,body.dash-mode .print-btn,body.dash-mode .progress-bar{display:none}
+        body.dash-mode .bg-effects{opacity:.5}
+        @media print{.view-bar{display:none!important}#dashboardView{display:none!important}#manualView{display:block!important;padding-top:0}}
+
+        /* ═══════════════════════════════════════════════════════════
+           DASHBOARD BI — all styles scoped to #dashboardView
+           ═══════════════════════════════════════════════════════════ */
+        #dashboardView{--fd:'Playfair Display',Georgia,serif;--fb:'Inter',-apple-system,BlinkMacSystemFont,sans-serif;--fm:'JetBrains Mono','SF Mono',monospace;--g50:#FFFDF5;--g100:#FDF6E3;--g200:#F5E6C8;--g300:#E8D4A8;--g400:#D4AF37;--g500:#BFA02E;--g600:#A68B1E;--g700:#8B7419;--b0:#000;--b1:#060606;--b2:#0B0B0B;--b3:#111;--b4:#181818;--b5:#222;--blue:#3B82F6;--green:#22C55E;--red:#EF4444;--yellow:#EAB308;--purple:#A855F7;--ease:cubic-bezier(.16,1,.3,1);--rad:6px}
+        #dashboardView ::-webkit-scrollbar{width:4px;height:4px}
+        #dashboardView ::-webkit-scrollbar-thumb{background:rgba(212,175,55,.12);border-radius:2px}
+        .D{max-width:1440px;margin:0 auto;padding:1.25rem 1rem 3rem}
+        @media(min-width:640px){.D{padding:1.5rem 1.5rem 3.5rem}}
+        @media(min-width:1024px){.D{padding:2rem 2.5rem 4rem}}
+        @media(min-width:1280px){.D{padding:2.5rem 3rem 5rem}}
+        .d-hd{text-align:center;padding:1.75rem 0 2rem;position:relative}
+        .d-hd::after{content:'';position:absolute;bottom:0;left:50%;transform:translateX(-50%);width:80px;height:1px;background:linear-gradient(90deg,transparent,var(--g600),transparent)}
+        .d-hd-logo{font-family:var(--fb);font-size:.55rem;font-weight:700;letter-spacing:.5em;background:linear-gradient(135deg,var(--g300),var(--g400),var(--g300));-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:.5rem}
+        .d-hd-title{font-family:var(--fd);font-size:clamp(1.3rem,3.2vw,2.1rem);font-weight:500;font-style:italic;color:var(--g100);margin-bottom:.3rem;line-height:1.25}
+        .d-hd-sub{font-size:clamp(.6rem,.15rem+.55vw,.75rem);color:var(--g600);letter-spacing:.04em}
+        .d-hd-period{display:inline-flex;align-items:center;gap:.35rem;margin-top:.75rem;padding:.3rem .9rem;border:1px solid rgba(212,175,55,.08);font-size:.5rem;font-family:var(--fm);letter-spacing:.06em;color:var(--g500)}
+        .tn{display:flex;gap:2px;justify-content:center;margin:1.25rem 0 1.75rem;flex-wrap:wrap}
+        @media(max-width:480px){.tn{gap:0}.tn button{flex:1;min-width:0}}
+        .tb{padding:.45rem 1.1rem;font-family:var(--fb);font-size:.55rem;font-weight:500;letter-spacing:.12em;text-transform:uppercase;color:var(--g600);background:transparent;border:1px solid rgba(212,175,55,.04);cursor:pointer;transition:all .25s var(--ease);position:relative;white-space:nowrap}
+        .tb::after{content:'';position:absolute;bottom:0;left:50%;width:0;height:1.5px;background:var(--g400);transform:translateX(-50%);transition:width .3s var(--ease)}
+        .tb:hover{color:var(--g300);background:rgba(212,175,55,.02)}
+        .tb.on{color:var(--g200);background:rgba(212,175,55,.04);border-color:rgba(212,175,55,.1)}
+        .tb.on::after{width:55%}
+        .ks{display:grid;grid-template-columns:repeat(6,1fr);gap:1px;background:rgba(212,175,55,.035);border:1px solid rgba(212,175,55,.05);margin-bottom:1.75rem;overflow:hidden;border-radius:var(--rad)}
+        @media(max-width:1100px){.ks{grid-template-columns:repeat(3,1fr)}}
+        @media(max-width:580px){.ks{grid-template-columns:repeat(2,1fr)}}
+        @media(max-width:360px){.ks{grid-template-columns:1fr}}
+        .kc{background:var(--b1);padding:1.1rem .85rem;text-align:center;transition:background .3s var(--ease)}
+        .kc:hover{background:var(--b2)}
+        .kc-icon{font-size:.8rem;margin-bottom:.3rem;opacity:.35}
+        .kc-label{font-size:.4rem;letter-spacing:.2em;text-transform:uppercase;color:var(--g600);margin-bottom:.45rem}
+        .kc-val{font-family:var(--fm);font-size:clamp(1.15rem,1.8vw,1.55rem);font-weight:600;line-height:1;margin-bottom:.25rem}
+        .kc-sub{font-size:.42rem;color:rgba(166,139,30,.45);line-height:1.4}
+        .kc-trend{display:inline-flex;align-items:center;gap:.12rem;font-size:.48rem;font-weight:600;font-family:var(--fm);margin-top:.3rem;padding:.08rem .35rem;border-radius:2px}
+        .kc-trend.up{color:var(--green);background:rgba(34,197,94,.05)}
+        .kc-trend.dn{color:var(--red);background:rgba(239,68,68,.05)}
+        .g2{display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1rem}
+        @media(max-width:860px){.g2{grid-template-columns:1fr}}
+        .P{background:var(--b1);border:1px solid rgba(212,175,55,.04);padding:1.1rem;border-radius:var(--rad);transition:border-color .3s var(--ease),box-shadow .3s var(--ease)}
+        .P:hover{border-color:rgba(212,175,55,.08);box-shadow:0 4px 20px rgba(0,0,0,.25)}
+        @media(min-width:640px){.P{padding:1.35rem}}
+        .Ph{display:flex;align-items:center;justify-content:space-between;margin-bottom:.9rem;gap:.4rem;flex-wrap:wrap}
+        .Pt{font-family:var(--fd);font-size:clamp(.75rem,.12rem+.7vw,.9rem);font-weight:500;color:var(--g200);font-style:italic}
+        .Pb{font-size:.4rem;letter-spacing:.14em;text-transform:uppercase;padding:.18rem .45rem;border:1px solid rgba(212,175,55,.08);color:var(--g600);border-radius:2px;white-space:nowrap}
+        .fp{margin-bottom:1rem}
+        .chart-wrap{position:relative;width:100%}
+        .chart-wrap canvas{width:100%!important}
+        .lg{display:flex;gap:.6rem;flex-wrap:wrap;margin-top:.65rem;justify-content:center}
+        .li{display:flex;align-items:center;gap:.25rem;font-size:.5rem;color:var(--g500)}
+        .ld{width:6px;height:6px;border-radius:2px;flex-shrink:0;display:inline-block}
+        .rl{display:flex;flex-direction:column;gap:.35rem}
+        .rr{display:flex;align-items:center;gap:.55rem;padding:.6rem .65rem;background:var(--b2);border:1px solid rgba(212,175,55,.025);border-radius:var(--rad);transition:all .3s var(--ease);position:relative;overflow:hidden}
+        .rr:hover{border-color:rgba(212,175,55,.08);background:var(--b3)}
+        .rr-bar{position:absolute;left:0;top:0;bottom:0;width:3px;border-radius:0 2px 2px 0;opacity:.55}
+        .rp{font-family:var(--fm);font-size:.8rem;font-weight:600;width:20px;text-align:center;flex-shrink:0}
+        .ri{flex:1;min-width:0}
+        .rn{font-size:.7rem;color:var(--g200);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+        .rro{font-size:.42rem;color:var(--g600);margin-top:.08rem}
+        .rbw{height:2px;background:rgba(212,175,55,.05);border-radius:1px;margin-top:.3rem;overflow:hidden}
+        .rb{height:100%;border-radius:1px;width:0;transition:width 1s var(--ease)}
+        .rsw{text-align:right;flex-shrink:0}
+        .rs{font-family:var(--fm);font-size:.95rem;font-weight:600}
+        .rt{font-size:.45rem;font-weight:600;font-family:var(--fm)}
+        .rt.up{color:var(--green)}.rt.dn{color:var(--red)}
+        .pcs{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:.65rem;margin-bottom:1rem}
+        @media(max-width:560px){.pcs{grid-template-columns:1fr}}
+        .pc{background:var(--b2);border:1px solid rgba(212,175,55,.03);border-radius:var(--rad);padding:.85rem;display:flex;gap:.7rem;align-items:center;transition:all .3s var(--ease);position:relative;overflow:hidden}
+        .pc:hover{border-color:rgba(212,175,55,.08);transform:translateY(-1px);box-shadow:0 6px 20px rgba(0,0,0,.3)}
+        .pc-line{position:absolute;top:0;left:0;right:0;height:2px;opacity:.45}
+        .pc-ring{flex-shrink:0;position:relative}
+        .pc-ring-val{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-family:var(--fm);font-size:.55rem;font-weight:700}
+        .pc-info{flex:1;min-width:0}
+        .pc-name{font-size:.7rem;font-weight:600;color:var(--g200);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+        .pc-role{font-size:.42rem;color:var(--g600);margin-top:.1rem;letter-spacing:.04em}
+        .pc-stats{display:flex;gap:.4rem;margin-top:.4rem;flex-wrap:wrap}
+        .pc-stat{font-size:.4rem;color:var(--g500)}
+        .pc-stat b{color:var(--g300);font-family:var(--fm);font-weight:600}
+        .pc-spark{flex-shrink:0;display:flex;flex-direction:column;align-items:flex-end;gap:.2rem}
+        .pc-spark-label{font-size:.35rem;color:var(--g700);font-family:var(--fm)}
+        .dtw{overflow-x:auto;-webkit-overflow-scrolling:touch;margin-top:.4rem}
+        .dt{width:100%;border-collapse:collapse;font-size:.6rem}
+        .dt th{padding:.5rem .4rem;text-align:left;font-size:.38rem;letter-spacing:.14em;text-transform:uppercase;color:var(--g600);border-bottom:1px solid rgba(212,175,55,.06);font-weight:500;white-space:nowrap;position:sticky;top:0;background:var(--b1)}
+        .dt th.n{text-align:center}
+        .dt td{padding:.45rem .4rem;border-bottom:1px solid rgba(212,175,55,.02);color:var(--g300);white-space:nowrap}
+        .dt td.n{text-align:center;font-family:var(--fm);font-weight:500;font-size:.55rem}
+        .dt td.nm{color:var(--g200);font-weight:500}
+        .dt td.ob{color:var(--g600);font-style:italic;max-width:130px;overflow:hidden;text-overflow:ellipsis}
+        .dt tbody tr{transition:background .2s}
+        .dt tbody tr:hover{background:rgba(212,175,55,.012)}
+        .qb{display:inline-block;padding:.08rem .3rem;font-size:.5rem;font-weight:600;font-family:var(--fm);min-width:26px;text-align:center;border-radius:2px}
+        .qb.g{color:var(--green);background:rgba(34,197,94,.06)}
+        .qb.o{color:var(--yellow);background:rgba(234,179,8,.06)}
+        .qb.b{color:var(--red);background:rgba(239,68,68,.06)}
+        .at{font-size:.38rem;letter-spacing:.1em;text-transform:uppercase;padding:.08rem .3rem;font-weight:600;border-radius:2px;display:inline-block}
+        .at.s{color:var(--blue);background:rgba(59,130,246,.06)}
+        .at.m{color:var(--purple);background:rgba(168,85,247,.06)}
+        .dcs{display:none}
+        @media(max-width:768px){.dtw.resp{display:none}.dcs{display:flex;flex-direction:column;gap:.45rem}}
+        .dc{background:var(--b2);border:1px solid rgba(212,175,55,.03);border-radius:var(--rad);padding:.75rem;transition:border-color .3s var(--ease)}
+        .dc:hover{border-color:rgba(212,175,55,.08)}
+        .dc-hd{display:flex;justify-content:space-between;align-items:center;margin-bottom:.55rem}
+        .dc-nm{font-size:.7rem;font-weight:600;color:var(--g200)}
+        .dc-dt{font-size:.42rem;font-family:var(--fm);color:var(--g600)}
+        .dc-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:.35rem}
+        .dc-m{text-align:center;padding:.3rem .15rem;background:rgba(212,175,55,.012);border-radius:3px}
+        .dc-ml{font-size:.32rem;letter-spacing:.12em;text-transform:uppercase;color:var(--g600);margin-bottom:.15rem}
+        .dc-mv{font-family:var(--fm);font-size:.62rem;font-weight:600;color:var(--g300)}
+        .dc-obs{font-size:.48rem;font-style:italic;color:var(--g600);margin-top:.4rem;padding-top:.4rem;border-top:1px solid rgba(212,175,55,.03)}
+        .fm-bar{text-align:center;padding:1.1rem .85rem;background:var(--b1);border:1px solid rgba(212,175,55,.04);border-radius:var(--rad);margin-bottom:1rem}
+        .fm-lbl{font-size:.38rem;letter-spacing:.2em;text-transform:uppercase;color:var(--g600);margin-bottom:.5rem}
+        .fm-txt{font-family:var(--fm);font-size:clamp(.48rem,.08rem+.45vw,.68rem);color:var(--g300);line-height:2.2;word-break:break-word}
+        .fm-txt span{font-weight:600}
+        .d-ft{text-align:center;padding:2rem 0 0;border-top:1px solid rgba(212,175,55,.03);margin-top:1.5rem}
+        .d-ft p{font-size:.42rem;color:rgba(212,175,55,.18);letter-spacing:.12em}
+        .dp{color:var(--green);font-weight:600}.dm{color:var(--red);font-weight:600}
+        @keyframes dfu{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
+        @keyframes dfi{from{opacity:0}to{opacity:1}}
+        .kc{animation:dfu .5s var(--ease) both}
+        .ks .kc:nth-child(2){animation-delay:.04s}.ks .kc:nth-child(3){animation-delay:.08s}.ks .kc:nth-child(4){animation-delay:.12s}.ks .kc:nth-child(5){animation-delay:.16s}.ks .kc:nth-child(6){animation-delay:.2s}
+        .P,.pc{animation:dfu .5s var(--ease) both;animation-delay:.08s}
+        .tc{animation:dfi .3s ease both}.tc[hidden]{display:none!important}
+    </style>
+</head>
+<body>
+    <!-- ═══ VIEW TOGGLE BAR ═══ -->
+    <div class="view-bar">
+        <span class="view-bar-logo">MIGMA INC</span>
+        <button type="button" class="vb on" onclick="switchView('manual')" id="vbManual">📖 Manual</button>
+        <button type="button" class="vb" onclick="switchView('dash')" id="vbDash">📊 Dashboard BI</button>
+    </div>
+
+    <div class="bg-effects" aria-hidden="true"><div class="bg-gradient"></div><div class="bg-noise"></div><div class="bg-grid"></div></div>
+
+    <!-- ═══ MANUAL VIEW ═══ -->
+    <div id="manualView">
+    <a href="#main-content" class="skip-link">Pular para o conteúdo principal</a>
+    <div class="progress-bar" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"><div class="progress-bar-fill" id="progressFill"></div></div>
+    <div class="progress-widget" onclick="scrollToTop()" role="button" aria-label="Voltar ao topo" tabindex="0">
+        <div class="progress-ring-wrap"><svg class="progress-ring" viewBox="0 0 44 44" aria-hidden="true"><circle class="ring-bg" cx="22" cy="22" r="20"/><circle class="ring-fill" id="progressRing" cx="22" cy="22" r="20"/></svg><span class="progress-percent" id="progressPercent">0%</span></div>
+        <div class="progress-info"><span class="progress-label">Leitura</span><span class="progress-section" id="currentSection">Início</span></div>
+    </div>
+    <button type="button" class="print-btn" onclick="window.print()" aria-label="Imprimir"><i class="ph ph-printer"></i><span>Imprimir</span></button>
+
+    <header>
+        <div class="header-glow" aria-hidden="true"></div>
+        <div class="logo">MIGMA INC</div>
+        <div class="hero-meta">
+            <div class="hero-badge"><div class="hero-badge-dot" aria-hidden="true"></div><span class="hero-badge-text">Rotina Obrigatória</span></div>
+            <div class="hero-reading-time"><i class="ph ph-clock" aria-hidden="true"></i><span>~18 min de leitura</span></div>
+        </div>
+        <h1 class="hero-title">Manual do Gestor.</h1>
+        <p class="hero-subtitle">Monitoramento Diário — <strong>Relatório D-1</strong>. Tudo o que o Mib precisa saber sobre o dia anterior da equipe de Sales e Mentorship.</p>
+        <div class="hero-actions">
+            <a href="#rotina" class="hero-cta primary" onclick="event.preventDefault();document.getElementById('rotina').scrollIntoView({behavior:'smooth',block:'start'})">
+                <i class="ph ph-play-circle" aria-hidden="true"></i>
+                <div><div class="hero-cta-text">Iniciar Rotina</div><div class="hero-cta-sub">Passo a passo do D-1</div></div>
+            </a>
+            <a href="#template" class="hero-cta secondary" onclick="event.preventDefault();document.getElementById('template').scrollIntoView({behavior:'smooth',block:'start'})">
+                <i class="ph ph-clipboard-text" aria-hidden="true"></i>
+                <div><div class="hero-cta-text">Ver Template</div><div class="hero-cta-sub">Copiar e preencher</div></div>
+            </a>
+        </div>
+        <div class="hero-stats">
+            <div class="hero-stat"><div class="hero-stat-value">3</div><div class="hero-stat-label">Fontes de Dados</div></div>
+            <div class="hero-stat"><div class="hero-stat-value">5</div><div class="hero-stat-label">Vendedores & Mentores</div></div>
+            <div class="hero-stat"><div class="hero-stat-value">~48min</div><div class="hero-stat-label">Tempo Estimado</div></div>
+            <div class="hero-stat"><div class="hero-stat-value">10</div><div class="hero-stat-label">Seções</div></div>
+        </div>
+        <div class="scroll-indicator" aria-hidden="true"><span class="scroll-text">Começar</span><div class="scroll-arrow"></div></div>
+    </header>
+
+    <!-- NAV #12 keyboard shortcuts -->
+    <nav role="navigation" aria-label="Navegação">
+        <div class="nav-container">
+            <div class="nav-fade-left" aria-hidden="true"></div>
+            <div class="nav-fade-right" aria-hidden="true"></div>
+            <div class="nav-inner">
+                <a href="#objetivo" class="nav-link">Objetivo<span class="nav-shortcut">1</span></a>
+                <a href="#fontes" class="nav-link">Fontes<span class="nav-shortcut">2</span></a>
+                <a href="#rotina" class="nav-link">Rotina<span class="nav-shortcut">3</span></a>
+                <a href="#equipe" class="nav-link">Equipe<span class="nav-shortcut">4</span></a>
+                <a href="#template" class="nav-link">Template<span class="nav-shortcut">5</span></a>
+                <a href="#cenarios" class="nav-link">Cenários<span class="nav-shortcut">6</span></a>
+                <a href="#escalation" class="nav-link">Escalonamento<span class="nav-shortcut">7</span></a>
+                <a href="#regras" class="nav-link">Regras<span class="nav-shortcut">8</span></a>
+                <a href="#bi" class="nav-link">BI<span class="nav-shortcut">9</span></a>
+                <a href="#faq" class="nav-link">FAQ<span class="nav-shortcut">0</span></a>
+            </div>
+        </div>
+    </nav>
+
+    <main id="main-content">
+
+        <!-- 01 OBJETIVO -->
+        <section id="objetivo" class="animate">
+            <div class="section-header">
+                <div class="section-label">01 — Objetivo</div>
+                <h2 class="section-title">Por que esse relatório existe</h2>
+                <p class="section-desc">Garantir visibilidade total para tomada de decisão rápida</p>
+            </div>
+            <blockquote class="quote-block">
+                <p class="quote-text">O Mib precisa receber <strong class="text-gold-100">diariamente até as 12:00</strong> um retrato claro e objetivo do que foi feito ontem (D-1) por toda a equipe de <strong>Sales e Mentorship</strong>.</p>
+                <p class="quote-text">O relatório cruza dados de três fontes — <strong class="text-clickup">ClickUp</strong>, <strong class="text-calendly">Calendly</strong> e <strong class="text-whatsapp">WhatsApp Web</strong> — para entregar uma visão completa: tarefas executadas, reuniões realizadas e qualidade do atendimento.</p>
+                <p class="quote-text quote-emphasis"><strong>Sem esse relatório, decisões ficam cegas.</strong></p>
+            </blockquote>
+            <div class="highlight-box">
+                <div class="highlight-icon"><i class="ph ph-target" aria-hidden="true"></i></div>
+                <h3 class="highlight-heading">Regra Fixa</h3>
+                <p class="highlight-text">Todos os dias úteis, até <strong class="text-gold-100">12:00</strong>, o gestor envia ao Mib o Relatório D-1 com: visão geral do dia anterior, detalhe por vendedor/mentor, destaques, pontos de atenção e ações do gestor para hoje.</p>
+            </div>
+            <div class="channel-card">
+                <div class="channel-icon-wrap"><i class="ph ph-paper-plane-tilt"></i></div>
+                <div class="channel-info">
+                    <div class="channel-title">Canal de Envio</div>
+                    <div class="channel-desc">O relatório deve ser enviado diretamente ao Mib por mensagem no canal oficial da equipe.</div>
+                    <div class="channel-dest">Slack → #reports-diarios ou WhatsApp → Grupo Gestão MIGMA</div>
+                </div>
+            </div>
+            <div class="bi-subsection-sm">
+                <h3 class="bi-section-heading text-center">Fluxo da Manhã do Gestor</h3>
+                <p class="bi-section-sub text-center">Tempo estimado total: ~48 minutos (inclui registro na planilha BI)</p>
+                <div class="process-flow">
+                    <div class="process-step" id="pf-clickup"><div class="process-icon-wrap"><i class="ph ph-check-square icon-clickup"></i></div><div class="process-name">ClickUp</div><div class="process-time">~10 min</div></div>
+                    <div class="process-connector" aria-hidden="true"></div>
+                    <div class="process-step" id="pf-calendly"><div class="process-icon-wrap"><i class="ph ph-calendar-check icon-calendly"></i></div><div class="process-name">Calendly</div><div class="process-time">~10 min</div></div>
+                    <div class="process-connector" aria-hidden="true"></div>
+                    <div class="process-step" id="pf-whatsapp"><div class="process-icon-wrap"><i class="ph ph-whatsapp-logo icon-whatsapp"></i></div><div class="process-name">WhatsApp</div><div class="process-time">~15 min</div></div>
+                    <div class="process-connector" aria-hidden="true"></div>
+                    <div class="process-step" id="pf-montar"><div class="process-icon-wrap"><i class="ph ph-pencil-simple"></i></div><div class="process-name">Montar</div><div class="process-time">~10 min</div></div>
+                    <div class="process-connector" aria-hidden="true"></div>
+                    <div class="process-step" id="pf-enviar"><div class="process-icon-wrap"><i class="ph ph-paper-plane-tilt"></i></div><div class="process-name">Enviar</div><div class="process-time">até 12:00</div></div>
+                    <div class="process-connector" aria-hidden="true"></div>
+                    <div class="process-step" id="pf-bi"><div class="process-icon-wrap"><i class="ph ph-chart-line-up icon-purple"></i></div><div class="process-name">Planilha BI</div><div class="process-time">~3 min</div></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 02 FONTES — color-coded #13 -->
+        <section id="fontes" class="animate">
+            <div class="section-header">
+                <div class="section-label">02 — Fontes de Dados</div>
+                <h2 class="section-title">De onde vêm os dados</h2>
+                <p class="section-desc">Três sistemas alimentam o relatório diário</p>
+            </div>
+            <div class="source-grid">
+                <article class="source-card clickup"><i class="ph ph-check-square source-icon" aria-hidden="true"></i><h3 class="source-title">ClickUp</h3><p class="source-desc">Mede as <strong>tarefas realizadas</strong> ontem. Quantidade, entregas, pendências e retrabalhos.</p><div class="source-time-badge clickup">~10 min</div></article>
+                <article class="source-card calendly"><i class="ph ph-calendar-check source-icon" aria-hidden="true"></i><h3 class="source-title">Calendly</h3><p class="source-desc">Mede as <strong>reuniões realizadas</strong> ontem. Agendadas vs realizadas, no-shows e resultados.</p><div class="source-time-badge calendly">~10 min</div></article>
+                <article class="source-card whatsapp"><i class="ph ph-whatsapp-logo source-icon" aria-hidden="true"></i><h3 class="source-title">WhatsApp Web</h3><p class="source-desc">Mede as <strong>conversas atendidas</strong> ontem. Volume, qualidade e auditoria de 3–5 interações por pessoa.</p><div class="source-time-badge whatsapp">~15 min</div></article>
+            </div>
+
+            <!-- BENCHMARKS #4 -->
+            <div class="bi-subsection">
+                <h3 class="bi-section-heading lg">Benchmarks de Referência</h3>
+                <p class="bi-section-sub lg">Use esses valores para identificar outliers e preencher "Pontos de atenção"</p>
+                <div class="benchmark-grid">
+                    <div class="benchmark-card"><div class="benchmark-icon icon-clickup"><i class="ph ph-check-square"></i></div><div class="benchmark-metric">4–6</div><div class="benchmark-label">Tarefas concluídas / dia (Sales)</div><div class="benchmark-range"><span class="low">&lt; 3 alerta</span><span class="mid">3–4 ok</span><span class="high">&gt; 6 destaque</span></div></div>
+                    <div class="benchmark-card"><div class="benchmark-icon icon-calendly"><i class="ph ph-calendar-check"></i></div><div class="benchmark-metric">2–4</div><div class="benchmark-label">Reuniões realizadas / dia</div><div class="benchmark-range"><span class="low">0 alerta</span><span class="mid">1–2 ok</span><span class="high">&gt; 4 destaque</span></div></div>
+                    <div class="benchmark-card"><div class="benchmark-icon icon-whatsapp"><i class="ph ph-whatsapp-logo"></i></div><div class="benchmark-metric">10–20</div><div class="benchmark-label">Conversas atendidas / dia</div><div class="benchmark-range"><span class="low">&lt; 5 alerta</span><span class="mid">5–10 ok</span><span class="high">&gt; 20 destaque</span></div></div>
+                    <div class="benchmark-card"><div class="benchmark-icon icon-gold"><i class="ph ph-star"></i></div><div class="benchmark-metric">≥ 4.0</div><div class="benchmark-label">Qualidade WhatsApp (/5)</div><div class="benchmark-range"><span class="low">&lt; 3 ação</span><span class="mid">3–4 aceitável</span><span class="high">&gt; 4 excelente</span></div></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 03 ROTINA — #6 step tracker, #13 color-coded -->
+        <section id="rotina" class="animate">
+            <div class="section-header">
+                <div class="section-label">03 — Rotina do Gestor (D-1)</div>
+                <h2 class="section-title">Passo a passo</h2>
+                <p class="section-desc">Execute esses 3 passos toda manhã antes das 12:00</p>
+            </div>
+
+            <!-- STEP TRACKER #6 -->
+            <div class="step-tracker" id="stepTracker">
+                <div class="tracker-dot" id="td1" data-step="1">1</div>
+                <div class="tracker-connector" id="tc1"></div>
+                <div class="tracker-dot" id="td2" data-step="2">2</div>
+                <div class="tracker-connector" id="tc2"></div>
+                <div class="tracker-dot" id="td3" data-step="3">3</div>
+                <div class="tracker-label" id="trackerLabel">Abra cada passo para avançar</div>
+            </div>
+
+            <!-- CLICKUP -->
+            <div class="step-block clickup open" data-step="1">
+                <div class="step-header" onclick="toggleStep(this)" role="button" tabindex="0" aria-expanded="true">
+                    <div class="step-header-left">
+                        <div class="step-number">01</div>
+                        <div>
+                            <div class="step-title">ClickUp — Tarefas Realizadas <span class="step-time-badge clickup"><i class="ph ph-timer"></i> ~10 min</span></div>
+                            <div class="step-subtitle">Medir produção de tarefas do dia anterior</div>
+                        </div>
+                    </div>
+                    <div class="step-toggle" aria-hidden="true">▼</div>
+                </div>
+                <div class="step-content"><div class="step-content-inner">
+                    <p class="step-instruction">Extraia os seguintes dados <strong class="text-gold-200">por pessoa</strong>:</p>
+                    <div class="extract-grid">
+                        <div class="extract-item"><div class="extract-icon"><i class="ph ph-hash"></i></div><div><div class="extract-label">Tarefas concluídas (quantidade)</div><div class="extract-detail">Total de tasks com status Done/Concluída ontem</div></div></div>
+                        <div class="extract-item"><div class="extract-icon"><i class="ph ph-trophy"></i></div><div><div class="extract-label">Top 3 entregas</div><div class="extract-detail">As 3 tarefas mais relevantes finalizadas</div></div></div>
+                        <div class="extract-item"><div class="extract-icon"><i class="ph ph-hourglass"></i></div><div><div class="extract-label">Pendências</div><div class="extract-detail">Tarefas que deveriam ter sido concluídas, mas não foram</div></div></div>
+                        <div class="extract-item"><div class="extract-icon"><i class="ph ph-arrows-clockwise"></i></div><div><div class="extract-label">Retrabalho</div><div class="extract-detail">Tarefas que voltaram após revisão</div></div></div>
+                    </div>
+                    <div class="howto-box clickup"><div class="howto-title clickup">Como Fazer</div><ol class="howto-steps"><li data-step="1.">Abrir ClickUp → Lista/visão do time</li><li data-step="2.">Filtrar Assignee: um vendedor/mentor por vez</li><li data-step="3.">Filtrar Status: Done/Concluída</li><li data-step="4.">Filtrar Completed date: Yesterday (ontem)</li><li data-step="5.">Copiar os dados para o relatório</li></ol></div>
+                </div></div>
+            </div>
+
+            <!-- CALENDLY -->
+            <div class="step-block calendly" data-step="2">
+                <div class="step-header" onclick="toggleStep(this)" role="button" tabindex="0" aria-expanded="false">
+                    <div class="step-header-left">
+                        <div class="step-number">02</div>
+                        <div>
+                            <div class="step-title">Calendly — Reuniões Realizadas <span class="step-time-badge calendly"><i class="ph ph-timer"></i> ~10 min</span></div>
+                            <div class="step-subtitle">Medir agenda e resultados de reuniões</div>
+                        </div>
+                    </div>
+                    <div class="step-toggle" aria-hidden="true">▼</div>
+                </div>
+                <div class="step-content"><div class="step-content-inner">
+                    <p class="step-instruction">Extraia os seguintes dados <strong class="text-gold-200">por pessoa</strong>:</p>
+                    <div class="extract-grid">
+                        <div class="extract-item"><div class="extract-icon"><i class="ph ph-calendar"></i></div><div><div class="extract-label">Agendadas / realizadas</div><div class="extract-detail">Quantas marcadas vs efetivamente aconteceram</div></div></div>
+                        <div class="extract-item"><div class="extract-icon"><i class="ph ph-user-minus"></i></div><div><div class="extract-label">No-show</div><div class="extract-detail">Leads que não compareceram à reunião</div></div></div>
+                        <div class="extract-item"><div class="extract-icon"><i class="ph ph-arrows-clockwise"></i></div><div><div class="extract-label">Remarcadas / canceladas</div><div class="extract-detail">Reuniões adiadas ou canceladas</div></div></div>
+                        <div class="extract-item"><div class="extract-icon"><i class="ph ph-chat-circle-text"></i></div><div><div class="extract-label">Resultado (1 frase)</div><div class="extract-detail">Ex.: avançou proposta / follow-up / sem fit</div></div></div>
+                    </div>
+                    <div class="howto-box calendly"><div class="howto-title calendly">Como Fazer</div><ol class="howto-steps"><li data-step="1.">Abrir Calendly → agenda do dia anterior</li><li data-step="2.">Consolidar eventos por vendedor/mentor</li><li data-step="3.">Registrar resultado de cada reunião (1 frase objetiva)</li></ol></div>
+                </div></div>
+            </div>
+
+            <!-- WHATSAPP -->
+            <div class="step-block whatsapp" data-step="3">
+                <div class="step-header" onclick="toggleStep(this)" role="button" tabindex="0" aria-expanded="false">
+                    <div class="step-header-left">
+                        <div class="step-number">03</div>
+                        <div>
+                            <div class="step-title">WhatsApp — Conversas e Qualidade <span class="step-time-badge whatsapp"><i class="ph ph-timer"></i> ~15 min</span></div>
+                            <div class="step-subtitle">Medir volume e auditar atendimento</div>
+                        </div>
+                    </div>
+                    <div class="step-toggle" aria-hidden="true">▼</div>
+                </div>
+                <div class="step-content"><div class="step-content-inner">
+                    <p class="step-instruction"><strong class="text-gold-200">Quantidade</strong> — por pessoa:</p>
+                    <div class="extract-grid">
+                        <div class="extract-item"><div class="extract-icon"><i class="ph ph-chat-dots"></i></div><div><div class="extract-label">Conversas atendidas ontem</div><div class="extract-detail">Número informado pelo vendedor/mentor e/ou validado pelo gestor</div></div></div>
+                    </div>
+                    <p class="step-instruction gap"><strong class="text-gold-200">Qualidade</strong> — amostragem (3–5 conversas por pessoa):</p>
+                    <div class="quality-grid">
+                        <div class="quality-item"><div class="quality-check">✓</div>Tempo de 1ª resposta</div>
+                        <div class="quality-item"><div class="quality-check">✓</div>Clareza e objetividade</div>
+                        <div class="quality-item"><div class="quality-check">✓</div>Próximo passo (com prazo)</div>
+                        <div class="quality-item"><div class="quality-check">✓</div>Linguagem profissional</div>
+                        <div class="quality-item"><div class="quality-check">✓</div>Fechamento / encaminhamento</div>
+                    </div>
+                    <div class="rubric-section">
+                        <div class="rubric-title"><i class="ph ph-star icon-gold"></i> Rubrica de Pontuação</div>
+                        <table class="rubric-table" aria-label="Rubrica de pontuação de qualidade do WhatsApp">
+                            <caption class="sr-only">Critérios de avaliação: tempo de resposta, clareza, próximo passo, linguagem e fechamento</caption>
+                            <thead><tr><th>Critério</th><th>5 (Excelente)</th><th>3 (Aceitável)</th><th>1 (Crítico)</th></tr></thead>
+                            <tbody>
+                                <tr><td>Tempo de 1ª resposta</td><td><span class="rubric-score good">≤ 5 min</span></td><td><span class="rubric-score ok">5–30 min</span></td><td><span class="rubric-score bad">&gt; 30 min</span></td></tr>
+                                <tr><td>Clareza / objetividade</td><td><span class="rubric-score good">Direto + contexto</span></td><td><span class="rubric-score ok">Responde, mas vago</span></td><td><span class="rubric-score bad">Confuso / sem foco</span></td></tr>
+                                <tr><td>Próximo passo definido</td><td><span class="rubric-score good">Ação + data + dono</span></td><td><span class="rubric-score ok">Ação sem prazo</span></td><td><span class="rubric-score bad">Nenhum definido</span></td></tr>
+                                <tr><td>Linguagem profissional</td><td><span class="rubric-score good">Tom MIGMA</span></td><td><span class="rubric-score ok">Informal leve</span></td><td><span class="rubric-score bad">Inapropriado</span></td></tr>
+                                <tr><td>Fechamento</td><td><span class="rubric-score good">Claro + próxima etapa</span></td><td><span class="rubric-score ok">Encerrou sem resumo</span></td><td><span class="rubric-score bad">Conversa aberta</span></td></tr>
+                            </tbody>
+                        </table>
+                        <p class="rubric-note">Média ≥ 4 = excelente | 3–4 = aceitável | &lt; 3 = requer ação corretiva</p>
+                    </div>
+                    <div class="howto-box whatsapp"><div class="howto-title whatsapp">Como Fazer</div><ol class="howto-steps"><li data-step="1.">Coletar total de conversas atendidas por vendedor/mentor</li><li data-step="2.">Escolher 3–5 conversas aleatórias para auditar</li><li data-step="3.">Aplicar a rubrica de pontuação acima</li><li data-step="4.">Calcular média e registrar 1 observação objetiva</li></ol></div>
+                </div></div>
+            </div>
+        </section>
+
+        <!-- 04 EQUIPE -->
+        <section id="equipe" class="animate">
+            <div class="section-header">
+                <div class="section-label">04 — Equipe Monitorada</div>
+                <h2 class="section-title">Quem deve aparecer</h2>
+                <p class="section-desc">Todos devem estar no relatório — sem exceção</p>
+            </div>
+            <div class="team-grid">
+                <article class="team-card"><div class="team-avatar">MR</div><h3 class="team-name">Miria Rozatto</h3><div class="team-role">Vendedora</div><div class="team-service">F1 Initial</div><span class="team-badge sales">Sales</span></article>
+                <article class="team-card"><div class="team-avatar">LC</div><h3 class="team-name">Larissa Costa</h3><div class="team-role">Vendedora</div><div class="team-service">COS e Transfer</div><span class="team-badge sales">Sales</span></article>
+                <article class="team-card"><div class="team-avatar">RP</div><h3 class="team-name">Romulo Pimentel</h3><div class="team-role">Vendedor</div><div class="team-service">Vistos Especiais (EB3, EB2, L-1, O1, E2) · Trabalho Canadá</div><span class="team-badge sales">Sales</span></article>
+                <article class="team-card"><div class="team-avatar">RN</div><h3 class="team-name">Renata Nogueira</h3><div class="team-role">Mentora</div><div class="team-service">F1 Initial · B1/B2 · Canada Turismo</div><span class="team-badge mentorship">Mentorship</span></article>
+                <article class="team-card"><div class="team-avatar">TP</div><h3 class="team-name">Thayrine Prado</h3><div class="team-role">Mentora</div><div class="team-service">COS e Transfer</div><span class="team-badge mentorship">Mentorship</span></article>
+            </div>
+            <div class="alert-box info mt" role="alert">
+                <div class="alert-header"><i class="ph ph-info alert-icon info" aria-hidden="true"></i><h3 class="alert-title info">Vendedor/mentor ausente?</h3></div>
+                <div class="alert-content"><p>Se um vendedor ou mentor esteve ausente (férias, atestado, folga), <strong>ele ainda aparece no relatório</strong> com a anotação "Ausente — [motivo]" em todos os campos. Nunca omita um nome.</p></div>
+            </div>
+        </section>
+
+        <!-- 05 TEMPLATE — #1 checklist, #2 auto-fill, #3 good vs bad, #8 download -->
+        <section id="template" class="animate">
+            <div class="section-header">
+                <div class="section-label">05 — Template do Relatório</div>
+                <h2 class="section-title">Modelo pronto para envio</h2>
+                <p class="section-desc">Copie, preencha e envie ao Mib até 12:00</p>
+            </div>
+            <div class="template-section">
+                <div class="template-header">
+                    <div class="template-header-left">
+                        <div class="template-icon"><i class="ph ph-file-text"></i></div>
+                        <div><div class="template-title-text">Relatório D-1 — Sales & Mentorship</div><div class="template-subtitle">Assunto: Relatório D-1 — Sales & Mentorship — (DD/MM)</div></div>
+                    </div>
+                    <div class="template-actions">
+                        <button type="button" class="action-btn copy" id="copyBtn" onclick="copyTemplate()"><i class="ph ph-copy"></i><span id="copyBtnText">Copiar Template</span></button>
+                        <button type="button" class="action-btn download" onclick="downloadTemplate()"><i class="ph ph-download-simple"></i><span>Baixar .txt</span></button>
+                    </div>
+                </div>
+                <div id="templateContent">
+                    <div class="template-block">
+                        <div class="template-meta-row">
+                            <span><strong class="text-gold-200">Data reportada (ontem):</strong> <span id="tplDateReported">DD/MM</span></span>
+                            <span><strong class="text-gold-200">Enviado em:</strong> <span id="tplDateSent">DD/MM às HH:MM</span></span>
+                        </div>
+                    </div>
+                    <div class="template-block">
+                        <div class="template-block-title"><div class="template-block-num">1</div>Resumo Geral (ontem)</div>
+                        <div class="template-area-block"><p class="template-area-label sales">Sales (Miria / Larissa / Romulo)</p><div class="template-field"><span class="template-field-label">ClickUp (tarefas concluídas)</span><span class="template-field-value"></span></div><div class="template-field"><span class="template-field-label">Calendly (reuniões realizadas)</span><span class="template-field-value"></span></div><div class="template-field"><span class="template-field-label">WhatsApp (conversas atendidas)</span><span class="template-field-value"></span></div></div>
+                        <div class="template-area-block"><p class="template-area-label mentorship">Mentorship (Renata / Thayrine)</p><div class="template-field"><span class="template-field-label">ClickUp (tarefas concluídas)</span><span class="template-field-value"></span></div><div class="template-field"><span class="template-field-label">Calendly (reuniões realizadas)</span><span class="template-field-value"></span></div><div class="template-field"><span class="template-field-label">WhatsApp (conversas atendidas)</span><span class="template-field-value"></span></div></div>
+                        <div class="template-field"><span class="template-field-label">Destaques do dia</span><span class="template-field-value"></span></div>
+                        <div class="template-field"><span class="template-field-label">Pontos de atenção</span><span class="template-field-value"></span></div>
+                    </div>
+                    <div class="template-block">
+                        <div class="template-block-title"><div class="template-block-num">2</div>SALES — Detalhamento (ontem)</div>
+                        <div class="template-person-block"><div class="template-person-name">Miria Rozatto</div><div class="template-person-row"><strong>ClickUp:</strong> concluídas __ | top 3: 1) __ 2) __ 3) __ | pendências: __ | retrabalho: __</div><div class="template-person-row"><strong>Calendly:</strong> agendadas __ | realizadas __ | no-show __ | remarcadas __ | resultado: __</div><div class="template-person-row"><strong>WhatsApp:</strong> conversas __ | qualidade: __/5 | observação: __</div></div>
+                        <div class="template-person-block"><div class="template-person-name">Larissa Costa</div><div class="template-person-row"><strong>ClickUp:</strong> concluídas __ | top 3: 1) __ 2) __ 3) __ | pendências: __ | retrabalho: __</div><div class="template-person-row"><strong>Calendly:</strong> agendadas __ | realizadas __ | no-show __ | remarcadas __ | resultado: __</div><div class="template-person-row"><strong>WhatsApp:</strong> conversas __ | qualidade: __/5 | observação: __</div></div>
+                        <div class="template-person-block"><div class="template-person-name">Romulo Pimentel</div><div class="template-person-row"><strong>ClickUp:</strong> concluídas __ | top 3: 1) __ 2) __ 3) __ | pendências: __ | retrabalho: __</div><div class="template-person-row"><strong>Calendly:</strong> agendadas __ | realizadas __ | no-show __ | remarcadas __ | resultado: __</div><div class="template-person-row"><strong>WhatsApp:</strong> conversas __ | qualidade: __/5 | observação: __</div></div>
+                    </div>
+                    <div class="template-block">
+                        <div class="template-block-title"><div class="template-block-num">3</div>MENTORSHIP — Detalhamento (ontem)</div>
+                        <div class="template-person-block"><div class="template-person-name">Renata Nogueira</div><div class="template-person-row"><strong>ClickUp:</strong> concluídas __ | top 3: 1) __ 2) __ 3) __ | pendências: __ | retrabalho: __</div><div class="template-person-row"><strong>Calendly:</strong> agendadas __ | realizadas __ | no-show __ | remarcadas __ | resultado: __</div><div class="template-person-row"><strong>WhatsApp:</strong> conversas __ | qualidade: __/5 | observação: __</div></div>
+                        <div class="template-person-block"><div class="template-person-name">Thayrine Prado</div><div class="template-person-row"><strong>ClickUp:</strong> concluídas __ | top 3: 1) __ 2) __ 3) __ | pendências: __ | retrabalho: __</div><div class="template-person-row"><strong>Calendly:</strong> agendadas __ | realizadas __ | no-show __ | remarcadas __ | resultado: __</div><div class="template-person-row"><strong>WhatsApp:</strong> conversas __ | qualidade: __/5 | observação: __</div></div>
+                    </div>
+                    <div class="template-block">
+                        <div class="template-block-title"><div class="template-block-num">4</div>Ações do Gestor (hoje)</div>
+                        <div class="template-field"><span class="template-field-label">Ações para Sales</span><span class="template-field-value"></span></div>
+                        <div class="template-field"><span class="template-field-label">Ações para Mentorship</span><span class="template-field-value"></span></div>
+                        <div class="template-field"><span class="template-field-label">Bloqueios / escalonamentos</span><span class="template-field-value"></span></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- CHECKLIST PRÉ-ENVIO #1 -->
+            <div class="checklist-section" id="checklistSection">
+                <div class="checklist-header">
+                    <div class="checklist-title"><i class="ph ph-shield-check"></i> Checklist Pré-Envio</div>
+                    <div class="checklist-counter" id="checklistCounter">0 / 7</div>
+                </div>
+                <div class="checklist-item" onclick="toggleChecklist(this)" role="button" tabindex="0"><div class="checklist-box"></div><div class="checklist-text">Todos os 5 nomes aparecem no relatório (incluindo ausentes)</div></div>
+                <div class="checklist-item" onclick="toggleChecklist(this)" role="button" tabindex="0"><div class="checklist-box"></div><div class="checklist-text">A data reportada está correta (D-1 = ontem, ou sexta se hoje é segunda)</div></div>
+                <div class="checklist-item" onclick="toggleChecklist(this)" role="button" tabindex="0"><div class="checklist-box"></div><div class="checklist-text">Bloco 4 (Ações do Gestor) está preenchido — não está vazio</div></div>
+                <div class="checklist-item" onclick="toggleChecklist(this)" role="button" tabindex="0"><div class="checklist-box"></div><div class="checklist-text">Auditoria de qualidade do WhatsApp realizada (3–5 conversas/pessoa)</div></div>
+                <div class="checklist-item" onclick="toggleChecklist(this)" role="button" tabindex="0"><div class="checklist-box"></div><div class="checklist-text">Cada "Ponto de atenção" tem uma ação correspondente no Bloco 4</div></div>
+                <div class="checklist-item" onclick="toggleChecklist(this)" role="button" tabindex="0"><div class="checklist-box"></div><div class="checklist-text">Dados cruzados entre ClickUp, Calendly e WhatsApp — sem inconsistência</div></div>
+                <div class="checklist-item" onclick="toggleChecklist(this)" role="button" tabindex="0"><div class="checklist-box"></div><div class="checklist-text">Dados registrados na planilha Excel de desempenho (seção BI)</div></div>
+                <div class="checklist-all-done" id="checklistDone"><p><i class="ph ph-check-circle"></i> Tudo certo — pode enviar!</p></div>
+            </div>
+
+            <!-- BOM vs MAU RELATÓRIO #3 -->
+            <div class="bi-subsection text-center">
+                <h3 class="bi-section-heading">Como um bom relatório se parece (vs um ruim)</h3>
+                <p class="bi-section-sub">Aprenda por contraste — compare e absorva o padrão</p>
+            </div>
+            <div class="example-comparison">
+                <div class="example-card good">
+                    <div class="example-label good"><i class="ph ph-check-circle"></i> Relatório Bem Feito</div>
+                    <div class="example-subtitle">Relatório D-1 — Sales & Mentorship — 03/02</div>
+                    <div class="example-field"><span class="example-field-label">Data reportada</span><span class="example-field-value">02/02</span></div>
+                    <div class="example-field"><span class="example-field-label">Enviado em</span><span class="example-field-value">03/02 às 10:45</span></div>
+                    <div class="example-field"><span class="example-field-label">ClickUp (Sales)</span><span class="example-field-value">14 tarefas concluídas</span></div>
+                    <div class="example-field"><span class="example-field-label">Calendly (Sales)</span><span class="example-field-value">7 realizadas / 2 no-show</span></div>
+                    <div class="example-field"><span class="example-field-label">Destaques</span><span class="example-field-value">Miria fechou 2 propostas EB-5; Romulo bateu recorde (4 reuniões)</span></div>
+                    <div class="example-field"><span class="example-field-label">Pontos de atenção</span><span class="example-field-value">Larissa com 2 no-shows seguidos — possível problema de qualificação</span></div>
+                    <div class="example-person-block">
+                        <strong class="example-person-label good">MIRIA ROZATTO</strong>
+                        <div class="example-detail sm"><strong>ClickUp:</strong> 6 concluídas | top 3: 1) Proposta EB-5 cliente Silva 2) Follow-up batch 14 3) CRM | pendências: 0 | retrabalho: 0</div>
+                        <div class="example-detail"><strong>Calendly:</strong> agendadas 3 | realizadas 3 | no-show 0 | resultado: 2 avançaram proposta, 1 follow-up</div>
+                        <div class="example-detail"><strong>WhatsApp:</strong> 18 conversas | qualidade: 4.6/5 | Respostas rápidas e com próximo passo claro</div>
+                    </div>
+                    <div class="example-actions good"><strong>Ações do gestor:</strong> Investigar no-shows da Larissa; Sync com Romulo; Escalar bug SMS</div>
+                </div>
+
+                <div class="example-card bad">
+                    <div class="example-label bad"><i class="ph ph-x-circle"></i> Relatório Mal Feito</div>
+                    <div class="example-subtitle">Relatório D-1 — Sales — 03/02</div>
+                    <div class="example-field"><span class="example-field-label">Data reportada</span><span class="example-field-value">03/02 <span class="example-annotation error">← dia errado (deveria ser 02/02)</span></span></div>
+                    <div class="example-field"><span class="example-field-label">Enviado em</span><span class="example-field-value">03/02 às 14:20 <span class="example-annotation error">← atrasado 2h20</span></span></div>
+                    <div class="example-field"><span class="example-field-label">ClickUp (Sales)</span><span class="example-field-value">Tudo certo <span class="example-annotation error">← vago, sem números</span></span></div>
+                    <div class="example-field"><span class="example-field-label">Calendly</span><span class="example-field-value">Algumas reuniões feitas <span class="example-annotation error">← sem quantificar</span></span></div>
+                    <div class="example-field"><span class="example-field-label">Destaques</span><span class="example-field-value">Nada de especial <span class="example-annotation error">← sempre há algo</span></span></div>
+                    <div class="example-field"><span class="example-field-label">Pontos de atenção</span><span class="example-field-value"><em class="text-gold-600">(vazio)</em> <span class="example-annotation error">← obrigatório</span></span></div>
+                    <div class="example-person-block">
+                        <strong class="example-person-label bad">PROBLEMAS:</strong>
+                        <div class="example-problem sm">• Renata e Thayrine não aparecem <span class="example-annotation error">← omitiu Mentorship inteiro</span></div>
+                        <div class="example-problem">• Sem auditoria de WhatsApp <span class="example-annotation error">← pulou qualidade</span></div>
+                        <div class="example-problem">• Sem Bloco 4 — Ações do Gestor <span class="example-annotation error">← obrigatório</span></div>
+                    </div>
+                    <div class="example-actions bad"><strong>Ações do gestor:</strong> <em>(inexistente)</em></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 06 CENÁRIOS -->
+        <section id="cenarios" class="animate">
+            <div class="section-header">
+                <div class="section-label">06 — Cenários Especiais</div>
+                <h2 class="section-title">E quando não é um dia normal</h2>
+                <p class="section-desc">Protocolo para situações fora da rotina</p>
+            </div>
+            <div class="scenario-grid">
+                <article class="scenario-card"><div class="scenario-emoji">📅</div><h3 class="scenario-title">Segunda-feira (D-1 = sexta)</h3><div class="scenario-desc">O relatório de segunda cobre apenas a sexta. Não inclua sábado/domingo.</div><div class="scenario-action"><strong>Ação:</strong> Envie normalmente até 12:00. Se houve atividade no fim de semana, mencione em "Destaques".</div></article>
+                <article class="scenario-card"><div class="scenario-emoji">🏖️</div><h3 class="scenario-title">Feriado ou recesso</h3><div class="scenario-desc">Se ontem foi feriado e ninguém trabalhou, o relatório ainda é enviado.</div><div class="scenario-action"><strong>Ação:</strong> Envie com a nota "D-1 = feriado — sem operação" e pule para Bloco 4 (ações de hoje).</div></article>
+                <article class="scenario-card"><div class="scenario-emoji">🤒</div><h3 class="scenario-title">Vendedor/mentor ausente</h3><div class="scenario-desc">Férias, atestado ou folga de um membro.</div><div class="scenario-action"><strong>Ação:</strong> Inclua o nome com "Ausente — [motivo]" em todos os campos. Nunca omita.</div></article>
+                <article class="scenario-card"><div class="scenario-emoji">🔧</div><h3 class="scenario-title">Ferramenta fora do ar</h3><div class="scenario-desc">ClickUp, Calendly ou WhatsApp Web indisponível.</div><div class="scenario-action"><strong>Ação:</strong> Use dados parciais + nota "Fonte indisponível: [sistema]". Não atrase o envio por causa disso.</div></article>
+                <article class="scenario-card"><div class="scenario-emoji">📊</div><h3 class="scenario-title">Dados não fornecidos</h3><div class="scenario-desc">Vendedor/mentor não informou o nº de conversas do WhatsApp.</div><div class="scenario-action"><strong>Ação:</strong> Registre "Não informado" + escale no Bloco 4 como bloqueio. Não invente números.</div></article>
+                <article class="scenario-card"><div class="scenario-emoji">⏰</div><h3 class="scenario-title">Gestor atrasado</h3><div class="scenario-desc">Percebeu que não vai conseguir enviar até 12:00.</div><div class="scenario-action"><strong>Ação:</strong> Avise o Mib ANTES das 12:00 com previsão de entrega. Melhor avisar cedo do que entregar tarde em silêncio.</div></article>
+            </div>
+        </section>
+
+        <!-- 07 PROTOCOLO DE ESCALONAMENTO #7 -->
+        <section id="escalation" class="animate">
+            <div class="section-header">
+                <div class="section-label">07 — Protocolo de Escalonamento</div>
+                <h2 class="section-title">Quando e como escalar</h2>
+                <p class="section-desc">Cadeia de ação quando algo sai do controle do gestor</p>
+            </div>
+            <div class="escalation-flow">
+                <div class="escalation-title"><i class="ph ph-warning"></i> Cadeia de Escalonamento</div>
+                <div class="escalation-step">
+                    <div class="escalation-level l1">Nível 1</div>
+                    <div class="escalation-content">
+                        <div class="escalation-trigger">Vendedor/mentor não respondeu após 1 tentativa de contato</div>
+                        <div class="escalation-action">Tente uma 2ª vez por canal diferente (WhatsApp → Slack ou vice-versa). Registre "Não informado" e siga com o relatório.</div>
+                    </div>
+                </div>
+                <div class="escalation-step">
+                    <div class="escalation-level l2">Nível 2</div>
+                    <div class="escalation-content">
+                        <div class="escalation-trigger">Gestor não conseguirá enviar até 12:00 OU sistema fora do ar por &gt; 2h</div>
+                        <div class="escalation-action"><strong>Mensagem direta ao Mib</strong> antes do deadline com: motivo, ETA de entrega, e dados parciais já coletados.</div>
+                    </div>
+                </div>
+                <div class="escalation-step">
+                    <div class="escalation-level l3">Nível 3</div>
+                    <div class="escalation-content">
+                        <div class="escalation-trigger">Vendedor/mentor não fornece dados por 2+ dias consecutivos OU padrão recorrente de dados incompletos</div>
+                        <div class="escalation-action"><strong>E-mail ao Mib + mensagem direta</strong> com: nome do vendedor/mentor, histórico do problema, evidências (prints/logs), e sugestão de ação.</div>
+                    </div>
+                </div>
+            </div>
+            <div class="alert-box warning mt-sm" role="alert">
+                <div class="alert-header"><i class="ph ph-info alert-icon warning" aria-hidden="true"></i><h3 class="alert-title warning">Regra de ouro</h3></div>
+                <div class="alert-content"><p><strong>Nunca atrase o relatório inteiro por causa de uma pessoa ou sistema.</strong> Envie o que tem, registre o que falta, e escale o que precisa. Relatório parcial no prazo &gt; relatório completo atrasado.</p></div>
+            </div>
+        </section>
+
+        <!-- 08 REGRAS — #5 glossary -->
+        <section id="regras" class="animate">
+            <div class="section-header">
+                <div class="section-label">08 — Regras e Boas Práticas</div>
+                <h2 class="section-title">Para não errar</h2>
+                <p class="section-desc">O que respeitar e como se destacar</p>
+            </div>
+            <div class="golden-rules">
+                <h3 class="golden-rules-title">4 Pilares do Relatório D-1</h3>
+                <p class="golden-rules-desc">Cada relatório deve conter esses elementos</p>
+                <div class="rules-grid">
+                    <div class="rule"><div class="rule-num">1</div><div class="rule-title">Visão Geral</div><div class="rule-desc">Resumo consolidado</div></div>
+                    <div class="rule"><div class="rule-num">2</div><div class="rule-title">Por Pessoa</div><div class="rule-desc">Detalhamento individual</div></div>
+                    <div class="rule"><div class="rule-num">3</div><div class="rule-title">Destaques</div><div class="rule-desc">Conquistas + alertas</div></div>
+                    <div class="rule"><div class="rule-num">4</div><div class="rule-title">Ações</div><div class="rule-desc">O que o gestor fará hoje</div></div>
+                </div>
+            </div>
+            <div class="alert-box warning" role="alert">
+                <div class="alert-header"><i class="ph ph-info alert-icon warning" aria-hidden="true"></i><h3 class="alert-title warning">Lembrete</h3></div>
+                <div class="alert-content"><p>O relatório é sobre <strong>D-1</strong> (ontem), não sobre hoje. A seção "Ações do Gestor" é a única que olha para frente. Sempre <strong>valide os dados cruzando as 3 fontes</strong> antes de enviar. Se destaques e ações não se conectam, o relatório perde utilidade.</p></div>
+            </div>
+            <div class="flags-section">
+                <div class="flags-header"><div class="flags-icon danger"><i class="ph ph-warning" aria-hidden="true"></i></div><div><h3 class="flags-title danger">O Que Nunca Fazer</h3><p class="flags-subtitle">Estes erros comprometem o relatório</p></div></div>
+                <div class="flags-grid">
+                    <article class="flag-item danger"><h4>Enviar após 12:00</h4><p>Deadline inegociável</p></article>
+                    <article class="flag-item danger"><h4>Omitir vendedor/mentor</h4><p>Todos aparecem — mesmo ausentes</p></article>
+                    <article class="flag-item danger"><h4>Números sem validar</h4><p>Dados errados = decisões erradas</p></article>
+                    <article class="flag-item danger"><h4>Pular auditoria WhatsApp</h4><p>Qualidade ≠ opcional</p></article>
+                    <article class="flag-item danger"><h4>Inventar dados</h4><p>"Não informado" > número falso</p></article>
+                    <article class="flag-item danger"><h4>Relatório sem Bloco 4</h4><p>Ações do gestor = obrigatório</p></article>
+                </div>
+            </div>
+            <div class="flags-section">
+                <div class="flags-header"><div class="flags-icon success"><i class="ph ph-rocket-launch" aria-hidden="true"></i></div><div><h3 class="flags-title success">Boas Práticas</h3><p class="flags-subtitle">Como elevar a qualidade</p></div></div>
+                <div class="wins-list">
+                    <article class="win-item"><div class="win-num">1</div><div class="win-content"><h4>Comece pelo ClickUp logo cedo</h4><p>Fonte mais rápida — libera tempo para WhatsApp</p></div></article>
+                    <article class="win-item"><div class="win-num">2</div><div class="win-content"><h4>Use a rubrica de pontuação</h4><p>Notas consistentes dão base para feedback objetivo</p></div></article>
+                    <article class="win-item"><div class="win-num">3</div><div class="win-content"><h4>Varie a amostra do WhatsApp</h4><p>Não audite as mesmas conversas — mude o padrão diariamente</p></div></article>
+                    <article class="win-item"><div class="win-num">4</div><div class="win-content"><h4>Conecte destaques com ações</h4><p>Cada ponto de atenção deve ter uma ação correspondente no Bloco 4</p></div></article>
+                    <article class="win-item"><div class="win-num">5</div><div class="win-content"><h4>Use os benchmarks como régua</h4><p>Referência de tarefas, reuniões e qualidade na seção Fontes</p></div></article>
+                    <article class="win-item"><div class="win-num">6</div><div class="win-content"><h4>Envie 30 min antes do deadline</h4><p>Margem para revisão e correções de última hora</p></div></article>
+                    <article class="win-item"><div class="win-num">7</div><div class="win-content"><h4>Registre na planilha imediatamente</h4><p>Após enviar o D-1, copie os dados para a planilha Excel (seção 09 — BI). Leva ~3 min e alimenta todo o dashboard</p></div></article>
+                </div>
+            </div>
+
+            <!-- GLOSSÁRIO #5 -->
+            <div class="glossary-section">
+                <div class="glossary-title"><i class="ph ph-book-open-text icon-gold"></i> Glossário de Termos</div>
+                <div class="glossary-grid">
+                    <div class="glossary-item"><div class="glossary-term">D-1</div><div class="glossary-def">O dia anterior ao envio do relatório. Se hoje é terça, D-1 = segunda.</div></div>
+                    <div class="glossary-item"><div class="glossary-term">No-show</div><div class="glossary-def">Quando o lead não comparece à reunião agendada, sem cancelamento prévio.</div></div>
+                    <div class="glossary-item"><div class="glossary-term">Retrabalho</div><div class="glossary-def">Tarefa que voltou ao status anterior após ter sido concluída (revisão / correção).</div></div>
+                    <div class="glossary-item"><div class="glossary-term">Amostragem</div><div class="glossary-def">Seleção aleatória de 3–5 conversas por pessoa para auditoria de qualidade.</div></div>
+                    <div class="glossary-item"><div class="glossary-term">Escalonamento</div><div class="glossary-def">Elevar um problema ao Mib quando está fora do controle do gestor.</div></div>
+                    <div class="glossary-item"><div class="glossary-term">Bloco 4</div><div class="glossary-def">Seção "Ações do Gestor" do relatório — ações que o gestor fará hoje com base nos dados.</div></div>
+                    <div class="glossary-item"><div class="glossary-term">Pipeline</div><div class="glossary-def">Sequência de etapas que um lead percorre: do primeiro contato até virar cliente.</div></div>
+                    <div class="glossary-item"><div class="glossary-term">Mib</div><div class="glossary-def">O destinatário do relatório — liderança que usa os dados para decisões estratégicas.</div></div>
+                    <div class="glossary-item"><div class="glossary-term">BI (Business Intelligence)</div><div class="glossary-def">Dashboard visual que agrega dados da planilha Excel em gráficos e KPIs por período.</div></div>
+                    <div class="glossary-item"><div class="glossary-term">Score Composto</div><div class="glossary-def">Índice ponderado que combina tarefas, reuniões, qualidade, retrabalho e no-show em um único número.</div></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 09 PLANILHA DE DESEMPENHO & BI -->
+        <section id="bi" class="animate">
+            <div class="section-header">
+                <div class="section-label">09 — Planilha de Desempenho & BI</div>
+                <h2 class="section-title">Do relatório ao dashboard</h2>
+                <p class="section-desc">A planilha Excel que transforma relatórios diários em inteligência de gestão</p>
+            </div>
+
+            <!-- Por quê -->
+            <div class="alert-box info" role="alert">
+                <div class="alert-header"><i class="ph ph-lightbulb alert-icon info" aria-hidden="true"></i><h3 class="alert-title info">Por que manter uma planilha?</h3></div>
+                <div class="alert-content"><p>O relatório D-1 é uma <strong>foto do dia</strong>. A planilha é o <strong>filme</strong>. Sem ela, você compara desempenho de memória. Com ela, você enxerga tendências, identifica padrões e apresenta dados concretos ao Mib — semanal, mensal e trimestralmente.</p></div>
+            </div>
+
+            <!-- Fluxo: D-1 → Excel → BI -->
+            <div class="bi-center-block">
+                <h3 class="bi-section-heading">Fluxo de Dados</h3>
+                <p class="bi-section-sub">De relatório diário a dashboard estratégico</p>
+            </div>
+            <div class="bi-flow">
+                <div class="bi-flow-step"><div class="bi-flow-icon daily"><i class="ph ph-file-text"></i></div><div class="bi-flow-name">Relatório D-1</div><div class="bi-flow-desc">Enviado todo dia</div></div>
+                <div class="bi-flow-connector" aria-hidden="true"></div>
+                <div class="bi-flow-step"><div class="bi-flow-icon excel"><i class="ph ph-microsoft-excel-logo"></i></div><div class="bi-flow-name">Planilha Excel</div><div class="bi-flow-desc">Gestor registra os dados</div></div>
+                <div class="bi-flow-connector" aria-hidden="true"></div>
+                <div class="bi-flow-step"><div class="bi-flow-icon bi"><i class="ph ph-chart-line-up"></i></div><div class="bi-flow-name">Dashboard BI</div><div class="bi-flow-desc">Visão semanal / mensal / trimestral</div></div>
+            </div>
+
+            <!-- Regra -->
+            <div class="bi-rule-box">
+                <p class="bi-rule-text"><strong class="text-success">Regra:</strong> Após enviar o D-1 ao Mib, o gestor deve <strong>imediatamente</strong> registrar os mesmos dados na planilha Excel. Isso leva <strong>~3 minutos</strong> e alimenta todo o BI.</p>
+            </div>
+
+            <!-- Estrutura da Planilha: 4 Abas -->
+            <div class="bi-subsection">
+                <h3 class="bi-section-heading lg">Estrutura da Planilha — 4 Abas</h3>
+                <p class="bi-section-sub lg">Cada aba tem uma função e cadência diferentes</p>
+            </div>
+            <div class="bi-tab-grid">
+                <!-- ABA 1: DIÁRIO -->
+                <div class="bi-tab-card tab-daily">
+                    <div class="bi-tab-icon"><i class="ph ph-calendar-blank"></i></div>
+                    <div class="bi-tab-name">Aba: Diário</div>
+                    <div class="bi-tab-cadence">Preenchida todo dia útil</div>
+                    <div class="bi-tab-desc">Registro cru dos dados do D-1. Uma linha por vendedor/mentor por dia. É a base de tudo.</div>
+                    <ul class="bi-col-list">
+                        <li><strong>Data</strong> — data reportada (D-1)</li>
+                        <li><strong>Nome</strong> — vendedor ou mentor</li>
+                        <li><strong>Serviço</strong> — F1, COS, EB3, etc.</li>
+                        <li><strong>Área</strong> — Sales ou Mentorship</li>
+                        <li><strong>ClickUp: Concluídas</strong></li>
+                        <li><strong>ClickUp: Pendências</strong></li>
+                        <li><strong>ClickUp: Retrabalho</strong></li>
+                        <li><strong>Calendly: Agendadas</strong></li>
+                        <li><strong>Calendly: Realizadas</strong></li>
+                        <li><strong>Calendly: No-show</strong></li>
+                        <li><strong>WhatsApp: Conversas</strong></li>
+                        <li><strong>WhatsApp: Qualidade (/5)</strong></li>
+                        <li><strong>Observações</strong> — notas livres</li>
+                    </ul>
+                </div>
+
+                <!-- ABA 2: SEMANAL -->
+                <div class="bi-tab-card tab-weekly">
+                    <div class="bi-tab-icon"><i class="ph ph-calendar-dots"></i></div>
+                    <div class="bi-tab-name">Aba: Semanal</div>
+                    <div class="bi-tab-cadence">Gerada automática (fórmulas)</div>
+                    <div class="bi-tab-desc">Consolida a aba Diário por semana. Mostra média diária e totais da semana por pessoa.</div>
+                    <ul class="bi-col-list">
+                        <li><strong>Semana</strong> — ex.: Sem 05/2026</li>
+                        <li><strong>Nome</strong></li>
+                        <li><strong>Tarefas: Total / Média/dia</strong></li>
+                        <li><strong>Reuniões: Total / Taxa no-show %</strong></li>
+                        <li><strong>Conversas: Total / Média/dia</strong></li>
+                        <li><strong>Qualidade: Média da semana</strong></li>
+                        <li><strong>Pendências acumuladas</strong></li>
+                        <li><strong>Tendência</strong> — ↑ ↓ → vs semana anterior</li>
+                    </ul>
+                </div>
+
+                <!-- ABA 3: MENSAL -->
+                <div class="bi-tab-card tab-monthly">
+                    <div class="bi-tab-icon"><i class="ph ph-calendar"></i></div>
+                    <div class="bi-tab-name">Aba: Mensal</div>
+                    <div class="bi-tab-cadence">Gerada automática (fórmulas)</div>
+                    <div class="bi-tab-desc">Consolida por mês. Ideal para reuniões mensais de performance com o Mib e feedback individual.</div>
+                    <ul class="bi-col-list">
+                        <li><strong>Mês</strong> — ex.: Fev/2026</li>
+                        <li><strong>Nome</strong></li>
+                        <li><strong>Tarefas: Total / Média/dia</strong></li>
+                        <li><strong>Reuniões: Total / Taxa no-show %</strong></li>
+                        <li><strong>Conversas: Total / Média/dia</strong></li>
+                        <li><strong>Qualidade: Média do mês</strong></li>
+                        <li><strong>Retrabalho: Total / % sobre tarefas</strong></li>
+                        <li><strong>Ranking</strong> — posição na equipe</li>
+                        <li><strong>Score geral</strong> — ponderado</li>
+                    </ul>
+                </div>
+
+                <!-- ABA 4: TRIMESTRAL -->
+                <div class="bi-tab-card tab-quarterly">
+                    <div class="bi-tab-icon"><i class="ph ph-chart-bar"></i></div>
+                    <div class="bi-tab-name">Aba: Trimestral</div>
+                    <div class="bi-tab-cadence">Gerada automática (fórmulas)</div>
+                    <div class="bi-tab-desc">Visão macro para planejamento estratégico. Alimenta decisões de contratação, realocação e metas do próximo trimestre.</div>
+                    <ul class="bi-col-list">
+                        <li><strong>Trimestre</strong> — ex.: Q1 2026</li>
+                        <li><strong>Métricas consolidadas por área</strong></li>
+                        <li><strong>Evolução de qualidade (Q vs Q)</strong></li>
+                        <li><strong>Taxa de no-show trimestral</strong></li>
+                        <li><strong>Retrabalho trimestral</strong></li>
+                        <li><strong>Top performers</strong></li>
+                        <li><strong>Áreas de risco identificadas</strong></li>
+                        <li><strong>Metas atingidas vs definidas</strong></li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Exemplo Visual da Planilha Diária -->
+            <div class="bi-subsection">
+                <h3 class="bi-section-heading">Exemplo — Aba Diário (5 linhas)</h3>
+                <p class="bi-section-sub">É isso que o gestor preenche diariamente após enviar o D-1</p>
+            </div>
+            <div class="bi-spreadsheet">
+                <table aria-label="Exemplo de preenchimento da aba Diário da planilha de desempenho">
+                    <caption class="sr-only">Dados de exemplo: 5 membros da equipe em 03/02</caption>
+                    <thead>
+                        <tr>
+                            <th>Data</th><th>Nome</th><th>Serviço</th><th>Área</th>
+                            <th class="th-clickup">CU: Concl.</th><th class="th-clickup">CU: Pend.</th><th class="th-clickup">CU: Retrab.</th>
+                            <th class="th-calendly">Cal: Agend.</th><th class="th-calendly">Cal: Real.</th><th class="th-calendly">Cal: No-show</th>
+                            <th class="th-whatsapp">WA: Conv.</th><th class="th-whatsapp">WA: Qual.</th>
+                            <th>Obs.</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr><td class="col-date">03/02</td><td class="col-name">Miria</td><td class="col-service">F1 Initial</td><td>Sales</td><td class="col-num">6</td><td class="col-num">0</td><td class="col-num">0</td><td class="col-num">3</td><td class="col-num">3</td><td class="col-num">0</td><td class="col-num">18</td><td class="col-quality good">4.6</td><td class="col-obs">2 propostas EB-5</td></tr>
+                        <tr><td class="col-date">03/02</td><td class="col-name">Larissa</td><td class="col-service">COS e Transfer</td><td>Sales</td><td class="col-num">4</td><td class="col-num">1</td><td class="col-num">0</td><td class="col-num">3</td><td class="col-num">1</td><td class="col-num">2</td><td class="col-num">12</td><td class="col-quality ok">3.4</td><td class="col-obs">2 no-shows seguidos</td></tr>
+                        <tr><td class="col-date">03/02</td><td class="col-name">Romulo</td><td class="col-service">Vistos Esp.</td><td>Sales</td><td class="col-num">5</td><td class="col-num">0</td><td class="col-num">1</td><td class="col-num">4</td><td class="col-num">4</td><td class="col-num">0</td><td class="col-num">15</td><td class="col-quality good">4.2</td><td class="col-obs">Recorde reuniões</td></tr>
+                        <tr><td class="col-date">03/02</td><td class="col-name">Renata</td><td class="col-service">F1 / B1/B2</td><td>Mentorship</td><td class="col-num">3</td><td class="col-num">0</td><td class="col-num">0</td><td class="col-num">2</td><td class="col-num">2</td><td class="col-num">0</td><td class="col-num">22</td><td class="col-quality good">4.8</td><td class="col-obs">—</td></tr>
+                        <tr><td class="col-date">03/02</td><td class="col-name">Thayrine</td><td class="col-service">COS e Transfer</td><td>Mentorship</td><td class="col-num">4</td><td class="col-num">1</td><td class="col-num">0</td><td class="col-num">1</td><td class="col-num">1</td><td class="col-num">0</td><td class="col-num">14</td><td class="col-quality ok">3.8</td><td class="col-obs">Pendência CRM</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- KPIs que o BI deve exibir -->
+            <div class="bi-subsection">
+                <h3 class="bi-section-heading">KPIs que o Dashboard BI deve exibir</h3>
+                <p class="bi-section-sub">Configure esses indicadores no seu dashboard — eles respondem as perguntas que o Mib faz</p>
+            </div>
+            <div class="bi-kpi-grid">
+                <div class="bi-kpi"><div class="bi-kpi-value kpi-clickup">Σ Tarefas</div><div class="bi-kpi-label">Total de tarefas concluídas</div><div class="bi-kpi-sub">Por pessoa · Por área · Por período</div></div>
+                <div class="bi-kpi"><div class="bi-kpi-value kpi-calendly">% No-show</div><div class="bi-kpi-label">Taxa de no-show (Calendly)</div><div class="bi-kpi-sub">No-shows ÷ Agendadas × 100</div></div>
+                <div class="bi-kpi"><div class="bi-kpi-value kpi-whatsapp">x̄ Qualidade</div><div class="bi-kpi-label">Média de qualidade WhatsApp</div><div class="bi-kpi-sub">Média ponderada da equipe (/5)</div></div>
+                <div class="bi-kpi"><div class="bi-kpi-value kpi-danger">% Retrabalho</div><div class="bi-kpi-label">Taxa de retrabalho</div><div class="bi-kpi-sub">Retrabalho ÷ Concluídas × 100</div></div>
+                <div class="bi-kpi"><div class="bi-kpi-value kpi-warning">Σ Conversas</div><div class="bi-kpi-label">Volume de conversas WhatsApp</div><div class="bi-kpi-sub">Total e média/dia por pessoa</div></div>
+                <div class="bi-kpi"><div class="bi-kpi-value kpi-success">Score</div><div class="bi-kpi-label">Score geral do vendedor/mentor</div><div class="bi-kpi-sub">Índice composto ponderado</div></div>
+            </div>
+
+            <!-- Fórmula do Score -->
+            <div class="bi-formula-box">
+                <h3 class="bi-formula-title"><i class="ph ph-function icon-gold"></i> Sugestão de Score Composto</h3>
+                <div class="bi-formula-code">
+                    <strong class="text-gold-400">Score</strong> = (<span class="text-clickup">Tarefas</span> × 0.25) + (<span class="text-calendly">Reuniões realizadas</span> × 0.25) + (<span class="text-whatsapp">Qualidade WA</span> × 0.30) + (<span class="text-warning">1 − Taxa retrabalho</span> × 0.10) + (<span class="text-success">1 − Taxa no-show</span> × 0.10)
+                </div>
+                <p class="bi-formula-note">Os pesos podem ser ajustados com o Mib conforme a estratégia do momento. Os valores acima são sugestão inicial.</p>
+            </div>
+
+            <!-- Ferramentas de BI -->
+            <div class="bi-subsection-sm">
+                <h3 class="bi-section-heading">Ferramentas de BI recomendadas</h3>
+                <p class="bi-section-sub">Conecte sua planilha Excel a uma dessas ferramentas para gerar dashboards visuais</p>
+            </div>
+            <div class="bi-tool-grid">
+                <div class="bi-tool"><div class="bi-tool-icon"><i class="ph ph-chart-pie-slice"></i></div><div class="bi-tool-name">Power BI</div><div class="bi-tool-desc">Conexão direta com Excel. Ideal para empresas que usam Microsoft 365.</div></div>
+                <div class="bi-tool"><div class="bi-tool-icon"><i class="ph ph-google-logo"></i></div><div class="bi-tool-name">Looker Studio</div><div class="bi-tool-desc">Gratuito. Conecta com Google Sheets (salve o Excel como Sheets).</div></div>
+                <div class="bi-tool"><div class="bi-tool-icon"><i class="ph ph-table"></i></div><div class="bi-tool-name">Notion + Charts</div><div class="bi-tool-desc">Se a equipe já usa Notion, databases com fórmulas e gráficos inline.</div></div>
+                <div class="bi-tool"><div class="bi-tool-icon"><i class="ph ph-chart-line-up"></i></div><div class="bi-tool-name">Excel Dinâmico</div><div class="bi-tool-desc">Tabela Dinâmica + Gráficos no próprio Excel. Mais simples, sem ferramenta extra.</div></div>
+            </div>
+
+            <!-- Cadência de Revisão -->
+            <div class="bi-subsection">
+                <h3 class="bi-section-heading">Cadência de Revisão</h3>
+                <p class="bi-section-sub">Quando olhar para cada nível de dados</p>
+            </div>
+            <div class="scenario-grid">
+                <article class="scenario-card"><div class="scenario-emoji">📅</div><h3 class="scenario-title">Diário</h3><div class="scenario-desc">Preencher a planilha logo após enviar o D-1 ao Mib. Leva ~3 minutos.</div><div class="scenario-action"><strong>Quem:</strong> O gestor de pipeline, todo dia útil.</div></article>
+                <article class="scenario-card"><div class="scenario-emoji">📊</div><h3 class="scenario-title">Semanal (sexta-feira)</h3><div class="scenario-desc">Revisar a aba Semanal. Identificar quem subiu, quem caiu, quem teve padrão de no-show.</div><div class="scenario-action"><strong>Ação:</strong> Enviar resumo semanal ao Mib com top 3 destaques + 3 alertas. Usar gráficos do BI.</div></article>
+                <article class="scenario-card"><div class="scenario-emoji">🗓️</div><h3 class="scenario-title">Mensal (último dia útil)</h3><div class="scenario-desc">Apresentar a aba Mensal ao Mib. Base para feedback individual com cada vendedor/mentor.</div><div class="scenario-action"><strong>Ação:</strong> Gerar report mensal do BI. Comparar metas vs realizado. Propor ajustes de alocação.</div></article>
+                <article class="scenario-card"><div class="scenario-emoji">🎯</div><h3 class="scenario-title">Trimestral</h3><div class="scenario-desc">Visão macro para planejamento. Serve como base para revisar metas, contratar, realocar ou treinar.</div><div class="scenario-action"><strong>Ação:</strong> Reunião estratégica com Mib. Dashboard trimestral completo: evolução, rankings, projeções.</div></article>
+            </div>
+
+            <div class="alert-box warning mt" role="alert">
+                <div class="alert-header"><i class="ph ph-warning alert-icon warning" aria-hidden="true"></i><h3 class="alert-title warning">Não invente dados retroativos</h3></div>
+                <div class="alert-content"><p>Se esqueceu de preencher a planilha em um dia, marque a linha como <strong>"Dado não registrado"</strong>. Nunca preencha de memória depois — dados incorretos no BI são piores do que dados faltantes. Consistência > completude.</p></div>
+            </div>
+        </section>
+
+        <!-- 10 FAQ -->
+        <section id="faq" class="animate">
+            <div class="section-header">
+                <div class="section-label">10 — FAQ</div>
+                <h2 class="section-title">Perguntas frequentes</h2>
+                <p class="section-desc">Dúvidas comuns sobre o relatório D-1</p>
+            </div>
+            <div class="faq-list">
+                <article class="faq-item"><div class="faq-question" onclick="toggleFaq(this)" role="button" tabindex="0" aria-expanded="false"><h4>Posso enviar o relatório antes das 12:00?</h4><span class="faq-toggle">▼</span></div><div class="faq-answer"><div class="faq-answer-content">Sim, e é incentivado. O ideal é enviar entre 10:00 e 11:30 para ter margem de correção. O deadline de 12:00 é o limite máximo, não o horário ideal.</div></div></article>
+                <article class="faq-item"><div class="faq-question" onclick="toggleFaq(this)" role="button" tabindex="0" aria-expanded="false"><h4>Se ninguém teve reunião ontem, omito o Calendly?</h4><span class="faq-toggle">▼</span></div><div class="faq-answer"><div class="faq-answer-content">Não. Registre "Nenhuma reunião agendada" — a ausência de dado também é informação. O Mib precisa saber que você conferiu, não que esqueceu.</div></div></article>
+                <article class="faq-item"><div class="faq-question" onclick="toggleFaq(this)" role="button" tabindex="0" aria-expanded="false"><h4>Quantas conversas auditar no WhatsApp?</h4><span class="faq-toggle">▼</span></div><div class="faq-answer"><div class="faq-answer-content">De 3 a 5 por pessoa. Se um vendedor/mentor atendeu poucas conversas (menos de 5), audite todas. Use a rubrica de pontuação para padronizar a avaliação.</div></div></article>
+                <article class="faq-item"><div class="faq-question" onclick="toggleFaq(this)" role="button" tabindex="0" aria-expanded="false"><h4>O vendedor/mentor não me informou os dados. E agora?</h4><span class="faq-toggle">▼</span></div><div class="faq-answer"><div class="faq-answer-content">Registre "Não informado" no campo correspondente e inclua isso como bloqueio no Bloco 4. Siga o Protocolo de Escalonamento (seção 07). Nunca atrase o relatório inteiro esperando dados de uma pessoa.</div></div></article>
+                <article class="faq-item"><div class="faq-question" onclick="toggleFaq(this)" role="button" tabindex="0" aria-expanded="false"><h4>Preciso fazer o relatório aos sábados e domingos?</h4><span class="faq-toggle">▼</span></div><div class="faq-answer"><div class="faq-answer-content">Não. O relatório é de dias úteis. Na segunda-feira, o D-1 é a sexta-feira anterior. Se houve operação no fim de semana, mencione em "Destaques".</div></div></article>
+                <article class="faq-item"><div class="faq-question" onclick="toggleFaq(this)" role="button" tabindex="0" aria-expanded="false"><h4>O que o Mib faz com o relatório?</h4><span class="faq-toggle">▼</span></div><div class="faq-answer"><div class="faq-answer-content">O Mib usa o D-1 para: identificar gargalos operacionais, tomar decisões sobre alocação de equipe, detectar tendências de performance e antecipar problemas antes que se tornem crises. Relatórios completos e no prazo aceleram esse ciclo.</div></div></article>
+                <article class="faq-item"><div class="faq-question" onclick="toggleFaq(this)" role="button" tabindex="0" aria-expanded="false"><h4>Como sei se um número está "bom" ou "ruim"?</h4><span class="faq-toggle">▼</span></div><div class="faq-answer"><div class="faq-answer-content">Use os Benchmarks de Referência na seção 02 (Fontes). Eles definem faixas para tarefas, reuniões, conversas e qualidade. Valores abaixo do mínimo devem ir para "Pontos de atenção"; acima do máximo, para "Destaques".</div></div></article>
+                <article class="faq-item"><div class="faq-question" onclick="toggleFaq(this)" role="button" tabindex="0" aria-expanded="false"><h4>Quanto tempo demora para preencher a planilha Excel?</h4><span class="faq-toggle">▼</span></div><div class="faq-answer"><div class="faq-answer-content">Cerca de 3 minutos. Os dados já estão prontos no relatório D-1 que você acabou de enviar — é apenas copiar os números para a planilha. A aba Diário tem 13 colunas por pessoa, então são ~65 células/dia (5 pessoas × 13 campos). Com prática, vira automático.</div></div></article>
+                <article class="faq-item"><div class="faq-question" onclick="toggleFaq(this)" role="button" tabindex="0" aria-expanded="false"><h4>As abas Semanal/Mensal/Trimestral são manuais?</h4><span class="faq-toggle">▼</span></div><div class="faq-answer"><div class="faq-answer-content">Não. Elas são geradas automaticamente por fórmulas do Excel (SOMASES, MÉDIASES, tabelas dinâmicas). Você só preenche a aba Diário — o restante se calcula sozinho. Se usar Power BI ou Looker Studio, os dashboards também atualizam automaticamente.</div></div></article>
+                <article class="faq-item"><div class="faq-question" onclick="toggleFaq(this)" role="button" tabindex="0" aria-expanded="false"><h4>Preciso de Power BI para começar?</h4><span class="faq-toggle">▼</span></div><div class="faq-answer"><div class="faq-answer-content">Não. Comece com Excel puro — tabelas dinâmicas e gráficos já entregam 80% do valor. Quando o volume de dados justificar, migre para Power BI, Looker Studio ou outra ferramenta. O importante é começar a registrar os dados hoje.</div></div></article>
+            </div>
+        </section>
+
+    </main>
+
+    <footer>
+        <div class="footer-message">
+            <h3>O relatório é o espelho da operação.</h3>
+            <p>Quando o gestor reporta bem, o Mib decide melhor. Quando o Mib decide melhor, a equipe performa melhor. Quando a equipe performa, a MIGMA cresce.</p>
+        </div>
+        <div class="footer-logo">MIGMA INC</div>
+        <div class="footer-version">Manual do Gestor — Monitoramento Diário v7.0 — Fevereiro 2026</div>
+
+        <!-- CHANGELOG #10 -->
+        <div class="changelog changelog-footer" id="changelog">
+            <div class="changelog-header" onclick="toggleChangelog()" role="button" tabindex="0" aria-expanded="false"><h4>O que mudou nesta versão</h4><span class="changelog-toggle">▼</span></div>
+            <div class="changelog-body">
+                <div class="changelog-version">
+                    <h5>v7.0 — Fevereiro 2026 (atual)</h5>
+                    <ul>
+                        <li>Consolidação: Manual + Dashboard BI unificados em arquivo único</li>
+                        <li>Toggle Manual ↔ Dashboard: barra fixa no topo com alternância instantânea</li>
+                        <li>Dashboard BI interativo: 7 gráficos Chart.js, 4 abas (Visão Geral, Semanal, Equipe, Dados)</li>
+                        <li>6 KPIs em tempo real: tarefas, reuniões, no-show, qualidade, conversas, score</li>
+                        <li>Ranking animado com score composto e tendência por pessoa</li>
+                        <li>Cards de equipe com SVG score rings, sparklines e métricas individuais</li>
+                        <li>Radar de competências com 5 dimensões por colaborador</li>
+                        <li>Tabelas de dados brutos com layout mobile (cards responsivos)</li>
+                        <li>Dashboard lazy-load: gráficos inicializados apenas ao acessar cada aba</li>
+                        <li>Chart.js v4.4.1 via CDN para visualizações (bar, line, area, radar)</li>
+                    </ul>
+                </div>
+                <div class="changelog-version v2">
+                    <h5>v6.0 — Fevereiro 2026</h5>
+                    <ul>
+                        <li>Revisão integral da copy: 9 correções de gramática, clareza e consistência</li>
+                        <li>Crase removida: "até às 12:00" → "até as 12:00" (regência correta)</li>
+                        <li>Pronome relativo: "Tudo que" → "Tudo o que" (norma culta)</li>
+                        <li>Vírgula adversativa: "concluídas mas" → "concluídas, mas"</li>
+                        <li>Título seção 04: "Quem reportar" → "Quem deve aparecer" (remove ambiguidade)</li>
+                        <li>Paralelismo: card WhatsApp alinhado ao padrão das demais fontes</li>
+                        <li>"4 Pilares": "blocos" → "elementos" (alinha com nomenclatura)</li>
+                        <li>Pontuação normalizada: "?" removido do título seção 06</li>
+                        <li>Erro factual: "(sexta)" removido do exemplo (02/02/2026 = segunda)</li>
+                        <li>Countdown removido: substituído por dois CTAs de ação direta (Iniciar Rotina + Ver Template)</li>
+                    </ul>
+                </div>
+                <div class="changelog-version v2">
+                    <h5>v5.0 — Fevereiro 2026</h5>
+                    <ul>
+                        <li>Zero inline styles — 64 estilos inline migrados para classes CSS reutilizáveis</li>
+                        <li>Classes utilitárias: text-color, icon-color, spacing (.text-gold-200, .icon-clickup, etc.)</li>
+                        <li>Print stylesheet atualizado para cobrir todas as novas classes</li>
+                        <li>Acessibilidade completa: role=button, tabindex, aria-expanded em checklist e changelog</li>
+                        <li>Tabela de rubrica com caption sr-only e aria-label</li>
+                        <li>Botões com type=button explícito</li>
+                        <li>Listeners de teclado (Enter/Space) para checklist e changelog</li>
+                        <li>CSS morto removido (.field-blank, 3 variáveis não utilizadas)</li>
+                        <li>Classe .quote-block criada (anteriormente sem CSS)</li>
+                        <li>Cross-referência CSS/HTML: 0 classes mortas, 0 classes sem definição</li>
+                    </ul>
+                </div>
+                <div class="changelog-version v2">
+                    <h5>v4.0 — Fevereiro 2026</h5>
+                    <ul>
+                        <li>12 correções estruturais e de consistência</li>
+                        <li>Seções reordenadas semanticamente</li>
+                        <li>Regras de ouro consolidadas</li>
+                        <li>Template e exemplo alinhados com estrutura de 6 blocos</li>
+                    </ul>
+                </div>
+                <div class="changelog-version v2">
+                    <h5>v3.0 — Fevereiro 2026</h5>
+                    <ul>
+                        <li>Checklist interativo pré-envio (7 itens obrigatórios)</li>
+                        <li>Auto-preenchimento de datas no template copiado</li>
+                        <li>Comparação lado a lado: bom vs mau relatório</li>
+                        <li>Benchmarks de referência (tarefas, reuniões, conversas, qualidade)</li>
+                        <li>Glossário de termos (D-1, no-show, retrabalho, etc.)</li>
+                        <li>Seção completa: Planilha de Desempenho & BI (estrutura, 4 abas, KPIs, score, ferramentas)</li>
+                        <li>Step tracker visual na seção Rotina</li>
+                        <li>Protocolo de Escalonamento em 3 níveis</li>
+                        <li>Botão "Baixar .txt" para download offline</li>
+                        <li>Acessibilidade WCAG AA (reduced-motion, contraste, aria)</li>
+                        <li>Changelog visível no rodapé</li>
+                        <li>Performance: debounce no scroll listener</li>
+                        <li>Atalhos de teclado (1–0) para navegar entre seções</li>
+                        <li>Cores consistentes por fonte (azul/verde/gold)</li>
+                        <li>Animação de urgência no countdown</li>
+                    </ul>
+                </div>
+                <div class="changelog-version v2">
+                    <h5>v2.0 — Janeiro 2026</h5>
+                    <ul>
+                        <li>Countdown ao vivo para deadline 12:00</li>
+                        <li>Botão "Copiar Template" com clipboard</li>
+                        <li>Rubrica de qualidade WhatsApp (/5)</li>
+                        <li>Exemplo preenchido de relatório</li>
+                        <li>6 cenários especiais</li>
+                        <li>FAQ interativo</li>
+                        <li>Fluxo visual da manhã do gestor</li>
+                        <li>Time badges por passo</li>
+                        <li>Canal de envio explícito</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </footer>
+    </div><!-- /manualView -->
+
+    <!-- ═══════════════════════════════════════════════════════════
+         DASHBOARD BI VIEW — Chart.js based interactive dashboard
+         ═══════════════════════════════════════════════════════════ -->
+    <div id="dashboardView">
+    <div class="D">
+      <header class="d-hd">
+        <div class="d-hd-logo">MIGMA INC</div>
+        <h1 class="d-hd-title">Pipeline BI Dashboard</h1>
+        <p class="d-hd-sub">Desempenho da equipe Sales &amp; Mentorship — Janeiro 2026</p>
+        <div class="d-hd-period">Sem 04 · 27/01 — 31/01</div>
+      </header>
+      <nav class="tn" id="tabNav">
+        <button class="tb on" data-tab="overview">Visão Geral</button>
+        <button class="tb" data-tab="weekly">Semanal</button>
+        <button class="tb" data-tab="team">Equipe</button>
+        <button class="tb" data-tab="data">Dados</button>
+      </nav>
+      <div class="ks" id="kpiStrip"></div>
+      <!-- OVERVIEW -->
+      <div class="tc" id="tab-overview">
+        <div class="g2"><div class="P"><div class="Ph"><div class="Pt">Tarefas Concluídas por Semana</div><div class="Pb">ClickUp</div></div><div class="chart-wrap" style="height:220px"><canvas id="ch-tasks-bar"></canvas></div><div class="lg" id="lg-tasks"></div></div><div class="P"><div class="Ph"><div class="Pt">Qualidade WhatsApp — Tendência</div><div class="Pb">/5.0</div></div><div class="chart-wrap" style="height:220px"><canvas id="ch-qual-line"></canvas></div><div class="lg" id="lg-qual"></div></div></div>
+        <div class="g2"><div class="P"><div class="Ph"><div class="Pt">Taxa de No-show por Área</div><div class="Pb">Calendly</div></div><div class="chart-wrap" style="height:190px"><canvas id="ch-noshow"></canvas></div><div class="lg"><div class="li"><span class="ld" style="background:#EF4444"></span>Sales</div><div class="li"><span class="ld" style="background:#A855F7"></span>Mentorship</div></div></div><div class="P"><div class="Ph"><div class="Pt">Volume de Conversas Diário</div><div class="Pb">WhatsApp</div></div><div class="chart-wrap" style="height:190px"><canvas id="ch-conv"></canvas></div><div class="lg" id="lg-conv"></div></div></div>
+      </div>
+      <!-- WEEKLY -->
+      <div class="tc" id="tab-weekly" hidden>
+        <div class="g2"><div class="P"><div class="Ph"><div class="Pt">Evolução Semanal — Tarefas</div><div class="Pb">4 semanas</div></div><div class="chart-wrap" style="height:240px"><canvas id="ch-wk-tasks"></canvas></div><div class="lg" id="lg-wk-tasks"></div></div><div class="P"><div class="Ph"><div class="Pt">Evolução Semanal — Qualidade WA</div><div class="Pb">/5.0</div></div><div class="chart-wrap" style="height:240px"><canvas id="ch-wk-qual"></canvas></div><div class="lg" id="lg-wk-qual"></div></div></div>
+        <div class="P fp"><div class="Ph"><div class="Pt">Comparativo Sem 03 vs Sem 04</div><div class="Pb">Δ Delta</div></div><div class="dtw resp" id="delta-table"></div><div class="dcs" id="delta-cards"></div></div>
+      </div>
+      <!-- TEAM -->
+      <div class="tc" id="tab-team" hidden>
+        <div class="pcs" id="person-cards"></div>
+        <div class="g2"><div class="P"><div class="Ph"><div class="Pt">Ranking — Score Composto</div><div class="Pb">Jan 2026</div></div><div class="rl" id="ranking-list"></div></div><div class="P"><div class="Ph"><div class="Pt">Perfil de Competências</div><div class="Pb">Radar</div></div><div class="chart-wrap" style="height:280px"><canvas id="ch-radar"></canvas></div><div class="lg" id="lg-radar"></div></div></div>
+        <div class="fm-bar"><div class="fm-lbl">Fórmula do Score Composto</div><div class="fm-txt"><span style="color:var(--g400)">Score</span> = (<span style="color:var(--blue)">Tarefas</span>×0.25) + (<span style="color:var(--green)">Reuniões</span>×0.25) + (<span style="color:var(--g400)">Qualidade</span>×0.30) + (<span style="color:var(--yellow)">1−Retrab</span>×0.10) + (<span style="color:var(--purple)">1−NoShow</span>×0.10)</div></div>
+      </div>
+      <!-- DATA -->
+      <div class="tc" id="tab-data" hidden>
+        <div class="P fp"><div class="Ph"><div class="Pt">Aba Diário — Últimos Registros</div><div class="Pb" id="data-count"></div></div><div class="dtw resp" id="data-table"></div><div class="dcs" id="data-cards"></div></div>
+      </div>
+      <footer class="d-ft"><p>MIGMA INC · Pipeline BI Dashboard · Gerado a partir dos relatórios D-1 · Janeiro 2026</p></footer>
+    </div>
+    </div><!-- /dashboardView -->
+
+    <script>
+        /* ═══════════════════════════════════════════════════════════
+           VIEW SWITCHER — Manual ↔ Dashboard
+           ═══════════════════════════════════════════════════════════ */
+        let dashboardInitialized = false;
+        function switchView(view){
+            const body = document.body;
+            const bmn = document.getElementById('vbManual');
+            const bds = document.getElementById('vbDash');
+            if(view === 'dash'){
+                body.classList.add('dash-mode');
+                bmn.classList.remove('on');
+                bds.classList.add('on');
+                window.scrollTo({top:0});
+                if(!dashboardInitialized){ initDashboard(); dashboardInitialized=true; }
+            } else {
+                body.classList.remove('dash-mode');
+                bds.classList.remove('on');
+                bmn.classList.add('on');
+            }
+        }
+
+        const CONFIG = {
+            sections: ['objetivo','fontes','rotina','equipe','template','cenarios','escalation','regras','bi','faq'],
+            sectionNames: ['Objetivo','Fontes','Rotina','Equipe','Template','Cenários','Escalonamento','Regras','BI','FAQ'],
+            circumference: 126,
+            stepsOpened: new Set()
+        };
+
+        /* ===================== HELPERS ===================== */
+        function pad(n){ return String(n).padStart(2,'0'); }
+        function getD1Date(){
+            const now = new Date();
+            const d = new Date(now);
+            // If Monday, D-1 = Friday; otherwise D-1 = yesterday
+            if(d.getDay() === 1) d.setDate(d.getDate()-3);
+            else if(d.getDay() === 0) d.setDate(d.getDate()-2);
+            else d.setDate(d.getDate()-1);
+            return d;
+        }
+        function formatDateBR(d){ return pad(d.getDate())+'/'+pad(d.getMonth()+1); }
+        const DAYS_PT = ['domingo','segunda','terça','quarta','quinta','sexta','sábado'];
+
+        /* ===================== TEMPLATE TEXT ===================== */
+        function buildTemplateText(){
+            const d1 = getD1Date();
+            const now = new Date();
+            const dStr = formatDateBR(d1) + ' (' + DAYS_PT[d1.getDay()] + ')';
+            const sStr = formatDateBR(now) + ' às ' + pad(now.getHours()) + ':' + pad(now.getMinutes());
+            return `Relatório D-1 — Sales & Mentorship — ${formatDateBR(d1)}
+
+Data reportada (ontem): ${dStr}
+Enviado em: ${sStr}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1) RESUMO GERAL (ontem)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+SALES (Miria / Larissa / Romulo)
+• ClickUp (tarefas concluídas): __
+• Calendly (reuniões realizadas): __
+• WhatsApp (conversas atendidas): __
+
+MENTORSHIP (Renata / Thayrine)
+• ClickUp (tarefas concluídas): __
+• Calendly (reuniões realizadas): __
+• WhatsApp (conversas atendidas): __
+
+Destaques do dia: __
+Pontos de atenção: __
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2) SALES — DETALHAMENTO (ontem)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+▸ Miria Rozatto
+ClickUp: concluídas __ | top 3: 1) __ 2) __ 3) __ | pendências: __ | retrabalho: __
+Calendly: agendadas __ | realizadas __ | no-show __ | remarcadas __ | resultado: __
+WhatsApp: conversas __ | qualidade: __/5 | observação: __
+
+▸ Larissa Costa
+ClickUp: concluídas __ | top 3: 1) __ 2) __ 3) __ | pendências: __ | retrabalho: __
+Calendly: agendadas __ | realizadas __ | no-show __ | remarcadas __ | resultado: __
+WhatsApp: conversas __ | qualidade: __/5 | observação: __
+
+▸ Romulo Pimentel
+ClickUp: concluídas __ | top 3: 1) __ 2) __ 3) __ | pendências: __ | retrabalho: __
+Calendly: agendadas __ | realizadas __ | no-show __ | remarcadas __ | resultado: __
+WhatsApp: conversas __ | qualidade: __/5 | observação: __
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+3) MENTORSHIP — DETALHAMENTO (ontem)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+▸ Renata Nogueira
+ClickUp: concluídas __ | top 3: 1) __ 2) __ 3) __ | pendências: __ | retrabalho: __
+Calendly: agendadas __ | realizadas __ | no-show __ | remarcadas __ | resultado: __
+WhatsApp: conversas __ | qualidade: __/5 | observação: __
+
+▸ Thayrine Prado
+ClickUp: concluídas __ | top 3: 1) __ 2) __ 3) __ | pendências: __ | retrabalho: __
+Calendly: agendadas __ | realizadas __ | no-show __ | remarcadas __ | resultado: __
+WhatsApp: conversas __ | qualidade: __/5 | observação: __
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+4) AÇÕES DO GESTOR (hoje)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Ações para Sales: __
+Ações para Mentorship: __
+Bloqueios / escalonamentos: __`;
+        }
+
+        /* ===================== #2 COPY TEMPLATE (auto-fill dates) ===================== */
+        function copyTemplate(){
+            const text = buildTemplateText();
+            const done = () => {
+                const btn=document.getElementById('copyBtn');const t=document.getElementById('copyBtnText');
+                btn.classList.add('copied');t.textContent='✓ Copiado!';
+                setTimeout(()=>{btn.classList.remove('copied');t.textContent='Copiar Template';},2500);
+            };
+            navigator.clipboard.writeText(text).then(done).catch(()=>{
+                const ta=document.createElement('textarea');ta.value=text;document.body.appendChild(ta);ta.select();document.execCommand('copy');document.body.removeChild(ta);done();
+            });
+        }
+
+        /* ===================== #8 DOWNLOAD .TXT ===================== */
+        function downloadTemplate(){
+            const text = buildTemplateText();
+            const d1 = getD1Date();
+            const blob = new Blob([text],{type:'text/plain;charset=utf-8'});
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href=url; a.download=`relatorio-d1-${formatDateBR(d1).replace('/','-')}.txt`;
+            document.body.appendChild(a); a.click(); document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        /* ===================== #1 CHECKLIST ===================== */
+        function toggleChecklist(item){
+            item.classList.toggle('checked');
+            const box = item.querySelector('.checklist-box');
+            box.textContent = item.classList.contains('checked') ? '✓' : '';
+            updateChecklistCounter();
+        }
+        function updateChecklistCounter(){
+            const total = document.querySelectorAll('.checklist-item').length;
+            const checked = document.querySelectorAll('.checklist-item.checked').length;
+            document.getElementById('checklistCounter').textContent = checked+' / '+total;
+            const done = document.getElementById('checklistDone');
+            done.classList.toggle('visible', checked===total);
+        }
+
+        /* ===================== #6 STEP TRACKER ===================== */
+        function updateStepTracker(){
+            for(let i=1;i<=3;i++){
+                const dot = document.getElementById('td'+i);
+                const conn = document.getElementById('tc'+i);
+                if(CONFIG.stepsOpened.has(i)){
+                    dot.classList.add('completed');
+                    dot.textContent='';
+                    if(conn) conn.classList.add('completed');
+                } else {
+                    dot.classList.remove('completed');
+                    dot.textContent=i;
+                    if(conn) conn.classList.remove('completed');
+                }
+            }
+            const label = document.getElementById('trackerLabel');
+            const count = CONFIG.stepsOpened.size;
+            if(count===3) label.textContent='✓ Todos os passos revisados!';
+            else if(count>0) label.textContent=count+'/3 passos abertos';
+            else label.textContent='Abra cada passo para avançar';
+
+            // Update process flow too
+            ['clickup','calendly','whatsapp'].forEach((src,i) => {
+                const el = document.getElementById('pf-'+src);
+                if(el && CONFIG.stepsOpened.has(i+1)) el.classList.add('done');
+            });
+            // When all 3 sources are done, mark montar/enviar/bi as done too
+            if(count===3){
+                ['pf-montar','pf-enviar','pf-bi'].forEach(id=>{
+                    const el = document.getElementById(id);
+                    if(el) el.classList.add('done');
+                });
+            }
+        }
+
+        /* ===================== ACCORDION ===================== */
+        function toggleStep(header){
+            const block = header.closest('.step-block');
+            const wasOpen = block.classList.contains('open');
+            block.classList.toggle('open');
+            header.setAttribute('aria-expanded', !wasOpen);
+            // Step tracker #6
+            const stepNum = parseInt(block.dataset.step);
+            if(!wasOpen && stepNum){ CONFIG.stepsOpened.add(stepNum); updateStepTracker(); }
+        }
+
+        function toggleFaq(question){
+            const item = question.closest('.faq-item');
+            const wasOpen = item.classList.contains('open');
+            document.querySelectorAll('.faq-item').forEach(i=>{i.classList.remove('open');i.querySelector('.faq-question').setAttribute('aria-expanded','false');});
+            if(!wasOpen){item.classList.add('open');question.setAttribute('aria-expanded','true');}
+        }
+
+        function toggleChangelog(){
+            const el = document.getElementById('changelog');
+            el.classList.toggle('open');
+            const header = el.querySelector('.changelog-header');
+            if(header) header.setAttribute('aria-expanded', el.classList.contains('open'));
+        }
+
+        /* ===================== #11 DEBOUNCE PROGRESS ===================== */
+        let scrollTicking = false;
+        function onScroll(){
+            if(!scrollTicking){ requestAnimationFrame(()=>{ updateProgress(); updateNavState(); scrollTicking=false; }); scrollTicking=true; }
+        }
+
+        function updateProgress(){
+            const scrollTop = window.scrollY;
+            const docHeight = document.documentElement.scrollHeight - window.innerHeight;
+            if(docHeight<=0) return;
+            const progress = Math.min(Math.round((scrollTop/docHeight)*100),100);
+            document.getElementById('progressFill').style.width = progress+'%';
+            document.getElementById('progressPercent').textContent = progress+'%';
+            document.getElementById('progressRing').style.strokeDashoffset = CONFIG.circumference - (progress/100)*CONFIG.circumference;
+            document.querySelector('.progress-bar').setAttribute('aria-valuenow',progress);
+            let currentIdx = 0;
+            CONFIG.sections.forEach((id,idx)=>{ const el=document.getElementById(id); if(el && scrollTop >= el.offsetTop-300) currentIdx=idx; });
+            document.getElementById('currentSection').textContent = CONFIG.sectionNames[currentIdx]||'Início';
+        }
+
+        function updateNavState(){
+            let current='';
+            CONFIG.sections.forEach(id=>{ const el=document.getElementById(id); if(el && scrollY >= el.offsetTop-200) current=id; });
+            document.querySelectorAll('.nav-link').forEach(link=>{ link.classList.toggle('active', link.getAttribute('href')==='#'+current); });
+        }
+
+        function scrollToTop(){ window.scrollTo({top:0,behavior:'smooth'}); }
+
+        /* ===================== #12 KEYBOARD SHORTCUTS ===================== */
+        function initKeyboard(){
+            document.addEventListener('keydown', e => {
+                // Only trigger if no input/textarea focused
+                if(document.activeElement.tagName==='INPUT'||document.activeElement.tagName==='TEXTAREA') return;
+                const num = parseInt(e.key);
+                if(num>=1 && num<=CONFIG.sections.length-1){
+                    e.preventDefault();
+                    const target = document.getElementById(CONFIG.sections[num-1]);
+                    if(target) window.scrollTo({top:target.offsetTop - document.querySelector('nav').offsetHeight - 10, behavior:'smooth'});
+                }
+                if(e.key==='0'){
+                    e.preventDefault();
+                    const target = document.getElementById(CONFIG.sections[CONFIG.sections.length-1]);
+                    if(target) window.scrollTo({top:target.offsetTop - document.querySelector('nav').offsetHeight - 10, behavior:'smooth'});
+                }
+            });
+        }
+
+        /* ===================== INIT ===================== */
+        function initSmoothScroll(){
+            document.querySelectorAll('.nav-link').forEach(link=>{
+                link.addEventListener('click',e=>{e.preventDefault();const t=document.querySelector(link.getAttribute('href'));if(t) window.scrollTo({top:t.offsetTop - document.querySelector('nav').offsetHeight - 10, behavior:'smooth'});});
+            });
+        }
+
+        function initScrollAnimations(){
+            const obs = new IntersectionObserver(entries=>{ entries.forEach(e=>{if(e.isIntersecting) e.target.classList.add('visible');}); },{threshold:0.08});
+            document.querySelectorAll('.animate').forEach(el=>obs.observe(el));
+        }
+
+        // #2 Auto-fill dates in visual template
+        function fillTemplateDates(){
+            const d1 = getD1Date();
+            const now = new Date();
+            const el1 = document.getElementById('tplDateReported');
+            const el2 = document.getElementById('tplDateSent');
+            if(el1) el1.textContent = formatDateBR(d1) + ' ('+DAYS_PT[d1.getDay()]+')';
+            if(el2) el2.textContent = formatDateBR(now) + ' às ' + pad(now.getHours())+':'+pad(now.getMinutes());
+        }
+
+        document.addEventListener('DOMContentLoaded',()=>{
+            initScrollAnimations();
+            initSmoothScroll();
+            initKeyboard();
+            updateProgress();
+            fillTemplateDates();
+            updateStepTracker();
+            document.querySelector('.progress-widget').addEventListener('keypress',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();scrollToTop();}});
+            // Keyboard on step headers
+            document.querySelectorAll('.step-header').forEach(h=>h.addEventListener('keypress',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();toggleStep(h)}}));
+            document.querySelectorAll('.faq-question').forEach(q=>q.addEventListener('keypress',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();toggleFaq(q)}}));
+            document.querySelectorAll('.checklist-item').forEach(c=>c.addEventListener('keypress',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();toggleChecklist(c)}}));
+            document.querySelector('.changelog-header').addEventListener('keypress',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();toggleChangelog();}});
+        });
+        window.addEventListener('scroll', onScroll, {passive:true});
+
+        /* ═══════════════════════════════════════════════════════════════
+           DASHBOARD BI — DATA & LOGIC
+           ═══════════════════════════════════════════════════════════════ */
+        const TEAM_D=[
+          {id:"MR",name:"Miria Rozatto",role:"Vendedora",area:"Sales",service:"F1 Initial",color:"#D4AF37"},
+          {id:"LC",name:"Larissa Costa",role:"Vendedora",area:"Sales",service:"COS e Transfer",color:"#3B82F6"},
+          {id:"RP",name:"Romulo Pimentel",role:"Vendedor",area:"Sales",service:"Vistos Especiais",color:"#22C55E"},
+          {id:"RN",name:"Renata Nogueira",role:"Mentora",area:"Mentorship",service:"F1 / B1/B2",color:"#A855F7"},
+          {id:"TP",name:"Thayrine Prado",role:"Mentora",area:"Mentorship",service:"COS e Transfer",color:"#EAB308"},
+        ];
+        const WEEKLY_D=[
+          {week:"Sem 01",MR:28,LC:22,RP:25,RN:18,TP:20},
+          {week:"Sem 02",MR:32,LC:20,RP:27,RN:16,TP:22},
+          {week:"Sem 03",MR:30,LC:24,RP:30,RN:19,TP:18},
+          {week:"Sem 04",MR:35,LC:18,RP:28,RN:21,TP:24},
+        ];
+        const QUAL_D=[
+          {week:"Sem 01",MR:4.2,LC:3.8,RP:4.0,RN:4.6,TP:3.6},
+          {week:"Sem 02",MR:4.5,LC:3.4,RP:4.1,RN:4.8,TP:3.9},
+          {week:"Sem 03",MR:4.6,LC:3.6,RP:4.3,RN:4.7,TP:3.5},
+          {week:"Sem 04",MR:4.8,LC:3.2,RP:4.4,RN:4.9,TP:4.1},
+        ];
+        const DAILY_D=[
+          {date:"27/01",name:"Miria",area:"Sales",tasks:7,pend:0,retrab:0,agend:3,real:3,noshow:0,conv:20,qual:4.5,obs:"Fechou proposta EB-5"},
+          {date:"27/01",name:"Larissa",area:"Sales",tasks:4,pend:1,retrab:0,agend:3,real:2,noshow:1,conv:14,qual:3.4,obs:"No-show recorrente"},
+          {date:"27/01",name:"Romulo",area:"Sales",tasks:5,pend:0,retrab:1,agend:4,real:3,noshow:1,conv:16,qual:4.2,obs:"—"},
+          {date:"27/01",name:"Renata",area:"Mentorship",tasks:4,pend:0,retrab:0,agend:2,real:2,noshow:0,conv:22,qual:4.8,obs:"Excelente atendimento"},
+          {date:"27/01",name:"Thayrine",area:"Mentorship",tasks:3,pend:1,retrab:0,agend:2,real:2,noshow:0,conv:15,qual:3.8,obs:"Pendência CRM"},
+          {date:"28/01",name:"Miria",area:"Sales",tasks:6,pend:0,retrab:0,agend:2,real:2,noshow:0,conv:18,qual:4.6,obs:"—"},
+          {date:"28/01",name:"Larissa",area:"Sales",tasks:3,pend:2,retrab:1,agend:2,real:1,noshow:1,conv:10,qual:3.2,obs:"Queda de qualidade"},
+          {date:"28/01",name:"Romulo",area:"Sales",tasks:6,pend:0,retrab:0,agend:3,real:3,noshow:0,conv:15,qual:4.4,obs:"Recorde reuniões"},
+          {date:"28/01",name:"Renata",area:"Mentorship",tasks:3,pend:0,retrab:0,agend:3,real:3,noshow:0,conv:24,qual:4.9,obs:"—"},
+          {date:"28/01",name:"Thayrine",area:"Mentorship",tasks:5,pend:0,retrab:0,agend:1,real:1,noshow:0,conv:16,qual:4.0,obs:"Melhora na qualidade"},
+        ];
+        const METRICS_D=[
+          {name:"Miria",tarefas:92,reunioes:85,qualidade:96,disciplina:100,volume:90,score:91.3,trend:"+4.2%",up:true},
+          {name:"Larissa",tarefas:58,reunioes:50,qualidade:64,disciplina:70,volume:60,score:60.4,trend:"−8.1%",up:false},
+          {name:"Romulo",tarefas:80,reunioes:90,qualidade:88,disciplina:85,volume:75,score:84.5,trend:"+2.7%",up:true},
+          {name:"Renata",tarefas:70,reunioes:80,qualidade:98,disciplina:100,volume:95,score:88.4,trend:"+1.5%",up:true},
+          {name:"Thayrine",tarefas:65,reunioes:60,qualidade:78,disciplina:85,volume:72,score:71.6,trend:"+5.3%",up:true},
+        ];
+        const NOSHOW_D=[
+          {week:"Sem 01",sales:12,mentorship:0},
+          {week:"Sem 02",sales:18,mentorship:5},
+          {week:"Sem 03",sales:8,mentorship:0},
+          {week:"Sem 04",sales:15,mentorship:3},
+        ];
+        const CONV_D=[
+          {day:"Seg",MR:20,LC:14,RP:16,RN:22,TP:15},
+          {day:"Ter",MR:18,LC:10,RP:15,RN:24,TP:16},
+          {day:"Qua",MR:22,LC:12,RP:18,RN:20,TP:14},
+          {day:"Qui",MR:19,LC:16,RP:14,RN:25,TP:18},
+          {day:"Sex",MR:16,LC:11,RP:20,RN:18,TP:12},
+        ];
+        const KPIS_D=[
+          {label:"Tarefas concluídas",value:"113",sub:"média 4.5/pessoa/dia",trend:"+8.6%",up:true,color:"#3B82F6",icon:"✓"},
+          {label:"Reuniões realizadas",value:"54",sub:"média 2.2/pessoa/dia",trend:"+3.1%",up:true,color:"#22C55E",icon:"◉"},
+          {label:"Taxa de no-show",value:"13.2%",sub:"8 de 61 agendadas",trend:"+2.4%",up:false,color:"#EF4444",icon:"✕"},
+          {label:"Qualidade WhatsApp",value:"4.18",sub:"média equipe (/5)",trend:"+0.12",up:true,color:"#D4AF37",icon:"★"},
+          {label:"Conversas atendidas",value:"387",sub:"média 15.5/pessoa/dia",trend:"+5.8%",up:true,color:"#EAB308",icon:"◈"},
+          {label:"Score composto",value:"79.2",sub:"ponderado (máx. 100)",trend:"+1.8",up:true,color:"#A855F7",icon:"◆"},
+        ];
+        const SORTED_D=[...METRICS_D].sort((a,b)=>b.score-a.score);
+
+        /* Dashboard helpers */
+        const d$=s=>document.querySelector('#dashboardView '+s);
+        const d$$=s=>document.querySelectorAll('#dashboardView '+s);
+        const fName=n=>n.split(" ")[0];
+        const fTeam=name=>TEAM_D.find(t=>fName(t.name)===name);
+        const h2r=(hex,a)=>{const r=parseInt(hex.slice(1,3),16),g=parseInt(hex.slice(3,5),16),b=parseInt(hex.slice(5,7),16);return`rgba(${r},${g},${b},${a})`;};
+        function dLegend(sel,items){const el=d$(sel);if(!el)return;el.innerHTML=items.map(i=>`<div class="li"><span class="ld" style="background:${i.color}"></span>${i.label}</div>`).join('');}
+        function mkSpark(data,color,w=48,h=16){if(!data||!data.length)return'';const mn=Math.min(...data),mx=Math.max(...data),rg=mx-mn||1;const pts=data.map((v,i)=>`${(i/(data.length-1))*w},${h-((v-mn)/rg)*(h-2)-1}`).join(' ');return`<svg width="${w}" height="${h}" style="display:block"><polyline points="${pts}" fill="none" stroke="${color}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" opacity=".6"/></svg>`;}
+        function mkRing(score,color,size=48,sw=3.5){const r=(size-sw)/2,c=2*Math.PI*r,off=c-(score/100)*c;return`<svg width="${size}" height="${size}" style="transform:rotate(-90deg)"><circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="rgba(212,175,55,.05)" stroke-width="${sw}"/><circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="${color}" stroke-width="${sw}" stroke-dasharray="${c}" stroke-dashoffset="${off}" stroke-linecap="round"/></svg>`;}
+        const tLeg=TEAM_D.map(t=>({color:t.color,label:fName(t.name)}));
+
+        /* Dashboard chart instances */
+        const dCharts={};
+        const dInited={overview:false,weekly:false,team:false};
+        let dTab='overview';
+
+        const TTIP={backgroundColor:'#0e0e0e',borderColor:'rgba(212,175,55,.1)',borderWidth:1,titleFont:{family:"'JetBrains Mono'",size:8,weight:'normal'},titleColor:'#8B7419',bodyFont:{family:"'Inter'",size:11},bodyColor:'#E8D4A8',padding:{x:10,y:8},cornerRadius:4,boxPadding:4,displayColors:true,boxWidth:6,boxHeight:6,usePointStyle:false};
+        const SX={grid:{display:false},ticks:{font:{size:8},padding:4},border:{display:false}};
+        const SY={grid:{color:'rgba(212,175,55,.03)'},ticks:{font:{size:8},padding:6},border:{display:false}};
+
+        function mkDs(t,data,opts={}){
+          return{label:fName(t.name),data:data.map(d=>d[t.id]),borderColor:t.color,backgroundColor:opts.fill?h2r(t.color,.06):t.color,pointBackgroundColor:opts.pts?'#060606':undefined,pointBorderColor:opts.pts?t.color:undefined,pointBorderWidth:opts.pts?2:0,pointRadius:opts.pts?2.5:0,pointHoverRadius:opts.pts?4:3,borderWidth:opts.lw||2,fill:!!opts.fill,tension:.3,barThickness:opts.bt,...opts.ex};
+        }
+
+        function initOverview(){
+          if(dCharts.tb)dCharts.tb.destroy();
+          dCharts.tb=new Chart(d$('#ch-tasks-bar'),{type:'bar',data:{labels:WEEKLY_D.map(w=>w.week),datasets:TEAM_D.map(t=>mkDs(t,WEEKLY_D,{bt:8,ex:{borderRadius:3,backgroundColor:h2r(t.color,.75)}}))},options:{responsive:true,maintainAspectRatio:false,plugins:{tooltip:TTIP,legend:{display:false}},scales:{x:SX,y:SY}}});
+          if(dCharts.ql)dCharts.ql.destroy();
+          dCharts.ql=new Chart(d$('#ch-qual-line'),{type:'line',data:{labels:QUAL_D.map(w=>w.week),datasets:TEAM_D.map(t=>mkDs(t,QUAL_D,{pts:true}))},options:{responsive:true,maintainAspectRatio:false,plugins:{tooltip:TTIP,legend:{display:false}},scales:{x:SX,y:{...SY,min:2.5,max:5.2}}}});
+          if(dCharts.ns)dCharts.ns.destroy();
+          dCharts.ns=new Chart(d$('#ch-noshow'),{type:'line',data:{labels:NOSHOW_D.map(w=>w.week),datasets:[{label:'Sales',data:NOSHOW_D.map(d=>d.sales),borderColor:'#EF4444',backgroundColor:'rgba(239,68,68,.06)',fill:true,tension:.3,borderWidth:2,pointRadius:0,pointHoverRadius:3},{label:'Mentorship',data:NOSHOW_D.map(d=>d.mentorship),borderColor:'#A855F7',backgroundColor:'rgba(168,85,247,.06)',fill:true,tension:.3,borderWidth:2,pointRadius:0,pointHoverRadius:3}]},options:{responsive:true,maintainAspectRatio:false,plugins:{tooltip:TTIP,legend:{display:false}},scales:{x:SX,y:{...SY,ticks:{...SY.ticks,callback:v=>v+'%'}}}}});
+          if(dCharts.cv)dCharts.cv.destroy();
+          dCharts.cv=new Chart(d$('#ch-conv'),{type:'line',data:{labels:CONV_D.map(d=>d.day),datasets:TEAM_D.map(t=>mkDs(t,CONV_D,{fill:true,lw:1.5}))},options:{responsive:true,maintainAspectRatio:false,plugins:{tooltip:TTIP,legend:{display:false}},scales:{x:SX,y:SY}}});
+        }
+        function initWeeklyCharts(){
+          if(dCharts.wt)dCharts.wt.destroy();
+          dCharts.wt=new Chart(d$('#ch-wk-tasks'),{type:'line',data:{labels:WEEKLY_D.map(w=>w.week),datasets:TEAM_D.map(t=>mkDs(t,WEEKLY_D,{fill:true}))},options:{responsive:true,maintainAspectRatio:false,plugins:{tooltip:TTIP,legend:{display:false}},scales:{x:SX,y:SY}}});
+          if(dCharts.wq)dCharts.wq.destroy();
+          dCharts.wq=new Chart(d$('#ch-wk-qual'),{type:'line',data:{labels:QUAL_D.map(w=>w.week),datasets:TEAM_D.map(t=>mkDs(t,QUAL_D,{pts:true,lw:2.5}))},options:{responsive:true,maintainAspectRatio:false,plugins:{tooltip:TTIP,legend:{display:false}},scales:{x:SX,y:{...SY,min:2.5,max:5.2}}}});
+        }
+        function initRadar(){
+          if(dCharts.rd)dCharts.rd.destroy();
+          const lbs=['Tarefas','Reuniões','Qualidade','Disciplina','Volume'],ks=['tarefas','reunioes','qualidade','disciplina','volume'];
+          dCharts.rd=new Chart(d$('#ch-radar'),{type:'radar',data:{labels:lbs,datasets:TEAM_D.map(t=>{const p=METRICS_D.find(m=>m.name===fName(t.name));return{label:fName(t.name),data:ks.map(k=>p?p[k]:0),borderColor:t.color,backgroundColor:h2r(t.color,.05),borderWidth:1.5,pointRadius:0,pointHoverRadius:3};})},options:{responsive:true,maintainAspectRatio:false,plugins:{tooltip:TTIP,legend:{display:false}},scales:{r:{min:0,max:100,grid:{color:'rgba(212,175,55,.06)'},angleLines:{color:'rgba(212,175,55,.04)'},pointLabels:{font:{family:"'JetBrains Mono'",size:8},color:'rgba(212,175,55,.35)'},ticks:{display:false}}}}});
+        }
+        function animateRank(){setTimeout(()=>{d$$('.rb').forEach(el=>{el.style.width=el.dataset.w+'%';});},50);}
+
+        function switchDashTab(id){
+          if(id===dTab)return;
+          d$$('.tc').forEach(el=>el.hidden=true);
+          d$$('.tb').forEach(el=>el.classList.remove('on'));
+          d$('#tab-'+id).hidden=false;
+          d$('[data-tab="'+id+'"]').classList.add('on');
+          dTab=id;
+          requestAnimationFrame(()=>{
+            if(id==='overview'&&!dInited.overview){initOverview();dInited.overview=true;}
+            if(id==='weekly'&&!dInited.weekly){initWeeklyCharts();dInited.weekly=true;}
+            if(id==='team'&&!dInited.team){initRadar();dInited.team=true;animateRank();}
+            if(id==='overview'&&dInited.overview)Object.values(dCharts).forEach(c=>{try{c.resize();}catch(e){}});
+            if(id==='weekly'&&dInited.weekly){dCharts.wt?.resize();dCharts.wq?.resize();}
+            if(id==='team'&&dInited.team){dCharts.rd?.resize();animateRank();}
+          });
+        }
+
+        function initDashboard(){
+          Chart.defaults.color='rgba(212,175,55,.25)';
+          Chart.defaults.borderColor='rgba(212,175,55,.03)';
+          Chart.defaults.font.family="'JetBrains Mono','SF Mono',monospace";
+          Chart.defaults.font.size=8;
+          Chart.defaults.animation.duration=800;
+          Chart.defaults.animation.easing='easeOutQuart';
+          Chart.defaults.plugins.legend.display=false;
+
+          // KPIs
+          d$('#kpiStrip').innerHTML=KPIS_D.map(k=>`<div class="kc"><div class="kc-icon" style="color:${k.color}">${k.icon}</div><div class="kc-label">${k.label}</div><div class="kc-val" style="color:${k.color}">${k.value}</div><div class="kc-sub">${k.sub}</div><div class="kc-trend ${k.up?'up':'dn'}">${k.up?'↑':'↓'} ${k.trend}</div></div>`).join('');
+
+          // Legends
+          dLegend('#lg-tasks',tLeg);dLegend('#lg-qual',tLeg);dLegend('#lg-conv',tLeg);
+          dLegend('#lg-wk-tasks',tLeg);dLegend('#lg-wk-qual',tLeg);dLegend('#lg-radar',tLeg);
+
+          // Person cards
+          d$('#person-cards').innerHTML=SORTED_D.map((p,i)=>{
+            const t=fTeam(p.name),sp=WEEKLY_D.map(w=>w[t.id]);
+            return`<div class="pc" style="animation-delay:${i*.05}s"><div class="pc-line" style="background:${t.color}"></div><div class="pc-ring">${mkRing(p.score,t.color)}<div class="pc-ring-val" style="color:${t.color}">${Math.round(p.score)}</div></div><div class="pc-info"><div class="pc-name">${t.name}</div><div class="pc-role">${t.area} · ${t.service}</div><div class="pc-stats"><span class="pc-stat">Qual: <b>${p.qualidade}</b></span><span class="pc-stat">Disc: <b>${p.disciplina}</b></span><span class="pc-stat" style="color:${p.up?'var(--green)':'var(--red)'}">${p.trend}</span></div></div><div class="pc-spark">${mkSpark(sp,t.color)}<span class="pc-spark-label">4 sem</span></div></div>`;
+          }).join('');
+
+          // Ranking
+          const posC=['var(--g400)','var(--g300)','var(--g500)','var(--g600)','var(--g700)'];
+          d$('#ranking-list').innerHTML=SORTED_D.map((p,i)=>{
+            const t=fTeam(p.name);
+            return`<div class="rr"><div class="rr-bar" style="background:${t.color}"></div><div class="rp" style="color:${posC[i]}">${i+1}</div><div class="ri"><div class="rn">${t.name}</div><div class="rro">${t.area} · ${t.service}</div><div class="rbw"><div class="rb" data-w="${p.score}" style="background:${t.color}"></div></div></div><div class="rsw"><div class="rs" style="color:${t.color}">${p.score}</div><div class="rt ${p.up?'up':'dn'}">${p.trend}</div></div></div>`;
+          }).join('');
+
+          // Delta table + cards
+          (function(){
+            let th=`<table class="dt"><thead><tr><th>Nome</th><th>Área</th><th class="n">Tar. S3</th><th class="n">Tar. S4</th><th class="n">Δ</th><th class="n">Qual. S3</th><th class="n">Qual. S4</th><th class="n">Δ</th></tr></thead><tbody>`,ch='';
+            TEAM_D.forEach(t=>{const a=WEEKLY_D[2][t.id],b=WEEKLY_D[3][t.id],c=QUAL_D[2][t.id],dd=QUAL_D[3][t.id],dt=b-a,dq=(dd-c).toFixed(1),ac=t.area==='Sales'?'s':'m';
+              th+=`<tr><td class="nm">${t.name}</td><td><span class="at ${ac}">${t.area}</span></td><td class="n">${a}</td><td class="n">${b}</td><td class="n ${dt>=0?'dp':'dm'}">${dt>0?'+':''}${dt}</td><td class="n">${c}</td><td class="n">${dd}</td><td class="n ${parseFloat(dq)>=0?'dp':'dm'}">${parseFloat(dq)>0?'+':''}${dq}</td></tr>`;
+              ch+=`<div class="dc"><div class="dc-hd"><span class="dc-nm">${fName(t.name)}</span><span class="at ${ac}">${t.area}</span></div><div class="dc-grid"><div class="dc-m"><div class="dc-ml">Tar. S3→S4</div><div class="dc-mv">${a}→${b}</div></div><div class="dc-m"><div class="dc-ml">Δ Tarefas</div><div class="dc-mv" style="color:${dt>=0?'var(--green)':'var(--red)'}">${dt>0?'+':''}${dt}</div></div><div class="dc-m"><div class="dc-ml">Δ Qualidade</div><div class="dc-mv" style="color:${parseFloat(dq)>=0?'var(--green)':'var(--red)'}">${parseFloat(dq)>0?'+':''}${dq}</div></div></div></div>`;
+            });
+            th+='</tbody></table>';d$('#delta-table').innerHTML=th;d$('#delta-cards').innerHTML=ch;
+          })();
+
+          // Data table + cards
+          (function(){
+            d$('#data-count').textContent=DAILY_D.length+' linhas';
+            let th=`<table class="dt"><thead><tr><th>Data</th><th>Nome</th><th>Área</th><th class="n">Tar.</th><th class="n">Pend.</th><th class="n">Ret.</th><th class="n">Ag.</th><th class="n">Real.</th><th class="n">N/S</th><th class="n">Conv.</th><th class="n">Qual.</th><th>Obs.</th></tr></thead><tbody>`,ch='';
+            DAILY_D.forEach(r=>{const ac=r.area==='Sales'?'s':'m',qc=r.qual>=4?'g':r.qual>=3?'o':'b';
+              th+=`<tr><td style="color:var(--g500);font-family:var(--fm);font-size:.48rem">${r.date}</td><td class="nm">${r.name}</td><td><span class="at ${ac}">${r.area}</span></td><td class="n">${r.tasks}</td><td class="n"${r.pend>0?' style="color:var(--yellow)"':''}>${r.pend}</td><td class="n"${r.retrab>0?' style="color:var(--red)"':''}>${r.retrab}</td><td class="n">${r.agend}</td><td class="n">${r.real}</td><td class="n"${r.noshow>0?' style="color:var(--red)"':''}>${r.noshow}</td><td class="n">${r.conv}</td><td class="n"><span class="qb ${qc}">${r.qual}</span></td><td class="ob">${r.obs}</td></tr>`;
+              ch+=`<div class="dc"><div class="dc-hd"><div style="display:flex;align-items:center;gap:.35rem"><span class="dc-nm">${r.name}</span><span class="at ${ac}">${r.area}</span></div><span class="dc-dt">${r.date}</span></div><div class="dc-grid"><div class="dc-m"><div class="dc-ml">Tarefas</div><div class="dc-mv">${r.tasks}</div></div><div class="dc-m"><div class="dc-ml">Reuniões</div><div class="dc-mv">${r.real}/${r.agend}</div></div><div class="dc-m"><div class="dc-ml">Qualidade</div><div class="dc-mv"><span class="qb ${qc}">${r.qual}</span></div></div><div class="dc-m"><div class="dc-ml">Conv.</div><div class="dc-mv">${r.conv}</div></div><div class="dc-m"><div class="dc-ml">Pend.</div><div class="dc-mv"${r.pend>0?' style="color:var(--yellow)"':''}>${r.pend}</div></div><div class="dc-m"><div class="dc-ml">No-show</div><div class="dc-mv"${r.noshow>0?' style="color:var(--red)"':''}>${r.noshow}</div></div></div>${r.obs!=='—'?`<div class="dc-obs">"${r.obs}"</div>`:''}</div>`;
+            });
+            th+='</tbody></table>';d$('#data-table').innerHTML=th;d$('#data-cards').innerHTML=ch;
+          })();
+
+          // Tab click handlers
+          d$$('.tb').forEach(btn=>{btn.addEventListener('click',()=>switchDashTab(btn.dataset.tab));});
+
+          // Init first tab charts
+          setTimeout(()=>{initOverview();dInited.overview=true;},100);
+        }
+    </script>
+</body>
+</html>
