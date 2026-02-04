@@ -15,12 +15,14 @@ import { Step1PersonalInfo } from './components/steps/Step1PersonalInfo';
 import { Step2Documents } from './components/steps/Step2Documents';
 import { Step3Payment } from './components/steps/Step3Payment';
 import { ZelleProcessingView } from './components/shared/ZelleProcessingView';
+import { CheckoutLoadingOverlay } from './components/shared/CheckoutLoadingOverlay';
 
 
 import { ArrowLeft } from 'lucide-react';
 import { calculateBaseTotal, calculateTotalWithFees } from '@/lib/visa-checkout-utils';
 import { trackLinkClick } from '@/lib/funnel-tracking';
 import type { VisaProduct } from '@/types/visa-product';
+import { SHOW_BETA_FEATURES } from '@/lib/env-utils';
 import { Loader2, AlertCircle } from 'lucide-react';
 
 export const VisaCheckoutPage: React.FC = () => {
@@ -52,9 +54,9 @@ export const VisaCheckoutPage: React.FC = () => {
     const upsellPrice = baseUpsellPrice > 0 ? baseUpsellPrice + (state.extraUnits * 50) : 0;
     const initialBaseTotal = product ? calculateBaseTotal(product, state.extraUnits, upsellPrice) : 0;
 
-    // Calculate Discount
+    // Calculate Discount (Only if features are enabled)
     let discountAmount = 0;
-    if (state.appliedCoupon) {
+    if (state.appliedCoupon && SHOW_BETA_FEATURES) {
         if (state.appliedCoupon.discountType === 'fixed') {
             discountAmount = state.appliedCoupon.discountValue;
         } else {
@@ -108,6 +110,17 @@ export const VisaCheckoutPage: React.FC = () => {
         loadProduct();
     }, [productSlug, effectiveSellerId]);
 
+    // Calcular passo exibido para o StepIndicator se for consulta comum
+    const displayStep = (productSlug === 'consultation-common' && state.currentStep === 3) ? 2 : state.currentStep;
+    const totalStepsCount = productSlug === 'consultation-common' ? 2 : 3;
+
+    // Auto-scroll to error on mobile
+    useEffect(() => {
+        if (state.error) {
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+    }, [state.error]);
+
     if (loading || isLoadingPrefill) {
         return (
             <div className="min-h-screen bg-black flex flex-col items-center justify-center text-white p-4">
@@ -130,9 +143,7 @@ export const VisaCheckoutPage: React.FC = () => {
         );
     }
 
-    // Calcular passo exibido para o StepIndicator se for consulta comum
-    const displayStep = (productSlug === 'consultation-common' && state.currentStep === 3) ? 2 : state.currentStep;
-    const totalStepsCount = productSlug === 'consultation-common' ? 2 : 3;
+
 
     if (state.isZelleProcessing) {
         return (
@@ -142,8 +153,11 @@ export const VisaCheckoutPage: React.FC = () => {
         );
     }
 
+
+
     return (
         <div className="min-h-screen bg-black py-8 sm:py-12 px-4 sm:px-6 lg:px-8">
+            {state.submitting && <CheckoutLoadingOverlay />}
             <div className="max-w-6xl mx-auto">
                 <header className="flex flex-col mb-8 gap-2">
                     <Link to="/" className="inline-flex items-center text-gold-light hover:text-gold-medium transition-colors mb-2">
@@ -200,7 +214,14 @@ export const VisaCheckoutPage: React.FC = () => {
                         )}
                         {state.currentStep === 3 && (
                             <div className="animate-in fade-in slide-in-from-left-4 duration-300">
-                                <Step3Payment state={state} actions={actions} handlers={paymentHandlers} onPrev={handlePrev} productSlug={productSlug} />
+                                <Step3Payment
+                                    state={state}
+                                    actions={actions}
+                                    handlers={paymentHandlers}
+                                    onPrev={handlePrev}
+                                    productSlug={productSlug}
+                                    totalWithFees={totalWithFees}
+                                />
                             </div>
                         )}
                     </main>
@@ -218,13 +239,23 @@ export const VisaCheckoutPage: React.FC = () => {
                                     state.signatureConfirmed &&
                                     state.termsAccepted &&
                                     (state.paymentMethod !== 'zelle' || !!state.zelleReceipt) &&
-                                    (state.paymentMethod !== 'parcelow' || (!!state.creditCardName && !!state.cpf && state.cpf.length >= 11))
+                                    (state.paymentMethod !== 'parcelow' ||
+                                        (state.splitPaymentConfig?.enabled) || // Se for Split, libera
+                                        (!!state.creditCardName && !!state.cpf && state.cpf.length >= 11) // Se não for split, exige dados
+                                    )
                                 }
                                 onPay={() => {
                                     if (state.submitting) return;
-                                    if (state.paymentMethod === 'zelle') paymentHandlers.handleZellePayment();
-                                    else if (state.paymentMethod === 'parcelow') paymentHandlers.handleParcelowPayment?.();
-                                    else paymentHandlers.handleStripeCheckout(state.paymentMethod as 'card' | 'pix');
+                                    actions.setError('');
+                                    actions.setSubmitting(true);
+
+                                    if (state.paymentMethod === 'zelle') {
+                                        paymentHandlers.handleZellePayment();
+                                    } else if (state.paymentMethod === 'parcelow') {
+                                        paymentHandlers.handleParcelowPayment?.();
+                                    } else {
+                                        paymentHandlers.handleStripeCheckout(state.paymentMethod as 'card' | 'pix');
+                                    }
                                 }}
                                 selectedUpsell={state.selectedUpsell}
                                 upsellPrice={upsellPrice}
