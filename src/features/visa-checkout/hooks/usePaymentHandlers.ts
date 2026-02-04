@@ -443,7 +443,18 @@ export const usePaymentHandlers = (
             const baseUpsellPrice = state.selectedUpsell === 'canada-premium' ? 399 : (state.selectedUpsell === 'canada-revolution' ? 199 : 0);
             const upsellAmount = baseUpsellPrice > 0 ? baseUpsellPrice + (extraUnits * 50) : 0;
             const mainPriceUSD = totalWithFees - upsellAmount;
-            console.log('🔍 [STEP 1] Valores calculados:', { baseUpsellPrice, upsellAmount, mainPriceUSD, totalWithFees });
+
+            console.log('🔥 [Parcelow Debug] Calculando preços:', {
+                productSlug,
+                productBasePrice: product.base_price_usd,
+                productExtraPrice: product.extra_unit_price,
+                productDependentPrice: product.price_per_dependent_usd,
+                extraUnits,
+                upsellAmount,
+                totalWithFees,
+                mainPriceUSD,
+                calculationType: product.calculation_type
+            });
 
             console.log('🔍 [STEP 2] Criando pedido principal...');
 
@@ -461,9 +472,9 @@ export const usePaymentHandlers = (
                     product_slug: productSlug,
                     seller_id: sellerId || null,
                     service_request_id: serviceRequestId,
-                    base_price_usd: product.base_price_usd,
-                    price_per_dependent_usd: product.price_per_dependent_usd || 0,
-                    extra_unit_price_usd: product.price_per_dependent_usd || product.extra_unit_price || 0,
+                    base_price_usd: product.base_price_usd || "0",
+                    price_per_dependent_usd: product.price_per_dependent_usd || product.extra_unit_price || "0",
+                    extra_unit_price_usd: product.price_per_dependent_usd || product.extra_unit_price || "0",
                     extra_units: extraUnits,
                     extra_unit_label: product.extra_unit_label || 'Additional Dependent',
                     dependent_names: dependentNames,

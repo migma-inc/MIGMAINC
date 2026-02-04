@@ -12,6 +12,7 @@ export interface Step1FormData {
   clientNationality: string;
   clientWhatsApp: string;
   maritalStatus: 'single' | 'married' | 'divorced' | 'widowed' | 'other' | '';
+  extraUnits?: number;
 }
 
 export interface ValidationResult {
@@ -171,6 +172,13 @@ export function validateStep1(formData: Step1FormData, productSlug?: string): Va
   if (!isSimplified) {
     if (!formData.maritalStatus) {
       errors.maritalStatus = 'Marital status is required';
+    }
+  }
+
+  // Mandatory Extra Units for RFE Defense (since base price is 0)
+  if (productSlug === 'rfe-defense') {
+    if (formData.extraUnits === undefined || formData.extraUnits < 1) {
+      errors.extraUnits = 'At least 1 evidence must be selected for this service';
     }
   }
 

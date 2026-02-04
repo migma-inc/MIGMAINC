@@ -11,6 +11,7 @@ import { ZelleUpload } from './step3/ZelleUpload';
 
 import { CouponSection } from './step3/CouponSection';
 import { SplitPaymentSelector } from './step3/SplitPaymentSelector';
+import { SHOW_BETA_FEATURES } from '@/lib/env-utils';
 // import { UpsellSelection } from './step3/UpsellSelection';
 
 interface Step3Props {
@@ -79,19 +80,21 @@ export const Step3Payment: React.FC<Step3Props> = ({ state, actions, handlers, o
                     />
                 )}
 
-                <CouponSection
-                    actions={actions}
-                    couponCode={state.couponCode}
-                    appliedCoupon={state.appliedCoupon}
-                />
+                {SHOW_BETA_FEATURES && (
+                    <CouponSection
+                        actions={actions}
+                        couponCode={state.couponCode}
+                        appliedCoupon={state.appliedCoupon}
+                    />
+                )}
 
                 <PaymentMethodSelector
                     paymentMethod={paymentMethod}
                     onMethodChange={setPaymentMethod}
                 />
 
-                {/* 🆕 Split Payment Selector - Apenas para Parcelow */}
-                {paymentMethod === 'parcelow' && (
+                {/* 🆕 Split Payment Selector - Apenas para Parcelow e em ambiente de desenvolvimento */}
+                {paymentMethod === 'parcelow' && SHOW_BETA_FEATURES && (
                     <div className="animate-in fade-in slide-in-from-top-2">
                         <SplitPaymentSelector
                             totalAmount={totalWithFees}
@@ -175,6 +178,7 @@ export const Step3Payment: React.FC<Step3Props> = ({ state, actions, handlers, o
                         <button
                             onClick={() => {
                                 if (state.submitting) return;
+                                actions.setSubmitting(true);
                                 if (paymentMethod === 'parcelow') {
                                     handlers.handleParcelowPayment();
                                 } else if (paymentMethod === 'zelle' && zelleReceipt) {

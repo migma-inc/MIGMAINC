@@ -30,7 +30,7 @@ export const PaymentMethodSelector: React.FC<PaymentMethodSelectorProps> = ({
                     <SelectItem value="parcelow" className="cursor-pointer hover:bg-gray-100 focus:bg-gray-100 focus:text-black">
                         <div className="flex items-center gap-2">
                             <CreditCard className="w-4 h-4 text-blue-600" />
-                            <span>Parcelow (Split Payment)</span>
+                            <span>Parcelow (Card, PIX, TED)</span>
                         </div>
                     </SelectItem>
                     {/* STRIPE REMOVED - No longer using Stripe payments

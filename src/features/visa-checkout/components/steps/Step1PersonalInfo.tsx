@@ -59,7 +59,7 @@ export const Step1PersonalInfo: React.FC<Step1Props> = ({ product, state, action
         const formData: Step1FormData = {
             clientName, clientEmail, dateOfBirth, documentType, documentNumber,
             addressLine, city, state: clientState, postalCode, clientCountry,
-            clientNationality, clientWhatsApp, maritalStatus
+            clientNationality, clientWhatsApp, maritalStatus, extraUnits
         };
 
         const validation = validateStep1(formData, productSlug);
@@ -115,6 +115,7 @@ export const Step1PersonalInfo: React.FC<Step1Props> = ({ product, state, action
                             dependentNames={dependentNames}
                             onExtraUnitsChange={setExtraUnits}
                             onDependentNamesChange={setDependentNames}
+                            fieldErrors={fieldErrors}
                         />
                         <hr className="border-gold-medium/20" />
                     </>
