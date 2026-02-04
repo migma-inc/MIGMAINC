@@ -94,7 +94,6 @@ export interface VisaCheckoutState {
 
     // Split Payment
     splitPaymentConfig: SplitPaymentConfig | null;
-    totalPriceUsd: string;
 }
 
 export interface VisaCheckoutActions {
