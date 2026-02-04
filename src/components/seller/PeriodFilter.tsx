@@ -3,14 +3,17 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Label } from '@/components/ui/label';
 import { DateRangePicker } from './DateRangePicker';
 
-export type PeriodOption = 
-  | 'last7days'
-  | 'last30days'
+export type PeriodOption =
   | 'thismonth'
   | 'lastmonth'
+  | 'today'
+  | 'yesterday'
+  | 'last7days'
+  | 'last30days'
   | 'last3months'
   | 'last6months'
   | 'lastyear'
+  | 'all_time'
   | 'custom';
 
 export interface CustomDateRange {
@@ -27,10 +30,10 @@ interface PeriodFilterProps {
   onCustomDateRangeChange?: (range: CustomDateRange) => void;
 }
 
-export function PeriodFilter({ 
-  value, 
-  onChange, 
-  showLabel = true, 
+export function PeriodFilter({
+  value,
+  onChange,
+  showLabel = true,
   className,
   customDateRange,
   onCustomDateRangeChange
@@ -68,21 +71,22 @@ export function PeriodFilter({
           value={value}
           onValueChange={(val) => onChange(val as PeriodOption)}
         >
-          <SelectTrigger 
+          <SelectTrigger
             id="period-filter"
             className="w-full sm:w-[180px] bg-black/50 border-gold-medium/50 text-white hover:bg-black/70 text-xs sm:text-sm"
           >
             <SelectValue />
           </SelectTrigger>
-          <SelectContent>
+          <SelectContent className="bg-zinc-950 border-zinc-800 text-white">
+            <SelectItem value="all_time" className="font-semibold text-gold-medium">Acumulado</SelectItem>
+            <SelectItem value="thismonth">Este mês</SelectItem>
+            <SelectItem value="lastmonth">Mês passado</SelectItem>
             <SelectItem value="last7days">Últimos 7 dias</SelectItem>
             <SelectItem value="last30days">Últimos 30 dias</SelectItem>
-            <SelectItem value="thismonth">Este Mês</SelectItem>
-            <SelectItem value="lastmonth">Mês Passado</SelectItem>
             <SelectItem value="last3months">Últimos 3 meses</SelectItem>
             <SelectItem value="last6months">Últimos 6 meses</SelectItem>
             <SelectItem value="lastyear">Último ano</SelectItem>
-            <SelectItem value="custom">Período Customizado</SelectItem>
+            <SelectItem value="custom" className="border-t border-zinc-800 mt-1 pt-1">Período customizado</SelectItem>
           </SelectContent>
         </Select>
       </div>

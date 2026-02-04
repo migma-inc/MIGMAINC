@@ -642,10 +642,23 @@ export const SellersPage = () => {
                           size="sm"
                           onClick={(e) => {
                             e.stopPropagation();
+                            const url = `/dashboard/sellers/${stats.seller.seller_id_public}/orders`;
+                            window.open(url, '_blank', 'width=1400,height=900,resizable=yes,scrollbars=yes');
+                          }}
+                          className="text-gold-light hover:text-gold-medium hover:bg-gold-medium/10 shrink-0"
+                          title="View Orders"
+                        >
+                          <ShoppingCart className="w-4 h-4 sm:w-5 sm:h-5" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
                             setSellerToEdit(stats.seller);
                             setIsEditModalOpen(true);
                           }}
-                          className="text-gold-light hover:text-gold-medium hover:bg-gold-medium/10 shrink-0"
+                          className="text-blue-400 hover:text-blue-300 hover:bg-blue-500/10 shrink-0"
                           title="Edit Seller"
                         >
                           <Edit className="w-4 h-4 sm:w-5 sm:h-5" />
