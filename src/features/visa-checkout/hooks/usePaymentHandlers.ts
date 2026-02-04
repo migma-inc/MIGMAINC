@@ -71,8 +71,29 @@ export const usePaymentHandlers = (
                 setError('Please enter the name exactly as it appears on your card');
                 return false;
             }
-            if (!cpf || cpf.length < 11) {
-                setError('Please enter a valid CPF (11 digits)');
+            // Complete CPF checksum validation
+            const validateCPF = (val: string) => {
+                const cleaned = val.replace(/\D/g, '');
+                if (cleaned.length !== 11 || /^(\d)\1{10}$/.test(cleaned)) return false;
+
+                let sum = 0;
+                let rest;
+                for (let i = 1; i <= 9; i++) sum = sum + parseInt(cleaned.substring(i - 1, i)) * (11 - i);
+                rest = (sum * 10) % 11;
+                if ((rest === 10) || (rest === 11)) rest = 0;
+                if (rest !== parseInt(cleaned.substring(9, 10))) return false;
+
+                sum = 0;
+                for (let i = 1; i <= 10; i++) sum = sum + parseInt(cleaned.substring(i - 1, i)) * (12 - i);
+                rest = (sum * 10) % 11;
+                if ((rest === 10) || (rest === 11)) rest = 0;
+                if (rest !== parseInt(cleaned.substring(10, 11))) return false;
+
+                return true;
+            };
+
+            if (!validateCPF(cpf)) {
+                setError('The CPF provided is invalid. Please check the digits.');
                 return false;
             }
         }
@@ -387,7 +408,14 @@ export const usePaymentHandlers = (
 
                 if (splitCheckoutError) {
                     console.error('[Parcelow Split] ❌ Erro ao criar split checkout:', splitCheckoutError);
-                    throw new Error('Failed to create split payment checkout');
+                    let errMsg = 'Failed to create split payment checkout';
+                    try {
+                        const errorBody = await splitCheckoutError.context.json();
+                        errMsg = errorBody.error || errorBody.message || errMsg;
+                    } catch (e) {
+                        errMsg = splitCheckoutError.message || errMsg;
+                    }
+                    throw new Error(errMsg);
                 }
 
                 console.log('[Parcelow Split] ✅ Split checkout criado:', splitCheckoutData);
@@ -649,7 +677,14 @@ export const usePaymentHandlers = (
 
                         if (checkoutError) {
                             console.error('Parcelow checkout error:', checkoutError);
-                            throw new Error('Failed to initiate Parcelow checkout');
+                            let errMsg = 'Failed to initiate Parcelow checkout';
+                            try {
+                                const errorBody = await checkoutError.context.json();
+                                errMsg = errorBody.error || errorBody.message || errMsg;
+                            } catch (e) {
+                                errMsg = checkoutError.message || errMsg;
+                            }
+                            throw new Error(errMsg);
                         }
 
                         const redirectUrl = checkoutData?.checkout_url || checkoutData?.url || checkoutData?.url_checkout;
@@ -691,7 +726,14 @@ export const usePaymentHandlers = (
 
             if (checkoutError) {
                 console.error('Parcelow checkout error:', checkoutError);
-                throw new Error('Failed to initiate Parcelow checkout');
+                let errMsg = 'Failed to initiate Parcelow checkout';
+                try {
+                    const errorBody = await checkoutError.context.json();
+                    errMsg = errorBody.error || errorBody.message || errMsg;
+                } catch (e) {
+                    errMsg = checkoutError.message || errMsg;
+                }
+                throw new Error(errMsg);
             }
 
             const redirectUrl = checkoutData?.checkout_url || checkoutData?.url || checkoutData?.url_checkout;
