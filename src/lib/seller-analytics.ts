@@ -74,6 +74,11 @@ export interface AnalyticsData {
  * @param period - Opção de período pré-definido ou objeto com datas customizadas
  * @param customRange - Opcional: objeto com start e end como strings ISO (YYYY-MM-DD)
  */
+/**
+ * Calcula a data de início e fim de um período baseado em uma opção pré-definida
+ * @param period - Opção de período pré-definido ou objeto com datas customizadas
+ * @param customRange - Opcional: objeto com start e end como strings ISO (YYYY-MM-DD)
+ */
 export function getPeriodDates(
   period: string | { start: string; end: string },
   customRange?: { start: string; end: string }
@@ -99,10 +104,21 @@ export function getPeriodDates(
   const now = new Date();
   const end = new Date(now);
   end.setHours(23, 59, 59, 999);
-  
+
   let start: Date;
 
   switch (period) {
+    case 'today':
+      start = new Date(now);
+      start.setHours(0, 0, 0, 0);
+      break;
+    case 'yesterday':
+      start = new Date(now);
+      start.setDate(start.getDate() - 1);
+      start.setHours(0, 0, 0, 0);
+      end.setDate(end.getDate() - 1);
+      end.setHours(23, 59, 59, 999);
+      break;
     case 'last7days':
       start = new Date(now);
       start.setDate(start.getDate() - 7);
@@ -135,6 +151,11 @@ export function getPeriodDates(
       start = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate());
       start.setHours(0, 0, 0, 0);
       break;
+    case 'all_time':
+      // Data arbitrária no passado (ex: início de 2024 ou da plataforma)
+      start = new Date('2024-01-01');
+      start.setHours(0, 0, 0, 0);
+      break;
     case 'custom':
       // Se for custom mas não tiver customRange, usar último ano como padrão
       start = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate());
@@ -151,14 +172,56 @@ export function getPeriodDates(
 
 /**
  * Calcula o período anterior equivalente
+ * Agora suporta lógica inteligente de MTD (Month to Date)
  */
-export function getPreviousPeriod(start: Date, end: Date): { start: Date; end: Date } {
+export function getPreviousPeriod(
+  start: Date,
+  end: Date,
+  periodType?: string
+): { start: Date; end: Date } {
+  // Lógica Especial para MTD (Este Mês)
+  // Compara os mesmos dias do mês anterior. Ex: 1-5 Fev vs 1-5 Jan
+  if (periodType === 'thismonth') {
+    const prevStart = new Date(start);
+    prevStart.setMonth(prevStart.getMonth() - 1);
+
+    // O fim deve ser o mesmo dia do mês, mas no mês anterior
+    const prevEnd = new Date(end);
+    prevEnd.setMonth(prevEnd.getMonth() - 1);
+
+    // Ajuste para virada de ano
+    if (start.getMonth() === 0) { // Janeiro
+      prevStart.setFullYear(start.getFullYear() - 1);
+      prevStart.setMonth(11); // Dezembro
+    }
+    if (end.getMonth() === 0) {
+      prevEnd.setFullYear(end.getFullYear() - 1);
+      prevEnd.setMonth(11);
+    }
+
+    return { start: prevStart, end: prevEnd };
+  }
+
+  // Lógica Especial para "Mês Passado"
+  // Compara com o mês retrasado inteiro
+  if (periodType === 'lastmonth') {
+    const prevStart = new Date(start);
+    prevStart.setMonth(prevStart.getMonth() - 1);
+
+    const prevEnd = new Date(start); // Começo do mês passado
+    prevEnd.setDate(0); // Último dia do mês retrasado
+    prevEnd.setHours(23, 59, 59, 999);
+
+    return { start: prevStart, end: prevEnd };
+  }
+
+  // Lógica Padrão (Subtrai Duração)
   const duration = end.getTime() - start.getTime();
   const prevEnd = new Date(start);
   prevEnd.setTime(prevEnd.getTime() - 1);
   const prevStart = new Date(prevEnd);
   prevStart.setTime(prevStart.getTime() - duration);
-  
+
   return { start: prevStart, end: prevEnd };
 }
 
@@ -191,6 +254,19 @@ export async function getSellerChartData(
     // Agrupar por período conforme granularidade
     const grouped = new Map<string, ChartDataPoint>();
 
+    // Para consistência, precisamos ordenar todos os pedidos para usar isFirstPayment
+    // Mas aqui estamos filtrando por data range, então isFirstPayment deve receber
+    // o contexto global ou assumir que o range é suficiente?
+    // A função isFirstPayment precisa ver o histórico.
+    // Solução ideal: Buscar contratos vendidos usando a mesma lógica do calculateStats
+
+    // Ordenar para processamento do isFirstPayment (calculo local no range)
+    // Nota: isFirstPayment pode ser impreciso se o range for curto e o pedido anterior estiver fora
+    // Mas para visualização de gráfico, é o melhor que podemos fazer sem buscar ALL orders
+    const sortedOrders = [...orders].sort((a, b) =>
+      new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+    );
+
     orders.forEach((order) => {
       const orderDate = new Date(order.created_at);
       let key: string;
@@ -217,10 +293,17 @@ export async function getSellerChartData(
       // Calculate revenue using net amount (total_price_usd - fee_amount)
       const revenue = isCompleted ? calculateNetAmount(order) : 0;
 
+      // FIX: Use isFirstPayment logic to count contracts consistent with summary
+      // Only count as contract if completed AND is first payment
+      const isContract = isCompleted && isFirstPayment(order, sortedOrders);
+
       existing.revenue += revenue;
-      existing.contracts += 1;
-    // Commission will be calculated from actual commission records
-    existing.commission += 0; // Will be populated by getCommissionChartData
+      if (isContract) {
+        existing.contracts += 1;
+      }
+
+      // Commission will be calculated from actual commission records
+      existing.commission += 0; // Will be populated by getCommissionChartData
 
       grouped.set(key, existing);
     });
@@ -274,14 +357,14 @@ export async function getProductMetrics(
     orders.forEach((order) => {
       const slug = order.product_slug || 'unknown';
       const existing = productStats.get(slug) || { sales: 0, revenue: 0 };
-      
+
       const isCompleted = order.payment_status === 'completed' || order.payment_status === 'paid';
       // Calculate revenue using net amount (total_price_usd - fee_amount)
       const revenue = calculateNetAmount(order);
 
       existing.sales += 1;
       existing.revenue += isCompleted ? revenue : 0;
-      
+
       productStats.set(slug, existing);
     });
 
@@ -373,7 +456,7 @@ export async function getTrends(
     // Buscar dados históricos dos últimos 3 meses para calcular tendência
     const historicalStart = new Date(period.start);
     historicalStart.setMonth(historicalStart.getMonth() - 3);
-    
+
     const { data: orders } = await supabase
       .from('visa_orders')
       .select('created_at, total_price_usd, payment_status')
@@ -397,7 +480,7 @@ export async function getTrends(
         const date = new Date(order.created_at);
         const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
         // Calculate revenue using net amount (total_price_usd - fee_amount)
-      const revenue = calculateNetAmount(order);
+        const revenue = calculateNetAmount(order);
         monthlyRevenue.set(monthKey, (monthlyRevenue.get(monthKey) || 0) + revenue);
       }
     });
@@ -461,10 +544,10 @@ export async function getAnalyticsData(
   enableComparison: boolean = false,
   customRange?: { start: string; end: string }
 ): Promise<AnalyticsData> {
-  const period = typeof periodOption === 'object' 
+  const period = typeof periodOption === 'object'
     ? getPeriodDates(periodOption)
     : getPeriodDates(periodOption, customRange);
-  
+
   // Buscar pedidos do período
   const { data: orders } = await supabase
     .from('visa_orders')
@@ -475,13 +558,15 @@ export async function getAnalyticsData(
 
   const summary = calculateStats(orders || []);
 
+  const periodType = typeof periodOption === 'string' ? periodOption : 'custom';
+
   // Buscar dados em paralelo
   const [chartData, productMetrics, trends, comparison, commissionSummary, commissionByProduct, commissionChartData] = await Promise.all([
     getSellerChartData(sellerId, period, 'day'),
     getProductMetrics(sellerId, period),
     getTrends(sellerId, period),
     enableComparison
-      ? getPeriodComparison(sellerId, period, getPreviousPeriod(period.start, period.end))
+      ? getPeriodComparison(sellerId, period, getPreviousPeriod(period.start, period.end, periodType))
       : Promise.resolve(undefined),
     getCommissionSummary(sellerId, period),
     getCommissionByProduct(sellerId, period),
@@ -526,17 +611,17 @@ const BLACKLISTED_PRODUCTS = [
  */
 function isBlacklistedProduct(productSlug: string | null | undefined): boolean {
   if (!productSlug) return false;
-  
+
   // Verificar se está na lista direta
   if (BLACKLISTED_PRODUCTS.includes(productSlug)) {
     return true;
   }
-  
+
   // Verificar se termina com -scholarship ou -i20-control
   if (productSlug.endsWith('-scholarship') || productSlug.endsWith('-i20-control')) {
     return true;
   }
-  
+
   return false;
 }
 
@@ -548,12 +633,12 @@ function isBlacklistedProduct(productSlug: string | null | undefined): boolean {
  */
 function getBaseService(productSlug: string | null | undefined): string | null {
   if (!productSlug) return null;
-  
+
   // Para produtos initial, cos, transfer
   if (productSlug.startsWith('initial-')) return 'initial';
   if (productSlug.startsWith('cos-')) return 'cos';
   if (productSlug.startsWith('transfer-')) return 'transfer';
-  
+
   // Para outros produtos, retornar o slug completo como base
   return productSlug;
 }
@@ -573,46 +658,78 @@ function isFirstPayment(order: any, allOrders: any[]): boolean {
   if (order.payment_status !== 'completed' && order.payment_status !== 'paid') {
     return false;
   }
-  
+
   // 1. Se está na blacklist, nunca conta
   if (isBlacklistedProduct(order.product_slug)) {
     return false;
   }
-  
+
   // 2. Se é -selection-process, sempre é primeiro pagamento
   if (order.product_slug?.endsWith('-selection-process')) {
-    return true;
+    // Verificar se existe outro selection-process ANTERIOR para o mesmo cliente
+    // (Caso raro onde o cliente comprou 2x o selection process)
+    const hasPreviousSelection = allOrders.some((o: any) => {
+      if (o.id === order.id) return false;
+      if (o.client_email !== order.client_email) return false;
+      if (!o.product_slug?.endsWith('-selection-process')) return false;
+      if (o.payment_status !== 'completed' && o.payment_status !== 'paid') return false;
+
+      const dateA = new Date(o.created_at).getTime();
+      const dateB = new Date(order.created_at).getTime();
+
+      // Se data for menor, é anterior.
+      if (dateA < dateB) return true;
+
+      // Se data for igual, usar ID para desempatar (ordem alfabética ou uuid)
+      // Se o ID do 'o' for menor que o ID do 'order', consideramos 'o' como anterior
+      if (dateA === dateB && o.id < order.id) return true;
+
+      return false;
+    });
+    return !hasPreviousSelection;
   }
-  
+
   // 3. Para -scholarship ou -i20-control, verificar se já existe selection-process anterior
   if (order.product_slug?.endsWith('-scholarship') || order.product_slug?.endsWith('-i20-control')) {
     const baseService = getBaseService(order.product_slug);
     if (!baseService) return false;
-    
+
     const selectionProcessSlug = `${baseService}-selection-process`;
-    
+
     // Verificar se existe um pedido anterior do mesmo cliente com selection-process (completado/paid)
-    const hasPreviousSelectionProcess = allOrders.some((o: any) => 
+    // Se existir, então este pedido ATUAL não é o contrato inicial (o contrato foi a selection)
+    const hasPreviousSelectionProcess = allOrders.some((o: any) =>
       o.id !== order.id &&
       o.client_email === order.client_email &&
       o.product_slug === selectionProcessSlug &&
       (o.payment_status === 'completed' || o.payment_status === 'paid') &&
-      new Date(o.created_at) < new Date(order.created_at)
+      // Qualquer selection process anterior invalida este como "novo contrato"
+      // Não precisamos desempatar por ID aqui, pois se existe QUALQUER selection process anterior, 
+      // já conta como contrato vendido lá atrás.
+      new Date(o.created_at) <= new Date(order.created_at)
     );
-    
+
     // Se já existe selection-process anterior, este não é primeiro pagamento
-    return !hasPreviousSelectionProcess;
+    if (hasPreviousSelectionProcess) return false;
   }
-  
-  // 4. Para outros produtos, verificar se já existe pedido anterior do mesmo produto (completado/paid)
-  const hasPreviousOrder = allOrders.some((o: any) => 
-    o.id !== order.id &&
-    o.client_email === order.client_email &&
-    o.product_slug === order.product_slug &&
-    (o.payment_status === 'completed' || o.payment_status === 'paid') &&
-    new Date(o.created_at) < new Date(order.created_at)
-  );
-  
+
+  // 4. Para outros produtos (ou se não achou selection process nos casos acima), 
+  // verificar se já existe pedido anterior do mesmo produto (completado/paid)
+  const hasPreviousOrder = allOrders.some((o: any) => {
+    if (o.id === order.id) return false;
+    if (o.client_email !== order.client_email) return false;
+    if (o.product_slug !== order.product_slug) return false;
+    if (o.payment_status !== 'completed' && o.payment_status !== 'paid') return false;
+
+    const dateA = new Date(o.created_at).getTime();
+    const dateB = new Date(order.created_at).getTime();
+
+    if (dateA < dateB) return true;
+    if (dateA === dateB && o.id < order.id) return true;
+
+    return false;
+  });
+
   // Se não existe pedido anterior, é primeiro pagamento
   return !hasPreviousOrder;
 }
@@ -629,23 +746,23 @@ function calculateStats(orders: any[]): {
     o => o.payment_status === 'completed' || o.payment_status === 'paid'
   );
   const pending = orders.filter(o => o.payment_status === 'pending');
-  
+
   // Calculate revenue using net amount (total_price_usd - fee_amount)
   const revenue = completed.reduce(
     (sum, o) => sum + calculateNetAmount(o),
     0
   );
-  
+
   // Calculate sold contracts (first payments only, excluding blacklisted products)
   // Ordenar pedidos por data para verificar corretamente quais são primeiros
-  const sortedOrders = [...orders].sort((a, b) => 
+  const sortedOrders = [...orders].sort((a, b) =>
     new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
   );
-  
-  const soldContracts = completed.filter(order => 
+
+  const soldContracts = completed.filter(order =>
     isFirstPayment(order, sortedOrders)
   ).length;
-  
+
   // Commission will be calculated from actual commission records
   const commission = 0;
 

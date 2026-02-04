@@ -108,12 +108,15 @@ export function SellerAnalytics() {
 
   const periodLabel = periodFilter === 'thismonth' ? 'This Month' :
     periodFilter === 'lastmonth' ? 'Last Month' :
-      periodFilter === 'last7days' ? 'Last 7 Days' :
-        periodFilter === 'last30days' ? 'Last 30 Days' :
-          periodFilter === 'last3months' ? 'Last 3 Months' :
-            periodFilter === 'last6months' ? 'Last 6 Months' :
-              periodFilter === 'lastyear' ? 'Last Year' :
-                periodFilter === 'custom' ? `${customDateRange.start} to ${customDateRange.end}` : 'Period';
+      periodFilter === 'today' ? 'Today' :
+        periodFilter === 'yesterday' ? 'Yesterday' :
+          periodFilter === 'last7days' ? 'Last 7 Days' :
+            periodFilter === 'last30days' ? 'Last 30 Days' :
+              periodFilter === 'last3months' ? 'Last 3 Months' :
+                periodFilter === 'last6months' ? 'Last 6 Months' :
+                  periodFilter === 'lastyear' ? 'Last Year' :
+                    periodFilter === 'all_time' ? 'All Time' :
+                      periodFilter === 'custom' ? `${customDateRange.start} to ${customDateRange.end}` : 'Period';
 
   // Calcular valores do período anterior para comparação
   const previousSummary = analyticsData?.comparison ? {
