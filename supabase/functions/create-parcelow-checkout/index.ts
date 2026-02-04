@@ -651,7 +651,7 @@ Deno.serve(async (req: Request) => {
     if (!clientCpfToUse || clientCpfToUse.length < 11) {
       return new Response(
         JSON.stringify({
-          error: "CPF is required for Parcelow payment.",
+          error: "Invalid or incomplete CPF. Please check the 11 digits.",
           details: "CPF missing or invalid"
         }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
