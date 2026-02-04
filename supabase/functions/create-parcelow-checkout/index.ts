@@ -544,25 +544,71 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    // Calculate base amount (main product only)
-    const mainProductAmountInCents = Math.round(parseFloat(order.base_price_usd) * 100) +
-      (order.extra_units * Math.round(parseFloat(order.price_per_dependent_usd || 0) * 100));
+    // Calculate base amount
+    // IF amount_usd is provided (from Split Payment), use it. Otherwise, calculate from order.
+    let amountInCents: number;
+    let itemDescription: string;
 
-    let amountInCents = mainProductAmountInCents;
+    if (amount_usd) {
+      amountInCents = Math.round(parseFloat(amount_usd) * 100);
+      itemDescription = body.is_split_part
+        ? `Payment Part ${body.split_part_number || 1} - ${order.order_number}`
+        : `${order.product_slug} - ${order.client_name}`;
+    } else {
+      // Calculate from components first
+      const baseAmount = parseFloat(order.base_price_usd || "0");
+
+      // Use price_per_dependent_usd or extra_unit_price_usd (fallback)
+      const unitPriceStr = order.price_per_dependent_usd || order.extra_unit_price_usd || "0";
+      const unitPrice = parseFloat(unitPriceStr);
+      const units = order.extra_units || 0;
+      const dependentAmount = units * unitPrice;
+
+      const totalFromComponents = baseAmount + dependentAmount;
+
+      console.log(`[Parcelow Checkout] 💰 Amount Calculation:`, {
+        baseAmount,
+        unitPrice,
+        units,
+        dependentAmount,
+        totalFromComponents,
+        total_price_usd: order.total_price_usd
+      });
+
+      // FALLBACK: If components sum to 0 but we have a total_price_usd, use the total_price_usd
+      // This happens when sellers set a manual price without updating base_price fields
+      const finalAmountUsd = (totalFromComponents > 0)
+        ? totalFromComponents
+        : parseFloat(order.total_price_usd || "0");
+
+      amountInCents = Math.round(finalAmountUsd * 100);
+      itemDescription = `${order.product_slug} - ${order.client_name}`;
+    }
+
+    // Safety check: Parcelow requires at least 1 cent
+    if (amountInCents <= 0) {
+      console.error("[Parcelow Checkout] ❌ INVALID AMOUNT: Calculated 0 cents for order", order.order_number);
+      return new Response(
+        JSON.stringify({
+          error: "Invalid order amount. Price must be greater than 0.",
+          details: `Calculated amount: ${amountInCents}`
+        }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     const items = [
       {
-        reference: order.order_number,
-        description: `${order.product_slug} - ${order.client_name}`,
+        reference: body.is_split_part ? `${order.order_number}-P${body.split_part_number}` : order.order_number,
+        description: itemDescription,
         quantity: 1,
-        amount: mainProductAmountInCents,
+        amount: amountInCents,
       },
     ];
 
-    // Handle Upsell if present in order fields
-    if (order.upsell_product_slug && order.upsell_price_usd) {
-      console.log(`[Parcelow Checkout] 📋 Step 5.5: Adding upsell from order fields...`);
-      console.log(`[Parcelow Checkout] Upsell product: ${order.upsell_product_slug}, price: $${order.upsell_price_usd}`);
-
+    // Handle Upsell ONLY if it's NOT a split part (split parts already have the adjusted total)
+    if (!body.is_split_part && order.upsell_product_slug && order.upsell_price_usd) {
+      console.log(`[Parcelow Checkout] 📋 Step 5.5: Adding upsell...`);
       const upsellAmountInCents = Math.round(parseFloat(order.upsell_price_usd) * 100);
       amountInCents += upsellAmountInCents;
       items.push({
@@ -571,14 +617,10 @@ Deno.serve(async (req: Request) => {
         quantity: 1,
         amount: upsellAmountInCents,
       });
-      console.log(`[Parcelow Checkout] ✅ Added upsell to items. New total: ${amountInCents}`);
-    } else {
-      console.log(`[Parcelow Checkout] ℹ️ No upsell in this order.`);
     }
 
-    // Apply Discount if present
-    if (order.discount_amount && order.discount_amount > 0) {
-      console.log(`[Parcelow Checkout] 🏷️ Applying discount: -$${order.discount_amount}`);
+    // Apply Discount ONLY if it's NOT a split part (split parts already have the adjusted total)
+    if (!body.is_split_part && order.discount_amount && order.discount_amount > 0) {
       const discountInCents = Math.round(parseFloat(order.discount_amount) * 100);
 
       // Subtract from the first item to avoid negative line items in Parcelow
@@ -609,7 +651,7 @@ Deno.serve(async (req: Request) => {
     if (!clientCpfToUse || clientCpfToUse.length < 11) {
       return new Response(
         JSON.stringify({
-          error: "CPF is required for Parcelow payment.",
+          error: "Invalid or incomplete CPF. Please check the 11 digits.",
           details: "CPF missing or invalid"
         }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }

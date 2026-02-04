@@ -10,6 +10,7 @@ interface QuantitySelectorProps {
     dependentNames: string[];
     onExtraUnitsChange: (val: number) => void;
     onDependentNamesChange: (val: string[]) => void;
+    fieldErrors?: Record<string, string>;
 }
 
 export const QuantitySelector: React.FC<QuantitySelectorProps> = ({
@@ -18,6 +19,7 @@ export const QuantitySelector: React.FC<QuantitySelectorProps> = ({
     dependentNames,
     onExtraUnitsChange,
     onDependentNamesChange,
+    fieldErrors,
 }) => {
     if (!product.allow_extra_units) return null;
 
@@ -48,10 +50,11 @@ export const QuantitySelector: React.FC<QuantitySelectorProps> = ({
     return (
         <div className="space-y-4">
             <div className="space-y-2">
-                <Label htmlFor="extra-units" className="text-white text-sm sm:text-base">
+                <Label htmlFor="extra-units" className="text-white text-sm sm:text-base flex items-center">
                     {product.calculation_type === 'units_only'
-                        ? 'Number of applicants (required)'
+                        ? (product.slug === 'rfe-defense' ? 'Number of evidences' : 'Number of applicants')
                         : product.extra_unit_label + ' (0-5)'}
+                    <span className="text-red-500 ml-1 font-bold">*</span>
                 </Label>
                 <Select
                     value={String(extraUnits)}
@@ -68,12 +71,18 @@ export const QuantitySelector: React.FC<QuantitySelectorProps> = ({
                         ))}
                     </SelectContent>
                 </Select>
+                {fieldErrors?.extraUnits && (
+                    <p className="text-red-400 text-xs mt-1 animate-in fade-in slide-in-from-top-1">{fieldErrors.extraUnits}</p>
+                )}
             </div>
 
             {dependentNames.map((name, i) => (
                 <div key={i} className="space-y-2">
-                    <Label className="text-white text-sm sm:text-base">
-                        {product.calculation_type === 'units_only' ? 'Applicant Name' : 'Dependent Name'} {i + 1} *
+                    <Label className="text-white text-sm sm:text-base flex items-center">
+                        {product.slug === 'rfe-defense'
+                            ? `Evidence ${i + 1} description`
+                            : (product.calculation_type === 'units_only' ? 'Applicant Name' : 'Dependent Name')} {i + 1}
+                        <span className="text-red-500 ml-1 font-bold">*</span>
                     </Label>
                     <Input
                         value={name}

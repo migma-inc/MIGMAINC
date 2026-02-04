@@ -1,4 +1,5 @@
 import type { ContractTemplate } from '@/lib/contract-templates';
+import type { SplitPaymentConfig } from '../components/steps/step3/SplitPaymentSelector';
 
 export type PaymentMethod = '' | 'card' | 'pix' | 'zelle' | 'wise' | 'parcelow';
 
@@ -90,6 +91,9 @@ export interface VisaCheckoutState {
         discountValue: number;
     } | null;
     discountAmount: number;
+
+    // Split Payment
+    splitPaymentConfig: SplitPaymentConfig | null;
 }
 
 export interface VisaCheckoutActions {
@@ -152,4 +156,7 @@ export interface VisaCheckoutActions {
     setCouponCode: (val: string) => void;
     setAppliedCoupon: (val: { code: string; discountType: 'fixed' | 'percentage'; discountValue: number; } | null) => void;
     setDiscountAmount: (val: number) => void;
+
+    // Split Payment
+    setSplitPaymentConfig: (val: SplitPaymentConfig | null) => void;
 }
