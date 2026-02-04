@@ -557,8 +557,23 @@ Deno.serve(async (req: Request) => {
     } else {
       // Calculate from components first
       const baseAmount = parseFloat(order.base_price_usd || "0");
-      const dependentAmount = (order.extra_units || 0) * parseFloat(order.price_per_dependent_usd || "0");
+
+      // Use price_per_dependent_usd or extra_unit_price_usd (fallback)
+      const unitPriceStr = order.price_per_dependent_usd || order.extra_unit_price_usd || "0";
+      const unitPrice = parseFloat(unitPriceStr);
+      const units = order.extra_units || 0;
+      const dependentAmount = units * unitPrice;
+
       const totalFromComponents = baseAmount + dependentAmount;
+
+      console.log(`[Parcelow Checkout] 💰 Amount Calculation:`, {
+        baseAmount,
+        unitPrice,
+        units,
+        dependentAmount,
+        totalFromComponents,
+        total_price_usd: order.total_price_usd
+      });
 
       // FALLBACK: If components sum to 0 but we have a total_price_usd, use the total_price_usd
       // This happens when sellers set a manual price without updating base_price fields
