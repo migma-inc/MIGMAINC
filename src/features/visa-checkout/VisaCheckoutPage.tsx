@@ -23,7 +23,7 @@ import { calculateBaseTotal, calculateTotalWithFees } from '@/lib/visa-checkout-
 import { trackLinkClick } from '@/lib/funnel-tracking';
 import type { VisaProduct } from '@/types/visa-product';
 import { SHOW_BETA_FEATURES } from '@/lib/env-utils';
-import { Loader2, AlertCircle } from 'lucide-react';
+import { AlertCircle } from 'lucide-react';
 
 export const VisaCheckoutPage: React.FC = () => {
     const { productSlug } = useParams<{ productSlug: string }>();
@@ -124,8 +124,8 @@ export const VisaCheckoutPage: React.FC = () => {
     if (loading || isLoadingPrefill) {
         return (
             <div className="min-h-screen bg-black flex flex-col items-center justify-center text-white p-4">
-                <Loader2 className="w-12 h-12 text-gold-medium animate-spin mb-4" />
-                <p className="text-gold-light font-medium animate-pulse">Carregando sua aplicação...</p>
+                <div className="loader-gold mx-auto mb-8"></div>
+                <p className="text-gray-400">Carregando sua aplicação...</p>
             </div>
         );
     }
@@ -156,7 +156,7 @@ export const VisaCheckoutPage: React.FC = () => {
 
 
     return (
-        <div className="min-h-screen bg-black py-8 sm:py-12 px-4 sm:px-6 lg:px-8">
+        <div className="min-h-screen bg-black py-8 sm:py-12 px-4 sm:px-6 lg:px-8 notranslate" translate="no">
             {state.submitting && <CheckoutLoadingOverlay />}
             <div className="max-w-6xl mx-auto">
                 <header className="flex flex-col mb-8 gap-2">
