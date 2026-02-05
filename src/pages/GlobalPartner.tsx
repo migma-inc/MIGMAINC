@@ -160,7 +160,7 @@ export const GlobalPartner = () => {
     };
 
     return (
-        <div className="min-h-screen bg-background font-sans text-foreground">
+        <div className="min-h-screen bg-background font-sans text-foreground notranslate" translate="no">
             {/* Wrapper com gradiente azul para Header + Hero */}
             <div style={{ background: "radial-gradient(ellipse 200% 100% at bottom left, #000000, #1a1a1a 100%)" }} className="pt-[80px]">
                 {/* Header - Replicado do Template */}
