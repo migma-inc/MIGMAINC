@@ -97,7 +97,7 @@ export const VisaSignatureCheckoutPage: React.FC = () => {
     }
 
     return (
-        <div className="min-h-screen bg-black py-8 sm:py-12 px-4 sm:px-6 lg:px-8">
+        <div className="min-h-screen bg-black py-8 sm:py-12 px-4 sm:px-6 lg:px-8 notranslate" translate="no">
             <div className="max-w-4xl mx-auto">
                 <header className="flex flex-col mb-8 gap-2">
                     <Link to="/" className="inline-flex items-center text-gold-light hover:text-gold-medium transition-colors mb-2">
