@@ -1,4 +1,4 @@
-import { Loader2, Clock, ShieldCheck } from 'lucide-react';
+import { ShieldCheck } from 'lucide-react';
 
 interface CheckoutLoadingOverlayProps {
     message?: string;
@@ -15,17 +15,9 @@ export const CheckoutLoadingOverlay: React.FC<CheckoutLoadingOverlayProps> = ({
                 {/* Visual pulse glow */}
                 <div className="absolute inset-0 bg-gold-medium/20 blur-3xl rounded-full scale-150 animate-pulse"></div>
 
-                {/* The Clock/Hourglass Animation the user likes */}
-                <div className="relative">
-                    <div className="w-28 h-28 border-4 border-gold-light/10 border-t-gold-medium rounded-full animate-spin duration-1000"></div>
-                    <div className="absolute inset-0 flex items-center justify-center">
-                        <Clock className="w-14 h-14 text-gold-medium animate-pulse" />
-                    </div>
-                </div>
-
-                {/* Small overlay loader */}
-                <div className="absolute -bottom-2 -right-2 bg-black rounded-full p-1 border border-gold-medium/30">
-                    <Loader2 className="w-6 h-6 text-gold-light animate-spin" />
+                {/* The Loader Gold (Hourglass) Animation */}
+                <div className="relative flex items-center justify-center">
+                    <div className="loader-gold"></div>
                 </div>
             </div>
 

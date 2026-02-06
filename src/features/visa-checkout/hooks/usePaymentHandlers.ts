@@ -48,6 +48,7 @@ export const usePaymentHandlers = (
         creditCardName,
         cpf,
         couponCode,
+        billingInstallmentId,
         // discountAmount removed from state destructuring to avoid conflict
     } = state;
 
@@ -67,7 +68,12 @@ export const usePaymentHandlers = (
             return false;
         }
         if (paymentMethod === 'parcelow') {
-            if (!creditCardName) {
+            const isSplitActive = state.splitPaymentConfig?.enabled;
+            const requiresCard = !isSplitActive ||
+                state.splitPaymentConfig?.part1_method === 'card' ||
+                state.splitPaymentConfig?.part2_method === 'card';
+
+            if (requiresCard && !creditCardName) {
                 setError('Please enter the name exactly as it appears on your card');
                 return false;
             }
@@ -185,6 +191,7 @@ export const usePaymentHandlers = (
                 contract_template_id: contractTemplate?.id,
                 upsell_product_slug: state.selectedUpsell === 'none' ? null : (state.selectedUpsell === 'canada-premium' ? 'canada-tourist-premium' : 'canada-tourist-revolution') as any,
                 upsell_contract_template_id: state.upsellContractTemplate?.id,
+                billing_installment_id: billingInstallmentId,
             };
 
             const response = await StripeService.createCheckoutSession(request);
@@ -193,7 +200,7 @@ export const usePaymentHandlers = (
             setError(err instanceof Error ? err.message : 'Stripe payment failed');
             setSubmitting(false);
         }
-    }, [productSlug, sellerId, totalWithFees, extraUnits, serviceRequestId, clientName, clientEmail, clientWhatsApp, validateStep3, documentFiles, hasExistingContract, existingContractData, dependentNames, clientCountry, clientNationality, clientObservations, exchangeRate, contractTemplate, setSubmitting, setError, state.submitting]);
+    }, [productSlug, sellerId, totalWithFees, extraUnits, serviceRequestId, clientName, clientEmail, clientWhatsApp, validateStep3, documentFiles, hasExistingContract, existingContractData, dependentNames, clientCountry, clientNationality, clientObservations, exchangeRate, contractTemplate, setSubmitting, setError, state.submitting, state.selectedUpsell, state.upsellContractTemplate]);
 
     const handleZellePayment = useCallback(async () => {
         if (state.submitting) return;
@@ -245,6 +252,7 @@ export const usePaymentHandlers = (
                 zelle_receipt_url: '',
                 upsell_product_slug: state.selectedUpsell === 'none' ? null : (state.selectedUpsell === 'canada-premium' ? 'canada-tourist-premium' : 'canada-tourist-revolution') as any,
                 upsell_contract_template_id: state.upsellContractTemplate?.id,
+                billing_installment_id: billingInstallmentId,
                 coupon_code: couponCode,
                 discount_amount: discountAmount,
             };
@@ -260,7 +268,7 @@ export const usePaymentHandlers = (
             setSubmitting(false);
             setIsZelleProcessing(false);
         }
-    }, [productSlug, sellerId, baseTotal, validateStep3, zelleReceipt, extraUnits, serviceRequestId, clientName, clientEmail, clientWhatsApp, dependentNames, clientCountry, clientNationality, clientObservations, contractTemplate, setSubmitting, setIsZelleProcessing, setError, state.submitting, couponCode, discountAmount]);
+    }, [productSlug, sellerId, baseTotal, validateStep3, zelleReceipt, extraUnits, serviceRequestId, clientName, clientEmail, clientWhatsApp, dependentNames, clientCountry, clientNationality, clientObservations, contractTemplate, setSubmitting, setIsZelleProcessing, setError, state.submitting, couponCode, discountAmount, state.selectedUpsell, state.upsellContractTemplate]);
 
     const handleParcelowPayment = useCallback(async () => {
         console.log('🔥🔥🔥🔥🔥 VERSÃO NOVA CARREGADA - handleParcelowPayment 🔥🔥🔥🔥🔥');
@@ -374,6 +382,7 @@ export const usePaymentHandlers = (
                             cpf: cpf,
                             has_upsell: !!upsellAmount,
                             is_split_payment: true,
+                            billing_installment_id: billingInstallmentId,
                             upsell_details: upsellAmount > 0 ? {
                                 slug: upsellProductSlug,
                                 base_price: baseUpsellPrice,
@@ -526,6 +535,7 @@ export const usePaymentHandlers = (
                         credit_card_name: creditCardName,
                         cpf: cpf,
                         has_upsell: !!upsellAmount,
+                        billing_installment_id: billingInstallmentId,
                         upsell_details: upsellAmount > 0 ? {
                             slug: upsellProductSlug,
                             base_price: baseUpsellPrice,
@@ -749,7 +759,7 @@ export const usePaymentHandlers = (
             setError(err instanceof Error ? err.message : 'Parcelow payment failed');
             setSubmitting(false);
         }
-    }, [productSlug, sellerId, totalWithFees, extraUnits, serviceRequestId, clientName, clientEmail, clientWhatsApp, validateStep3, documentFiles, hasExistingContract, existingContractData, dependentNames, clientCountry, clientNationality, clientObservations, setSubmitting, setError, contractTemplate, creditCardName, cpf, state.submitting, couponCode, discountAmount]);
+    }, [productSlug, sellerId, totalWithFees, extraUnits, serviceRequestId, clientName, clientEmail, clientWhatsApp, validateStep3, documentFiles, hasExistingContract, existingContractData, dependentNames, clientCountry, clientNationality, clientObservations, setSubmitting, setError, contractTemplate, creditCardName, cpf, state.submitting, couponCode, discountAmount, state.selectedUpsell, state.splitPaymentConfig, state.upsellContractTemplate]);
 
     return {
         handleStripeCheckout,

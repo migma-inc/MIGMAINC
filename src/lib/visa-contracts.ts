@@ -28,7 +28,7 @@ export interface TokenValidationResult {
 export async function approveVisaContract(
   orderId: string,
   reviewedBy: string,
-  contractType: 'annex' | 'contract' = 'contract'
+  contractType: 'annex' | 'contract' | 'upsell_contract' | 'upsell_annex' = 'contract'
 ): Promise<{ success: boolean; error?: string }> {
   try {
     const { data, error } = await supabase.functions.invoke('approve-visa-contract', {
@@ -86,7 +86,7 @@ export async function rejectVisaContract(
   orderId: string,
   reviewedBy: string,
   reason?: string,
-  contractType: 'annex' | 'contract' = 'contract'
+  contractType: 'annex' | 'contract' | 'upsell_contract' | 'upsell_annex' = 'contract'
 ): Promise<{ success: boolean; token?: string; error?: string }> {
   try {
     // Get current origin (localhost in dev, production URL in prod)

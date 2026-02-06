@@ -84,8 +84,8 @@ Deno.serve(async (req) => {
       );
     }
 
-    // contract_type: 'annex' or 'contract' (defaults to 'contract' for backward compatibility)
-    const approvalType = contract_type === 'annex' ? 'annex' : 'contract';
+    // contract_type: 'annex', 'contract', 'upsell_contract', or 'upsell_annex'
+    const approvalType = contract_type || 'contract';
 
     // Update order with rejection status based on contract type
     const updateData: any = {
@@ -99,7 +99,22 @@ Deno.serve(async (req) => {
       if (rejection_reason) {
         updateData.annex_rejection_reason = rejection_reason;
       }
+    } else if (approvalType === 'upsell_contract') {
+      updateData.upsell_contract_approval_status = 'rejected';
+      updateData.upsell_contract_approval_reviewed_by = reviewed_by;
+      updateData.upsell_contract_approval_reviewed_at = new Date().toISOString();
+      if (rejection_reason) {
+        updateData.upsell_contract_rejection_reason = rejection_reason;
+      }
+    } else if (approvalType === 'upsell_annex') {
+      updateData.upsell_annex_approval_status = 'rejected';
+      updateData.upsell_annex_approval_reviewed_by = reviewed_by;
+      updateData.upsell_annex_approval_reviewed_at = new Date().toISOString();
+      if (rejection_reason) {
+        updateData.upsell_annex_rejection_reason = rejection_reason;
+      }
     } else {
+      // Default to main contract
       updateData.contract_approval_status = 'rejected';
       updateData.contract_approval_reviewed_by = reviewed_by;
       updateData.contract_approval_reviewed_at = new Date().toISOString();

@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { PdfModal } from '@/components/ui/pdf-modal';
 import { ImageModal } from '@/components/ui/image-modal';
-import { ArrowLeft, FileText, CheckCircle2, XCircle, Shield, CheckCircle, X, Eye, Loader2, AlertCircle } from 'lucide-react';
+import { ArrowLeft, FileText, CheckCircle2, XCircle, Shield, CheckCircle, X, Eye, Loader2, AlertCircle, Users, Package } from 'lucide-react';
 import { approveVisaContract, rejectVisaContract } from '@/lib/visa-contracts';
 import { getSecureUrl } from '@/lib/storage';
 import { PromptModal } from '@/components/ui/prompt-modal';
@@ -52,6 +52,31 @@ interface Order {
   annex_rejection_reason?: string | null;
   coupon_code?: string | null;
   discount_amount?: number | null;
+  // New fields
+  dependent_names: string[] | null;
+  upsell_product_slug: string | null;
+  upsell_price_usd: string | null;
+  upsell_contract_pdf_url: string | null;
+  upsell_annex_pdf_url: string | null;
+}
+
+interface Schedule {
+  id: string;
+  status: string;
+  total_installments: number;
+  installments_paid: number;
+  amount_per_installment: number;
+  next_billing_date: string;
+  installments?: Installment[];
+}
+
+interface Installment {
+  id: string;
+  installment_number: number;
+  amount: number;
+  due_date: string;
+  status: string;
+  notified_at: string | null;
 }
 
 interface IdentityFile {
@@ -75,6 +100,7 @@ interface TermsAcceptance {
 export const VisaOrderDetailPage = () => {
   const { id } = useParams<{ id: string }>();
   const [order, setOrder] = useState<Order | null>(null);
+  const [schedule, setSchedule] = useState<Schedule | null>(null);
   const [termsAcceptance, setTermsAcceptance] = useState<TermsAcceptance | null>(null);
   const [identityFiles, setIdentityFiles] = useState<IdentityFile[]>([]);
   const [loading, setLoading] = useState(true);
@@ -86,8 +112,8 @@ export const VisaOrderDetailPage = () => {
   const [selectedImageTitle, setSelectedImageTitle] = useState<string>('');
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [rejectingContractType, setRejectingContractType] = useState<'annex' | 'contract'>('contract');
-  const [rejectionReason, setRejectionReason] = useState('');
   const [processingAction, setProcessingAction] = useState<string | null>(null);
+  const [generatingSchedule, setGeneratingSchedule] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [showAlert, setShowAlert] = useState(false);
   const [alertData, setAlertData] = useState<{ title: string; message: string; variant: 'success' | 'error' | 'warning' | 'info' } | null>(null);
@@ -150,6 +176,21 @@ export const VisaOrderDetailPage = () => {
           if (secureZelleUrl) {
             setOrder(prev => prev ? { ...prev, zelle_proof_url: secureZelleUrl } : null);
           }
+        }
+
+        // Load recurring billing schedule if it exists
+        const { data: scheduleData } = await supabase
+          .from('recurring_billing_schedules')
+          .select('*, installments:billing_installments(*)')
+          .eq('order_id', id)
+          .maybeSingle();
+
+        if (scheduleData) {
+          // Sort installments by number
+          if (scheduleData.installments) {
+            scheduleData.installments.sort((a: any, b: any) => a.installment_number - b.installment_number);
+          }
+          setSchedule(scheduleData);
         }
       } catch (err) {
         console.error('Error loading data:', err);
@@ -260,7 +301,6 @@ export const VisaOrderDetailPage = () => {
           setOrder(orderData);
         }
         setShowRejectModal(false);
-        setRejectionReason('');
         setAlertData({
           title: `${contractType === 'annex' ? 'ANNEX I' : 'Contract'} Rejected`,
           message: `${contractType === 'annex' ? 'ANNEX I' : 'Contract'} rejected. An email has been sent to the client with instructions to resubmit documents.`,
@@ -285,6 +325,49 @@ export const VisaOrderDetailPage = () => {
       setShowAlert(true);
     } finally {
       setProcessingAction(null);
+    }
+  };
+
+  const handleGenerateSchedule = async () => {
+    if (!id || !order) return;
+    setGeneratingSchedule(true);
+    try {
+      const { error } = await supabase.functions.invoke('setup-recurring-billing', {
+        body: { order_id: id }
+      });
+
+      if (error) throw error;
+
+      setAlertData({
+        title: 'Success',
+        message: 'Recurring billing schedule generated successfully!',
+        variant: 'success'
+      });
+      setShowAlert(true);
+
+      // Reload schedule
+      const { data: scheduleData } = await supabase
+        .from('recurring_billing_schedules')
+        .select('*, installments:billing_installments(*)')
+        .eq('order_id', id)
+        .maybeSingle();
+
+      if (scheduleData) {
+        if (scheduleData.installments) {
+          scheduleData.installments.sort((a: any, b: any) => a.installment_number - b.installment_number);
+        }
+        setSchedule(scheduleData);
+      }
+    } catch (err: any) {
+      console.error('Error generating schedule:', err);
+      setAlertData({
+        title: 'Error',
+        message: 'Failed to generate schedule: ' + (err.message || 'Unknown error'),
+        variant: 'error'
+      });
+      setShowAlert(true);
+    } finally {
+      setGeneratingSchedule(false);
     }
   };
 
@@ -343,51 +426,163 @@ export const VisaOrderDetailPage = () => {
         </div>
 
         <div className="space-y-6">
-          {/* Product Information */}
-          <Card className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30">
-            <CardHeader>
-              <CardTitle className="text-white">Product Information</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="flex justify-between">
-                <span className="text-gray-400">Product:</span>
-                <span className="text-white font-semibold">{order.product_slug}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-400">Base Price:</span>
-                <span className="text-white">${parseFloat(order.base_price_usd).toFixed(2)}</span>
-              </div>
-              {order.extra_units > 0 && (
-                <>
-                  <div className="flex justify-between">
-                    <span className="text-gray-400">{order.extra_unit_label}:</span>
-                    <span className="text-white">{order.extra_units}</span>
+          {/* Action Card: Generate Schedule */}
+          {!schedule && order?.product_slug === 'eb3-installment-initial' && order?.payment_status === 'paid' && (
+            <Card className="bg-gold-medium/10 border border-gold-medium/50 overflow-hidden">
+              <CardContent className="p-6">
+                <div className="flex flex-col md:flex-row justify-between items-center gap-4">
+                  <div className="flex items-start gap-4">
+                    <div className="bg-gold-medium/20 p-3 rounded-full hidden sm:block">
+                      <AlertCircle className="w-6 h-6 text-gold-light" />
+                    </div>
+                    <div>
+                      <h3 className="text-gold-light font-bold flex items-center gap-2">
+                        Recurring Billing Not Found
+                      </h3>
+                      <p className="text-gray-400 text-sm max-w-md">This EB-3 order does not have a recurring schedule yet. You can manually generate it here.</p>
+                    </div>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-400">Price per unit:</span>
-                    <span className="text-white">${parseFloat(order.extra_unit_price_usd).toFixed(2)}</span>
-                  </div>
-                </>
-              )}
-
-              {order.coupon_code && (
-                <div className="flex justify-between items-center py-2">
-                  <div className="flex items-center gap-2">
-                    <span className="text-green-400">Discount:</span>
-                    <Badge variant="secondary" className="bg-green-500/20 text-green-300 hover:bg-green-500/30 font-mono text-xs border border-green-500/30">
-                      {order.coupon_code}
-                    </Badge>
-                  </div>
-                  <span className="text-green-400 font-bold">-${parseFloat(String(order.discount_amount || 0)).toFixed(2)}</span>
+                  <Button
+                    onClick={handleGenerateSchedule}
+                    disabled={generatingSchedule}
+                    className="bg-gold-medium hover:bg-gold-dark text-black font-bold whitespace-nowrap"
+                  >
+                    {generatingSchedule ? <Loader2 className="animate-spin w-4 h-4 mr-2" /> : <FileText className="w-4 h-4 mr-2" />}
+                    Generate Schedule
+                  </Button>
                 </div>
-              )}
+              </CardContent>
+            </Card>
+          )}
 
-              <div className="border-t border-gold-medium/30 pt-3 mt-3 flex justify-between">
-                <span className="text-white font-bold">Total:</span>
-                <span className="text-xl sm:text-2xl font-bold text-gold-light">${parseFloat(order.total_price_usd).toFixed(2)}</span>
+          {/* Product & Financial Information */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <Card className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30 col-span-1 md:col-span-2">
+              <CardHeader>
+                <CardTitle className="text-white flex items-center gap-2">
+                  <Package className="w-5 h-5 text-gold-light" />
+                  Product & Financial Details
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                {/* Main Product */}
+                <div className="space-y-3">
+                  <h4 className="text-gold-light font-semibold mb-2 border-b border-gold-medium/20 pb-1">Primary Product</h4>
+                  <div className="flex justify-between">
+                    <span className="text-gray-400">Product:</span>
+                    <span className="text-white font-semibold uppercase">{order.product_slug.replace(/-/g, ' ')}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-400">Base Price:</span>
+                    <span className="text-white">${parseFloat(order.base_price_usd).toFixed(2)}</span>
+                  </div>
+                  {order.extra_units > 0 && (
+                    <>
+                      <div className="flex justify-between">
+                        <span className="text-gray-400">{order.extra_unit_label}:</span>
+                        <span className="text-white font-bold">{order.extra_units}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-400">Price per unit:</span>
+                        <span className="text-white px-2 py-0.5 bg-white/5 rounded text-xs">${parseFloat(order.extra_unit_price_usd).toFixed(2)}</span>
+                      </div>
+
+                      {/* Dependents list */}
+                      {order.dependent_names && order.dependent_names.length > 0 && (
+                        <div className="mt-2 bg-black/20 p-3 rounded border border-white/5">
+                          <span className="text-gray-500 text-xs block mb-2 uppercase tracking-wider">Dependents</span>
+                          <ul className="space-y-1">
+                            {order.dependent_names.map((name, idx) => (
+                              <li key={idx} className="text-gray-300 text-sm flex items-center gap-2">
+                                <Users className="w-3 h-3 text-gold-medium" />
+                                {name}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+
+                {/* Upsell / Bundle Information */}
+                <div className="space-y-3">
+                  {order.upsell_product_slug ? (
+                    <>
+                      <h4 className="text-gold-light font-semibold mb-2 border-b border-gold-medium/20 pb-1">Bundle / Add-ons</h4>
+                      <div className="flex justify-between">
+                        <span className="text-gray-400">Bundle:</span>
+                        <Badge className="bg-gold-medium/20 text-gold-light border-gold-medium/50 uppercase">
+                          + {order.upsell_product_slug.replace(/-/g, ' ')}
+                        </Badge>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-400">Bundle Price:</span>
+                        <span className="text-white">${parseFloat(order.upsell_price_usd || '0').toFixed(2)}</span>
+                      </div>
+                      {order.upsell_contract_pdf_url && (
+                        <div className="mt-3">
+                          <p className="text-gray-400 text-xs mb-1">Bundle Contract:</p>
+                          <a
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            href={order.upsell_contract_pdf_url}
+                            className="text-blue-400 text-sm hover:underline flex items-center gap-1"
+                          >
+                            <FileText className="w-3 h-3" /> View Contract
+                          </a>
+                        </div>
+                      )}
+                      {order.upsell_annex_pdf_url && (
+                        <div className="mt-2">
+                          <p className="text-gray-400 text-xs mb-1">Bundle Annex I:</p>
+                          <a
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            href={order.upsell_annex_pdf_url}
+                            className="text-blue-400 text-sm hover:underline flex items-center gap-1"
+                          >
+                            <FileText className="w-3 h-3" /> View Annex I
+                          </a>
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <div className="h-full flex items-center justify-center opacity-30">
+                      <div className="text-center">
+                        <Package className="w-8 h-8 text-gray-500 mx-auto mb-2" />
+                        <p className="text-sm text-gray-500">No add-ons or bundles</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+
+              <div className="border-t border-gold-medium/30 p-6 bg-black/20">
+                <div className="flex flex-col gap-2">
+                  {order.coupon_code && (
+                    <div className="flex justify-between items-center">
+                      <div className="flex items-center gap-2">
+                        <span className="text-green-400">Discount Applied:</span>
+                        <Badge variant="secondary" className="bg-green-500/20 text-green-300 hover:bg-green-500/30 font-mono text-xs border border-green-500/30">
+                          {order.coupon_code}
+                        </Badge>
+                      </div>
+                      <span className="text-green-400 font-bold">-${parseFloat(String(order.discount_amount || 0)).toFixed(2)}</span>
+                    </div>
+                  )}
+
+                  <div className="flex justify-between items-end mt-2">
+                    <span className="text-xl text-white font-bold">Total Order Value:</span>
+                    <div className="text-right">
+                      <span className="text-3xl font-bold text-gold-light">${parseFloat(order.total_price_usd).toFixed(2)}</span>
+                      <p className="text-xs text-gray-500 mt-1">Includes Base + Dependents + Bundle</p>
+                    </div>
+                  </div>
+                </div>
               </div>
-            </CardContent>
-          </Card>
+            </Card>
+          </div>
 
           {/* Client Information */}
           <Card className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30">
@@ -395,36 +590,40 @@ export const VisaOrderDetailPage = () => {
               <CardTitle className="text-white">Client Information</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              <div className="flex justify-between">
-                <span className="text-gray-400">Name:</span>
-                <span className="text-white">{order.client_name}</span>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="flex justify-between p-3 bg-white/5 rounded">
+                  <span className="text-gray-400">Name:</span>
+                  <span className="text-white font-medium">{order.client_name}</span>
+                </div>
+                <div className="flex justify-between p-3 bg-white/5 rounded">
+                  <span className="text-gray-400">Email:</span>
+                  <span className="text-white font-medium">{order.client_email}</span>
+                </div>
+                {order.client_whatsapp && (
+                  <div className="flex justify-between p-3 bg-white/5 rounded">
+                    <span className="text-gray-400">WhatsApp:</span>
+                    <span className="text-white">{order.client_whatsapp}</span>
+                  </div>
+                )}
+                {order.client_country && (
+                  <div className="flex justify-between p-3 bg-white/5 rounded">
+                    <span className="text-gray-400">Country:</span>
+                    <span className="text-white">{order.client_country}</span>
+                  </div>
+                )}
+                {order.client_nationality && (
+                  <div className="flex justify-between p-3 bg-white/5 rounded">
+                    <span className="text-gray-400">Nationality:</span>
+                    <span className="text-white">{order.client_nationality}</span>
+                  </div>
+                )}
               </div>
-              <div className="flex justify-between">
-                <span className="text-gray-400">Email:</span>
-                <span className="text-white">{order.client_email}</span>
-              </div>
-              {order.client_whatsapp && (
-                <div className="flex justify-between">
-                  <span className="text-gray-400">WhatsApp:</span>
-                  <span className="text-white">{order.client_whatsapp}</span>
-                </div>
-              )}
-              {order.client_country && (
-                <div className="flex justify-between">
-                  <span className="text-gray-400">Country:</span>
-                  <span className="text-white">{order.client_country}</span>
-                </div>
-              )}
-              {order.client_nationality && (
-                <div className="flex justify-between">
-                  <span className="text-gray-400">Nationality:</span>
-                  <span className="text-white">{order.client_nationality}</span>
-                </div>
-              )}
               {order.client_observations && (
-                <div className="pt-3 border-t border-gold-medium/30">
-                  <p className="text-gray-400 mb-2">Observations:</p>
-                  <p className="text-white">{order.client_observations}</p>
+                <div className="pt-3 border-t border-gold-medium/30 mt-4">
+                  <p className="text-gray-400 mb-2 text-sm font-semibold">Observations / Notes:</p>
+                  <div className="bg-black/30 p-4 rounded text-gray-300 text-sm border border-white/10">
+                    {order.client_observations}
+                  </div>
                 </div>
               )}
             </CardContent>
@@ -491,7 +690,7 @@ export const VisaOrderDetailPage = () => {
                     {termsAcceptance.user_agent && (
                       <div className="pt-3 border-t border-gold-medium/30">
                         <p className="text-gray-400 mb-1 text-sm">User Agent:</p>
-                        <p className="text-white text-xs font-mono break-all">{termsAcceptance.user_agent}</p>
+                        <p className="text-white text-xs font-mono break-all bg-black/30 p-2 rounded border border-white/5">{termsAcceptance.user_agent}</p>
                       </div>
                     )}
                   </div>
@@ -524,9 +723,12 @@ export const VisaOrderDetailPage = () => {
                       <span className="text-white font-mono text-sm">{order.ip_address}</span>
                     </div>
                   )}
-                  <p className="text-yellow-300 text-sm italic">
-                    Note: Terms acceptance record not found. This order may have been created before the new system was implemented.
-                  </p>
+                  <div className="flex items-center gap-2 p-3 bg-yellow-500/10 border border-yellow-500/20 rounded">
+                    <AlertCircle className="w-4 h-4 text-yellow-400" />
+                    <p className="text-yellow-200 text-xs">
+                      Note: Detailed terms acceptance log not found. This order may predate the latest tracking system.
+                    </p>
+                  </div>
                 </div>
               )}
             </CardContent>
@@ -541,26 +743,29 @@ export const VisaOrderDetailPage = () => {
               <CardContent>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   {identityFiles.map((file) => (
-                    <div key={file.id} className="space-y-2">
-                      <p className="text-sm text-gray-400 capitalize">
+                    <div key={file.id} className="space-y-2 group">
+                      <p className="text-sm text-gray-400 capitalize flex items-center gap-2">
+                        <FileText className="w-3 h-3 text-gold-medium" />
                         {file.file_type.replace('_', ' ')}
                       </p>
-                      <div className="relative group">
+                      <div className="relative overflow-hidden rounded-lg border border-gold-medium/30 bg-black/40">
                         <img
                           src={getDocumentUrl(file.file_path)}
                           alt={file.file_type}
-                          className="w-full h-48 object-cover rounded-lg border border-gold-medium/30 cursor-pointer hover:opacity-80 transition"
+                          className="w-full h-48 object-cover cursor-pointer hover:scale-105 transition-transform duration-300"
                           onClick={() => {
                             setSelectedImageUrl(getDocumentUrl(file.file_path));
                             setSelectedImageTitle(`${file.file_type.replace('_', ' ').toUpperCase()} - ${order?.client_name}`);
                             setShowImageModal(true);
                           }}
                         />
-                        <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center rounded-lg">
-                          <Eye className="w-6 h-6 text-white" />
+                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
+                          <Badge className="bg-black/70 hover:bg-black/90 text-white border-white/20">
+                            <Eye className="w-3 h-3 mr-1" /> View Image
+                          </Badge>
                         </div>
                       </div>
-                      <p className="text-xs text-gray-500 truncate">{file.file_name}</p>
+                      <p className="text-xs text-gray-500 truncate font-mono">{file.file_name}</p>
                     </div>
                   ))}
                 </div>
@@ -609,6 +814,18 @@ export const VisaOrderDetailPage = () => {
                   ) : (
                     <>
                       <div className="flex gap-4">
+                        <Button
+                          variant="outline"
+                          onClick={() => {
+                            setSelectedPdfUrl(order.annex_pdf_url);
+                            setSelectedPdfTitle(`ANNEX I - ${order.order_number}`);
+                            setShowPdfModal(true);
+                          }}
+                          className="border-gold-medium/50 bg-black/50 text-gold-light hover:bg-black hover:border-gold-medium hover:text-gold-medium"
+                        >
+                          <FileText className="w-4 h-4 mr-2" />
+                          View Document
+                        </Button>
                         <Button
                           onClick={() => handleApprove('annex')}
                           disabled={!!processingAction}
@@ -690,6 +907,18 @@ export const VisaOrderDetailPage = () => {
                     <>
                       <div className="flex gap-4">
                         <Button
+                          variant="outline"
+                          onClick={() => {
+                            setSelectedPdfUrl(order.contract_pdf_url);
+                            setSelectedPdfTitle(`Contract - ${order.order_number}`);
+                            setShowPdfModal(true);
+                          }}
+                          className="border-gold-medium/50 bg-black/50 text-gold-light hover:bg-black hover:border-gold-medium hover:text-gold-medium"
+                        >
+                          <FileText className="w-4 h-4 mr-2" />
+                          View Document
+                        </Button>
+                        <Button
                           onClick={() => handleApprove('contract')}
                           disabled={!!processingAction}
                           className="flex-1 bg-green-600 hover:bg-green-700 text-white"
@@ -730,174 +959,46 @@ export const VisaOrderDetailPage = () => {
               </Card>
             )}
           </div>
-
-          {/* Payment Information */}
-          <Card className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30">
-            <CardHeader>
-              <CardTitle className="text-white">Payment Information</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="flex justify-between">
-                <span className="text-gray-400">Payment Method:</span>
-                <span className="text-white capitalize">
-                  {order.payment_method === 'manual' ? 'Manual by Seller' : order.payment_method.replace('_', ' ')}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-400">Payment Status:</span>
-                {getStatusBadge(order.payment_status)}
-              </div>
-              {order.stripe_session_id && (
-                <div className="flex justify-between">
-                  <span className="text-gray-400">Stripe Session:</span>
-                  <span className="text-white font-mono text-xs">{order.stripe_session_id.substring(0, 20)}...</span>
-                </div>
-              )}
-              {order.zelle_proof_url && (
-                <div className="pt-3 border-t border-gold-medium/30">
-                  <p className="text-gray-400 mb-2">Zelle Receipt:</p>
-                  <Button
-                    variant="outline"
-                    onClick={() => {
-                      setSelectedImageUrl(order.zelle_proof_url);
-                      setSelectedImageTitle(`Zelle Receipt - ${order.order_number}`);
-                      setShowImageModal(true);
-                    }}
-                    className="border-gold-medium/50 bg-black/50 text-gold-light hover:bg-black hover:border-gold-medium hover:text-gold-medium"
-                  >
-                    View Receipt
-                  </Button>
-                </div>
-              )}
-              {(order.annex_pdf_url || order.contract_pdf_url) && (
-                <div className="pt-3 border-t border-gold-medium/30">
-                  <p className="text-gray-400 mb-2">Contracts:</p>
-                  <div className="flex flex-wrap gap-2">
-                    {order.annex_pdf_url && (
-                      <Button
-                        variant="outline"
-                        onClick={() => {
-                          setSelectedPdfUrl(order.annex_pdf_url);
-                          setSelectedPdfTitle(`ANNEX I - ${order.order_number}`);
-                          setShowPdfModal(true);
-                        }}
-                        className="border-gold-medium/50 bg-black/50 text-gold-light hover:bg-black hover:border-gold-medium hover:text-gold-medium"
-                      >
-                        <FileText className="w-4 h-4 mr-1" />
-                        View ANNEX I
-                      </Button>
-                    )}
-                    {order.contract_pdf_url && (
-                      <Button
-                        variant="outline"
-                        onClick={() => {
-                          setSelectedPdfUrl(order.contract_pdf_url);
-                          setSelectedPdfTitle(`Contract - ${order.order_number}`);
-                          setShowPdfModal(true);
-                        }}
-                        className="border-gold-medium/50 bg-black/50 text-gold-light hover:bg-black hover:border-gold-medium hover:text-gold-medium"
-                      >
-                        <FileText className="w-4 h-4 mr-1" />
-                        View Contract
-                      </Button>
-                    )}
-                    {(order.payment_metadata as any)?.invoice_pdf_url && (
-                      <Button
-                        variant="outline"
-                        onClick={() => {
-                          setSelectedPdfUrl((order.payment_metadata as any).invoice_pdf_url);
-                          setSelectedPdfTitle(`Invoice - ${order.order_number}`);
-                          setShowPdfModal(true);
-                        }}
-                        className="border-gold-medium/50 bg-black/50 text-gold-light hover:bg-black hover:border-gold-medium hover:text-gold-medium"
-                      >
-                        <FileText className="w-4 h-4 mr-1" />
-                        View Invoice
-                      </Button>
-                    )}
-                  </div>
-                </div>
-              )}
-              <div className="flex justify-between text-sm">
-                <span className="text-gray-400">Order Date:</span>
-                <span className="text-white">{new Date(order.created_at).toLocaleString()}</span>
-              </div>
-            </CardContent>
-          </Card>
         </div>
       </div>
 
-      {/* PDF Modal */}
-      {
-        selectedPdfUrl && (
-          <PdfModal
-            isOpen={showPdfModal}
-            onClose={() => {
-              setShowPdfModal(false);
-              setSelectedPdfUrl(null);
-              setSelectedPdfTitle('');
-            }}
-            pdfUrl={selectedPdfUrl}
-            title={selectedPdfTitle}
-          />
-        )
-      }
-
-      {/* Image Modal for Proofs and Identities */}
-      {
-        selectedImageUrl && (
-          <ImageModal
-            isOpen={showImageModal}
-            onClose={() => {
-              setShowImageModal(false);
-              setSelectedImageUrl(null);
-              setSelectedImageTitle('');
-            }}
-            imageUrl={selectedImageUrl}
-            title={selectedImageTitle}
-          />
-        )
-      }
-
-      {/* Reject Contract Modal */}
-      <PromptModal
-        isOpen={showRejectModal}
-        onClose={() => {
-          setShowRejectModal(false);
-          setRejectionReason('');
-        }}
-        onConfirm={(reason) => {
-          setRejectionReason(reason);
-          handleReject(rejectingContractType, reason);
-        }}
-        title={`Reject ${rejectingContractType === 'annex' ? 'ANNEX I' : 'Contract'}`}
-        message={`Are you sure you want to reject this ${rejectingContractType === 'annex' ? 'ANNEX I' : 'Contract'}? An email will be sent to the client with instructions to resubmit documents.`}
-        placeholder="e.g., Document photos are unclear, missing information, etc."
-        confirmText={`Reject ${rejectingContractType === 'annex' ? 'ANNEX I' : 'Contract'}`}
-        cancelText="Cancel"
-        variant="danger"
-        isLoading={!!processingAction && processingAction.startsWith('reject-')}
-        defaultValue={rejectionReason}
+      {/* Contract PDF Modal */}
+      <PdfModal
+        isOpen={showPdfModal}
+        onClose={() => setShowPdfModal(false)}
+        pdfUrl={selectedPdfUrl || ''}
+        title={selectedPdfTitle}
       />
 
-      {/* Alert Modal */}
-      {
-        alertData && (
-          <AlertModal
-            isOpen={showAlert}
-            onClose={() => {
-              setShowAlert(false);
-              setAlertData(null);
-            }}
-            title={alertData.title}
-            message={alertData.message}
-            variant={alertData.variant}
-          />
-        )
-      }
-    </div >
+      {/* Image Modal for Documents */}
+      <ImageModal
+        isOpen={showImageModal}
+        onClose={() => setShowImageModal(false)}
+        imageUrl={selectedImageUrl || ''}
+        title={selectedImageTitle}
+      />
+
+      {/* Rejection Modal */}
+      <PromptModal
+        isOpen={showRejectModal}
+        onClose={() => setShowRejectModal(false)}
+        onConfirm={(reason) => handleReject(rejectingContractType, reason)}
+        title={`Reject ${rejectingContractType === 'annex' ? 'ANNEX I' : 'Contract'}`}
+        message={`Please provide a reason for rejecting this ${rejectingContractType === 'annex' ? 'ANNEX I' : 'contract'}. The client will be notified via email.`}
+        confirmText="Reject Contract"
+        cancelText="Cancel"
+        placeholder="Enter rejection reason..."
+        variant="danger"
+      />
+
+      {/* Alerts */}
+      <AlertModal
+        isOpen={showAlert}
+        onClose={() => setShowAlert(false)}
+        title={alertData?.title || ''}
+        message={alertData?.message || ''}
+        variant={alertData?.variant || 'info'}
+      />
+    </div>
   );
 };
-
-
-

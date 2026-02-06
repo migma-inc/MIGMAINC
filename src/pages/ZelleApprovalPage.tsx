@@ -31,7 +31,14 @@ interface ZelleOrder {
       confidence?: number;
       status?: string;
     };
+    has_upsell?: boolean;
+    upsell_details?: {
+      slug: string;
+      total: number;
+    };
   };
+  upsell_product_slug?: string;
+  upsell_price_usd?: number;
   is_hidden?: boolean;
 }
 
@@ -59,6 +66,7 @@ interface MigmaPayment {
   client_name?: string;
   client_email?: string;
   unification_key?: string;
+  metadata?: any;
 }
 
 export const ZelleApprovalPage = () => {
@@ -223,7 +231,8 @@ export const ZelleApprovalPage = () => {
           contract_url: order.contract_pdf_url,
           original_order: order,
           confidence: paymentsMap[order.id]?.n8n_confidence ?? order.payment_metadata?.n8n_validation?.confidence,
-          n8n_response: paymentsMap[order.id]?.n8n_response ?? order.payment_metadata?.n8n_validation?.response
+          n8n_response: paymentsMap[order.id]?.n8n_response ?? order.payment_metadata?.n8n_validation?.response,
+          upsell_product: order.upsell_product_slug || order.payment_metadata?.upsell_details?.slug
         });
       });
 
@@ -237,21 +246,69 @@ export const ZelleApprovalPage = () => {
         if (existing) {
           existing.migma_id = migma.id;
           if (!existing.proof_url) existing.proof_url = migma.image_url;
+          // Try to get UPS bundle from metadata first (most accurate)
+          const metaUpsell = migma.metadata?.upsell_product_slug;
+
+          if (metaUpsell) {
+            existing.upsell_product = metaUpsell.replace(/-/g, ' ');
+          } else if (!existing.upsell_product) {
+            // Heuristic fallback for old/orphan records
+            const migmaAmount = parseFloat(migma.amount.toString());
+            if (migmaAmount >= 1500) {
+              existing.upsell_product = 'Canada Tourist Premium';
+            } else if (migmaAmount > 1000) {
+              existing.upsell_product = 'Canada Tourist Revolution';
+            }
+          }
         } else {
-          unifiedMap.set(key, {
-            id: migma.id,
-            type: 'migma',
-            order_number: `MIG-${migma.id.substring(0, 8).toUpperCase()}`,
-            client_name: migma.client_name,
-            client_email: migma.client_email,
-            product: migma.fee_type_global,
-            amount: migma.amount,
-            date: migma.updated_at,
-            proof_url: migma.image_url,
-            migma_id: migma.id,
-            user_id: migma.user_id,
-            status: migma.status // Store DB status for review
-          });
+          // If no exact match (email+product), try to find ANY existing item for the same email
+          const clientEmail = (migma.client_email || '').trim().toLowerCase();
+          const emailMatch = Array.from(unifiedMap.values()).find(item => (item.client_email || '').trim().toLowerCase() === clientEmail);
+
+          if (emailMatch) {
+            emailMatch.migma_id = migma.id;
+            if (!emailMatch.proof_url) emailMatch.proof_url = migma.image_url;
+            const metaUpsell = migma.metadata?.upsell_product_slug;
+            if (metaUpsell) {
+              emailMatch.upsell_product = metaUpsell.replace(/-/g, ' ');
+            } else if (!emailMatch.upsell_product) {
+              const migmaAmount = parseFloat(migma.amount.toString());
+              if (migmaAmount >= 1500) {
+                emailMatch.upsell_product = 'Canada Tourist Premium';
+              } else if (migmaAmount > 1000) {
+                emailMatch.upsell_product = 'Canada Tourist Revolution';
+              }
+            }
+          } else {
+            // Check if amount looks like a bundle (e.g. > base price + upsell)
+            const migmaAmount = parseFloat(migma.amount.toString());
+            const metaUpsell = migma.metadata?.upsell_product_slug;
+            let identifiedBundle = metaUpsell ? metaUpsell.replace(/-/g, ' ') : null;
+
+            if (!identifiedBundle) {
+              if (migmaAmount >= 1500) {
+                identifiedBundle = 'Canada Tourist Premium';
+              } else if (migmaAmount > 1000) {
+                identifiedBundle = 'Canada Tourist Revolution';
+              }
+            }
+
+            unifiedMap.set(key, {
+              id: migma.id,
+              type: 'migma',
+              order_number: `MIG-${migma.id.substring(0, 8).toUpperCase()}`,
+              client_name: migma.client_name,
+              client_email: migma.client_email,
+              product: migma.fee_type_global,
+              amount: migma.amount,
+              date: migma.updated_at,
+              proof_url: migma.image_url,
+              migma_id: migma.id,
+              user_id: migma.user_id,
+              status: migma.status,
+              upsell_product: identifiedBundle
+            });
+          }
         }
       });
 
@@ -549,30 +606,46 @@ export const ZelleApprovalPage = () => {
       let orderId = '';
       let orderNumber = '';
 
+      // Check for bundle in metadata or infer from amount (heuristic fallback)
+      let metaUpsell = payment.metadata?.upsell_product_slug;
+      let metaUpsellPrice = payment.metadata?.upsell_price_usd || 0;
+
+      if (!metaUpsell) {
+        const migmaAmount = parseFloat(payment.amount.toString());
+        if (migmaAmount >= 1500) {
+          metaUpsell = 'canada-tourist-premium';
+          metaUpsellPrice = 399;
+        } else if (migmaAmount > 1000) {
+          metaUpsell = 'canada-tourist-revolution';
+          metaUpsellPrice = 199;
+        }
+      }
+
       const { data: existingOrders } = await supabase
         .from('visa_orders')
-        .select('id, order_number')
+        .select('id, order_number, payment_method')
         .ilike('client_email', client.email.trim())
         .eq('product_slug', product.slug)
         .eq('payment_status', 'pending')
+        .eq('payment_method', 'zelle') // ONLY reuse Zelle orders to avoid hijacking Parcelow/Card attempts
         .limit(1);
 
       if (existingOrders && existingOrders.length > 0) {
         orderId = existingOrders[0].id;
         orderNumber = existingOrders[0].order_number;
-        console.log('🔍 [DEBUG] Using existing pending order:', orderNumber);
+        console.log('🔍 [DEBUG] Using existing pending Zelle order:', orderNumber);
 
-        // Update existing order
         await supabase
           .from('visa_orders')
           .update({
             payment_status: 'completed',
             zelle_proof_url: payment.image_url,
             zelle_proof_uploaded_at: new Date().toISOString(),
+            upsell_product_slug: metaUpsell || null,
+            upsell_price_usd: metaUpsellPrice || null,
             updated_at: new Date().toISOString()
           })
           .eq('id', orderId);
-        console.log('✅ [DEBUG] Existing order updated to completed:', orderNumber);
       } else {
         // 3a. Try to find a recent service_request to link data
         let serviceRequestId = null;
@@ -609,7 +682,17 @@ export const ZelleApprovalPage = () => {
             payment_status: 'completed',
             zelle_proof_url: payment.image_url,
             zelle_proof_uploaded_at: new Date().toISOString(),
-            service_request_id: serviceRequestId
+            service_request_id: serviceRequestId,
+            upsell_product_slug: metaUpsell || null,
+            upsell_price_usd: metaUpsellPrice || null,
+            payment_metadata: {
+              has_upsell: !!metaUpsell,
+              manual_migma_link: true,
+              upsell_details: metaUpsell ? {
+                slug: metaUpsell,
+                total: metaUpsellPrice
+              } : null
+            }
           })
           .select()
           .single();
@@ -908,7 +991,14 @@ export const ZelleApprovalPage = () => {
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 text-xs sm:text-sm bg-black/20 p-4 rounded-xl border border-white/5">
                       <div>
                         <span className="text-gray-500 block text-[10px] uppercase font-bold tracking-wider mb-1">Service / Product</span>
-                        <span className="text-white font-semibold">{item.product}</span>
+                        <div className="flex flex-col gap-1">
+                          <span className="text-white font-semibold">{item.product}</span>
+                          {item.upsell_product && (
+                            <Badge variant="outline" className="w-fit bg-gold-medium/10 text-gold-light border-gold-medium/30 text-[10px] py-0">
+                              + {item.upsell_product.toString().toUpperCase()}
+                            </Badge>
+                          )}
+                        </div>
                       </div>
                       <div>
                         <span className="text-gray-500 block text-[10px] uppercase font-bold tracking-wider mb-1">Total Amount</span>
@@ -1079,7 +1169,19 @@ export const ZelleApprovalPage = () => {
                     <div className="flex items-center gap-6">
                       <div className="flex flex-col">
                         <span className="text-[10px] text-gray-500 uppercase font-bold tracking-tighter mb-0.5">Service</span>
-                        <span className="text-sm text-gray-300">{item.type === 'order' ? item.product_slug : item.fee_type_global}</span>
+                        <div className="flex flex-col">
+                          <span className="text-sm text-gray-300">{item.type === 'order' ? item.product_slug : item.fee_type_global}</span>
+                          {item.type === 'order' && (item.upsell_product_slug || item.payment_metadata?.upsell_details?.slug) && (
+                            <span className="text-[9px] text-gold-medium/80 font-medium">
+                              + {(item.upsell_product_slug || item.payment_metadata?.upsell_details?.slug).replace(/-/g, ' ')}
+                            </span>
+                          )}
+                          {item.type === 'migma' && parseFloat(item.amount?.toString() || '0') > 1200 && (
+                            <span className="text-[9px] text-gold-medium/80 font-medium">
+                              + COMBO/BUNDLE DETECTED
+                            </span>
+                          )}
+                        </div>
                       </div>
                       <div className="flex flex-col">
                         <span className="text-[10px] text-gray-500 uppercase font-bold tracking-tighter mb-0.5">Amount</span>

@@ -69,44 +69,24 @@ export function calculateTotalWithFees(
   paymentMethod: PaymentMethod,
   exchangeRate?: number
 ): number {
-  console.log('🔍 [calculateTotalWithFees] DEBUG:', {
-    baseTotal,
-    paymentMethod,
-    exchangeRate,
-    hasExchangeRate: !!exchangeRate
-  });
-
-  if (paymentMethod === 'zelle') {
-    console.log('✅ Zelle selected - no fees');
+  // 1. Handle cases with NO fees
+  if (paymentMethod === '' || paymentMethod === 'zelle' || paymentMethod === 'parcelow') {
     return baseTotal;
   }
 
+  // 2. Handle Stripe Card
+  if (paymentMethod === 'card') {
+    return baseTotal + (baseTotal * CARD_FEE_PERCENTAGE) + CARD_FEE_FIXED;
+  }
+
+  // 3. Handle Stripe PIX (Requires exchange rate)
   if (paymentMethod === 'pix' && exchangeRate) {
-    console.log('💳 PIX + Exchange Rate - calculating Stripe PIX fees');
-    // PIX: 1.79% fee (already includes conversion)
-    // netAmountBRL = baseTotal * exchangeRate
-    // grossAmountBRL = netAmountBRL / (1 - PIX_FEE_PERCENTAGE)
     const netAmountBRL = baseTotal * exchangeRate;
     const grossAmountBRL = netAmountBRL / (1 - PIX_FEE_PERCENTAGE);
-    console.log('💳 PIX Result:', grossAmountBRL);
     return grossAmountBRL;
   }
 
-  if (paymentMethod === 'card') {
-    console.log('💳 Card selected - calculating Stripe card fees');
-    // Card: 3.9% + $0.30
-    const result = baseTotal + (baseTotal * CARD_FEE_PERCENTAGE) + CARD_FEE_FIXED;
-    console.log('💳 Card Result:', result);
-    return result;
-  }
-
-  if (paymentMethod === 'parcelow') {
-    console.log('🟢 Parcelow selected - no fees (calculated by Parcelow)');
-    return baseTotal;
-  }
-
-  // Empty payment method or unknown
-  console.log('⚠️ No payment method selected or unknown method - returning base total (NO FEES)');
+  // 4. Fallback for unknown or partially configured methods
   return baseTotal;
 }
 

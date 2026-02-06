@@ -12,7 +12,7 @@ import { ZelleUpload } from './step3/ZelleUpload';
 import { CouponSection } from './step3/CouponSection';
 import { SplitPaymentSelector } from './step3/SplitPaymentSelector';
 import { SHOW_BETA_FEATURES } from '@/lib/env-utils';
-// import { UpsellSelection } from './step3/UpsellSelection';
+import { UpsellSelection } from './step3/UpsellSelection';
 
 interface Step3Props {
     state: VisaCheckoutState;
@@ -27,7 +27,7 @@ interface Step3Props {
     totalWithFees: number;
 }
 
-export const Step3Payment: React.FC<Step3Props> = ({ state, actions, handlers, onPrev, totalWithFees /*, productSlug */ }) => {
+export const Step3Payment: React.FC<Step3Props> = ({ state, actions, handlers, onPrev, totalWithFees, productSlug }) => {
     const {
         termsAccepted, dataAuthorization, contractTemplate, chargebackAnnexTemplate, upsellContractTemplate, paymentMethod,
         zelleReceipt, signatureImageDataUrl, signatureConfirmed /*, selectedUpsell */
@@ -43,17 +43,16 @@ export const Step3Payment: React.FC<Step3Props> = ({ state, actions, handlers, o
                 <CardTitle className="text-white text-lg sm:text-xl">Step 3: Terms & Payment</CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
-                {/* Temporarily disabled: World Cup Bundle (Combo Copa) 
+                {/* Temporarily disabled: World Cup Bundle (Combo Copa) */}
                 {(productSlug === 'b1-premium' || productSlug?.includes('premium')) && (
                     <div className="mb-6 border-b border-white/5 pb-6">
                         <UpsellSelection
-                            selectedUpsell={selectedUpsell}
-                            onSelect={setSelectedUpsell}
+                            selectedUpsell={state.selectedUpsell}
+                            onSelect={actions.setSelectedUpsell}
                             extraUnits={state.extraUnits}
                         />
                     </div>
                 )}
-                */}
 
                 <ContractTermsSection
                     termsAccepted={termsAccepted}
@@ -109,26 +108,35 @@ export const Step3Payment: React.FC<Step3Props> = ({ state, actions, handlers, o
 
                 {paymentMethod === 'parcelow' && (
                     <div className="space-y-2 pt-2 animate-in fade-in slide-in-from-top-2">
-                        <div className="bg-blue-50 border border-blue-200 rounded-md p-4 space-y-3">
-                            <div className="flex flex-col space-y-1">
-                                <label htmlFor="cardName" className="text-sm font-medium text-blue-900">
-                                    Name on Card *
-                                </label>
-                                <p className="text-xs text-blue-700">
-                                    Please enter exactly the name as it appears on your card.
-                                </p>
-                            </div>
-                            <Input
-                                id="cardName"
-                                value={state.creditCardName || ''}
-                                onChange={(e) => {
-                                    const val = e.target.value.replace(/[^a-zA-ZÀ-ÿ\s]/g, '').toUpperCase();
-                                    actions.setCreditCardName(val);
-                                }}
-                                placeholder=""
-                                className="bg-white text-black uppercase"
-                            />
-                        </div>
+                        {/* 
+                            Ocultar "Name on Card" se o Split Payment estiver ativo E 
+                            nenhuma das partes for "Card".
+                            Se o Split estive desativado, o Parcelow padrão é Card, então mostramos.
+                        */}
+                        {(!state.splitPaymentConfig?.enabled ||
+                            state.splitPaymentConfig.part1_method === 'card' ||
+                            state.splitPaymentConfig.part2_method === 'card') && (
+                                <div className="bg-blue-50 border border-blue-200 rounded-md p-4 space-y-3">
+                                    <div className="flex flex-col space-y-1">
+                                        <label htmlFor="cardName" className="text-sm font-medium text-blue-900">
+                                            Name on Card *
+                                        </label>
+                                        <p className="text-xs text-blue-700">
+                                            Please enter exactly the name as it appears on your card.
+                                        </p>
+                                    </div>
+                                    <Input
+                                        id="cardName"
+                                        value={state.creditCardName || ''}
+                                        onChange={(e) => {
+                                            const val = e.target.value.replace(/[^a-zA-ZÀ-ÿ\s]/g, '').toUpperCase();
+                                            actions.setCreditCardName(val);
+                                        }}
+                                        placeholder=""
+                                        className="bg-white text-black uppercase"
+                                    />
+                                </div>
+                            )}
 
                         <div className="bg-blue-50 border border-blue-200 rounded-md p-4 space-y-3">
                             <div className="flex flex-col space-y-1">
@@ -188,7 +196,23 @@ export const Step3Payment: React.FC<Step3Props> = ({ state, actions, handlers, o
                                     handlers.handleZellePayment();
                                 }
                             }}
-                            disabled={state.submitting || !signatureConfirmed || (paymentMethod === 'zelle' && !zelleReceipt) || (paymentMethod === 'parcelow' && (!state.creditCardName || !state.cpf || state.cpf.length < 11))}
+                            disabled={
+                                state.submitting ||
+                                !signatureConfirmed ||
+                                (paymentMethod === 'zelle' && !zelleReceipt) ||
+                                (paymentMethod === 'parcelow' && (
+                                    !state.cpf ||
+                                    state.cpf.length < 11 ||
+                                    (
+                                        state.splitPaymentConfig?.enabled
+                                            ? (
+                                                (state.splitPaymentConfig.part1_method === 'card' || state.splitPaymentConfig.part2_method === 'card') &&
+                                                !state.creditCardName
+                                            )
+                                            : !state.creditCardName
+                                    )
+                                ))
+                            }
                             className={`w-full inline-flex items-center justify-center gap-2 px-4 py-3 text-base font-bold rounded-md transition-colors ${state.submitting ? 'opacity-70 cursor-not-allowed' : ''} ${paymentMethod === 'parcelow'
                                 ? 'bg-[#22c55e] hover:bg-[#16a34a] text-white'
                                 : 'bg-gold-medium hover:bg-gold-light text-black'
