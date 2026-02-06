@@ -16,6 +16,7 @@ export interface UseApplicationsOptions {
   page?: number;
   orderBy?: 'created_at' | 'updated_at';
   orderDirection?: 'asc' | 'desc';
+  search?: string;
 }
 
 export function useApplications(options: UseApplicationsOptions = {}) {
@@ -30,6 +31,7 @@ export function useApplications(options: UseApplicationsOptions = {}) {
     page = 1,
     orderBy = 'created_at',
     orderDirection = 'desc',
+    search = '',
   } = options;
 
   const cacheKey = generateCacheKey('applications', { ...options });
@@ -55,8 +57,18 @@ export function useApplications(options: UseApplicationsOptions = {}) {
         .from('global_partner_applications')
         .select('*', { count: 'exact' });
 
+      // If status is provided, filter by it
       if (status) {
         query = query.eq('status', status);
+      } else {
+        // BY DEFAULT: Exclude rejected applications if no status filter is active
+        query = query.neq('status', 'rejected');
+      }
+
+      // Search
+      if (search && search.trim()) {
+        const searchTerm = `%${search.trim()}%`;
+        query = query.or(`full_name.ilike.${searchTerm},email.ilike.${searchTerm},phone.ilike.${searchTerm}`);
       }
 
       // Order
@@ -89,7 +101,7 @@ export function useApplications(options: UseApplicationsOptions = {}) {
     } finally {
       setLoading(false);
     }
-  }, [status, limit, page, orderBy, orderDirection, cacheKey]);
+  }, [status, limit, page, orderBy, orderDirection, search, cacheKey]);
 
   useEffect(() => {
     fetchApplications(true);

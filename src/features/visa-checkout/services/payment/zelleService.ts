@@ -67,11 +67,25 @@ export class ZelleService {
                 receiptFile,
                 baseTotal,
                 request.product_slug,
-                userId
+                userId,
+                {
+                    // Pass upsell info if present to N8N
+                    promotionalCoupon: request.coupon_code ? {
+                        code: request.coupon_code,
+                        discountAmount: request.discount_amount || 0,
+                        originalAmount: baseTotal + (request.discount_amount || 0),
+                        finalAmount: baseTotal
+                    } : undefined
+                    // Note: The zelle-n8n-integration.ts doesn't have a direct field for upsell_slug in its interface yet, 
+                    // but we can pass it in the payload or fee_type if needed.
+                }
             );
 
-            // 4. Create Visa Order record
+            // 4. Create Unified Visa Order record (Main + Upsell)
             const orderNumber = `ORD-ZEL-${Date.now()}`;
+            const baseUpsellPrice = request.upsell_product_slug === 'canada-tourist-premium' ? 399 : (request.upsell_product_slug === 'canada-tourist-revolution' ? 199 : 0);
+            const upsellAmount = baseUpsellPrice > 0 ? baseUpsellPrice + (request.extra_units * 50) : 0;
+
             const { data: order, error: orderError } = await supabase
                 .from('visa_orders')
                 .insert({
@@ -87,18 +101,21 @@ export class ZelleService {
                     client_observations: request.client_observations,
                     dependent_names: request.dependent_names,
                     payment_method: 'zelle',
-                    payment_status: 'pending', // Always pending for Zelle until admin approves
+                    payment_status: 'pending',
                     base_price_usd: product.base_price_usd || 0,
                     price_per_dependent_usd: product.price_per_dependent_usd || product.extra_unit_price || 0,
                     extra_unit_price_usd: product.price_per_dependent_usd || product.extra_unit_price || 0,
                     extra_units: request.extra_units || 0,
                     extra_unit_label: product.extra_unit_label || 'Additional Dependent',
-                    total_price_usd: baseTotal - (request.upsell_product_slug ? ((request.upsell_product_slug === 'canada-tourist-premium' ? 399 : 199) + (request.extra_units * 50)) : 0) - (request.discount_amount || 0),
+                    total_price_usd: baseTotal, // Total amount including everything
+                    upsell_product_slug: request.upsell_product_slug || null,
+                    upsell_price_usd: upsellAmount > 0 ? upsellAmount : null,
                     zelle_proof_url: n8nResult.imageUrl,
                     signature_image_url: request.signature_image_url,
                     contract_accepted: request.contract_accepted,
                     contract_signed_at: request.contract_signed_at,
                     contract_template_id: request.contract_template_id,
+                    upsell_contract_template_id: request.upsell_contract_template_id,
                     coupon_code: request.coupon_code || null,
                     discount_amount: request.discount_amount || 0,
                     payment_metadata: {
@@ -106,7 +123,13 @@ export class ZelleService {
                             status: n8nResult.decision.status,
                             message: n8nResult.decision.message,
                             confidence: n8nResult.decision.confidence
-                        }
+                        },
+                        billing_installment_id: request.billing_installment_id || null,
+                        has_upsell: !!upsellAmount,
+                        upsell_details: upsellAmount > 0 ? {
+                            slug: request.upsell_product_slug,
+                            total: upsellAmount
+                        } : null
                     }
                 })
                 .select()
@@ -117,7 +140,7 @@ export class ZelleService {
                 throw new Error(`Failed to create order: ${orderError.message}`);
             }
 
-            // 5. Create Zelle Payment record for the approval dashboard
+            // 5. Create a SINGLE Zelle Payment record for the approval dashboard
             const { error: paymentRecordError } = await supabase
                 .from('zelle_payments')
                 .insert({
@@ -125,79 +148,27 @@ export class ZelleService {
                     order_id: order.id,
                     service_request_id: request.service_request_id,
                     user_id: userId,
-                    amount: order.total_price_usd,
+                    amount: baseTotal,
                     currency: 'USD',
-                    fee_type: request.product_slug,
+                    fee_type: `${request.product_slug}${request.upsell_product_slug ? ' + ' + request.upsell_product_slug : ''}`,
                     screenshot_url: n8nResult.imageUrl,
                     image_path: n8nResult.imagePath,
                     n8n_response: n8nResult.n8nResponse,
                     n8n_confidence: n8nResult.decision.confidence,
                     n8n_validated_at: new Date().toISOString(),
-                    status: 'pending_verification'
+                    status: 'pending_verification',
+                    metadata: {
+                        upsell_product_slug: request.upsell_product_slug,
+                        upsell_price_usd: upsellAmount,
+                        has_upsell: !!upsellAmount,
+                        product_slug: request.product_slug,
+                        client_email: request.client_email,
+                        coupon_code: request.coupon_code
+                    }
                 });
 
             if (paymentRecordError) {
                 console.error('[ZelleService] Error creating zelle_payment:', paymentRecordError);
-            }
-
-            // --- UPSELL HANDLING ---
-            if (request.upsell_product_slug) {
-                const baseUpsellPrice = request.upsell_product_slug === 'canada-tourist-premium' ? 399 : 199;
-                const upsellPrice = baseUpsellPrice + (request.extra_units * 50);
-                const upsellOrderNumber = `ORD-ZEL-UPS-${Date.now()}`;
-
-                const { data: upsellOrder, error: upsellOrderError } = await supabase
-                    .from('visa_orders')
-                    .insert({
-                        order_number: upsellOrderNumber,
-                        service_request_id: request.service_request_id,
-                        product_slug: request.upsell_product_slug,
-                        seller_id: request.seller_id,
-                        client_name: request.client_name,
-                        client_email: request.client_email,
-                        client_whatsapp: request.client_whatsapp,
-                        client_country: request.client_country,
-                        client_nationality: request.client_nationality,
-                        client_observations: request.client_observations,
-                        dependent_names: null,
-                        payment_method: 'zelle',
-                        payment_status: 'pending',
-                        base_price_usd: upsellPrice,
-                        price_per_dependent_usd: 0,
-                        total_price_usd: upsellPrice,
-                        zelle_proof_url: n8nResult.imageUrl,
-                        signature_image_url: request.signature_image_url,
-                        contract_accepted: true,
-                        contract_signed_at: request.contract_signed_at,
-                        contract_template_id: request.upsell_contract_template_id,
-                        payment_metadata: {
-                            is_upsell: true,
-                            parent_order_id: order.id
-                        }
-                    })
-                    .select()
-                    .single();
-
-                if (!upsellOrderError && upsellOrder) {
-                    // Create separate Zelle Payment for upsell so admin can approve separately
-                    await supabase
-                        .from('zelle_payments')
-                        .insert({
-                            payment_id: `${n8nResult.paymentId}-upsell`,
-                            order_id: upsellOrder.id,
-                            service_request_id: request.service_request_id,
-                            user_id: userId,
-                            amount: upsellPrice,
-                            currency: 'USD',
-                            fee_type: request.upsell_product_slug,
-                            screenshot_url: n8nResult.imageUrl,
-                            image_path: n8nResult.imagePath,
-                            n8n_response: n8nResult.n8nResponse,
-                            n8n_confidence: n8nResult.decision.confidence,
-                            n8n_validated_at: new Date().toISOString(),
-                            status: 'pending_verification'
-                        });
-                }
             }
 
             return {

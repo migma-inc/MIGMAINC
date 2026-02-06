@@ -1385,6 +1385,7 @@ export function SellerLinks() {
                     initial: { name: 'INITIAL Application', products: [] },
                     cos: { name: 'Change of Status (COS)', products: [] },
                     transfer: { name: 'TRANSFER', products: [] },
+                    eb3: { name: 'EB-3 Program', products: [] },
                     other: { name: 'Other Services', products: [] },
                   };
 
@@ -1395,13 +1396,31 @@ export function SellerLinks() {
                       serviceGroups.cos.products.push(product);
                     } else if (product.slug.startsWith('transfer-')) {
                       serviceGroups.transfer.products.push(product);
+                    } else if (product.slug.startsWith('eb3-') && product.name !== 'U.S. Visa EB-3 (Main applicant)') {
+                      serviceGroups.eb3.products.push(product);
                     } else {
                       serviceGroups.other.products.push(product);
                     }
                   });
 
                   // Sort products within each group
-                  const sortProducts = (products: VisaProduct[]) => {
+                  const sortProducts = (products: VisaProduct[], groupKey: string) => {
+                    // Specific sorting logic for EB-3
+                    if (groupKey === 'eb3') {
+                      const eb3Order = [
+                        'step-initial',
+                        'step-catalog',
+                        'installment-initial',
+                        'installment-catalog',
+                        'installment-monthly'
+                      ];
+                      return products.sort((a, b) => {
+                        const aIndex = eb3Order.findIndex(o => a.slug.includes(o));
+                        const bIndex = eb3Order.findIndex(o => b.slug.includes(o));
+                        return (aIndex === -1 ? 999 : aIndex) - (bIndex === -1 ? 999 : bIndex);
+                      });
+                    }
+
                     const order = ['selection-process', 'scholarship', 'i20-control'];
                     return products.sort((a, b) => {
                       const aIndex = order.findIndex(o => a.slug.includes(o));
@@ -1415,8 +1434,8 @@ export function SellerLinks() {
                   return Object.entries(serviceGroups).map(([key, group]) => {
                     if (group.products.length === 0) return null;
 
-                    const sortedProducts = sortProducts(group.products);
-                    const isServiceGroup = ['initial', 'cos', 'transfer'].includes(key);
+                    const sortedProducts = sortProducts(group.products, key);
+                    const isServiceGroup = ['initial', 'cos', 'transfer', 'eb3'].includes(key);
                     const isExpanded = expandedServices[key] ?? false;
 
                     // For INITIAL, COS, TRANSFER - use dropdown
@@ -1449,7 +1468,10 @@ export function SellerLinks() {
                               {sortedProducts.map((product, index) => {
                                 const isCopied = copiedLink === productGeneratedLinks[product.slug];
                                 const paymentNumber = index + 1;
-                                const paymentLabel = paymentLabels[index] || `Payment ${paymentNumber}`;
+                                // Use mapped label for Initial/COS/Transfer, but actual names for EB-3 and others
+                                const paymentLabel = key === 'eb3' || key === 'other'
+                                  ? product.name
+                                  : (paymentLabels[index] || `Payment ${paymentNumber}`);
                                 const basePrice = parseFloat(product.base_price_usd || '0');
                                 const extraPrice = parseFloat(product.extra_unit_price || '0');
                                 const hasExtraUnits = product.allow_extra_units && extraPrice > 0;

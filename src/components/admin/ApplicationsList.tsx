@@ -28,6 +28,7 @@ interface ApplicationsListProps {
   onPageChange?: (page: number) => void;
   onPageSizeChange?: (size: number) => void;
   refreshKey?: number;
+  search?: string;
 }
 
 function StatusBadge({ status }: { status: Application['status'] }) {
@@ -69,6 +70,7 @@ export function ApplicationsList({
   onPageChange,
   onPageSizeChange,
   refreshKey,
+  search,
 }: ApplicationsListProps) {
   const [showPdfModal, setShowPdfModal] = useState(false);
   const [cvUrl, setCvUrl] = useState<string | null>(null);
@@ -99,6 +101,7 @@ export function ApplicationsList({
     page: currentPage,
     orderBy: 'created_at',
     orderDirection: 'desc',
+    search: search,
   });
 
   // Scroll to top when page changes

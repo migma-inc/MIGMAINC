@@ -1,7 +1,7 @@
 import React from 'react';
 // Force HMR update
 import { Card } from '@/components/ui/card';
-import { Check, Crown, Rocket, Star } from 'lucide-react';
+import { Check, Star } from 'lucide-react';
 
 
 interface UpsellSelectionProps {
@@ -51,10 +51,7 @@ export const UpsellSelection: React.FC<UpsellSelectionProps> = ({ selectedUpsell
                             </div>
                         )}
                         <div className="flex items-start gap-3">
-                            <div className="p-2 bg-gold-medium/20 rounded-lg">
-                                <Crown className="w-6 h-6 text-gold-light" />
-                            </div>
-                            <div>
+                            <div className="flex-1">
                                 <h4 className="font-bold text-white text-lg mb-2">Canada Premium</h4>
 
                                 <div className="space-y-1 mb-2">
@@ -104,10 +101,7 @@ export const UpsellSelection: React.FC<UpsellSelectionProps> = ({ selectedUpsell
                             </div>
                         )}
                         <div className="flex items-start gap-3">
-                            <div className="p-2 bg-blue-500/20 rounded-lg">
-                                <Rocket className="w-6 h-6 text-blue-400" />
-                            </div>
-                            <div>
+                            <div className="flex-1">
                                 <h4 className="font-bold text-white text-lg mb-2">Canada Revolution</h4>
 
                                 <div className="space-y-1 mb-2">

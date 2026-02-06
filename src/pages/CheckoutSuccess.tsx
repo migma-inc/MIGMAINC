@@ -3,7 +3,7 @@ import { useSearchParams, Link } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { CheckCircle, ArrowRight, Loader2, RefreshCw } from 'lucide-react';
+import { CheckCircle, ArrowRight, RefreshCw } from 'lucide-react';
 
 export const CheckoutSuccess = () => {
   const [searchParams] = useSearchParams();
@@ -38,7 +38,33 @@ export const CheckoutSuccess = () => {
         if (error) {
           console.error('Error loading order:', error);
         } else {
-          setOrder(orderData);
+          // Fetch Product Details for receipt
+          let productDetails = null;
+          if (orderData.product_slug) {
+            const { data: pData } = await supabase
+              .from('visa_products')
+              .select('name, base_price_usd')
+              .eq('slug', orderData.product_slug)
+              .single();
+            productDetails = pData;
+          }
+
+          // Fetch Upsell Details for receipt
+          let upsellDetails = null;
+          if (orderData.upsell_product_slug) {
+            const { data: uData } = await supabase
+              .from('visa_products')
+              .select('name')
+              .eq('slug', orderData.upsell_product_slug)
+              .single();
+            upsellDetails = uData;
+          }
+
+          setOrder({
+            ...orderData,
+            product_details: productDetails,
+            upsell_details: upsellDetails
+          });
 
           // Clear localStorage draft only when payment is confirmed or started
           try {
@@ -91,10 +117,10 @@ export const CheckoutSuccess = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-black flex items-center justify-center">
+      <div className="min-h-screen bg-black flex items-center justify-center p-4">
         <div className="text-center">
-          <Loader2 className="h-12 w-12 text-gold-medium animate-spin mx-auto" />
-          <p className="mt-4 text-gray-400">Loading your order details...</p>
+          <div className="loader-gold mx-auto mb-8"></div>
+          <p className="text-gray-400">Loading your order details...</p>
         </div>
       </div>
     );
@@ -162,9 +188,37 @@ export const CheckoutSuccess = () => {
                     <span className="text-white font-mono font-medium">{order.order_number}</span>
                   </div>
                   <div className="flex justify-between items-center">
-                    <span className="text-gray-400">Visa Service:</span>
-                    <span className="text-white font-medium">{order.product_slug?.toUpperCase()}</span>
+                    <span className="text-gray-400">Product:</span>
+                    <span className="text-white font-medium text-right max-w-[60%]">
+                      {order.product_details?.name || order.product_slug?.toUpperCase()}
+                    </span>
                   </div>
+
+                  {order.product_details?.base_price_usd && (
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-400">Base Price:</span>
+                      <span className="text-white font-medium">US$ {parseFloat(order.product_details.base_price_usd).toFixed(2)}</span>
+                    </div>
+                  )}
+
+                  {order.extra_units > 0 && (
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-400">Dependents:</span>
+                      <span className="text-white font-medium">{order.extra_units}</span>
+                    </div>
+                  )}
+
+                  {order.upsell_product_slug && (
+                    <div className="flex justify-between items-start pt-2 mt-2 border-t border-white/5">
+                      <div className="flex flex-col">
+                        <span className="text-gray-400">Combo Copa / Upsell:</span>
+                        <span className="text-green-400 font-medium text-xs">
+                          {order.upsell_details?.name || order.upsell_product_slug?.toUpperCase()}
+                        </span>
+                      </div>
+                      <span className="text-white font-medium">US$ {parseFloat(order.upsell_price_usd || '0').toFixed(2)}</span>
+                    </div>
+                  )}
                   <div className="flex justify-between items-center">
                     <span className="text-gray-400">Total Price:</span>
                     <span className="text-white font-bold text-lg">US$ {parseFloat(order.total_price_usd).toFixed(2)}</span>

@@ -278,25 +278,24 @@ Deno.serve(async (req) => {
         pdf.setTextColor(0, 0, 0);
         pdf.setFont('helvetica', 'normal');
 
+        // All Invoices are in USD ($) and do not include installment/gateway fees
+        const currencySymbol = '$';
+
         // Item 1: Main Product
         const basePrice = parseFloat(order.base_price_usd || '0');
         pdf.text(product?.name || order.product_slug, margin + 5, currentY + 7);
         pdf.text('1', pageWidth - margin - 80, currentY + 7, { align: 'right' });
-        pdf.text(`$${basePrice.toFixed(2)}`, pageWidth - margin - 40, currentY + 7, { align: 'right' });
-        pdf.text(`$${basePrice.toFixed(2)}`, pageWidth - margin - 5, currentY + 7, { align: 'right' });
+        pdf.text(`${currencySymbol}${basePrice.toFixed(2)}`, pageWidth - margin - 40, currentY + 7, { align: 'right' });
+        pdf.text(`${currencySymbol}${basePrice.toFixed(2)}`, pageWidth - margin - 5, currentY + 7, { align: 'right' });
 
         currentY += 10;
         pdf.setDrawColor(240, 240, 240);
         pdf.line(margin, currentY, pageWidth - margin, currentY);
 
-        // Item 2: Extra Units / Dependents if any (only show if there's a cost)
+        // Item 2: Extra Units / Dependents
         const dbExtraUnits = order.extra_units || 0;
         const dependentNamesCount = Array.isArray(order.dependent_names) ? order.dependent_names.length : 0;
-
-        // Effective units: Trust DB extra_units first, fallback to dependents array length
         const displayExtraUnits = dbExtraUnits > 0 ? dbExtraUnits : dependentNamesCount;
-
-        // Effective price: Trust DB price first, fallback to product price, fallback to 0
         const displayExtraPrice = parseFloat(order.extra_unit_price_usd || order.price_per_dependent_usd || product?.price_per_dependent_usd || '0');
 
         const extraTotal = displayExtraUnits * displayExtraPrice;
@@ -305,40 +304,31 @@ Deno.serve(async (req) => {
             const label = order.extra_unit_label || product?.extra_unit_label || 'Additional Dependent';
             pdf.text(label, margin + 5, currentY + 7);
             pdf.text(displayExtraUnits.toString(), pageWidth - margin - 80, currentY + 7, { align: 'right' });
-            pdf.text(`$${displayExtraPrice.toFixed(2)}`, pageWidth - margin - 40, currentY + 7, { align: 'right' });
-            pdf.text(`$${extraTotal.toFixed(2)}`, pageWidth - margin - 5, currentY + 7, { align: 'right' });
+            pdf.text(`${currencySymbol}${displayExtraPrice.toFixed(2)}`, pageWidth - margin - 40, currentY + 7, { align: 'right' });
+            pdf.text(`${currencySymbol}${extraTotal.toFixed(2)}`, pageWidth - margin - 5, currentY + 7, { align: 'right' });
             currentY += 10;
             pdf.line(margin, currentY, pageWidth - margin, currentY);
         }
 
-        // Item 3: Coupon Discount (if used)
+        // Item 3: Coupon Discount
         const discountAmount = parseFloat(order.discount_amount || '0');
         if (discountAmount > 0) {
             pdf.setTextColor(200, 0, 0); // Red for discount
             const couponLabel = `Discount (${order.coupon_code || 'Promo'})`;
             pdf.text(couponLabel, margin + 5, currentY + 7);
             pdf.text('1', pageWidth - margin - 80, currentY + 7, { align: 'right' });
-            pdf.text(`-$${discountAmount.toFixed(2)}`, pageWidth - margin - 40, currentY + 7, { align: 'right' });
-            pdf.text(`-$${discountAmount.toFixed(2)}`, pageWidth - margin - 5, currentY + 7, { align: 'right' });
-            pdf.setTextColor(0, 0, 0); // Reset to Black
+            pdf.text(`-${currencySymbol}${discountAmount.toFixed(2)}`, pageWidth - margin - 40, currentY + 7, { align: 'right' });
+            pdf.text(`-${currencySymbol}${discountAmount.toFixed(2)}`, pageWidth - margin - 5, currentY + 7, { align: 'right' });
+            pdf.setTextColor(0, 0, 0);
             currentY += 10;
             pdf.line(margin, currentY, pageWidth - margin, currentY);
         }
 
-        // Item 4: Upsell Product if any
-        console.log('[EDGE FUNCTION] Checking for upsell:', {
-            has_slug: !!order.upsell_product_slug,
-            has_price: !!order.upsell_price_usd,
-            slug: order.upsell_product_slug,
-            price: order.upsell_price_usd
-        });
-
+        // Item 4: Upsell Product
         let upsellPrice = 0;
         if (order.upsell_product_slug && order.upsell_price_usd) {
-            console.log('[EDGE FUNCTION] ✅ UPSELL DETECTED! Adding to invoice...');
             upsellPrice = parseFloat(order.upsell_price_usd);
 
-            // Fetch upsell product name
             const { data: upsellProduct } = await supabase
                 .from('visa_products')
                 .select('name')
@@ -346,21 +336,14 @@ Deno.serve(async (req) => {
                 .single();
 
             const upsellName = upsellProduct?.name || order.upsell_product_slug;
-            console.log('[EDGE FUNCTION] Upsell product name:', upsellName);
-
-            // Shorten the name to fit in the table (max 35 chars)
-            const shortName = upsellName.length > 35
-                ? upsellName.substring(0, 32) + '...'
-                : upsellName;
+            const shortName = upsellName.length > 35 ? upsellName.substring(0, 32) + '...' : upsellName;
 
             pdf.text(`BUNDLE: ${shortName}`, margin + 5, currentY + 7);
             pdf.text('1', pageWidth - margin - 80, currentY + 7, { align: 'right' });
-            pdf.text(`$${upsellPrice.toFixed(2)}`, pageWidth - margin - 40, currentY + 7, { align: 'right' });
-            pdf.text(`$${upsellPrice.toFixed(2)}`, pageWidth - margin - 5, currentY + 7, { align: 'right' });
+            pdf.text(`${currencySymbol}${upsellPrice.toFixed(2)}`, pageWidth - margin - 40, currentY + 7, { align: 'right' });
+            pdf.text(`${currencySymbol}${upsellPrice.toFixed(2)}`, pageWidth - margin - 5, currentY + 7, { align: 'right' });
             currentY += 10;
             pdf.line(margin, currentY, pageWidth - margin, currentY);
-        } else {
-            console.log('[EDGE FUNCTION] ❌ No upsell found in order');
         }
 
         currentY += 10;
@@ -368,52 +351,31 @@ Deno.serve(async (req) => {
         // ============================================
         // 5. Totals
         // ============================================
-        const calculatedSubtotal = basePrice + extraTotal + upsellPrice;
-
-        // Fee handling (from metadata)
-        let feeAmount = 0;
-        if (order.payment_metadata && typeof order.payment_metadata === 'object' && 'fee_amount' in order.payment_metadata) {
-            feeAmount = parseFloat(String(order.payment_metadata.fee_amount));
-        }
-
-        let totalAmount = calculatedSubtotal - discountAmount + feeAmount;
-
-        // Parcelow specific rule: Minimum 0.01 USD for transaction validity
-        const method = (order.payment_method || '').toLowerCase().trim();
-        console.log(`[EDGE FUNCTION] Invoice Calculation: Subtotal=${calculatedSubtotal}, Discount=${discountAmount}, Method=${method}`);
-
-        if (totalAmount <= 0.001 && method === 'parcelow') {
-            console.log('[EDGE FUNCTION] ⚖️ Total is 0 but method is Parcelow. Forcing $0.01 to match gateway.');
-            totalAmount = 0.01;
-        }
+        // The subtotal for the invoice is the sum of services in USD only
+        const subtotal = basePrice + extraTotal + upsellPrice;
+        let totalAmount = subtotal - discountAmount;
 
         pdf.setFont('helvetica', 'normal');
         pdf.text('Subtotal', pageWidth - margin - 40, currentY, { align: 'right' });
         pdf.setFont('helvetica', 'bold');
-        pdf.text(`$${calculatedSubtotal.toFixed(2)}`, pageWidth - margin - 5, currentY, { align: 'right' });
+        pdf.text(`${currencySymbol}${subtotal.toFixed(2)}`, pageWidth - margin - 5, currentY, { align: 'right' });
 
         if (discountAmount > 0) {
             currentY += 8;
             pdf.setFont('helvetica', 'normal');
-            pdf.setTextColor(200, 0, 0); // Red for discount
+            pdf.setTextColor(200, 0, 0);
             pdf.text(`Discount (${order.coupon_code || 'Promo'})`, pageWidth - margin - 40, currentY, { align: 'right' });
             pdf.setFont('helvetica', 'bold');
-            pdf.text(`-$${discountAmount.toFixed(2)}`, pageWidth - margin - 5, currentY, { align: 'right' });
-            pdf.setTextColor(0, 0, 0); // Reset
+            pdf.text(`-${currencySymbol}${discountAmount.toFixed(2)}`, pageWidth - margin - 5, currentY, { align: 'right' });
+            pdf.setTextColor(0, 0, 0);
         }
-
-        currentY += 8;
-        pdf.setFont('helvetica', 'normal');
-        pdf.text('Service & Processing Fees', pageWidth - margin - 40, currentY, { align: 'right' });
-        pdf.setFont('helvetica', 'bold');
-        pdf.text(`$${feeAmount.toFixed(2)}`, pageWidth - margin - 5, currentY, { align: 'right' });
 
         currentY += 10;
         pdf.setFillColor(248, 248, 248);
         pdf.rect(pageWidth - margin - 90, currentY - 5, 90, 12, 'F');
         pdf.setFontSize(12);
         pdf.text('Total Due', pageWidth - margin - 40, currentY + 3, { align: 'right' });
-        pdf.text(`$${totalAmount.toFixed(2)}`, pageWidth - margin - 5, currentY + 3, { align: 'right' });
+        pdf.text(`${currencySymbol}${totalAmount.toFixed(2)}`, pageWidth - margin - 5, currentY + 3, { align: 'right' });
 
         currentY += 30;
 
@@ -476,11 +438,11 @@ Deno.serve(async (req) => {
                 .trim();
         };
 
-        const safeClientName = normalizeForFileName(order.client_name);
-        const safeServiceName = normalizeForFileName(product?.name || order.product_slug);
+        const safeClientName = normalizeForFileName(order.client_name).replace(/[^a-zA-Z0-9]/g, '_');
+        const safeServiceName = normalizeForFileName(product?.name || order.product_slug).replace(/[^a-zA-Z0-9]/g, '_');
 
-        // Final pattern requested: INVOICE - CUSTOMER NAME - ORDER NUMBER - SERVICE NAME - V2.pdf
-        const fileName = `INVOICE - ${safeClientName} - ${order.order_number} - ${safeServiceName} - V2.pdf`;
+        // Pattern: INVOICE_CUSTOMER_NAME_ORDER_NUMBER_SERVICE_NAME_V2.pdf
+        const fileName = `INVOICE_${safeClientName}_${order.order_number}_${safeServiceName}_V2.pdf`;
         const filePath = `invoices/${fileName}`;
 
         const { error: uploadError } = await supabase.storage

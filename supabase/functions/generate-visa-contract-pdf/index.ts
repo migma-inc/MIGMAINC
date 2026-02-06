@@ -92,9 +92,10 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Priority 2: Fallback to template by product slug
+    // Priority 2: Fallback to template by product slug with Inheritance
     if (!contractTemplate && productSlugToUse) {
-      const { data: template, error: templateError } = await supabase
+      // First attempt: Try exact match
+      let { data: template, error: templateError } = await supabase
         .from('contract_templates')
         .select('content')
         .eq('template_type', 'visa_service')
@@ -102,12 +103,61 @@ Deno.serve(async (req) => {
         .eq('is_active', true)
         .single();
 
-      if (!templateError && template) {
-        contractTemplate = template;
-        console.log("[EDGE FUNCTION] Contract template found for product slug:", productSlugToUse);
-      } else {
-        console.log("[EDGE FUNCTION] No contract template found for product slug:", productSlugToUse);
+      // Second attempt: Inheritance logic (fallback to parent service template)
+      if (!template && (productSlugToUse.includes('initial-') || productSlugToUse.includes('cos-') || productSlugToUse.includes('transfer-'))) {
+        console.log("[EDGE FUNCTION] 🔄 No direct template found. Attempting inheritance fallback...");
+        let parentSlug = null;
+
+        if (productSlugToUse.startsWith('initial-')) parentSlug = 'initial-selection-process';
+        else if (productSlugToUse.startsWith('cos-')) parentSlug = 'cos-selection-process';
+        else if (productSlugToUse.startsWith('transfer-')) parentSlug = 'transfer-selection-process';
+
+        if (parentSlug && parentSlug !== productSlugToUse) {
+          console.log(`[EDGE FUNCTION] define parent slug as: ${parentSlug}`);
+          const { data: parentTemplate, error: parentError } = await supabase
+            .from('contract_templates')
+            .select('content')
+            .eq('template_type', 'visa_service')
+            .eq('product_slug', parentSlug)
+            .eq('is_active', true)
+            .single();
+
+          if (parentTemplate && !parentError) {
+            template = parentTemplate;
+            console.log("[EDGE FUNCTION] ✅ Found parent template via inheritance.");
+          }
+        }
       }
+
+      const templateErrorFinal = template ? null : templateError;
+
+      if (!templateErrorFinal && template) {
+        contractTemplate = template;
+        console.log("[EDGE FUNCTION] Contract template found by product slug (or inheritance):", productSlugToUse);
+      } else {
+        console.log("[EDGE FUNCTION] No contract template found for product slug (even after inheritance):", productSlugToUse);
+      }
+    }
+
+    // Check if contract template exists. If not, do not generate contract.
+    if (!contractTemplate) {
+      console.log("[EDGE FUNCTION] ⚠️ No contract template found for this product. Skipping contract generation.");
+
+      // Safety: Clear any existing contract URL if generation was skipped/not needed
+      const clearField = is_upsell ? 'upsell_contract_pdf_url' : 'contract_pdf_url';
+      await supabase
+        .from('visa_orders')
+        .update({ [clearField]: null })
+        .eq('id', order_id);
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          message: "No contract template found for this product, skipping PDF generation.",
+          skipped: true
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
 
     // Fetch identity files if service_request_id exists
@@ -367,62 +417,42 @@ Deno.serve(async (req) => {
     pdf.text(product?.name || order.product_slug, margin + 50, currentY);
     currentY += 8;
 
-    // Total Price - use correct amount and currency based on payment method
-    let displayAmount = parseFloat(order.total_price_usd);
+    // Amount and Currency logic
+    let displayAmount = 0;
     let currencySymbol = 'US$';
 
-    // If it's an upsell document, use the upsell price
-    if (is_upsell && order.upsell_price_usd) {
-      displayAmount = parseFloat(order.upsell_price_usd);
-      currencySymbol = 'US$'; // Force USD for upsell specific documents
+    const isParcelow = order.payment_method === 'parcelow';
+    const metadata = order.payment_metadata || {};
+
+    // Total USD reference (including fees if Parcelow)
+    const totalUsdPaid = isParcelow
+      ? parseFloat(String(metadata.total_usd || order.total_price_usd))
+      : parseFloat(order.total_price_usd);
+
+    const upsellUsd = parseFloat(order.upsell_price_usd || '0');
+
+    // Calculate effective exchange rate if Parcelow
+    let exchangeRate = 1;
+    if (isParcelow) {
+      const totalBrl = parseFloat(String(metadata.total_brl || metadata.base_brl || 0));
+      if (totalBrl > 0 && totalUsdPaid > 0) {
+        exchangeRate = totalBrl / totalUsdPaid;
+        currencySymbol = 'R$';
+      }
     }
-    // Otherwise use logic for main product/total
-    else if (order.payment_method === 'stripe_pix') {
-      // PIX payments: use final_amount in BRL from metadata
-      if (order.payment_metadata && typeof order.payment_metadata === 'object' && 'final_amount' in order.payment_metadata) {
-        const finalAmount = parseFloat(order.payment_metadata.final_amount as string);
-        if (!isNaN(finalAmount) && finalAmount > 0) {
-          displayAmount = finalAmount;
-        }
-      }
-      currencySymbol = 'R$';
-    } else if (order.payment_method === 'stripe_card') {
-      // Card payments: always use USD amount (total_price_usd), regardless of processing currency
-      displayAmount = parseFloat(order.total_price_usd);
-      currencySymbol = 'US$';
-    } else if (order.payment_method === 'parcelow') {
-      // Parcelow payments: use total_brl from metadata (the actual BRL amount paid, includes all fees)
-      let foundInMetadata = false;
-      if (order.payment_metadata && typeof order.payment_metadata === 'object') {
-        // Check total_brl first (this is the actual amount paid in BRL)
-        if ('total_brl' in order.payment_metadata) {
-          const val = parseFloat(String(order.payment_metadata.total_brl));
-          if (!isNaN(val) && val > 0) {
-            displayAmount = val;
-            foundInMetadata = true;
-          }
-        }
 
-        // Fallback: check base_brl (amount without installment fees)
-        if (!foundInMetadata && 'base_brl' in order.payment_metadata) {
-          const val = parseFloat(String(order.payment_metadata.base_brl));
-          if (!isNaN(val) && val > 0) {
-            displayAmount = val;
-            foundInMetadata = true;
-          }
-        }
-      }
+    if (is_upsell && order.upsell_price_usd) {
+      // Upsell contract amount
+      displayAmount = isParcelow ? (upsellUsd * exchangeRate) : upsellUsd;
+    } else {
+      // Main contract amount (Total Paid - Upsell)
+      const mainAmountUsd = totalUsdPaid - upsellUsd;
+      displayAmount = isParcelow ? (mainAmountUsd * exchangeRate) : mainAmountUsd;
+    }
 
-      if (!foundInMetadata) {
-        // Last resort fallback: use total_price_usd
-        displayAmount = parseFloat(order.total_price_usd);
-      }
-
-      currencySymbol = 'R$'; // Parcelow is always in BRL
-    } else if (order.payment_method === 'zelle' || order.payment_method === 'manual') {
-      // Zelle and Manual: always USD, use total_price_usd (no fees)
-      displayAmount = parseFloat(order.total_price_usd);
-      currencySymbol = 'US$';
+    // Safety fallback for Parcelow to match metadata exactly if no upsell exists
+    if (isParcelow && !is_upsell && !order.upsell_price_usd && metadata.total_brl) {
+      displayAmount = parseFloat(String(metadata.total_brl));
     }
 
     pdf.setFont('helvetica', 'bold');
@@ -574,8 +604,10 @@ Deno.serve(async (req) => {
           currentY += 8;
         }
 
-        currentY += 10;
+        currentY += 8;
       }
+
+      currentY += 10;
     }
 
     // ============================================
@@ -590,28 +622,6 @@ Deno.serve(async (req) => {
     pdf.setFont('helvetica', 'bold');
     pdf.text('TERMS AND CONDITIONS', margin, currentY);
     currentY += 12;
-
-    // Check if contract template exists. If not, do not generate contract.
-    if (!contractTemplate) {
-      console.log("[EDGE FUNCTION] ⚠️ No contract template found for this product. Skipping contract generation.");
-
-      // Safety: Clear any existing contract URL if generation was skipped/not needed
-      const clearField = is_upsell ? 'upsell_contract_pdf_url' : 'contract_pdf_url';
-      await supabase
-        .from('visa_orders')
-        .update({ [clearField]: null })
-        .eq('id', order_id);
-
-      return new Response(
-        JSON.stringify({
-          success: true,
-          message: "No contract template found for this product, skipping PDF generation.",
-          skipped: true
-        }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
     let termsContent = convertHtmlToText(contractTemplate.content);
     console.log("[EDGE FUNCTION] Using contract template from database");
 
@@ -908,14 +918,10 @@ Deno.serve(async (req) => {
     const pdfBuffer = new Uint8Array(pdfArrayBuffer);
 
     // Generate filename
-    const normalizedName = order.client_name
-      .toLowerCase()
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '')
-      .replace(/[^a-z0-9]/g, '_');
-    const dateStr = new Date().toISOString().split('T')[0];
+    // Dynamic file name
     const timestamp = Date.now();
-    const fileName = `visa_contract_${normalizedName}_${order.order_number}_${dateStr}_${timestamp}.pdf`;
+    const safeName = order.client_name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, '_');
+    const fileName = `visa_contract_${safeName}_${order.order_number}_${new Date().toISOString().split('T')[0]}_${timestamp}.pdf`;
     const filePath = `visa-contracts/${fileName}`;
 
     // Upload to storage

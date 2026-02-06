@@ -54,6 +54,26 @@ async function sendVisaAdminNotification(order: any, supabase: any) {
       });
     }
 
+    // 3. Add Upsell Contract if it exists
+    const upsellContract = getBucketAndPath(order.upsell_contract_pdf_url);
+    if (upsellContract) {
+      attachments.push({
+        filename: `${order.client_name} - Upsell Contract - #${order.order_number}.pdf`,
+        path: upsellContract.path,
+        bucket: upsellContract.bucket
+      });
+    }
+
+    // 4. Add Upsell ANNEX I if it exists
+    const upsellAnnex = getBucketAndPath(order.upsell_annex_pdf_url);
+    if (upsellAnnex) {
+      attachments.push({
+        filename: `${order.client_name} - Upsell ANNEX I - #${order.order_number}.pdf`,
+        path: upsellAnnex.path,
+        bucket: upsellAnnex.bucket
+      });
+    }
+
     // 3. Add Invoice if it exists in payment_metadata
     const invoiceUrl = order.payment_metadata?.invoice_pdf_url;
     const invoice = getBucketAndPath(invoiceUrl);
@@ -185,42 +205,74 @@ async function sendVisaAdminNotification(order: any, supabase: any) {
   }
 }
 
-async function sendClientWebhook(order: any, supabase: any) {
-  // TEST USER VALIDATION - Prevent webhook for internal tests
+async function sendClientWebhook(order: any, supabase: any, isUpsell: boolean = false) {
+  // TEST USER VALIDATION
+  const testUrl = "https://nwh.suaiden.com/webhook/45665dbc-8751-41ff-afb8-6d17dd61d204";
+  const prodUrl = Deno.env.get('CLIENT_WEBHOOK_URL');
+
   const isTestUser =
     (order.client_name && order.client_name.trim() === "Paulo Victor Victor Ribeiro dos Santos") ||
     (order.client_email && order.client_email.includes("@uorak"));
 
+  // Define which URL to use
+  let webhookUrl = prodUrl;
+
   if (isTestUser) {
-    console.log(`[Webhook Client] 🛑 SKIPPING n8n webhook for Test User: ${order.client_name} (${order.client_email})`);
-    return;
+    console.log(`[Webhook Client] 🧪 TEST USER DETECTED: Routing to test n8n...`);
+    webhookUrl = testUrl;
   }
 
-  const webhookUrl = Deno.env.get('CLIENT_WEBHOOK_URL');
   if (!webhookUrl) {
-    console.error('[Webhook Client] CLIENT_WEBHOOK_URL not set');
+    console.error('[Webhook Client] Webhook URL not set');
     return;
   }
 
   try {
+    const productSlug = isUpsell && order.upsell_product_slug ? order.upsell_product_slug : order.product_slug;
+
+    // Fetch product pricing details
     const { data: product } = await supabase
       .from('visa_products')
-      .select('name')
-      .eq('slug', order.product_slug)
+      .select('name, base_price_usd, price_per_dependent_usd')
+      .eq('slug', productSlug)
       .single();
 
-    const serviceName = normalizeServiceName(order.product_slug, product?.name || order.product_slug);
+    const serviceName = normalizeServiceName(productSlug, product?.name || productSlug);
 
+    // Calculate Correct Base Price for Main Applicant
     let basePrice = 0;
-    if (order.calculation_type === 'units_only') {
+    if (isUpsell) {
+      // For Upsell, we use the product's base price if available, otherwise fallback
+      basePrice = product?.base_price_usd ? parseFloat(String(product.base_price_usd)) : 0;
+    } else if (order.calculation_type === 'units_only') {
       basePrice = parseFloat(order.extra_unit_price_usd || '0');
     } else {
       basePrice = parseFloat(order.base_price_usd || '0');
     }
 
-    const payload = {
+    // Calculate Correct Unit Price for Dependents
+    let unitPrice = 0;
+    if (isUpsell) {
+      unitPrice = product?.price_per_dependent_usd ? parseFloat(String(product.price_per_dependent_usd)) : 0;
+    } else {
+      try {
+        const rawPrice = order.extra_unit_price_usd;
+        if (typeof rawPrice === 'number') unitPrice = rawPrice;
+        else if (typeof rawPrice === 'string') unitPrice = parseFloat(rawPrice);
+
+        if (unitPrice === 0 && order.extra_units > 0 && !isUpsell) {
+          const base = parseFloat(String(order.base_price_usd || '0'));
+          const total = parseFloat(String(order.total_price_usd || '0'));
+          if (total > base) unitPrice = (total - base) / order.extra_units;
+        }
+      } catch (e) {
+        console.error('[Webhook Client] Error parsing main unit price:', e);
+      }
+    }
+
+    const payload: any = {
       servico: serviceName,
-      plano_servico: order.product_slug,
+      plano_servico: productSlug,
       nome_completo: order.client_name,
       whatsapp: order.client_whatsapp || '',
       email: order.client_email,
@@ -229,7 +281,10 @@ async function sendClientWebhook(order: any, supabase: any) {
       quantidade_dependentes: Array.isArray(order.dependent_names) ? order.dependent_names.length : 0,
     };
 
-    console.log('[Webhook Client] Sending payload to n8n:', JSON.stringify(payload));
+    // Only include is_upsell if it's true
+    if (isUpsell) payload.is_upsell = true;
+
+    console.log(`[Webhook Client] Sending ${isUpsell ? 'UPSELL' : 'MAIN'} payload to n8n:`, JSON.stringify(payload));
 
     await fetch(webhookUrl, {
       method: 'POST',
@@ -239,47 +294,22 @@ async function sendClientWebhook(order: any, supabase: any) {
 
     // Send dependents separately if any
     if (Array.isArray(order.dependent_names) && order.dependent_names.length > 0) {
-      console.log(`[Webhook Client] Processing ${order.dependent_names.length} dependents. Units Price Raw:`, order.extra_unit_price_usd);
-
-      let unitPrice = 0;
-      try {
-        // Handle both string and number inputs safely
-        const rawPrice = order.extra_unit_price_usd;
-        if (typeof rawPrice === 'number') {
-          unitPrice = rawPrice;
-        } else if (typeof rawPrice === 'string') {
-          unitPrice = parseFloat(rawPrice);
-        }
-
-        // Safety check: if price is 0, try to calculate from total if possible
-        if (unitPrice === 0 && order.extra_units > 0) {
-          const base = parseFloat(String(order.base_price_usd || '0'));
-          const total = parseFloat(String(order.total_price_usd || '0'));
-          if (total > base) {
-            unitPrice = (total - base) / order.extra_units;
-            console.log(`[Webhook Client] Recalculated unit price from total: ${unitPrice}`);
-          }
-        }
-      } catch (e) {
-        console.error('[Webhook Client] Error parsing unit price:', e);
-      }
-
       for (const depName of order.dependent_names) {
         if (!depName) continue;
-        const depPayload = {
+        const depPayload: any = {
           tipo: "dependente",
-          // Legacy fields (KEEP THESE):
           nome_completo_cliente_principal: order.client_name,
           nome_completo_dependente: depName,
           valor_servico: unitPrice.toFixed(2),
-
-          // Enriched fields (SAME NAMING AS MAIN PAYLOAD):
           servico: serviceName,
-          plano_servico: order.product_slug,
+          plano_servico: productSlug,
           email: order.client_email,
           whatsapp: order.client_whatsapp || '',
           vendedor: order.seller_id || '',
         };
+
+        if (isUpsell) depPayload.is_upsell = true;
+
         console.log(`[Webhook Client] Sending dependent payload (${depName}) to n8n:`, JSON.stringify(depPayload));
         await fetch(webhookUrl, {
           method: 'POST',
@@ -317,8 +347,8 @@ Deno.serve(async (req) => {
       );
     }
 
-    // contract_type: 'annex' or 'contract' (defaults to 'contract' for backward compatibility)
-    const approvalType = contract_type === 'annex' ? 'annex' : 'contract';
+    // contract_type: 'annex', 'contract', 'upsell_contract', or 'upsell_annex'
+    const approvalType = contract_type || 'contract';
 
     console.log(`[EDGE FUNCTION] Approving ${approvalType} for order:`, order_id);
 
@@ -350,7 +380,16 @@ Deno.serve(async (req) => {
       updateData.annex_approval_status = 'approved';
       updateData.annex_approval_reviewed_by = reviewed_by;
       updateData.annex_approval_reviewed_at = new Date().toISOString();
+    } else if (approvalType === 'upsell_contract') {
+      updateData.upsell_contract_approval_status = 'approved';
+      updateData.upsell_contract_approval_reviewed_by = reviewed_by;
+      updateData.upsell_contract_approval_reviewed_at = new Date().toISOString();
+    } else if (approvalType === 'upsell_annex') {
+      updateData.upsell_annex_approval_status = 'approved';
+      updateData.upsell_annex_approval_reviewed_by = reviewed_by;
+      updateData.upsell_annex_approval_reviewed_at = new Date().toISOString();
     } else {
+      // Default to main contract
       updateData.contract_approval_status = 'approved';
       updateData.contract_approval_reviewed_by = reviewed_by;
       updateData.contract_approval_reviewed_at = new Date().toISOString();
@@ -369,7 +408,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    console.log(`[EDGE FUNCTION] ${approvalType === 'annex' ? 'ANNEX I' : 'Contract'} approved successfully in DB`);
+    console.log(`[EDGE FUNCTION] ${approvalType} approved successfully in DB`);
 
     // 3. Send Admin Notification Email with PDF Attachments
     // Run this in background to avoid blocking the response
@@ -390,12 +429,13 @@ Deno.serve(async (req) => {
       }
     })();
 
-    // 4. Trigger n8n Webhook IF it's the main contract approval (Universal standard for all payment methods)
-    if (approvalType === 'contract') {
-      console.log(`[EDGE FUNCTION] Triggering n8n webhook for order: ${order.order_number} (Method: ${order.payment_method})`);
+    // 4. Trigger n8n Webhook IF it's a contract approval (Main or Upsell)
+    if (approvalType === 'contract' || approvalType === 'upsell_contract') {
+      const isUpsell = approvalType === 'upsell_contract';
+      console.log(`[EDGE FUNCTION] Triggering n8n webhook for order: ${order.order_number} (Type: ${approvalType}, Method: ${order.payment_method})`);
       const orderWithApproval = { ...order, ...updateData };
       // Fire and forget (don't block the response)
-      sendClientWebhook(orderWithApproval, supabase).catch(err =>
+      sendClientWebhook(orderWithApproval, supabase, isUpsell).catch(err =>
         console.error("[EDGE FUNCTION] Non-critical webhook error:", err)
       );
     }
@@ -443,7 +483,17 @@ Deno.serve(async (req) => {
       if (viewToken && order.client_email) {
         const appUrl = "https://migmainc.com";
         const viewUrl = `${appUrl}/view-visa-contract?token=${viewToken}`;
-        const documentName = approvalType === 'annex' ? 'ANNEX I (Statement of Responsibility)' : 'Main Service Contract';
+
+        let documentName = 'Document';
+        if (approvalType === 'annex') {
+          documentName = 'ANNEX I (Statement of Responsibility)';
+        } else if (approvalType === 'contract') {
+          documentName = 'Main Service Contract';
+        } else if (approvalType === 'upsell_contract') {
+          documentName = `Premium Service Contract (${order.upsell_product_slug || 'Upsell'})`;
+        } else if (approvalType === 'upsell_annex') {
+          documentName = `Premium ANNEX I (${order.upsell_product_slug || 'Upsell'})`;
+        }
 
         const emailHtml = `
           <!DOCTYPE html>

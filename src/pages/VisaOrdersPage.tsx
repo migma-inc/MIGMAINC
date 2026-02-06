@@ -5,8 +5,9 @@ import { supabase } from '@/lib/supabase';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { PdfModal } from '@/components/ui/pdf-modal';
-import { FileText, Eye, Download, ChevronDown, EyeOff, Archive, Undo2, Ticket } from 'lucide-react';
+import { FileText, Eye, Download, ChevronDown, EyeOff, Archive, Undo2, Ticket, Search } from 'lucide-react';
 import {
   Popover,
   PopoverContent,
@@ -505,6 +506,7 @@ export const VisaOrdersPage = () => {
   const [orders, setOrders] = useState<VisaOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [showHidden, setShowHidden] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
   const [isUpdating, setIsUpdating] = useState<string | null>(null);
   const [selectedPdfUrl, setSelectedPdfUrl] = useState<string | null>(null);
   const [selectedPdfTitle, setSelectedPdfTitle] = useState<string>('Contract PDF');
@@ -584,6 +586,17 @@ export const VisaOrdersPage = () => {
   };
 
   const visibleOrders = orders.filter(order => {
+    // Search filter
+    if (searchTerm) {
+      const search = searchTerm.toLowerCase();
+      const matchesSearch =
+        order.client_name?.toLowerCase().includes(search) ||
+        order.client_email?.toLowerCase().includes(search) ||
+        order.order_number?.toLowerCase().includes(search);
+
+      if (!matchesSearch) return false;
+    }
+
     // Definimos como "abandonado" ou "em espera" pedidos Parcelow que não foram concluídos
     const isPendingParcelow = order.payment_method === 'parcelow' &&
       order.payment_status === 'pending' &&
@@ -714,64 +727,67 @@ export const VisaOrdersPage = () => {
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4 sm:mb-8">
           <h1 className="text-2xl sm:text-3xl font-bold migma-gold-text">Visa Orders</h1>
 
-          <div className="flex flex-wrap items-center gap-2">
-            {isLocal && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setShowHidden(!showHidden)}
-                className={`border-gold-medium/30 bg-black/50 text-gold-light hover:bg-gold-medium/20 text-xs md:text-sm ${showHidden ? 'bg-gold-medium/40' : ''}`}
-              >
-                {showHidden ? <Eye className="w-4 h-4 mr-2" /> : <EyeOff className="w-4 h-4 mr-2" />}
-                {showHidden ? 'Ver Apenas Reais' : 'Ver Todos (Incluindo Ocultos)'}
-              </Button>
-            )}
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
+            <div className="relative w-full md:w-96">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+              <Input
+                placeholder="Buscar por nome, email ou pedido..."
+                className="pl-10 bg-black/50 border-gold-medium/30 text-white placeholder:text-gray-500"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+            </div>
 
-            <Popover>
-              <PopoverTrigger asChild>
+            <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
+              {isLocal && (
                 <Button
-                  className="bg-green-600 hover:bg-green-700 text-white border-none gap-2 text-sm font-medium h-9 sm:h-10 px-4"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowHidden(!showHidden)}
+                  className={`border-gold-medium/30 bg-black/50 text-gold-light hover:bg-gold-medium/20 text-xs md:text-sm ${showHidden ? 'bg-gold-medium/40' : ''}`}
                 >
-                  <Download className="w-4 h-4" />
-                  Export Excel
-                  <ChevronDown className="w-4 h-4 ml-1" />
+                  {showHidden ? <Eye className="w-4 h-4 mr-2" /> : <EyeOff className="w-4 h-4 mr-2" />}
+                  {showHidden ? 'Ver Apenas Reais' : 'Ver Todos'}
                 </Button>
-              </PopoverTrigger>
-              <PopoverContent align="end" className="w-56 p-2 bg-zinc-950 border border-zinc-800 rounded-lg shadow-xl">
-                <div className="flex flex-col gap-1">
+              )}
+
+              <Popover>
+                <PopoverTrigger asChild>
                   <Button
-                    variant="ghost"
-                    className="w-full justify-start text-zinc-300 hover:text-white hover:bg-zinc-800 text-sm font-normal"
-                    onClick={() => handleExportExcel('all')}
+                    className="bg-green-600 hover:bg-green-700 text-white border-none gap-2 text-sm font-medium h-9"
                   >
-                    Exportar Todos
+                    <Download className="w-4 h-4" />
+                    Export Excel
+                    <ChevronDown className="w-4 h-4 ml-1" />
                   </Button>
-                  <Button
-                    variant="ghost"
-                    className="w-full justify-start text-zinc-300 hover:text-white hover:bg-zinc-800 text-sm font-normal"
-                    onClick={() => handleExportExcel('completed')}
-                  >
-                    Apenas Pagos
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    className="w-full justify-start text-zinc-300 hover:text-white hover:bg-zinc-800 text-sm font-normal"
-                    onClick={() => handleExportExcel('pending')}
-                  >
-                    Apenas Pendentes
-                  </Button>
-                  {isLocal && (
+                </PopoverTrigger>
+                <PopoverContent align="end" className="w-56 p-2 bg-zinc-950 border border-zinc-800 rounded-lg shadow-xl">
+                  <div className="flex flex-col gap-1">
                     <Button
                       variant="ghost"
                       className="w-full justify-start text-zinc-300 hover:text-white hover:bg-zinc-800 text-sm font-normal"
-                      onClick={() => handleExportExcel('real')}
+                      onClick={() => handleExportExcel('all')}
                     >
-                      Exportar Reais (Sem Ocultos)
+                      Exportar Todos
                     </Button>
-                  )}
-                </div>
-              </PopoverContent>
-            </Popover>
+                    <Button
+                      variant="ghost"
+                      className="w-full justify-start text-zinc-300 hover:text-white hover:bg-zinc-800 text-sm font-normal"
+                      onClick={() => handleExportExcel('completed')}
+                    >
+                      Apenas Pagos
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      className="w-full justify-start text-zinc-300 hover:text-white hover:bg-zinc-800 text-sm font-normal"
+                      onClick={() => handleExportExcel('pending')}
+                    >
+                      Apenas Pendentes
+                    </Button>
+                  </div>
+                </PopoverContent>
+              </Popover>
+            </div>
           </div>
         </div>
 
