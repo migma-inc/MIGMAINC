@@ -16,6 +16,7 @@ export interface ScheduledMeeting {
   meeting_scheduled_at: string;
   scheduled_by?: string | null;
   notes?: string | null;
+  source: 'manual' | 'partner';
   created_at: string;
   updated_at: string;
 }
@@ -124,39 +125,74 @@ export async function getScheduledMeetings(options?: {
   filterDate?: 'upcoming' | 'past' | 'all';
 }): Promise<{ success: boolean; data?: ScheduledMeeting[]; error?: string }> {
   try {
-    let query = supabase
-      .from('scheduled_meetings')
-      .select('*');
+    // 1. Fetch from scheduled_meetings
+    let manualQuery = supabase.from('scheduled_meetings').select('*');
 
-    // Apply date filter
+    // 2. Fetch from global_partner_applications (only those with meetings)
+    let partnerQuery = supabase
+      .from('global_partner_applications')
+      .select('id, email, full_name, meeting_date, meeting_time, meeting_link, meeting_scheduled_by, created_at')
+      .not('meeting_date', 'is', null);
+
+    // Apply date filters
+    const today = new Date().toISOString().split('T')[0];
     if (options?.filterDate === 'upcoming') {
-      const today = new Date().toISOString().split('T')[0];
-      query = query.gte('meeting_date', today);
+      manualQuery = manualQuery.gte('meeting_date', today);
+      partnerQuery = partnerQuery.gte('meeting_date', today);
     } else if (options?.filterDate === 'past') {
-      const today = new Date().toISOString().split('T')[0];
-      query = query.lt('meeting_date', today);
+      manualQuery = manualQuery.lt('meeting_date', today);
+      partnerQuery = partnerQuery.lt('meeting_date', today);
     }
 
-    // Apply ordering
+    // Execute queries
+    const [manualResult, partnerResult] = await Promise.all([manualQuery, partnerQuery]);
+
+    if (manualResult.error) throw manualResult.error;
+    if (partnerResult.error) throw partnerResult.error;
+
+    // Map and unify
+    const manualMeetings: ScheduledMeeting[] = (manualResult.data || []).map(m => ({
+      ...m,
+      source: 'manual',
+      meeting_scheduled_at: m.created_at // existing interface field
+    }));
+
+    const partnerMeetings: ScheduledMeeting[] = (partnerResult.data || []).map(m => ({
+      id: m.id,
+      email: m.email,
+      full_name: m.full_name,
+      meeting_date: m.meeting_date,
+      meeting_time: m.meeting_time || '',
+      meeting_link: m.meeting_link || '',
+      meeting_scheduled_at: m.created_at,
+      scheduled_by: m.meeting_scheduled_by,
+      notes: 'Global Partner Application Meeting',
+      source: 'partner',
+      created_at: m.created_at,
+      updated_at: m.created_at
+    }));
+
+    let allMeetings = [...manualMeetings, ...partnerMeetings];
+
+    // Sort
     const orderBy = options?.orderBy || 'meeting_date';
     const orderDirection = options?.orderDirection || 'asc';
-    query = query.order(orderBy, { ascending: orderDirection === 'asc' });
 
-    // Apply limit
+    allMeetings.sort((a, b) => {
+      const valA = a[orderBy] || '';
+      const valB = b[orderBy] || '';
+      if (orderDirection === 'asc') return valA > valB ? 1 : -1;
+      return valA < valB ? 1 : -1;
+    });
+
+    // Limit
     if (options?.limit) {
-      query = query.limit(options.limit);
+      allMeetings = allMeetings.slice(0, options.limit);
     }
 
-    const { data, error } = await query;
-
-    if (error) {
-      console.error('[MEETINGS] Error fetching meetings:', error);
-      return { success: false, error: error.message };
-    }
-
-    return { success: true, data: data || [] };
+    return { success: true, data: allMeetings };
   } catch (error) {
-    console.error('[MEETINGS] Error fetching meetings:', error);
+    console.error('[MEETINGS] Error fetching unified meetings:', error);
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error occurred',
@@ -234,34 +270,49 @@ export async function updateScheduledMeeting(
       updateData.notes = data.notes?.trim() || null;
     }
 
-    // Update meeting
-    const { error: updateError } = await supabase
+    // Update meeting - check both tables
+    const { error: updateErrorManual } = await supabase
       .from('scheduled_meetings')
       .update(updateData)
       .eq('id', meetingId);
 
-    if (updateError) {
-      console.error('[MEETINGS] Error updating meeting:', updateError);
-      return { success: false, error: updateError.message };
+    if (updateErrorManual) {
+      // Try partner table
+      const partnerUpdateData = {
+        meeting_date: updateData.meeting_date,
+        meeting_time: updateData.meeting_time,
+        meeting_link: updateData.meeting_link,
+        meeting_scheduled_by: updateData.scheduled_by,
+      };
+
+      const { error: updateErrorPartner } = await supabase
+        .from('global_partner_applications')
+        .update(JSON.parse(JSON.stringify(partnerUpdateData))) // Remove undefined
+        .eq('id', meetingId);
+
+      if (updateErrorPartner) {
+        console.error('[MEETINGS] Error updating meeting in both tables:', updateErrorManual, updateErrorPartner);
+        return { success: false, error: 'Failed to update meeting' };
+      }
     }
 
-      // If email, name, date, time, or link changed, send update email
-      if (
-        data.email !== undefined ||
-        data.full_name !== undefined ||
-        data.meeting_date !== undefined ||
-        data.meeting_time !== undefined ||
-        data.meeting_link !== undefined
-      ) {
-        const finalEmail = data.email || existingMeeting.email;
-        const finalName = data.full_name || existingMeeting.full_name;
-        const finalDate = data.meeting_date || existingMeeting.meeting_date;
-        const finalTime = data.meeting_time || existingMeeting.meeting_time;
-        const finalLink = data.meeting_link || existingMeeting.meeting_link;
+    // If email, name, date, time, or link changed, send update email
+    if (
+      data.email !== undefined ||
+      data.full_name !== undefined ||
+      data.meeting_date !== undefined ||
+      data.meeting_time !== undefined ||
+      data.meeting_link !== undefined
+    ) {
+      const finalEmail = data.email || existingMeeting.email;
+      const finalName = data.full_name || existingMeeting.full_name;
+      const finalDate = data.meeting_date || existingMeeting.meeting_date;
+      const finalTime = data.meeting_time || existingMeeting.meeting_time;
+      const finalLink = data.meeting_link || existingMeeting.meeting_link;
 
-        // Send update email for scheduled meeting
-        await sendScheduledMeetingUpdateEmail(finalEmail, finalName, finalDate, finalTime, finalLink);
-      }
+      // Send update email for scheduled meeting
+      await sendScheduledMeetingUpdateEmail(finalEmail, finalName, finalDate, finalTime, finalLink);
+    }
 
     return { success: true };
   } catch (error) {
@@ -280,14 +331,26 @@ export async function deleteScheduledMeeting(
   meetingId: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    const { error } = await supabase
+    const { error: delErrorManual } = await supabase
       .from('scheduled_meetings')
       .delete()
       .eq('id', meetingId);
 
-    if (error) {
-      console.error('[MEETINGS] Error deleting meeting:', error);
-      return { success: false, error: error.message };
+    if (delErrorManual) {
+      const { error: delErrorPartner } = await supabase
+        .from('global_partner_applications')
+        .update({
+          meeting_date: null,
+          meeting_time: null,
+          meeting_link: null,
+          meeting_scheduled_by: null
+        })
+        .eq('id', meetingId);
+
+      if (delErrorPartner) {
+        console.error('[MEETINGS] Error deleting/clearing meeting:', delErrorManual, delErrorPartner);
+        return { success: false, error: 'Failed to delete meeting' };
+      }
     }
 
     return { success: true };
@@ -307,13 +370,26 @@ export async function resendMeetingEmail(
   meetingId: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    const { data: meeting, error: fetchError } = await supabase
+    let meeting;
+    const { data: manualMeeting } = await supabase
       .from('scheduled_meetings')
       .select('*')
       .eq('id', meetingId)
-      .single();
+      .maybeSingle();
 
-    if (fetchError || !meeting) {
+    if (manualMeeting) {
+      meeting = manualMeeting;
+    } else {
+      const { data: partnerMeeting } = await supabase
+        .from('global_partner_applications')
+        .select('id, email, full_name, meeting_date, meeting_time, meeting_link')
+        .eq('id', meetingId)
+        .maybeSingle();
+
+      meeting = partnerMeeting;
+    }
+
+    if (!meeting) {
       return { success: false, error: 'Meeting not found' };
     }
 
