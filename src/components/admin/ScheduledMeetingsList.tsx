@@ -16,12 +16,16 @@ interface ScheduledMeetingsListProps {
   onEdit?: (meeting: ScheduledMeeting) => void;
   refreshKey?: number;
   filterDate?: 'upcoming' | 'past' | 'all';
+  searchTerm?: string;
+  selectedDate?: string;
 }
 
 export function ScheduledMeetingsList({
   onEdit,
   refreshKey,
   filterDate = 'all',
+  searchTerm = '',
+  selectedDate = '',
 }: ScheduledMeetingsListProps) {
   const [meetings, setMeetings] = useState<ScheduledMeeting[]>([]);
   const [loading, setLoading] = useState(true);
@@ -38,7 +42,7 @@ export function ScheduledMeetingsList({
     try {
       const result = await getScheduledMeetings({
         orderBy: 'meeting_date',
-        orderDirection: 'asc',
+        orderDirection: 'desc',
         filterDate: filterDate,
       });
 
@@ -182,14 +186,28 @@ export function ScheduledMeetingsList({
     );
   }
 
-  if (meetings.length === 0) {
+  const filteredMeetings = meetings.filter(meeting => {
+    // 1. Search term filter (Name, Email)
+    const searchLower = searchTerm.toLowerCase();
+    const matchesSearch = !searchTerm || (
+      meeting.full_name?.toLowerCase().includes(searchLower) ||
+      meeting.email?.toLowerCase().includes(searchLower)
+    );
+
+    // 2. Exact Date filter
+    const matchesDate = !selectedDate || meeting.meeting_date === selectedDate;
+
+    return matchesSearch && matchesDate;
+  });
+
+  if (filteredMeetings.length === 0) {
     return (
       <div className="text-center py-12">
         <Calendar className="w-16 h-16 text-gray-500 mx-auto mb-4" />
         <p className="text-gray-400 text-lg">No meetings found</p>
-        {filterDate && filterDate !== 'all' && (
+        {(filterDate !== 'all' || searchTerm || selectedDate) && (
           <p className="text-gray-500 text-sm mt-2">
-            No {filterDate === 'upcoming' ? 'upcoming' : 'past'} meetings
+            Try adjusting your {searchTerm || selectedDate ? 'filters' : 'view'}
           </p>
         )}
       </div>
@@ -199,7 +217,7 @@ export function ScheduledMeetingsList({
   return (
     <>
       <div className="space-y-4">
-        {meetings.map((meeting) => {
+        {filteredMeetings.map((meeting) => {
           const upcoming = isUpcoming(meeting.meeting_date);
           return (
             <Card
@@ -216,6 +234,11 @@ export function ScheduledMeetingsList({
                       <div className="flex-1">
                         <div className="flex items-center gap-2 mb-2">
                           <h3 className="text-lg font-semibold text-white">{meeting.full_name}</h3>
+                          {meeting.source === 'partner' && (
+                            <Badge className="bg-blue-500/20 text-blue-400 border-blue-500/50">
+                              Global Partner
+                            </Badge>
+                          )}
                           {upcoming ? (
                             <Badge className="bg-green-500/20 text-green-300 border-green-500/50">
                               Upcoming
