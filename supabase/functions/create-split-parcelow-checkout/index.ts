@@ -123,69 +123,73 @@ Deno.serve(async (req: Request) => {
         }
 
         // 5. Criar primeiro checkout Parcelow (Part 1)
-        console.log("[Split Checkout] 🔄 Criando checkout Part 1 (Parcelow)...");
-
-        const { data: part1Checkout, error: part1Error } = await supabase.functions.invoke(
-            'create-parcelow-checkout',
-            {
-                body: {
-                    order_id: order.id,
-                    currency: 'USD',
-                    // Override do valor para a Part 1
-                    amount_usd: part1_amount,
-                    // Metadata para identificar que é split
-                    is_split_part: true,
-                    split_payment_id: splitPayment.id,
-                    split_part_number: 1,
-                }
+        console.log(`[Split Checkout] 🔄 Chamando create-parcelow-checkout para Part 1...`);
+        // Usamos headers explícitos para garantir o bypass do JWT se o service_role for usado
+        const { data: part1Data, error: part1Error } = await supabase.functions.invoke('create-parcelow-checkout', {
+            headers: {
+                'Authorization': `Bearer ${supabaseServiceKey}`,
+                'apikey': supabaseServiceKey,
+            },
+            body: {
+                order_id: order.id,
+                currency: 'USD',
+                amount_usd: part1_amount,
+                is_split_part: true,
+                split_payment_id: splitPayment.id,
+                split_part_number: 1,
+                // Passamos o método de pagamento específico desta parte
+                payment_method_override: part1_method
             }
-        );
+        });
 
-        if (part1Error || !part1Checkout?.success) {
-            throw new Error(`Erro ao criar checkout Part 1: ${part1Error?.message || 'Checkout falhou'}`);
+        if (part1Error) {
+            console.error(`[Split Checkout] ❌ Erro Part 1:`, part1Error);
+            throw new Error(`Erro ao criar checkout Part 1: ${part1Error.message}`);
         }
 
-        console.log("[Split Checkout] ✅ Checkout Part 1 criado:", part1Checkout.checkout_url);
+        console.log(`[Split Checkout] ✅ Part 1 criada:`, part1Data.checkout_url);
 
-        // 6. Criar segundo checkout Parcelow (Part 2)
-        console.log("[Split Checkout] 🔄 Criando checkout Part 2 (Parcelow)...");
-
-        const { data: part2Checkout, error: part2Error } = await supabase.functions.invoke(
-            'create-parcelow-checkout',
-            {
-                body: {
-                    order_id: order.id,
-                    currency: 'USD',
-                    // Override do valor para a Part 2
-                    amount_usd: part2_amount,
-                    // Metadata para identificar que é split
-                    is_split_part: true,
-                    split_payment_id: splitPayment.id,
-                    split_part_number: 2,
-                }
+        console.log(`[Split Checkout] 🔄 Chamando create-parcelow-checkout para Part 2...`);
+        const { data: part2Data, error: part2Error } = await supabase.functions.invoke('create-parcelow-checkout', {
+            headers: {
+                'Authorization': `Bearer ${supabaseServiceKey}`,
+                'apikey': supabaseServiceKey,
+            },
+            body: {
+                order_id: order.id,
+                currency: 'USD',
+                amount_usd: part2_amount,
+                is_split_part: true,
+                split_payment_id: splitPayment.id,
+                split_part_number: 2,
+                // Passamos o método de pagamento específico desta parte
+                payment_method_override: part2_method
             }
-        );
+        });
 
-        if (part2Error || !part2Checkout?.success) {
-            throw new Error(`Erro ao criar checkout Part 2: ${part2Error?.message || 'Checkout falhou'}`);
+        if (part2Error) {
+            console.error(`[Split Checkout] ❌ Erro Part 2:`, part2Error);
+            throw new Error(`Erro ao criar checkout Part 2: ${part2Error.message}`);
         }
 
-        console.log("[Split Checkout] ✅ Checkout Part 2 criado:", part2Checkout.checkout_url);
+        console.log("[Split Checkout] ✅ Checkout Part 2 criado:", part2Data.checkout_url);
 
         // 7. Atualizar split_payment com os IDs e URLs dos checkouts Parcelow
-        console.log("[Split Checkout] 💾 Salvando URLs dos checkouts...");
-
+        console.log("[Split Checkout] 💾 Salvando IDs e URLs dos checkouts...");
         const { error: updateSplitError } = await supabase
-            .from("split_payments")
+            .from('split_payments')
             .update({
-                part1_parcelow_order_id: part1Checkout.order_id,
-                part1_parcelow_checkout_url: part1Checkout.checkout_url,
-                part1_parcelow_status: part1Checkout.status || 'Open',
-                part2_parcelow_order_id: part2Checkout.order_id,
-                part2_parcelow_checkout_url: part2Checkout.checkout_url,
-                part2_parcelow_status: part2Checkout.status || 'Open',
+                part1_parcelow_order_id: part1Data.order_id?.toString(),
+                part1_parcelow_checkout_url: part1Data.checkout_url,
+                part1_parcelow_status: part1Data.status || 'Open',
+                part1_payment_status: 'pending',
+                part2_parcelow_order_id: part2Data.order_id?.toString(),
+                part2_parcelow_checkout_url: part2Data.checkout_url,
+                part2_parcelow_status: part2Data.status || 'Open',
+                part2_payment_status: 'pending',
+                overall_status: 'pending_part1'
             })
-            .eq("id", splitPayment.id);
+            .eq('id', splitPayment.id);
 
         if (updateSplitError) {
             console.error("[Split Checkout] ⚠️ Erro ao atualizar split payment:", updateSplitError);
@@ -195,8 +199,8 @@ Deno.serve(async (req: Request) => {
         const response: SplitCheckoutResponse = {
             success: true,
             split_payment_id: splitPayment.id,
-            part1_checkout_url: part1Checkout.checkout_url,
-            part2_checkout_url: part2Checkout.checkout_url,
+            part1_checkout_url: part1Data.checkout_url,
+            part2_checkout_url: part2Data.checkout_url,
         };
 
         console.log("[Split Checkout] 🎉 Split payment criado com sucesso!");

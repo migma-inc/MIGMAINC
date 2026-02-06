@@ -142,6 +142,7 @@ Deno.serve(async (req: Request) => {
       upsell_product_slug,
       upsell_contract_template_id,
       contract_template_id,
+      billing_installment_id,
     } = body;
 
     // Validate extra_units
@@ -370,6 +371,7 @@ Deno.serve(async (req: Request) => {
       ip_address: ip_address || "",
       service_request_id: serviceRequestIdToUse || "",
       anti_chargeback: "enabled",
+      billing_installment_id: billing_installment_id || "",
     };
 
     // Create Stripe checkout session FIRST (before creating order)
@@ -485,6 +487,7 @@ Deno.serve(async (req: Request) => {
           ip_address: ip_address || null,
           payment_id: paymentData?.id || null,
           has_upsell: !!upsell_product_slug,
+          billing_installment_id: billing_installment_id || null,
         },
         contract_template_id: contract_template_id || null,
       })

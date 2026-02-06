@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Clock, ArrowRight, CheckCircle } from 'lucide-react';
+import { ArrowRight, CheckCircle } from 'lucide-react';
 
 export const ZellePaymentProcessing = () => {
   return (
@@ -9,11 +9,8 @@ export const ZellePaymentProcessing = () => {
       <Card className="max-w-2xl w-full bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30">
         <CardContent className="p-8 text-center">
           <div className="mb-6">
-            <div className="relative inline-block mb-4">
-              <Clock className="w-20 h-20 text-gold-medium mx-auto animate-pulse" />
-              <div className="absolute inset-0 flex items-center justify-center">
-                <div className="w-16 h-16 border-4 border-gold-light/30 border-t-gold-medium rounded-full animate-spin"></div>
-              </div>
+            <div className="relative flex items-center justify-center mb-8 scale-125">
+              <div className="loader-gold"></div>
             </div>
             <h1 className="text-3xl font-bold migma-gold-text mb-2">
               Your payment is being processed
@@ -35,7 +32,6 @@ export const ZellePaymentProcessing = () => {
                 </p>
               </div>
             </div>
-            
             <div className="flex items-start gap-3 mb-4">
               <CheckCircle className="w-5 h-5 text-gold-medium flex-shrink-0 mt-0.5" />
               <div>
@@ -67,7 +63,7 @@ export const ZellePaymentProcessing = () => {
                 <strong>Estimated time:</strong> Up to 48 business hours
               </p>
             </div>
-            
+
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <Link to="/contact">
                 <Button className="bg-gradient-to-b from-gold-light via-gold-medium to-gold-light text-black font-bold hover:from-gold-medium hover:via-gold-light hover:to-gold-medium w-full sm:w-auto">
@@ -75,7 +71,7 @@ export const ZellePaymentProcessing = () => {
                 </Button>
               </Link>
               <Link to="/">
-                <Button 
+                <Button
                   className="bg-black border-2 border-gold-medium/50 text-gold-light hover:bg-black hover:border-gold-medium hover:text-gold-medium w-full sm:w-auto"
                 >
                   Back to Home

@@ -94,6 +94,9 @@ export interface VisaCheckoutState {
 
     // Split Payment
     splitPaymentConfig: SplitPaymentConfig | null;
+
+    // Recurring Billing
+    billingInstallmentId: string | null;
 }
 
 export interface VisaCheckoutActions {
@@ -159,4 +162,7 @@ export interface VisaCheckoutActions {
 
     // Split Payment
     setSplitPaymentConfig: (val: SplitPaymentConfig | null) => void;
+
+    // Recurring Billing
+    setBillingInstallmentId: (val: string | null) => void;
 }

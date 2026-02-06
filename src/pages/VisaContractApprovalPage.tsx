@@ -35,18 +35,24 @@ interface VisaOrder {
     id: string;
     order_number: string;
     product_slug: string;
+    upsell_product_slug?: string | null;
     client_name: string;
     client_email: string;
     contract_pdf_url: string | null;
     annex_pdf_url: string | null;
+    upsell_contract_pdf_url?: string | null;
+    upsell_annex_pdf_url?: string | null;
     contract_selfie_url: string | null;
     contract_document_url: string | null;
     contract_signed_at: string | null;
     contract_approval_status: string | null;
     annex_approval_status: string | null;
+    upsell_contract_approval_status?: string | null;
+    upsell_annex_approval_status?: string | null;
     payment_method: string | null;
     payment_status: string | null;
     service_request_id: string | null;
+    payment_metadata?: any | null;
     created_at: string;
 }
 
@@ -71,7 +77,7 @@ export function VisaContractApprovalPage() {
     // Modais de aprovação/rejeição
     const [showApproveConfirm, setShowApproveConfirm] = useState(false);
     const [showRejectPrompt, setShowRejectPrompt] = useState(false);
-    const [pendingItem, setPendingItem] = useState<{ id: string, type: 'contract' | 'annex' } | null>(null);
+    const [pendingItem, setPendingItem] = useState<{ id: string, type: 'contract' | 'annex' | 'upsell_contract' | 'upsell_annex' } | null>(null);
     const [rejectionReason, setRejectionReason] = useState('');
 
     const loadOrders = async () => {
@@ -80,7 +86,7 @@ export function VisaContractApprovalPage() {
             const { data, error } = await supabase
                 .from('visa_orders')
                 .select('*')
-                .or('contract_pdf_url.not.is.null,annex_pdf_url.not.is.null')
+                .or('contract_pdf_url.not.is.null,annex_pdf_url.not.is.null,upsell_contract_pdf_url.not.is.null,upsell_annex_pdf_url.not.is.null')
                 .order('created_at', { ascending: false });
 
             if (error) throw error;
@@ -127,21 +133,28 @@ export function VisaContractApprovalPage() {
 
         const contractStatus = order.contract_approval_status || 'pending';
         const annexStatus = order.annex_approval_status || 'pending';
+        const upsellContractStatus = order.upsell_contract_approval_status || 'pending';
+        const upsellAnnexStatus = order.upsell_annex_approval_status || 'pending';
 
         if (statusFilter === 'pending') {
             return (order.contract_pdf_url && contractStatus === 'pending') ||
-                (order.annex_pdf_url && annexStatus === 'pending');
+                (order.annex_pdf_url && annexStatus === 'pending') ||
+                (order.upsell_contract_pdf_url && upsellContractStatus === 'pending') ||
+                (order.upsell_annex_pdf_url && upsellAnnexStatus === 'pending');
         }
 
-        return contractStatus === statusFilter || annexStatus === statusFilter;
+        return contractStatus === statusFilter ||
+            annexStatus === statusFilter ||
+            upsellContractStatus === statusFilter ||
+            upsellAnnexStatus === statusFilter;
     });
 
-    const handleApprove = (id: string, type: 'contract' | 'annex') => {
+    const handleApprove = (id: string, type: 'contract' | 'annex' | 'upsell_contract' | 'upsell_annex') => {
         setPendingItem({ id, type });
         setShowApproveConfirm(true);
     };
 
-    const handleReject = (id: string, type: 'contract' | 'annex') => {
+    const handleReject = (id: string, type: 'contract' | 'annex' | 'upsell_contract' | 'upsell_annex') => {
         setPendingItem({ id, type });
         setRejectionReason('');
         setShowRejectPrompt(true);
@@ -247,7 +260,7 @@ export function VisaContractApprovalPage() {
         pdfUrl: string | null,
         status: string | null,
         orderId: string,
-        type: 'contract' | 'annex',
+        type: 'contract' | 'annex' | 'upsell_contract' | 'upsell_annex',
         clientName: string
     }) => {
         if (!pdfUrl) return null;
@@ -464,9 +477,9 @@ export function VisaContractApprovalPage() {
                                             </div>
                                         </div>
 
-                                        {/* Main Contract Action */}
-                                        {order.product_slug !== 'consultation-common' && (
-                                            <div className="lg:col-span-1">
+                                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 lg:col-span-3">
+                                            {/* Main Contract Action */}
+                                            {order.product_slug !== 'consultation-common' && (
                                                 <DocumentActionBlock
                                                     title="Main Contract"
                                                     pdfUrl={order.contract_pdf_url}
@@ -475,11 +488,9 @@ export function VisaContractApprovalPage() {
                                                     type="contract"
                                                     clientName={order.client_name}
                                                 />
-                                            </div>
-                                        )}
+                                            )}
 
-                                        {/* Annex I Action */}
-                                        <div className="lg:col-span-1">
+                                            {/* Annex I Action */}
                                             <DocumentActionBlock
                                                 title="Annex I"
                                                 pdfUrl={order.annex_pdf_url}
@@ -488,12 +499,28 @@ export function VisaContractApprovalPage() {
                                                 type="annex"
                                                 clientName={order.client_name}
                                             />
-                                        </div>
 
-                                        {/* Placeholder if only one exists to keep grid balanced */}
-                                        {(!order.contract_pdf_url || !order.annex_pdf_url) && (
-                                            <div className="hidden lg:block"></div>
-                                        )}
+
+                                            {/* Upsell Contract Action */}
+                                            <DocumentActionBlock
+                                                title={`Contract (${order.upsell_product_slug || 'Upsell'})`}
+                                                pdfUrl={order.upsell_contract_pdf_url || null}
+                                                status={order.upsell_contract_approval_status || null}
+                                                orderId={order.id}
+                                                type="upsell_contract"
+                                                clientName={order.client_name}
+                                            />
+
+                                            {/* Upsell Annex Action */}
+                                            <DocumentActionBlock
+                                                title={`Annex I (${order.upsell_product_slug || 'Upsell'})`}
+                                                pdfUrl={order.upsell_annex_pdf_url || null}
+                                                status={order.upsell_annex_approval_status || null}
+                                                orderId={order.id}
+                                                type="upsell_annex"
+                                                clientName={order.client_name}
+                                            />
+                                        </div>
                                     </div>
                                 </CardContent>
                             </Card>
@@ -510,7 +537,7 @@ export function VisaContractApprovalPage() {
                             <div className="bg-green-500/20 p-2 rounded-full">
                                 <Check className="w-6 h-6 text-green-400" />
                             </div>
-                            <DialogTitle className="text-xl font-bold">Approve {pendingItem?.type === 'annex' ? 'Annex I' : 'Main Contract'}</DialogTitle>
+                            <DialogTitle className="text-xl font-bold">Approve {pendingItem?.type.replace('_', ' ').toUpperCase()}</DialogTitle>
                         </div>
                         <DialogDescription className="text-gray-300 text-base leading-relaxed">
                             Confirm that this document is correctly signed and valid. The client will be notified immediately.
@@ -549,7 +576,7 @@ export function VisaContractApprovalPage() {
                             <div className="bg-red-500/20 p-2 rounded-full">
                                 <X className="w-6 h-6 text-red-400" />
                             </div>
-                            <DialogTitle className="text-xl font-bold">Reject {pendingItem?.type === 'annex' ? 'Annex I' : 'Main Contract'}</DialogTitle>
+                            <DialogTitle className="text-xl font-bold">Reject {pendingItem?.type.replace('_', ' ').toUpperCase()}</DialogTitle>
                         </div>
                         <DialogDescription className="text-gray-300 text-base">
                             The client will receive an email with instructions to resubmit.

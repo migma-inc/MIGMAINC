@@ -114,7 +114,14 @@ export const VisaCheckoutPage: React.FC = () => {
     const displayStep = (productSlug === 'consultation-common' && state.currentStep === 3) ? 2 : state.currentStep;
     const totalStepsCount = productSlug === 'consultation-common' ? 2 : 3;
 
-    // Auto-scroll to error on mobile
+    // Auto-scroll on step change
+    useEffect(() => {
+        if (state.currentStep) {
+            window.scrollTo({ top: 0, behavior: 'auto' });
+        }
+    }, [state.currentStep]);
+
+    // Auto-scroll to top when an error occurs (smooth behavior is better for UX)
     useEffect(() => {
         if (state.error) {
             window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -239,10 +246,17 @@ export const VisaCheckoutPage: React.FC = () => {
                                     state.signatureConfirmed &&
                                     state.termsAccepted &&
                                     (state.paymentMethod !== 'zelle' || !!state.zelleReceipt) &&
-                                    (state.paymentMethod !== 'parcelow' ||
-                                        (state.splitPaymentConfig?.enabled) || // Se for Split, libera
-                                        (!!state.creditCardName && !!state.cpf && state.cpf.length >= 11) // Se não for split, exige dados
-                                    )
+                                    (state.paymentMethod !== 'parcelow' || (
+                                        !!state.cpf && state.cpf.length >= 11 && (
+                                            // Se for split, só exige nome do cartão se alguma parte for 'card'
+                                            state.splitPaymentConfig?.enabled
+                                                ? (
+                                                    (state.splitPaymentConfig.part1_method !== 'card' && state.splitPaymentConfig.part2_method !== 'card') ||
+                                                    !!state.creditCardName
+                                                )
+                                                : !!state.creditCardName // Se não for split, exige nome (padrão card)
+                                        )
+                                    ))
                                 }
                                 onPay={() => {
                                     if (state.submitting) return;

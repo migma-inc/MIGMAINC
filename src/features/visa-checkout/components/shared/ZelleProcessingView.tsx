@@ -1,6 +1,6 @@
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Clock, ArrowRight, CheckCircle } from 'lucide-react';
+import { ArrowRight, CheckCircle } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 export const ZelleProcessingView = () => {
@@ -9,11 +9,8 @@ export const ZelleProcessingView = () => {
             <Card className="max-w-2xl w-full bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30 mx-auto">
                 <CardContent className="p-8 text-center">
                     <div className="mb-6">
-                        <div className="relative inline-block mb-4">
-                            <Clock className="w-20 h-20 text-gold-medium mx-auto animate-pulse" />
-                            <div className="absolute inset-0 flex items-center justify-center">
-                                <div className="w-16 h-16 border-4 border-gold-light/30 border-t-gold-medium rounded-full animate-spin"></div>
-                            </div>
+                        <div className="relative flex items-center justify-center mb-8 scale-125">
+                            <div className="loader-gold"></div>
                         </div>
                         <h1 className="text-3xl font-bold migma-gold-text mb-2">
                             Your payment is being processed

@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { LogOut, Filter, AlertCircle, Menu, ArrowLeft } from 'lucide-react';
+import { LogOut, Filter, AlertCircle, Menu, ArrowLeft, Search, XCircle } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ApplicationsList } from '@/components/admin/ApplicationsList';
 import { PartnerContractsList } from '@/components/admin/PartnerContractsList';
@@ -25,6 +25,7 @@ import { PromptModal } from '@/components/ui/prompt-modal';
 import { AlertModal } from '@/components/ui/alert-modal';
 import { MeetingScheduleModal } from '@/components/admin/MeetingScheduleModal';
 import { ContractTemplateSelector } from '@/components/admin/ContractTemplateSelector';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 function LoginForm({ onLoginSuccess }: { onLoginSuccess: () => void }) {
   const [email, setEmail] = useState('');
@@ -209,6 +210,7 @@ export function DashboardContent() {
 
   // URL bound states
   const statusFilter = searchParams.get('status') as any || undefined;
+  const searchTerm = searchParams.get('search') || '';
   const currentPage = parseInt(searchParams.get('page') || '1');
   const pageSize = parseInt(searchParams.get('limit') || '10');
 
@@ -241,6 +243,10 @@ export function DashboardContent() {
 
   const setStatusFilter = (val: string | undefined) => {
     updateSearchParams({ status: val, page: '1' }); // Reset to page 1 on filter
+  };
+
+  const handleSearch = (val: string) => {
+    updateSearchParams({ search: val || undefined, page: '1' });
   };
 
   const handlePageChange = (page: number) => {
@@ -820,35 +826,61 @@ export function DashboardContent() {
           </div>
 
           {/* Rejected (Rejected) */}
-          <div className="bg-gradient-to-br from-red-900/30 via-red-800/20 to-red-900/30 rounded-lg shadow p-2 sm:p-3 border border-red-500/50">
+          <div
+            className="bg-gradient-to-br from-red-900/30 via-red-800/20 to-red-900/30 rounded-lg shadow p-2 sm:p-3 border border-red-500/50 cursor-pointer hover:bg-red-800/20 transition-colors"
+            onClick={() => setStatusFilter('rejected')}
+          >
             <p className="text-[10px] sm:text-xs text-red-400 uppercase font-bold tracking-wider">Rejected</p>
             <p className="text-lg sm:text-xl font-bold text-red-300">{stats.rejected ?? 0}</p>
           </div>
         </div>
       )}
 
-      {/* Filters */}
-      <div className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 rounded-lg shadow p-3 sm:p-4 mb-4 sm:mb-6 border border-gold-medium/30">
-        <div className="flex flex-wrap items-center gap-3">
-          <Filter className="w-4 h-4 sm:w-5 sm:h-5 text-gold-light shrink-0" />
-          <label className="text-xs sm:text-sm font-medium text-white whitespace-nowrap">Filter by Status:</label>
-          <Select
-            value={statusFilter || 'all'}
-            onValueChange={(value) => setStatusFilter(value === 'all' ? undefined : value as 'pending' | 'approved' | 'approved_for_meeting' | 'approved_for_contract' | 'active_partner' | 'rejected')}
-          >
-            <SelectTrigger className="w-full sm:w-40 bg-black/50 border-gold-medium/50 text-white text-xs sm:text-sm">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent className="bg-black border-gold-medium/50">
-              <SelectItem value="all" className="text-white focus:bg-gold-medium/20 focus:text-gold-light">All</SelectItem>
-              <SelectItem value="pending" className="text-white focus:bg-gold-medium/20 focus:text-gold-light">New (Pending)</SelectItem>
-              <SelectItem value="approved_for_meeting" className="text-white focus:bg-gold-medium/20 focus:text-gold-light">Meeting</SelectItem>
-              <SelectItem value="approved_for_contract" className="text-white focus:bg-gold-medium/20 focus:text-gold-light">Awaiting Signature</SelectItem>
-              <SelectItem value="active_partner" className="text-white focus:bg-gold-medium/20 focus:text-gold-light">Active Partners</SelectItem>
-              <SelectItem value="approved" className="text-white focus:bg-gold-medium/20 focus:text-gold-light">Approved (Legacy)</SelectItem>
-              <SelectItem value="rejected" className="text-white focus:bg-gold-medium/20 focus:text-gold-light">Rejected</SelectItem>
-            </SelectContent>
-          </Select>
+      {/* Filters & Search */}
+      <div className={`bg-gradient-to-br ${statusFilter === 'rejected' ? 'from-red-900/10 via-red-900/5 to-red-900/10 border-red-500/30' : 'from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border-gold-medium/30'} rounded-lg shadow p-3 sm:p-4 mb-4 sm:mb-6 border`}>
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="flex flex-wrap items-center gap-3">
+            {statusFilter !== 'rejected' ? (
+              <>
+                <Filter className="w-4 h-4 sm:w-5 sm:h-5 text-gold-light shrink-0" />
+                <label className="text-xs sm:text-sm font-medium text-white whitespace-nowrap">Filter by Status:</label>
+                <Select
+                  value={statusFilter || 'all'}
+                  onValueChange={(value) => setStatusFilter(value === 'all' ? undefined : value as any)}
+                >
+                  <SelectTrigger className="w-full sm:w-48 bg-black/50 border-gold-medium/50 text-white text-xs sm:text-sm">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="bg-black border-gold-medium/50">
+                    <SelectItem value="all" className="text-white focus:bg-gold-medium/20 focus:text-gold-light">All (Active)</SelectItem>
+                    <SelectItem value="pending" className="text-white focus:bg-gold-medium/20 focus:text-gold-light">New (Pending)</SelectItem>
+                    <SelectItem value="approved_for_meeting" className="text-white focus:bg-gold-medium/20 focus:text-gold-light">Meeting Scheduled</SelectItem>
+                    <SelectItem value="approved_for_contract" className="text-white focus:bg-gold-medium/20 focus:text-gold-light">Awaiting Signature</SelectItem>
+                    <SelectItem value="active_partner" className="text-white focus:bg-gold-medium/20 focus:text-gold-light">Active Partners</SelectItem>
+                    <SelectItem value="approved" className="text-white focus:bg-gold-medium/20 focus:text-gold-light">Approved (Legacy)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </>
+            ) : (
+              <div className="flex items-center gap-3">
+                <XCircle className="w-4 h-4 sm:w-5 sm:h-5 text-red-400 shrink-0" />
+                <span className="text-xs sm:text-sm font-medium text-red-300">Viewing Rejected</span>
+              </div>
+            )}
+          </div>
+
+          <div className="relative w-full md:w-72">
+            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+              <Search className={`h-4 w-4 ${statusFilter === 'rejected' ? 'text-red-400/50' : 'text-gray-500'}`} />
+            </div>
+            <Input
+              type="text"
+              placeholder="Search by name, email or phone..."
+              className={`pl-10 bg-black/50 text-white placeholder:text-gray-500 text-xs sm:text-sm ${statusFilter === 'rejected' ? 'border-red-500/50 focus-visible:ring-red-500/50' : 'border-gold-medium/50 focus-visible:ring-gold-medium/50'}`}
+              value={searchTerm}
+              onChange={(e) => handleSearch(e.target.value)}
+            />
+          </div>
         </div>
       </div>
 
@@ -864,22 +896,73 @@ export function DashboardContent() {
         </div>
       )}
 
-      {/* Applications List */}
-      <div id="applications-list-container" className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 rounded-lg shadow p-4 sm:p-6 border border-gold-medium/30">
-        <h2 className="text-lg sm:text-xl font-semibold mb-3 sm:mb-4 migma-gold-text">Global Partner Applications</h2>
-        <ApplicationsList
-          onApprove={handleApprove}
-          onReject={handleReject}
-          onEditMeeting={handleEditMeeting}
-          onResendEmail={handleResendEmail}
-          statusFilter={statusFilter}
-          currentPage={currentPage}
-          pageSize={pageSize}
-          onPageChange={handlePageChange}
-          onPageSizeChange={handlePageSizeChange}
-          refreshKey={refreshKey}
-        />
-      </div>
+      {/* Applications Sections with Tabs */}
+      <Tabs
+        value={statusFilter === 'rejected' ? 'rejected' : 'active'}
+        onValueChange={(val) => setStatusFilter(val === 'rejected' ? 'rejected' : undefined)}
+        className="space-y-6"
+      >
+        <div className="flex justify-between items-end">
+          <TabsList className="bg-zinc-900/60 border border-gold-medium/20 h-11 p-1">
+            <TabsTrigger
+              value="active"
+              className="px-6 data-[state=active]:bg-gold-medium/30 data-[state=active]:text-gold-light text-gray-400 font-bold transition-all"
+            >
+              Main
+            </TabsTrigger>
+            <TabsTrigger
+              value="rejected"
+              className="px-6 data-[state=active]:bg-red-900/40 data-[state=active]:text-red-400 text-gray-400 font-bold transition-all"
+            >
+              Rejected
+            </TabsTrigger>
+          </TabsList>
+        </div>
+
+        <TabsContent value="active" className="mt-0 outline-none">
+          <div id="applications-list-container" className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 rounded-lg shadow p-4 sm:p-6 border border-gold-medium/30">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+              <h2 className="text-lg sm:text-xl font-semibold migma-gold-text">Global Partner Applications</h2>
+            </div>
+
+            <ApplicationsList
+              onApprove={handleApprove}
+              onReject={handleReject}
+              onEditMeeting={handleEditMeeting}
+              onResendEmail={handleResendEmail}
+              statusFilter={statusFilter === 'rejected' ? undefined : statusFilter}
+              search={searchTerm}
+              currentPage={currentPage}
+              pageSize={pageSize}
+              onPageChange={handlePageChange}
+              onPageSizeChange={handlePageSizeChange}
+              refreshKey={refreshKey}
+            />
+          </div>
+        </TabsContent>
+
+        <TabsContent value="rejected" className="mt-0 outline-none">
+          <div id="rejected-list-container" className="bg-gradient-to-br from-red-900/10 via-red-900/5 to-red-900/10 rounded-lg shadow p-4 sm:p-6 border border-red-500/30">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+              <h2 className="text-lg sm:text-xl font-semibold text-red-400">Rejected Applications</h2>
+            </div>
+
+            <ApplicationsList
+              onApprove={handleApprove}
+              onReject={handleReject}
+              onEditMeeting={handleEditMeeting}
+              onResendEmail={handleResendEmail}
+              statusFilter="rejected"
+              search={searchTerm}
+              currentPage={currentPage}
+              pageSize={pageSize}
+              onPageChange={handlePageChange}
+              onPageSizeChange={handlePageSizeChange}
+              refreshKey={refreshKey}
+            />
+          </div>
+        </TabsContent>
+      </Tabs>
 
       {/* Processing Overlay */}
       {isProcessing && (

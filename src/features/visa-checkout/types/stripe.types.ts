@@ -22,6 +22,7 @@ export interface StripeCheckoutRequest {
     contract_template_id?: string | null;
     upsell_product_slug?: 'canada-tourist-premium' | 'canada-tourist-revolution' | null;
     upsell_contract_template_id?: string | null;
+    billing_installment_id?: string | null;
 }
 
 export interface StripeCheckoutResponse {

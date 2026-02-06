@@ -692,7 +692,7 @@ Deno.serve(async (req: Request) => {
 
         const notifyUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/parcelow-webhook`;
         parcelowResponse = await parcelowClient.createOrderBRL({
-          reference: order.order_number,
+          reference: body.is_split_part ? `${order.order_number}-P${body.split_part_number || 1}` : order.order_number,
           partner_reference: order.id,
           client: clientData,
           items,
@@ -703,7 +703,7 @@ Deno.serve(async (req: Request) => {
         try {
           const notifyUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/parcelow-webhook`;
           parcelowResponse = await parcelowClient.createOrderUSD({
-            reference: order.order_number,
+            reference: body.is_split_part ? `${order.order_number}-P${body.split_part_number || 1}` : order.order_number,
             partner_reference: order.id,
             client: clientData,
             items,
@@ -719,7 +719,7 @@ Deno.serve(async (req: Request) => {
 
             const notifyUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/parcelow-webhook`;
             parcelowResponse = await parcelowClient.createOrderUSD({
-              reference: order.order_number,
+              reference: body.is_split_part ? `${order.order_number}-P${body.split_part_number || 1}` : order.order_number,
               partner_reference: order.id,
               client: clientDataRetry,
               items,
