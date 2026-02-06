@@ -26,6 +26,8 @@ export function ScheduleMeetingPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
   const [filterDate, setFilterDate] = useState<'upcoming' | 'past' | 'all'>('all');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedDate, setSelectedDate] = useState('');
   const [showAlert, setShowAlert] = useState(false);
   const [alertData, setAlertData] = useState<{ title: string; message: string; variant: 'success' | 'error' | 'warning' | 'info' } | null>(null);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -320,30 +322,69 @@ export function ScheduleMeetingPage() {
         {/* Filter and List of Scheduled Meetings */}
         <Card className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30">
           <CardHeader>
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
               <CardTitle className="text-white flex items-center gap-2">
                 <Calendar className="w-5 h-5" />
                 Scheduled Meetings
               </CardTitle>
-              <div className="flex items-center gap-3">
-                <Label htmlFor="filter-date" className="text-white text-sm whitespace-nowrap">
-                  Filter:
-                </Label>
-                <Select value={filterDate} onValueChange={(value) => setFilterDate(value as 'upcoming' | 'past' | 'all')}>
-                  <SelectTrigger id="filter-date" className="w-full sm:w-[160px] bg-black/50 border-gold-medium/50 text-white hover:bg-black/70">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Meetings</SelectItem>
-                    <SelectItem value="upcoming">Upcoming</SelectItem>
-                    <SelectItem value="past">Past</SelectItem>
-                  </SelectContent>
-                </Select>
+              <div className="flex flex-col sm:flex-row items-center gap-4 w-full lg:w-auto">
+                {/* Search Input */}
+                <div className="relative w-full sm:w-[200px]">
+                  <Input
+                    type="text"
+                    placeholder="Search by name..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="bg-black/50 border-gold-medium/50 text-white placeholder:text-gray-500 w-full"
+                  />
+                </div>
+
+                {/* Date Filter */}
+                <div className="flex items-center gap-2 w-full sm:w-auto">
+                  <Input
+                    type="date"
+                    value={selectedDate}
+                    onChange={(e) => setSelectedDate(e.target.value)}
+                    className="bg-black/50 border-gold-medium/50 text-white w-full sm:w-[150px] [color-scheme:dark]"
+                  />
+                  {selectedDate && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setSelectedDate('')}
+                      className="text-gray-400 hover:text-white p-1 h-auto"
+                    >
+                      Clear
+                    </Button>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-3 w-full sm:w-auto overflow-x-auto">
+                  <Label htmlFor="filter-date" className="text-white text-sm whitespace-nowrap">
+                    Filter:
+                  </Label>
+                  <Select value={filterDate} onValueChange={(value) => setFilterDate(value as 'upcoming' | 'past' | 'all')}>
+                    <SelectTrigger id="filter-date" className="w-full sm:w-[160px] bg-black/50 border-gold-medium/50 text-white hover:bg-black/70">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Meetings</SelectItem>
+                      <SelectItem value="upcoming">Upcoming</SelectItem>
+                      <SelectItem value="past">Past</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
             </div>
           </CardHeader>
           <CardContent>
-            <ScheduledMeetingsList filterDate={filterDate} refreshKey={refreshKey} onEdit={handleEdit} />
+            <ScheduledMeetingsList
+              filterDate={filterDate}
+              refreshKey={refreshKey}
+              onEdit={handleEdit}
+              searchTerm={searchTerm}
+              selectedDate={selectedDate}
+            />
           </CardContent>
         </Card>
 
