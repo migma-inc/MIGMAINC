@@ -37,6 +37,8 @@ interface Order {
   contract_signed_at: string | null;
   ip_address: string | null;
   payment_metadata: any;
+  upsell_product_slug?: string | null;
+  upsell_price_usd?: string | null;
   created_at: string;
   updated_at: string;
   contract_approval_status?: string | null;
@@ -396,6 +398,18 @@ export const SellerOrderDetail = () => {
                     <div className="flex justify-between text-sm">
                       <span className="text-zinc-500">{order.extra_unit_label} (x{order.extra_units})</span>
                       <span className="text-white font-medium">+${(order.extra_units * parseFloat(order.extra_unit_price_usd)).toFixed(2)}</span>
+                    </div>
+                  )}
+
+                  {order.upsell_product_slug && (
+                    <div className="flex justify-between text-sm pt-2 mt-2 border-t border-zinc-900/50">
+                      <div className="flex flex-col">
+                        <span className="text-zinc-500 text-[10px] items-center gap-1 uppercase tracking-wider font-bold">Combo Copa / Upsell:</span>
+                        <span className="text-green-400 font-medium text-xs">
+                          {order.upsell_product_slug}
+                        </span>
+                      </div>
+                      <span className="text-white font-medium">+${parseFloat(order.upsell_price_usd || '0').toFixed(2)}</span>
                     </div>
                   )}
                 </div>

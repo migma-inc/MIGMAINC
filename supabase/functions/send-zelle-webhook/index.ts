@@ -222,7 +222,7 @@ Deno.serve(async (req: Request) => {
           .then(() => {
             console.log("[Zelle Webhook] Evento de pagamento rastreado no funnel");
           })
-          .catch((trackError) => {
+          .catch((trackError: any) => {
             console.error("[Zelle Webhook] Erro ao rastrear pagamento:", trackError);
             // Continue - tracking is not critical
           })
@@ -233,55 +233,124 @@ Deno.serve(async (req: Request) => {
     await Promise.allSettled(criticalOperations);
     console.log("[Zelle Webhook] Operações críticas concluídas");
 
-    // NON-CRITICAL OPERATIONS: Execute in parallel (PDF generation, email, webhook)
-    // ANNEX I is now required for ALL products (universal payment authorization)
-    const nonCriticalOperations: Promise<void>[] = [];
+    // ============================================
+    // NON-CRITICAL OPERATIONS: SEQUENTIAL PIPELINE
+    // ============================================
 
-    // Generate full contract PDF (optional - if template exists)
-    if (order.product_slug !== 'consultation-common') {
-      nonCriticalOperations.push(
-        invokeEdgeFunction(supabase, "generate-visa-contract-pdf", { order_id: order.id }, "gerar PDF do contrato")
-      );
-    }
+    // We run this in the background but sequentially to ensure organization
+    (async () => {
+      try {
+        console.log("[Zelle Webhook] 🚀 Iniciando pipeline sequencial de documentos...");
 
-    // Generate ANNEX I PDF for ALL products (universal requirement)
-    nonCriticalOperations.push(
-      invokeEdgeFunction(supabase, "generate-annex-pdf", { order_id: order.id }, "gerar PDF do ANEXO I")
-    );
+        // 1. Increment Coupon Usage if applicable
+        if (order.coupon_code) {
+          console.log(`[Zelle Webhook] 🎟️ Incrementando uso do cupom: ${order.coupon_code}`);
+          await supabase.rpc('increment_coupon_usage', { p_code: order.coupon_code });
+        }
 
-    // Generate Invoice PDF for ALL products
-    nonCriticalOperations.push(
-      invokeEdgeFunction(supabase, "generate-invoice-pdf", { order_id: order.id }, "gerar PDF da Invoice")
-    );
+        // 2. Refresh Order Data (to ensure we have latest metadata)
+        const { data: currentOrder } = await supabase
+          .from("visa_orders")
+          .select("*")
+          .eq("id", order.id)
+          .single();
 
-    // Send confirmation email
-    nonCriticalOperations.push(
-      invokeEdgeFunction(supabase, "send-payment-confirmation-email", {
-        clientName: order.client_name,
-        clientEmail: order.client_email,
-        orderNumber: order.order_number,
-        productSlug: order.product_slug,
-        totalAmount: order.total_price_usd,
-        paymentMethod: "zelle",
-        currency: "USD",
-        finalAmount: order.total_price_usd,
-      }, "enviar email de confirmação")
-    );
+        const orderToProcess = currentOrder || order;
 
-    // Send webhook to client (n8n removed)
+        // 3. Generate Main Contract
+        if (orderToProcess.product_slug !== 'consultation-common') {
+          console.log("[Zelle Webhook] [1/5] Gerando contrato principal...");
+          await invokeEdgeFunction(supabase, "generate-visa-contract-pdf", { order_id: orderToProcess.id }, "gerar PDF do contrato");
+        }
 
-    // Execute all non-critical operations in parallel (don't wait for completion)
-    Promise.allSettled(nonCriticalOperations).then(() => {
-      console.log("[Zelle Webhook] Operações não-críticas concluídas");
-    }).catch((error) => {
-      console.error("[Zelle Webhook] Erro em operações não-críticas:", error);
-    });
+        // 4. Generate Main Annex I
+        console.log("[Zelle Webhook] [2/5] Gerando anexo I principal...");
+        await invokeEdgeFunction(supabase, "generate-annex-pdf", { order_id: orderToProcess.id }, "gerar PDF do ANEXO I");
+
+        // 5. Generate Upsell Documents sequentially
+        if (orderToProcess.upsell_product_slug) {
+          console.log(`[Zelle Webhook] [3/5] Gerando contrato upsell: ${orderToProcess.upsell_product_slug}`);
+          await invokeEdgeFunction(supabase, "generate-visa-contract-pdf", {
+            order_id: orderToProcess.id,
+            is_upsell: true,
+            product_slug_override: orderToProcess.upsell_product_slug
+          }, "gerar PDF do contrato upsell");
+
+          console.log("[Zelle Webhook] [4/5] Gerando anexo I upsell...");
+          await invokeEdgeFunction(supabase, "generate-annex-pdf", {
+            order_id: orderToProcess.id,
+            is_upsell: true,
+            product_slug_override: orderToProcess.upsell_product_slug
+          }, "gerar PDF do ANEXO I upsell");
+        }
+
+        // 6. Generate Invoice (Last, to include all doc URLs if possible)
+        console.log("[Zelle Webhook] [5/5] Gerando invoice final...");
+        await invokeEdgeFunction(supabase, "generate-invoice-pdf", { order_id: orderToProcess.id }, "gerar PDF da Invoice");
+
+        // 7. Refresh Order Data (to include all generated PDF URLs for the notification)
+        const { data: finalOrder } = await supabase
+          .from("visa_orders")
+          .select("*")
+          .eq("id", order.id)
+          .single();
+
+        const orderToNotify = finalOrder || orderToProcess;
+
+        // 8. Update Payment Metadata once more with final details
+        await supabase
+          .from("visa_orders")
+          .update({
+            payment_metadata: {
+              ...(orderToNotify.payment_metadata || {}),
+              payment_method: "zelle",
+              completed_at: new Date().toISOString(),
+              total_usd: orderToNotify.total_price_usd,
+              currency: "USD",
+              is_bundle: !!orderToNotify.upsell_product_slug
+            }
+          })
+          .eq("id", order.id);
+
+        // 9. Send Confirmation Email to Client
+        console.log("[Zelle Webhook] 📧 Enviando email de confirmação ao cliente...");
+        await invokeEdgeFunction(supabase, "send-payment-confirmation-email", {
+          clientName: orderToNotify.client_name,
+          clientEmail: orderToNotify.client_email,
+          orderNumber: orderToNotify.order_number,
+          productSlug: orderToNotify.product_slug,
+          totalAmount: orderToNotify.total_price_usd,
+          paymentMethod: "zelle",
+          currency: "USD",
+          finalAmount: orderToNotify.total_price_usd,
+          is_bundle: !!orderToNotify.upsell_product_slug
+        }, "enviar email de confirmação");
+
+        // 10. Send Admin Notification (Like Parcelow/Manual approval)
+        console.log("[Zelle Webhook] 🔔 Enviando notificação administrativa...");
+        await invokeEdgeFunction(supabase, "send-admin-payment-notification", {
+          orderNumber: orderToNotify.order_number,
+          clientName: orderToNotify.client_name,
+          clientEmail: orderToNotify.client_email,
+          productSlug: orderToNotify.product_slug,
+          totalAmount: orderToNotify.total_price_usd,
+          paymentMethod: "zelle",
+          currency: "USD",
+          finalAmount: orderToNotify.total_price_usd,
+          is_bundle: !!orderToNotify.upsell_product_slug
+        }, "enviar notificação administrativa");
+
+        console.log("[Zelle Webhook] ✅ Pipeline sequencial concluído com sucesso!");
+      } catch (pipelineError) {
+        console.error("[Zelle Webhook] ❌ Erro no pipeline sequencial:", pipelineError);
+      }
+    })();
 
     // Return success immediately after critical operations complete
     return new Response(
       JSON.stringify({
         success: true,
-        message: "Webhooks sent successfully",
+        message: "Payment processed and document pipeline started",
         order_id: order.id,
         order_number: order.order_number,
       }),

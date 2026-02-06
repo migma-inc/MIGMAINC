@@ -512,59 +512,42 @@ Deno.serve(async (req) => {
     pdf.text(product?.name || order.product_slug, margin + 50, currentY);
     currentY += 8;
 
-    // Total Price - use correct amount and currency based on payment method
-    let displayAmount = parseFloat(order.total_price_usd);
+    // Amount and Currency logic
+    let displayAmount = 0;
     let currencySymbol = 'US$';
 
-    // If it's an upsell document, use the upsell price
-    if (is_upsell && order.upsell_price_usd) {
-      displayAmount = parseFloat(order.upsell_price_usd);
-      currencySymbol = 'US$'; // Force USD for upsell specific documents to be safe
+    const isParcelow = order.payment_method === 'parcelow';
+    const metadata = order.payment_metadata || {};
+
+    // Total USD reference (including fees if Parcelow)
+    const totalUsdPaid = isParcelow
+      ? parseFloat(String(metadata.total_usd || order.total_price_usd))
+      : parseFloat(order.total_price_usd);
+
+    const upsellUsd = parseFloat(order.upsell_price_usd || '0');
+
+    // Calculate effective exchange rate if Parcelow
+    let exchangeRate = 1;
+    if (isParcelow) {
+      const totalBrl = parseFloat(String(metadata.total_brl || metadata.base_brl || 0));
+      if (totalBrl > 0 && totalUsdPaid > 0) {
+        exchangeRate = totalBrl / totalUsdPaid;
+        currencySymbol = 'R$';
+      }
     }
-    // Otherwise use logic for main product/total
-    else if (order.payment_method === 'stripe_pix') {
-      if (order.payment_metadata && typeof order.payment_metadata === 'object' && 'final_amount' in order.payment_metadata) {
-        const finalAmount = parseFloat(order.payment_metadata.final_amount as string);
-        if (!isNaN(finalAmount) && finalAmount > 0) {
-          displayAmount = finalAmount;
-        }
-      }
-      currencySymbol = 'R$';
-    } else if (order.payment_method === 'stripe_card') {
-      displayAmount = parseFloat(order.total_price_usd);
-      currencySymbol = 'US$';
-    } else if (order.payment_method === 'parcelow') {
-      // Parcelow payments: use total_brl from metadata (the actual BRL amount paid, includes all fees)
-      let foundInMetadata = false;
-      if (order.payment_metadata && typeof order.payment_metadata === 'object') {
-        // Check total_brl first (this is the actual amount paid in BRL)
-        if ('total_brl' in order.payment_metadata) {
-          const val = parseFloat(String(order.payment_metadata.total_brl));
-          if (!isNaN(val) && val > 0) {
-            displayAmount = val;
-            foundInMetadata = true;
-          }
-        }
 
-        // Fallback: check base_brl (amount without installment fees)
-        if (!foundInMetadata && 'base_brl' in order.payment_metadata) {
-          const val = parseFloat(String(order.payment_metadata.base_brl));
-          if (!isNaN(val) && val > 0) {
-            displayAmount = val;
-            foundInMetadata = true;
-          }
-        }
-      }
+    if (is_upsell && order.upsell_price_usd) {
+      // Upsell annex amount
+      displayAmount = isParcelow ? (upsellUsd * exchangeRate) : upsellUsd;
+    } else {
+      // Main annex amount (Total Paid - Upsell)
+      const mainAmountUsd = totalUsdPaid - upsellUsd;
+      displayAmount = isParcelow ? (mainAmountUsd * exchangeRate) : mainAmountUsd;
+    }
 
-      if (!foundInMetadata) {
-        // Last resort fallback: use total_price_usd
-        displayAmount = parseFloat(order.total_price_usd);
-      }
-
-      currencySymbol = 'R$'; // Parcelow is always in BRL
-    } else if (order.payment_method === 'zelle' || order.payment_method === 'manual') {
-      displayAmount = parseFloat(order.total_price_usd);
-      currencySymbol = 'US$';
+    // Safety fallback for Parcelow to match metadata exactly if no upsell exists
+    if (isParcelow && !is_upsell && !order.upsell_price_usd && metadata.total_brl) {
+      displayAmount = parseFloat(String(metadata.total_brl));
     }
 
     pdf.setFont('helvetica', 'bold');

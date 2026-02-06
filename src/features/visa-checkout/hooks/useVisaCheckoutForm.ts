@@ -83,6 +83,9 @@ export const useVisaCheckoutForm = () => {
     // Split Payment
     const [splitPaymentConfig, setSplitPaymentConfig] = useState<any | null>(null);
 
+    // Recurring Billing
+    const [billingInstallmentId, setBillingInstallmentId] = useState<string | null>(null);
+
     const state: VisaCheckoutState = {
         currentStep,
         loading,
@@ -136,6 +139,7 @@ export const useVisaCheckoutForm = () => {
         appliedCoupon,
         discountAmount,
         splitPaymentConfig,
+        billingInstallmentId,
     };
 
     const actions: VisaCheckoutActions = useMemo(() => ({
@@ -191,6 +195,7 @@ export const useVisaCheckoutForm = () => {
         setAppliedCoupon,
         setDiscountAmount,
         setSplitPaymentConfig,
+        setBillingInstallmentId,
     }), []);
 
     return { state, actions };

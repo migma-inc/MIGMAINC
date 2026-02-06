@@ -189,7 +189,7 @@ export function Sidebar({ className, isMobileOpen = false, onMobileClose }: Side
       exact: false,
     },
     {
-      title: 'Vochers & Cupons',
+      title: 'Vouchers & Coupons',
       icon: Ticket,
       path: '/dashboard/coupons',
       exact: false,
