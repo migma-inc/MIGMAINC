@@ -45,11 +45,11 @@ export const ZelleUpload: React.FC<ZelleUploadProps> = ({ onFileSelect, currentF
     };
 
     const validateAndSelect = (file: File) => {
-        const validTypes = ['image/jpeg', 'image/png', 'image/jpg', 'application/pdf'];
+        const validTypes = ['image/jpeg', 'image/png', 'image/jpg'];
         if (validTypes.includes(file.type)) {
             onFileSelect(file);
         } else {
-            alert('Please upload an image (PNG/JPG) or PDF file.');
+            alert('Please upload an image file (PNG/JPG only).');
         }
     };
 
@@ -130,7 +130,7 @@ export const ZelleUpload: React.FC<ZelleUploadProps> = ({ onFileSelect, currentF
                         <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg">
                             <p className="text-xs text-red-200 leading-relaxed font-medium">
                                 <AlertTriangle className="w-3 h-3 inline-block mr-1 text-red-400" />
-                                <strong>DO NOT send the bank's PDF receipt</strong>. Use only app screenshots to speed up verification.
+                                <strong>IMAGES ONLY</strong>: Upload only screenshots (PNG/JPG). PDFs are not accepted.
                             </p>
                         </div>
                         <p className="text-[11px] text-gray-400 leading-relaxed">
@@ -201,7 +201,7 @@ export const ZelleUpload: React.FC<ZelleUploadProps> = ({ onFileSelect, currentF
                             <span className="block text-gray-500 text-sm text-center">
                                 Or click to <strong className="text-gold-medium font-bold">select a file</strong>
                             </span>
-                            <p className="mt-4 text-[10px] text-gray-400 uppercase font-bold tracking-widest">Accepted formats: JPG, PNG, PDF</p>
+                            <p className="mt-4 text-[10px] text-gray-400 uppercase font-bold tracking-widest">Accepted formats: JPG, PNG only</p>
                         </div>
                     )}
                 </div>
@@ -211,7 +211,7 @@ export const ZelleUpload: React.FC<ZelleUploadProps> = ({ onFileSelect, currentF
                 type="file"
                 ref={fileInputRef}
                 onChange={handleFileChange}
-                accept="image/*,.pdf"
+                accept="image/jpeg,image/jpg,image/png"
                 className="hidden"
             />
         </div >
