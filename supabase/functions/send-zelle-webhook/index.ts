@@ -237,18 +237,11 @@ Deno.serve(async (req: Request) => {
     // NON-CRITICAL OPERATIONS: SEQUENTIAL PIPELINE
     // ============================================
 
-    // We run this in the background but sequentially to ensure organization
     (async () => {
       try {
-        console.log("[Zelle Webhook] 🚀 Iniciando pipeline sequencial de documentos...");
+        console.log("[Zelle Webhook] 🚀 Iniciando pipeline sequencial...");
 
-        // 1. Increment Coupon Usage if applicable
-        if (order.coupon_code) {
-          console.log(`[Zelle Webhook] 🎟️ Incrementando uso do cupom: ${order.coupon_code}`);
-          await supabase.rpc('increment_coupon_usage', { p_code: order.coupon_code });
-        }
-
-        // 2. Refresh Order Data (to ensure we have latest metadata)
+        // 1. Refresh Order Data (to ensure we have latest data)
         const { data: currentOrder } = await supabase
           .from("visa_orders")
           .select("*")
@@ -257,17 +250,81 @@ Deno.serve(async (req: Request) => {
 
         const orderToProcess = currentOrder || order;
 
-        // 3. Generate Main Contract
+        // 1.1 Test User Detection
+        const isTestUser = orderToProcess.client_email?.toLowerCase() === 'victuribdev@gmail.com' ||
+          orderToProcess.client_name?.toLowerCase().includes('paulo victor');
+
+        if (isTestUser) {
+          console.log(`[Zelle Webhook] 🧪 Usuário de teste detectado: ${orderToProcess.client_email}. Marcando ordem como teste.`);
+          await supabase.from('visa_orders').update({ is_test: true }).eq('id', orderToProcess.id);
+        }
+
+        // 1.2 Fetch Client ID by email (since it's not in visa_orders)
+        const { data: clientData } = await supabase
+          .from('clients')
+          .select('id')
+          .eq('email', orderToProcess.client_email)
+          .maybeSingle();
+
+        const clientId = clientData?.id;
+
+        // 2. Increment Coupon Usage if applicable
+        if (orderToProcess.coupon_code) {
+          console.log(`[Zelle Webhook] 🎟️ Incrementando uso do cupom: ${orderToProcess.coupon_code}`);
+          await supabase.rpc('increment_coupon_usage', { p_code: orderToProcess.coupon_code });
+        }
+
+        // 3. EB-3 RECURRENCE: Activate if Job Catalog
+        if (orderToProcess.product_slug === 'eb3-installment-catalog') {
+          try {
+            console.log('[EB-3 Zelle] 🔍 Job Catalog detectado. Ativando recorrência...');
+
+            if (!clientId) {
+              console.error("[EB-3 Zelle] ❌ Erro: Cliente não encontrado na tabela 'clients'. Impossível ativar recorrência.");
+            } else {
+              const { error: eb3Error } = await supabase.rpc('activate_eb3_recurrence', {
+                p_client_id: clientId,
+                p_activation_order_id: orderToProcess.id,
+                p_seller_id: orderToProcess.seller_id || null,
+                p_seller_commission_percent: null
+              });
+
+              if (eb3Error) {
+                console.error('[EB-3 Zelle] ❌ Erro ao ativar recorrência:', eb3Error);
+              } else {
+                console.log('[EB-3 Zelle] ✅ Recorrência ativada com sucesso!');
+              }
+            }
+          } catch (eb3Err) {
+            console.error('[EB-3 Zelle] ❌ Exceção na ativação de recorrência:', eb3Err);
+          }
+        }
+
+        // 4. EB-3 INSTALLMENT: Mark as paid if it's an individual installment payment
+        if (orderToProcess.order_metadata?.eb3_schedule_id) {
+          try {
+            console.log('[EB-3 Zelle] 💳 Pagamento de parcela EB3 detectado:', orderToProcess.order_metadata.eb3_schedule_id);
+            await supabase.rpc('mark_eb3_installment_paid', {
+              p_schedule_id: orderToProcess.order_metadata.eb3_schedule_id,
+              p_payment_id: orderToProcess.id
+            });
+            console.log('[EB-3 Zelle] ✅ Parcela marcada como paga');
+          } catch (e) {
+            console.error('[EB-3 Zelle] Erro ao marcar parcela:', e);
+          }
+        }
+
+        // 5. Generate Main Contract
         if (orderToProcess.product_slug !== 'consultation-common') {
           console.log("[Zelle Webhook] [1/5] Gerando contrato principal...");
           await invokeEdgeFunction(supabase, "generate-visa-contract-pdf", { order_id: orderToProcess.id }, "gerar PDF do contrato");
         }
 
-        // 4. Generate Main Annex I
+        // 6. Generate Main Annex I
         console.log("[Zelle Webhook] [2/5] Gerando anexo I principal...");
         await invokeEdgeFunction(supabase, "generate-annex-pdf", { order_id: orderToProcess.id }, "gerar PDF do ANEXO I");
 
-        // 5. Generate Upsell Documents sequentially
+        // 7. Generate Upsell Documents sequentially
         if (orderToProcess.upsell_product_slug) {
           console.log(`[Zelle Webhook] [3/5] Gerando contrato upsell: ${orderToProcess.upsell_product_slug}`);
           await invokeEdgeFunction(supabase, "generate-visa-contract-pdf", {
@@ -284,63 +341,39 @@ Deno.serve(async (req: Request) => {
           }, "gerar PDF do ANEXO I upsell");
         }
 
-        // 6. Generate Invoice (Last, to include all doc URLs if possible)
+        // 8. Generate Invoice
         console.log("[Zelle Webhook] [5/5] Gerando invoice final...");
         await invokeEdgeFunction(supabase, "generate-invoice-pdf", { order_id: orderToProcess.id }, "gerar PDF da Invoice");
-
-        // 7. Refresh Order Data (to include all generated PDF URLs for the notification)
-        const { data: finalOrder } = await supabase
-          .from("visa_orders")
-          .select("*")
-          .eq("id", order.id)
-          .single();
-
-        const orderToNotify = finalOrder || orderToProcess;
-
-        // 8. Update Payment Metadata once more with final details
-        await supabase
-          .from("visa_orders")
-          .update({
-            payment_metadata: {
-              ...(orderToNotify.payment_metadata || {}),
-              payment_method: "zelle",
-              completed_at: new Date().toISOString(),
-              total_usd: orderToNotify.total_price_usd,
-              currency: "USD",
-              is_bundle: !!orderToNotify.upsell_product_slug
-            }
-          })
-          .eq("id", order.id);
 
         // 9. Send Confirmation Email to Client
         console.log("[Zelle Webhook] 📧 Enviando email de confirmação ao cliente...");
         await invokeEdgeFunction(supabase, "send-payment-confirmation-email", {
-          clientName: orderToNotify.client_name,
-          clientEmail: orderToNotify.client_email,
-          orderNumber: orderToNotify.order_number,
-          productSlug: orderToNotify.product_slug,
-          totalAmount: orderToNotify.total_price_usd,
+          clientName: orderToProcess.client_name,
+          clientEmail: orderToProcess.client_email,
+          orderNumber: orderToProcess.order_number,
+          productSlug: orderToProcess.product_slug,
+          totalAmount: orderToProcess.total_price_usd,
           paymentMethod: "zelle",
           currency: "USD",
-          finalAmount: orderToNotify.total_price_usd,
-          is_bundle: !!orderToNotify.upsell_product_slug
+          finalAmount: orderToProcess.total_price_usd,
+          is_bundle: !!orderToProcess.upsell_product_slug
         }, "enviar email de confirmação");
 
-        // 10. Send Admin Notification (Like Parcelow/Manual approval)
+        // 10. Send Admin Notification
         console.log("[Zelle Webhook] 🔔 Enviando notificação administrativa...");
         await invokeEdgeFunction(supabase, "send-admin-payment-notification", {
-          orderNumber: orderToNotify.order_number,
-          clientName: orderToNotify.client_name,
-          clientEmail: orderToNotify.client_email,
-          productSlug: orderToNotify.product_slug,
-          totalAmount: orderToNotify.total_price_usd,
+          orderNumber: orderToProcess.order_number,
+          clientName: orderToProcess.client_name,
+          clientEmail: orderToProcess.client_email,
+          productSlug: orderToProcess.product_slug,
+          totalAmount: orderToProcess.total_price_usd,
           paymentMethod: "zelle",
           currency: "USD",
-          finalAmount: orderToNotify.total_price_usd,
-          is_bundle: !!orderToNotify.upsell_product_slug
+          finalAmount: orderToProcess.total_price_usd,
+          is_bundle: !!orderToProcess.upsell_product_slug
         }, "enviar notificação administrativa");
 
-        console.log("[Zelle Webhook] ✅ Pipeline sequencial concluído com sucesso!");
+        console.log("[Zelle Webhook] ✅ Pipeline sequencial concluído!");
       } catch (pipelineError) {
         console.error("[Zelle Webhook] ❌ Erro no pipeline sequencial:", pipelineError);
       }

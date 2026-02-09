@@ -217,8 +217,8 @@ export const ZelleApprovalPage = () => {
 
       // A. Process Visa Orders
       (ordersData || []).forEach(order => {
-        const key = `${(order.client_email || '').trim().toLowerCase()}_${(order.product_slug || '').trim().toLowerCase().replace(/-/g, '_')}`;
-        unifiedMap.set(key, {
+        // Use ID único para evitar colisões entre múltiplos pedidos do mesmo cliente
+        unifiedMap.set(order.id, {
           id: order.id,
           type: 'order',
           order_number: order.order_number,
@@ -232,83 +232,78 @@ export const ZelleApprovalPage = () => {
           original_order: order,
           confidence: paymentsMap[order.id]?.n8n_confidence ?? order.payment_metadata?.n8n_validation?.confidence,
           n8n_response: paymentsMap[order.id]?.n8n_response ?? order.payment_metadata?.n8n_validation?.response,
-          upsell_product: order.upsell_product_slug || order.payment_metadata?.upsell_details?.slug
+          upsell_product: order.upsell_product_slug || order.payment_metadata?.upsell_details?.slug,
+          status: order.payment_status
         });
       });
 
-      // B. Merge Migma Payments (Grouped by email + product)
+      console.log(`🔍 [DEBUG] Map populated with ${unifiedMap.size} unique orders.`);
+
+      // B. Merge Migma Payments (Linking receipts to orders)
       enrichedMigma.forEach(migma => {
-        const key = migma.unification_key || `${(migma.client_email || '').trim().toLowerCase()}_${(migma.fee_type_global || '').trim().toLowerCase().replace(/-/g, '_')}`;
-        const existing = unifiedMap.get(key);
+        const email = (migma.client_email || '').trim().toLowerCase();
+        const product = (migma.fee_type_global || '').trim().toLowerCase().replace(/-/g, '_');
 
-        console.log(`🔍 [DEBUG] Processing Migma ID ${migma.id}: key=${key}, existing=${!!existing}, db_status=${migma.status}`);
+        // Procurar uma ordem correspondente no mapa (ordem de prioridade: Pendente -> Mesma Categoria -> Mesmo Email)
+        const entries = Array.from(unifiedMap.values());
 
-        if (existing) {
-          existing.migma_id = migma.id;
-          if (!existing.proof_url) existing.proof_url = migma.image_url;
-          // Try to get UPS bundle from metadata first (most accurate)
-          const metaUpsell = migma.metadata?.upsell_product_slug;
+        // 1. Tentar encontrar uma ordem PENDENTE do mesmo produto e email que ainda não tenha migma_id
+        let match = entries.find(item =>
+          item.type === 'order' &&
+          item.status === 'pending' &&
+          (item.client_email || '').trim().toLowerCase() === email &&
+          (item.product || '').trim().toLowerCase().replace(/-/g, '_') === product &&
+          !item.migma_id
+        );
 
-          if (metaUpsell) {
-            existing.upsell_product = metaUpsell.replace(/-/g, ' ');
-          } else if (!existing.upsell_product) {
-            // Heuristic fallback for old/orphan records
-            const migmaAmount = parseFloat(migma.amount.toString());
-            if (migmaAmount >= 1500) {
-              existing.upsell_product = 'Canada Tourist Premium';
-            } else if (migmaAmount > 1000) {
-              existing.upsell_product = 'Canada Tourist Revolution';
-            }
-          }
+        // 2. Se não achar pendente, tentar qualquer ordem do mesmo produto e email
+        if (!match) {
+          match = entries.find(item =>
+            item.type === 'order' &&
+            (item.client_email || '').trim().toLowerCase() === email &&
+            (item.product || '').trim().toLowerCase().replace(/-/g, '_') === product &&
+            !item.migma_id
+          );
+        }
+
+        // 3. Heurística final: qualquer ordem do mesmo email que ainda não esteja vinculada
+        if (!match) {
+          match = entries.find(item =>
+            item.type === 'order' &&
+            (item.client_email || '').trim().toLowerCase() === email &&
+            !item.migma_id
+          );
+        }
+
+        if (match) {
+          console.log(`🔗 [DEBUG] Linking Migma ${migma.id} to Order ${match.order_number}`);
+          match.migma_id = migma.id;
+          if (!match.proof_url) match.proof_url = migma.image_url;
+
+
         } else {
-          // If no exact match (email+product), try to find ANY existing item for the same email
-          const clientEmail = (migma.client_email || '').trim().toLowerCase();
-          const emailMatch = Array.from(unifiedMap.values()).find(item => (item.client_email || '').trim().toLowerCase() === clientEmail);
+          // Não encontrou pedido correspondente -> Adicionar como item independente (Órfão)
+          console.log(`⚠️ [DEBUG] Migma ${migma.id} is orphan. Adding as standalone entry.`);
 
-          if (emailMatch) {
-            emailMatch.migma_id = migma.id;
-            if (!emailMatch.proof_url) emailMatch.proof_url = migma.image_url;
-            const metaUpsell = migma.metadata?.upsell_product_slug;
-            if (metaUpsell) {
-              emailMatch.upsell_product = metaUpsell.replace(/-/g, ' ');
-            } else if (!emailMatch.upsell_product) {
-              const migmaAmount = parseFloat(migma.amount.toString());
-              if (migmaAmount >= 1500) {
-                emailMatch.upsell_product = 'Canada Tourist Premium';
-              } else if (migmaAmount > 1000) {
-                emailMatch.upsell_product = 'Canada Tourist Revolution';
-              }
-            }
-          } else {
-            // Check if amount looks like a bundle (e.g. > base price + upsell)
-            const migmaAmount = parseFloat(migma.amount.toString());
-            const metaUpsell = migma.metadata?.upsell_product_slug;
-            let identifiedBundle = metaUpsell ? metaUpsell.replace(/-/g, ' ') : null;
+          const identifiedBundle = migma.metadata?.upsell_product_slug
+            ? migma.metadata.upsell_product_slug.replace(/-/g, ' ')
+            : null;
 
-            if (!identifiedBundle) {
-              if (migmaAmount >= 1500) {
-                identifiedBundle = 'Canada Tourist Premium';
-              } else if (migmaAmount > 1000) {
-                identifiedBundle = 'Canada Tourist Revolution';
-              }
-            }
-
-            unifiedMap.set(key, {
-              id: migma.id,
-              type: 'migma',
-              order_number: `MIG-${migma.id.substring(0, 8).toUpperCase()}`,
-              client_name: migma.client_name,
-              client_email: migma.client_email,
-              product: migma.fee_type_global,
-              amount: migma.amount,
-              date: migma.updated_at,
-              proof_url: migma.image_url,
-              migma_id: migma.id,
-              user_id: migma.user_id,
-              status: migma.status,
-              upsell_product: identifiedBundle
-            });
-          }
+          unifiedMap.set(migma.id, {
+            id: migma.id,
+            type: 'migma',
+            order_number: `MIG-${migma.id.substring(0, 8).toUpperCase()}`,
+            client_name: migma.client_name,
+            client_email: migma.client_email,
+            product: migma.fee_type_global,
+            amount: migma.amount,
+            date: migma.updated_at,
+            proof_url: migma.image_url,
+            migma_id: migma.id,
+            user_id: migma.user_id,
+            status: migma.status,
+            upsell_product: identifiedBundle
+          });
         }
       });
 
@@ -433,6 +428,75 @@ export const ZelleApprovalPage = () => {
         }
       }
 
+      // EB-3 Recurrence: Check if this is a Job Catalog payment that should activate recurrence
+      if (order.product_slug === 'eb3-installment-catalog' && order.client_id && order.seller_id) {
+        console.log(`[EB-3] Checking if this Job Catalog payment should activate recurrence...`);
+
+        try {
+          // Check if recurrence already exists
+          const { data: existingRecurrence } = await supabase
+            .from('eb3_recurrence_control')
+            .select('id')
+            .eq('client_id', order.client_id)
+            .single();
+
+          if (!existingRecurrence) {
+            console.log(`[EB-3] No existing recurrence found. Activating EB-3 recurrence for client ${order.client_id}...`);
+
+            const { data: activationResult, error: activationError } = await supabase
+              .rpc('activate_eb3_recurrence', {
+                p_client_id: order.client_id,
+                p_activation_order_id: order.id,
+                p_seller_id: order.seller_id,
+                p_seller_commission_percent: null, // Will be set in admin manually
+                p_manual_activation: false
+              });
+
+            if (activationError) {
+              console.error('[EB-3] ❌ Failed to activate recurrence:', activationError);
+              setAlertData({
+                title: 'Warning',
+                message: `Payment approved, but EB-3 recurrence activation failed: ${activationError.message}`,
+                variant: 'error',
+              });
+            } else {
+              console.log(`[EB-3] ✅ Recurrence activated successfully! Control ID: ${activationResult}`);
+
+              // 📧 Enviar diretamente o link da 1ª parcela
+              try {
+                // Buscar a primeira parcela ativa
+                const { data: firstSchedule } = await supabase
+                  .from('eb3_recurrence_schedules')
+                  .select('id')
+                  .eq('client_id', order.client_id)
+                  .eq('installment_number', 1)
+                  .single();
+
+                if (firstSchedule) {
+                  await supabase.functions.invoke('send-eb3-installment-email', {
+                    body: { schedule_id: firstSchedule.id }
+                  });
+                  console.log('[EB-3] 📧 1st installment email sent to client');
+                }
+              } catch (emailError) {
+                console.error('[EB-3] ⚠️ Error sending 1st installment email:', emailError);
+              }
+
+              setAlertData({
+                title: 'Success',
+                message: 'Payment approved and EB-3 recurrence activated! 8 monthly installments scheduled.',
+                variant: 'success',
+              });
+            }
+          } else {
+            console.log(`[EB-3] ⚠️ Recurrence already exists for this client. Skipping activation.`);
+          }
+        } catch (eb3Error) {
+          console.error('[EB-3] ❌ Exception checking/activating recurrence:', eb3Error);
+          // Don't block the main approval flow
+        }
+      }
+
       // Track payment completed in funnel
       if (order.seller_id) {
         try {
@@ -464,6 +528,26 @@ export const ZelleApprovalPage = () => {
         console.error('Error sending webhook after Zelle approval:', webhookError);
       }
 
+      // Check if this is an EB-3 installment payment
+      if (order.order_metadata?.eb3_schedule_id) {
+        try {
+          console.log('[EB-3] Marking installment as paid:', order.order_metadata.eb3_schedule_id);
+
+          const { error: eb3Error } = await supabase.rpc('mark_eb3_installment_paid', {
+            p_schedule_id: order.order_metadata.eb3_schedule_id,
+            p_payment_id: order.id
+          });
+
+          if (eb3Error) {
+            console.error('[EB-3] Error marking installment as paid:', eb3Error);
+          } else {
+            console.log('[EB-3] ✅ Installment marked as paid successfully');
+          }
+        } catch (eb3Exception) {
+          console.error('[EB-3] Exception marking installment as paid:', eb3Exception);
+        }
+      }
+
       // Increment coupon usage if authorized
       if (order.coupon_code) {
         console.log(`[Zelle Approval] 🎟️ Incrementing usage for coupon: ${order.coupon_code}`);
@@ -483,11 +567,15 @@ export const ZelleApprovalPage = () => {
         }
       }
 
-      setAlertData({
-        title: 'Success',
-        message: 'Payment approved successfully!',
-        variant: 'success',
-      });
+      // Only show generic success if EB-3 specific message wasn't shown
+      if (order.product_slug !== 'eb3-installment-catalog') {
+        setAlertData({
+          title: 'Success',
+          message: 'Payment approved successfully!',
+          variant: 'success',
+        });
+      }
+
       setShowAlert(true);
       await loadOrders();
     } catch (error) {
