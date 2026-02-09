@@ -22,7 +22,6 @@ import { ArrowLeft } from 'lucide-react';
 import { calculateBaseTotal, calculateTotalWithFees } from '@/lib/visa-checkout-utils';
 import { trackLinkClick } from '@/lib/funnel-tracking';
 import type { VisaProduct } from '@/types/visa-product';
-import { SHOW_BETA_FEATURES } from '@/lib/env-utils';
 import { AlertCircle } from 'lucide-react';
 
 export const VisaCheckoutPage: React.FC = () => {
@@ -56,7 +55,7 @@ export const VisaCheckoutPage: React.FC = () => {
 
     // Calculate Discount (Only if features are enabled)
     let discountAmount = 0;
-    if (state.appliedCoupon && SHOW_BETA_FEATURES) {
+    if (state.appliedCoupon) {
         if (state.appliedCoupon.discountType === 'fixed') {
             discountAmount = state.appliedCoupon.discountValue;
         } else {

@@ -79,13 +79,11 @@ export const Step3Payment: React.FC<Step3Props> = ({ state, actions, handlers, o
                     />
                 )}
 
-                {SHOW_BETA_FEATURES && (
-                    <CouponSection
-                        actions={actions}
-                        couponCode={state.couponCode}
-                        appliedCoupon={state.appliedCoupon}
-                    />
-                )}
+                <CouponSection
+                    actions={actions}
+                    couponCode={state.couponCode}
+                    appliedCoupon={state.appliedCoupon}
+                />
 
                 <PaymentMethodSelector
                     paymentMethod={paymentMethod}

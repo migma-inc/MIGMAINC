@@ -183,6 +183,12 @@ export function Sidebar({ className, isMobileOpen = false, onMobileClose }: Side
       badge: counts.zelleApprovals
     },
     {
+      title: 'EB-3 Recurring',
+      icon: Calendar,
+      path: '/dashboard/eb3-recurring',
+      exact: false,
+    },
+    {
       title: 'Sellers & Sales',
       icon: UserCircle2,
       path: '/dashboard/sellers',
