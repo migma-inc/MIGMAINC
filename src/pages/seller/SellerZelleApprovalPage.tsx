@@ -245,12 +245,7 @@ export const SellerZelleApprovalPage = () => {
                     if (metaUpsell) {
                         existing.upsell_product = metaUpsell.replace(/-/g, ' ');
                     } else if (!existing.upsell_product) {
-                        const migmaAmount = parseFloat(migma.amount.toString());
-                        if (migmaAmount >= 1500) {
-                            existing.upsell_product = 'Canada Tourist Premium';
-                        } else if (migmaAmount > 1000) {
-                            existing.upsell_product = 'Canada Tourist Revolution';
-                        }
+
                     }
                 } else {
                     // Try to find ANY existing item for the same email
@@ -265,10 +260,13 @@ export const SellerZelleApprovalPage = () => {
                             emailMatch.upsell_product = metaUpsell.replace(/-/g, ' ');
                         } else if (!emailMatch.upsell_product) {
                             const migmaAmount = parseFloat(migma.amount.toString());
-                            if (migmaAmount >= 1500) {
-                                emailMatch.upsell_product = 'Canada Tourist Premium';
-                            } else if (migmaAmount > 1000) {
-                                emailMatch.upsell_product = 'Canada Tourist Revolution';
+                            const isEB3Product = (emailMatch.product || '').startsWith('eb3-');
+                            if (!isEB3Product) {
+                                if (migmaAmount >= 1500) {
+                                    emailMatch.upsell_product = 'Canada Tourist Premium';
+                                } else if (migmaAmount > 1000) {
+                                    emailMatch.upsell_product = 'Canada Tourist Revolution';
+                                }
                             }
                         }
                     } else {
@@ -278,10 +276,13 @@ export const SellerZelleApprovalPage = () => {
                         let identifiedBundle = metaUpsell ? metaUpsell.replace(/-/g, ' ') : null;
 
                         if (!identifiedBundle) {
-                            if (migmaAmount >= 1500) {
-                                identifiedBundle = 'Canada Tourist Premium';
-                            } else if (migmaAmount > 1000) {
-                                identifiedBundle = 'Canada Tourist Revolution';
+                            const isEB3Migma = (migma.fee_type_global || '').startsWith('eb3-');
+                            if (!isEB3Migma) {
+                                if (migmaAmount >= 1500) {
+                                    identifiedBundle = 'Canada Tourist Premium';
+                                } else if (migmaAmount > 1000) {
+                                    identifiedBundle = 'Canada Tourist Revolution';
+                                }
                             }
                         }
 
@@ -493,17 +494,6 @@ export const SellerZelleApprovalPage = () => {
             // Check for bundle in metadata or infer from amount (heuristic fallback)
             let metaUpsell = payment.metadata?.upsell_product_slug;
             let metaUpsellPrice = payment.metadata?.upsell_price_usd || 0;
-
-            if (!metaUpsell) {
-                const migmaAmount = parseFloat(payment.amount.toString());
-                if (migmaAmount >= 1500) {
-                    metaUpsell = 'canada-tourist-premium';
-                    metaUpsellPrice = 399;
-                } else if (migmaAmount > 1000) {
-                    metaUpsell = 'canada-tourist-revolution';
-                    metaUpsellPrice = 199;
-                }
-            }
 
             const { data: existingOrders } = await supabase
                 .from('visa_orders')

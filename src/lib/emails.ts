@@ -2219,3 +2219,205 @@ export async function sendNewPaymentRequestNotification(
         html: html,
     });
 }
+
+/**
+ * EB-3 Recurring: Reminder email (7 days before due date)
+ */
+export async function sendEB3RecurrenceReminderEmail(
+    email: string,
+    clientName: string,
+    installmentNumber: number,
+    dueDate: string,
+    amount: number,
+    checkoutUrl: string
+): Promise<boolean> {
+    const formattedDueDate = new Date(dueDate).toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+    });
+
+    const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    </head>
+    <body style="margin: 0; padding: 0; font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #000000;">
+      <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background-color: #000000;">
+        <tr>
+          <td align="center" style="padding: 40px 20px;">
+            <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="600" style="max-width: 600px; background-color: #000000; border-radius: 8px;">
+              <tr>
+                <td align="center" style="padding: 40px 20px 30px; background-color: #000000;">
+                  <img src="https://ekxftwrjvxtpnqbraszv.supabase.co/storage/v1/object/public/logo/logo2.png" alt="MIGMA Logo" width="200" style="display: block; max-width: 200px; height: auto;">
+                </td>
+              </tr>
+              <tr>
+                <td style="padding: 0 40px 40px; background-color: #000000;">
+                  <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
+                    <tr>
+                      <td style="padding: 30px; background: linear-gradient(135deg, #1a1a1a 0%, #000000 100%); border-radius: 8px; border: 1px solid #CE9F48;">
+                        <h1 style="margin: 0 0 20px 0; font-size: 28px; font-weight: bold; color: #F3E196; text-align: center;">
+                          EB-3 Visa Maintenance Payment Due Soon
+                        </h1>
+                        <p style="margin: 0 0 20px 0; font-size: 16px; line-height: 1.6; color: #e0e0e0;">
+                          Dear ${clientName},
+                        </p>
+                        <p style="margin: 0 0 20px 0; font-size: 16px; line-height: 1.6; color: #e0e0e0;">
+                          This is a friendly reminder that your <strong style="color: #CE9F48;">Monthly Installment #${installmentNumber}</strong> for the EB-3 visa maintenance program is due on <strong style="color: #CE9F48;">${formattedDueDate}</strong>.
+                        </p>
+                        
+                        <div style="background: linear-gradient(135deg, #1a1a1a 0%, #0a0a0a 100%); border: 1px solid #CE9F48; border-radius: 8px; padding: 20px; margin: 20px 0;">
+                          <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
+                            <tr>
+                              <td style="padding: 10px 0; font-size: 16px; color: #CE9F48; font-weight: 600;">Installment:</td>
+                              <td align="right" style="padding: 10px 0; font-size: 16px; color: #ffffff; font-weight: 600;">#${installmentNumber} of 8</td>
+                            </tr>
+                            <tr>
+                              <td style="padding: 10px 0; font-size: 16px; color: #CE9F48; font-weight: 600;">Amount Due:</td>
+                              <td align="right" style="padding: 10px 0; font-size: 20px; color: #ffffff; font-weight: 700;">$${amount.toFixed(2)}</td>
+                            </tr>
+                            <tr>
+                              <td style="padding: 10px 0; font-size: 16px; color: #CE9F48; font-weight: 600;">Due Date:</td>
+                              <td align="right" style="padding: 10px 0; font-size: 16px; color: #ffffff; font-weight: 600;">${formattedDueDate}</td>
+                            </tr>
+                          </table>
+                        </div>
+
+                        <p style="margin: 20px 0; font-size: 14px; line-height: 1.6; color: #e0e0e0; background: linear-gradient(135deg, #1a1a1a 0%, #0a0a0a 100%); padding: 15px; border-radius: 6px; border-left: 3px solid #CE9F48;">
+                          <strong style="color: #CE9F48;">Important:</strong> Please make your payment by the due date to avoid a late fee of <strong>$50.00</strong>.
+                        </p>
+
+                        <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin: 30px 0;">
+                          <tr>
+                            <td align="center">
+                              <a href="${checkoutUrl}" style="display: inline-block; padding: 16px 40px; background: linear-gradient(180deg, #8E6E2F 0%, #F3E196 25%, #CE9F48 50%, #F3E196 75%, #8E6E2F 100%); color: #000000; text-decoration: none; font-weight: 700; font-size: 16px; border-radius: 6px; text-align: center;">
+                                Pay Now
+                              </a>
+                            </td>
+                          </tr>
+                        </table>
+
+                        <p style="margin: 0; font-size: 14px; line-height: 1.6; color: #a0a0a0; text-align: center;">
+                          Thank you for your continued trust in MIGMA Inc.
+                        </p>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+              
+              <tr>
+                <td style="padding: 20px 40px; background-color: #000000; border-top: 1px solid #222;">
+                  <p style="margin: 0; font-size: 12px; line-height: 1.5; color: #666; text-align: center;">
+                    This is an automated reminder for your EB-3 visa maintenance program.
+                  </p>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+      </table>
+    </body>
+    </html>
+  `;
+
+    const subject = `EB-3 Payment Reminder - Installment #${installmentNumber} Due ${formattedDueDate}`;
+    return await sendEmail({ to: email, subject, html });
+}
+
+/**
+ * EB-3 Recurring: Late fee notification
+ */
+export async function sendEB3LateFeeEmail(
+    email: string,
+    clientName: string,
+    installmentNumber: number,
+    originalDueDate: string,
+    totalAmount: number,
+    checkoutUrl: string
+): Promise<boolean> {
+    const formattedDueDate = new Date(originalDueDate).toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+    });
+
+    const baseAmount = 650.00;
+    const lateFee = 50.00;
+
+    const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    </head>
+    <body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #000000;">
+      <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background-color: #000000;">
+        <tr>
+          <td align="center" style="padding: 40px 20px;">
+            <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="600" style="max-width: 600px;">
+              <tr>
+                <td align="center" style="padding: 40px 20px 30px;">
+                  <img src="https://ekxftwrjvxtpnqbraszv.supabase.co/storage/v1/object/public/logo/logo2.png" alt="MIGMA Logo" width="200">
+                </td>
+              </tr>
+              <tr>
+                <td style="padding: 30px; background: #1a1a1a; border-radius: 8px; border: 1px solid #CE9F48;">
+                  <h1 style="margin: 0 0 20px 0; font-size: 28px; color: #ff6b6b; text-align: center;">
+                    Overdue Payment - Late Fee Applied
+                  </h1>
+                  <p style="margin: 0 0 20px 0; font-size: 16px; color: #e0e0e0;">
+                    Dear ${clientName},
+                  </p>
+                  <p style="margin: 0 0 20px 0; font-size: 16px; color: #e0e0e0;">
+                    We noticed that Monthly Installment #${installmentNumber} was not received by ${formattedDueDate}. A late fee of <strong>$${lateFee.toFixed(2)}</strong> has been added.
+                  </p>
+
+                  <div style="background: #0a0a0a; border: 1px solid #ff6b6b; border-radius: 8px; padding: 20px; margin: 20px 0;">
+                    <table width="100%">
+                      <tr>
+                        <td style="padding: 10px 0; color: #CE9F48;">Installment:</td>
+                        <td align="right" style="padding: 10px 0; color: #ffffff;">#${installmentNumber} of 8</td>
+                      </tr>
+                      <tr>
+                        <td style="padding: 10px 0; color: #CE9F48;">Base Amount:</td>
+                        <td align="right" style="padding: 10px 0; color: #ffffff;">$${baseAmount.toFixed(2)}</td>
+                      </tr>
+                      <tr>
+                        <td style="padding: 10px 0; color: #ff6b6b;">Late Fee:</td>
+                        <td align="right" style="padding: 10px 0; color: #ff6b6b;">+ $${lateFee.toFixed(2)}</td>
+                      </tr>
+                      <tr style="border-top: 1px solid #333;">
+                        <td style="padding: 10px 0; color: #CE9F48; font-weight: 700;">Total Due:</td>
+                        <td align="right" style="padding: 10px 0; color: #ffffff; font-size: 22px; font-weight: 700;">$${totalAmount.toFixed(2)}</td>
+                      </tr>
+                    </table>
+                  </div>
+
+                  <table width="100%" style="margin: 30px 0;">
+                    <tr>
+                      <td align="center">
+                        <a href="${checkoutUrl}" style="display: inline-block; padding: 16px 40px; background: linear-gradient(180deg, #8E6E2F, #CE9F48); color: #000000; text-decoration: none; font-weight: 700; border-radius: 6px;">
+                          Pay Now
+                        </a>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+      </table>
+    </body>
+    </html>
+  `;
+
+    const subject = `EB-3 Payment Overdue - Installment #${installmentNumber} + Late Fee`;
+    return await sendEmail({ to: email, subject, html });
+}

@@ -147,6 +147,15 @@ async function processSplitPaymentWebhook(
       })
       .eq("id", mainOrder.id);
 
+    // 🔍 Test User Detection
+    const isTestUser = mainOrder.client_email?.toLowerCase() === 'victuribdev@gmail.com' ||
+      mainOrder.client_name?.toLowerCase().includes('paulo victor');
+
+    if (isTestUser) {
+      console.log(`[parcelow-webhook] 🧪 Usuário de teste detectado: ${mainOrder.client_email}. Marcando como teste.`);
+      await supabase.from('visa_orders').update({ is_test: true }).eq('id', mainOrder.id);
+    }
+
     // Buscar todas as orders relacionadas (incluindo upsells)
     const { data: allOrders } = await supabase
       .from("visa_orders")
@@ -245,7 +254,74 @@ async function processSplitPaymentWebhook(
       }
     }
 
-    console.log("[Split Webhook] 🎉 Split payment totalmente processado!");
+    // ====== EB-3 RECURRENCE: Activate if Job Catalog (Split Payment) ======
+    if (mainOrder.product_slug === 'eb3-installment-catalog') {
+      try {
+        console.log('[EB-3 Split] 🔍 Job Catalog detected. Checking for existing recurrence...');
+
+        // Fetch Client ID by email (since it's not in visa_orders)
+        const { data: clientData } = await supabase
+          .from('clients')
+          .select('id')
+          .eq('email', mainOrder.client_email)
+          .maybeSingle();
+
+        const clientId = clientData?.id;
+
+        if (!clientId) {
+          console.error("[EB-3 Split] ❌ Error: Client not found in 'clients' table. Cannot activate recurrence.");
+        } else {
+          const { data: existingRecurrence } = await supabase
+            .from('eb3_recurrence_control')
+            .select('id')
+            .eq('client_id', clientId)
+            .maybeSingle();
+
+          if (!existingRecurrence) {
+            console.log('[EB-3 Split] 🎯 No existing recurrence found. Activating EB-3 recurrence...');
+
+            const { error: eb3Error } = await supabase.rpc('activate_eb3_recurrence', {
+              p_client_id: clientId,
+              p_activation_order_id: mainOrder.id,
+              p_seller_id: mainOrder.seller_id || null,
+              p_seller_commission_percent: null
+            });
+
+            if (eb3Error) {
+              console.error('[EB-3 Split] ❌ Error activating recurrence:', eb3Error);
+            } else {
+              console.log('[EB-3 Split] ✅ EB-3 recurrence activated! 8 monthly installments scheduled.');
+            }
+          } else {
+            console.log('[EB-3 Split] ⚠️ Recurrence already exists for this client. Skipping activation.');
+          }
+        }
+      } catch (eb3Error) {
+        console.error('[EB-3 Split] ❌ Exception checking/activating recurrence:', eb3Error);
+      }
+    }
+
+    // ====== EB-3 INSTALLMENT: Mark as paid if installment payment (Split Payment) ======
+    if (mainOrder.order_metadata?.eb3_schedule_id) {
+      try {
+        console.log('[EB-3 Split] 💳 EB-3 installment payment detected:', mainOrder.order_metadata.eb3_schedule_id);
+
+        const { error: eb3Error } = await supabase.rpc('mark_eb3_installment_paid', {
+          p_schedule_id: mainOrder.order_metadata.eb3_schedule_id,
+          p_payment_id: mainOrder.id
+        });
+
+        if (eb3Error) {
+          console.error('[EB-3 Split] ❌ Error marking installment as paid:', eb3Error);
+        } else {
+          console.log('[EB-3 Split] ✅ Installment marked as paid successfully');
+        }
+      } catch (eb3Exception) {
+        console.error('[EB-3 Split] ❌ Exception marking installment as paid:', eb3Exception);
+      }
+    }
+
+    console.log("[Split Webhook] ✅ Fluxo de split payment totalmente concluído!");
   } else {
     console.log(`[Split Webhook] ⏳ Aguardando pagamento da Part ${isPart1 ? 2 : 1}...`);
     console.log("[Split Webhook] ℹ️ Contratos NÃO serão gerados até que ambas as partes sejam pagas");
@@ -386,6 +462,93 @@ async function processParcelowWebhookEvent(event: ParcelowWebhookEvent, supabase
         console.error(`[parcelow-webhook] ❌ Failed to increment coupon usage: ${rpcError.message}`);
       } else {
         console.log(`[parcelow-webhook] ✅ Coupon usage incremented successfully.`);
+      }
+    }
+
+    // ====== EB-3 RECURRENCE: Activate if Job Catalog ======
+    if (mainOrder.product_slug === 'eb3-installment-catalog') {
+      try {
+        console.log('[EB-3 Parcelow] 🔍 Job Catalog detected. Checking for existing recurrence...');
+
+        // Fetch Client ID by email (since it's not in visa_orders)
+        const { data: clientData } = await supabase
+          .from('clients')
+          .select('id')
+          .eq('email', mainOrder.client_email)
+          .maybeSingle();
+
+        const clientId = clientData?.id;
+
+        if (!clientId) {
+          console.error("[EB-3 Parcelow] ❌ Error: Client not found in 'clients' table. Cannot activate recurrence.");
+        } else {
+          const { data: existingRecurrence } = await supabase
+            .from('eb3_recurrence_control')
+            .select('id')
+            .eq('client_id', clientId)
+            .maybeSingle();
+
+          if (!existingRecurrence) {
+            console.log('[EB-3 Parcelow] 🎯 No existing recurrence found. Activating EB-3 recurrence...');
+
+            const { error: eb3Error } = await supabase.rpc('activate_eb3_recurrence', {
+              p_client_id: clientId,
+              p_activation_order_id: mainOrder.id,
+              p_seller_id: mainOrder.seller_id || null,
+              p_seller_commission_percent: null
+            });
+
+            if (eb3Error) {
+              console.error('[EB-3 Parcelow] ❌ Error activating recurrence:', eb3Error);
+            } else {
+              console.log('[EB-3 Parcelow] ✅ EB-3 recurrence activated! 8 monthly installments scheduled.');
+
+              // 📧 Enviar o link da 1ª parcela imediatamente
+              try {
+                // Buscar a primeira parcela ativa gerada pelo RPC
+                const { data: firstSchedule } = await supabase
+                  .from('eb3_recurrence_schedules')
+                  .select('id')
+                  .eq('client_id', clientId)
+                  .eq('installment_number', 1)
+                  .single();
+
+                if (firstSchedule) {
+                  await supabase.functions.invoke('send-eb3-installment-email', {
+                    body: { schedule_id: firstSchedule.id }
+                  });
+                  console.log('[EB-3 Parcelow] 📧 1st installment email triggered.');
+                }
+              } catch (emailError) {
+                console.error('[EB-3 Parcelow] ⚠️ Failed to trigger 1st installment email:', emailError);
+              }
+            }
+          } else {
+            console.log('[EB-3 Parcelow] ⚠️ Recurrence already exists for this client. Skipping activation.');
+          }
+        }
+      } catch (eb3Error) {
+        console.error('[EB-3 Parcelow] ❌ Exception checking/activating recurrence:', eb3Error);
+      }
+    }
+
+    // ====== EB-3 INSTALLMENT: Mark as paid if installment payment ======
+    if (mainOrder.order_metadata?.eb3_schedule_id) {
+      try {
+        console.log('[EB-3 Parcelow] 💳 EB-3 installment payment detected:', mainOrder.order_metadata.eb3_schedule_id);
+
+        const { error: eb3Error } = await supabase.rpc('mark_eb3_installment_paid', {
+          p_schedule_id: mainOrder.order_metadata.eb3_schedule_id,
+          p_payment_id: mainOrder.id
+        });
+
+        if (eb3Error) {
+          console.error('[EB-3 Parcelow] ❌ Error marking installment as paid:', eb3Error);
+        } else {
+          console.log('[EB-3 Parcelow] ✅ Installment marked as paid successfully');
+        }
+      } catch (eb3Exception) {
+        console.error('[EB-3 Parcelow] ❌ Exception marking installment as paid:', eb3Exception);
       }
     }
 
