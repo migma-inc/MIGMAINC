@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { Progress } from '@/components/ui/progress';
 
 interface StepIndicatorProps {
@@ -7,11 +8,12 @@ interface StepIndicatorProps {
 }
 
 export const StepIndicator: React.FC<StepIndicatorProps> = ({ currentStep, totalSteps }) => {
+    const { t } = useTranslation();
     const progressPercentage = (currentStep / totalSteps) * 100;
 
     const stepLabels = totalSteps === 2
-        ? ['Personal Information', 'Terms & Payment']
-        : ['Personal Information', 'Documents & Selfie', 'Terms & Payment'];
+        ? [t('checkout.step_personal_info', 'Personal Information'), t('checkout.step_terms_payment', 'Terms & Payment')]
+        : [t('checkout.step_personal_info', 'Personal Information'), t('checkout.step_documents_selfie', 'Documents & Selfie'), t('checkout.step_terms_payment', 'Terms & Payment')];
 
     const currentLabel = stepLabels[currentStep - 1];
 
@@ -19,7 +21,7 @@ export const StepIndicator: React.FC<StepIndicatorProps> = ({ currentStep, total
         <div className="mb-6 sm:mb-8">
             <div className="flex justify-between items-center mb-2 flex-wrap gap-2">
                 <span className="text-xs sm:text-sm text-gray-400">
-                    Step {currentStep} of {totalSteps}
+                    {t('checkout.step_label', 'Step {{current}} of {{total}}', { current: currentStep, total: totalSteps })}
                 </span>
                 <span className="text-xs sm:text-sm text-gold-light text-right">
                     {currentLabel}

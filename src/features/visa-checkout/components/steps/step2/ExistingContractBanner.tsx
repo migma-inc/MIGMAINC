@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { FileText, ArrowRight } from 'lucide-react';
@@ -9,6 +10,7 @@ interface ExistingContractBannerProps {
 }
 
 export const ExistingContractBanner: React.FC<ExistingContractBannerProps> = ({ clientName, onContinue }) => {
+    const { t } = useTranslation();
     return (
         <Alert className="bg-gold-light/20 border-gold-medium text-white">
             <div className="flex flex-col sm:flex-row items-center justify-between gap-4 w-full">
@@ -17,10 +19,10 @@ export const ExistingContractBanner: React.FC<ExistingContractBannerProps> = ({ 
                         <FileText className="h-5 w-5 text-gold-medium" />
                     </div>
                     <div>
-                        <AlertTitle className="text-gold-light font-bold">Existing Contract Found</AlertTitle>
+                        <AlertTitle className="text-gold-light font-bold">{t('checkout.existing_contract_found', 'Existing Contract Found')}</AlertTitle>
                         <AlertDescription className="text-gray-300">
-                            We found an active contract for <span className="text-white font-medium">{clientName}</span>.
-                            You can skip document upload.
+                            {t('checkout.existing_contract_message', 'We found an active contract for')} <span className="text-white font-medium">{clientName}</span>.
+                            {t('checkout.skip_document_upload', ' You can skip document upload.')}
                         </AlertDescription>
                     </div>
                 </div>
@@ -28,7 +30,7 @@ export const ExistingContractBanner: React.FC<ExistingContractBannerProps> = ({ 
                     onClick={onContinue}
                     className="bg-gold-medium text-black hover:bg-gold-light font-bold whitespace-nowrap"
                 >
-                    Continue to Payment <ArrowRight className="ml-2 h-4 w-4" />
+                    {t('checkout.continue_to_payment', 'Continue to Payment')} <ArrowRight className="ml-2 h-4 w-4" />
                 </Button>
             </div>
         </Alert>

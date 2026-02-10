@@ -4,8 +4,11 @@ import { supabase } from '@/lib/supabase';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { XCircle, ArrowLeft } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
+import { LanguageSelector } from '@/components/LanguageSelector';
 
 export const CheckoutCancel = () => {
+  const { t } = useTranslation();
   const [searchParams] = useSearchParams();
   const orderId = searchParams.get('order_id');
   
@@ -48,7 +51,7 @@ export const CheckoutCancel = () => {
       <div className="min-h-screen bg-black flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gold-medium mx-auto"></div>
-          <p className="mt-4 text-gray-400">Loading...</p>
+          <p className="mt-4 text-gray-400">{t('checkout.processing', 'Loading...')}</p>
         </div>
       </div>
     );
@@ -60,9 +63,9 @@ export const CheckoutCancel = () => {
         <CardContent className="p-8 text-center">
           <div className="mb-6">
             <XCircle className="w-20 h-20 text-red-500 mx-auto mb-4" />
-            <h1 className="text-3xl font-bold text-white mb-2">Payment Cancelled</h1>
+            <h1 className="text-3xl font-bold text-white mb-2">{t('checkout.cancel_title', 'Payment Cancelled')}</h1>
             <p className="text-gray-300">
-              Your payment was cancelled. No charges were made.
+              {t('checkout.cancel_message', 'Your payment was cancelled. No charges were made.')}
             </p>
           </div>
 
@@ -75,15 +78,18 @@ export const CheckoutCancel = () => {
                 <Link to={checkoutUrl}>
                   <Button variant="outline" className="border-gold-medium/50 bg-black/50 text-white hover:bg-gold-medium/30">
                     <ArrowLeft className="w-4 h-4 mr-2" />
-                    Back to Checkout
+                    {t('checkout.back_to_checkout', 'Back to Checkout')}
                   </Button>
                 </Link>
               )}
               <Link to="/contact">
                 <Button className="bg-gradient-to-b from-gold-light via-gold-medium to-gold-light text-black font-bold hover:from-gold-medium hover:via-gold-light hover:to-gold-medium">
-                  Contact Support
+                  {t('checkout.contact_support', 'Contact Support')}
                 </Button>
               </Link>
+              <div className="mt-4 flex justify-center w-full">
+                <LanguageSelector />
+              </div>
             </div>
           </div>
         </CardContent>

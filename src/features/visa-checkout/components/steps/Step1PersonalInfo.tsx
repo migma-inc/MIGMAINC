@@ -2,6 +2,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { useTranslation } from 'react-i18next';
 import { ChevronRight } from 'lucide-react';
 import type { VisaProduct } from '@/types/visa-product';
 import type { VisaCheckoutState, VisaCheckoutActions } from '../../types/form.types';
@@ -22,6 +23,7 @@ interface Step1Props {
 }
 
 export const Step1PersonalInfo: React.FC<Step1Props> = ({ product, state, actions }) => {
+    const { t } = useTranslation();
     const { productSlug } = useParams<{ productSlug: string }>();
     const [searchParams] = useSearchParams();
     const sellerId = searchParams.get('seller') || '';
@@ -89,7 +91,7 @@ export const Step1PersonalInfo: React.FC<Step1Props> = ({ product, state, action
         );
 
         if (!result.success) {
-            setError(result.error || 'Failed to save information');
+            setError(result.error || t('checkout.error_save_info', 'Failed to save information'));
             return;
         }
 
@@ -104,7 +106,7 @@ export const Step1PersonalInfo: React.FC<Step1Props> = ({ product, state, action
     return (
         <Card className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30">
             <CardHeader>
-                <CardTitle className="text-white text-lg sm:text-xl">Step 1: Personal Information</CardTitle>
+                <CardTitle className="text-white text-lg sm:text-xl">{t('checkout.step_1_title', 'Step 1: Personal Information')}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
                 {productSlug !== 'consultation-common' && (
@@ -160,13 +162,13 @@ export const Step1PersonalInfo: React.FC<Step1Props> = ({ product, state, action
                 />
 
                 <div className="space-y-2">
-                    <Label htmlFor="observations" className="text-white text-sm sm:text-base">Additional Observations (Optional)</Label>
+                    <Label htmlFor="observations" className="text-white text-sm sm:text-base">{t('checkout.additional_observations', 'Additional Observations (Optional)')}</Label>
                     <Textarea
                         id="observations"
                         value={clientObservations}
                         onChange={(e) => setClientObservations(e.target.value)}
                         className="bg-white text-black min-h-[100px]"
-                        placeholder="Any extra information..."
+                        placeholder={t('checkout.extra_info_placeholder', 'Any extra information...')}
                     />
                 </div>
 
@@ -175,7 +177,7 @@ export const Step1PersonalInfo: React.FC<Step1Props> = ({ product, state, action
                     disabled={submitting}
                     className="w-full bg-gold-medium text-black font-bold hover:bg-gold-light mt-6"
                 >
-                    {submitting ? 'Saving...' : 'Continue'} <ChevronRight className="ml-2 h-4 w-4" />
+                    {submitting ? t('checkout.saving', 'Saving...') : t('checkout.continue', 'Continue')} <ChevronRight className="ml-2 h-4 w-4" />
                 </Button>
             </CardContent>
         </Card>

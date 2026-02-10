@@ -16,10 +16,13 @@ import { Step2Documents } from './components/steps/Step2Documents';
 import { Step3SignatureOnly } from './components/steps/Step3SignatureOnly';
 
 import { ArrowLeft, Loader2, AlertCircle } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
+import { LanguageSelector } from '@/components/LanguageSelector';
 import { calculateBaseTotal } from '@/lib/visa-checkout-utils';
 import type { VisaProduct } from '@/types/visa-product';
 
 export const VisaSignatureCheckoutPage: React.FC = () => {
+    const { t } = useTranslation();
     const { productSlug } = useParams<{ productSlug: string }>();
     const [searchParams] = useSearchParams();
     const urlSellerId = searchParams.get('seller') || '';
@@ -61,12 +64,12 @@ export const VisaSignatureCheckoutPage: React.FC = () => {
                     .single();
 
                 if (error || !data) {
-                    actions.setError('Produto não encontrado ou inativo.');
+                    actions.setError(t('checkout.error_product_not_found', 'Produto não encontrado ou inativo.'));
                     return;
                 }
                 setProduct(data);
             } catch (err) {
-                actions.setError('Erro ao carregar os detalhes do produto.');
+                actions.setError(t('checkout.error_loading_product', 'Erro ao carregar os detalhes do produto.'));
             } finally {
                 setLoading(false);
             }
@@ -78,7 +81,7 @@ export const VisaSignatureCheckoutPage: React.FC = () => {
         return (
             <div className="min-h-screen bg-black flex flex-col items-center justify-center text-white p-4">
                 <Loader2 className="w-12 h-12 text-gold-medium animate-spin mb-4" />
-                <p className="text-gold-light font-medium animate-pulse">Carregando formulário de assinatura...</p>
+                <p className="text-gold-light font-medium animate-pulse">{t('checkout.loading_signature_form', 'Carregando formulário de assinatura...')}</p>
             </div>
         );
     }
@@ -87,10 +90,10 @@ export const VisaSignatureCheckoutPage: React.FC = () => {
         return (
             <div className="min-h-screen bg-black flex flex-col items-center justify-center text-white p-4 text-center">
                 <AlertCircle className="w-16 h-16 text-red-500 mb-4" />
-                <h2 className="text-2xl font-bold mb-2">Ops! Produto não encontrado</h2>
-                <p className="text-gray-400 mb-6">Não conseguimos localizar as informações deste visto.</p>
+                <h2 className="text-2xl font-bold mb-2">{t('checkout.error_product_not_found_title', 'Ops! Produto não encontrado')}</h2>
+                <p className="text-gray-400 mb-6">{t('checkout.error_product_not_found_message', 'Não conseguimos localizar as informações deste visto.')}</p>
                 <Link to="/" className="bg-gold-medium text-black px-6 py-2 rounded-full font-bold hover:bg-gold-light transition-colors">
-                    Voltar para Home
+                    {t('checkout.back_to_home', 'Voltar para Início')}
                 </Link>
             </div>
         );
@@ -100,11 +103,14 @@ export const VisaSignatureCheckoutPage: React.FC = () => {
         <div className="min-h-screen bg-black py-8 sm:py-12 px-4 sm:px-6 lg:px-8 notranslate" translate="no">
             <div className="max-w-4xl mx-auto">
                 <header className="flex flex-col mb-8 gap-2">
-                    <Link to="/" className="inline-flex items-center text-gold-light hover:text-gold-medium transition-colors mb-2">
-                        <ArrowLeft className="w-4 h-4 mr-2" /> Back to Home
-                    </Link>
-                    <h1 className="text-2xl sm:text-3xl font-bold migma-gold-text">Visa Contract Signature</h1>
-                    <p className="text-gray-400 text-sm">Este link é exclusivo para assinatura de contrato.</p>
+                    <div className="flex justify-between items-start">
+                        <Link to="/" className="inline-flex items-center text-gold-light hover:text-gold-medium transition-colors mb-2">
+                            <ArrowLeft className="w-4 h-4 mr-2" /> {t('checkout.back_to_home', 'Back to Home')}
+                        </Link>
+                        <LanguageSelector />
+                    </div>
+                    <h1 className="text-2xl sm:text-3xl font-bold migma-gold-text">{t('checkout.signature_title', 'Visa Contract Signature')}</h1>
+                    <p className="text-gray-400 text-sm">{t('checkout.signature_notice', 'Este link é exclusivo para assinatura de contrato.')}</p>
                 </header>
 
                 <StepIndicator currentStep={state.currentStep} totalSteps={3} />
@@ -119,14 +125,14 @@ export const VisaSignatureCheckoutPage: React.FC = () => {
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
                     <main className="lg:col-span-2 space-y-6">
                         <div className="bg-zinc-900/50 border border-gold-medium/20 rounded-xl p-6 space-y-4">
-                            <h2 className="text-gold-light font-bold text-lg">Contract Details</h2>
+                            <h2 className="text-gold-light font-bold text-lg">{t('checkout.contract_details', 'Contract Details')}</h2>
                             <div>
                                 <h3 className="text-white font-bold text-xl mb-1">{product.name}</h3>
                                 <p className="text-gray-400 text-sm leading-relaxed">{product.description}</p>
                             </div>
                             <div className="pt-2 space-y-2 border-t border-white/5">
                                 <div className="flex justify-between items-center text-sm">
-                                    <span className="text-gray-400">Total Contract Value:</span>
+                                    <span className="text-gray-400">{t('checkout.total_contract_value', 'Total Contract Value')}:</span>
                                     <span className="text-white font-bold text-lg">US$ {totalWithFees.toFixed(2)}</span>
                                 </div>
                             </div>
