@@ -314,4 +314,24 @@
       background-position: top, center;
     }
   }
+
+  /* Custom overrides for react-international-phone to match Migma UI */
+  .react-international-phone-container {
+    --react-international-phone-border-color: #e2e8f0;
+    --react-international-phone-dropdown-item-background-color: #ffffff;
+    --react-international-phone-dropdown-item-text-color: #000000;
+    --react-international-phone-background-color: #ffffff;
+    --react-international-phone-text-color: #000000;
+  }
+
+  .react-international-phone-input {
+    width: 100% !important;
+    border: 1px solid #e2e8f0 !important;
+    font-family: inherit !important;
+  }
+
+  .react-international-phone-country-selector-button {
+    border: 1px solid #e2e8f0 !important;
+    border-right: none !important;
+  }
 }
