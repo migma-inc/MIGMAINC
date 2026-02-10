@@ -80,7 +80,9 @@ Deno.serve(async (req: Request) => {
                 clientNationality: order.client_nationality,
                 clientObservations: order.client_observations,
                 extraUnits: order.extra_units || 0,
-                dependentNames: order.dependent_names || []
+                dependentNames: order.dependent_names || [],
+                // Pass EB-3 metadata to prefill if present
+                eb3_schedule_id: order.payment_metadata?.eb3_schedule_id || null
             };
         } else {
             // migma_payment

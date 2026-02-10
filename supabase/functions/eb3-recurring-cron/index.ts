@@ -78,7 +78,7 @@ serve(async (req) => {
           client_id,
           email_sent_at,
           clients!inner(full_name, email),
-          visa_orders!inner(seller_id)
+          visa_orders!eb3_recurrence_schedules_order_id_fkey(seller_id)
         `)
                 .eq('status', 'pending')
                 .is('email_sent_at', null)
@@ -105,7 +105,7 @@ serve(async (req) => {
                   client_id,
                   email_sent_at,
                   clients!inner(full_name, email),
-                  visa_orders!inner(is_test, seller_id)
+                  visa_orders!eb3_recurrence_schedules_order_id_fkey(is_test, seller_id)
                 `)
                 .eq('status', 'pending')
                 .lte('due_date', reminderLimitDate)
@@ -123,9 +123,30 @@ serve(async (req) => {
 
             for (const schedule of remindersToSend) {
                 try {
+                    // Create prefill token for standard checkout flow
+                    const token = crypto.randomUUID();
+                    const expiresAt = new Date();
+                    expiresAt.setDate(expiresAt.getDate() + 30);
+                    const sellerId = (schedule as any).visa_orders?.seller_id || null;
+
+                    await supabaseClient.from('checkout_prefill_tokens').insert({
+                        token,
+                        product_slug: 'eb3-installment-monthly',
+                        seller_id: sellerId,
+                        client_data: {
+                            clientName: schedule.clients.full_name,
+                            clientEmail: schedule.clients.email,
+                            eb3_schedule_id: schedule.id,
+                            installment_number: schedule.installment_number,
+                            due_date: schedule.due_date,
+                            amount_usd: schedule.amount_usd,
+                        },
+                        expires_at: expiresAt.toISOString(),
+                    });
+
                     const siteUrl = 'http://localhost:5173';
-                    const sellerId = (schedule as any).visa_orders?.seller_id || 'MIGMA';
-                    const checkoutUrl = `${siteUrl}/checkout/visa/eb3-installment-monthly?prefill=${schedule.id}&seller=${sellerId}`;
+                    const sellerParam = sellerId ? `&seller=${sellerId}` : '';
+                    const checkoutUrl = `${siteUrl}/checkout/visa/eb3-installment-monthly?prefill=${token}${sellerParam}`;
 
                     // English subjects for the client
                     const subject = schedule.installment_number === 1
@@ -191,16 +212,40 @@ serve(async (req) => {
             for (const schedule of overdueToNotify) {
                 try {
                     const totalAmount = parseFloat(schedule.amount_usd) + parseFloat(schedule.late_fee_usd);
-                    // Fetch seller_id for late fee as well (it's in visa_orders)
+
+                    // Fetch seller_id for late fee
                     const { data: orderData } = await supabaseClient
                         .from('eb3_recurrence_schedules')
-                        .select('visa_orders(seller_id)')
+                        .select('visa_orders!eb3_recurrence_schedules_order_id_fkey(seller_id)')
                         .eq('id', schedule.id)
                         .single();
+                    const sellerId = (orderData as any)?.visa_orders?.seller_id || null;
 
-                    const sellerId = (orderData as any)?.visa_orders?.seller_id || 'MIGMA';
+                    // Create prefill token for standard checkout flow
+                    const token = crypto.randomUUID();
+                    const expiresAt = new Date();
+                    expiresAt.setDate(expiresAt.getDate() + 30);
+
+                    await supabaseClient.from('checkout_prefill_tokens').insert({
+                        token,
+                        product_slug: 'eb3-installment-monthly',
+                        seller_id: sellerId,
+                        client_data: {
+                            clientName: schedule.clients.full_name,
+                            clientEmail: schedule.clients.email,
+                            eb3_schedule_id: schedule.id,
+                            installment_number: schedule.installment_number,
+                            due_date: schedule.due_date,
+                            amount_usd: totalAmount,
+                            is_overdue: true,
+                            late_fee_usd: schedule.late_fee_usd,
+                        },
+                        expires_at: expiresAt.toISOString(),
+                    });
+
                     const siteUrl = 'http://localhost:5173';
-                    const checkoutUrl = `${siteUrl}/checkout/visa/eb3-installment-monthly?prefill=${schedule.id}&seller=${sellerId}`;
+                    const sellerParam = sellerId ? `&seller=${sellerId}` : '';
+                    const checkoutUrl = `${siteUrl}/checkout/visa/eb3-installment-monthly?prefill=${token}${sellerParam}`;
 
                     const { error: emailError } = await supabaseClient.functions.invoke('send-email', {
                         body: {

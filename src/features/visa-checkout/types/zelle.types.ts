@@ -25,6 +25,7 @@ export interface ZellePaymentRequest {
     upsell_product_slug?: 'canada-tourist-premium' | 'canada-tourist-revolution' | null;
     upsell_contract_template_id?: string | null;
     billing_installment_id?: string | null;
+    eb3_schedule_id?: string | null;
 }
 
 export interface ZellePaymentResponse {
