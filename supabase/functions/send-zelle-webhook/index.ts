@@ -301,11 +301,11 @@ Deno.serve(async (req: Request) => {
         }
 
         // 4. EB-3 INSTALLMENT: Mark as paid if it's an individual installment payment
-        if (orderToProcess.order_metadata?.eb3_schedule_id) {
+        if (orderToProcess.payment_metadata?.eb3_schedule_id) {
           try {
-            console.log('[EB-3 Zelle] 💳 Pagamento de parcela EB3 detectado:', orderToProcess.order_metadata.eb3_schedule_id);
+            console.log('[EB-3 Zelle] 💳 Pagamento de parcela EB3 detectado:', orderToProcess.payment_metadata.eb3_schedule_id);
             await supabase.rpc('mark_eb3_installment_paid', {
-              p_schedule_id: orderToProcess.order_metadata.eb3_schedule_id,
+              p_schedule_id: orderToProcess.payment_metadata.eb3_schedule_id,
               p_payment_id: orderToProcess.id
             });
             console.log('[EB-3 Zelle] ✅ Parcela marcada como paga');

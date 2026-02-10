@@ -84,7 +84,6 @@ function App() {
         <Route path="/checkout/visa/:productSlug" element={<VisaCheckout />} />
         <Route path="/checkout/contract/:productSlug" element={<VisaSignatureCheckout />} />
         <Route path="/checkout/visa/resubmit" element={<VisaContractResubmit />} />
-        <Route path="/checkout/visa/eb3-installment-monthly" element={<EB3InstallmentCheckout />} />
         <Route path="/checkout/eb3-installment/:installmentId" element={<EB3InstallmentCheckout />} />
         <Route path="/checkout/success" element={<CheckoutSuccess />} />
         <Route path="/checkout/cancel" element={<CheckoutCancel />} />

@@ -46,6 +46,8 @@ export const usePrefillData = (
                             if (clientData.clientObservations) actions.setClientObservations(clientData.clientObservations);
                             if (typeof clientData.extraUnits === 'number') actions.setExtraUnits(clientData.extraUnits);
                             if (Array.isArray(clientData.dependentNames)) actions.setDependentNames(clientData.dependentNames);
+                            // EB-3 Installment: pass schedule_id to be stored in payment_metadata
+                            if (clientData.eb3_schedule_id) actions.setEb3ScheduleId(clientData.eb3_schedule_id);
                         }
                     }
                 } catch (err) {

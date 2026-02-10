@@ -97,6 +97,9 @@ export interface VisaCheckoutState {
 
     // Recurring Billing
     billingInstallmentId: string | null;
+
+    // EB-3 Installment
+    eb3ScheduleId: string | null;
 }
 
 export interface VisaCheckoutActions {
@@ -165,4 +168,7 @@ export interface VisaCheckoutActions {
 
     // Recurring Billing
     setBillingInstallmentId: (val: string | null) => void;
+
+    // EB-3 Installment
+    setEb3ScheduleId: (val: string | null) => void;
 }

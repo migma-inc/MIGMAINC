@@ -155,7 +155,7 @@ export const EB3InstallmentCheckout = () => {
                     signature_url: signatureImageDataUrl,
                     cpf: paymentMethod === 'parcelow' ? cpf : null,
                     card_name: paymentMethod === 'parcelow' ? creditCardName : null,
-                    order_metadata: {
+                    payment_metadata: {
                         eb3_schedule_id: installment.id,
                         installment_number: installment.installment_number,
                         is_late_payment: isOverdue,

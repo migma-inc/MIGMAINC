@@ -529,12 +529,12 @@ export const ZelleApprovalPage = () => {
       }
 
       // Check if this is an EB-3 installment payment
-      if (order.order_metadata?.eb3_schedule_id) {
+      if (order.payment_metadata?.eb3_schedule_id) {
         try {
-          console.log('[EB-3] Marking installment as paid:', order.order_metadata.eb3_schedule_id);
+          console.log('[EB-3] Marking installment as paid:', order.payment_metadata.eb3_schedule_id);
 
           const { error: eb3Error } = await supabase.rpc('mark_eb3_installment_paid', {
-            p_schedule_id: order.order_metadata.eb3_schedule_id,
+            p_schedule_id: order.payment_metadata.eb3_schedule_id,
             p_payment_id: order.id
           });
 
