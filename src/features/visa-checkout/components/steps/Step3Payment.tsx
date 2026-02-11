@@ -1,4 +1,5 @@
 import type { VisaCheckoutState, VisaCheckoutActions } from '../../types/form.types';
+import { useTranslation } from 'react-i18next';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
@@ -37,10 +38,12 @@ export const Step3Payment: React.FC<Step3Props> = ({ state, actions, handlers, o
         setTermsAccepted, setDataAuthorization, setPaymentMethod, setZelleReceipt /*, setSelectedUpsell */
     } = actions;
 
+    const { t } = useTranslation();
+
     return (
         <Card className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30">
             <CardHeader>
-                <CardTitle className="text-white text-lg sm:text-xl">Step 3: Terms & Payment</CardTitle>
+                <CardTitle className="text-white text-lg sm:text-xl">{t('checkout.step_3_title', 'Step 3: Terms & Payment')}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
                 {/* Temporarily disabled: World Cup Bundle (Combo Copa) */}
@@ -117,10 +120,10 @@ export const Step3Payment: React.FC<Step3Props> = ({ state, actions, handlers, o
                                 <div className="bg-blue-50 border border-blue-200 rounded-md p-4 space-y-3">
                                     <div className="flex flex-col space-y-1">
                                         <label htmlFor="cardName" className="text-sm font-medium text-blue-900">
-                                            Name on Card *
+                                            {t('checkout.name_on_card', 'Name on Card')} *
                                         </label>
                                         <p className="text-xs text-blue-700">
-                                            Please enter exactly the name as it appears on your card.
+                                            {t('checkout.name_on_card_instruction', 'Please enter exactly the name as it appears on your card.')}
                                         </p>
                                     </div>
                                     <Input
@@ -139,10 +142,10 @@ export const Step3Payment: React.FC<Step3Props> = ({ state, actions, handlers, o
                         <div className="bg-blue-50 border border-blue-200 rounded-md p-4 space-y-3">
                             <div className="flex flex-col space-y-1">
                                 <label htmlFor="cpfInput" className="text-sm font-medium text-blue-900">
-                                    CPF (Brazilian Tax ID) *
+                                    {t('checkout.cpf_label', 'CPF (Brazilian Tax ID)')} *
                                 </label>
                                 <p className="text-xs text-blue-700">
-                                    Required for payment processing in Brazil.
+                                    {t('checkout.cpf_instruction', 'Required for payment processing in Brazil.')}
                                 </p>
                             </div>
                             <Input
@@ -180,7 +183,7 @@ export const Step3Payment: React.FC<Step3Props> = ({ state, actions, handlers, o
                         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                             <path d="m15 18-6-6 6-6" />
                         </svg>
-                        Back
+                        {t('checkout.back_simple', 'Back')}
                     </button>
 
                     {paymentMethod && signatureConfirmed && (
@@ -211,22 +214,22 @@ export const Step3Payment: React.FC<Step3Props> = ({ state, actions, handlers, o
                                     )
                                 ))
                             }
-                            className={`w-full inline-flex items-center justify-center gap-2 px-4 py-3 text-base font-bold rounded-md transition-colors ${state.submitting ? 'opacity-70 cursor-not-allowed' : ''} ${paymentMethod === 'parcelow'
+                            className={`w-full inline-flex items-center justify-center gap-2 px-4 py-3 text-sm sm:text-base font-bold rounded-md transition-colors h-auto whitespace-normal leading-tight ${state.submitting ? 'opacity-70 cursor-not-allowed' : ''} ${paymentMethod === 'parcelow'
                                 ? 'bg-[#22c55e] hover:bg-[#16a34a] text-white'
                                 : 'bg-gold-medium hover:bg-gold-light text-black'
                                 }`}
                         >
                             {state.submitting ? (
                                 <>
-                                    <svg className="animate-spin h-5 w-5 text-current" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                    <svg className="animate-spin h-5 w-5 text-current flex-shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                                         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                                     </svg>
-                                    Processing...
+                                    <span>{t('checkout.processing', 'Processing...')}</span>
                                 </>
                             ) : (
-                                <>
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <div className="flex items-center justify-center gap-2 w-full">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0">
                                         {paymentMethod === 'zelle' ? (
                                             <>
                                                 <line x1="12" y1="1" x2="12" y2="23"></line>
@@ -239,8 +242,8 @@ export const Step3Payment: React.FC<Step3Props> = ({ state, actions, handlers, o
                                             </>
                                         )}
                                     </svg>
-                                    {paymentMethod === 'parcelow' ? 'Pay with Parcelow' : 'Confirm Zelle Payment'}
-                                </>
+                                    <span>{paymentMethod === 'parcelow' ? t('checkout.pay_with_parcelow', 'Pay with Parcelow') : t('checkout.confirm_zelle_payment', 'Confirm Zelle Payment')}</span>
+                                </div>
                             )}
                         </button>
                     )}
@@ -255,7 +258,7 @@ export const Step3Payment: React.FC<Step3Props> = ({ state, actions, handlers, o
                         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                             <path d="m15 18-6-6 6-6" />
                         </svg>
-                        Back
+                        {t('checkout.back', 'Back')}
                     </button>
                 </div>
             </CardContent>

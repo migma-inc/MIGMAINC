@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -21,6 +22,7 @@ export const QuantitySelector: React.FC<QuantitySelectorProps> = ({
     onDependentNamesChange,
     fieldErrors,
 }) => {
+    const { t } = useTranslation();
     if (!product.allow_extra_units) return null;
 
     const handleUnitsChange = (val: string) => {
@@ -52,8 +54,8 @@ export const QuantitySelector: React.FC<QuantitySelectorProps> = ({
             <div className="space-y-2">
                 <Label htmlFor="extra-units" className="text-white text-sm sm:text-base flex items-center">
                     {product.calculation_type === 'units_only'
-                        ? (product.slug === 'rfe-defense' ? 'Number of evidences' : 'Number of applicants')
-                        : product.extra_unit_label + ' (0-5)'}
+                        ? (product.slug === 'rfe-defense' ? t('checkout.number_of_evidences', 'Number of evidences') : t('checkout.number_of_applicants', 'Number of applicants'))
+                        : t('checkout.number_of_dependents', 'Number of dependents') + ' (0-5)'}
                     <span className="text-red-500 ml-1 font-bold">*</span>
                 </Label>
                 <Select
@@ -80,15 +82,15 @@ export const QuantitySelector: React.FC<QuantitySelectorProps> = ({
                 <div key={i} className="space-y-2">
                     <Label className="text-white text-sm sm:text-base flex items-center">
                         {product.slug === 'rfe-defense'
-                            ? `Evidence ${i + 1} description`
-                            : (product.calculation_type === 'units_only' ? 'Applicant Name' : 'Dependent Name')} {i + 1}
+                            ? `${t('checkout.evidence', 'Evidence')} ${i + 1} ${t('checkout.description', 'description')}`
+                            : (product.calculation_type === 'units_only' ? t('checkout.applicant_name', 'Applicant Name') : t('checkout.dependent_name', 'Dependent Name'))} {i + 1}
                         <span className="text-red-500 ml-1 font-bold">*</span>
                     </Label>
                     <Input
                         value={name}
                         onChange={(e) => handleNameChange(i, e.target.value)}
                         className="bg-white text-black min-h-[44px]"
-                        placeholder="Full name"
+                        placeholder={t('checkout.full_name_placeholder', 'Full name')}
                     />
                 </div>
             ))}
