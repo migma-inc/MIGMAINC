@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 
@@ -23,10 +24,11 @@ export const ContactFields: React.FC<ContactFieldsProps> = ({
     onDateOfBirthChange,
     isSimplified = false,
 }) => {
+    const { t } = useTranslation();
     return (
         <div className="space-y-4">
             <div className="space-y-2">
-                <Label htmlFor="name" className="text-white text-sm sm:text-base">Full Name *</Label>
+                <Label htmlFor="name" className="text-white text-sm sm:text-base">{t('checkout.full_name', 'Full Name')} *</Label>
                 <Input
                     id="name"
                     value={clientName}
@@ -37,7 +39,7 @@ export const ContactFields: React.FC<ContactFieldsProps> = ({
             </div>
 
             <div className="space-y-2">
-                <Label htmlFor="email" className="text-white text-sm sm:text-base">Email *</Label>
+                <Label htmlFor="email" className="text-white text-sm sm:text-base">{t('checkout.email', 'Email')} *</Label>
                 <Input
                     id="email"
                     type="email"
@@ -50,7 +52,7 @@ export const ContactFields: React.FC<ContactFieldsProps> = ({
 
             {!isSimplified && (
                 <div className="space-y-2">
-                    <Label htmlFor="dob" className="text-white text-sm sm:text-base">Date of Birth *</Label>
+                    <Label htmlFor="dob" className="text-white text-sm sm:text-base">{t('checkout.date_of_birth', 'Date of Birth')} *</Label>
                     <Input
                         id="dob"
                         type="date"

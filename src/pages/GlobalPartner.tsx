@@ -1,5 +1,6 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -19,6 +20,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Progress } from '@/components/ui/progress';
 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { LanguageSelector } from '@/components/LanguageSelector';
 
 // Function to check if email already exists
 const checkEmailExists = async (email: string): Promise<boolean> => {
@@ -42,96 +44,42 @@ const checkEmailExists = async (email: string): Promise<boolean> => {
 };
 
 // --- Zod Schemas ---
-const personalSchema = z.object({
-    fullName: z.string().min(2, "Name is required"),
-    email: z.string().email("Invalid email"),
-    phone: z.string().min(5, "Phone is required"),
-    country: z.string().min(2, "Country is required"),
+// Define a base schema for type inference only
+const baseFormSchema = z.object({
+    fullName: z.string(),
+    email: z.string(),
+    phone: z.string(),
+    country: z.string(),
     city: z.string().optional(),
-});
-
-const legalSchema = z.object({
-    hasBusiness: z.enum(["Yes", "No"]).refine((val) => val !== undefined, {
-        message: "Please select if you have a business registration",
-    }),
+    hasBusiness: z.enum(["Yes", "No"]),
     registrationType: z.string().optional(),
     businessName: z.string().optional(),
     businessId: z.string().optional(),
     taxId: z.string().optional(),
-}).refine((data) => {
-    if (data.hasBusiness === "Yes") {
-        return data.businessId && data.businessId.length >= 3;
-    }
-    return true;
-}, {
-    message: "Business ID (CNPJ/NIF) is required when you have a business registration",
-    path: ["businessId"],
-});
-
-const experienceSchema = z.object({
     currentOccupation: z.string().optional(),
-    areaOfExpertise: z.array(z.string()).min(1, "Select at least one expertise"),
+    areaOfExpertise: z.array(z.string()),
     otherAreaOfExpertise: z.string().optional(),
-    yearsOfExperience: z.string().min(1, "Years of experience is required"),
-    interestedRoles: z.array(z.string()).min(1, "Select at least one role"),
-    visaExperience: z.string().min(1, "Please select your visa experience"),
-    englishLevel: z.string().min(1, "English level is required"),
-    clientExperience: z.enum(["Yes", "No"]).refine((val) => val !== undefined, {
-        message: "Please select if you have client experience",
-    }),
+    yearsOfExperience: z.string(),
+    interestedRoles: z.array(z.string()),
+    visaExperience: z.string(),
+    englishLevel: z.string(),
+    clientExperience: z.enum(["Yes", "No"]),
     clientExperienceDescription: z.string().optional(),
-}).refine((data) => {
-    if (data.clientExperience === "Yes") {
-        return data.clientExperienceDescription && data.clientExperienceDescription.length >= 10;
-    }
-    return true;
-}, {
-    message: "Please describe your client experience",
-    path: ["clientExperienceDescription"],
-}).refine((data) => {
-    if (data.areaOfExpertise?.includes("Other")) {
-        return data.otherAreaOfExpertise && data.otherAreaOfExpertise.trim().length >= 3;
-    }
-    return true;
-}, {
-    message: "Please specify your area of expertise",
-    path: ["otherAreaOfExpertise"],
-});
-
-const fitSchema = z.object({
-    weeklyAvailability: z.string().min(1, "Availability is required"),
-    whyMigma: z.string()
-        .min(1, "This field is required")
-        .refine((val) => val.trim().length >= 10, {
-            message: "Please tell us more about why you want to join (minimum 10 characters)",
-        }),
-    comfortableModel: z.boolean().refine(val => val === true, "You must acknowledge the contractor status"),
-});
-
-const finalizeSchema = z.object({
-    linkedin: z.string().optional().refine((val) => !val || z.string().url().safeParse(val).success, {
-        message: "Invalid URL",
-    }),
+    weeklyAvailability: z.string(),
+    whyMigma: z.string(),
+    comfortableModel: z.boolean(),
+    linkedin: z.string().optional(),
     otherLinks: z.string().optional(),
-    cv: z.any().refine((val) => val !== undefined && val !== null, {
-        message: "CV file is required",
-    }),
+    cv: z.any(),
+    infoAccurate: z.boolean(),
+    marketingConsent: z.boolean().optional(),
 });
 
-const consentSchema = z.object({
-    infoAccurate: z.boolean()
-        .default(false)
-        .refine(val => val === true, {
-            message: "You must confirm that all information is accurate",
-        }),
-    marketingConsent: z.boolean().optional().default(false),
-});
-
-// Combined schema for type inference (though we validate step-by-step)
-const formSchema = personalSchema.merge(legalSchema).merge(experienceSchema).merge(fitSchema).merge(finalizeSchema).merge(consentSchema);
-type FormData = z.infer<typeof formSchema>;
+type FormData = z.infer<typeof baseFormSchema>;
 
 export const GlobalPartner = () => {
+    const { t } = useTranslation();
+
     const heroRef = useRef(null);
     const cardRef = React.useRef<HTMLDivElement>(null);
     const [isScrolled, setIsScrolled] = useState(false);
@@ -179,10 +127,11 @@ export const GlobalPartner = () => {
                                     <path d="M3 12H21M3 6H21M3 18H21" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
                                 </svg>
                                 <nav className={`hidden md:flex gap-6 items-center transition-colors duration-300 ${isScrolled ? 'text-gold-light' : 'text-gold-light'}`}>
-                                    <a href="#benefits" className="transition hover:text-gold-medium">Benefits</a>
-                                    <a href="#how-it-works" className="transition hover:text-gold-medium">How it works</a>
+                                    <LanguageSelector />
+                                    <a href="#benefits" className="transition hover:text-gold-medium">{t('global_partner.nav.benefits', 'Benefits')}</a>
+                                    <a href="#how-it-works" className="transition hover:text-gold-medium">{t('global_partner.nav.how_it_works', 'How it works')}</a>
                                     <button onClick={scrollToForm} className="px-4 py-2 rounded-lg font-bold inline-flex items-center justify-center tracking-tight hover:opacity-90 transition shadow-lg" style={{ background: 'linear-gradient(180deg, #F3E196 0%, #CE9F48 50%, #F3E196 100%)', color: '#000', WebkitTextFillColor: '#000', boxShadow: '0 4px 12px rgba(206, 159, 72, 0.4)' }}>
-                                        Get started
+                                        {t('global_partner.nav.get_started', 'Get started')}
                                     </button>
                                 </nav>
                             </div>
@@ -199,16 +148,16 @@ export const GlobalPartner = () => {
                         <div className="md:flex items-center">
                             <div className="md:w-[478px]">
                                 <div className="text-sm inline-flex border border-gold-medium/30 bg-gold-dark/20 text-gold-light px-3 py-1 rounded-lg tracking-tight">
-                                    Global Partner Program
+                                    {t('global_partner.hero.tag', 'Global Partner Program')}
                                 </div>
                                 <h1 className="text-5xl md:text-7xl font-bold tracking-tighter migma-gold-text mt-6">
-                                    Work with MIGMA from anywhere in the world
+                                    {t('global_partner.hero.title', 'Work with MIGMA from anywhere in the world')}
                                 </h1>
                                 <p className="text-xl text-gold-light tracking-tight mt-6">
-                                    Join the MIGMA Global Partner Program and collaborate with us as a Global Independent Contractor Partner.
+                                    {t('global_partner.hero.description', 'Join the MIGMA Global Partner Program and collaborate with us as a Global Independent Contractor Partner.')}
                                 </p>
                                 <div className="flex gap-1 items-center mt-[30px]">
-                                    <button onClick={scrollToForm} className="btn btn-primary">Apply to Become a Global Partner</button>
+                                    <button onClick={scrollToForm} className="btn btn-primary">{t('global_partner.hero.apply_button', 'Apply to Become a Global Partner')}</button>
                                 </div>
                             </div>
                             <div className="mt-20 md:mt-0 md:h-[648px] md:flex-1 relative">
@@ -264,13 +213,13 @@ export const GlobalPartner = () => {
                     {/* Heading centralizado inspirado no template */}
                     <div className="section-heading mb-16">
                         <div className="flex justify-center">
-                            <div className="tag">Why join MIGMA</div>
+                            <div className="tag">{t('global_partner.benefits.tag', 'Why join MIGMA')}</div>
                         </div>
                         <h2 className="section-title mt-5">
-                            Work with freedom and earn in USD
+                            {t('global_partner.benefits.title', 'Work with freedom and earn in USD')}
                         </h2>
                         <p className="section-description mt-5 text-white">
-                            Join a global team of talented professionals and enjoy the benefits of working remotely with competitive compensation.
+                            {t('global_partner.benefits.description', 'Join a global team of talented professionals and enjoy the benefits of working remotely with competitive compensation.')}
                         </p>
                     </div>
 
@@ -311,9 +260,9 @@ export const GlobalPartner = () => {
                                 <div className="w-16 h-16 mb-6 group-hover:scale-110 transition-transform duration-300">
                                     <img src="/money-icon.svg" alt="Money" className="w-full h-full" />
                                 </div>
-                                <h3 className="text-2xl font-bold mb-4 migma-gold-text">Earn in USD</h3>
+                                <h3 className="text-2xl font-bold mb-4 migma-gold-text">{t('global_partner.benefits.benefit1_title', 'Earn in USD')}</h3>
                                 <p className="text-gray-300 leading-relaxed">
-                                    Competitive compensation paid in US Dollars, regardless of your location.
+                                    {t('global_partner.benefits.benefit1_desc', 'Competitive compensation paid in US Dollars, regardless of your location.')}
                                 </p>
                             </div>
                         </motion.div>
@@ -330,9 +279,9 @@ export const GlobalPartner = () => {
                                 <div className="w-16 h-16 mb-6 group-hover:scale-110 transition-transform duration-300">
                                     <img src="/remote-work-icon.svg" alt="Remote Work" className="w-full h-full" />
                                 </div>
-                                <h3 className="text-2xl font-bold mb-4 migma-gold-text">Work Remotely</h3>
+                                <h3 className="text-2xl font-bold mb-4 migma-gold-text">{t('global_partner.benefits.benefit2_title', 'Work Remotely')}</h3>
                                 <p className="text-gray-300 leading-relaxed">
-                                    Complete freedom to work from anywhere. All you need is a reliable internet connection.
+                                    {t('global_partner.benefits.benefit2_desc', 'Complete freedom to work from anywhere. All you need is a reliable internet connection.')}
                                 </p>
                             </div>
                         </motion.div>
@@ -349,9 +298,9 @@ export const GlobalPartner = () => {
                                 <div className="w-16 h-16 mb-6 group-hover:scale-110 transition-transform duration-300">
                                     <img src="/business-icon.svg" alt="Business" className="w-full h-full" />
                                 </div>
-                                <h3 className="text-2xl font-bold mb-4 migma-gold-text">Business Entity Required</h3>
+                                <h3 className="text-2xl font-bold mb-4 migma-gold-text">{t('global_partner.benefits.benefit3_title', 'Business Entity Required')}</h3>
                                 <p className="text-gray-300 leading-relaxed">
-                                    You must have a valid business entity (CNPJ, NIF, or equivalent) to invoice us.
+                                    {t('global_partner.benefits.benefit3_desc', 'You must have a valid business entity (CNPJ, NIF, or equivalent) to invoice us.')}
                                 </p>
                             </div>
                         </motion.div>
@@ -363,9 +312,9 @@ export const GlobalPartner = () => {
             <section id="who-is-this-for" className="bg-gradient-to-b from-[#1a1a1a] to-black py-24">
                 <div className="container max-w-3xl">
                     <div className="section-heading mb-16">
-                        <h2 className="section-title">Who is the MIGMA Global Partner Program for?</h2>
+                        <h2 className="section-title">{t('global_partner.who_is_it_for.title', 'Who is the MIGMA Global Partner Program for?')}</h2>
                         <p className="section-description mt-5 text-gray-300">
-                            We are looking for ambitious people and companies who want to work with MIGMA as independent contractors and help us expand globally.
+                            {t('global_partner.who_is_it_for.description', 'We are looking for ambitious people and companies who want to work with MIGMA as independent contractors and help us expand globally.')}
                         </p>
                     </div>
                     <div className="space-y-4">
@@ -377,7 +326,7 @@ export const GlobalPartner = () => {
                             className="flex items-start gap-3"
                         >
                             <div className="w-2 h-2 rounded-full bg-gold-medium mt-2 flex-shrink-0" />
-                            <p className="text-gray-400">You live in Brazil, Portugal, Angola, Mozambique, Cape Verde or any other country.</p>
+                            <p className="text-gray-400">{t('global_partner.who_is_it_for.point1', 'You live in Brazil, Portugal, Angola, Mozambique, Cape Verde or any other country.')}</p>
                         </motion.div>
                         <motion.div
                             initial={{ opacity: 0, y: 20 }}
@@ -387,7 +336,7 @@ export const GlobalPartner = () => {
                             className="flex items-start gap-3"
                         >
                             <div className="w-2 h-2 rounded-full bg-gold-medium mt-2 flex-shrink-0" />
-                            <p className="text-gray-400">You have (or are able to obtain) a valid business or tax registration (CNPJ, NIF or equivalent).</p>
+                            <p className="text-gray-400">{t('global_partner.who_is_it_for.point2', 'You have (or are able to obtain) a valid business or tax registration (CNPJ, NIF or equivalent).')}</p>
                         </motion.div>
                         <motion.div
                             initial={{ opacity: 0, y: 20 }}
@@ -397,7 +346,7 @@ export const GlobalPartner = () => {
                             className="flex items-start gap-3"
                         >
                             <div className="w-2 h-2 rounded-full bg-gold-medium mt-2 flex-shrink-0" />
-                            <p className="text-gray-400">You are comfortable working with clients, sales, service, operations or consulting.</p>
+                            <p className="text-gray-400">{t('global_partner.who_is_it_for.point3', 'You are comfortable working with clients, sales, service, operations or consulting.')}</p>
                         </motion.div>
                         <motion.div
                             initial={{ opacity: 0, y: 20 }}
@@ -407,7 +356,7 @@ export const GlobalPartner = () => {
                             className="flex items-start gap-3"
                         >
                             <div className="w-2 h-2 rounded-full bg-gold-medium mt-2 flex-shrink-0" />
-                            <p className="text-gray-400">You are open to being paid per result, commission or project.</p>
+                            <p className="text-gray-400">{t('global_partner.who_is_it_for.point4', 'You are open to being paid per result, commission or project.')}</p>
                         </motion.div>
                         <motion.div
                             initial={{ opacity: 0, y: 20 }}
@@ -417,7 +366,7 @@ export const GlobalPartner = () => {
                             className="flex items-start gap-3"
                         >
                             <div className="w-2 h-2 rounded-full bg-gold-medium mt-2 flex-shrink-0" />
-                            <p className="text-gray-400">You like the idea of growing with an international ecosystem instead of a traditional job.</p>
+                            <p className="text-gray-400">{t('global_partner.who_is_it_for.point5', 'You like the idea of growing with an international ecosystem instead of a traditional job.')}</p>
                         </motion.div>
                         <motion.div
                             initial={{ opacity: 0, y: 20 }}
@@ -427,7 +376,7 @@ export const GlobalPartner = () => {
                             className="flex items-start gap-3"
                         >
                             <div className="w-2 h-2 rounded-full bg-gold-medium mt-2 flex-shrink-0" />
-                            <p className="text-gray-400">You like to receive payments in USD.</p>
+                            <p className="text-gray-400">{t('global_partner.who_is_it_for.point6', 'You like to receive payments in USD.')}</p>
                         </motion.div>
                         <motion.div
                             initial={{ opacity: 0, y: 20 }}
@@ -437,7 +386,7 @@ export const GlobalPartner = () => {
                             className="flex items-start gap-3"
                         >
                             <div className="w-2 h-2 rounded-full bg-gold-medium mt-2 flex-shrink-0" />
-                            <p className="text-gray-400">You enjoy working with the United States visa process.</p>
+                            <p className="text-gray-400">{t('global_partner.who_is_it_for.point7', 'You enjoy working with the United States visa process.')}</p>
                         </motion.div>
                     </div>
                 </div>
@@ -447,15 +396,15 @@ export const GlobalPartner = () => {
             <section id="how-it-works" className="bg-[#1a1a1a] py-24">
                 <div className="container max-w-3xl">
                     <div className="section-heading mb-16">
-                        <h2 className="section-title">How it works</h2>
-                        <p className="section-description mt-5 text-gray-300">Join our global team in four simple steps</p>
+                        <h2 className="section-title">{t('global_partner.how_it_works.title', 'How it works')}</h2>
+                        <p className="section-description mt-5 text-gray-300">{t('global_partner.how_it_works.description', 'Join our global team in four simple steps')}</p>
                     </div>
                     <div className="relative border-l-2 border-gold-medium/30 ml-4 md:ml-0 md:pl-8 space-y-12">
                         {[
-                            { title: 'Apply', desc: 'Submit your application with your professional details.' },
-                            { title: 'Profile Review', desc: 'Our team reviews your experience and qualifications.' },
-                            { title: 'Interview', desc: 'A brief call to discuss your fit and opportunities.' },
-                            { title: 'Onboarding', desc: 'Get set up with our systems and start working.' },
+                            { title: t('global_partner.how_it_works.step1_title', 'Apply'), desc: t('global_partner.how_it_works.step1_desc', 'Submit your application with your professional details.') },
+                            { title: t('global_partner.how_it_works.step2_title', 'Profile Review'), desc: t('global_partner.how_it_works.step2_desc', 'Our team reviews your experience and qualifications.') },
+                            { title: t('global_partner.how_it_works.step3_title', 'Interview'), desc: t('global_partner.how_it_works.step3_desc', 'A brief call to discuss your fit and opportunities.') },
+                            { title: t('global_partner.how_it_works.step4_title', 'Onboarding'), desc: t('global_partner.how_it_works.step4_desc', 'Get set up with our systems and start working.') },
                         ].map((step, index) => (
                             <motion.div
                                 key={index}
@@ -478,9 +427,9 @@ export const GlobalPartner = () => {
             <section id="application-form" className="bg-gradient-to-b from-black via-[#1a1a1a] to-black py-24">
                 <div className="container max-w-3xl">
                     <div className="text-center mb-8">
-                        <h2 className="section-title">Apply to become a MIGMA Global Partner</h2>
+                        <h2 className="section-title">{t('global_partner.form.title', 'Apply to become a MIGMA Global Partner')}</h2>
                         <p className="section-description mt-5 text-gray-300">
-                            Tell us more about you, your experience and why you want to work with MIGMA. If your profile matches what we are looking for, you will receive an email to schedule an interview.
+                            {t('global_partner.form.description', 'Tell us more about you, your experience and why you want to work with MIGMA. If your profile matches what we are looking for, you will receive an email to schedule an interview.')}
                         </p>
                     </div>
                     <Card ref={cardRef} className="border-gold-medium/30 shadow-2xl bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 backdrop-blur-sm">
@@ -505,57 +454,58 @@ export const GlobalPartner = () => {
 
 // Testimonials Section
 const TestimonialsSection = () => {
+    const { t } = useTranslation();
     const testimonials = [
         {
-            text: "Working with MIGMA as a Global Partner has been an incredible experience. The flexibility and support are unmatched.",
+            text: t('global_partner.testimonials.testimonial1_text', "Working with MIGMA as a Global Partner has been an incredible experience. The flexibility and support are unmatched."),
             imageSrc: "/avatar-1.png",
             name: "Sarah Chen",
             username: "@sarahchen_dev",
         },
         {
-            text: "The opportunity to work remotely while earning in USD has transformed my career. Highly recommend joining the program.",
+            text: t('global_partner.testimonials.testimonial2_text', "The opportunity to work remotely while earning in USD has transformed my career. Highly recommend joining the program."),
             imageSrc: "/avatar-2.png",
             name: "Marcus Rodriguez",
             username: "@marcus_tech",
         },
         {
-            text: "MIGMA's Global Partner Program offers the perfect balance of independence and collaboration.",
+            text: t('global_partner.testimonials.testimonial3_text', "MIGMA's Global Partner Program offers the perfect balance of independence and collaboration."),
             imageSrc: "/avatar-3.png",
             name: "Priya Patel",
             username: "@priya_design",
         },
         {
-            text: "As a contractor, I appreciate the professional structure and competitive compensation MIGMA provides.",
+            text: t('global_partner.testimonials.testimonial4_text', "As a contractor, I appreciate the professional structure and competitive compensation MIGMA provides."),
             imageSrc: "/avatar-4.png",
             name: "David Kim",
             username: "@davidkim_dev",
         },
         {
-            text: "The onboarding process was smooth, and the team is always available to help. Great experience overall.",
+            text: t('global_partner.testimonials.testimonial5_text', "The onboarding process was smooth, and the team is always available to help. Great experience overall."),
             imageSrc: "/avatar-5.png",
             name: "Emma Wilson",
             username: "@emmawilson",
         },
         {
-            text: "Working with MIGMA has opened doors to exciting projects I wouldn't have access to otherwise.",
+            text: t('global_partner.testimonials.testimonial6_text', "Working with MIGMA has opened doors to exciting projects I wouldn't have access to otherwise."),
             imageSrc: "/avatar-6.png",
             name: "James Taylor",
             username: "@jamestaylor",
         },
         {
-            text: "The freedom to work from anywhere combined with USD payments makes this program ideal for global professionals.",
+            text: t('global_partner.testimonials.testimonial7_text', "The freedom to work from anywhere combined with USD payments makes this program ideal for global professionals."),
             imageSrc: "/avatar-7.png",
             name: "Luna Martinez",
             username: "@lunamartinez",
         },
         {
-            text: "MIGMA values quality work and provides the resources needed to deliver exceptional results.",
+            text: t('global_partner.testimonials.testimonial8_text', "MIGMA values quality work and provides the resources needed to deliver exceptional results."),
             imageSrc: "/avatar-8.png",
             name: "Alex Johnson",
             username: "@alexjohnson",
         },
         {
-            text: "Being part of MIGMA's global network has expanded my professional horizons significantly.",
+            text: t('global_partner.testimonials.testimonial9_text', "Being part of MIGMA's global network has expanded my professional horizons significantly."),
             imageSrc: "/avatar-9.png",
             name: "Sofia Anderson",
             username: "@sofiaanderson",
@@ -613,11 +563,11 @@ const TestimonialsSection = () => {
             <div className="container">
                 <div className="section-heading">
                     <div className="flex justify-center">
-                        <div className="tag">Testimonials</div>
+                        <div className="tag">{t('global_partner.testimonials.tag', 'Testimonials')}</div>
                     </div>
-                    <h2 className="section-title mt-5">What our partners say</h2>
+                    <h2 className="section-title mt-5">{t('global_partner.testimonials.title', 'What our partners say')}</h2>
                     <p className="section-description mt-5 text-gray-300">
-                        Join a community of talented professionals who have found success working with MIGMA as Global Partners.
+                        {t('global_partner.testimonials.description', 'Join a community of talented professionals who have found success working with MIGMA as Global Partners.')}
                     </p>
                 </div>
 
@@ -633,6 +583,7 @@ const TestimonialsSection = () => {
 
 // Call to Action Section
 const CallToActionSection = ({ scrollToForm }: { scrollToForm: () => void }) => {
+    const { t } = useTranslation();
     const sectionRef = useRef(null);
     const { scrollYProgress } = useScroll({
         target: sectionRef,
@@ -645,9 +596,9 @@ const CallToActionSection = ({ scrollToForm }: { scrollToForm: () => void }) => 
         <section ref={sectionRef} className="bg-black py-24 overflow-x-clip">
             <div className="container">
                 <div className="section-heading relative">
-                    <h2 className="section-title">Ready to join our global team?</h2>
+                    <h2 className="section-title">{t('global_partner.cta.title', 'Ready to join our global team?')}</h2>
                     <p className="section-description mt-5 migma-gold-text">
-                        Start your journey as a MIGMA Global Partner and work with freedom, earn in USD, and collaborate with a world-class team.
+                        {t('global_partner.cta.description', 'Start your journey as a MIGMA Global Partner and work with freedom, earn in USD, and collaborate with a world-class team.')}
                     </p>
 
                     <motion.img
@@ -672,7 +623,7 @@ const CallToActionSection = ({ scrollToForm }: { scrollToForm: () => void }) => 
                 </div>
 
                 <div className="flex gap-2 mt-10 justify-center">
-                    <button onClick={scrollToForm} className="btn btn-primary">Apply now</button>
+                    <button onClick={scrollToForm} className="btn btn-primary">{t('global_partner.cta.apply_button', 'Apply now')}</button>
                 </div>
             </div>
         </section>
@@ -681,6 +632,7 @@ const CallToActionSection = ({ scrollToForm }: { scrollToForm: () => void }) => 
 
 // Footer Section
 const FooterSection = () => {
+    const { t } = useTranslation();
     return (
         <footer className="bg-black text-gold-light/70 text-sm py-10">
             <div className="container">
@@ -690,43 +642,43 @@ const FooterSection = () => {
                         <Link to="/" className="inline-flex mb-4">
                             <img src="/logo2.png" alt="MIGMA INC" className="h-16 md:h-20 w-auto" />
                         </Link>
-                        <p className="text-gray-400">&copy; MIGMA INC. All rights reserved.</p>
+                        <p className="text-gray-400">&copy; MIGMA INC. {t('global_partner.footer.all_rights_reserved', 'All rights reserved.')}</p>
                     </div>
 
                     {/* Navigation Links */}
                     <nav className="flex flex-col md:flex-row gap-6 md:gap-8">
                         <div className="flex flex-col md:flex-row gap-4 md:gap-6">
                             <Link to="/" className="transition hover:text-gold-medium text-center md:text-left">
-                                Home
+                                {t('global_partner.footer.home', 'Home')}
                             </Link>
                             <Link to="/services" className="transition hover:text-gold-medium text-center md:text-left">
-                                Services
+                                {t('global_partner.footer.services', 'Services')}
                             </Link>
                             <Link to="/about" className="transition hover:text-gold-medium text-center md:text-left">
-                                About
+                                {t('global_partner.footer.about', 'About')}
                             </Link>
                             <Link to="/contact" className="transition hover:text-gold-medium text-center md:text-left">
-                                Contact
+                                {t('global_partner.footer.contact', 'Contact')}
                             </Link>
                             <a href="#benefits" className="transition hover:text-gold-medium text-center md:text-left">
-                                Benefits
+                                {t('global_partner.nav.benefits', 'Benefits')}
                             </a>
                             <a href="#how-it-works" className="transition hover:text-gold-medium text-center md:text-left">
-                                How it works
+                                {t('global_partner.nav.how_it_works', 'How it works')}
                             </a>
                             <a href="#application-form" className="transition hover:text-gold-medium text-center md:text-left">
-                                Apply
+                                {t('global_partner.footer.apply', 'Apply')}
                             </a>
                         </div>
                         <div className="flex flex-col md:flex-row gap-4 md:gap-6 border-t md:border-t-0 md:border-l border-gold-medium/30 pt-4 md:pt-0 md:pl-6">
                             <Link to="/legal/privacy-policy" className="transition hover:text-gold-medium text-center md:text-left">
-                                Privacy Policy
+                                {t('global_partner.footer.privacy_policy', 'Privacy Policy')}
                             </Link>
                             <Link to="/legal/website-terms" className="transition hover:text-gold-medium text-center md:text-left">
-                                Website Terms
+                                {t('global_partner.footer.website_terms', 'Website Terms')}
                             </Link>
                             <Link to="/legal/cookies" className="transition hover:text-gold-medium text-center md:text-left">
-                                Cookies
+                                {t('global_partner.footer.cookies', 'Cookies')}
                             </Link>
                         </div>
                     </nav>
@@ -795,6 +747,101 @@ interface ApplicationWizardProps {
 }
 
 const ApplicationWizard = ({ cardRef }: ApplicationWizardProps) => {
+    const { t } = useTranslation();
+
+    const formSchema = React.useMemo(() => {
+        const personalSchema = z.object({
+            fullName: z.string().min(2, t('global_partner.validation.full_name_required', 'Full name is required')),
+            email: z.string().email(t('global_partner.validation.email_invalid', 'Invalid email address')),
+            phone: z.string().min(5, t('global_partner.validation.phone_required', 'Phone number is required')),
+            country: z.string().min(2, t('global_partner.validation.country_required', 'Country is required')),
+            city: z.string().optional(),
+        });
+
+        const legalSchema = z.object({
+            hasBusiness: z.enum(["Yes", "No"]),
+            registrationType: z.string().optional(),
+            businessName: z.string().optional(),
+            businessId: z.string().optional(),
+            taxId: z.string().optional(),
+        }).refine((data) => {
+            if (data.hasBusiness === "Yes") {
+                return !!data.businessId;
+            }
+            return true;
+        }, {
+            message: t('global_partner.validation.business_id_required', 'Business Registration Number is required'),
+            path: ["businessId"],
+        });
+
+        const experienceSchema = z.object({
+            currentOccupation: z.string().optional(),
+            areaOfExpertise: z.array(z.string()).min(1, t('global_partner.validation.expertise_required', 'Select at least one expertise')),
+            otherAreaOfExpertise: z.string().optional(),
+            yearsOfExperience: z.string().min(1, t('global_partner.validation.years_required', 'Years of experience is required')),
+            interestedRoles: z.array(z.string()).min(1, t('global_partner.validation.role_required', 'Select at least one role')),
+            visaExperience: z.string().min(1, t('global_partner.validation.visa_exp_required', 'Please select your visa experience')),
+            englishLevel: z.string().min(1, t('global_partner.validation.english_required', 'English level is required')),
+            clientExperience: z.enum(["Yes", "No"]).refine((val) => val !== undefined, {
+                message: t('global_partner.validation.client_exp_required', 'Please select if you have client experience'),
+            }),
+            clientExperienceDescription: z.string().optional(),
+        }).refine((data) => {
+            if (data.clientExperience === "Yes") {
+                return data.clientExperienceDescription && data.clientExperienceDescription.length >= 10;
+            }
+            return true;
+        }, {
+            message: t('global_partner.validation.client_desc_required', 'Please describe your client experience (minimum 10 characters)'),
+            path: ["clientExperienceDescription"],
+        }).refine((data) => {
+            if (data.areaOfExpertise?.includes("Other")) {
+                return data.otherAreaOfExpertise && data.otherAreaOfExpertise.trim().length >= 3;
+            }
+            return true;
+        }, {
+            message: t('global_partner.validation.oth_exp_required', 'Please specify your area of expertise'),
+            path: ["otherAreaOfExpertise"],
+        });
+
+        const fitSchema = z.object({
+            weeklyAvailability: z.string().min(1, t('global_partner.validation.availability_required', 'Availability is required')),
+            whyMigma: z.string()
+                .min(1, t('global_partner.validation.why_migma_required', 'This field is required'))
+                .refine((val) => val.trim().length >= 10, {
+                    message: t('global_partner.validation.why_migma_min', 'Please tell us more about why you want to join (minimum 10 characters)'),
+                }),
+            comfortableModel: z.boolean().refine(val => val === true, t('global_partner.validation.acknowledge_contractor', 'You must acknowledge the contractor status')),
+        });
+
+        const finalizeSchema = z.object({
+            linkedin: z.string().optional().refine((val) => !val || z.string().url().safeParse(val).success, {
+                message: t('global_partner.validation.invalid_url', 'Invalid URL'),
+            }),
+            otherLinks: z.string().optional(),
+            cv: z.any().refine((val) => val !== undefined && val !== null, {
+                message: t('global_partner.validation.cv_required', 'CV file is required'),
+            }),
+        });
+
+        const consentSchema = z.object({
+            infoAccurate: z.boolean()
+                .default(false)
+                .refine(val => val === true, {
+                    message: t('global_partner.validation.info_accurate', 'You must confirm that all information is accurate'),
+                }),
+            marketingConsent: z.boolean().default(false),
+        });
+
+        return z.intersection(
+            z.intersection(
+                z.intersection(personalSchema, legalSchema),
+                z.intersection(experienceSchema, fitSchema)
+            ),
+            z.intersection(finalizeSchema, consentSchema)
+        );
+    }, [t]);
+
     // Função para mostrar aviso visual (similar ao useContentProtection)
     const showWarning = (message: string) => {
         // Adicionar estilos de animação se não existirem
@@ -1057,8 +1104,6 @@ const ApplicationWizard = ({ cardRef }: ApplicationWizardProps) => {
         }
     }, []); // Only run once on mount
 
-    const hasBusiness = watch('hasBusiness');
-    const clientExperience = watch('clientExperience');
     const selectedCountry = watch('country');
     const hasOtherSelected = areaOfExpertise?.includes('Other');
 
@@ -1113,7 +1158,7 @@ const ApplicationWizard = ({ cardRef }: ApplicationWizardProps) => {
                             if (emailExists) {
                                 form.setError('email', {
                                     type: 'manual',
-                                    message: 'This email is already registered. Please use a different email address.',
+                                    message: t('global_partner.validation.email_exists', 'This email is already registered. Please use a different email address.'),
                                 });
                                 return false;
                             }
@@ -1189,7 +1234,7 @@ const ApplicationWizard = ({ cardRef }: ApplicationWizardProps) => {
             if (!values.areaOfExpertise || !Array.isArray(values.areaOfExpertise) || values.areaOfExpertise.length === 0) {
                 form.setError('areaOfExpertise', {
                     type: 'manual',
-                    message: 'Select at least one expertise',
+                    message: t('global_partner.validation.expertise_required', 'Select at least one expertise'),
                 });
 
                 // #region agent log
@@ -1214,7 +1259,7 @@ const ApplicationWizard = ({ cardRef }: ApplicationWizardProps) => {
             if (!values.interestedRoles || !Array.isArray(values.interestedRoles) || values.interestedRoles.length === 0) {
                 form.setError('interestedRoles', {
                     type: 'manual',
-                    message: 'Select at least one role',
+                    message: t('global_partner.validation.role_required', 'Select at least one role'),
                 });
 
                 // #region agent log
@@ -1355,18 +1400,18 @@ const ApplicationWizard = ({ cardRef }: ApplicationWizardProps) => {
             if (firstInvalidStep !== null) {
                 // Get step name for better user feedback
                 const stepNames: Record<number, string> = {
-                    1: 'Personal Information',
-                    2: 'Legal & Business',
-                    3: 'Experience & Expertise',
-                    4: 'Availability & Fit',
-                    5: 'CV & Links',
-                    6: 'Consents'
+                    1: t('global_partner.wizard.personal_info', 'Personal Information'),
+                    2: t('global_partner.wizard.legal_info', 'Legal & Business'),
+                    3: t('global_partner.wizard.professional_background', 'Professional Background'),
+                    4: t('global_partner.wizard.availability_fit', 'Availability & Fit'),
+                    5: t('global_partner.wizard.cv_links', 'CV & Links'),
+                    6: t('global_partner.wizard.consents', 'Consents')
                 };
 
                 const stepName = stepNames[firstInvalidStep] || `Step ${firstInvalidStep}`;
 
                 // Show warning message
-                showWarning(`Please complete all required fields in "${stepName}" before submitting.`);
+                showWarning(t('global_partner.validation.complete_required_fields', { stepName, defaultValue: `Please complete all required fields in "${stepName}" before submitting.` }));
 
                 // Redirect to the step with missing required field
                 setStep(firstInvalidStep);
@@ -1395,7 +1440,7 @@ const ApplicationWizard = ({ cardRef }: ApplicationWizardProps) => {
             if (data.cv && data.cv instanceof File) {
                 const uploadResult = await uploadCV(data.cv);
                 if (!uploadResult.success) {
-                    showWarning(`Error uploading CV: ${uploadResult.error}`);
+                    showWarning(t('global_partner.validation.cv_upload_error', { error: uploadResult.error, defaultValue: `Error uploading CV: ${uploadResult.error}` }));
                     setIsSubmitting(false);
                     isSubmittingRef.current = false;
                     return;
@@ -1485,12 +1530,12 @@ const ApplicationWizard = ({ cardRef }: ApplicationWizardProps) => {
                 if (insertError.code === '23505' && insertError.message.includes('email')) {
                     form.setError('email', {
                         type: 'manual',
-                        message: 'This email is already registered. Please use a different email address.',
+                        message: t('global_partner.validation.email_exists', 'This email is already registered. Please use a different email address.'),
                     });
                     // Go back to step 1 to show the error
                     setStep(1);
                 } else {
-                    showWarning(`Error submitting application: ${insertError.message}`);
+                    showWarning(t('global_partner.validation.submission_error', { error: insertError.message, defaultValue: `Error submitting application: ${insertError.message}` }));
                 }
                 setIsSubmitting(false);
                 isSubmittingRef.current = false;
@@ -1586,7 +1631,7 @@ const ApplicationWizard = ({ cardRef }: ApplicationWizardProps) => {
             navigate('/global-partner/thank-you');
         } catch (error) {
             console.error("Error submitting form:", error);
-            showWarning("There was an error submitting your application. Please try again.");
+            showWarning(t('global_partner.validation.general_error', 'There was an error submitting your application. Please try again.'));
             setIsSubmitting(false);
             isSubmittingRef.current = false;
         }
@@ -1599,15 +1644,15 @@ const ApplicationWizard = ({ cardRef }: ApplicationWizardProps) => {
                 <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50">
                     <div className="text-center">
                         <div className="loader-gold mx-auto mb-4"></div>
-                        <p className="text-gold-light text-lg font-semibold">Submitting your application...</p>
-                        <p className="text-gray-400 text-sm mt-2">Please wait</p>
+                        <p className="text-gold-light text-lg font-semibold">{t('global_partner.form.submitting', 'Submitting your application...')}</p>
+                        <p className="text-gray-400 text-sm mt-2">{t('global_partner.form.please_wait', 'Please wait')}</p>
                     </div>
                 </div>
             )}
 
             <div className="mb-8">
                 <div className="flex justify-between text-sm font-medium text-white mb-2">
-                    <span>Step {step} of {totalSteps}</span>
+                    <span>{t('global_partner.form.step_x_of_y', { step, totalSteps, defaultValue: `Step ${step} of ${totalSteps}` })}</span>
                     <span>{Math.round(progress)}%</span>
                 </div>
                 <Progress value={progress} className="h-2" />
@@ -1616,15 +1661,15 @@ const ApplicationWizard = ({ cardRef }: ApplicationWizardProps) => {
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
                 {step === 1 && (
                     <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="space-y-4">
-                        <h3 className="text-2xl font-bold mb-4 text-white">Personal Information</h3>
+                        <h3 className="text-2xl font-bold mb-4 text-white">{t('global_partner.wizard.personal_info', 'Personal Information')}</h3>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <div className="space-y-2">
-                                <Label htmlFor="fullName" className="text-white">Full Name *</Label>
+                                <Label htmlFor="fullName" className="text-white">{t('global_partner.wizard.full_name', 'Full Name *')}</Label>
                                 <Input id="fullName" {...register('fullName')} className="bg-white text-black" />
                                 {errors.fullName && <p className="text-sm text-destructive">{errors.fullName.message}</p>}
                             </div>
                             <div className="space-y-2">
-                                <Label htmlFor="email" className="text-white">Email *</Label>
+                                <Label htmlFor="email" className="text-white">{t('global_partner.wizard.email', 'Email *')}</Label>
                                 <Input
                                     id="email"
                                     type="email"
@@ -1643,7 +1688,7 @@ const ApplicationWizard = ({ cardRef }: ApplicationWizardProps) => {
                                 )}
                             </div>
                             <div className="space-y-2">
-                                <Label htmlFor="country" className="text-white">Country *</Label>
+                                <Label htmlFor="country" className="text-white">{t('global_partner.wizard.country', 'Country *')}</Label>
                                 <Select
                                     value={watch('country') || ''}
                                     onValueChange={(val) => {
@@ -1652,18 +1697,20 @@ const ApplicationWizard = ({ cardRef }: ApplicationWizardProps) => {
                                     }}
                                 >
                                     <SelectTrigger className="bg-white text-black">
-                                        <SelectValue placeholder="Select a country" />
+                                        <SelectValue placeholder={t('global_partner.wizard.select_country', 'Select a country')} />
                                     </SelectTrigger>
                                     <SelectContent>
                                         {countries.map((country) => (
-                                            <SelectItem key={country} value={country}>{country}</SelectItem>
+                                            <SelectItem key={country} value={country}>
+                                                {t(`global_partner.countries.${country.replace(/\s/g, '_').toLowerCase()}`, country)}
+                                            </SelectItem>
                                         ))}
                                     </SelectContent>
                                 </Select>
                                 {errors.country && <p className="text-sm text-destructive">{errors.country.message}</p>}
                             </div>
                             <div className="space-y-2">
-                                <Label htmlFor="phone" className="text-white">Phone * (include country code)</Label>
+                                <Label htmlFor="phone" className="text-white">{t('global_partner.wizard.phone', 'Phone * (include country code)')}</Label>
                                 <Input
                                     id="phone"
                                     type="tel"
@@ -1674,7 +1721,7 @@ const ApplicationWizard = ({ cardRef }: ApplicationWizardProps) => {
                                 {errors.phone && <p className="text-sm text-destructive">{errors.phone.message}</p>}
                             </div>
                             <div className="space-y-2">
-                                <Label htmlFor="city" className="text-white">City</Label>
+                                <Label htmlFor="city" className="text-white">{t('global_partner.wizard.city', 'City')}</Label>
                                 <Input id="city" {...register('city')} className="bg-white text-black" />
                                 {errors.city && <p className="text-sm text-destructive">{errors.city.message}</p>}
                             </div>
@@ -1684,10 +1731,10 @@ const ApplicationWizard = ({ cardRef }: ApplicationWizardProps) => {
 
                 {step === 2 && (
                     <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="space-y-4">
-                        <h3 className="text-2xl font-bold mb-4 text-white">Legal / Tax Information</h3>
+                        <h3 className="text-2xl font-bold mb-4 text-white">{t('global_partner.wizard.legal_info', 'Legal / Tax Information')}</h3>
                         <div className="space-y-4">
                             <div className="space-y-2">
-                                <Label className="text-white">Do you have a valid business or tax registration (CNPJ, NIF or equivalent)? *</Label>
+                                <Label className="text-white">{t('global_partner.wizard.has_business_label', 'Do you have a valid business or tax registration (CNPJ, NIF or equivalent)? *')}</Label>
                                 <div className="flex gap-6">
                                     <div className="flex items-center space-x-2">
                                         <input
@@ -1697,7 +1744,7 @@ const ApplicationWizard = ({ cardRef }: ApplicationWizardProps) => {
                                             {...register('hasBusiness')}
                                             className="w-4 h-4"
                                         />
-                                        <Label htmlFor="hasBusinessYes" className="font-normal cursor-pointer text-white">Yes</Label>
+                                        <Label htmlFor="hasBusinessYes" className="font-normal cursor-pointer text-white">{t('global_partner.wizard.yes', 'Yes')}</Label>
                                     </div>
                                     <div className="flex items-center space-x-2">
                                         <input
@@ -1707,31 +1754,31 @@ const ApplicationWizard = ({ cardRef }: ApplicationWizardProps) => {
                                             {...register('hasBusiness')}
                                             className="w-4 h-4"
                                         />
-                                        <Label htmlFor="hasBusinessNo" className="font-normal cursor-pointer text-white">No</Label>
+                                        <Label htmlFor="hasBusinessNo" className="font-normal cursor-pointer text-white">{t('global_partner.wizard.no', 'No')}</Label>
                                     </div>
                                 </div>
                                 {errors.hasBusiness && <p className="text-sm text-destructive">{errors.hasBusiness.message}</p>}
                             </div>
 
-                            {hasBusiness === "Yes" && (
+                            {watch('hasBusiness') === "Yes" && (
                                 <>
                                     <div className="space-y-2">
-                                        <Label htmlFor="registrationType" className="text-white">Registration Type (CNPJ, NIF or equivalent)</Label>
-                                        <Input id="registrationType" placeholder="CNPJ, NIF or equivalent" {...register('registrationType')} className="bg-white text-black" />
+                                        <Label htmlFor="registrationType" className="text-white">{t('global_partner.wizard.registration_type', 'Registration Type (CNPJ, NIF or equivalent)')}</Label>
+                                        <Input id="registrationType" placeholder={t('global_partner.wizard.registration_type_placeholder', 'CNPJ, NIF or equivalent')} {...register('registrationType')} className="bg-white text-black" />
                                         {errors.registrationType && <p className="text-sm text-destructive">{errors.registrationType.message}</p>}
                                     </div>
                                     <div className="space-y-2">
-                                        <Label htmlFor="businessId" className="text-white">Business Registration Number (CNPJ/NIF) *</Label>
+                                        <Label htmlFor="businessId" className="text-white">{t('global_partner.wizard.business_id', 'Business Registration Number (CNPJ/NIF) *')}</Label>
                                         <Input id="businessId" {...register('businessId')} className="bg-white text-black" />
                                         {errors.businessId && <p className="text-sm text-destructive">{errors.businessId.message}</p>}
                                     </div>
                                     <div className="space-y-2">
-                                        <Label htmlFor="businessName" className="text-white">Business Name</Label>
+                                        <Label htmlFor="businessName" className="text-white">{t('global_partner.wizard.business_name', 'Business Name')}</Label>
                                         <Input id="businessName" {...register('businessName')} className="bg-white text-black" />
                                         {errors.businessName && <p className="text-sm text-destructive">{errors.businessName.message}</p>}
                                     </div>
                                     <div className="space-y-2">
-                                        <Label htmlFor="taxId" className="text-white">Tax ID</Label>
+                                        <Label htmlFor="taxId" className="text-white">{t('global_partner.wizard.tax_id', 'Tax ID')}</Label>
                                         <Input id="taxId" {...register('taxId')} className="bg-white text-black" />
                                         {errors.taxId && <p className="text-sm text-destructive">{errors.taxId.message}</p>}
                                     </div>
@@ -1743,16 +1790,16 @@ const ApplicationWizard = ({ cardRef }: ApplicationWizardProps) => {
 
                 {step === 3 && (
                     <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="space-y-4">
-                        <h3 className="text-2xl font-bold mb-4 text-white">Professional Background</h3>
+                        <h3 className="text-2xl font-bold mb-4 text-white">{t('global_partner.wizard.professional_background', 'Professional Background')}</h3>
 
                         <div className="space-y-2">
-                            <Label htmlFor="currentOccupation" className="text-white">Current Occupation</Label>
-                            <Input id="currentOccupation" {...register('currentOccupation')} placeholder="e.g., Visa Consultant, Sales Closer, Assistant, Student, Administrator" className="bg-white text-black" />
+                            <Label htmlFor="currentOccupation" className="text-white">{t('global_partner.wizard.current_occupation', 'Current Occupation')}</Label>
+                            <Input id="currentOccupation" {...register('currentOccupation')} placeholder={t('global_partner.wizard.current_occupation_placeholder', 'e.g., Visa Consultant, Sales Closer, Assistant, Student, Administrator')} className="bg-white text-black" />
                             {errors.currentOccupation && <p className="text-sm text-destructive">{errors.currentOccupation.message}</p>}
                         </div>
 
                         <div className="space-y-2">
-                            <Label className="text-white">Area of Expertise * (Select all that apply)</Label>
+                            <Label className="text-white">{t('global_partner.wizard.expertise_label', 'Area of Expertise * (Select all that apply)')}</Label>
                             <div className="grid grid-cols-2 gap-2">
                                 {['Visa Consulting / Immigration Support', 'Sales – Closer', 'Sales – Pre-Sales / SDR / Lead Qualification', 'Sales Coordinator / Sales Operations', 'Customer Success / Client Support', 'Team Leadership / Management', 'Operations / Administrative Support', 'Other'].map((skill) => (
                                     <div key={skill} className="flex items-center space-x-2 border border-gold-medium/30 bg-white/10 p-3 rounded-md hover:bg-white/20 transition">
@@ -1771,7 +1818,7 @@ const ApplicationWizard = ({ cardRef }: ApplicationWizardProps) => {
                                                 }
                                             }}
                                         />
-                                        <Label htmlFor={`skill-${skill}`} className="cursor-pointer flex-1 text-sm text-white">{skill}</Label>
+                                        <Label htmlFor={`skill-${skill}`} className="cursor-pointer flex-1 text-sm text-white">{t(`global_partner.expertise_options.${skill.replace(/[\/\s–]/g, '_').replace(/_+/g, '_').toLowerCase()}`, skill)}</Label>
                                     </div>
                                 ))}
                             </div>
@@ -1780,11 +1827,11 @@ const ApplicationWizard = ({ cardRef }: ApplicationWizardProps) => {
                             {/* Campo condicional para "Other" */}
                             {hasOtherSelected && (
                                 <div className="mt-3 space-y-2">
-                                    <Label htmlFor="otherAreaOfExpertise" className="text-white">Please specify your area of expertise *</Label>
+                                    <Label htmlFor="otherAreaOfExpertise" className="text-white">{t('global_partner.wizard.specify_expertise', 'Please specify your area of expertise *')}</Label>
                                     <Input
                                         id="otherAreaOfExpertise"
                                         {...register('otherAreaOfExpertise')}
-                                        placeholder="Enter your area of expertise"
+                                        placeholder={t('global_partner.wizard.registration_type_placeholder', 'Enter your area of expertise')}
                                         className="w-full bg-white text-black"
                                     />
                                     {errors.otherAreaOfExpertise && (
@@ -1795,26 +1842,26 @@ const ApplicationWizard = ({ cardRef }: ApplicationWizardProps) => {
                         </div>
 
                         <div className="space-y-2">
-                            <Label className="text-white">Years of Experience *</Label>
+                            <Label className="text-white">{t('global_partner.wizard.years_experience', 'Years of Experience *')}</Label>
                             <Select
                                 value={watch('yearsOfExperience') || ''}
                                 onValueChange={(val) => setValue('yearsOfExperience', val)}
                             >
                                 <SelectTrigger className="bg-white text-black">
-                                    <SelectValue placeholder="Select years of experience" />
+                                    <SelectValue placeholder={t('global_partner.wizard.select_years', 'Select years of experience')} />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value="Less than 1 year">Less than 1 year</SelectItem>
-                                    <SelectItem value="1–3 years">1–3 years</SelectItem>
-                                    <SelectItem value="3–5 years">3–5 years</SelectItem>
-                                    <SelectItem value="5+ years">5+ years</SelectItem>
+                                    <SelectItem value="Less than 1 year">{t('global_partner.years_options.less_1', 'Less than 1 year')}</SelectItem>
+                                    <SelectItem value="1–3 years">{t('global_partner.years_options.1_3', '1–3 years')}</SelectItem>
+                                    <SelectItem value="3–5 years">{t('global_partner.years_options.3_5', '3–5 years')}</SelectItem>
+                                    <SelectItem value="5+ years">{t('global_partner.years_options.5plus', '5+ years')}</SelectItem>
                                 </SelectContent>
                             </Select>
                             {errors.yearsOfExperience && <p className="text-sm text-destructive">{errors.yearsOfExperience.message}</p>}
                         </div>
 
                         <div className="space-y-2">
-                            <Label className="text-white">Which role(s) are you interested in? (multi-select)</Label>
+                            <Label className="text-white">{t('global_partner.wizard.roles_label', 'Which role(s) are you interested in? (multi-select)')}</Label>
                             <div className="grid grid-cols-2 gap-2">
                                 {['Visa Consultant / Immigration Consultant', 'Sales Closer', 'Sales Pre-Sales / SDR', 'Sales Coordinator', 'Customer Support', 'Operational Assistant', 'Manager / Supervisor', 'Any role where MIGMA believes I am a good fit'].map((role) => (
                                     <div key={role} className="flex items-center space-x-2 border border-gold-medium/30 bg-white/10 p-3 rounded-md hover:bg-white/20 transition">
@@ -1829,7 +1876,7 @@ const ApplicationWizard = ({ cardRef }: ApplicationWizardProps) => {
                                                 setValue('interestedRoles', updated);
                                             }}
                                         />
-                                        <Label htmlFor={`role-${role}`} className="cursor-pointer flex-1 text-sm text-white">{role}</Label>
+                                        <Label htmlFor={`role-${role}`} className="cursor-pointer flex-1 text-sm text-white">{t(`global_partner.role_options.${role.replace(/[\/\s–]/g, '_').replace(/_+/g, '_').toLowerCase()}`, role)}</Label>
                                     </div>
                                 ))}
                             </div>
@@ -1837,104 +1884,106 @@ const ApplicationWizard = ({ cardRef }: ApplicationWizardProps) => {
                         </div>
 
                         <div className="space-y-2">
-                            <Label className="text-white">Do you have experience with U.S. visa processes? *</Label>
+                            <Label className="text-white">{t('global_partner.wizard.visa_experience_label', 'Do you have experience with U.S. visa processes? *')}</Label>
                             <Select
                                 value={watch('visaExperience') || ''}
                                 onValueChange={(val) => setValue('visaExperience', val)}
                             >
                                 <SelectTrigger className="bg-white text-black">
-                                    <SelectValue placeholder="Select your experience" />
+                                    <SelectValue placeholder={t('global_partner.wizard.select_visa_experience', 'Select your experience')} />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value="Yes, professional experience">Yes, professional experience</SelectItem>
-                                    <SelectItem value="Yes, informal experience">Yes, informal experience</SelectItem>
-                                    <SelectItem value="No, but I learn fast">No, but I learn fast</SelectItem>
-                                    <SelectItem value="No experience">No experience</SelectItem>
+                                    <SelectItem value="Yes, professional experience">{t('global_partner.visa_exp.professional', 'Yes, professional experience')}</SelectItem>
+                                    <SelectItem value="Yes, informal experience">{t('global_partner.visa_exp.informal', 'Yes, informal experience')}</SelectItem>
+                                    <SelectItem value="No, but I learn fast">{t('global_partner.visa_exp.learn_fast', 'No, but I learn fast')}</SelectItem>
+                                    <SelectItem value="No experience">{t('global_partner.visa_exp.none', 'No experience')}</SelectItem>
                                 </SelectContent>
                             </Select>
                             {errors.visaExperience && <p className="text-sm text-destructive">{errors.visaExperience.message}</p>}
                         </div>
 
                         <div className="space-y-2">
-                            <Label className="text-white">English Level *</Label>
+                            <Label className="text-white">{t('global_partner.wizard.english_level_label', 'English Level *')}</Label>
                             <Select
                                 value={watch('englishLevel') || ''}
                                 onValueChange={(val) => setValue('englishLevel', val)}
                             >
                                 <SelectTrigger className="bg-white text-black">
-                                    <SelectValue placeholder="Select English level" />
+                                    <SelectValue placeholder={t('global_partner.wizard.select_english', 'Select English level')} />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value="Basic">Basic</SelectItem>
-                                    <SelectItem value="Intermediate">Intermediate</SelectItem>
-                                    <SelectItem value="Advanced">Advanced</SelectItem>
-                                    <SelectItem value="Fluent / Native">Fluent / Native</SelectItem>
+                                    <SelectItem value="Basic">{t('global_partner.english.basic', 'Basic')}</SelectItem>
+                                    <SelectItem value="Intermediate">{t('global_partner.english.intermediate', 'Intermediate')}</SelectItem>
+                                    <SelectItem value="Advanced">{t('global_partner.english.advanced', 'Advanced')}</SelectItem>
+                                    <SelectItem value="Fluent / Native">{t('global_partner.english.fluent', 'Fluent / Native')}</SelectItem>
                                 </SelectContent>
                             </Select>
                             {errors.englishLevel && <p className="text-sm text-destructive">{errors.englishLevel.message}</p>}
                         </div>
 
-                        <div className="space-y-2">
-                            <Label className="text-white">Do you have experience working with clients, sales or business development? *</Label>
-                            <div className="flex gap-6">
-                                <div className="flex items-center space-x-2">
-                                    <input
-                                        type="radio"
-                                        id="clientExperienceYes"
-                                        value="Yes"
-                                        {...register('clientExperience')}
-                                        className="w-4 h-4"
-                                    />
-                                    <Label htmlFor="clientExperienceYes" className="font-normal cursor-pointer text-white">Yes</Label>
-                                </div>
-                                <div className="flex items-center space-x-2">
-                                    <input
-                                        type="radio"
-                                        id="clientExperienceNo"
-                                        value="No"
-                                        {...register('clientExperience')}
-                                        className="w-4 h-4"
-                                    />
-                                    <Label htmlFor="clientExperienceNo" className="font-normal cursor-pointer text-white">No</Label>
-                                </div>
-                            </div>
-                            {errors.clientExperience && <p className="text-sm text-destructive">{errors.clientExperience.message}</p>}
-                        </div>
-
-                        {clientExperience === "Yes" && (
+                        <div className="space-y-4">
                             <div className="space-y-2">
-                                <Label htmlFor="clientExperienceDescription" className="text-white">Please briefly describe your experience working with clients, sales or business development *</Label>
-                                <Textarea id="clientExperienceDescription" className="min-h-[100px] bg-white text-black" {...register('clientExperienceDescription')} />
-                                {errors.clientExperienceDescription && <p className="text-sm text-destructive">{errors.clientExperienceDescription.message}</p>}
+                                <Label className="text-white">{t('global_partner.wizard.client_experience_label', 'Do you have experience working with clients, sales or business development? *')}</Label>
+                                <div className="flex gap-6">
+                                    <div className="flex items-center space-x-2">
+                                        <input
+                                            type="radio"
+                                            id="clientExperienceYes"
+                                            value="Yes"
+                                            {...register('clientExperience')}
+                                            className="w-4 h-4 cursor-pointer"
+                                        />
+                                        <Label htmlFor="clientExperienceYes" className="font-normal cursor-pointer text-white">{t('global_partner.wizard.yes', 'Yes')}</Label>
+                                    </div>
+                                    <div className="flex items-center space-x-2">
+                                        <input
+                                            type="radio"
+                                            id="clientExperienceNo"
+                                            value="No"
+                                            {...register('clientExperience')}
+                                            className="w-4 h-4 cursor-pointer"
+                                        />
+                                        <Label htmlFor="clientExperienceNo" className="font-normal cursor-pointer text-white">{t('global_partner.wizard.no', 'No')}</Label>
+                                    </div>
+                                </div>
+                                {errors.clientExperience && <p className="text-sm text-destructive">{errors.clientExperience.message}</p>}
                             </div>
-                        )}
+
+                            {watch('clientExperience') === "Yes" && (
+                                <div className="space-y-2">
+                                    <Label htmlFor="clientExperienceDescription" className="text-white">{t('global_partner.wizard.client_experience_desc_label', 'Please briefly describe your experience working with clients, sales or business development *')}</Label>
+                                    <Textarea id="clientExperienceDescription" className="min-h-[100px] bg-white text-black" {...register('clientExperienceDescription')} />
+                                    {errors.clientExperienceDescription && <p className="text-sm text-destructive">{errors.clientExperienceDescription.message}</p>}
+                                </div>
+                            )}
+                        </div>
                     </motion.div>
                 )}
 
                 {step === 4 && (
                     <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="space-y-4">
-                        <h3 className="text-2xl font-bold mb-4 text-white">Availability & Fit</h3>
+                        <h3 className="text-2xl font-bold mb-4 text-white">{t('global_partner.wizard.availability_fit', 'Availability & Fit')}</h3>
                         <div className="space-y-2">
-                            <Label className="text-white">Weekly Availability *</Label>
+                            <Label className="text-white">{t('global_partner.wizard.weekly_availability_label', 'Weekly Availability *')}</Label>
                             <Select
                                 value={watch('weeklyAvailability') || ''}
                                 onValueChange={(val) => setValue('weeklyAvailability', val)}
                             >
                                 <SelectTrigger className="bg-white text-black">
-                                    <SelectValue placeholder="Select availability" />
+                                    <SelectValue placeholder={t('global_partner.wizard.select_availability', 'Select availability')} />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value="Up to 10 hours / week">Up to 10 hours / week</SelectItem>
-                                    <SelectItem value="10–20 hours / week">10–20 hours / week</SelectItem>
-                                    <SelectItem value="20–30 hours / week">20–30 hours / week</SelectItem>
-                                    <SelectItem value="Full-time availability">Full-time availability</SelectItem>
+                                    <SelectItem value="Up to 10 hours / week">{t('global_partner.availability.up_10', 'Up to 10 hours / week')}</SelectItem>
+                                    <SelectItem value="10–20 hours / week">{t('global_partner.availability.10_20', '10–20 hours / week')}</SelectItem>
+                                    <SelectItem value="20–30 hours / week">{t('global_partner.availability.20_30', '20–30 hours / week')}</SelectItem>
+                                    <SelectItem value="Full-time availability">{t('global_partner.availability.full', 'Full-time availability')}</SelectItem>
                                 </SelectContent>
                             </Select>
                             {errors.weeklyAvailability && <p className="text-sm text-destructive">{errors.weeklyAvailability.message}</p>}
                         </div>
 
                         <div className="space-y-2">
-                            <Label htmlFor="whyMigma" className="text-white">Why do you want to work with MIGMA as a Global Partner? *</Label>
+                            <Label htmlFor="whyMigma" className="text-white">{t('global_partner.wizard.why_migma_label', 'Why do you want to work with MIGMA as a Global Partner? *')}</Label>
                             <Textarea
                                 id="whyMigma"
                                 className="min-h-[120px] bg-white text-black"
@@ -1952,7 +2001,7 @@ const ApplicationWizard = ({ cardRef }: ApplicationWizardProps) => {
                                     setValue('comfortableModel', boolValue, { shouldValidate: true });
                                 }}
                             />
-                            <Label htmlFor="comfortableModel" className="font-normal text-white">I understand that this is not an employment offer and that the collaboration with MIGMA is as an independent contractor. *</Label>
+                            <Label htmlFor="comfortableModel" className="font-normal text-white">{t('global_partner.wizard.contractor_acknowledgement', 'I understand that this is not an employment offer and that the collaboration with MIGMA is as an independent contractor. *')}</Label>
                         </div>
                         {errors.comfortableModel && <p className="text-sm text-destructive">{errors.comfortableModel.message}</p>}
                     </motion.div>
@@ -1960,9 +2009,9 @@ const ApplicationWizard = ({ cardRef }: ApplicationWizardProps) => {
 
                 {step === 5 && (
                     <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="space-y-4">
-                        <h3 className="text-2xl font-bold mb-4 text-white">CV & Links</h3>
+                        <h3 className="text-2xl font-bold mb-4 text-white">{t('global_partner.wizard.cv_links', 'CV & Links')}</h3>
                         <div className="space-y-2">
-                            <Label htmlFor="cv" className="text-white">Upload CV (PDF) *</Label>
+                            <Label htmlFor="cv" className="text-white">{t('global_partner.form.cv_label', 'Upload CV (PDF) *')}</Label>
                             <div className="border-2 border-dashed border-gold-medium/50 rounded-md p-8 text-center hover:bg-white/10 transition cursor-pointer flex flex-col items-center justify-center gap-2 relative bg-white/5">
                                 <input
                                     type="file"
@@ -1976,7 +2025,7 @@ const ApplicationWizard = ({ cardRef }: ApplicationWizardProps) => {
                                             if (file.type !== 'application/pdf') {
                                                 form.setError('cv', {
                                                     type: 'manual',
-                                                    message: 'Only PDF files are allowed'
+                                                    message: t('global_partner.form.pdf_only', 'Only PDF files are allowed')
                                                 });
                                                 e.target.value = ''; // Limpar input
                                                 return;
@@ -1987,7 +2036,10 @@ const ApplicationWizard = ({ cardRef }: ApplicationWizardProps) => {
                                             if (file.size > MAX_FILE_SIZE) {
                                                 form.setError('cv', {
                                                     type: 'manual',
-                                                    message: `File too large. Please reduce the file size to under 3MB. Current size: ${(file.size / (1024 * 1024)).toFixed(2)}MB`
+                                                    message: t('global_partner.form.file_too_large', {
+                                                        size: (file.size / (1024 * 1024)).toFixed(2),
+                                                        defaultValue: `File too large. Please reduce the file size to under 3MB. Current size: ${(file.size / (1024 * 1024)).toFixed(2)}MB`
+                                                    })
                                                 });
                                                 e.target.value = ''; // Limpar input
                                                 return;
@@ -2000,23 +2052,25 @@ const ApplicationWizard = ({ cardRef }: ApplicationWizardProps) => {
                                     }}
                                 />
                                 <Upload className="h-8 w-8 text-gold-light" />
-                                <p className="text-white">Click to upload or drag and drop</p>
-                                <p className="text-xs text-gray-300">PDF only, max 3MB</p>
+                                <p className="text-white">{t('global_partner.form.cv_dropzone_text', 'Click to upload or drag and drop')}</p>
+                                <p className="text-xs text-gray-300">{t('global_partner.form.cv_dropzone_subtext', 'PDF only, max 3MB')}</p>
                                 {watch('cv') && (
-                                    <p className="text-sm text-gold-light mt-2">✓ File selected: {(watch('cv') as File)?.name}</p>
+                                    <p className="text-sm text-gold-light mt-2">
+                                        {t('global_partner.form.file_selected', '✓ File selected: {{name}}', { name: (watch('cv') as File)?.name })}
+                                    </p>
                                 )}
                             </div>
                             {errors.cv && <p className="text-sm text-destructive">{errors.cv.message as string}</p>}
                         </div>
 
                         <div className="space-y-2">
-                            <Label htmlFor="linkedin" className="text-white">LinkedIn Profile URL</Label>
+                            <Label htmlFor="linkedin" className="text-white">{t('global_partner.form.linkedin_label', 'LinkedIn Profile URL')}</Label>
                             <Input id="linkedin" type="url" {...register('linkedin')} className="bg-white text-black" />
                             {errors.linkedin && <p className="text-sm text-destructive">{errors.linkedin.message}</p>}
                         </div>
 
                         <div className="space-y-2">
-                            <Label htmlFor="otherLinks" className="text-white">Other Links</Label>
+                            <Label htmlFor="otherLinks" className="text-white">{t('global_partner.form.other_links_label', 'Other Links')}</Label>
                             <Input id="otherLinks" type="url" {...register('otherLinks')} className="bg-white text-black" />
                             {errors.otherLinks && <p className="text-sm text-destructive">{errors.otherLinks.message as string}</p>}
                         </div>
@@ -2025,7 +2079,7 @@ const ApplicationWizard = ({ cardRef }: ApplicationWizardProps) => {
 
                 {step === 6 && (
                     <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="space-y-4">
-                        <h3 className="text-2xl font-bold mb-4 text-white">Consents</h3>
+                        <h3 className="text-2xl font-bold mb-4 text-white">{t('global_partner.wizard.consents', 'Consents')}</h3>
                         <div className="space-y-4">
                             <div className="flex items-start space-x-2">
                                 <Checkbox
@@ -2036,9 +2090,11 @@ const ApplicationWizard = ({ cardRef }: ApplicationWizardProps) => {
                                         setValue('infoAccurate', boolValue, { shouldValidate: false });
                                     }}
                                 />
-                                <Label htmlFor="infoAccurate" className="font-normal cursor-pointer text-white">I confirm that all the information provided is true and accurate. *</Label>
+                                <Label htmlFor="infoAccurate" className="font-normal cursor-pointer text-white">
+                                    {t('global_partner.form.info_accurate_label', 'I confirm that all the information provided is true and accurate. *')}
+                                </Label>
                             </div>
-                            {errors.infoAccurate && triedToSubmit && <p className="text-sm text-destructive">{errors.infoAccurate.message}</p>}
+                            {errors.infoAccurate && triedToSubmit && <p className="text-sm text-destructive">{errors.infoAccurate.message as string}</p>}
 
                             <div className="flex items-start space-x-2">
                                 <Checkbox
@@ -2049,7 +2105,9 @@ const ApplicationWizard = ({ cardRef }: ApplicationWizardProps) => {
                                         setValue('marketingConsent', boolValue, { shouldValidate: false });
                                     }}
                                 />
-                                <Label htmlFor="marketingConsent" className="font-normal cursor-pointer text-white">I agree to receive relevant updates and opportunities from MIGMA by email.</Label>
+                                <Label htmlFor="marketingConsent" className="font-normal cursor-pointer text-white">
+                                    {t('global_partner.form.marketing_consent_label', 'I agree to receive relevant updates and opportunities from MIGMA by email.')}
+                                </Label>
                             </div>
                         </div>
                     </motion.div>
@@ -2058,7 +2116,7 @@ const ApplicationWizard = ({ cardRef }: ApplicationWizardProps) => {
                 <div className="flex justify-between pt-6 border-t mt-8">
                     {step > 1 ? (
                         <Button type="button" variant="outline" onClick={handlePrev}>
-                            <ChevronLeft className="w-4 h-4 mr-2" /> Back
+                            <ChevronLeft className="w-4 h-4 mr-2" /> {t('global_partner.form.back_button', 'Back')}
                         </Button>
                     ) : (
                         <div />
@@ -2074,7 +2132,7 @@ const ApplicationWizard = ({ cardRef }: ApplicationWizardProps) => {
                             }}
                             className="bg-gradient-to-b from-gold-light via-gold-medium to-gold-light text-black font-bold hover:from-gold-medium hover:via-gold-light hover:to-gold-medium transition-all shadow-lg"
                         >
-                            Next Step <ChevronRight className="w-4 h-4 ml-2" />
+                            {t('global_partner.form.next_button', 'Next Step')} <ChevronRight className="w-4 h-4 ml-2" />
                         </Button>
                     ) : (
                         <Button
@@ -2082,7 +2140,7 @@ const ApplicationWizard = ({ cardRef }: ApplicationWizardProps) => {
                             disabled={isSubmitting}
                             className="bg-gradient-to-b from-gold-light via-gold-medium to-gold-light text-black font-bold hover:from-gold-medium hover:via-gold-light hover:to-gold-medium transition-all shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                            {isSubmitting ? 'Submitting...' : 'Submit Application'} <Check className="w-4 h-4 ml-2" />
+                            {isSubmitting ? t('global_partner.form.submitting_button', 'Submitting...') : t('global_partner.form.submit_button', 'Submit Application')} <Check className="w-4 h-4 ml-2" />
                         </Button>
                     )}
                 </div>
