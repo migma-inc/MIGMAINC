@@ -8,8 +8,28 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/lib/supabase';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Calendar, DollarSign, TrendingUp, Users, Loader2, AlertCircle, Eye } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+
+const CustomSwitch = ({ checked, onChange }: { checked: boolean; onChange: () => void }) => {
+    return (
+        <div onClick={(e) => { e.stopPropagation(); onChange(); }} className="inline-block cursor-pointer">
+            <div className={`
+                flex items-center relative w-[50px] h-[30px] rounded-[20px] transition-all duration-200
+                ${checked ? 'bg-[#FFD700]' : 'bg-[rgb(82,82,82)]'}
+             `}>
+                <div className={`
+                    absolute left-[5px] h-[20px] w-[20px] rounded-full transition-all duration-200
+                    shadow-[5px_2px_7px_rgba(8,8,8,0.26)] border-[5px] border-white
+                    ${checked ? 'translate-x-[20px] bg-white' : 'bg-transparent'}
+                 `} />
+            </div>
+        </div>
+    );
+};
 
 interface EB3ProgramSummary {
     control_id: string;
@@ -37,6 +57,12 @@ export const EB3RecurringManagement = () => {
     const [programs, setPrograms] = useState<EB3ProgramSummary[]>([]);
     const [loading, setLoading] = useState(true);
     const [filterStatus, setFilterStatus] = useState<string>('all');
+
+    // Quick Status Toggle States
+    const [isStatusDialogOpen, setIsStatusDialogOpen] = useState(false);
+    const [selectedProgramForStatus, setSelectedProgramForStatus] = useState<EB3ProgramSummary | null>(null);
+    const [statusReason, setStatusReason] = useState("");
+    const [processingAction, setProcessingAction] = useState(false);
 
     useEffect(() => {
         loadData();
@@ -67,13 +93,42 @@ export const EB3RecurringManagement = () => {
                 throw controlError;
             }
 
-            console.log('[EB-3 Dashboard] Loaded programs:', controlData);
             setPrograms(controlData || []);
 
         } catch (error) {
             console.error('Error loading EB-3 data:', error);
         } finally {
             setLoading(false);
+        }
+    };
+
+
+
+    const handleToggleStatus = async () => {
+        if (!selectedProgramForStatus) return;
+        try {
+            setProcessingAction(true);
+            const newStatus = selectedProgramForStatus.program_status === 'active' ? 'cancelled' : 'active';
+
+            const { error } = await supabase
+                .rpc('toggle_eb3_recurrence_status', {
+                    p_control_id: selectedProgramForStatus.control_id,
+                    p_status: newStatus,
+                    p_reason: statusReason
+                });
+
+            if (error) throw error;
+
+            setIsStatusDialogOpen(false);
+            setStatusReason("");
+            setSelectedProgramForStatus(null);
+            await loadData(); // Reload to reflect changes
+
+        } catch (error: any) {
+            console.error('Error toggling status:', error);
+            alert(`Failed to update status: ${error.message}`);
+        } finally {
+            setProcessingAction(false);
         }
     };
 
@@ -224,7 +279,8 @@ export const EB3RecurringManagement = () => {
                         <div className="overflow-x-auto">
                             <table className="w-full">
                                 <thead>
-                                    <tr className="text-left text-gray-400 border-b border-gray-700">
+                                    <tr className="text-left text-white border-b border-gray-700">
+                                        <th className="pb-3 font-medium px-4 w-[70px]">Active?</th>
                                         <th className="pb-3 font-medium px-4">Client</th>
                                         <th className="pb-3 font-medium px-4">Progress</th>
                                         <th className="pb-3 font-medium px-4">Next Payment</th>
@@ -239,6 +295,15 @@ export const EB3RecurringManagement = () => {
                                         const statusInfo = getStatusBadge(program.next_status || program.program_status);
                                         return (
                                             <tr key={program.control_id} className="border-b border-gray-800 hover:bg-white/5 transition-colors">
+                                                <td className="py-4 px-4">
+                                                    <CustomSwitch
+                                                        checked={program.program_status === 'active'}
+                                                        onChange={() => {
+                                                            setSelectedProgramForStatus(program);
+                                                            setIsStatusDialogOpen(true);
+                                                        }}
+                                                    />
+                                                </td>
                                                 <td className="py-4 px-4">
                                                     <div className="font-medium text-white">{program.client_name}</div>
                                                     <div className="text-sm text-gray-400">{program.client_email}</div>
@@ -302,6 +367,39 @@ export const EB3RecurringManagement = () => {
                     )}
                 </CardContent>
             </Card>
+
+            <Dialog open={isStatusDialogOpen} onOpenChange={setIsStatusDialogOpen}>
+                <DialogContent className="bg-zinc-900 border-gray-800 text-white">
+                    <DialogHeader>
+                        <DialogTitle>
+                            {selectedProgramForStatus?.program_status === 'active' ? 'Suspend Program' : 'Activate Program'}
+                        </DialogTitle>
+                        <DialogDescription className="text-gray-400">
+                            {selectedProgramForStatus?.program_status === 'active'
+                                ? `Are you sure you want to suspend the recurring program for ${selectedProgramForStatus.client_name}?`
+                                : `Are you sure you want to activate the recurring program for ${selectedProgramForStatus?.client_name}?`}
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="grid gap-4 py-4">
+                        <div className="grid gap-2">
+                            <Label htmlFor="list-reason">Reason for change</Label>
+                            <Input
+                                id="list-reason"
+                                placeholder="E.g. Customer request, payment failure..."
+                                value={statusReason}
+                                onChange={(e) => setStatusReason(e.target.value)}
+                                className="bg-zinc-800 border-gray-700"
+                            />
+                        </div>
+                    </div>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setIsStatusDialogOpen(false)}>Cancel</Button>
+                        <Button onClick={handleToggleStatus} disabled={processingAction}>
+                            {processingAction ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Confirm Change'}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 };
