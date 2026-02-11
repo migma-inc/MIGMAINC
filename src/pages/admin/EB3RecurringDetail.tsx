@@ -4,7 +4,19 @@ import { supabase } from '@/lib/supabase';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, ArrowLeft, Calendar, User, DollarSign, ExternalLink, Mail, CheckCircle2, AlertCircle, Copy } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+    DialogTrigger,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Loader2, ArrowLeft, Calendar, User, DollarSign, ExternalLink, Mail, CheckCircle2, AlertCircle, Copy, Power, History } from 'lucide-react';
 
 interface Installment {
     id: string;
@@ -43,16 +55,23 @@ export const EB3RecurringDetail = () => {
     const { id: clientId } = useParams<{ id: string }>();
     const navigate = useNavigate();
     const [program, setProgram] = useState<ProgramDetail | null>(null);
+    const [emailLogs, setEmailLogs] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [sendingEmail, setSendingEmail] = useState<string | null>(null);
+    const [processingAction, setProcessingAction] = useState(false);
     const [errorState, setErrorState] = useState<{ message: string, details?: string, code?: string } | null>(null);
 
+    // Dialog States
+    const [isStatusDialogOpen, setIsStatusDialogOpen] = useState(false);
+    const [statusReason, setStatusReason] = useState("");
+    const [isPaymentDialogOpen, setIsPaymentDialogOpen] = useState(false);
+    const [selectedInstallmentId, setSelectedInstallmentId] = useState<string | null>(null);
+    const [paymentNotes, setPaymentNotes] = useState("");
+
     useEffect(() => {
-        console.log('[EB3-Debug] Component mounted. ClientId from params:', clientId);
         if (clientId) {
             loadProgramData();
-        } else {
-            console.error('[EB3-Debug] No clientId found in URL params');
+            loadEmailHistory();
         }
     }, [clientId]);
 
@@ -111,6 +130,74 @@ export const EB3RecurringDetail = () => {
         }
     };
 
+    const loadEmailHistory = async () => {
+        try {
+            const { data, error } = await supabase
+                .rpc('get_eb3_email_history', { p_client_id: clientId });
+
+            if (error) {
+                console.error('Error loading email history:', error);
+                return;
+            }
+            setEmailLogs(data || []);
+        } catch (error) {
+            console.error('Error loading email history:', error);
+        }
+    };
+
+    const handleToggleStatus = async () => {
+        if (!program) return;
+        try {
+            setProcessingAction(true);
+            const newStatus = program.control.program_status === 'active' ? 'cancelled' : 'active';
+
+            const { error } = await supabase
+                .rpc('toggle_eb3_recurrence_status', {
+                    p_control_id: program.control.id,
+                    p_status: newStatus,
+                    p_reason: statusReason
+                });
+
+            if (error) throw error;
+
+            setIsStatusDialogOpen(false);
+            setStatusReason("");
+            await loadProgramData(); // Reload to reflect changes
+
+        } catch (error: any) {
+            console.error('Error toggling status:', error);
+            alert(`Failed to update status: ${error.message}`);
+        } finally {
+            setProcessingAction(false);
+        }
+    };
+
+    const handleMarkAsPaidManual = async () => {
+        if (!selectedInstallmentId) return;
+        try {
+            setProcessingAction(true);
+
+            const { error } = await supabase
+                .rpc('mark_eb3_installment_paid_manual', {
+                    p_schedule_id: selectedInstallmentId,
+                    p_notes: paymentNotes
+                });
+
+            if (error) throw error;
+
+            setIsPaymentDialogOpen(false);
+            setPaymentNotes("");
+            setSelectedInstallmentId(null);
+            await loadProgramData(); // Reload to reflect changes
+
+        } catch (error: any) {
+            console.error('Error marking as paid:', error);
+            alert(`Failed to mark as paid: ${error.message}`);
+        } finally {
+            setProcessingAction(false);
+        }
+    };
+
     const handleResendLink = async (scheduleId: string) => {
         try {
             setSendingEmail(scheduleId);
@@ -146,6 +233,10 @@ export const EB3RecurringDetail = () => {
                 return <Badge className="bg-blue-500/20 text-blue-400 border-blue-500/50">Pending</Badge>;
             case 'cancelled':
                 return <Badge className="bg-gray-500/20 text-gray-400 border-gray-500/50">Cancelled</Badge>;
+            case 'paused':
+                return <Badge className="bg-yellow-500/20 text-yellow-400 border-yellow-500/50">Paused</Badge>;
+            case 'active':
+                return <Badge className="bg-green-500/20 text-green-400 border-green-500/50">Active</Badge>;
             default:
                 return <Badge variant="outline">{status}</Badge>;
         }
@@ -219,9 +310,46 @@ export const EB3RecurringDetail = () => {
                     </div>
                 </div>
                 <div className="flex items-center gap-3">
-                    <Badge className={program.control.program_status === 'active' ? 'bg-green-500/20 text-green-400 border-green-500/50 p-2 px-3' : 'p-2 px-3 uppercase'}>
-                        {program.control.program_status}
-                    </Badge>
+                    {getStatusBadge(program.control.program_status)}
+
+                    <Dialog open={isStatusDialogOpen} onOpenChange={setIsStatusDialogOpen}>
+                        <DialogTrigger asChild>
+                            <Button variant="outline" className="border-gray-700 gap-2">
+                                <Power className="w-4 h-4" />
+                                {program.control.program_status === 'active' ? 'Suspend Program' : 'Activate Program'}
+                            </Button>
+                        </DialogTrigger>
+                        <DialogContent className="bg-zinc-900 border-gray-800 text-white">
+                            <DialogHeader>
+                                <DialogTitle>
+                                    {program.control.program_status === 'active' ? 'Suspend Program' : 'Activate Program'}
+                                </DialogTitle>
+                                <DialogDescription className="text-gray-400">
+                                    {program.control.program_status === 'active'
+                                        ? 'Are you sure you want to suspend this recurring program? Automated emails and checks will stop.'
+                                        : 'Are you sure you want to activate this program? Automated checks will resume immediately.'}
+                                </DialogDescription>
+                            </DialogHeader>
+                            <div className="grid gap-4 py-4">
+                                <div className="grid gap-2">
+                                    <Label htmlFor="reason">Reason for change</Label>
+                                    <Input
+                                        id="reason"
+                                        placeholder="E.g. Customer request, payment failure..."
+                                        value={statusReason}
+                                        onChange={(e) => setStatusReason(e.target.value)}
+                                        className="bg-zinc-800 border-gray-700"
+                                    />
+                                </div>
+                            </div>
+                            <DialogFooter>
+                                <Button variant="outline" onClick={() => setIsStatusDialogOpen(false)}>Cancel</Button>
+                                <Button onClick={handleToggleStatus} disabled={processingAction}>
+                                    {processingAction ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Confirm Change'}
+                                </Button>
+                            </DialogFooter>
+                        </DialogContent>
+                    </Dialog>
                 </div>
             </div>
 
@@ -287,101 +415,207 @@ export const EB3RecurringDetail = () => {
                     </Card>
                 </div>
 
-                {/* Installments Table */}
+                {/* Tabs: Schedule & Email History */}
                 <div className="lg:col-span-2">
-                    <Card className="bg-zinc-900 border-gray-800 h-full">
-                        <CardHeader className="flex flex-row items-center justify-between">
-                            <CardTitle className="text-sm font-medium text-gray-400 flex items-center gap-2">
-                                <DollarSign className="w-4 h-4 text-gold-light" />
+                    <Tabs defaultValue="schedule" className="w-full">
+                        <TabsList className="bg-zinc-900 border border-gray-800 w-full justify-start p-1 h-auto mb-4">
+                            <TabsTrigger value="schedule" className="data-[state=active]:bg-gold-medium/20 data-[state=active]:text-gold-light gap-2">
+                                <DollarSign className="w-4 h-4" />
                                 Payment Schedule
-                            </CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                            <div className="overflow-x-auto">
-                                <table className="w-full">
-                                    <thead>
-                                        <tr className="text-left text-gray-500 text-xs uppercase border-b border-gray-800">
-                                            <th className="pb-3 px-2">#</th>
-                                            <th className="pb-3 px-2">Due Date</th>
-                                            <th className="pb-3 px-2">Amount</th>
-                                            <th className="pb-3 px-2">Status</th>
-                                            <th className="pb-3 px-2">Paid At</th>
-                                            <th className="pb-3 px-2 text-right">Actions</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-gray-800/50">
-                                        {program.installments.map((inst) => (
-                                            <tr key={inst.id} className="hover:bg-white/5 transition-colors group">
-                                                <td className="py-4 px-2 text-gray-400 text-sm">{inst.installment_number}</td>
-                                                <td className="py-4 px-2 text-white text-sm font-medium">
-                                                    {new Date(inst.due_date).toLocaleDateString()}
-                                                </td>
-                                                <td className="py-4 px-2 text-white text-sm">
-                                                    ${Number(inst.amount_usd).toFixed(2)}
-                                                    {inst.late_fee_usd > 0 && inst.status !== 'paid' && (
-                                                        <span className="text-red-400 text-[10px] block">+ ${inst.late_fee_usd} late fee</span>
-                                                    )}
-                                                </td>
-                                                <td className="py-4 px-2">
-                                                    {getStatusBadge(inst.status)}
-                                                </td>
-                                                <td className="py-4 px-2 text-gray-400 text-xs">
-                                                    {inst.paid_at ? (
-                                                        <span className="flex items-center gap-1">
-                                                            <CheckCircle2 className="w-3 h-3 text-green-500" />
-                                                            {new Date(inst.paid_at).toLocaleDateString()}
-                                                        </span>
-                                                    ) : '-'}
-                                                </td>
-                                                <td className="py-4 px-2 text-right">
-                                                    {inst.status !== 'paid' && (
-                                                        <div className="flex justify-end gap-2">
-                                                            <Button
-                                                                size="sm"
-                                                                variant="outline"
-                                                                className="text-xs border-gold-medium/30 text-gold-light hover:bg-gold-medium/10 h-8 gap-1"
-                                                                onClick={() => handleCopyLink(inst.id)}
-                                                            >
-                                                                <Copy className="w-3 h-3" />
-                                                                Copy Link
-                                                            </Button>
-                                                            <Button
-                                                                size="sm"
-                                                                variant="ghost"
-                                                                className="text-gold-light hover:text-white hover:bg-gold-medium/20 text-xs h-8 gap-1"
-                                                                onClick={() => handleResendLink(inst.id)}
-                                                                disabled={sendingEmail === inst.id}
-                                                            >
-                                                                {sendingEmail === inst.id ? (
-                                                                    <Loader2 className="w-3 h-3 animate-spin" />
-                                                                ) : (
-                                                                    <Mail className="w-3 h-3" />
+                            </TabsTrigger>
+                            <TabsTrigger value="emails" className="data-[state=active]:bg-gold-medium/20 data-[state=active]:text-gold-light gap-2">
+                                <History className="w-4 h-4" />
+                                Email History
+                            </TabsTrigger>
+                        </TabsList>
+
+                        <TabsContent value="schedule">
+                            <Card className="bg-zinc-900 border-gray-800 h-full">
+                                <CardContent className="p-0">
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full">
+                                            <thead>
+                                                <tr className="text-left text-gray-500 text-xs uppercase border-b border-gray-800">
+                                                    <th className="py-3 px-4">#</th>
+                                                    <th className="py-3 px-4">Due Date</th>
+                                                    <th className="py-3 px-4">Amount</th>
+                                                    <th className="py-3 px-4">Status</th>
+                                                    <th className="py-3 px-4">Paid At</th>
+                                                    <th className="py-3 px-4 text-right">Actions</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-gray-800/50">
+                                                {program.installments.map((inst) => (
+                                                    <tr key={inst.id} className="hover:bg-white/5 transition-colors group">
+                                                        <td className="py-4 px-4 text-gray-400 text-sm">{inst.installment_number}</td>
+                                                        <td className="py-4 px-4 text-white text-sm font-medium">
+                                                            {new Date(inst.due_date).toLocaleDateString()}
+                                                        </td>
+                                                        <td className="py-4 px-4 text-white text-sm">
+                                                            ${Number(inst.amount_usd).toFixed(2)}
+                                                            {inst.late_fee_usd > 0 && inst.status !== 'paid' && (
+                                                                <span className="text-red-400 text-[10px] block">+ ${inst.late_fee_usd} late fee</span>
+                                                            )}
+                                                        </td>
+                                                        <td className="py-4 px-4">
+                                                            {getStatusBadge(inst.status)}
+                                                        </td>
+                                                        <td className="py-4 px-4 text-gray-400 text-xs">
+                                                            {inst.paid_at ? (
+                                                                <span className="flex items-center gap-1">
+                                                                    <CheckCircle2 className="w-3 h-3 text-green-500" />
+                                                                    {new Date(inst.paid_at).toLocaleDateString()}
+                                                                </span>
+                                                            ) : '-'}
+                                                        </td>
+                                                        <td className="py-4 px-4 text-right">
+                                                            <div className="flex justify-end gap-2">
+                                                                {inst.status !== 'paid' && (
+                                                                    <>
+                                                                        <Button
+                                                                            size="sm"
+                                                                            variant="ghost"
+                                                                            className="h-8 w-8 p-0 text-gray-400 hover:text-green-400"
+                                                                            onClick={() => {
+                                                                                setSelectedInstallmentId(inst.id);
+                                                                                setIsPaymentDialogOpen(true);
+                                                                            }}
+                                                                            title="Mark as Paid Manually"
+                                                                        >
+                                                                            <DollarSign className="w-4 h-4" />
+                                                                        </Button>
+                                                                        <Button
+                                                                            size="sm"
+                                                                            variant="ghost"
+                                                                            className="h-8 w-8 p-0 text-gray-400 hover:text-blue-400"
+                                                                            onClick={() => handleCopyLink(inst.id)}
+                                                                            title="Copy Payment Link"
+                                                                        >
+                                                                            <Copy className="w-4 h-4" />
+                                                                        </Button>
+                                                                        <Button
+                                                                            size="sm"
+                                                                            variant="ghost"
+                                                                            className="h-8 w-8 p-0 text-gray-400 hover:text-white"
+                                                                            onClick={() => handleResendLink(inst.id)}
+                                                                            disabled={sendingEmail === inst.id}
+                                                                            title="Resend Email"
+                                                                        >
+                                                                            {sendingEmail === inst.id ? (
+                                                                                <Loader2 className="w-3 h-3 animate-spin" />
+                                                                            ) : (
+                                                                                <Mail className="w-4 h-4" />
+                                                                            )}
+                                                                        </Button>
+                                                                    </>
                                                                 )}
-                                                                Resend
-                                                            </Button>
-                                                        </div>
-                                                    )}
-                                                    {inst.payment_id && (
-                                                        <Button
-                                                            size="sm"
-                                                            variant="ghost"
-                                                            className="text-gray-400 hover:text-white h-8 w-8 p-0"
-                                                            onClick={() => navigate(`/dashboard/visa-orders/${inst.payment_id}`)}
-                                                            title="View Order"
-                                                        >
-                                                            <ExternalLink className="w-3 h-3" />
-                                                        </Button>
-                                                    )}
-                                                </td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
-                        </CardContent>
-                    </Card>
+                                                                {inst.payment_id && (
+                                                                    <Button
+                                                                        size="sm"
+                                                                        variant="ghost"
+                                                                        className="text-gray-400 hover:text-white h-8 w-8 p-0"
+                                                                        onClick={() => navigate(`/dashboard/visa-orders/${inst.payment_id}`)}
+                                                                        title="View Order"
+                                                                    >
+                                                                        <ExternalLink className="w-4 h-4" />
+                                                                    </Button>
+                                                                )}
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        </TabsContent>
+
+                        <TabsContent value="emails">
+                            <Card className="bg-zinc-900 border-gray-800 h-full">
+                                <CardContent className="p-0">
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full">
+                                            <thead>
+                                                <tr className="text-left text-gray-500 text-xs uppercase border-b border-gray-800">
+                                                    <th className="py-3 px-4">Sent At</th>
+                                                    <th className="py-3 px-4">Type</th>
+                                                    <th className="py-3 px-4">Recipient</th>
+                                                    <th className="py-3 px-4">Ref. Installment</th>
+                                                    <th className="py-3 px-4">Status</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-gray-800/50">
+                                                {emailLogs.length === 0 ? (
+                                                    <tr>
+                                                        <td colSpan={5} className="py-8 text-center text-gray-500">
+                                                            No emails recorded for this client.
+                                                        </td>
+                                                    </tr>
+                                                ) : (
+                                                    emailLogs.map((log) => (
+                                                        <tr key={log.id} className="hover:bg-white/5 transition-colors">
+                                                            <td className="py-3 px-4 text-gray-400 text-sm">
+                                                                {new Date(log.sent_at).toLocaleString()}
+                                                            </td>
+                                                            <td className="py-3 px-4">
+                                                                <Badge variant="outline" className="capitalize text-xs">
+                                                                    {log.email_type}
+                                                                </Badge>
+                                                            </td>
+                                                            <td className="py-3 px-4 text-white text-sm">
+                                                                {log.recipient_email}
+                                                            </td>
+                                                            <td className="py-3 px-4 text-gray-400 text-sm">
+                                                                {log.installment_number ? `#${log.installment_number}` : '-'}
+                                                            </td>
+                                                            <td className="py-3 px-4">
+                                                                <div className="flex items-center gap-1 text-green-400 text-xs">
+                                                                    <CheckCircle2 className="w-3 h-3" /> Sent
+                                                                </div>
+                                                            </td>
+                                                        </tr>
+                                                    ))
+                                                )}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        </TabsContent>
+                    </Tabs>
                 </div>
             </div>
+
+            {/* Manual Payment Dialog */}
+            <Dialog open={isPaymentDialogOpen} onOpenChange={setIsPaymentDialogOpen}>
+                <DialogContent className="bg-zinc-900 border-gray-800 text-white">
+                    <DialogHeader>
+                        <DialogTitle>Mark as Paid Manually</DialogTitle>
+                        <DialogDescription className="text-gray-400">
+                            This will mark the selected installment as paid. Useful for wire transfers or external payments.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="grid gap-4 py-4">
+                        <div className="grid gap-2">
+                            <Label htmlFor="notes">Payment Notes</Label>
+                            <Input
+                                id="notes"
+                                placeholder="E.g. Wire transfer ref #123456"
+                                value={paymentNotes}
+                                onChange={(e) => setPaymentNotes(e.target.value)}
+                                className="bg-zinc-800 border-gray-700"
+                            />
+                        </div>
+                    </div>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setIsPaymentDialogOpen(false)}>Cancel</Button>
+                        <Button onClick={handleMarkAsPaidManual} disabled={processingAction} className="bg-green-600 hover:bg-green-700">
+                            {processingAction ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Confirm Payment'}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 };
