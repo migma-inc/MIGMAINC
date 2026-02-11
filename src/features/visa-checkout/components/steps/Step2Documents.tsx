@@ -1,6 +1,7 @@
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ChevronRight, ChevronLeft } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { DocumentUpload } from '@/components/checkout/DocumentUpload';
 import type { VisaCheckoutState, VisaCheckoutActions } from '../../types/form.types';
 import { ExistingContractBanner } from './step2/ExistingContractBanner';
@@ -13,6 +14,7 @@ interface Step2Props {
 }
 
 export const Step2Documents: React.FC<Step2Props> = ({ state, actions, onNext, onPrev }) => {
+    const { t } = useTranslation();
     const {
         hasExistingContract, existingContractData,
         documentsUploaded, step2Errors
@@ -22,7 +24,7 @@ export const Step2Documents: React.FC<Step2Props> = ({ state, actions, onNext, o
     return (
         <Card className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30">
             <CardHeader>
-                <CardTitle className="text-white text-lg sm:text-xl">Step 2: Documentation</CardTitle>
+                <CardTitle className="text-white text-lg sm:text-xl">{t('checkout.step_2_title', 'Step 2: Documentation')}</CardTitle>
             </CardHeader>
             <CardContent>
                 {hasExistingContract && existingContractData ? (
@@ -38,7 +40,7 @@ export const Step2Documents: React.FC<Step2Props> = ({ state, actions, onNext, o
                                 className="border-gold-medium/50 bg-black/50 text-gold-light hover:bg-gold-medium/30 hover:text-gold-light w-full sm:w-auto"
                             >
                                 <ChevronLeft className="w-4 h-4 mr-2" />
-                                Back
+                                {t('checkout.back', 'Back')}
                             </Button>
                         </div>
                     </div>
@@ -70,13 +72,13 @@ export const Step2Documents: React.FC<Step2Props> = ({ state, actions, onNext, o
                                     className="border-gold-medium/50 bg-black/50 text-gold-light hover:bg-gold-medium/30 hover:text-gold-light w-full sm:w-auto"
                                 >
                                     <ChevronLeft className="w-4 h-4 mr-2" />
-                                    Back
+                                    {t('checkout.back', 'Back')}
                                 </Button>
                                 <Button
                                     onClick={onNext}
                                     className="bg-gold-medium hover:bg-gold-light text-black w-full sm:w-auto"
                                 >
-                                    Continue
+                                    {t('checkout.continue', 'Continue')}
                                     <ChevronRight className="w-4 h-4 ml-2" />
                                 </Button>
                             </div>

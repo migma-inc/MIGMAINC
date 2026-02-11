@@ -30,6 +30,7 @@ interface InstallmentData {
 }
 
 export const EB3InstallmentCheckout = () => {
+    const { t } = useTranslation();
     const { installmentId: pathInstallmentId } = useParams<{ installmentId: string }>();
     const [searchParams] = useSearchParams();
     const prefillId = searchParams.get('prefill');
@@ -122,7 +123,7 @@ export const EB3InstallmentCheckout = () => {
             }
 
             if (scheduleData.status === 'paid') {
-                setError('This installment has already been paid. Thank you!');
+                setError(t('checkout.error_installment_already_paid', 'This installment has already been paid. Thank you!'));
                 return;
             }
 
@@ -293,7 +294,7 @@ export const EB3InstallmentCheckout = () => {
                     <CardHeader>
                         <CardTitle className="text-red-400 flex items-center gap-2">
                             <AlertCircle className="w-5 h-5" />
-                            Payment Unavailable
+                            {t('checkout.payment_unavailable', 'Payment Unavailable')}
                         </CardTitle>
                     </CardHeader>
                     <CardContent>
@@ -301,7 +302,7 @@ export const EB3InstallmentCheckout = () => {
                         <Link to="/">
                             <Button className="w-full bg-gold-medium text-black font-bold hover:bg-gold-light">
                                 <ArrowLeft className="w-4 h-4 mr-2" />
-                                Back to Home
+                                {t('checkout.back_to_home', 'Back to Home')}
                             </Button>
                         </Link>
                     </CardContent>
@@ -332,10 +333,13 @@ export const EB3InstallmentCheckout = () => {
             <div className="max-w-4xl mx-auto">
                 {/* Header */}
                 <header className="flex flex-col mb-8 gap-2">
-                    <Link to="/" className="inline-flex items-center text-gold-light hover:text-gold-medium transition-colors mb-2">
-                        <ArrowLeft className="w-4 h-4 mr-2" /> Back to Home
-                    </Link>
-                    <h1 className="text-2xl sm:text-3xl font-bold migma-gold-text uppercase tracking-wider">EB-3 Maintenance Checkout</h1>
+                    <div className="flex justify-between items-start">
+                        <Link to="/" className="inline-flex items-center text-gold-light hover:text-gold-medium transition-colors mb-2">
+                            <ArrowLeft className="w-4 h-4 mr-2" /> {t('checkout.back_to_home', 'Back to Home')}
+                        </Link>
+                        <LanguageSelector />
+                    </div>
+                    <h1 className="text-2xl sm:text-3xl font-bold migma-gold-text uppercase tracking-wider">{t('checkout.eb3_title', 'EB-3 Maintenance Checkout')}</h1>
                     <div className="flex flex-wrap gap-x-4 gap-y-1">
                         <p className="text-gray-400 text-sm">Installment #{installment.installment_number} of 8</p>
                         {sellerPublicId && (

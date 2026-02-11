@@ -1,4 +1,5 @@
 import { useState, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -22,6 +23,7 @@ interface DocumentUploadProps {
 }
 
 export const DocumentUpload = ({ clientId, onComplete, onCancel }: DocumentUploadProps) => {
+  const { t } = useTranslation();
   const [documentFront, setDocumentFront] = useState<DocumentFile | null>(null);
   const [documentBack, setDocumentBack] = useState<DocumentFile | null>(null);
   const [selfie, setSelfie] = useState<DocumentFile | null>(null);
@@ -39,13 +41,13 @@ export const DocumentUpload = ({ clientId, onComplete, onCancel }: DocumentUploa
     // Check file type
     const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png'];
     if (!allowedTypes.includes(file.type)) {
-      return 'File must be a JPG or PNG image';
+      return t('checkout.error_invalid_file_type', 'File must be a JPG or PNG image');
     }
 
     // Check file size (max 20MB for source - we will compress it)
     const maxSize = 20 * 1024 * 1024; // 20MB
     if (file.size > maxSize) {
-      return 'File too large. Please select an image under 20MB.';
+      return t('checkout.error_file_too_large', 'File too large. Please select an image under 20MB.');
     }
 
     return null;
@@ -84,7 +86,7 @@ export const DocumentUpload = ({ clientId, onComplete, onCancel }: DocumentUploa
       });
     } catch (err: any) {
       console.error('Compression error:', err);
-      setError('Failed to process image. Please try again.');
+      setError(t('checkout.error_processing_image', 'Failed to process image. Please try again.'));
     } finally {
       setCompressing(null);
     }
@@ -127,17 +129,17 @@ export const DocumentUpload = ({ clientId, onComplete, onCancel }: DocumentUploa
   // Handle final submission
   const handleSubmit = async () => {
     if (!documentFront) {
-      setError('Please upload the front of your document');
+      setError(t('checkout.error_front_required', 'Please upload the front of your document'));
       return;
     }
 
     if (!documentBack) {
-      setError('Please upload the back of your document');
+      setError(t('checkout.error_back_required', 'Please upload the back of your document'));
       return;
     }
 
     if (!selfie) {
-      setError('Please upload a selfie with your document');
+      setError(t('checkout.error_selfie_required', 'Please upload a selfie with your document'));
       return;
     }
 
@@ -162,7 +164,7 @@ export const DocumentUpload = ({ clientId, onComplete, onCancel }: DocumentUploa
       setDocumentsUploaded(true);
     } catch (err: any) {
       console.error('Upload error:', err);
-      setError(err.message || 'Failed to upload documents. Please try again.');
+      setError(err.message || t('checkout.error_upload_failed', 'Failed to upload documents. Please try again.'));
     } finally {
       setUploading(false);
     }
@@ -173,7 +175,7 @@ export const DocumentUpload = ({ clientId, onComplete, onCancel }: DocumentUploa
   return (
     <Card className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30">
       <CardHeader>
-        <CardTitle className="text-white">Upload Documents & Selfie</CardTitle>
+        <CardTitle className="text-white">{t('checkout.upload_documents_selfie', 'Upload Documents & Selfie')}</CardTitle>
       </CardHeader>
       <CardContent className="space-y-6">
         {error && (
@@ -185,7 +187,7 @@ export const DocumentUpload = ({ clientId, onComplete, onCancel }: DocumentUploa
         {/* Document Front (Required) */}
         <div className="space-y-2">
           <Label htmlFor="document-front" className="text-white">
-            Document Front (Passport/ID/Driver's License) *
+            {t('checkout.document_front_with_types', "Document Front (Passport/ID/Driver's License) *")}
           </Label>
           <label
             htmlFor="document-front"
@@ -218,19 +220,19 @@ export const DocumentUpload = ({ clientId, onComplete, onCancel }: DocumentUploa
                   className="mt-2 border-gold-medium/50 bg-black/50 text-gold-light hover:bg-gold-medium/30 hover:text-gold-light"
                 >
                   <X className="w-4 h-4 mr-2" />
-                  Remove
+                  {t('checkout.remove', 'Remove')}
                 </Button>
               </div>
             ) : compressing === 'document_front' ? (
               <div className="py-12">
                 <Loader2 className="h-12 w-12 text-gold-light mx-auto mb-2 animate-spin" />
-                <p className="text-sm text-white">Compressing image...</p>
+                <p className="text-sm text-white">{t('checkout.compressing_image', 'Compressing image...')}</p>
               </div>
             ) : (
               <div>
                 <Upload className="h-12 w-12 text-gold-light mx-auto mb-2" />
-                <p className="text-sm text-white">Click to upload or take photo</p>
-                <p className="text-xs text-gray-400 mt-1">JPG or PNG (max 20MB)</p>
+                <p className="text-sm text-white">{t('checkout.click_to_upload_or_take_photo', 'Click to upload or take photo')}</p>
+                <p className="text-xs text-gray-400 mt-1">{t('checkout.image_spec_info', 'JPG or PNG (max 20MB)')}</p>
               </div>
             )}
           </label>
@@ -239,7 +241,7 @@ export const DocumentUpload = ({ clientId, onComplete, onCancel }: DocumentUploa
         {/* Document Back (Required) */}
         <div className="space-y-2">
           <Label htmlFor="document-back" className="text-white">
-            Document Back *
+            {t('checkout.document_back', 'Document Back *')}
           </Label>
           <label
             htmlFor="document-back"
@@ -272,19 +274,19 @@ export const DocumentUpload = ({ clientId, onComplete, onCancel }: DocumentUploa
                   className="mt-2 border-gold-medium/50 bg-black/50 text-gold-light hover:bg-gold-medium/30 hover:text-gold-light"
                 >
                   <X className="w-4 h-4 mr-2" />
-                  Remove
+                  {t('checkout.remove', 'Remove')}
                 </Button>
               </div>
             ) : compressing === 'document_back' ? (
               <div className="py-12">
                 <Loader2 className="h-12 w-12 text-gold-light mx-auto mb-2 animate-spin" />
-                <p className="text-sm text-white">Compressing image...</p>
+                <p className="text-sm text-white">{t('checkout.compressing_image', 'Compressing image...')}</p>
               </div>
             ) : (
               <div>
                 <Upload className="h-12 w-12 text-gold-light mx-auto mb-2" />
-                <p className="text-sm text-white">Click to upload or take photo</p>
-                <p className="text-xs text-gray-400 mt-1">JPG or PNG (max 20MB)</p>
+                <p className="text-sm text-white">{t('checkout.click_to_upload_or_take_photo', 'Click to upload or take photo')}</p>
+                <p className="text-xs text-gray-400 mt-1">{t('checkout.image_spec_info', 'JPG or PNG (max 20MB)')}</p>
               </div>
             )}
           </label>
@@ -293,17 +295,17 @@ export const DocumentUpload = ({ clientId, onComplete, onCancel }: DocumentUploa
         {/* Selfie with Document (Required) */}
         <div className="space-y-2">
           <Label htmlFor="selfie" className="text-white">
-            Selfie with Document *
+            {t('checkout.selfie_with_document', 'Selfie with Document *')}
           </Label>
           <div className="flex gap-4 items-start mb-4">
             <div className="flex-1">
               <p className="text-sm text-gray-400 mb-2">
-                Please take a selfie holding your identity document next to your face. Make sure both your face and the document are clearly visible.
+                {t('checkout.selfie_instruction', 'Please take a selfie holding your identity document next to your face. Make sure both your face and the document are clearly visible.')}
               </p>
             </div>
             {/* Example Image - Compact */}
             <div className="flex-shrink-0">
-              <p className="text-xs text-gray-500 mb-1 text-center">Example:</p>
+              <p className="text-xs text-gray-500 mb-1 text-center">{t('checkout.example', 'Example:')}</p>
               <img
                 src="/helpselfie.png"
                 alt="Example selfie with document"
@@ -342,19 +344,19 @@ export const DocumentUpload = ({ clientId, onComplete, onCancel }: DocumentUploa
                   className="mt-2 border-gold-medium/50 bg-black/50 text-gold-light hover:bg-gold-medium/30 hover:text-gold-light"
                 >
                   <X className="w-4 h-4 mr-2" />
-                  Retake Photo
+                  {t('checkout.retake_photo', 'Retake Photo')}
                 </Button>
               </div>
             ) : compressing === 'selfie_doc' ? (
               <div className="py-12">
                 <Loader2 className="h-12 w-12 text-gold-light mx-auto mb-2 animate-spin" />
-                <p className="text-sm text-white">Compressing image...</p>
+                <p className="text-sm text-white">{t('checkout.compressing_image', 'Compressing image...')}</p>
               </div>
             ) : (
               <div>
                 <Camera className="h-12 w-12 text-gold-light mx-auto mb-2" />
-                <p className="text-sm text-white">Click to take or upload selfie</p>
-                <p className="text-xs text-gray-400 mt-1">JPG or PNG (max 20MB)</p>
+                <p className="text-sm text-white">{t('checkout.click_to_take_or_upload_selfie', 'Click to take or upload selfie')}</p>
+                <p className="text-xs text-gray-400 mt-1">{t('checkout.image_spec_info', 'JPG or PNG (max 20MB)')}</p>
               </div>
             )}
           </label>
@@ -370,7 +372,7 @@ export const DocumentUpload = ({ clientId, onComplete, onCancel }: DocumentUploa
                 onClick={onCancel}
                 className="border-gold-medium/50 bg-black/50 text-gold-light hover:bg-gold-medium/30 hover:text-gold-light w-full sm:w-auto"
               >
-                Cancel
+                {t('checkout.cancel', 'Cancel')}
               </Button>
             )}
             <Button
@@ -381,12 +383,12 @@ export const DocumentUpload = ({ clientId, onComplete, onCancel }: DocumentUploa
               {uploading ? (
                 <>
                   <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-black mr-2" />
-                  Uploading...
+                  {t('checkout.uploading_dots', 'Uploading...')}
                 </>
               ) : (
                 <>
                   <Upload className="w-4 h-4 mr-2" />
-                  Upload & Save Documents
+                  {t('checkout.upload_save_documents', 'Upload & Save Documents')}
                 </>
               )}
             </Button>
