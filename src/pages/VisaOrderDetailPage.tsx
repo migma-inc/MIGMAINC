@@ -620,9 +620,20 @@ export const VisaOrderDetailPage = () => {
               </div>
               {order.client_observations && (
                 <div className="pt-3 border-t border-gold-medium/30 mt-4">
-                  <p className="text-gray-400 mb-2 text-sm font-semibold">Observations / Notes:</p>
+                  <p className="text-gray-400 mb-2 text-sm font-semibold">Client Observations:</p>
                   <div className="bg-black/30 p-4 rounded text-gray-300 text-sm border border-white/10">
                     {order.client_observations}
+                  </div>
+                </div>
+              )}
+              {order.payment_metadata?.admin_note && (
+                <div className="pt-3 border-t border-gold-medium/30 mt-4">
+                  <p className="text-gold-light mb-2 text-sm font-semibold flex items-center gap-2">
+                    <Shield className="w-4 h-4" />
+                    Internal Admin Notes:
+                  </p>
+                  <div className="bg-gold-medium/10 p-4 rounded text-gold-light/90 text-sm border border-gold-medium/20">
+                    {order.payment_metadata.admin_note}
                   </div>
                 </div>
               )}

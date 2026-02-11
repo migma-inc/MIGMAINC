@@ -284,7 +284,7 @@ async function processSplitPaymentWebhook(
               p_client_id: clientId,
               p_activation_order_id: mainOrder.id,
               p_seller_id: mainOrder.seller_id || null,
-              p_seller_commission_percent: null
+              p_seller_commission_percent: mainOrder.seller_commission_percent || null
             });
 
             if (eb3Error) {
@@ -302,12 +302,12 @@ async function processSplitPaymentWebhook(
     }
 
     // ====== EB-3 INSTALLMENT: Mark as paid if installment payment (Split Payment) ======
-    if (mainOrder.order_metadata?.eb3_schedule_id) {
+    if (mainOrder.payment_metadata?.eb3_schedule_id) {
       try {
-        console.log('[EB-3 Split] 💳 EB-3 installment payment detected:', mainOrder.order_metadata.eb3_schedule_id);
+        console.log('[EB-3 Split] 💳 EB-3 installment payment detected:', mainOrder.payment_metadata.eb3_schedule_id);
 
         const { error: eb3Error } = await supabase.rpc('mark_eb3_installment_paid', {
-          p_schedule_id: mainOrder.order_metadata.eb3_schedule_id,
+          p_schedule_id: mainOrder.payment_metadata.eb3_schedule_id,
           p_payment_id: mainOrder.id
         });
 
@@ -468,13 +468,16 @@ async function processParcelowWebhookEvent(event: ParcelowWebhookEvent, supabase
     // ====== EB-3 RECURRENCE: Activate if Job Catalog ======
     if (mainOrder.product_slug === 'eb3-installment-catalog') {
       try {
-        console.log('[EB-3 Parcelow] 🔍 Job Catalog detected. Checking for existing recurrence...');
+        console.log(`[EB-3 Parcelow] 🚀 JOB CATALOG DETECTED for client: ${mainOrder.client_email}`);
+        console.log(`[EB-3 Parcelow] 🔍 Order ID: ${mainOrder.id} | Parcelow ID: ${parcelowOrder.id}`);
 
         // Fetch Client ID by email (since it's not in visa_orders)
         const { data: clientData } = await supabase
           .from('clients')
           .select('id')
           .eq('email', mainOrder.client_email)
+          .order('created_at', { ascending: false })
+          .limit(1)
           .maybeSingle();
 
         const clientId = clientData?.id;
@@ -495,33 +498,13 @@ async function processParcelowWebhookEvent(event: ParcelowWebhookEvent, supabase
               p_client_id: clientId,
               p_activation_order_id: mainOrder.id,
               p_seller_id: mainOrder.seller_id || null,
-              p_seller_commission_percent: null
+              p_seller_commission_percent: mainOrder.seller_commission_percent || null
             });
 
             if (eb3Error) {
               console.error('[EB-3 Parcelow] ❌ Error activating recurrence:', eb3Error);
             } else {
-              console.log('[EB-3 Parcelow] ✅ EB-3 recurrence activated! 8 monthly installments scheduled.');
-
-              // 📧 Enviar o link da 1ª parcela imediatamente
-              try {
-                // Buscar a primeira parcela ativa gerada pelo RPC
-                const { data: firstSchedule } = await supabase
-                  .from('eb3_recurrence_schedules')
-                  .select('id')
-                  .eq('client_id', clientId)
-                  .eq('installment_number', 1)
-                  .single();
-
-                if (firstSchedule) {
-                  await supabase.functions.invoke('send-eb3-installment-email', {
-                    body: { schedule_id: firstSchedule.id }
-                  });
-                  console.log('[EB-3 Parcelow] 📧 1st installment email triggered.');
-                }
-              } catch (emailError) {
-                console.error('[EB-3 Parcelow] ⚠️ Failed to trigger 1st installment email:', emailError);
-              }
+              console.log('[EB-3 Parcelow] ✅ Recurrence activated successfully!');
             }
           } else {
             console.log('[EB-3 Parcelow] ⚠️ Recurrence already exists for this client. Skipping activation.');
@@ -533,12 +516,14 @@ async function processParcelowWebhookEvent(event: ParcelowWebhookEvent, supabase
     }
 
     // ====== EB-3 INSTALLMENT: Mark as paid if installment payment ======
-    if (mainOrder.order_metadata?.eb3_schedule_id) {
+    if (mainOrder.payment_metadata?.eb3_schedule_id) {
       try {
-        console.log('[EB-3 Parcelow] 💳 EB-3 installment payment detected:', mainOrder.order_metadata.eb3_schedule_id);
+        const scheduleId = mainOrder.payment_metadata.eb3_schedule_id;
+        console.log(`[EB-3 Parcelow] 💳 INSTALLMENT PAYMENT DETECTED! Schedule ID: ${scheduleId}`);
+        console.log(`[EB-3 Parcelow] 👤 Client: ${mainOrder.client_email}`);
 
-        const { error: eb3Error } = await supabase.rpc('mark_eb3_installment_paid', {
-          p_schedule_id: mainOrder.order_metadata.eb3_schedule_id,
+        const { data: rpcResult, error: eb3Error } = await supabase.rpc('mark_eb3_installment_paid', {
+          p_schedule_id: scheduleId,
           p_payment_id: mainOrder.id
         });
 
@@ -612,6 +597,11 @@ Deno.serve(async (req: Request) => {
   try {
     const bodyText = await req.text();
     const event = JSON.parse(bodyText);
+    const eventType = event.event;
+    const parcelowId = event.order?.id || event.data?.id || 'unknown';
+
+    console.log(`[Parcelow Webhook] 🔔 RECEIVED EVENT: ${eventType} | ID: ${parcelowId}`);
+
     const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 
     await processParcelowWebhookEvent(event, supabase);
