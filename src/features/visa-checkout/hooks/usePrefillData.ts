@@ -46,8 +46,33 @@ export const usePrefillData = (
                             if (clientData.clientObservations) actions.setClientObservations(clientData.clientObservations);
                             if (typeof clientData.extraUnits === 'number') actions.setExtraUnits(clientData.extraUnits);
                             if (Array.isArray(clientData.dependentNames)) actions.setDependentNames(clientData.dependentNames);
-                            // EB-3 Installment: pass schedule_id to be stored in payment_metadata
-                            if (clientData.eb3_schedule_id) actions.setEb3ScheduleId(clientData.eb3_schedule_id);
+                            // EB-3 Installment: pass schedule_id and fetch real-time data
+                            if (clientData.eb3_schedule_id) {
+                                actions.setEb3ScheduleId(clientData.eb3_schedule_id);
+
+                                // 🛡️ BUSCA DADOS REAIS DO BANCO PARA SEGURANÇA
+                                console.log('🛡️ [EB-3] Fetching installment data for ID:', clientData.eb3_schedule_id);
+                                const { data: schedule, error: scheduleError } = await supabase
+                                    .from('eb3_recurrence_schedules')
+                                    .select('amount_usd, late_fee_usd, due_date, status')
+                                    .eq('id', clientData.eb3_schedule_id)
+                                    .single();
+
+                                if (!scheduleError && schedule) {
+                                    const today = new Date();
+                                    today.setHours(0, 0, 0, 0);
+                                    const dueDate = new Date(schedule.due_date);
+                                    dueDate.setHours(0, 0, 0, 0);
+
+                                    const isOverdue = today > dueDate && schedule.status === 'pending';
+                                    const lateFee = isOverdue ? Number(schedule.late_fee_usd) : 0;
+                                    const finalAmount = Number(schedule.amount_usd) + lateFee;
+
+                                    console.log('💰 [EB-3] Dynamic amount calculated:', finalAmount, isOverdue ? `(WITH LATE FEE: ${lateFee})` : '');
+                                    actions.setEb3LateFee(lateFee);
+                                    actions.setCustomAmount(finalAmount);
+                                }
+                            }
                         }
                     }
                 } catch (err) {

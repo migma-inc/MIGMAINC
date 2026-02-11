@@ -385,6 +385,7 @@ export const usePaymentHandlers = (
                             has_upsell: !!upsellAmount,
                             is_split_payment: true,
                             billing_installment_id: billingInstallmentId,
+                            eb3_schedule_id: eb3ScheduleId,
                             upsell_details: upsellAmount > 0 ? {
                                 slug: upsellProductSlug,
                                 base_price: baseUpsellPrice,
@@ -538,6 +539,7 @@ export const usePaymentHandlers = (
                         cpf: cpf,
                         has_upsell: !!upsellAmount,
                         billing_installment_id: billingInstallmentId,
+                        eb3_schedule_id: eb3ScheduleId,
                         upsell_details: upsellAmount > 0 ? {
                             slug: upsellProductSlug,
                             base_price: baseUpsellPrice,

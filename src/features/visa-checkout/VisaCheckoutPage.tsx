@@ -64,7 +64,7 @@ export const VisaCheckoutPage: React.FC = () => {
     }
     if (discountAmount > initialBaseTotal) discountAmount = initialBaseTotal;
 
-    const baseTotal = Math.max(0, initialBaseTotal - discountAmount);
+    const baseTotal = state.customAmount !== null ? state.customAmount : Math.max(0, initialBaseTotal - discountAmount);
     const totalWithFees = product ? calculateTotalWithFees(baseTotal, state.paymentMethod, state.exchangeRate || undefined) : 0;
 
     // Sync discount amount to state
@@ -186,7 +186,39 @@ export const VisaCheckoutPage: React.FC = () => {
 
                 <div className="grid grid-cols-1 lg:grid-cols-5 gap-8 items-start">
                     <main className="lg:col-span-3 space-y-6">
-                        {(state.currentStep === 1 || state.currentStep === 2) && (
+                        {((state.currentStep === 1 || state.currentStep === 2) && state.eb3ScheduleId) && (
+                            <div className="bg-zinc-900/50 border border-gold-medium/20 rounded-xl p-6 space-y-4 animate-in fade-in slide-in-from-top-4 duration-500">
+                                <div className="flex justify-between items-start">
+                                    <div>
+                                        <h2 className="text-gold-light font-bold text-lg">EB-3 Installment Details</h2>
+                                        <p className="text-gray-400 text-sm">Maintenance Plan - Installment Payment</p>
+                                    </div>
+                                    {state.eb3LateFee > 0 && (
+                                        <span className="bg-red-500/20 text-red-400 text-xs font-bold px-2 py-1 rounded border border-red-500/30">
+                                            OVERDUE
+                                        </span>
+                                    )}
+                                </div>
+                                <div className="pt-2 space-y-3 border-t border-white/5">
+                                    <div className="flex justify-between items-center text-sm">
+                                        <span className="text-gray-400">Installment Amount:</span>
+                                        <span className="text-white">US$ {(state.customAmount! - state.eb3LateFee).toFixed(2)}</span>
+                                    </div>
+                                    {state.eb3LateFee > 0 && (
+                                        <div className="flex justify-between items-center text-sm">
+                                            <span className="text-red-400">Late Fee:</span>
+                                            <span className="text-red-400 font-bold">+ US$ {state.eb3LateFee.toFixed(2)}</span>
+                                        </div>
+                                    )}
+                                    <div className="flex justify-between items-center pt-2 border-t border-white/5 text-lg font-bold">
+                                        <span className="text-gold-light">Total to Pay:</span>
+                                        <span className="text-gold-light">US$ {state.customAmount?.toFixed(2)}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {((state.currentStep === 1 || state.currentStep === 2) && !state.eb3ScheduleId) && (
                             <div className="bg-zinc-900/50 border border-gold-medium/20 rounded-xl p-6 space-y-4 animate-in fade-in slide-in-from-top-4 duration-500">
                                 <h2 className="text-gold-light font-bold text-lg">Product Details</h2>
                                 <div>

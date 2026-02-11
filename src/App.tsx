@@ -61,6 +61,7 @@ import { AdminProfile } from './pages/admin/AdminProfile';
 import { SendExistingContracts } from './pages/admin/SendExistingContracts';
 import { CouponManagement } from './pages/admin/CouponManagement';
 import { EB3RecurringManagement } from './pages/admin/EB3RecurringManagement';
+import { EB3RecurringDetail } from './pages/admin/EB3RecurringDetail';
 import { EB3InstallmentCheckout } from './pages/EB3InstallmentCheckout';
 import { NotFound } from './pages/NotFound';
 
@@ -138,6 +139,7 @@ function App() {
           <Route path="schedule-meeting" element={<ScheduleMeetingPage />} />
           <Route path="slack-reports" element={<SlackReportsPage />} />
           <Route path="eb3-recurring" element={<EB3RecurringManagement />} />
+          <Route path="eb3-recurring/:id" element={<EB3RecurringDetail />} />
           <Route path="profile" element={<AdminProfile />} />
           <Route path="send-existing-contracts" element={<SendExistingContracts />} />
           <Route path="links" element={<SellerLinks />} />

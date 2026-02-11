@@ -100,6 +100,8 @@ export interface VisaCheckoutState {
 
     // EB-3 Installment
     eb3ScheduleId: string | null;
+    customAmount: number | null;
+    eb3LateFee: number;
 }
 
 export interface VisaCheckoutActions {
@@ -171,4 +173,6 @@ export interface VisaCheckoutActions {
 
     // EB-3 Installment
     setEb3ScheduleId: (val: string | null) => void;
+    setCustomAmount: (val: number | null) => void;
+    setEb3LateFee: (val: number) => void;
 }
