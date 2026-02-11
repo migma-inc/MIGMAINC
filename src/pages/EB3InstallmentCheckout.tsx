@@ -12,6 +12,8 @@ import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { AlertCircle, ArrowLeft, Clock, ShieldCheck, FileText, CreditCard, Loader2 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
+import { LanguageSelector } from '@/components/LanguageSelector';
 import { StepIndicator } from '@/features/visa-checkout/components/shared/StepIndicator';
 import { SignaturePadComponent } from '@/components/ui/signature-pad';
 import { ZelleUpload } from '@/features/visa-checkout/components/steps/step3/ZelleUpload';
