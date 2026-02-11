@@ -1,4 +1,5 @@
 import { useRef, useEffect, useState, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import SignaturePad from 'signature_pad';
 import { Button } from './button';
 import { Label } from './label';
@@ -29,6 +30,7 @@ export function SignaturePadComponent({
   isConfirmed = false,
   onEdit,
 }: SignaturePadComponentProps) {
+  const { t } = useTranslation();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const signaturePadRef = useRef<SignaturePad | null>(null);
   const isDrawingRef = useRef<boolean>(false);
@@ -438,7 +440,7 @@ export function SignaturePadComponent({
     const hasVisualContent = !isEmpty || savedSignature; // Se isEmpty é false OU há assinatura salva
 
     if (isEmptyCheck && !hasVisualContent) {
-      alert('Please draw a signature before confirming.');
+      alert(t('checkout.error_draw_signature', 'Please draw a signature before confirming.'));
       return;
     }
 
@@ -493,13 +495,13 @@ export function SignaturePadComponent({
         <div className={`${className}`}>
           {label && (
             <Label className="text-white font-medium text-sm">
-              {label} {required && <span className="text-red-500">*</span>}
+              {t(`checkout.${label.toLowerCase().replace(' ', '_').replace('*', '').trim()}`, label)} {required && <span className="text-red-500">*</span>}
             </Label>
           )}
           <div className="flex items-center justify-between gap-2 mt-1">
             <p className="text-gold-light text-xs flex items-center gap-1">
               <Check className="w-3 h-3" />
-              <span>Confirmed</span>
+              <span>{t('checkout.signature_confirmed', 'Confirmed')}</span>
             </p>
             <button
               type="button"
@@ -511,7 +513,7 @@ export function SignaturePadComponent({
               }}
               className="text-xs text-gold-light/70 hover:text-gold-light underline"
             >
-              Edit
+              {t('checkout.edit', 'Edit')}
             </button>
           </div>
         </div>
@@ -524,7 +526,7 @@ export function SignaturePadComponent({
         {label && (
           <div className="flex items-center justify-between flex-wrap gap-2">
             <Label className="text-white font-medium text-sm sm:text-base">
-              {label} {required && <span className="text-red-500">*</span>}
+              {t(`checkout.${label.toLowerCase().replace(' ', '_').replace('*', '').trim()}`, label)} {required && <span className="text-red-500">*</span>}
             </Label>
             <button
               type="button"
@@ -536,7 +538,7 @@ export function SignaturePadComponent({
               }}
               className="text-xs sm:text-sm text-gold-light/50 hover:text-gold-light underline min-h-[44px] px-2"
             >
-              Edit signature
+              {t('checkout.edit_signature', 'Edit signature')}
             </button>
           </div>
         )}
@@ -548,7 +550,7 @@ export function SignaturePadComponent({
     <div className={`space-y-2 ${className}`}>
       {label && (
         <Label className="text-white font-medium text-sm sm:text-base">
-          {label} {required && <span className="text-red-500">*</span>}
+          {t(`checkout.${label.toLowerCase().replace(' ', '_').replace('*', '').trim()}`, label)} {required && <span className="text-red-500">*</span>}
         </Label>
       )}
 
@@ -570,7 +572,7 @@ export function SignaturePadComponent({
 
         {isEmpty && (
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none" style={{ zIndex: 0 }}>
-            <p className="text-gray-400 text-xs sm:text-sm px-2 text-center">Sign here with your mouse or finger</p>
+            <p className="text-gray-400 text-xs sm:text-sm px-2 text-center">{t('checkout.sign_here_instruction', 'Sign here with your mouse or finger')}</p>
           </div>
         )}
       </div>
@@ -585,7 +587,7 @@ export function SignaturePadComponent({
           className="bg-black text-gold-light border-gold-medium hover:bg-gray-900 hover:text-gold-medium disabled:opacity-50 min-h-[44px] text-xs sm:text-sm flex-1 sm:flex-initial"
         >
           <RotateCcw className="w-4 h-4 mr-1 sm:mr-2" />
-          Clear
+          {t('checkout.clear', 'Clear')}
         </Button>
 
         <Button
@@ -600,23 +602,23 @@ export function SignaturePadComponent({
           className="bg-black text-gold-light hover:bg-gray-900 hover:text-gold-medium disabled:opacity-50 font-semibold min-h-[44px] text-xs sm:text-sm flex-1 sm:flex-initial"
         >
           <Check className="w-4 h-4 mr-1 sm:mr-2" />
-          Done
+          {t('checkout.done', 'Done')}
         </Button>
       </div>
 
       {!isEmpty && (
         <p className="text-xs sm:text-sm text-gold-light font-medium">
-          ✓ Signature captured. {autoConfirmCountdown !== null ? (
-            <span>Auto-confirming in {autoConfirmCountdown} second{autoConfirmCountdown !== 1 ? 's' : ''}... or click "Done" now.</span>
+          ✓ {t('checkout.signature_captured', 'Signature captured.')} {autoConfirmCountdown !== null ? (
+            <span>{t(autoConfirmCountdown === 1 ? 'checkout.auto_confirming_dots' : 'checkout.auto_confirming_dots_plural', { count: autoConfirmCountdown, defaultValue: `Auto-confirming in ${autoConfirmCountdown} seconds...` })}</span>
           ) : (
-            <span>Click "Done" to confirm, or "Clear" to re-sign.</span>
+            <span>{t('checkout.click_done_confirm_clear_resign', 'Click "Done" to confirm, or "Clear" to re-sign.')}</span>
           )}
         </p>
       )}
 
       {isEmpty && (
         <p className="text-xs sm:text-sm text-gray-400">
-          By signing above, you are providing your electronic signature to this agreement.
+          {t('checkout.electronic_signature_notice', 'By signing above, you are providing your electronic signature to this agreement.')}
         </p>
       )}
     </div>

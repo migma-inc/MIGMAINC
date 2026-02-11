@@ -1,5 +1,6 @@
 import React from 'react';
 import { Label } from '@/components/ui/label';
+import { useTranslation } from 'react-i18next';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { CreditCard, DollarSign } from 'lucide-react';
 import type { PaymentMethod } from '../../../types/form.types';
@@ -13,12 +14,13 @@ export const PaymentMethodSelector: React.FC<PaymentMethodSelectorProps> = ({
     paymentMethod,
     onMethodChange,
 }) => {
+    const { t } = useTranslation();
     return (
         <div className="pt-4 border-t border-gold-medium/30">
-            <Label className="text-white mb-3 block text-sm sm:text-base font-medium">Select Payment Method</Label>
+            <Label className="text-white mb-3 block text-sm sm:text-base font-medium">{t('checkout.select_payment_method', 'Select Payment Method')}</Label>
             <Select value={paymentMethod || undefined} onValueChange={(val) => onMethodChange(val as PaymentMethod)}>
                 <SelectTrigger className="w-full bg-white border-gray-300 text-black h-12 focus:ring-gold-medium/50">
-                    <SelectValue placeholder="Select a payment method" />
+                    <SelectValue placeholder={t('checkout.select_payment_method_placeholder', 'Select a payment method')} />
                 </SelectTrigger>
                 <SelectContent className="bg-white border-gray-200 text-black">
                     <SelectItem value="zelle" className="cursor-pointer hover:bg-gray-100 focus:bg-gray-100 focus:text-black">
@@ -30,7 +32,7 @@ export const PaymentMethodSelector: React.FC<PaymentMethodSelectorProps> = ({
                     <SelectItem value="parcelow" className="cursor-pointer hover:bg-gray-100 focus:bg-gray-100 focus:text-black">
                         <div className="flex items-center gap-2">
                             <CreditCard className="w-4 h-4 text-blue-600" />
-                            <span>Parcelow (Card, PIX, TED)</span>
+                            <span>{t('checkout.parcelow_description', 'Parcelow (Card, PIX, TED)')}</span>
                         </div>
                     </SelectItem>
                     {/* STRIPE REMOVED - No longer using Stripe payments

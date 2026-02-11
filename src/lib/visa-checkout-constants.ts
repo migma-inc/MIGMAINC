@@ -24,6 +24,49 @@ export function getSortedCountries(): string[] {
 // Lista de países ordenada (com "Other" no final)
 export const countries = getSortedCountries();
 
+// Mapeamento de países para códigos ISO (usado para máscaras de telefone)
+export const countryToIso: Record<string, string> = {
+  'Brazil': 'br',
+  'Portugal': 'pt',
+  'Angola': 'ao',
+  'Mozambique': 'mz',
+  'Cape Verde': 'cv',
+  'United States': 'us',
+  'United Kingdom': 'gb',
+  'Canada': 'ca',
+  'Australia': 'au',
+  'Germany': 'de',
+  'France': 'fr',
+  'Spain': 'es',
+  'Italy': 'it',
+  'Netherlands': 'nl',
+  'Belgium': 'be',
+  'Switzerland': 'ch',
+  'Austria': 'at',
+  'Sweden': 'se',
+  'Norway': 'no',
+  'Denmark': 'dk',
+  'Finland': 'fi',
+  'Poland': 'pl',
+  'Czech Republic': 'cz',
+  'Ireland': 'ie',
+  'New Zealand': 'nz',
+  'Japan': 'jp',
+  'South Korea': 'kr',
+  'Singapore': 'sg',
+  'Hong Kong': 'hk',
+  'Mexico': 'mx',
+  'Argentina': 'ar',
+  'Chile': 'cl',
+  'Colombia': 'co',
+  'Peru': 'pe',
+  'Ecuador': 'ec',
+  'Uruguay': 'uy',
+  'Paraguay': 'py',
+  'Venezuela': 've',
+  'Other': 'us',
+};
+
 // Mapeamento de países para códigos de telefone
 export const countryPhoneCodes: Record<string, string> = {
   'Brazil': '+55',

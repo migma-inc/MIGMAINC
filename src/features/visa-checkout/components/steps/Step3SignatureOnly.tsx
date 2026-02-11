@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import type { VisaCheckoutState, VisaCheckoutActions } from '../../types/form.types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ContractTermsSection } from './step3/ContractTermsSection';
@@ -23,10 +24,12 @@ export const Step3SignatureOnly: React.FC<Step3SignatureOnlyProps> = ({ state, a
         setTermsAccepted, setDataAuthorization
     } = actions;
 
+    const { t } = useTranslation();
+
     return (
         <Card className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30">
             <CardHeader>
-                <CardTitle className="text-white text-lg sm:text-xl">Step 3: Contract Signature</CardTitle>
+                <CardTitle className="text-white text-lg sm:text-xl">{t('checkout.step_3_signature_title', 'Step 3: Contract Signature')}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
                 <ContractTermsSection
@@ -62,26 +65,26 @@ export const Step3SignatureOnly: React.FC<Step3SignatureOnlyProps> = ({ state, a
                         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                             <path d="m15 18-6-6 6-6" />
                         </svg>
-                        Back
+                        {t('checkout.back', 'Back')}
                     </button>
 
                     <Button
                         onClick={onFinalize}
                         disabled={!signatureConfirmed || !termsAccepted || submitting}
-                        className="flex-1 bg-gold-medium text-black font-bold hover:bg-gold-light transition-colors"
+                        className="flex-1 bg-gold-medium text-black font-bold hover:bg-gold-light transition-colors h-auto py-3 whitespace-normal px-2"
                     >
                         {submitting ? (
-                            <span className="flex items-center gap-2">
-                                <svg className="animate-spin h-4 w-4 text-black" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <span className="flex items-center justify-center gap-2">
+                                <svg className="animate-spin h-4 w-4 text-black flex-shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                                 </svg>
-                                Processing...
+                                <span>{t('checkout.processing', 'Processing...')}</span>
                             </span>
                         ) : (
-                            <span className="flex items-center gap-2">
-                                <CheckCircle className="w-4 h-4" />
-                                Finalize & Sign Contract
+                            <span className="flex items-center justify-center gap-2">
+                                <CheckCircle className="w-4 h-4 flex-shrink-0" />
+                                <span className="text-sm sm:text-base">{t('checkout.finalize_sign_contract', 'Finalize & Sign Contract')}</span>
                             </span>
                         )}
                     </Button>

@@ -18,13 +18,15 @@ import { ZelleProcessingView } from './components/shared/ZelleProcessingView';
 import { CheckoutLoadingOverlay } from './components/shared/CheckoutLoadingOverlay';
 
 
-import { ArrowLeft } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
+import { LanguageSelector } from '@/components/LanguageSelector';
 import { calculateBaseTotal, calculateTotalWithFees } from '@/lib/visa-checkout-utils';
 import { trackLinkClick } from '@/lib/funnel-tracking';
 import type { VisaProduct } from '@/types/visa-product';
-import { AlertCircle } from 'lucide-react';
+import { AlertCircle, ArrowLeft } from 'lucide-react';
 
 export const VisaCheckoutPage: React.FC = () => {
+    const { t } = useTranslation();
     const { productSlug } = useParams<{ productSlug: string }>();
     const [searchParams] = useSearchParams();
     const urlSellerId = searchParams.get('seller') || '';
@@ -95,13 +97,13 @@ export const VisaCheckoutPage: React.FC = () => {
                     .single();
 
                 if (error || !data) {
-                    actions.setError('Produto não encontrado ou inativo.');
+                    actions.setError(t('checkout.error_product_not_found', 'Produto não encontrado ou inativo.'));
                     return;
                 }
                 setProduct(data);
                 if (effectiveSellerId) await trackLinkClick(effectiveSellerId, productSlug);
             } catch (err) {
-                actions.setError('Erro ao carregar os detalhes do produto.');
+                actions.setError(t('checkout.error_loading_product', 'Erro ao carregar os detalhes do produto.'));
             } finally {
                 setLoading(false);
             }
@@ -131,7 +133,7 @@ export const VisaCheckoutPage: React.FC = () => {
         return (
             <div className="min-h-screen bg-black flex flex-col items-center justify-center text-white p-4">
                 <div className="loader-gold mx-auto mb-8"></div>
-                <p className="text-gray-400">Carregando sua aplicação...</p>
+                <p className="text-gray-400">{t('checkout.processing', 'Carregando sua aplicação...')}</p>
             </div>
         );
     }
@@ -140,10 +142,10 @@ export const VisaCheckoutPage: React.FC = () => {
         return (
             <div className="min-h-screen bg-black flex flex-col items-center justify-center text-white p-4 text-center">
                 <AlertCircle className="w-16 h-16 text-red-500 mb-4" />
-                <h2 className="text-2xl font-bold mb-2">Ops! Produto não encontrado</h2>
-                <p className="text-gray-400 mb-6">Não conseguimos localizar as informações deste visto.</p>
+                <h2 className="text-2xl font-bold mb-2">{t('checkout.error_product_not_found_title', 'Ops! Produto não encontrado')}</h2>
+                <p className="text-gray-400 mb-6">{t('checkout.error_product_not_found_message', 'Não conseguimos localizar as informações deste visto.')}</p>
                 <Link to="/" className="bg-gold-medium text-black px-6 py-2 rounded-full font-bold hover:bg-gold-light transition-colors">
-                    Voltar para Home
+                    {t('checkout.back_to_home', 'Voltar para Home')}
                 </Link>
             </div>
         );
@@ -166,10 +168,13 @@ export const VisaCheckoutPage: React.FC = () => {
             {state.submitting && <CheckoutLoadingOverlay />}
             <div className="max-w-6xl mx-auto">
                 <header className="flex flex-col mb-8 gap-2">
-                    <Link to="/" className="inline-flex items-center text-gold-light hover:text-gold-medium transition-colors mb-2">
-                        <ArrowLeft className="w-4 h-4 mr-2" /> Back to Home
-                    </Link>
-                    <h1 className="text-2xl sm:text-3xl font-bold migma-gold-text">Visa Application Checkout</h1>
+                    <div className="flex justify-between items-start">
+                        <Link to="/" className="inline-flex items-center text-gold-light hover:text-gold-medium transition-colors mb-2">
+                            <ArrowLeft className="w-4 h-4 mr-2" /> {t('checkout.back_to_home', 'Back to Home')}
+                        </Link>
+                        <LanguageSelector />
+                    </div>
+                    <h1 className="text-2xl sm:text-3xl font-bold migma-gold-text">{t('checkout.visa_title', 'Visa Application Checkout')}</h1>
                     {effectiveSellerId && (
                         <p className="text-gray-400 text-sm">Seller ID: <span className="text-gold-light">{effectiveSellerId}</span></p>
                     )}
@@ -220,19 +225,19 @@ export const VisaCheckoutPage: React.FC = () => {
 
                         {((state.currentStep === 1 || state.currentStep === 2) && !state.eb3ScheduleId) && (
                             <div className="bg-zinc-900/50 border border-gold-medium/20 rounded-xl p-6 space-y-4 animate-in fade-in slide-in-from-top-4 duration-500">
-                                <h2 className="text-gold-light font-bold text-lg">Product Details</h2>
+                                <h2 className="text-gold-light font-bold text-lg">{t('checkout.product_details', 'Product Details')}</h2>
                                 <div>
                                     <h3 className="text-white font-bold text-xl mb-1">{product.name}</h3>
                                     <p className="text-gray-400 text-sm leading-relaxed">{product.description}</p>
                                 </div>
                                 <div className="pt-2 space-y-2 border-t border-white/5">
                                     <div className="flex justify-between items-center text-sm">
-                                        <span className="text-gray-400">Base Price:</span>
+                                        <span className="text-gray-400">{t('checkout.base_price', 'Base Price')}:</span>
                                         <span className="text-white font-bold text-lg">US$ {parseFloat(product.base_price_usd).toFixed(2)}</span>
                                     </div>
                                     {productSlug !== 'consultation-common' && (
                                         <div className="flex justify-between items-center text-sm">
-                                            <span className="text-gray-400">Per dependents:</span>
+                                            <span className="text-gray-400">{t('checkout.per_dependents', 'Per dependents')}:</span>
                                             <span className="text-gray-300">US$ {parseFloat(product.extra_unit_price).toFixed(2)}</span>
                                         </div>
                                     )}
