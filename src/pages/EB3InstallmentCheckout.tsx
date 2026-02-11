@@ -3,7 +3,7 @@
  * Multi-step checkout following the Migma Standard (Step 1, 2, 3)
  */
 
-import { useState, useEffect } from 'react';
+import { useRef, useState, useEffect } from 'react';
 import { useParams, useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
-import { AlertCircle, ArrowLeft, Clock, ShieldCheck, FileText, CreditCard } from 'lucide-react';
+import { AlertCircle, ArrowLeft, Clock, ShieldCheck, FileText, CreditCard, Loader2 } from 'lucide-react';
 import { StepIndicator } from '@/features/visa-checkout/components/shared/StepIndicator';
 import { SignaturePadComponent } from '@/components/ui/signature-pad';
 import { ZelleUpload } from '@/features/visa-checkout/components/steps/step3/ZelleUpload';
@@ -55,17 +55,46 @@ export const EB3InstallmentCheckout = () => {
     const [cpf, setCpf] = useState('');
     const [creditCardName, setCreditCardName] = useState('');
 
+    const hasLoaded = useRef(false);
+
     useEffect(() => {
-        if (installmentId) {
+        // Garantir que só carrega uma vez por montagem ou mudança real de ID
+        if (installmentId && !hasLoaded.current) {
+            console.log('[EB-3 DEBUG] First load attempt for ID:', installmentId);
             loadInstallment();
-        } else if (!loading) {
-            setError('Desculpe, não conseguimos encontrar as informações deste parcelamento.');
+            hasLoaded.current = true;
         }
-    }, [installmentId, loading]);
+    }, [installmentId]);
 
     const loadInstallment = async () => {
         try {
             setLoading(true);
+            let targetInstallmentId = installmentId;
+
+            // If we have a prefill token, we need to resolve it to the real installment ID
+            if (prefillId) {
+                console.log('[EB-3] Resolving prefill token:', prefillId);
+                const { data: prefillData, error: prefillError } = await supabase
+                    .from('checkout_prefill_tokens')
+                    .select('client_data')
+                    .eq('token', prefillId)
+                    .maybeSingle();
+
+                if (prefillError) {
+                    console.error('[EB-3] Error fetching prefill token:', prefillError);
+                } else if (prefillData?.client_data?.eb3_schedule_id) {
+                    console.log('[EB-3] Token resolved to schedule_id:', prefillData.client_data.eb3_schedule_id);
+                    targetInstallmentId = prefillData.client_data.eb3_schedule_id;
+                }
+            }
+
+            if (!targetInstallmentId || targetInstallmentId.length < 30) {
+                // If it's not a UUID (like the 'monthly' placeholder), and token resolution failed
+                setError('Invalid payment link. Please use the link provided in your email.');
+                setLoading(false);
+                return;
+            }
+
             const { data: scheduleData, error: scheduleError } = await supabase
                 .from('eb3_recurrence_schedules')
                 .select(`
@@ -77,12 +106,17 @@ export const EB3InstallmentCheckout = () => {
                     status,
                     client_id,
                     order_id,
-                    seller_id
+                    seller_id,
+                    clients (
+                        full_name,
+                        email
+                    )
                 `)
-                .eq('id', installmentId)
+                .eq('id', targetInstallmentId)
                 .single();
 
             if (scheduleError || !scheduleData) {
+                console.error('[EB-3] Schedule error:', scheduleError);
                 setError('Installment not found or already paid.');
                 return;
             }
@@ -91,12 +125,6 @@ export const EB3InstallmentCheckout = () => {
                 setError('This installment has already been paid. Thank you!');
                 return;
             }
-
-            const { data: clientData } = await supabase
-                .from('clients')
-                .select('full_name, email')
-                .eq('id', scheduleData.client_id)
-                .single();
 
             if (scheduleData.seller_id && !sellerPublicId) {
                 const { data: sellerData } = await supabase
@@ -107,17 +135,25 @@ export const EB3InstallmentCheckout = () => {
                 if (sellerData) setSellerPublicId(sellerData.seller_id_public);
             }
 
+            console.log('[EB-3 DEBUG] Schedule data loaded:', scheduleData);
             setInstallment({
-                ...scheduleData,
-                client_name: clientData?.full_name || 'Unknown',
-                client_email: clientData?.email || ''
+                id: scheduleData.id,
+                installment_number: scheduleData.installment_number,
+                due_date: scheduleData.due_date,
+                amount_usd: scheduleData.amount_usd,
+                late_fee_usd: scheduleData.late_fee_usd,
+                status: scheduleData.status,
+                client_id: scheduleData.client_id,
+                client_name: (scheduleData.clients as any)?.full_name || 'N/A',
+                client_email: (scheduleData.clients as any)?.email || 'N/A',
+                order_id: scheduleData.order_id
             });
-
-        } catch (err) {
-            console.error('Error loading installment:', err);
-            setError('Failed to load payment information.');
+        } catch (e: any) {
+            console.error('[EB-3 DEBUG] Exception in loadInstallment:', e);
+            setError(e.message || 'Ocorreu um erro ao carregar os dados.');
         } finally {
             setLoading(false);
+            console.log('[EB-3 DEBUG] Loading finished');
         }
     };
 
@@ -138,7 +174,14 @@ export const EB3InstallmentCheckout = () => {
         setError(null);
 
         try {
-            const isOverdue = installment.status === 'overdue';
+            // 🆕 Verificar se está vencido comparando a data atual com due_date
+            const today = new Date();
+            today.setHours(0, 0, 0, 0); // Reset hora para comparar apenas a data
+
+            const dueDate = new Date(installment.due_date);
+            dueDate.setHours(0, 0, 0, 0);
+
+            const isOverdue = today > dueDate && installment.status === 'pending';
             const totalAmount = Number(installment.amount_usd) + (isOverdue ? Number(installment.late_fee_usd) : 0);
 
             // Create visa order for this installment
@@ -236,9 +279,9 @@ export const EB3InstallmentCheckout = () => {
 
     if (loading) {
         return (
-            <div className="min-h-screen bg-black flex flex-col items-center justify-center text-white p-4">
-                <div className="loader-gold mx-auto mb-8"></div>
-                <p className="text-gray-400">Loading your payment plan...</p>
+            <div className="min-h-screen bg-black flex flex-col items-center justify-center p-4">
+                <Loader2 className="w-12 h-12 text-gold-medium animate-spin mb-4" />
+                <p className="text-gold-light animate-pulse font-medium tracking-widest uppercase text-xs">Loading Security Environment...</p>
             </div>
         );
     }
@@ -269,7 +312,14 @@ export const EB3InstallmentCheckout = () => {
 
     if (!installment) return null;
 
-    const isOverdue = installment.status === 'overdue';
+    // 🆕 Verificar se está vencido comparando a data atual com due_date
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const dueDate = new Date(installment.due_date);
+    dueDate.setHours(0, 0, 0, 0);
+
+    const isOverdue = today > dueDate && installment.status === 'pending';
     const totalAmount = Number(installment.amount_usd) + (isOverdue ? Number(installment.late_fee_usd) : 0);
     const formattedDueDate = new Date(installment.due_date).toLocaleDateString('en-US', {
         year: 'numeric',

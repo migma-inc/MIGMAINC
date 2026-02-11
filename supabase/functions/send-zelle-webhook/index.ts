@@ -264,6 +264,8 @@ Deno.serve(async (req: Request) => {
           .from('clients')
           .select('id')
           .eq('email', orderToProcess.client_email)
+          .order('created_at', { ascending: false })
+          .limit(1)
           .maybeSingle();
 
         const clientId = clientData?.id;
@@ -286,7 +288,7 @@ Deno.serve(async (req: Request) => {
                 p_client_id: clientId,
                 p_activation_order_id: orderToProcess.id,
                 p_seller_id: orderToProcess.seller_id || null,
-                p_seller_commission_percent: null
+                p_seller_commission_percent: orderToProcess.seller_commission_percent || null
               });
 
               if (eb3Error) {
