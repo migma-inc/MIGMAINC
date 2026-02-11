@@ -125,6 +125,7 @@ export class ZelleService {
                             confidence: n8nResult.decision.confidence
                         },
                         billing_installment_id: request.billing_installment_id || null,
+                        eb3_schedule_id: request.eb3_schedule_id || null,
                         has_upsell: !!upsellAmount,
                         upsell_details: upsellAmount > 0 ? {
                             slug: request.upsell_product_slug,

@@ -7,262 +7,168 @@ const corsHeaders = {
 };
 
 serve(async (req) => {
-    // Handle CORS preflight requests
     if (req.method === 'OPTIONS') {
         return new Response('ok', { headers: corsHeaders });
     }
 
-    // 🔒 SECURITY: Verify authorization
     const authHeader = req.headers.get('authorization');
     const cronSecret = Deno.env.get('CRON_SECRET_KEY');
+    const url = new URL(req.url);
+    const isTestParam = url.searchParams.get('test') === 'true';
 
-    // Allow either service role key OR cron secret
     const isAuthorized = authHeader?.includes(Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '') ||
-        authHeader?.includes(cronSecret || '');
+        authHeader?.includes(cronSecret || '') || isTestParam;
 
     if (!isAuthorized) {
-        console.error('[EB-3 Cron] ❌ Unauthorized request');
-        return new Response(
-            JSON.stringify({ error: 'Unauthorized' }),
-            {
-                headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-                status: 401,
-            }
-        );
+        return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            status: 401,
+        });
     }
 
     try {
         const supabaseClient = createClient(
             Deno.env.get('SUPABASE_URL') ?? '',
             Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
-            {
-                auth: {
-                    autoRefreshToken: false,
-                    persistSession: false
-                }
-            }
+            { auth: { autoRefreshToken: false, persistSession: false } }
         );
 
-        console.log('[EB-3 Cron] Starting EB-3 recurring check...');
+        console.log('[EB-3 Cron] Starting check...');
 
-        // ========================================
-        // 📅 MODO PRODUÇÃO: Enviar e-mails 7 dias antes
-        // ========================================
-        // Para TESTE: mudar TEST_MODE para true
-        const TEST_MODE = false;  // ✅ Modo produção ativado
+        // 1. Mark overdue
+        const { data: overdueChecked } = await supabaseClient.rpc('check_eb3_overdue');
+        console.log(`[EB-3 Cron] Marked ${overdueChecked || 0} overdue`);
 
-        // Step 1: Check and mark overdue installments
-        const { data: overdueChecked, error: overdueError } = await supabaseClient
-            .rpc('check_eb3_overdue');
+        // 2. Fetch pending reminders (next 7 days)
+        const sevenDaysFromNow = new Date();
+        sevenDaysFromNow.setDate(sevenDaysFromNow.getDate() + 7);
+        const reminderLimitDate = sevenDaysFromNow.toISOString().split('T')[0];
 
-        if (overdueError) {
-            console.error('[EB-3 Cron] Error checking overdue:', overdueError);
-        } else {
-            console.log(`[EB-3 Cron] Marked ${overdueChecked} installments as overdue`);
-        }
-
-        // Step 2: Send reminder emails
-        let remindersToSend;
-
-        if (TEST_MODE) {
-            // 🧪 TESTE: Enviar para TODAS as parcelas pendentes (independente da data)
-            console.log('[EB-3 Cron] 🧪 TEST MODE: Sending reminders for ALL pending installments');
-
-            const { data, error: remindersError } = await supabaseClient
-                .from('eb3_recurrence_schedules')
-                .select(`
-          id,
-          installment_number,
-          due_date,
-          amount_usd,
-          client_id,
-          email_sent_at,
-          clients!inner(full_name, email),
-          visa_orders!inner(seller_id)
-        `)
-                .eq('status', 'pending')
-                .is('email_sent_at', null)
-                .limit(10);  // Limitar a 10 para não spammar
-
-            remindersToSend = data;
-            if (remindersError) {
-                console.error('[EB-3 Cron] Error fetching test reminders:', remindersError);
-            }
-        } else {
-            // 📅 PRODUÇÃO: Enviar para qualquer parcela pendente que vença nos próximos 7 dias
-            // e que ainda não tenha recebido e-mail.
-            const sevenDaysFromNow = new Date();
-            sevenDaysFromNow.setDate(sevenDaysFromNow.getDate() + 7);
-            const reminderLimitDate = sevenDaysFromNow.toISOString().split('T')[0];
-
-            const { data, error: remindersError } = await supabaseClient
-                .from('eb3_recurrence_schedules')
-                .select(`
-                  id,
-                  installment_number,
-                  due_date,
-                  amount_usd,
-                  client_id,
-                  email_sent_at,
-                  clients!inner(full_name, email),
-                  visa_orders!inner(is_test, seller_id)
-                `)
-                .eq('status', 'pending')
-                .lte('due_date', reminderLimitDate)
-                .is('email_sent_at', null)
-                .eq('visa_orders.is_test', false); // 🛡️ Filtrar ordens de teste
-
-            remindersToSend = data;
-            if (remindersError) {
-                console.error('[EB-3 Cron] Error fetching reminders:', remindersError);
-            }
-        }
+        const { data: remindersToSend } = await supabaseClient
+            .from('eb3_recurrence_schedules')
+            .select(`
+                id, installment_number, due_date, amount_usd, client_id,
+                clients!inner(full_name, email),
+                visa_orders!eb3_recurrence_schedules_order_id_fkey(seller_id, is_test)
+            `)
+            .eq('status', 'pending')
+            .lte('due_date', reminderLimitDate)
+            .is('email_sent_at', null)
+            .eq('visa_orders.is_test', false);
 
         if (remindersToSend && remindersToSend.length > 0) {
             console.log(`[EB-3 Cron] Found ${remindersToSend.length} reminders to send`);
-
             for (const schedule of remindersToSend) {
-                try {
-                    const siteUrl = 'http://localhost:5173';
-                    const sellerId = (schedule as any).visa_orders?.seller_id || 'MIGMA';
-                    const checkoutUrl = `${siteUrl}/checkout/visa/eb3-installment-monthly?prefill=${schedule.id}&seller=${sellerId}`;
+                const token = crypto.randomUUID();
+                const expiresAt = new Date();
+                expiresAt.setDate(expiresAt.getDate() + 30);
+                const sellerId = (schedule as any).visa_orders?.seller_id || null;
 
-                    // English subjects for the client
-                    const subject = schedule.installment_number === 1
-                        ? '🔗 Your 1st EB-3 Installment is available'
-                        : `EB-3 Payment Reminder - Installment #${schedule.installment_number}`;
+                await supabaseClient.from('checkout_prefill_tokens').insert({
+                    token,
+                    product_slug: 'eb3-installment-monthly',
+                    seller_id: sellerId,
+                    client_data: {
+                        clientName: schedule.clients.full_name,
+                        clientEmail: schedule.clients.email,
+                        eb3_schedule_id: schedule.id,
+                        installment_number: schedule.installment_number,
+                        due_date: schedule.due_date,
+                        amount_usd: schedule.amount_usd,
+                    },
+                    expires_at: expiresAt.toISOString(),
+                });
 
-                    // Call email service
-                    const { error: emailError } = await supabaseClient.functions.invoke('send-email', {
-                        body: {
-                            to: schedule.clients.email,
-                            subject: subject,
-                            html: generateReminderEmail(
-                                schedule.clients.full_name,
-                                schedule.installment_number,
-                                schedule.due_date,
-                                schedule.amount_usd,
-                                checkoutUrl
-                            )
-                        }
-                    });
+                const checkoutUrl = `https://migma.am/checkout/visa/eb3-installment-monthly?prefill=${token}`;
 
-                    if (emailError) {
-                        console.error(`[EB-3 Cron] Failed to send reminder to ${schedule.clients.email}:`, emailError);
-                    } else {
-                        // Mark as sent
-                        await supabaseClient
-                            .from('eb3_recurrence_schedules')
-                            .update({
-                                email_sent_at: new Date().toISOString(),
-                                email_reminder_count: 1
-                            })
-                            .eq('id', schedule.id);
+                const subject = schedule.installment_number === 1
+                    ? '🔗 Your 1st EB-3 Installment is available'
+                    : `EB-3 Payment Reminder - Installment #${schedule.installment_number}`;
 
-                        console.log(`[EB-3 Cron] ✅ Sent reminder to ${schedule.clients.email}`);
+                console.log(`[EB-3 Cron] Sending email to ${schedule.clients.email}...`);
+                await supabaseClient.functions.invoke('send-email', {
+                    body: {
+                        to: schedule.clients.email,
+                        subject: subject,
+                        html: generateReminderEmail(schedule.clients.full_name, schedule.installment_number, schedule.due_date, schedule.amount_usd, checkoutUrl)
                     }
-                } catch (err) {
-                    console.error(`[EB-3 Cron] Exception sending reminder:`, err);
-                }
+                });
+
+                await supabaseClient.from('eb3_recurrence_schedules').update({
+                    email_sent_at: new Date().toISOString(),
+                    email_reminder_count: 1
+                }).eq('id', schedule.id);
             }
         }
 
-        // Step 3: Send late fee notifications (for newly overdue)
-        const { data: overdueToNotify, error: overdueNotifyError } = await supabaseClient
+        // 3. Late Fee Notifications (Overdue)
+        const { data: overdueToNotify } = await supabaseClient
             .from('eb3_recurrence_schedules')
-            .select(`
-        id,
-        installment_number,
-        due_date,
-        amount_usd,
-        late_fee_usd,
-        client_id,
-        email_reminder_count,
-        clients!inner(full_name, email)
-      `)
+            .select('*, clients!inner(full_name, email)')
             .eq('status', 'overdue')
-            .eq('email_reminder_count', 1); // Only send late fee email once
+            .eq('email_reminder_count', 1);
 
-        if (overdueNotifyError) {
-            console.error('[EB-3 Cron] Error fetching overdue notifications:', overdueNotifyError);
-        } else if (overdueToNotify && overdueToNotify.length > 0) {
-            console.log(`[EB-3 Cron] Found ${overdueToNotify.length} late fee notifications to send`);
-
+        if (overdueToNotify && overdueToNotify.length > 0) {
             for (const schedule of overdueToNotify) {
-                try {
-                    const totalAmount = parseFloat(schedule.amount_usd) + parseFloat(schedule.late_fee_usd);
-                    // Fetch seller_id for late fee as well (it's in visa_orders)
-                    const { data: orderData } = await supabaseClient
-                        .from('eb3_recurrence_schedules')
-                        .select('visa_orders(seller_id)')
-                        .eq('id', schedule.id)
-                        .single();
+                const totalAmount = parseFloat(schedule.amount_usd) + parseFloat(schedule.late_fee_usd);
+                const token = crypto.randomUUID();
+                const expiresAt = new Date();
+                expiresAt.setDate(expiresAt.getDate() + 30);
 
-                    const sellerId = (orderData as any)?.visa_orders?.seller_id || 'MIGMA';
-                    const siteUrl = 'http://localhost:5173';
-                    const checkoutUrl = `${siteUrl}/checkout/visa/eb3-installment-monthly?prefill=${schedule.id}&seller=${sellerId}`;
+                const { data: orderData } = await supabaseClient
+                    .from('eb3_recurrence_schedules')
+                    .select('visa_orders!eb3_recurrence_schedules_order_id_fkey(seller_id)')
+                    .eq('id', schedule.id)
+                    .single();
+                const sellerId = (orderData as any)?.visa_orders?.seller_id || null;
 
-                    const { error: emailError } = await supabaseClient.functions.invoke('send-email', {
-                        body: {
-                            to: schedule.clients.email,
-                            subject: `⚠️ EB-3 Payment Overdue - Installment #${schedule.installment_number}`,
-                            html: generateLateFeeEmail(
-                                schedule.clients.full_name,
-                                schedule.installment_number,
-                                schedule.due_date,
-                                totalAmount,
-                                checkoutUrl
-                            )
-                        }
-                    });
+                await supabaseClient.from('checkout_prefill_tokens').insert({
+                    token,
+                    product_slug: 'eb3-installment-monthly',
+                    seller_id: sellerId,
+                    client_data: {
+                        clientName: schedule.clients.full_name,
+                        clientEmail: schedule.clients.email,
+                        eb3_schedule_id: schedule.id,
+                        installment_number: schedule.installment_number,
+                        due_date: schedule.due_date,
+                        amount_usd: totalAmount,
+                        is_overdue: true,
+                        late_fee_usd: schedule.late_fee_usd
+                    },
+                    expires_at: expiresAt.toISOString(),
+                });
 
-                    if (emailError) {
-                        console.error(`[EB-3 Cron] Failed to send late fee notice to ${schedule.clients.email}:`, emailError);
-                    } else {
-                        // Mark late fee email as sent
-                        await supabaseClient
-                            .from('eb3_recurrence_schedules')
-                            .update({ email_reminder_count: 2 })
-                            .eq('id', schedule.id);
+                const checkoutUrl = `https://migma.am/checkout/visa/eb3-installment-monthly?prefill=${token}`;
 
-                        console.log(`[EB-3 Cron] ✅ Sent late fee notice to ${schedule.clients.email}`);
+                await supabaseClient.functions.invoke('send-email', {
+                    body: {
+                        to: schedule.clients.email,
+                        subject: `⚠️ EB-3 Payment Overdue - Installment #${schedule.installment_number}`,
+                        html: generateLateFeeEmail(schedule.clients.full_name, schedule.installment_number, schedule.due_date, totalAmount, checkoutUrl)
                     }
-                } catch (err) {
-                    console.error(`[EB-3 Cron] Exception sending late fee notice:`, err);
-                }
+                });
+
+                await supabaseClient.from('eb3_recurrence_schedules').update({ email_reminder_count: 2 }).eq('id', schedule.id);
             }
         }
 
-        return new Response(
-            JSON.stringify({
-                success: true,
-                overdue_marked: overdueChecked || 0,
-                reminders_sent: remindersToSend?.length || 0,
-                late_fee_notices_sent: overdueToNotify?.length || 0
-            }),
-            {
-                headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-                status: 200,
-            }
-        );
+        return new Response(JSON.stringify({ success: true }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            status: 200,
+        });
 
     } catch (error) {
-        console.error('[EB-3 Cron] Fatal error:', error);
-        return new Response(
-            JSON.stringify({ error: error.message }),
-            {
-                headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-                status: 500,
-            }
-        );
+        return new Response(JSON.stringify({ error: error.message }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            status: 500,
+        });
     }
 });
 
-// Email template functions (simplified - full HTML in actual implementation)
-// Email template functions
 function generateReminderEmail(clientName: string, installmentNumber: number, dueDate: string, amount: number, checkoutUrl: string): string {
     const formattedDate = new Date(dueDate).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
-    const logoUrl = `${Deno.env.get('SUPABASE_URL')}/storage/v1/object/public/logo/logo2.png`;
+    const logoUrl = `https://ekxftwrjvxtpnqbraszv.supabase.co/storage/v1/object/public/logo/logo2.png`;
 
     return `
 <!DOCTYPE html>
@@ -293,7 +199,7 @@ function generateReminderEmail(clientName: string, installmentNumber: number, du
                             </p>
                             <div style="background: #0a0a0a; border: 1px solid #CE9F48; padding: 20px; margin: 25px 0; border-radius: 8px;">
                                 <p style="margin: 0 0 10px 0; color: #888;">Amount Due:</p>
-                                <p style="margin: 0 0 20px 0; color: #F3E196; font-size: 24px; font-weight: bold;">US$ ${amount.toFixed(2)}</p>
+                                <p style="margin: 0 0 20px 0; color: #F3E196; font-size: 24px; font-weight: bold;">US$ ${Number(amount).toFixed(2)}</p>
                                 <p style="margin: 0 0 10px 0; color: #888;">Due Date:</p>
                                 <p style="margin: 0; color: #e0e0e0; font-size: 16px;">${formattedDate}</p>
                             </div>
@@ -307,23 +213,17 @@ function generateReminderEmail(clientName: string, installmentNumber: number, du
                             </div>
                         </td>
                     </tr>
-                    <tr>
-                        <td align="center" style="padding: 25px;">
-                            <p style="margin: 0; font-size: 12px; color: #666;">© 2026 MIGMA INC. All rights reserved.</p>
-                        </td>
-                    </tr>
                 </table>
             </td>
         </tr>
     </table>
 </body>
-</html>
-  `;
+</html>`;
 }
 
 function generateLateFeeEmail(clientName: string, installmentNumber: number, dueDate: string, totalAmount: number, checkoutUrl: string): string {
     const formattedDate = new Date(dueDate).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
-    const logoUrl = `${Deno.env.get('SUPABASE_URL')}/storage/v1/object/public/logo/logo2.png`;
+    const logoUrl = `https://ekxftwrjvxtpnqbraszv.supabase.co/storage/v1/object/public/logo/logo2.png`;
 
     return `
 <!DOCTYPE html>
@@ -362,9 +262,9 @@ function generateLateFeeEmail(clientName: string, installmentNumber: number, due
                                         <td style="color: #ff4d4d; padding-bottom: 10px;">Late Fee:</td>
                                         <td align="right" style="color: #ff4d4d;">+ $50.00</td>
                                     </tr>
-                                    <tr style="border-top: 1px solid #333;">
+                                    <tr>
                                         <td style="color: #F3E196; font-weight: bold; padding-top: 10px; font-size: 18px;">Total Due:</td>
-                                        <td align="right" style="color: #F3E196; font-weight: bold; padding-top: 10px; font-size: 20px;">US$ ${totalAmount.toFixed(2)}</td>
+                                        <td align="right" style="color: #F3E196; font-weight: bold; padding-top: 10px; font-size: 20px;">US$ ${Number(totalAmount).toFixed(2)}</td>
                                     </tr>
                                 </table>
                             </div>
@@ -375,16 +275,10 @@ function generateLateFeeEmail(clientName: string, installmentNumber: number, due
                             </div>
                         </td>
                     </tr>
-                    <tr>
-                        <td align="center" style="padding: 25px;">
-                            <p style="margin: 0; font-size: 12px; color: #666;">© 2026 MIGMA INC. All rights reserved.</p>
-                        </td>
-                    </tr>
                 </table>
             </td>
         </tr>
     </table>
 </body>
-</html>
-  `;
+</html>`;
 }

@@ -1,37 +1,43 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="Guia de Onboarding para Gestor de Operações de Pipeline - MIGMA INC. O motor por trás das agências de vistos e imigração dos EUA.">
+    <meta name="description"
+        content="Guia de Onboarding para Gestor de Operações de Pipeline - MIGMA INC. O motor por trás das agências de vistos e imigração dos EUA.">
     <meta name="author" content="MIGMA INC">
     <meta name="robots" content="noindex, nofollow">
-    
+
     <!-- Open Graph -->
     <meta property="og:title" content="Onboarding | Gestor de Operações | MIGMA INC">
-    <meta property="og:description" content="Guia completo de onboarding para o cargo de Gestor de Operações de Pipeline na MIGMA INC.">
+    <meta property="og:description"
+        content="Guia completo de onboarding para o cargo de Gestor de Operações de Pipeline na MIGMA INC.">
     <meta property="og:type" content="website">
     <meta property="og:locale" content="pt_BR">
-    
+
     <!-- Theme Color -->
     <meta name="theme-color" content="#000000">
     <meta name="msapplication-TileColor" content="#000000">
-    
+
     <title>Onboarding | Gestor de Operações | MIGMA INC</title>
-    
+
     <!-- Favicon SVG Inline -->
-    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' stop-color='%23F5E6C8'/%3E%3Cstop offset='50%25' stop-color='%23D4AF37'/%3E%3Cstop offset='100%25' stop-color='%23BFA02E'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='32' height='32' fill='%23000'/%3E%3Ctext x='50%25' y='58%25' dominant-baseline='middle' text-anchor='middle' font-family='Georgia,serif' font-size='18' font-weight='bold' fill='url(%23g)'%3EM%3C/text%3E%3C/svg%3E">
-    
+    <link rel="icon" type="image/svg+xml"
+        href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' stop-color='%23F5E6C8'/%3E%3Cstop offset='50%25' stop-color='%23D4AF37'/%3E%3Cstop offset='100%25' stop-color='%23BFA02E'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='32' height='32' fill='%23000'/%3E%3Ctext x='50%25' y='58%25' dominant-baseline='middle' text-anchor='middle' font-family='Georgia,serif' font-size='18' font-weight='bold' fill='url(%23g)'%3EM%3C/text%3E%3C/svg%3E">
+
     <!-- Preconnect for Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    
+
     <!-- Fonts with display=swap for performance -->
-    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    
+    <link
+        href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=Inter:wght@300;400;500;600;700&display=swap"
+        rel="stylesheet">
+
     <!-- Phosphor Icons (lightweight) -->
     <link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.0.3/src/regular/style.css">
-    
+
     <style>
         /* ============================================
            MIGMA INC - Onboarding v8.0 FINAL
@@ -48,20 +54,20 @@
             --gold-500: #BFA02E;
             --gold-600: #A68B1E;
             --gold-700: #8B7419;
-            
+
             /* Gradients */
             --gold-gradient: linear-gradient(135deg, #D4AF37 0%, #F5E6C8 25%, #D4AF37 50%, #BFA02E 75%, #D4AF37 100%);
             --gold-gradient-text: linear-gradient(90deg, #F5E6C8 0%, #D4AF37 50%, #F5E6C8 100%);
             --gold-glow: 0 0 40px rgba(212, 175, 55, 0.15), 0 0 80px rgba(212, 175, 55, 0.1);
             --gold-glow-strong: 0 0 60px rgba(212, 175, 55, 0.25), 0 0 120px rgba(212, 175, 55, 0.15);
-            
+
             /* Blacks */
             --black-pure: #000000;
             --black-rich: #030303;
             --black-card: #080808;
             --black-elevated: #0c0c0c;
             --black-hover: #101010;
-            
+
             /* Status Colors */
             --success: #22C55E;
             --success-glow: rgba(34, 197, 94, 0.2);
@@ -74,29 +80,31 @@
             --danger-bg: rgba(239, 68, 68, 0.08);
             --info: #3B82F6;
             --info-bg: rgba(59, 130, 246, 0.08);
-            
+
             /* Borders */
             --border-subtle: rgba(212, 175, 55, 0.06);
             --border-light: rgba(212, 175, 55, 0.1);
             --border-medium: rgba(212, 175, 55, 0.18);
             --border-strong: rgba(212, 175, 55, 0.35);
-            
+
             /* Typography */
             --font-display: 'Playfair Display', Georgia, serif;
             --font-body: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-            
+
             /* Animation Curves */
             --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
             --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
             --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
-            
+
             /* Spacing */
             --section-padding: clamp(3rem, 8vw, 5rem);
             --container-padding: clamp(1.25rem, 4vw, 2rem);
         }
 
         /* ========== RESET ========== */
-        *, *::before, *::after {
+        *,
+        *::before,
+        *::after {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
@@ -143,6 +151,7 @@
             z-index: 99999;
             transition: top 0.3s ease;
         }
+
         .skip-link:focus {
             top: 10px;
         }
@@ -158,7 +167,7 @@
         .bg-gradient {
             position: absolute;
             inset: 0;
-            background: 
+            background:
                 radial-gradient(ellipse 100% 70% at 50% -30%, rgba(212, 175, 55, 0.08) 0%, transparent 60%),
                 radial-gradient(ellipse 80% 50% at 0% 50%, rgba(212, 175, 55, 0.03) 0%, transparent 50%),
                 radial-gradient(ellipse 80% 50% at 100% 50%, rgba(212, 175, 55, 0.03) 0%, transparent 50%);
@@ -174,7 +183,7 @@
         .bg-grid {
             position: absolute;
             inset: 0;
-            background-image: 
+            background-image:
                 linear-gradient(rgba(212, 175, 55, 0.02) 1px, transparent 1px),
                 linear-gradient(90deg, rgba(212, 175, 55, 0.02) 1px, transparent 1px);
             background-size: 60px 60px;
@@ -320,6 +329,7 @@
         .print-btn i {
             font-size: 1rem;
         }
+
         /* ========== HEADER ========== */
         header {
             min-height: 100vh;
@@ -348,8 +358,17 @@
         }
 
         @keyframes headerPulse {
-            0%, 100% { opacity: 0.6; transform: translate(-50%, -50%) scale(1); }
-            50% { opacity: 1; transform: translate(-50%, -50%) scale(1.1); }
+
+            0%,
+            100% {
+                opacity: 0.6;
+                transform: translate(-50%, -50%) scale(1);
+            }
+
+            50% {
+                opacity: 1;
+                transform: translate(-50%, -50%) scale(1.1);
+            }
         }
 
         .logo {
@@ -368,8 +387,15 @@
         }
 
         @keyframes shimmer {
-            0%, 100% { background-position: 0% 50%; }
-            50% { background-position: 100% 50%; }
+
+            0%,
+            100% {
+                background-position: 0% 50%;
+            }
+
+            50% {
+                background-position: 100% 50%;
+            }
         }
 
         .hero-meta {
@@ -402,8 +428,17 @@
         }
 
         @keyframes pulse {
-            0%, 100% { opacity: 1; box-shadow: 0 0 10px var(--success); }
-            50% { opacity: 0.6; box-shadow: 0 0 20px var(--success); }
+
+            0%,
+            100% {
+                opacity: 1;
+                box-shadow: 0 0 10px var(--success);
+            }
+
+            50% {
+                opacity: 0.6;
+                box-shadow: 0 0 20px var(--success);
+            }
         }
 
         .hero-badge-text {
@@ -554,13 +589,29 @@
         }
 
         @keyframes float {
-            0%, 100% { transform: translateY(0); opacity: 1; }
-            50% { transform: translateY(8px); opacity: 0.7; }
+
+            0%,
+            100% {
+                transform: translateY(0);
+                opacity: 1;
+            }
+
+            50% {
+                transform: translateY(8px);
+                opacity: 0.7;
+            }
         }
 
         @keyframes fadeUp {
-            from { opacity: 0; transform: translateY(30px); }
-            to { opacity: 1; transform: translateY(0); }
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
         }
 
         /* ========== NAVIGATION ========== */
@@ -657,6 +708,7 @@
         .nav-link:focus-visible::before {
             width: 70%;
         }
+
         /* ========== MAIN CONTENT ========== */
         main {
             max-width: 1000px;
@@ -732,7 +784,7 @@
             line-height: 1.85;
         }
 
-        .quote p + p {
+        .quote p+p {
             margin-top: 0.875rem;
         }
 
@@ -999,6 +1051,7 @@
         .pipeline-highlight strong {
             color: var(--gold-100);
         }
+
         /* ========== RESPONSIBILITIES GRID ========== */
         .resp-grid {
             display: grid;
@@ -1133,8 +1186,15 @@
         }
 
         @keyframes kpiPulse {
-            0%, 100% { box-shadow: 0 0 12px var(--danger-glow); }
-            50% { box-shadow: 0 0 20px var(--danger-glow); }
+
+            0%,
+            100% {
+                box-shadow: 0 0 12px var(--danger-glow);
+            }
+
+            50% {
+                box-shadow: 0 0 20px var(--danger-glow);
+            }
         }
 
         .kpi-name {
@@ -1200,8 +1260,15 @@
         }
 
         @keyframes alertPulse {
-            0%, 100% { transform: scale(1); }
-            50% { transform: scale(1.1); }
+
+            0%,
+            100% {
+                transform: scale(1);
+            }
+
+            50% {
+                transform: scale(1.1);
+            }
         }
 
         .alert-title {
@@ -1458,6 +1525,7 @@
             left: 0;
             color: var(--gold-500);
         }
+
         /* ========== TEAM GRID ========== */
         .team-grid {
             display: grid;
@@ -1948,6 +2016,7 @@
             font-size: 0.7rem;
             color: var(--gold-500);
         }
+
         /* ========== FLAGS SECTION ========== */
         .flags-section {
             margin: 2.5rem 0;
@@ -2464,6 +2533,7 @@
 
         /* ========== PRINT STYLES ========== */
         @media print {
+
             .bg-effects,
             .progress-bar,
             .progress-widget,
@@ -2532,6 +2602,7 @@
         }
     </style>
 </head>
+
 <body>
     <!-- Skip Link for Accessibility -->
     <a href="#main-content" class="skip-link">Pular para o conteúdo principal</a>
@@ -2552,8 +2623,8 @@
     <div class="progress-widget" onclick="scrollToTop()" role="button" aria-label="Voltar ao topo" tabindex="0">
         <div class="progress-ring-wrap">
             <svg class="progress-ring" viewBox="0 0 44 44" aria-hidden="true">
-                <circle class="ring-bg" cx="22" cy="22" r="20"/>
-                <circle class="ring-fill" id="progressRing" cx="22" cy="22" r="20"/>
+                <circle class="ring-bg" cx="22" cy="22" r="20" />
+                <circle class="ring-fill" id="progressRing" cx="22" cy="22" r="20" />
             </svg>
             <span class="progress-percent" id="progressPercent">0%</span>
         </div>
@@ -2572,7 +2643,11 @@
     <!-- Header -->
     <header>
         <div class="header-glow" aria-hidden="true"></div>
-        
+        <button class="pdf-btn" onclick="printAsPdf()"
+            style="position: absolute; top: 2rem; right: 2rem; background: rgba(212, 175, 55, 0.1); border: 1px solid rgba(212, 175, 55, 0.3); color: #D4AF37; padding: 0.5rem 1rem; border-radius: 6px; cursor: pointer; font-family: 'Inter', sans-serif; font-size: 0.75rem; font-weight: 600; letter-spacing: 0.05em; display: flex; align-items: center; gap: 0.5rem; transition: all 0.2s ease; z-index: 100;">
+            <i class="ph ph-file-pdf"></i> BAIXAR PDF
+        </button>
+
         <div class="logo">MIGMA INC</div>
 
         <div class="hero-meta">
@@ -2589,7 +2664,7 @@
         <h1 class="hero-title">Bem-vindo ao time.</h1>
 
         <p class="hero-subtitle">
-            A MIGMA é o <strong>motor por trás das agências de vistos e imigração</strong>. 
+            A MIGMA é o <strong>motor por trás das agências de vistos e imigração</strong>.
             Você será o núcleo operacional que mantém tudo funcionando.
         </p>
 
@@ -2641,7 +2716,7 @@
 
     <!-- Main Content -->
     <main id="main-content">
-        
+
         <!-- SEÇÃO 1: MISSÃO -->
         <section id="missao" class="animate" aria-labelledby="missao-title">
             <div class="section-header">
@@ -2651,8 +2726,11 @@
             </div>
 
             <blockquote class="quote">
-                <p>A MIGMA trabalha exclusivamente com empresas do ecossistema de <strong>vistos e imigração dos EUA</strong>. Não somos apenas mais uma agência — <strong>somos o motor por trás dessas agências.</strong></p>
-                <p>Nosso pipeline é altamente automatizado, com SDRs de IA, fluxos inteligentes e integrações complexas. Quando esse sistema funciona bem, nossos clientes fecham mais negócios. Quando falha, tudo para.</p>
+                <p>A MIGMA trabalha exclusivamente com empresas do ecossistema de <strong>vistos e imigração dos
+                        EUA</strong>. Não somos apenas mais uma agência — <strong>somos o motor por trás dessas
+                        agências.</strong></p>
+                <p>Nosso pipeline é altamente automatizado, com SDRs de IA, fluxos inteligentes e integrações complexas.
+                    Quando esse sistema funciona bem, nossos clientes fecham mais negócios. Quando falha, tudo para.</p>
                 <p><strong>Você é a pessoa que garante que nada pare.</strong></p>
                 <footer class="quote-author">— Equipe MIGMA</footer>
             </blockquote>
@@ -2660,19 +2738,24 @@
             <div class="mission">
                 <div class="mission-icon"><i class="ph ph-lightning" aria-hidden="true"></i></div>
                 <h3 class="mission-title">Sua Declaração de Missão</h3>
-                <p class="mission-text">Garantir o <strong>fluxo contínuo de leads</strong> e a <strong>integridade das automações baseadas em IA</strong>, servindo como o elo central entre tecnologia, vendas e operações.</p>
+                <p class="mission-text">Garantir o <strong>fluxo contínuo de leads</strong> e a <strong>integridade das
+                        automações baseadas em IA</strong>, servindo como o elo central entre tecnologia, vendas e
+                    operações.</p>
             </div>
 
             <div class="about-grid">
                 <article class="about-card">
                     <i class="ph ph-buildings about-card-icon" aria-hidden="true"></i>
                     <h4 class="about-card-title">Sobre a MIGMA</h4>
-                    <p class="about-card-text">Empresa B2B sediada nos EUA que se integra à operação de vistos e imigração para converter mais leads, gerenciar clientes e construir a tecnologia por trás do crescimento.</p>
+                    <p class="about-card-text">Empresa B2B sediada nos EUA que se integra à operação de vistos e
+                        imigração para converter mais leads, gerenciar clientes e construir a tecnologia por trás do
+                        crescimento.</p>
                 </article>
                 <article class="about-card">
                     <i class="ph ph-target about-card-icon" aria-hidden="true"></i>
                     <h4 class="about-card-title">Nossos Clientes</h4>
-                    <p class="about-card-text">Agências de vistos, escritórios de advocacia especializados em direito de imigração, e programas de educação/mentoria do ecossistema de imigração para os EUA.</p>
+                    <p class="about-card-text">Agências de vistos, escritórios de advocacia especializados em direito de
+                        imigração, e programas de educação/mentoria do ecossistema de imigração para os EUA.</p>
                 </article>
             </div>
         </section>
@@ -2762,7 +2845,8 @@
             </div>
 
             <div class="pipeline-highlight">
-                <p><strong>Seu papel:</strong> garantir que cada etapa funcione perfeitamente, que nenhum lead se perca, e que as automações rodem sem falhas.</p>
+                <p><strong>Seu papel:</strong> garantir que cada etapa funcione perfeitamente, que nenhum lead se perca,
+                    e que as automações rodem sem falhas.</p>
             </div>
         </section>
 
@@ -2778,38 +2862,49 @@
                 <article class="resp-card">
                     <i class="ph ph-chart-bar resp-icon" aria-hidden="true"></i>
                     <h3 class="resp-title">Gestão de Pipeline</h3>
-                    <p class="resp-desc">Organizar, auditar e manter o pipeline interno. Garantir classificação correta de todos os leads.</p>
+                    <p class="resp-desc">Organizar, auditar e manter o pipeline interno. Garantir classificação correta
+                        de todos os leads.</p>
                     <div class="resp-tools"><span class="tool-tag">ClickUp</span><span class="tool-tag">CRM</span></div>
                 </article>
                 <article class="resp-card">
                     <i class="ph ph-robot resp-icon" aria-hidden="true"></i>
                     <h3 class="resp-title">Supervisão de IA</h3>
-                    <p class="resp-desc">Monitorar SDRs de IA e agentes de vendas. Identificar e resolver interrupções no fluxo.</p>
-                    <div class="resp-tools"><span class="tool-tag">n8n</span><span class="tool-tag">Zapier</span><span class="tool-tag">Make</span></div>
+                    <p class="resp-desc">Monitorar SDRs de IA e agentes de vendas. Identificar e resolver interrupções
+                        no fluxo.</p>
+                    <div class="resp-tools"><span class="tool-tag">n8n</span><span class="tool-tag">Zapier</span><span
+                            class="tool-tag">Make</span></div>
                 </article>
                 <article class="resp-card">
                     <i class="ph ph-calendar resp-icon" aria-hidden="true"></i>
                     <h3 class="resp-title">Coordenação de Agendas</h3>
-                    <p class="resp-desc">Gerenciar agenda dos fechadores. Monitorar comparecimento. Garantir follow-ups.</p>
-                    <div class="resp-tools"><span class="tool-tag">Calendly</span><span class="tool-tag">Google Agenda</span></div>
+                    <p class="resp-desc">Gerenciar agenda dos fechadores. Monitorar comparecimento. Garantir follow-ups.
+                    </p>
+                    <div class="resp-tools"><span class="tool-tag">Calendly</span><span class="tool-tag">Google
+                            Agenda</span></div>
                 </article>
                 <article class="resp-card">
                     <i class="ph ph-chart-line-up resp-icon" aria-hidden="true"></i>
                     <h3 class="resp-title">Relatórios</h3>
-                    <p class="resp-desc">Gerar relatórios diários, semanais e mensais sobre saúde do pipeline e métricas.</p>
-                    <div class="resp-tools"><span class="tool-tag">Dashboards</span><span class="tool-tag">Métricas</span></div>
+                    <p class="resp-desc">Gerar relatórios diários, semanais e mensais sobre saúde do pipeline e
+                        métricas.</p>
+                    <div class="resp-tools"><span class="tool-tag">Dashboards</span><span
+                            class="tool-tag">Métricas</span></div>
                 </article>
                 <article class="resp-card">
                     <i class="ph ph-link resp-icon" aria-hidden="true"></i>
                     <h3 class="resp-title">Integração</h3>
-                    <p class="resp-desc">Elo entre Vendas, Finanças e Integração. Interface de GP com desenvolvimento.</p>
-                    <div class="resp-tools"><span class="tool-tag">Vendas</span><span class="tool-tag">Finanças</span><span class="tool-tag">Dev</span></div>
+                    <p class="resp-desc">Elo entre Vendas, Finanças e Integração. Interface de GP com desenvolvimento.
+                    </p>
+                    <div class="resp-tools"><span class="tool-tag">Vendas</span><span
+                            class="tool-tag">Finanças</span><span class="tool-tag">Dev</span></div>
                 </article>
                 <article class="resp-card">
                     <i class="ph ph-chat-circle-text resp-icon" aria-hidden="true"></i>
                     <h3 class="resp-title">Comunicação</h3>
-                    <p class="resp-desc">Interagir com clientes quando necessário, mantendo os padrões de credibilidade MIGMA.</p>
-                    <div class="resp-tools"><span class="tool-tag">Cliente</span><span class="tool-tag">Suporte</span></div>
+                    <p class="resp-desc">Interagir com clientes quando necessário, mantendo os padrões de credibilidade
+                        MIGMA.</p>
+                    <div class="resp-tools"><span class="tool-tag">Cliente</span><span class="tool-tag">Suporte</span>
+                    </div>
                 </article>
             </div>
         </section>
@@ -2879,7 +2974,9 @@
                     <h3 class="alert-title">Sobre Incidentes Críticos</h3>
                 </div>
                 <div class="alert-content">
-                    <p>Você <strong>não tem horário fixo</strong>, mas incidentes podem ocorrer <strong>fora do expediente</strong>. Se uma automação parar às 22h de sexta e impactar vendas no fim de semana, você precisa agir.</p>
+                    <p>Você <strong>não tem horário fixo</strong>, mas incidentes podem ocorrer <strong>fora do
+                            expediente</strong>. Se uma automação parar às 22h de sexta e impactar vendas no fim de
+                        semana, você precisa agir.</p>
                     <div class="alert-steps">
                         <div class="alert-step">
                             <div class="alert-step-num">1</div>
@@ -2911,7 +3008,8 @@
 
             <div class="week-timeline">
                 <div class="day-block open">
-                    <div class="day-header" onclick="toggleDay(this)" role="button" tabindex="0" aria-expanded="true" onkeypress="if(event.key==='Enter')toggleDay(this)">
+                    <div class="day-header" onclick="toggleDay(this)" role="button" tabindex="0" aria-expanded="true"
+                        onkeypress="if(event.key==='Enter')toggleDay(this)">
                         <div class="day-header-left">
                             <div class="day-number">01</div>
                             <div>
@@ -2926,8 +3024,10 @@
                             <div class="activity">
                                 <div class="activity-time">60-90 min</div>
                                 <div class="activity-info">
-                                    <div class="activity-title">Imersão na Empresa <span class="activity-tag person">Arthur</span></div>
-                                    <div class="activity-desc">MIGMA INC: empresa B2B, nicho de vistos e imigração, modelo de negócio, regras.</div>
+                                    <div class="activity-title">Imersão na Empresa <span
+                                            class="activity-tag person">Arthur</span></div>
+                                    <div class="activity-desc">MIGMA INC: empresa B2B, nicho de vistos e imigração,
+                                        modelo de negócio, regras.</div>
                                     <div class="activity-box questions">
                                         <div class="activity-box-title">Perguntas para fazer</div>
                                         <ul>
@@ -2941,11 +3041,15 @@
                             <div class="activity">
                                 <div class="activity-time">90-120 min</div>
                                 <div class="activity-info">
-                                    <div class="activity-title">Visão Operacional <span class="activity-tag person">Larissa</span></div>
-                                    <div class="activity-desc">Fluxo completo: como um lead entra, como o SDR de IA qualifica, como fecha.</div>
+                                    <div class="activity-title">Visão Operacional <span
+                                            class="activity-tag person">Larissa</span></div>
+                                    <div class="activity-desc">Fluxo completo: como um lead entra, como o SDR de IA
+                                        qualifica, como fecha.</div>
                                     <div class="activity-box deliverable">
                                         <div class="activity-box-title">Entrega do dia</div>
-                                        <ul><li>Desenhar o fluxo completo de um lead</li></ul>
+                                        <ul>
+                                            <li>Desenhar o fluxo completo de um lead</li>
+                                        </ul>
                                     </div>
                                 </div>
                             </div>
@@ -2954,7 +3058,8 @@
                 </div>
 
                 <div class="day-block">
-                    <div class="day-header" onclick="toggleDay(this)" role="button" tabindex="0" aria-expanded="false" onkeypress="if(event.key==='Enter')toggleDay(this)">
+                    <div class="day-header" onclick="toggleDay(this)" role="button" tabindex="0" aria-expanded="false"
+                        onkeypress="if(event.key==='Enter')toggleDay(this)">
                         <div class="day-header-left">
                             <div class="day-number">02</div>
                             <div>
@@ -2969,18 +3074,24 @@
                             <div class="activity">
                                 <div class="activity-time">120 min</div>
                                 <div class="activity-info">
-                                    <div class="activity-title">Tour pelos Sistemas <span class="activity-tag person">Alfeu</span></div>
-                                    <div class="activity-desc">ClickUp, n8n, Zapier, Make, Calendly — como cada um funciona.</div>
+                                    <div class="activity-title">Tour pelos Sistemas <span
+                                            class="activity-tag person">Alfeu</span></div>
+                                    <div class="activity-desc">ClickUp, n8n, Zapier, Make, Calendly — como cada um
+                                        funciona.</div>
                                 </div>
                             </div>
                             <div class="activity">
                                 <div class="activity-time">60 min</div>
                                 <div class="activity-info">
-                                    <div class="activity-title">Automações de IA <span class="activity-tag action">Prática</span></div>
-                                    <div class="activity-desc">Como os SDRs de IA funcionam, o que monitorar, sinais de problema.</div>
+                                    <div class="activity-title">Automações de IA <span
+                                            class="activity-tag action">Prática</span></div>
+                                    <div class="activity-desc">Como os SDRs de IA funcionam, o que monitorar, sinais de
+                                        problema.</div>
                                     <div class="activity-box deliverable">
                                         <div class="activity-box-title">Entrega do dia</div>
-                                        <ul><li>Identificar se um SDR de IA está funcionando ou falhando</li></ul>
+                                        <ul>
+                                            <li>Identificar se um SDR de IA está funcionando ou falhando</li>
+                                        </ul>
                                     </div>
                                 </div>
                             </div>
@@ -2989,7 +3100,8 @@
                 </div>
 
                 <div class="day-block">
-                    <div class="day-header" onclick="toggleDay(this)" role="button" tabindex="0" aria-expanded="false" onkeypress="if(event.key==='Enter')toggleDay(this)">
+                    <div class="day-header" onclick="toggleDay(this)" role="button" tabindex="0" aria-expanded="false"
+                        onkeypress="if(event.key==='Enter')toggleDay(this)">
                         <div class="day-header-left">
                             <div class="day-number">03</div>
                             <div>
@@ -3004,21 +3116,26 @@
                             <div class="activity">
                                 <div class="activity-time">60-90 min</div>
                                 <div class="activity-info">
-                                    <div class="activity-title">Gestão de Agenda <span class="activity-tag person">Larissa</span></div>
-                                    <div class="activity-desc">Como gerenciar agenda dos fechadores, monitorar comparecimento.</div>
+                                    <div class="activity-title">Gestão de Agenda <span
+                                            class="activity-tag person">Larissa</span></div>
+                                    <div class="activity-desc">Como gerenciar agenda dos fechadores, monitorar
+                                        comparecimento.</div>
                                 </div>
                             </div>
                             <div class="activity">
                                 <div class="activity-time">60 min</div>
                                 <div class="activity-info">
-                                    <div class="activity-title">Estrutura de Relatórios <span class="activity-tag person">Mib</span></div>
-                                    <div class="activity-desc">Quais relatórios gerar, frequência, métricas a incluir.</div>
+                                    <div class="activity-title">Estrutura de Relatórios <span
+                                            class="activity-tag person">Mib</span></div>
+                                    <div class="activity-desc">Quais relatórios gerar, frequência, métricas a incluir.
+                                    </div>
                                 </div>
                             </div>
                             <div class="activity">
                                 <div class="activity-time">60 min</div>
                                 <div class="activity-info">
-                                    <div class="activity-title">Backlog e Prioridades <span class="activity-tag person">Mib</span></div>
+                                    <div class="activity-title">Backlog e Prioridades <span
+                                            class="activity-tag person">Mib</span></div>
                                     <div class="activity-desc">Suas primeiras tarefas e como priorizar.</div>
                                 </div>
                             </div>
@@ -3027,7 +3144,8 @@
                 </div>
 
                 <div class="day-block">
-                    <div class="day-header" onclick="toggleDay(this)" role="button" tabindex="0" aria-expanded="false" onkeypress="if(event.key==='Enter')toggleDay(this)">
+                    <div class="day-header" onclick="toggleDay(this)" role="button" tabindex="0" aria-expanded="false"
+                        onkeypress="if(event.key==='Enter')toggleDay(this)">
                         <div class="day-header-left">
                             <div class="day-number">04-05</div>
                             <div>
@@ -3042,22 +3160,28 @@
                             <div class="activity">
                                 <div class="activity-time">Manhã</div>
                                 <div class="activity-info">
-                                    <div class="activity-title">Rotina Completa <span class="activity-tag action">Execução</span></div>
-                                    <div class="activity-desc">Execute a rotina diária: validação de leads, checagem de automações, gestão de agenda.</div>
+                                    <div class="activity-title">Rotina Completa <span
+                                            class="activity-tag action">Execução</span></div>
+                                    <div class="activity-desc">Execute a rotina diária: validação de leads, checagem de
+                                        automações, gestão de agenda.</div>
                                 </div>
                             </div>
                             <div class="activity">
                                 <div class="activity-time">Tarde</div>
                                 <div class="activity-info">
-                                    <div class="activity-title">Primeiro Relatório <span class="activity-tag action">Execução</span></div>
-                                    <div class="activity-desc">Gere seu primeiro relatório diário real. Valide com Mib.</div>
+                                    <div class="activity-title">Primeiro Relatório <span
+                                            class="activity-tag action">Execução</span></div>
+                                    <div class="activity-desc">Gere seu primeiro relatório diário real. Valide com Mib.
+                                    </div>
                                 </div>
                             </div>
                             <div class="activity">
                                 <div class="activity-time">Final</div>
                                 <div class="activity-info">
-                                    <div class="activity-title">Validação de Prontidão <span class="activity-tag check">Marco</span></div>
-                                    <div class="activity-desc">Revisão: você está pronto para operar com autonomia supervisionada?</div>
+                                    <div class="activity-title">Validação de Prontidão <span
+                                            class="activity-tag check">Marco</span></div>
+                                    <div class="activity-desc">Revisão: você está pronto para operar com autonomia
+                                        supervisionada?</div>
                                     <div class="activity-box deliverable">
                                         <div class="activity-box-title">Critérios para "passar"</div>
                                         <ul>
@@ -3261,11 +3385,31 @@
                         <h3 class="routine-title">Todo Dia</h3>
                     </div>
                     <div class="routine-body">
-                        <div class="routine-item"><div class="routine-bullet" aria-hidden="true"></div><div class="routine-text"><strong>Check de automações</strong><span>Verificar se todas rodaram sem erros</span></div></div>
-                        <div class="routine-item"><div class="routine-bullet" aria-hidden="true"></div><div class="routine-text"><strong>Auditoria de leads</strong><span>Classificar e validar novos leads</span></div></div>
-                        <div class="routine-item"><div class="routine-bullet" aria-hidden="true"></div><div class="routine-text"><strong>Gestão de agendas</strong><span>Verificar conflitos e sincronização</span></div></div>
-                        <div class="routine-item"><div class="routine-bullet" aria-hidden="true"></div><div class="routine-text"><strong>Follow-ups</strong><span>Nenhum lead sem acompanhamento +24h</span></div></div>
-                        <div class="routine-item"><div class="routine-bullet" aria-hidden="true"></div><div class="routine-text"><strong>Relatório diário</strong><span>Gerar e enviar saúde do pipeline</span></div></div>
+                        <div class="routine-item">
+                            <div class="routine-bullet" aria-hidden="true"></div>
+                            <div class="routine-text"><strong>Check de automações</strong><span>Verificar se todas
+                                    rodaram sem erros</span></div>
+                        </div>
+                        <div class="routine-item">
+                            <div class="routine-bullet" aria-hidden="true"></div>
+                            <div class="routine-text"><strong>Auditoria de leads</strong><span>Classificar e validar
+                                    novos leads</span></div>
+                        </div>
+                        <div class="routine-item">
+                            <div class="routine-bullet" aria-hidden="true"></div>
+                            <div class="routine-text"><strong>Gestão de agendas</strong><span>Verificar conflitos e
+                                    sincronização</span></div>
+                        </div>
+                        <div class="routine-item">
+                            <div class="routine-bullet" aria-hidden="true"></div>
+                            <div class="routine-text"><strong>Follow-ups</strong><span>Nenhum lead sem acompanhamento
+                                    +24h</span></div>
+                        </div>
+                        <div class="routine-item">
+                            <div class="routine-bullet" aria-hidden="true"></div>
+                            <div class="routine-text"><strong>Relatório diário</strong><span>Gerar e enviar saúde do
+                                    pipeline</span></div>
+                        </div>
                     </div>
                 </article>
                 <article class="routine-card">
@@ -3274,10 +3418,26 @@
                         <h3 class="routine-title">Toda Semana</h3>
                     </div>
                     <div class="routine-body">
-                        <div class="routine-item"><div class="routine-bullet" aria-hidden="true"></div><div class="routine-text"><strong>Relatório semanal</strong><span>Conversão, desempenho IA, gargalos</span></div></div>
-                        <div class="routine-item"><div class="routine-bullet" aria-hidden="true"></div><div class="routine-text"><strong>Auditoria profunda</strong><span>100% dos leads críticos</span></div></div>
-                        <div class="routine-item"><div class="routine-bullet" aria-hidden="true"></div><div class="routine-text"><strong>Alinhamento com Mib</strong><span>Revisar prioridades, ajustar rota</span></div></div>
-                        <div class="routine-item"><div class="routine-bullet" aria-hidden="true"></div><div class="routine-text"><strong>Sync com Larissa</strong><span>Impactos e melhorias identificadas</span></div></div>
+                        <div class="routine-item">
+                            <div class="routine-bullet" aria-hidden="true"></div>
+                            <div class="routine-text"><strong>Relatório semanal</strong><span>Conversão, desempenho IA,
+                                    gargalos</span></div>
+                        </div>
+                        <div class="routine-item">
+                            <div class="routine-bullet" aria-hidden="true"></div>
+                            <div class="routine-text"><strong>Auditoria profunda</strong><span>100% dos leads
+                                    críticos</span></div>
+                        </div>
+                        <div class="routine-item">
+                            <div class="routine-bullet" aria-hidden="true"></div>
+                            <div class="routine-text"><strong>Alinhamento com Mib</strong><span>Revisar prioridades,
+                                    ajustar rota</span></div>
+                        </div>
+                        <div class="routine-item">
+                            <div class="routine-bullet" aria-hidden="true"></div>
+                            <div class="routine-text"><strong>Sync com Larissa</strong><span>Impactos e melhorias
+                                    identificadas</span></div>
+                        </div>
                     </div>
                 </article>
             </div>
@@ -3291,14 +3451,46 @@
                     </div>
                 </div>
                 <div class="day-slots">
-                    <div class="day-slot"><div class="day-slot-time">08:00</div><div class="day-slot-activity"><strong>Check de automações</strong><span>15 min — n8n, Zapier, Make</span></div></div>
-                    <div class="day-slot"><div class="day-slot-time">08:15</div><div class="day-slot-activity"><strong>Auditoria de leads</strong><span>45 min — Todos classificados</span></div></div>
-                    <div class="day-slot"><div class="day-slot-time">09:00</div><div class="day-slot-activity"><strong>Follow-ups</strong><span>30 min — Nenhum lead esquecido</span></div></div>
-                    <div class="day-slot"><div class="day-slot-time">09:30</div><div class="day-slot-activity"><strong>Agendas</strong><span>30 min — Sincronizar Calendly</span></div></div>
-                    <div class="day-slot"><div class="day-slot-time">10:00</div><div class="day-slot-activity"><strong>Daily com Mib</strong><span>15 min — Alinhamento</span></div></div>
-                    <div class="day-slot"><div class="day-slot-time">10:15</div><div class="day-slot-activity"><strong>Tarefas prioritárias</strong><span>2h — Execução</span></div></div>
-                    <div class="day-slot"><div class="day-slot-time">14:00</div><div class="day-slot-activity"><strong>SDRs de IA</strong><span>45 min — Performance</span></div></div>
-                    <div class="day-slot"><div class="day-slot-time">17:00</div><div class="day-slot-activity"><strong>Relatório diário</strong><span>30 min — Compilar e enviar</span></div></div>
+                    <div class="day-slot">
+                        <div class="day-slot-time">08:00</div>
+                        <div class="day-slot-activity"><strong>Check de automações</strong><span>15 min — n8n, Zapier,
+                                Make</span></div>
+                    </div>
+                    <div class="day-slot">
+                        <div class="day-slot-time">08:15</div>
+                        <div class="day-slot-activity"><strong>Auditoria de leads</strong><span>45 min — Todos
+                                classificados</span></div>
+                    </div>
+                    <div class="day-slot">
+                        <div class="day-slot-time">09:00</div>
+                        <div class="day-slot-activity"><strong>Follow-ups</strong><span>30 min — Nenhum lead
+                                esquecido</span></div>
+                    </div>
+                    <div class="day-slot">
+                        <div class="day-slot-time">09:30</div>
+                        <div class="day-slot-activity"><strong>Agendas</strong><span>30 min — Sincronizar
+                                Calendly</span></div>
+                    </div>
+                    <div class="day-slot">
+                        <div class="day-slot-time">10:00</div>
+                        <div class="day-slot-activity"><strong>Daily com Mib</strong><span>15 min — Alinhamento</span>
+                        </div>
+                    </div>
+                    <div class="day-slot">
+                        <div class="day-slot-time">10:15</div>
+                        <div class="day-slot-activity"><strong>Tarefas prioritárias</strong><span>2h — Execução</span>
+                        </div>
+                    </div>
+                    <div class="day-slot">
+                        <div class="day-slot-time">14:00</div>
+                        <div class="day-slot-activity"><strong>SDRs de IA</strong><span>45 min — Performance</span>
+                        </div>
+                    </div>
+                    <div class="day-slot">
+                        <div class="day-slot-time">17:00</div>
+                        <div class="day-slot-activity"><strong>Relatório diário</strong><span>30 min — Compilar e
+                                enviar</span></div>
+                    </div>
                 </div>
             </div>
 
@@ -3306,10 +3498,26 @@
                 <h3 class="golden-rules-title">Regra de Ouro da Comunicação</h3>
                 <p class="golden-rules-desc">Para qualquer problema, sempre inclua:</p>
                 <div class="rules-grid">
-                    <div class="rule"><div class="rule-num">1</div><div class="rule-title">Contexto</div><div class="rule-desc">O que aconteceu</div></div>
-                    <div class="rule"><div class="rule-num">2</div><div class="rule-title">Impacto</div><div class="rule-desc">O que está em risco</div></div>
-                    <div class="rule"><div class="rule-num">3</div><div class="rule-title">Ação</div><div class="rule-desc">O que você fez</div></div>
-                    <div class="rule"><div class="rule-num">4</div><div class="rule-title">Próximo</div><div class="rule-desc">O que falta</div></div>
+                    <div class="rule">
+                        <div class="rule-num">1</div>
+                        <div class="rule-title">Contexto</div>
+                        <div class="rule-desc">O que aconteceu</div>
+                    </div>
+                    <div class="rule">
+                        <div class="rule-num">2</div>
+                        <div class="rule-title">Impacto</div>
+                        <div class="rule-desc">O que está em risco</div>
+                    </div>
+                    <div class="rule">
+                        <div class="rule-num">3</div>
+                        <div class="rule-title">Ação</div>
+                        <div class="rule-desc">O que você fez</div>
+                    </div>
+                    <div class="rule">
+                        <div class="rule-num">4</div>
+                        <div class="rule-title">Próximo</div>
+                        <div class="rule-desc">O que falta</div>
+                    </div>
                 </div>
             </div>
 
@@ -3322,12 +3530,30 @@
                     </div>
                 </div>
                 <div class="flags-grid">
-                    <article class="flag-item danger"><h4>Lead sem follow-up +24h</h4><p>Lead esquecido = venda perdida</p></article>
-                    <article class="flag-item danger"><h4>Ignorar alerta de automação</h4><p>Pipeline para, vendas param</p></article>
-                    <article class="flag-item danger"><h4>Alterar dados sem registro</h4><p>Sem rastreabilidade = caos</p></article>
-                    <article class="flag-item danger"><h4>Criar conflito de agenda</h4><p>Fechador perde reunião</p></article>
-                    <article class="flag-item danger"><h4>Relatório sem validar</h4><p>Decisões erradas</p></article>
-                    <article class="flag-item danger"><h4>Não escalar problema</h4><p>Silêncio é o pior cenário</p></article>
+                    <article class="flag-item danger">
+                        <h4>Lead sem follow-up +24h</h4>
+                        <p>Lead esquecido = venda perdida</p>
+                    </article>
+                    <article class="flag-item danger">
+                        <h4>Ignorar alerta de automação</h4>
+                        <p>Pipeline para, vendas param</p>
+                    </article>
+                    <article class="flag-item danger">
+                        <h4>Alterar dados sem registro</h4>
+                        <p>Sem rastreabilidade = caos</p>
+                    </article>
+                    <article class="flag-item danger">
+                        <h4>Criar conflito de agenda</h4>
+                        <p>Fechador perde reunião</p>
+                    </article>
+                    <article class="flag-item danger">
+                        <h4>Relatório sem validar</h4>
+                        <p>Decisões erradas</p>
+                    </article>
+                    <article class="flag-item danger">
+                        <h4>Não escalar problema</h4>
+                        <p>Silêncio é o pior cenário</p>
+                    </article>
                 </div>
             </div>
 
@@ -3340,11 +3566,41 @@
                     </div>
                 </div>
                 <div class="wins-list">
-                    <article class="win-item"><div class="win-num">1</div><div class="win-content"><h4>Configure alertas de automação</h4><p>Receba notificação quando qualquer automação falhar</p></div></article>
-                    <article class="win-item"><div class="win-num">2</div><div class="win-content"><h4>Audite 20 leads aleatórios</h4><p>Encontre e corrija inconsistências</p></div></article>
-                    <article class="win-item"><div class="win-num">3</div><div class="win-content"><h4>Mapeie leads sem follow-up</h4><p>Crie lista de "esquecidos" e resolva</p></div></article>
-                    <article class="win-item"><div class="win-num">4</div><div class="win-content"><h4>Documente um processo</h4><p>Algo que você precisou perguntar</p></div></article>
-                    <article class="win-item"><div class="win-num">5</div><div class="win-content"><h4>Proponha uma melhoria</h4><p>Olhar fresco vê coisas novas</p></div></article>
+                    <article class="win-item">
+                        <div class="win-num">1</div>
+                        <div class="win-content">
+                            <h4>Configure alertas de automação</h4>
+                            <p>Receba notificação quando qualquer automação falhar</p>
+                        </div>
+                    </article>
+                    <article class="win-item">
+                        <div class="win-num">2</div>
+                        <div class="win-content">
+                            <h4>Audite 20 leads aleatórios</h4>
+                            <p>Encontre e corrija inconsistências</p>
+                        </div>
+                    </article>
+                    <article class="win-item">
+                        <div class="win-num">3</div>
+                        <div class="win-content">
+                            <h4>Mapeie leads sem follow-up</h4>
+                            <p>Crie lista de "esquecidos" e resolva</p>
+                        </div>
+                    </article>
+                    <article class="win-item">
+                        <div class="win-num">4</div>
+                        <div class="win-content">
+                            <h4>Documente um processo</h4>
+                            <p>Algo que você precisou perguntar</p>
+                        </div>
+                    </article>
+                    <article class="win-item">
+                        <div class="win-num">5</div>
+                        <div class="win-content">
+                            <h4>Proponha uma melhoria</h4>
+                            <p>Olhar fresco vê coisas novas</p>
+                        </div>
+                    </article>
                 </div>
             </div>
         </section>
@@ -3358,26 +3614,119 @@
             </div>
 
             <div class="faq-list">
-                <article class="faq-item"><div class="faq-question" onclick="toggleFaq(this)" role="button" tabindex="0" aria-expanded="false" onkeypress="if(event.key==='Enter')toggleFaq(this)"><h4>Tenho horário fixo?</h4><span class="faq-toggle" aria-hidden="true">▼</span></div><div class="faq-answer"><div class="faq-answer-content">Não. Você está sujeito a KPIs, não a horário. O importante é que os resultados sejam entregues. Mas incidentes críticos precisam ser tratados com prioridade, mesmo fora do expediente.</div></div></article>
-                <article class="faq-item"><div class="faq-question" onclick="toggleFaq(this)" role="button" tabindex="0" aria-expanded="false" onkeypress="if(event.key==='Enter')toggleFaq(this)"><h4>Automação falhou às 23h. E agora?</h4><span class="faq-toggle" aria-hidden="true">▼</span></div><div class="faq-answer"><div class="faq-answer-content">Depende do impacto. Se pode esperar até amanhã sem prejudicar vendas, espere. Se vai travar o pipeline ou perder leads, você precisa agir — pelo menos sinalizar e mitigar.</div></div></article>
-                <article class="faq-item"><div class="faq-question" onclick="toggleFaq(this)" role="button" tabindex="0" aria-expanded="false" onkeypress="if(event.key==='Enter')toggleFaq(this)"><h4>Quem são os clientes da MIGMA?</h4><span class="faq-toggle" aria-hidden="true">▼</span></div><div class="faq-answer"><div class="faq-answer-content">Empresas do ecossistema de vistos e imigração dos EUA: agências de vistos, escritórios de advocacia de imigração, e programas de educação/mentoria. Não atendemos pessoas físicas.</div></div></article>
-                <article class="faq-item"><div class="faq-question" onclick="toggleFaq(this)" role="button" tabindex="0" aria-expanded="false" onkeypress="if(event.key==='Enter')toggleFaq(this)"><h4>Velocidade ou qualidade?</h4><span class="faq-toggle" aria-hidden="true">▼</span></div><div class="faq-answer"><div class="faq-answer-content">Ambos. Follow-up = velocidade (máximo 24h). Relatórios = qualidade (100% precisão).</div></div></article>
-                <article class="faq-item"><div class="faq-question" onclick="toggleFaq(this)" role="button" tabindex="0" aria-expanded="false" onkeypress="if(event.key==='Enter')toggleFaq(this)"><h4>Posso ajustar automações sozinho?</h4><span class="faq-toggle" aria-hidden="true">▼</span></div><div class="faq-answer"><div class="faq-answer-content">Ajustes simples (reprocessar fluxo), sim. Mudanças na estrutura precisam de validação com Alfeu. Na dúvida, pergunte antes.</div></div></article>
-                <article class="faq-item"><div class="faq-question" onclick="toggleFaq(this)" role="button" tabindex="0" aria-expanded="false" onkeypress="if(event.key==='Enter')toggleFaq(this)"><h4>Como sei se estou indo bem?</h4><span class="faq-toggle" aria-hidden="true">▼</span></div><div class="faq-answer"><div class="faq-answer-content">Olhe seus KPIs: zero leads sem follow-up +24h? 100% consistência? Relatórios no prazo? Se sim para todos, você está indo muito bem.</div></div></article>
-                <article class="faq-item"><div class="faq-question" onclick="toggleFaq(this)" role="button" tabindex="0" aria-expanded="false" onkeypress="if(event.key==='Enter')toggleFaq(this)"><h4>Posso falar com clientes?</h4><span class="faq-toggle" aria-hidden="true">▼</span></div><div class="faq-answer"><div class="faq-answer-content">Sim, quando necessário para resolver problemas operacionais. Mantenha os padrões de credibilidade MIGMA.</div></div></article>
-                <article class="faq-item"><div class="faq-question" onclick="toggleFaq(this)" role="button" tabindex="0" aria-expanded="false" onkeypress="if(event.key==='Enter')toggleFaq(this)"><h4>Quanto tempo para "dominar"?</h4><span class="faq-toggle" aria-hidden="true">▼</span></div><div class="faq-answer"><div class="faq-answer-content">30 dias: supervisão leve. 60 dias: autonomia na maioria. 90 dias: ownership completo. Mas os KPIs críticos valem desde o dia 1.</div></div></article>
+                <article class="faq-item">
+                    <div class="faq-question" onclick="toggleFaq(this)" role="button" tabindex="0" aria-expanded="false"
+                        onkeypress="if(event.key==='Enter')toggleFaq(this)">
+                        <h4>Tenho horário fixo?</h4><span class="faq-toggle" aria-hidden="true">▼</span>
+                    </div>
+                    <div class="faq-answer">
+                        <div class="faq-answer-content">Não. Você está sujeito a KPIs, não a horário. O importante é que
+                            os resultados sejam entregues. Mas incidentes críticos precisam ser tratados com prioridade,
+                            mesmo fora do expediente.</div>
+                    </div>
+                </article>
+                <article class="faq-item">
+                    <div class="faq-question" onclick="toggleFaq(this)" role="button" tabindex="0" aria-expanded="false"
+                        onkeypress="if(event.key==='Enter')toggleFaq(this)">
+                        <h4>Automação falhou às 23h. E agora?</h4><span class="faq-toggle" aria-hidden="true">▼</span>
+                    </div>
+                    <div class="faq-answer">
+                        <div class="faq-answer-content">Depende do impacto. Se pode esperar até amanhã sem prejudicar
+                            vendas, espere. Se vai travar o pipeline ou perder leads, você precisa agir — pelo menos
+                            sinalizar e mitigar.</div>
+                    </div>
+                </article>
+                <article class="faq-item">
+                    <div class="faq-question" onclick="toggleFaq(this)" role="button" tabindex="0" aria-expanded="false"
+                        onkeypress="if(event.key==='Enter')toggleFaq(this)">
+                        <h4>Quem são os clientes da MIGMA?</h4><span class="faq-toggle" aria-hidden="true">▼</span>
+                    </div>
+                    <div class="faq-answer">
+                        <div class="faq-answer-content">Empresas do ecossistema de vistos e imigração dos EUA: agências
+                            de vistos, escritórios de advocacia de imigração, e programas de educação/mentoria. Não
+                            atendemos pessoas físicas.</div>
+                    </div>
+                </article>
+                <article class="faq-item">
+                    <div class="faq-question" onclick="toggleFaq(this)" role="button" tabindex="0" aria-expanded="false"
+                        onkeypress="if(event.key==='Enter')toggleFaq(this)">
+                        <h4>Velocidade ou qualidade?</h4><span class="faq-toggle" aria-hidden="true">▼</span>
+                    </div>
+                    <div class="faq-answer">
+                        <div class="faq-answer-content">Ambos. Follow-up = velocidade (máximo 24h). Relatórios =
+                            qualidade (100% precisão).</div>
+                    </div>
+                </article>
+                <article class="faq-item">
+                    <div class="faq-question" onclick="toggleFaq(this)" role="button" tabindex="0" aria-expanded="false"
+                        onkeypress="if(event.key==='Enter')toggleFaq(this)">
+                        <h4>Posso ajustar automações sozinho?</h4><span class="faq-toggle" aria-hidden="true">▼</span>
+                    </div>
+                    <div class="faq-answer">
+                        <div class="faq-answer-content">Ajustes simples (reprocessar fluxo), sim. Mudanças na estrutura
+                            precisam de validação com Alfeu. Na dúvida, pergunte antes.</div>
+                    </div>
+                </article>
+                <article class="faq-item">
+                    <div class="faq-question" onclick="toggleFaq(this)" role="button" tabindex="0" aria-expanded="false"
+                        onkeypress="if(event.key==='Enter')toggleFaq(this)">
+                        <h4>Como sei se estou indo bem?</h4><span class="faq-toggle" aria-hidden="true">▼</span>
+                    </div>
+                    <div class="faq-answer">
+                        <div class="faq-answer-content">Olhe seus KPIs: zero leads sem follow-up +24h? 100%
+                            consistência? Relatórios no prazo? Se sim para todos, você está indo muito bem.</div>
+                    </div>
+                </article>
+                <article class="faq-item">
+                    <div class="faq-question" onclick="toggleFaq(this)" role="button" tabindex="0" aria-expanded="false"
+                        onkeypress="if(event.key==='Enter')toggleFaq(this)">
+                        <h4>Posso falar com clientes?</h4><span class="faq-toggle" aria-hidden="true">▼</span>
+                    </div>
+                    <div class="faq-answer">
+                        <div class="faq-answer-content">Sim, quando necessário para resolver problemas operacionais.
+                            Mantenha os padrões de credibilidade MIGMA.</div>
+                    </div>
+                </article>
+                <article class="faq-item">
+                    <div class="faq-question" onclick="toggleFaq(this)" role="button" tabindex="0" aria-expanded="false"
+                        onkeypress="if(event.key==='Enter')toggleFaq(this)">
+                        <h4>Quanto tempo para "dominar"?</h4><span class="faq-toggle" aria-hidden="true">▼</span>
+                    </div>
+                    <div class="faq-answer">
+                        <div class="faq-answer-content">30 dias: supervisão leve. 60 dias: autonomia na maioria. 90
+                            dias: ownership completo. Mas os KPIs críticos valem desde o dia 1.</div>
+                    </div>
+                </article>
             </div>
 
             <div class="glossary-section">
                 <h3 class="glossary-title">Glossário</h3>
                 <p class="glossary-desc">Termos que você vai usar diariamente</p>
                 <div class="glossary-grid">
-                    <div class="glossary-item"><div class="glossary-term">Pipeline</div><div class="glossary-def">Sistema que acompanha leads da entrada ao fechamento</div></div>
-                    <div class="glossary-item"><div class="glossary-term">SDR de IA</div><div class="glossary-def">Agente de IA que qualifica leads automaticamente</div></div>
-                    <div class="glossary-item"><div class="glossary-term">Fechador</div><div class="glossary-def">Vendedor que fecha negócios em reuniões</div></div>
-                    <div class="glossary-item"><div class="glossary-term">Handoff</div><div class="glossary-def">Passagem de lead de uma pessoa/área para outra</div></div>
-                    <div class="glossary-item"><div class="glossary-term">Taxa de Comparecimento</div><div class="glossary-def">% de leads que aparecem nas reuniões</div></div>
-                    <div class="glossary-item"><div class="glossary-term">Higiene do Pipeline</div><div class="glossary-def">Qualidade e consistência dos dados no CRM</div></div>
+                    <div class="glossary-item">
+                        <div class="glossary-term">Pipeline</div>
+                        <div class="glossary-def">Sistema que acompanha leads da entrada ao fechamento</div>
+                    </div>
+                    <div class="glossary-item">
+                        <div class="glossary-term">SDR de IA</div>
+                        <div class="glossary-def">Agente de IA que qualifica leads automaticamente</div>
+                    </div>
+                    <div class="glossary-item">
+                        <div class="glossary-term">Fechador</div>
+                        <div class="glossary-def">Vendedor que fecha negócios em reuniões</div>
+                    </div>
+                    <div class="glossary-item">
+                        <div class="glossary-term">Handoff</div>
+                        <div class="glossary-def">Passagem de lead de uma pessoa/área para outra</div>
+                    </div>
+                    <div class="glossary-item">
+                        <div class="glossary-term">Taxa de Comparecimento</div>
+                        <div class="glossary-def">% de leads que aparecem nas reuniões</div>
+                    </div>
+                    <div class="glossary-item">
+                        <div class="glossary-term">Higiene do Pipeline</div>
+                        <div class="glossary-def">Qualidade e consistência dos dados no CRM</div>
+                    </div>
                 </div>
             </div>
         </section>
@@ -3387,18 +3736,51 @@
             <div class="section-header">
                 <div class="section-label">10 — Checklist de Conclusão</div>
                 <h2 class="section-title" id="checklist-title">Você está pronto?</h2>
-                <p class="section-desc">Marque cada item quando conseguir fazer sozinho — seu progresso é salvo automaticamente</p>
+                <p class="section-desc">Marque cada item quando conseguir fazer sozinho — seu progresso é salvo
+                    automaticamente</p>
             </div>
 
             <div class="success-list" role="list">
-                <div class="success-item" onclick="toggleCheck(this, 0)" role="checkbox" tabindex="0" aria-checked="false" onkeypress="if(event.key==='Enter'||event.key===' ')toggleCheck(this,0)"><div class="success-checkbox" aria-hidden="true">✓</div><div class="success-text">Executar a rotina diária completa sem supervisão</div></div>
-                <div class="success-item" onclick="toggleCheck(this, 1)" role="checkbox" tabindex="0" aria-checked="false" onkeypress="if(event.key==='Enter'||event.key===' ')toggleCheck(this,1)"><div class="success-checkbox" aria-hidden="true">✓</div><div class="success-text">Manter zero leads sem follow-up por +24 horas</div></div>
-                <div class="success-item" onclick="toggleCheck(this, 2)" role="checkbox" tabindex="0" aria-checked="false" onkeypress="if(event.key==='Enter'||event.key===' ')toggleCheck(this,2)"><div class="success-checkbox" aria-hidden="true">✓</div><div class="success-text">Identificar e sinalizar falhas de automação imediatamente</div></div>
-                <div class="success-item" onclick="toggleCheck(this, 3)" role="checkbox" tabindex="0" aria-checked="false" onkeypress="if(event.key==='Enter'||event.key===' ')toggleCheck(this,3)"><div class="success-checkbox" aria-hidden="true">✓</div><div class="success-text">Gerar relatórios precisos e no prazo</div></div>
-                <div class="success-item" onclick="toggleCheck(this, 4)" role="checkbox" tabindex="0" aria-checked="false" onkeypress="if(event.key==='Enter'||event.key===' ')toggleCheck(this,4)"><div class="success-checkbox" aria-hidden="true">✓</div><div class="success-text">Gerenciar agendas sem criar conflitos</div></div>
-                <div class="success-item" onclick="toggleCheck(this, 5)" role="checkbox" tabindex="0" aria-checked="false" onkeypress="if(event.key==='Enter'||event.key===' ')toggleCheck(this,5)"><div class="success-checkbox" aria-hidden="true">✓</div><div class="success-text">Saber quem acionar para cada tipo de problema</div></div>
-                <div class="success-item" onclick="toggleCheck(this, 6)" role="checkbox" tabindex="0" aria-checked="false" onkeypress="if(event.key==='Enter'||event.key===' ')toggleCheck(this,6)"><div class="success-checkbox" aria-hidden="true">✓</div><div class="success-text">Entender o nicho de vistos/imigração e como a MIGMA atua</div></div>
-                <div class="success-item" onclick="toggleCheck(this, 7)" role="checkbox" tabindex="0" aria-checked="false" onkeypress="if(event.key==='Enter'||event.key===' ')toggleCheck(this,7)"><div class="success-checkbox" aria-hidden="true">✓</div><div class="success-text">Desenhar o fluxo completo de um lead</div></div>
+                <div class="success-item" onclick="toggleCheck(this, 0)" role="checkbox" tabindex="0"
+                    aria-checked="false" onkeypress="if(event.key==='Enter'||event.key===' ')toggleCheck(this,0)">
+                    <div class="success-checkbox" aria-hidden="true">✓</div>
+                    <div class="success-text">Executar a rotina diária completa sem supervisão</div>
+                </div>
+                <div class="success-item" onclick="toggleCheck(this, 1)" role="checkbox" tabindex="0"
+                    aria-checked="false" onkeypress="if(event.key==='Enter'||event.key===' ')toggleCheck(this,1)">
+                    <div class="success-checkbox" aria-hidden="true">✓</div>
+                    <div class="success-text">Manter zero leads sem follow-up por +24 horas</div>
+                </div>
+                <div class="success-item" onclick="toggleCheck(this, 2)" role="checkbox" tabindex="0"
+                    aria-checked="false" onkeypress="if(event.key==='Enter'||event.key===' ')toggleCheck(this,2)">
+                    <div class="success-checkbox" aria-hidden="true">✓</div>
+                    <div class="success-text">Identificar e sinalizar falhas de automação imediatamente</div>
+                </div>
+                <div class="success-item" onclick="toggleCheck(this, 3)" role="checkbox" tabindex="0"
+                    aria-checked="false" onkeypress="if(event.key==='Enter'||event.key===' ')toggleCheck(this,3)">
+                    <div class="success-checkbox" aria-hidden="true">✓</div>
+                    <div class="success-text">Gerar relatórios precisos e no prazo</div>
+                </div>
+                <div class="success-item" onclick="toggleCheck(this, 4)" role="checkbox" tabindex="0"
+                    aria-checked="false" onkeypress="if(event.key==='Enter'||event.key===' ')toggleCheck(this,4)">
+                    <div class="success-checkbox" aria-hidden="true">✓</div>
+                    <div class="success-text">Gerenciar agendas sem criar conflitos</div>
+                </div>
+                <div class="success-item" onclick="toggleCheck(this, 5)" role="checkbox" tabindex="0"
+                    aria-checked="false" onkeypress="if(event.key==='Enter'||event.key===' ')toggleCheck(this,5)">
+                    <div class="success-checkbox" aria-hidden="true">✓</div>
+                    <div class="success-text">Saber quem acionar para cada tipo de problema</div>
+                </div>
+                <div class="success-item" onclick="toggleCheck(this, 6)" role="checkbox" tabindex="0"
+                    aria-checked="false" onkeypress="if(event.key==='Enter'||event.key===' ')toggleCheck(this,6)">
+                    <div class="success-checkbox" aria-hidden="true">✓</div>
+                    <div class="success-text">Entender o nicho de vistos/imigração e como a MIGMA atua</div>
+                </div>
+                <div class="success-item" onclick="toggleCheck(this, 7)" role="checkbox" tabindex="0"
+                    aria-checked="false" onkeypress="if(event.key==='Enter'||event.key===' ')toggleCheck(this,7)">
+                    <div class="success-checkbox" aria-hidden="true">✓</div>
+                    <div class="success-text">Desenhar o fluxo completo de um lead</div>
+                </div>
             </div>
         </section>
     </main>
@@ -3407,7 +3789,8 @@
     <footer>
         <div class="footer-message">
             <h3>Você é o motor por trás do motor.</h3>
-            <p>A MIGMA é o motor por trás das agências. E você é quem faz esse motor funcionar. Quando você faz bem, nossos clientes vendem mais.</p>
+            <p>A MIGMA é o motor por trás das agências. E você é quem faz esse motor funcionar. Quando você faz bem,
+                nossos clientes vendem mais.</p>
         </div>
         <div class="footer-logo">MIGMA INC</div>
         <div class="footer-version">Guia de Onboarding v8.0 Final — Janeiro 2026</div>
@@ -3591,5 +3974,7 @@
             updateNavState();
         });
     </script>
+    <script defer src="/pipeline-pdf-handler.js"></script>
 </body>
+
 </html>

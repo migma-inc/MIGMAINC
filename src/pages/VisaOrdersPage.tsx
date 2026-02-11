@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/popover";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Skeleton } from '@/components/ui/skeleton';
+import { AlertModal } from '@/components/ui/alert-modal';
 
 const isLocal = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
 
@@ -114,7 +115,9 @@ const OrderTable = ({
   isUpdating,
   toggleHideOrder,
   getProductName,
-  isSignatureOnly = false
+  isSignatureOnly = false,
+  setActiveNote,
+  setShowNoteModal
 }: {
   orders: VisaOrder[],
   calculateNetAmountAndFee: any,
@@ -124,7 +127,9 @@ const OrderTable = ({
   isUpdating: string | null,
   toggleHideOrder: any,
   getProductName: (slug: string) => string,
-  isSignatureOnly?: boolean
+  isSignatureOnly?: boolean,
+  setActiveNote: (note: string | null) => void,
+  setShowNoteModal: (show: boolean) => void
 }) => (
   <>
     {/* Desktop Table */}
@@ -157,7 +162,21 @@ const OrderTable = ({
                 </td>
                 <td className="py-3 px-4">
                   <div className="text-sm">
-                    <p className="text-white">{order.client_name}</p>
+                    <div className="flex items-center gap-2">
+                      <p className="text-white">{order.client_name}</p>
+                      {(order.payment_metadata as any)?.admin_note && (
+                        <button
+                          onClick={() => {
+                            setActiveNote((order.payment_metadata as any).admin_note);
+                            setShowNoteModal(true);
+                          }}
+                          className="bg-gold-medium/20 p-1 rounded hover:bg-gold-medium/40 transition-colors"
+                          title="View Admin Note"
+                        >
+                          <FileText className="w-3 h-3 text-gold-light" />
+                        </button>
+                      )}
+                    </div>
                     <p className="text-gray-400 text-xs">{order.client_email}</p>
                   </div>
                 </td>
@@ -511,6 +530,8 @@ export const VisaOrdersPage = () => {
   const [selectedPdfUrl, setSelectedPdfUrl] = useState<string | null>(null);
   const [selectedPdfTitle, setSelectedPdfTitle] = useState<string>('Contract PDF');
   const [products, setProducts] = useState<any[]>([]);
+  const [showNoteModal, setShowNoteModal] = useState(false);
+  const [activeNote, setActiveNote] = useState<string | null>(null);
 
   useEffect(() => {
     const loadData = async () => {
@@ -831,6 +852,8 @@ export const VisaOrdersPage = () => {
                     getProductName={getProductName}
                     isUpdating={isUpdating}
                     toggleHideOrder={toggleHideOrder}
+                    setActiveNote={setActiveNote}
+                    setShowNoteModal={setShowNoteModal}
                   />
                 )}
               </CardContent>
@@ -859,9 +882,11 @@ export const VisaOrdersPage = () => {
                     getStatusBadge={getStatusBadge}
                     setSelectedPdfUrl={setSelectedPdfUrl}
                     setSelectedPdfTitle={setSelectedPdfTitle}
-                    getProductName={getProductName}
                     isUpdating={isUpdating}
                     toggleHideOrder={toggleHideOrder}
+                    getProductName={getProductName}
+                    setActiveNote={setActiveNote}
+                    setShowNoteModal={setShowNoteModal}
                     isSignatureOnly={true}
                   />
                 )}
@@ -876,14 +901,18 @@ export const VisaOrdersPage = () => {
         <PdfModal
           isOpen={!!selectedPdfUrl}
           onClose={() => setSelectedPdfUrl(null)}
-          pdfUrl={selectedPdfUrl}
+          pdfUrl={selectedPdfUrl || ''}
           title={selectedPdfTitle}
         />
       )}
+
+      <AlertModal
+        isOpen={showNoteModal}
+        onClose={() => setShowNoteModal(false)}
+        title="Internal Admin Note"
+        message={activeNote || ''}
+        variant="info"
+      />
     </div>
   );
 };
-
-
-
-

@@ -76,6 +76,29 @@ export function CouponManagement() {
 
     const handleCreateSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+
+        // Validation: Prevent past years
+        const currentYear = new Date().getFullYear();
+        const fromYear = parseInt(formData.valid_from.split('-')[0]);
+
+        if (fromYear < currentYear) {
+            alert(`Cannot set validity for past years. Please use ${currentYear} or later.`);
+            return;
+        }
+
+        if (formData.valid_until) {
+            const untilYear = parseInt(formData.valid_until.split('-')[0]);
+            if (untilYear < currentYear) {
+                alert(`Cannot set expiration date for past years.`);
+                return;
+            }
+
+            if (formData.valid_until <= formData.valid_from) {
+                alert('The expiration date must be strictly after the start date.');
+                return;
+            }
+        }
+
         setIsSubmitting(true);
         try {
             if (editingCouponId) {
@@ -274,6 +297,9 @@ export function CouponManagement() {
                                         onChange={e => setFormData({ ...formData, valid_from: e.target.value })}
                                         className="bg-black/50 border-white/10"
                                         required
+                                        min={new Date().toISOString().split('T')[0]}
+                                        onInvalid={e => (e.target as HTMLInputElement).setCustomValidity('Please select a date from today onwards.')}
+                                        onInput={e => (e.target as HTMLInputElement).setCustomValidity('')}
                                     />
                                 </div>
                                 <div className="space-y-2">
@@ -283,6 +309,9 @@ export function CouponManagement() {
                                         value={formData.valid_until || ''}
                                         onChange={e => setFormData({ ...formData, valid_until: e.target.value })}
                                         className="bg-black/50 border-white/10"
+                                        min={formData.valid_from ? new Date(new Date(formData.valid_from).setDate(new Date(formData.valid_from).getDate() + 1)).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]}
+                                        onInvalid={e => (e.target as HTMLInputElement).setCustomValidity('The expiration date must be strictly after the start date.')}
+                                        onInput={e => (e.target as HTMLInputElement).setCustomValidity('')}
                                     />
                                 </div>
                             </div>

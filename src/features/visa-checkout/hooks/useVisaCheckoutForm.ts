@@ -86,6 +86,11 @@ export const useVisaCheckoutForm = () => {
     // Recurring Billing
     const [billingInstallmentId, setBillingInstallmentId] = useState<string | null>(null);
 
+    // EB-3 Installment
+    const [eb3ScheduleId, setEb3ScheduleId] = useState<string | null>(null);
+    const [customAmount, setCustomAmount] = useState<number | null>(null);
+    const [eb3LateFee, setEb3LateFee] = useState<number>(0);
+
     const state: VisaCheckoutState = {
         currentStep,
         loading,
@@ -140,6 +145,9 @@ export const useVisaCheckoutForm = () => {
         discountAmount,
         splitPaymentConfig,
         billingInstallmentId,
+        eb3ScheduleId,
+        customAmount,
+        eb3LateFee,
     };
 
     const actions: VisaCheckoutActions = useMemo(() => ({
@@ -196,6 +204,9 @@ export const useVisaCheckoutForm = () => {
         setDiscountAmount,
         setSplitPaymentConfig,
         setBillingInstallmentId,
+        setEb3ScheduleId,
+        setCustomAmount,
+        setEb3LateFee,
     }), []);
 
     return { state, actions };

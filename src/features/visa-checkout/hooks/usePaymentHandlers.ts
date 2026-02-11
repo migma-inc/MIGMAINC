@@ -49,6 +49,7 @@ export const usePaymentHandlers = (
         cpf,
         couponCode,
         billingInstallmentId,
+        eb3ScheduleId,
         // discountAmount removed from state destructuring to avoid conflict
     } = state;
 
@@ -253,6 +254,7 @@ export const usePaymentHandlers = (
                 upsell_product_slug: state.selectedUpsell === 'none' ? null : (state.selectedUpsell === 'canada-premium' ? 'canada-tourist-premium' : 'canada-tourist-revolution') as any,
                 upsell_contract_template_id: state.upsellContractTemplate?.id,
                 billing_installment_id: billingInstallmentId,
+                eb3_schedule_id: eb3ScheduleId,
                 coupon_code: couponCode,
                 discount_amount: discountAmount,
             };
@@ -383,6 +385,7 @@ export const usePaymentHandlers = (
                             has_upsell: !!upsellAmount,
                             is_split_payment: true,
                             billing_installment_id: billingInstallmentId,
+                            eb3_schedule_id: eb3ScheduleId,
                             upsell_details: upsellAmount > 0 ? {
                                 slug: upsellProductSlug,
                                 base_price: baseUpsellPrice,
@@ -536,6 +539,7 @@ export const usePaymentHandlers = (
                         cpf: cpf,
                         has_upsell: !!upsellAmount,
                         billing_installment_id: billingInstallmentId,
+                        eb3_schedule_id: eb3ScheduleId,
                         upsell_details: upsellAmount > 0 ? {
                             slug: upsellProductSlug,
                             base_price: baseUpsellPrice,

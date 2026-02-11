@@ -34,8 +34,9 @@ serve(async (req) => {
                 due_date,
                 amount_usd,
                 client_id,
+                order_id,
                 clients!inner(full_name, email),
-                visa_orders!inner(seller_id)
+                visa_orders!eb3_recurrence_schedules_order_id_fkey(seller_id)
             `)
             .eq('id', schedule_id)
             .single();
@@ -44,9 +45,38 @@ serve(async (req) => {
             throw new Error('Schedule not found');
         }
 
+        // Generate a prefill token with client data (same format as SellerLinks)
+        const token = crypto.randomUUID();
+        const expiresAt = new Date();
+        expiresAt.setDate(expiresAt.getDate() + 30); // 30 days
+
+        const sellerId = (schedule as any).visa_orders?.seller_id || null;
+
+        const { error: tokenError } = await supabaseClient
+            .from('checkout_prefill_tokens')
+            .insert({
+                token,
+                product_slug: 'eb3-installment-monthly',
+                seller_id: sellerId,
+                client_data: {
+                    clientName: schedule.clients.full_name,
+                    clientEmail: schedule.clients.email,
+                    eb3_schedule_id: schedule.id,
+                    installment_number: schedule.installment_number,
+                    due_date: schedule.due_date,
+                    amount_usd: schedule.amount_usd,
+                },
+                expires_at: expiresAt.toISOString(),
+            });
+
+        if (tokenError) {
+            console.error('[EB-3 Installment] Error creating prefill token:', tokenError);
+            throw new Error('Failed to create checkout link');
+        }
+
         const PUBLIC_SITE_URL = 'http://localhost:5173';
-        const sellerId = (schedule as any).visa_orders?.seller_id || 'MIGMA';
-        const checkoutUrl = `${PUBLIC_SITE_URL}/checkout/visa/eb3-installment-monthly?prefill=${schedule.id}&seller=${sellerId}`;
+        const sellerParam = sellerId ? `&seller=${sellerId}` : '';
+        const checkoutUrl = `${PUBLIC_SITE_URL}/checkout/visa/eb3-installment-monthly?prefill=${token}${sellerParam}`;
         const formattedDate = new Date(schedule.due_date).toLocaleDateString('en-US', { day: 'numeric', month: 'long', year: 'numeric' });
 
         // Email HTML - Migma Standard Black/Gold
