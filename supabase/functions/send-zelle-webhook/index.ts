@@ -279,22 +279,35 @@ Deno.serve(async (req: Request) => {
         // 3. EB-3 RECURRENCE: Activate if Job Catalog
         if (orderToProcess.product_slug === 'eb3-installment-catalog') {
           try {
-            console.log('[EB-3 Zelle] 🔍 Job Catalog detectado. Ativando recorrência...');
+            console.log('[EB-3 Zelle] 🔍 Job Catalog detectado. Verificando recorrência existente...');
 
             if (!clientId) {
               console.error("[EB-3 Zelle] ❌ Erro: Cliente não encontrado na tabela 'clients'. Impossível ativar recorrência.");
             } else {
-              const { error: eb3Error } = await supabase.rpc('activate_eb3_recurrence', {
-                p_client_id: clientId,
-                p_activation_order_id: orderToProcess.id,
-                p_seller_id: orderToProcess.seller_id || null,
-                p_seller_commission_percent: orderToProcess.seller_commission_percent || null
-              });
+              // Check for existing recurrence
+              const { data: existingRecurrence } = await supabase
+                .from('eb3_recurrence_control')
+                .select('id')
+                .eq('client_id', clientId)
+                .maybeSingle();
 
-              if (eb3Error) {
-                console.error('[EB-3 Zelle] ❌ Erro ao ativar recorrência:', eb3Error);
+              if (!existingRecurrence) {
+                console.log('[EB-3 Zelle] 🎯 Nenhuma recorrência encontrada. Ativando EB-3...');
+                const { error: eb3Error } = await supabase.rpc('activate_eb3_recurrence', {
+                  p_client_id: clientId,
+                  p_activation_order_id: orderToProcess.id,
+                  p_seller_id: orderToProcess.seller_id || null,
+                  p_seller_commission_percent: orderToProcess.seller_commission_percent || null
+                });
+
+                if (eb3Error) {
+                  console.error('[EB-3 Zelle] ❌ Erro ao ativar recorrência:', eb3Error);
+                } else {
+                  console.log('[EB-3 Zelle] ✅ Recorrência ativada com sucesso!');
+                  // REMOVED: Immediate 1st installment email trigger as per user request
+                }
               } else {
-                console.log('[EB-3 Zelle] ✅ Recorrência ativada com sucesso!');
+                console.log('[EB-3 Zelle] ⚠️ Recorrência já existe para este cliente. Ignorando ativação.');
               }
             }
           } catch (eb3Err) {
@@ -302,17 +315,73 @@ Deno.serve(async (req: Request) => {
           }
         }
 
-        // 4. EB-3 INSTALLMENT: Mark as paid if it's an individual installment payment
-        if (orderToProcess.payment_metadata?.eb3_schedule_id) {
+        // 3.1 Scholarship RECURRENCE: Activate if Scholarship Fee
+        if (orderToProcess.product_slug === 'scholarship-maintenance-fee') {
           try {
-            console.log('[EB-3 Zelle] 💳 Pagamento de parcela EB3 detectado:', orderToProcess.payment_metadata.eb3_schedule_id);
-            await supabase.rpc('mark_eb3_installment_paid', {
-              p_schedule_id: orderToProcess.payment_metadata.eb3_schedule_id,
+            console.log('[Scholarship Zelle] 🔍 Scholarship Fee detectado. Verificando recorrência existente...');
+
+            if (!clientId) {
+              console.error("[Scholarship Zelle] ❌ Erro: Cliente não encontrado na tabela 'clients'. Impossível ativar recorrência.");
+            } else {
+              // Check for existing recurrence
+              const { data: existingRecurrence } = await supabase
+                .from('scholarship_recurrence_control')
+                .select('id')
+                .eq('client_id', clientId)
+                .maybeSingle();
+
+              if (!existingRecurrence) {
+                console.log('[Scholarship Zelle] 🎯 Nenhuma recorrência encontrada. Ativando Scholarship...');
+                const { error: schError } = await supabase.rpc('activate_scholarship_recurrence', {
+                  p_client_id: clientId,
+                  p_activation_order_id: orderToProcess.id,
+                  p_seller_id: orderToProcess.seller_id || null,
+                  p_seller_commission_percent: orderToProcess.seller_commission_percent || null
+                });
+
+                if (schError) {
+                  console.error('[Scholarship Zelle] ❌ Erro ao ativar recorrência:', schError);
+                } else {
+                  console.log('[Scholarship Zelle] ✅ Recorrência ativada com sucesso!');
+                }
+              } else {
+                console.log('[Scholarship Zelle] ⚠️ Recurrence already exists for this client. Skipping activation.');
+              }
+            }
+          } catch (schErr) {
+            console.error('[Scholarship Zelle] ❌ Exception checking/activating recurrence:', schErr);
+          }
+        }
+
+        // 4. EB-3 INSTALLMENT: Mark as paid if it's an individual installment payment
+        if (orderToProcess.product_slug === 'eb3-maintenance-installment' || orderToProcess.payment_metadata?.eb3_schedule_id) {
+          try {
+            const scheduleId = orderToProcess.payment_metadata?.eb3_schedule_id;
+            if (scheduleId) {
+              console.log('[EB-3 Zelle] 💳 Pagamento de parcela EB3 detectado:', scheduleId);
+              await supabase.rpc('mark_eb3_installment_paid', {
+                p_schedule_id: scheduleId,
+                p_payment_id: orderToProcess.id
+              });
+              console.log('[EB-3 Zelle] ✅ Parcela marcada como paga');
+            }
+          } catch (e) {
+            console.error('[EB-3 Zelle] Erro ao processar parcela:', e);
+          }
+        }
+
+        // 4.1 SCHOLARSHIP INSTALLMENT: Mark as paid if it's an individual installment payment
+        if (orderToProcess.payment_metadata?.scholarship_schedule_id) {
+          try {
+            const scheduleId = orderToProcess.payment_metadata.scholarship_schedule_id;
+            console.log('[Scholarship Zelle] 💳 Pagamento de parcela Scholarship detectado:', scheduleId);
+            await supabase.rpc('mark_scholarship_installment_paid', {
+              p_schedule_id: scheduleId,
               p_payment_id: orderToProcess.id
             });
-            console.log('[EB-3 Zelle] ✅ Parcela marcada como paga');
-          } catch (e) {
-            console.error('[EB-3 Zelle] Erro ao marcar parcela:', e);
+            console.log('[Scholarship Zelle] ✅ Parcela marcada como paga');
+          } catch (schErr) {
+            console.error('[Scholarship Zelle] Error processing scholarship installment:', schErr);
           }
         }
 
@@ -358,7 +427,10 @@ Deno.serve(async (req: Request) => {
           paymentMethod: "zelle",
           currency: "USD",
           finalAmount: orderToProcess.total_price_usd,
-          is_bundle: !!orderToProcess.upsell_product_slug
+          is_bundle: !!orderToProcess.upsell_product_slug,
+          extraUnits: orderToProcess.extra_units,
+          eb3_schedule_id: orderToProcess.payment_metadata?.eb3_schedule_id,
+          scholarship_schedule_id: orderToProcess.payment_metadata?.scholarship_schedule_id
         }, "enviar email de confirmação");
 
         // 10. Send Admin Notification

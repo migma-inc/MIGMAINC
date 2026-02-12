@@ -179,7 +179,28 @@
         "need_help_message": "Si tiene alguna pregunta o necesita soporte, contáctenos a través de nuestra página de contacto.",
         "estimated_time": "Tiempo estimado",
         "business_hours": "Hasta 48 horas hábiles",
-        "contact_us": "Contáctenos"
+        "contact_us": "Contáctenos",
+        "zelle": {
+            "title": "Detalles del Pago Zelle",
+            "recipient_email": "Correo del Destinatario",
+            "copy": "Copiar",
+            "copied": "Copiado",
+            "instructions": "Instrucciones",
+            "step1": "Realice la transferencia Zelle con el monto exacto en su aplicación bancaria.",
+            "step2": "Tome un print/screenshot de la <strong>pantalla de confirmación</strong> inmediatamente después del envío.",
+            "step3": "Cargue la imagen a continuación para su procesamiento automático.",
+            "tips_title": "Consejos Importantes",
+            "images_only": "SOLO IMÁGENES: Cargue solo capturas de pantalla (PNG/JPG). No se aceptan PDFs.",
+            "image_requirements": "La imagen debe mostrar: Código de Confirmación, Fecha, Monto Exacto y Destinatario (adm@migmainc.com).",
+            "attach_receipt": "Adjuntar Comprobante",
+            "select_screenshot": "Seleccione o arrastre la captura del pago.",
+            "success_selected": "¡Documento seleccionado con éxito!",
+            "drag_here": "Arrastre el comprobante aquí",
+            "click_to_select": "seleccionar un archivo",
+            "formats_notice": "Formatos aceptados: solo JPG, PNG",
+            "change_file": "Cambiar Archivo",
+            "error_invalid_type": "Por favor, cargue un archivo de imagen (solo PNG/JPG)."
+        }
     },
     "global_partner": {
         "nav": {

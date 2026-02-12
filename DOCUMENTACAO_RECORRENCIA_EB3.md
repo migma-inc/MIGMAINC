@@ -18,13 +18,13 @@ O sistema de recorrência foi projetado para gerenciar clientes que optam pelo p
 ### 2.1 `recurring_billing_schedules` (O Plano)
 Armazena a "casca" do contrato de parcelamento.
 - **`order_id`**: Vinculação com o pedido inicial de $5.000.
-- **`total_installments`**: Total de parcelas (Padrão: 24).
+- **`total_installments`**: Total de parcelas (Padrão: 8).
 - **`amount_per_installment`**: Valor de cada parcela (Padrão: $650).
 - **`status`**: `active`, `suspended` ou `completed`.
 - **`next_billing_date`**: Data da próxima cobrança automática.
 
 ### 2.2 `billing_installments` (As Parcelas)
-Armazena cada uma das 24 cobranças individuais.
+Armazena cada uma das 8 cobranças individuais.
 - **`due_date`**: Data de vencimento daquela parcela específica.
 - **`status`**: `pending`, `paid`, `overdue`.
 - **`notified_at`**: Data/Hora em que o e-mail de cobrança foi enviado (evita duplicidade).
@@ -35,9 +35,9 @@ Armazena cada uma das 24 cobranças individuais.
 ## 3. Automação e Edge Functions
 
 ### 3.1 `setup-recurring-billing`
-**Função**: Criar o plano de 24 meses.  
+**Função**: Criar o plano de 8 meses.  
 **Quando ocorre?** Atualmente é disparada manualmente pelo Admin no dashboard, mas pronta para ser automatizada via Webhook após o pagamento da entrada.  
-**O que faz?** Insere o registro em `recurring_billing_schedules` e gera 24 linhas em `billing_installments` com datas futuras (30, 60, 90 dias, etc).
+**O que faz?** Insere o registro em `recurring_billing_schedules` e gera 8 linhas em `billing_installments` com datas futuras (30, 60, 90 dias, etc).
 
 ### 3.2 `process-daily-billing` (O Coração do Sistema)
 **Função**: O "cobrador" automático.  
@@ -62,7 +62,7 @@ Armazena cada uma das 24 cobranças individuais.
 
 ## 5. Interface Administrativa (Painel)
 Na página de detalhes de um pedido EB-3 (`VisaOrderDetailPage`), o administrador tem:
-- **Visualização de Cronograma**: Uma lista de todas as 24 parcelas com datas e status.
+- **Visualização de Cronograma**: Uma lista de todas as 8 parcelas com datas e status.
 - **Status Visual**: Badges indicando o que já foi pago e o que está pendente.
 - **Botão de Emergência**: "Generate Schedule" — Caso uma recorrência não tenha sido criada automaticamente por algum erro de rede, o Admin a cria com um clique.
 
@@ -70,7 +70,7 @@ Na página de detalhes de um pedido EB-3 (`VisaOrderDetailPage`), o administrado
 
 ## 6. Próximos Passos (Stand-by)
 Pontos pendentes para a ativação total:
-1. **Automação de Gatilho**: Decidir se o plano de 24 meses deve ser criado logo após o pagamento de $5.000 ou após a segunda parcela de $3.000.
+1. **Automação de Gatilho**: Decidir se o plano de 8 meses deve ser criado logo após o pagamento de $5.000 ou após a segunda parcela de $3.000.
 2. **Ajuste de Centavos**: Confirmar no Trello se os valores são fixos em $650 ou se precisam de ajuste para fechar o total de $23.750 do visto.
 3. **Limpeza de Testes**: Remover os registros de teste criados para validar o e-mail das 15h.
 

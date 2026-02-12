@@ -173,6 +173,19 @@ serve(async (req) => {
             throw emailError;
         }
 
+        // Log e-mail to history
+        try {
+            await supabaseClient.from('eb3_email_logs').insert({
+                client_id: client_id,
+                email_type: 'welcome',
+                recipient_email: client.email,
+                status: 'sent',
+                metadata: { schedules_count: schedules.length }
+            });
+        } catch (logErr: any) {
+            console.error('[EB-3 Welcome] Failed to log email:', logErr);
+        }
+
         console.log(`[EB-3 Welcome] ✅ Welcome email sent successfully to ${client.email}`);
 
         return new Response(
@@ -187,7 +200,7 @@ serve(async (req) => {
             }
         );
 
-    } catch (error) {
+    } catch (error: any) {
         console.error('[EB-3 Welcome] Error:', error);
         return new Response(
             JSON.stringify({ error: error.message }),

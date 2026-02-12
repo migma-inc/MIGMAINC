@@ -213,7 +213,6 @@ async function processSplitPaymentWebhook(
     // Enviar email de confirmação
     try {
       console.log("[Split Webhook] 📧 Enviando email de confirmação...");
-      const totalPaid = orders.reduce((sum: number, o: any) => sum + parseFloat(o.total_price_usd || 0), 0);
 
       await supabase.functions.invoke("send-payment-confirmation-email", {
         body: {
@@ -221,37 +220,34 @@ async function processSplitPaymentWebhook(
           clientEmail: mainOrder.client_email,
           orderNumber: mainOrder.order_number,
           productSlug: mainOrder.product_slug,
-          totalAmount: totalPaid,
+          totalAmount: totalBrlPaid,
           paymentMethod: "parcelow_split",
-          currency: "USD",
-          finalAmount: totalPaid,
+          currency: "BRL",
+          finalAmount: totalBrlPaid,
           is_bundle: orders.length > 1,
           extraUnits: mainOrder.extra_units
         }
       });
 
       console.log("[Split Webhook] ✅ Email enviado com sucesso");
-    } catch (emailError) {
-      console.error("[Split Webhook] ⚠️ Erro ao enviar email:", emailError);
-    }
 
-    // Registrar evento de funil
-    if (mainOrder.seller_id) {
-      try {
-        await supabase.from('seller_funnel_events').insert({
-          seller_id: mainOrder.seller_id,
-          product_slug: mainOrder.product_slug,
-          event_type: 'payment_completed',
-          session_id: `order_${mainOrder.id}`,
-          metadata: {
-            order_id: mainOrder.id,
-            is_split_payment: true,
-            split_payment_id: splitPayment.id
-          }
-        });
-      } catch (e) {
-        console.error("[Split Webhook] ⚠️ Erro ao registrar evento de funil:", e);
-      }
+      // Send Admin Notification
+      console.log("[Split Webhook] 🔔 Enviando notificação administrativa...");
+      await supabase.functions.invoke("send-admin-payment-notification", {
+        body: {
+          orderNumber: mainOrder.order_number,
+          clientName: mainOrder.client_name,
+          clientEmail: mainOrder.client_email,
+          productSlug: mainOrder.product_slug,
+          totalAmount: totalBrlPaid,
+          paymentMethod: "parcelow_split",
+          currency: "BRL",
+          finalAmount: totalBrlPaid,
+          is_bundle: orders.length > 1
+        }
+      });
+    } catch (emailError) {
+      console.error("[Split Webhook] ⚠️ Erro ao enviar emails:", emailError);
     }
 
     // ====== EB-3 RECURRENCE: Activate if Job Catalog (Split Payment) ======
@@ -259,11 +255,13 @@ async function processSplitPaymentWebhook(
       try {
         console.log('[EB-3 Split] 🔍 Job Catalog detected. Checking for existing recurrence...');
 
-        // Fetch Client ID by email (since it's not in visa_orders)
+        // Fetch Client ID by email
         const { data: clientData } = await supabase
           .from('clients')
           .select('id')
           .eq('email', mainOrder.client_email)
+          .order('created_at', { ascending: false })
+          .limit(1)
           .maybeSingle();
 
         const clientId = clientData?.id;
@@ -301,6 +299,55 @@ async function processSplitPaymentWebhook(
       }
     }
 
+    // ====== SCHOLARSHIP RECURRENCE: Activate if Scholarship Fee (Split Payment) ======
+    if (mainOrder.product_slug === 'scholarship-maintenance-fee') {
+      try {
+        console.log('[Scholarship Split] 🔍 Scholarship Fee detected. Checking for existing recurrence...');
+
+        // Fetch Client ID by email
+        const { data: clientData } = await supabase
+          .from('clients')
+          .select('id')
+          .eq('email', mainOrder.client_email)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        const clientId = clientData?.id;
+
+        if (!clientId) {
+          console.error("[Scholarship Split] ❌ Error: Client not found in 'clients' table. Cannot activate recurrence.");
+        } else {
+          const { data: existingRecurrence } = await supabase
+            .from('scholarship_recurrence_control')
+            .select('id')
+            .eq('client_id', clientId)
+            .maybeSingle();
+
+          if (!existingRecurrence) {
+            console.log('[Scholarship Split] 🎯 No existing recurrence found. Activating Scholarship recurrence...');
+
+            const { error: schError } = await supabase.rpc('activate_scholarship_recurrence', {
+              p_client_id: clientId,
+              p_activation_order_id: mainOrder.id,
+              p_seller_id: mainOrder.seller_id || null,
+              p_seller_commission_percent: mainOrder.seller_commission_percent || null
+            });
+
+            if (schError) {
+              console.error('[Scholarship Split] ❌ Error activating recurrence:', schError);
+            } else {
+              console.log('[Scholarship Split] ✅ Scholarship recurrence activated! Infinite installments scheduled.');
+            }
+          } else {
+            console.log('[Scholarship Split] ⚠️ Recurrence already exists for this client. Skipping activation.');
+          }
+        }
+      } catch (schError) {
+        console.error('[Scholarship Split] ❌ Exception checking/activating recurrence:', schError);
+      }
+    }
+
     // ====== EB-3 INSTALLMENT: Mark as paid if installment payment (Split Payment) ======
     if (mainOrder.payment_metadata?.eb3_schedule_id) {
       try {
@@ -321,13 +368,32 @@ async function processSplitPaymentWebhook(
       }
     }
 
+    // ====== SCHOLARSHIP INSTALLMENT: Mark as paid if installment payment (Split Payment) ======
+    if (mainOrder.payment_metadata?.scholarship_schedule_id) {
+      try {
+        console.log('[Scholarship Split] 💳 Scholarship installment payment detected:', mainOrder.payment_metadata.scholarship_schedule_id);
+
+        const { error: schError } = await supabase.rpc('mark_scholarship_installment_paid', {
+          p_schedule_id: mainOrder.payment_metadata.scholarship_schedule_id,
+          p_payment_id: mainOrder.id
+        });
+
+        if (schError) {
+          console.error('[Scholarship Split] ❌ Error marking installment as paid:', schError);
+        } else {
+          console.log('[Scholarship Split] ✅ Installment marked as paid successfully');
+        }
+      } catch (schException) {
+        console.error('[Scholarship Split] ❌ Exception marking installment as paid:', schException);
+      }
+    }
+
     console.log("[Split Webhook] ✅ Fluxo de split payment totalmente concluído!");
   } else {
     console.log(`[Split Webhook] ⏳ Aguardando pagamento da Part ${isPart1 ? 2 : 1}...`);
     console.log("[Split Webhook] ℹ️ Contratos NÃO serão gerados até que ambas as partes sejam pagas");
   }
 }
-
 
 async function processParcelowWebhookEvent(event: ParcelowWebhookEvent, supabase: any) {
   const { event: eventType } = event;
@@ -429,6 +495,15 @@ async function processParcelowWebhookEvent(event: ParcelowWebhookEvent, supabase
       }).eq("id", orderItem.id);
     }
 
+    // 🔍 Test User Detection
+    const isTestUser = mainOrder.client_email?.toLowerCase() === 'victuribdev@gmail.com' ||
+      mainOrder.client_name?.toLowerCase().includes('paulo victor');
+
+    if (isTestUser) {
+      console.log(`[parcelow-webhook] 🧪 Usuário de teste detectado: ${mainOrder.client_email}. Marcando como teste.`);
+      await supabase.from('visa_orders').update({ is_test: true }).eq('id', mainOrder.id);
+    }
+
     if (mainOrder.service_request_id) {
       await supabase.from("payments").update({ status: "paid", updated_at: new Date().toISOString() })
         .eq("service_request_id", mainOrder.service_request_id)
@@ -450,7 +525,6 @@ async function processParcelowWebhookEvent(event: ParcelowWebhookEvent, supabase
       } catch (e) { }
     }
 
-
     // Increment coupon usage if authorized
     if (mainOrder.coupon_code) {
       console.log(`[parcelow-webhook] 🎟️ Incrementing usage for coupon: ${mainOrder.coupon_code}`);
@@ -471,7 +545,6 @@ async function processParcelowWebhookEvent(event: ParcelowWebhookEvent, supabase
         console.log(`[EB-3 Parcelow] 🚀 JOB CATALOG DETECTED for client: ${mainOrder.client_email}`);
         console.log(`[EB-3 Parcelow] 🔍 Order ID: ${mainOrder.id} | Parcelow ID: ${parcelowOrder.id}`);
 
-        // Fetch Client ID by email (since it's not in visa_orders)
         const { data: clientData } = await supabase
           .from('clients')
           .select('id')
@@ -482,9 +555,7 @@ async function processParcelowWebhookEvent(event: ParcelowWebhookEvent, supabase
 
         const clientId = clientData?.id;
 
-        if (!clientId) {
-          console.error("[EB-3 Parcelow] ❌ Error: Client not found in 'clients' table. Cannot activate recurrence.");
-        } else {
+        if (clientId) {
           const { data: existingRecurrence } = await supabase
             .from('eb3_recurrence_control')
             .select('id')
@@ -493,7 +564,6 @@ async function processParcelowWebhookEvent(event: ParcelowWebhookEvent, supabase
 
           if (!existingRecurrence) {
             console.log('[EB-3 Parcelow] 🎯 No existing recurrence found. Activating EB-3 recurrence...');
-
             const { error: eb3Error } = await supabase.rpc('activate_eb3_recurrence', {
               p_client_id: clientId,
               p_activation_order_id: mainOrder.id,
@@ -515,74 +585,110 @@ async function processParcelowWebhookEvent(event: ParcelowWebhookEvent, supabase
       }
     }
 
-    // ====== EB-3 INSTALLMENT: Mark as paid if installment payment ======
-    if (mainOrder.payment_metadata?.eb3_schedule_id) {
+    // ====== SCHOLARSHIP RECURRENCE: Activate if Scholarship Fee ======
+    if (mainOrder.product_slug === 'scholarship-maintenance-fee') {
       try {
-        const scheduleId = mainOrder.payment_metadata.eb3_schedule_id;
-        console.log(`[EB-3 Parcelow] 💳 INSTALLMENT PAYMENT DETECTED! Schedule ID: ${scheduleId}`);
-        console.log(`[EB-3 Parcelow] 👤 Client: ${mainOrder.client_email}`);
+        console.log(`[Scholarship Parcelow] 🚀 SCHOLARSHIP FEE DETECTED for client: ${mainOrder.client_email}`);
+        console.log(`[Scholarship Parcelow] 🔍 Order ID: ${mainOrder.id} | Parcelow ID: ${parcelowOrder.id}`);
 
-        const { data: rpcResult, error: eb3Error } = await supabase.rpc('mark_eb3_installment_paid', {
-          p_schedule_id: scheduleId,
-          p_payment_id: mainOrder.id
-        });
+        const { data: clientData } = await supabase
+          .from('clients')
+          .select('id')
+          .eq('email', mainOrder.client_email)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
 
-        if (eb3Error) {
-          console.error('[EB-3 Parcelow] ❌ Error marking installment as paid:', eb3Error);
-        } else {
-          console.log('[EB-3 Parcelow] ✅ Installment marked as paid successfully');
+        const clientId = clientData?.id;
+
+        if (clientId) {
+          const { data: existingRecurrence } = await supabase
+            .from('scholarship_recurrence_control')
+            .select('id')
+            .eq('client_id', clientId)
+            .maybeSingle();
+
+          if (!existingRecurrence) {
+            console.log('[Scholarship Parcelow] 🎯 No existing recurrence found. Activating Scholarship recurrence...');
+            const { error: schError } = await supabase.rpc('activate_scholarship_recurrence', {
+              p_client_id: clientId,
+              p_activation_order_id: mainOrder.id,
+              p_seller_id: mainOrder.seller_id || null,
+              p_seller_commission_percent: mainOrder.seller_commission_percent || null
+            });
+
+            if (schError) {
+              console.error('[Scholarship Parcelow] ❌ Error activating recurrence:', schError);
+            } else {
+              console.log('[Scholarship Parcelow] ✅ Recurrence activated successfully!');
+            }
+          } else {
+            console.log('[Scholarship Parcelow] ⚠️ Recurrence already exists for this client. Skipping activation.');
+          }
         }
-      } catch (eb3Exception) {
-        console.error('[EB-3 Parcelow] ❌ Exception marking installment as paid:', eb3Exception);
+      } catch (schError) {
+        console.error('[Scholarship Parcelow] ❌ Exception checking/activating recurrence:', schError);
       }
     }
 
+    // ====== EB-3 INSTALLMENT: Mark as paid if installment payment ======
+    if (mainOrder.payment_metadata?.eb3_schedule_id) {
+      try {
+        await supabase.rpc('mark_eb3_installment_paid', {
+          p_schedule_id: mainOrder.payment_metadata.eb3_schedule_id,
+          p_payment_id: mainOrder.id
+        });
+      } catch (eb3Exception) { }
+    }
+
+    // ====== SCHOLARSHIP INSTALLMENT: Mark as paid if installment payment ======
+    if (mainOrder.payment_metadata?.scholarship_schedule_id) {
+      try {
+        await supabase.rpc('mark_scholarship_installment_paid', {
+          p_schedule_id: mainOrder.payment_metadata.scholarship_schedule_id,
+          p_payment_id: mainOrder.id
+        });
+      } catch (schException) { }
+    }
+
     for (const orderItem of orders) {
-      // Generate main product PDFs
       if (orderItem.product_slug !== 'consultation-common') {
         await supabase.functions.invoke("generate-visa-contract-pdf", { body: { order_id: orderItem.id } });
       }
       await supabase.functions.invoke("generate-annex-pdf", { body: { order_id: orderItem.id } });
       await supabase.functions.invoke("generate-invoice-pdf", { body: { order_id: orderItem.id } });
-
-      // Generate upsell PDFs if upsell exists
-      if (orderItem.upsell_product_slug) {
-        console.log(`[Parcelow Webhook] Generating upsell PDFs for ${orderItem.upsell_product_slug}`);
-
-        // Generate upsell contract
-        await supabase.functions.invoke("generate-visa-contract-pdf", {
-          body: {
-            order_id: orderItem.id,
-            is_upsell: true,
-            product_slug_override: orderItem.upsell_product_slug
-          }
-        });
-
-        // Generate upsell annex
-        await supabase.functions.invoke("generate-annex-pdf", {
-          body: {
-            order_id: orderItem.id,
-            is_upsell: true,
-            product_slug_override: orderItem.upsell_product_slug
-          }
-        });
-      }
     }
 
     try {
-      const totalPaid = orders.reduce((sum: number, o: any) => sum + parseFloat(o.total_price_usd || 0), 0);
+      const totalBrl = actualTotalBrl || parcelowOrder.total_brl || 0;
       await supabase.functions.invoke("send-payment-confirmation-email", {
         body: {
           clientName: mainOrder.client_name,
           clientEmail: mainOrder.client_email,
           orderNumber: mainOrder.order_number,
           productSlug: mainOrder.product_slug,
-          totalAmount: totalPaid,
+          totalAmount: totalBrl,
           paymentMethod: "parcelow",
-          currency: mainOrder.payment_metadata?.currency || "BRL",
-          finalAmount: totalPaid,
+          currency: "BRL",
+          finalAmount: totalBrl,
           is_bundle: orders.length > 1,
-          extraUnits: mainOrder.extra_units
+          extraUnits: mainOrder.extra_units,
+          eb3_schedule_id: mainOrder.payment_metadata?.eb3_schedule_id,
+          scholarship_schedule_id: mainOrder.payment_metadata?.scholarship_schedule_id
+        }
+      });
+
+      await supabase.functions.invoke("send-admin-payment-notification", {
+        body: {
+          orderNumber: mainOrder.order_number,
+          clientName: mainOrder.client_name,
+          clientEmail: mainOrder.client_email,
+          productSlug: mainOrder.product_slug,
+          totalAmount: totalBrl,
+          paymentMethod: "parcelow",
+          currency: "BRL",
+          finalAmount: totalBrl,
+          is_bundle: orders.length > 1
         }
       });
     } catch (e) { }
@@ -593,17 +699,9 @@ async function processParcelowWebhookEvent(event: ParcelowWebhookEvent, supabase
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
-
   try {
-    const bodyText = await req.text();
-    const event = JSON.parse(bodyText);
-    const eventType = event.event;
-    const parcelowId = event.order?.id || event.data?.id || 'unknown';
-
-    console.log(`[Parcelow Webhook] 🔔 RECEIVED EVENT: ${eventType} | ID: ${parcelowId}`);
-
+    const event = await req.json();
     const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
-
     await processParcelowWebhookEvent(event, supabase);
     return new Response(JSON.stringify({ received: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
   } catch (error: any) {
