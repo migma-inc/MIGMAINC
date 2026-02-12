@@ -1,7 +1,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from 'jsr:@supabase/supabase-js@2';
 
-Deno.serve(async (req) => {
+Deno.serve(async (req: Request) => {
   // Handle CORS
   if (req.method === "OPTIONS") {
     return new Response("ok", {
@@ -98,11 +98,23 @@ Deno.serve(async (req) => {
     const safeProductSlug = escapeHtml(productDisplayText);
 
     // Determine currency and amount
-    // If currency and finalAmount are provided, use them (for Stripe payments with fees)
-    // Otherwise, use totalAmount (for Zelle, which has no fees)
     const orderCurrency = currency || (paymentMethod === "stripe_pix" || paymentMethod === "pix" ? "BRL" : "USD");
     const displayAmount = finalAmount ? parseFloat(finalAmount) : parseFloat(totalAmount || "0");
-    const safeTotalAmount = displayAmount.toFixed(2);
+
+    // Format amount based on currency standards
+    const formatCurrencyAmount = (amount: number, curr: string) => {
+      if (curr === "BRL" || curr === "brl") {
+        // Format as 1.234,56
+        return amount
+          .toFixed(2)
+          .replace(".", ",")
+          .replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+      }
+      // Format as 1,234.56 or just 1234.56
+      return amount.toFixed(2);
+    };
+
+    const safeTotalAmount = formatCurrencyAmount(displayAmount, orderCurrency);
 
     // Format currency symbol
     const currencySymbol = (orderCurrency === "BRL" || orderCurrency === "brl") ? "R$" : "US$";
@@ -261,11 +273,11 @@ Deno.serve(async (req) => {
         const emailData = await emailResponse.json();
         console.log("[Payment Confirmation] Email sent successfully:", emailData);
       }
-    } catch (emailErr) {
+    } catch (emailErr: any) {
       console.error("[Payment Confirmation] Exception sending email:", {
-        errorType: emailErr.constructor.name,
-        errorMessage: emailErr.message,
-        errorStack: emailErr.stack,
+        errorType: emailErr?.constructor?.name,
+        errorMessage: emailErr?.message,
+        errorStack: emailErr?.stack,
       });
       // Don't fail if email fails, just log it
     }

@@ -87,6 +87,14 @@ export const updateCoupon = async (id: string, coupon: Partial<CouponFormData>):
     return data;
 };
 
+export const decrementCouponUsage = async (couponCode: string): Promise<void> => {
+    const { error } = await supabase.rpc('decrement_coupon_usage', {
+        p_code: couponCode
+    });
+
+    if (error) throw error;
+};
+
 export interface CouponUsage {
     id: string;
     order_number: string;
@@ -97,6 +105,7 @@ export interface CouponUsage {
     discount_amount: number;
     total_price_usd: number;
     payment_method?: string;
+    payment_status: string;
 }
 
 export const getCouponUsage = async (couponCode: string): Promise<CouponUsage[]> => {
@@ -111,7 +120,8 @@ export const getCouponUsage = async (couponCode: string): Promise<CouponUsage[]>
             created_at,
             discount_amount,
             total_price_usd,
-            payment_method
+            payment_method,
+            payment_status
         `)
         .eq('coupon_code', couponCode)
         .neq('payment_status', 'cancelled') // Opcional: filtrar cancelados se desejar apenas usos efetivos
@@ -119,4 +129,58 @@ export const getCouponUsage = async (couponCode: string): Promise<CouponUsage[]>
 
     if (error) throw error;
     return data || [];
+};
+
+export const removeCouponFromOrder = async (orderId: string, _couponCode: string): Promise<void> => {
+    // 1. Get order details to check if it's a draft
+    const { data: order } = await supabase
+        .from('visa_orders')
+        .select('payment_status, payment_method')
+        .eq('id', orderId)
+        .single();
+
+    if (order && (order.payment_status === 'pending' && order.payment_method === 'pending_selection')) {
+        // It's a draft/temp order created on coupon application, DELETE IT
+        const { error: deleteError } = await supabase
+            .from('visa_orders')
+            .delete()
+            .eq('id', orderId);
+
+        if (deleteError) throw deleteError;
+    } else {
+        // It's a real order, just remove the coupon code
+        const { error: orderError } = await supabase
+            .from('visa_orders')
+            .update({
+                coupon_code: null,
+                discount_amount: 0
+            })
+            .eq('id', orderId);
+
+        if (orderError) throw orderError;
+    }
+
+    // Note: No need to call decrement_coupon_usage RPC manually anymore.
+    // The DB trigger tr_sync_coupon_usage handles it automatically on DELETE or UPDATE.
+};
+export const syncCouponUsage = async (couponCode: string): Promise<number> => {
+    // 1. Get actual orders count
+    const { count, error: countError } = await supabase
+        .from('visa_orders')
+        .select('*', { count: 'exact', head: true })
+        .eq('coupon_code', couponCode);
+
+    if (countError) throw countError;
+
+    const actualCount = count || 0;
+
+    // 2. Update the coupon counter
+    const { error: updateError } = await supabase
+        .from('promotional_coupons')
+        .update({ current_uses: actualCount })
+        .eq('code', couponCode);
+
+    if (updateError) throw updateError;
+
+    return actualCount;
 };

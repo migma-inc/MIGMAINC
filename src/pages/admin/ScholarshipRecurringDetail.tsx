@@ -53,7 +53,7 @@ interface ProgramDetail {
     installments: Installment[];
 }
 
-export const EB3RecurringDetail = () => {
+export const ScholarshipRecurringDetail = () => {
     const { id: clientId } = useParams<{ id: string }>();
     const navigate = useNavigate();
     const [program, setProgram] = useState<ProgramDetail | null>(null);
@@ -87,15 +87,15 @@ export const EB3RecurringDetail = () => {
 
     const loadProgramData = async () => {
         try {
-            console.log('[EB3-Debug] Loading data via RPC for client:', clientId);
+            console.log('[Scholarship-Debug] Loading data via RPC for client:', clientId);
             setLoading(true);
             setErrorState(null);
 
             const { data, error } = await supabase
-                .rpc('get_eb3_program_detail', { p_client_id: clientId });
+                .rpc('get_scholarship_program_detail', { p_client_id: clientId });
 
             if (error) {
-                console.error('[EB3-Debug] RPC Execution Error:', error);
+                console.error('[Scholarship-Debug] RPC Execution Error:', error);
                 setErrorState({
                     message: error.message,
                     details: error.details,
@@ -105,18 +105,15 @@ export const EB3RecurringDetail = () => {
             }
 
             if (!data) {
-                console.warn('[EB3-Debug] RPC returned null for client_id:', clientId);
+                console.warn('[Scholarship-Debug] RPC returned null for client_id:', clientId);
                 setProgram(null);
                 return;
             }
 
-            console.log('[EB3-Debug] Data successfully retrieved via RPC:', data);
-
-            // The RPC already returns the format we need
             setProgram(data as ProgramDetail);
 
         } catch (error: any) {
-            console.error('[EB3-Debug] CATCH Error Payload:', {
+            console.error('[Scholarship-Debug] CATCH Error Payload:', {
                 message: error.message,
                 details: error.details,
                 hint: error.hint,
@@ -131,10 +128,6 @@ export const EB3RecurringDetail = () => {
                     code: error.code
                 });
             }
-            // Specific check for RLS/Permission issues
-            if (error.code === '42501') {
-                console.error('[EB3-Debug] 🔐 Permission denied (RLS). Check your admin privileges.');
-            }
         } finally {
             setLoading(false);
         }
@@ -143,7 +136,7 @@ export const EB3RecurringDetail = () => {
     const loadEmailHistory = async () => {
         try {
             const { data, error } = await supabase
-                .rpc('get_eb3_email_history', { p_client_id: clientId });
+                .rpc('get_scholarship_email_history', { p_client_id: clientId });
 
             if (error) {
                 console.error('Error loading email history:', error);
@@ -162,7 +155,7 @@ export const EB3RecurringDetail = () => {
             const newStatus = program.control.program_status === 'active' ? 'cancelled' : 'active';
 
             const { error } = await supabase
-                .rpc('toggle_eb3_recurrence_status', {
+                .rpc('toggle_scholarship_recurrence_status', {
                     p_control_id: program.control.id,
                     p_status: newStatus,
                     p_reason: statusReason
@@ -188,7 +181,7 @@ export const EB3RecurringDetail = () => {
             setProcessingAction(true);
 
             const { error } = await supabase
-                .rpc('mark_eb3_installment_paid_manual', {
+                .rpc('mark_scholarship_installment_paid_manual', {
                     p_schedule_id: selectedInstallmentId,
                     p_notes: paymentNotes
                 });
@@ -211,7 +204,7 @@ export const EB3RecurringDetail = () => {
     const handleResendLink = async (scheduleId: string) => {
         try {
             setSendingEmail(scheduleId);
-            const { error } = await supabase.functions.invoke('send-eb3-installment-email', {
+            const { error } = await supabase.functions.invoke('send-scholarship-installment-email', {
                 body: { schedule_id: scheduleId }
             });
 
@@ -227,8 +220,9 @@ export const EB3RecurringDetail = () => {
     };
 
     const handleCopyLink = (scheduleId: string) => {
+        // We'll use the generic Visa Checkout route with the scholarship slug and prefill token
         const baseUrl = window.location.origin;
-        const paymentLink = `${baseUrl}/checkout/visa/eb3-installment-monthly?prefill=${scheduleId}`;
+        const paymentLink = `${baseUrl}/checkout/visa/scholarship-maintenance-fee?prefill=${scheduleId}`;
 
         navigator.clipboard.writeText(paymentLink);
         setNotification({ message: 'Payment link copied to clipboard!', type: 'success' });
@@ -257,7 +251,7 @@ export const EB3RecurringDetail = () => {
         return (
             <div className="min-h-[400px] flex flex-col items-center justify-center text-white p-4">
                 <Loader2 className="w-8 h-8 animate-spin text-gold-medium mb-4" />
-                <p className="text-gray-400">Loading program details...</p>
+                <p className="text-gray-400">Loading Scholarship program details...</p>
             </div>
         );
     }
@@ -270,17 +264,12 @@ export const EB3RecurringDetail = () => {
                 <div className="bg-red-500/10 border border-red-500/50 p-4 rounded-lg text-left mb-6">
                     <p className="text-red-400 font-bold mb-1">{errorState.message}</p>
                     {errorState.code && <p className="text-xs text-red-400/70 mb-2">Error Code: {errorState.code}</p>}
-                    {errorState.details && (
-                        <pre className="text-[10px] text-gray-400 bg-black/50 p-2 rounded overflow-auto max-h-32">
-                            {errorState.details}
-                        </pre>
-                    )}
                 </div>
                 <div className="flex gap-4 justify-center">
                     <Button onClick={loadProgramData} variant="outline" className="border-gray-700">
                         <Loader2 className="w-4 h-4 mr-2" /> Try Again
                     </Button>
-                    <Button onClick={() => navigate('/dashboard/eb3-recurring')}>
+                    <Button onClick={() => navigate('/dashboard/scholarship-recurring')}>
                         Back to Management
                     </Button>
                 </div>
@@ -293,15 +282,13 @@ export const EB3RecurringDetail = () => {
             <div className="p-6 text-center">
                 <AlertCircle className="w-12 h-12 text-gray-500 mx-auto mb-4" />
                 <h2 className="text-xl font-bold text-white">Program Not Found</h2>
-                <p className="text-gray-400 text-sm mb-6">No recurring program entry exists for this client ID.</p>
-                <Button onClick={() => navigate('/dashboard/eb3-recurring')} className="mt-4">
+                <p className="text-gray-400 text-sm mb-6">No Scholarship recurring program entry exists for this client ID.</p>
+                <Button onClick={() => navigate('/dashboard/scholarship-recurring')} className="mt-4">
                     Back to Management
                 </Button>
             </div>
         );
     }
-
-    const progress = Math.min((program.control.installments_paid / program.control.total_installments) * 100, 100);
 
     return (
         <div className="p-6 max-w-7xl mx-auto space-y-6">
@@ -310,14 +297,14 @@ export const EB3RecurringDetail = () => {
                     <Button
                         variant="outline"
                         size="icon"
-                        onClick={() => navigate('/dashboard/eb3-recurring')}
+                        onClick={() => navigate('/dashboard/scholarship-recurring')}
                         className="border-gray-700 bg-transparent hover:bg-white/10 text-white"
                     >
                         <ArrowLeft className="w-4 h-4" />
                     </Button>
                     <div>
-                        <h1 className="text-2xl font-bold text-white uppercase tracking-tight">Program Details: {program.client.full_name}</h1>
-                        <p className="text-gray-400 text-sm">EB-3 Recurring Maintenance Plan</p>
+                        <h1 className="text-2xl font-bold text-white uppercase tracking-tight">Scholarship: {program.client.full_name}</h1>
+                        <p className="text-gray-400 text-sm">Monthly Scholarship Maintenance Plan</p>
                     </div>
                 </div>
 
@@ -443,14 +430,8 @@ export const EB3RecurringDetail = () => {
                             </div>
                             <div className="space-y-2 pt-2">
                                 <div className="flex justify-between text-sm">
-                                    <span className="text-gray-500">Progress</span>
-                                    <span className="text-white font-bold">{program.control.installments_paid} / {program.control.total_installments}</span>
-                                </div>
-                                <div className="w-full bg-gray-800 rounded-full h-2 overflow-hidden">
-                                    <div
-                                        className="bg-gold-medium h-full rounded-full transition-all duration-1000"
-                                        style={{ width: `${progress}%` }}
-                                    />
+                                    <span className="text-gray-500">Installments Paid</span>
+                                    <span className="text-white font-bold">{program.control.installments_paid}</span>
                                 </div>
                             </div>
                         </CardContent>

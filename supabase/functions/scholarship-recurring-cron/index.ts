@@ -31,45 +31,54 @@ serve(async (req) => {
             { auth: { autoRefreshToken: false, persistSession: false } }
         );
 
-        console.log('[EB-3 Cron] Starting check...');
+        console.log('[Scholarship Cron] Starting check...');
 
         // 1. Mark overdue
-        const { data: overdueChecked } = await supabaseClient.rpc('check_eb3_overdue');
-        console.log(`[EB-3 Cron] Marked ${overdueChecked || 0} overdue`);
+        const { data: overdueChecked } = await supabaseClient.rpc('check_scholarship_overdue');
+        console.log(`[Scholarship Cron] Marked ${overdueChecked || 0} overdue`);
 
         // 2. Fetch pending reminders (next 7 days)
         const sevenDaysFromNow = new Date();
         sevenDaysFromNow.setDate(sevenDaysFromNow.getDate() + 7);
         const reminderLimitDate = sevenDaysFromNow.toISOString().split('T')[0];
 
+        // Join with visa_orders (activation_order_id) to check is_test
         const { data: remindersToSend } = await supabaseClient
-            .from('eb3_recurrence_schedules')
+            .from('scholarship_recurrence_schedules')
             .select(`
                 id, installment_number, due_date, amount_usd, client_id,
                 clients!inner(full_name, email),
-                visa_orders!eb3_recurrence_schedules_order_id_fkey(seller_id, is_test)
+                scholarship_recurrence_control!inner(activation_order_id, seller_id),
+                visa_orders:scholarship_recurrence_control(activation_order_id(is_test))
             `)
             .eq('status', 'pending')
             .lte('due_date', reminderLimitDate)
-            .is('email_sent_at', null)
-            .eq('visa_orders.is_test', false);
+            .is('email_sent_at', null);
 
-        if (remindersToSend && remindersToSend.length > 0) {
-            console.log(`[EB-3 Cron] Found ${remindersToSend.length} reminders to send`);
-            for (const schedule of remindersToSend) {
+        // Filter out test orders manually if needed or via inner join if possible
+        // Note: scholarship_recurrence_control.activation_order_id -> visa_orders.id
+        const filteredReminders = remindersToSend?.filter((s: any) => {
+            // Se for manual_activation ou se a ordem original não for teste
+            const isTest = s.scholarship_recurrence_control?.visa_orders?.is_test === true;
+            return !isTest;
+        });
+
+        if (filteredReminders && filteredReminders.length > 0) {
+            console.log(`[Scholarship Cron] Found ${filteredReminders.length} reminders to send`);
+            for (const schedule of filteredReminders) {
                 const token = crypto.randomUUID();
                 const expiresAt = new Date();
                 expiresAt.setDate(expiresAt.getDate() + 30);
-                const sellerId = (schedule as any).visa_orders?.seller_id || null;
+                const sellerId = schedule.scholarship_recurrence_control?.seller_id || null;
 
                 await supabaseClient.from('checkout_prefill_tokens').insert({
                     token,
-                    product_slug: 'eb3-installment-monthly',
+                    product_slug: 'scholarship-maintenance-fee',
                     seller_id: sellerId,
                     client_data: {
                         clientName: schedule.clients.full_name,
                         clientEmail: schedule.clients.email,
-                        eb3_schedule_id: schedule.id,
+                        scholarship_schedule_id: schedule.id,
                         installment_number: schedule.installment_number,
                         due_date: schedule.due_date,
                         amount_usd: schedule.amount_usd,
@@ -77,18 +86,11 @@ serve(async (req) => {
                     expires_at: expiresAt.toISOString(),
                 });
 
-                const checkoutUrl = `https://migmainc.com/checkout/visa/eb3-installment-monthly?prefill=${token}`;
+                const checkoutUrl = `https://migmainc.com/checkout/visa/scholarship-maintenance-fee?prefill=${token}`;
 
-                const installmentOrdinal = schedule.installment_number === 1 ? '1st' :
-                    schedule.installment_number === 2 ? '2nd' :
-                        schedule.installment_number === 3 ? '3rd' :
-                            `${schedule.installment_number}th`;
+                const subject = `Scholarship Maintenance Fee Reminder - Installment #${schedule.installment_number}`;
 
-                const subject = schedule.installment_number === 1
-                    ? '🔗 Your 1st EB-3 Installment is available'
-                    : `EB-3 Payment Reminder - Your ${installmentOrdinal} Installment`;
-
-                console.log(`[EB-3 Cron] Sending email to ${schedule.clients.email}...`);
+                console.log(`[Scholarship Cron] Sending email to ${schedule.clients.email}...`);
                 await supabaseClient.functions.invoke('send-email', {
                     body: {
                         to: schedule.clients.email,
@@ -97,13 +99,13 @@ serve(async (req) => {
                     }
                 });
 
-                await supabaseClient.from('eb3_recurrence_schedules').update({
+                await supabaseClient.from('scholarship_recurrence_schedules').update({
                     email_sent_at: new Date().toISOString(),
                     email_reminder_count: 1
                 }).eq('id', schedule.id);
 
                 // Log to history
-                await supabaseClient.from('eb3_email_logs').insert({
+                await supabaseClient.from('scholarship_email_logs').insert({
                     client_id: schedule.client_id,
                     schedule_id: schedule.id,
                     email_type: 'reminder',
@@ -116,8 +118,12 @@ serve(async (req) => {
 
         // 3. Late Fee Notifications (Overdue)
         const { data: overdueToNotify } = await supabaseClient
-            .from('eb3_recurrence_schedules')
-            .select('*, clients!inner(full_name, email)')
+            .from('scholarship_recurrence_schedules')
+            .select(`
+                *, 
+                clients!inner(full_name, email),
+                scholarship_recurrence_control!inner(seller_id)
+            `)
             .eq('status', 'overdue')
             .eq('email_reminder_count', 1);
 
@@ -127,22 +133,16 @@ serve(async (req) => {
                 const token = crypto.randomUUID();
                 const expiresAt = new Date();
                 expiresAt.setDate(expiresAt.getDate() + 30);
-
-                const { data: orderData } = await supabaseClient
-                    .from('eb3_recurrence_schedules')
-                    .select('visa_orders!eb3_recurrence_schedules_order_id_fkey(seller_id)')
-                    .eq('id', schedule.id)
-                    .single();
-                const sellerId = (orderData as any)?.visa_orders?.seller_id || null;
+                const sellerId = schedule.scholarship_recurrence_control?.seller_id || null;
 
                 await supabaseClient.from('checkout_prefill_tokens').insert({
                     token,
-                    product_slug: 'eb3-installment-monthly',
+                    product_slug: 'scholarship-maintenance-fee',
                     seller_id: sellerId,
                     client_data: {
                         clientName: schedule.clients.full_name,
                         clientEmail: schedule.clients.email,
-                        eb3_schedule_id: schedule.id,
+                        scholarship_schedule_id: schedule.id,
                         installment_number: schedule.installment_number,
                         due_date: schedule.due_date,
                         amount_usd: totalAmount,
@@ -152,20 +152,20 @@ serve(async (req) => {
                     expires_at: expiresAt.toISOString(),
                 });
 
-                const checkoutUrl = `https://migmainc.com/checkout/visa/eb3-installment-monthly?prefill=${token}`;
+                const checkoutUrl = `https://migmainc.com/checkout/visa/scholarship-maintenance-fee?prefill=${token}`;
 
                 await supabaseClient.functions.invoke('send-email', {
                     body: {
                         to: schedule.clients.email,
-                        subject: `⚠️ EB-3 Payment Overdue - Installment #${schedule.installment_number}`,
+                        subject: `⚠️ Scholarship Fee Overdue - Installment #${schedule.installment_number}`,
                         html: generateLateFeeEmail(schedule.clients.full_name, schedule.installment_number, schedule.due_date, totalAmount, checkoutUrl)
                     }
                 });
 
-                await supabaseClient.from('eb3_recurrence_schedules').update({ email_reminder_count: 2 }).eq('id', schedule.id);
+                await supabaseClient.from('scholarship_recurrence_schedules').update({ email_reminder_count: 2 }).eq('id', schedule.id);
 
                 // Log to history
-                await supabaseClient.from('eb3_email_logs').insert({
+                await supabaseClient.from('scholarship_email_logs').insert({
                     client_id: schedule.client_id,
                     schedule_id: schedule.id,
                     email_type: 'late_fee',
@@ -182,6 +182,7 @@ serve(async (req) => {
         });
 
     } catch (error) {
+        console.error('[Scholarship Cron] Global Error:', error);
         return new Response(JSON.stringify({ error: error.message }), {
             headers: { ...corsHeaders, 'Content-Type': 'application/json' },
             status: 500,
@@ -214,11 +215,11 @@ function generateReminderEmail(clientName: string, installmentNumber: number, du
                     <tr>
                         <td style="padding: 30px; background: #1a1a1a; border-radius: 8px; border: 1px solid #CE9F48;">
                             <h1 style="margin: 0 0 20px 0; font-size: 24px; color: #CE9F48; text-align: center; font-weight: bold;">
-                                EB-3 Payment Reminder
+                                Scholarship Maintenance Fee
                             </h1>
                             <p style="color: #e0e0e0; font-size: 16px;">Hello <strong>${clientName}</strong>,</p>
                             <p style="color: #e0e0e0; font-size: 15px; line-height: 1.6;">
-                                This is a friendly reminder that your monthly installment <strong>#${installmentNumber}</strong> is due soon.
+                                This is a friendly reminder for your scholarship maintenance fee installment <strong>#${installmentNumber}</strong>.
                             </p>
                             <div style="background: #0a0a0a; border: 1px solid #CE9F48; padding: 20px; margin: 25px 0; border-radius: 8px;">
                                 <p style="margin: 0 0 10px 0; color: #888;">Amount Due:</p>
@@ -231,7 +232,7 @@ function generateReminderEmail(clientName: string, installmentNumber: number, du
                             </p>
                             <div style="text-align: center; margin-top: 35px;">
                                 <a href="${checkoutUrl}" style="display: inline-block; padding: 16px 40px; background: linear-gradient(180deg, #F3E196 0%, #CE9F48 100%); color: #000; text-decoration: none; font-weight: bold; border-radius: 6px; font-size: 16px;">
-                                    Pay Installment Now →
+                                    Pay Scholarship Fee Now →
                                 </a>
                             </div>
                         </td>
@@ -246,7 +247,7 @@ function generateReminderEmail(clientName: string, installmentNumber: number, du
 
 function generateLateFeeEmail(clientName: string, installmentNumber: number, dueDate: string, totalAmount: number, checkoutUrl: string): string {
     const formattedDate = new Date(dueDate).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
-    const logoUrl = `https://ekxftwrjvxtpnqbraszv.supabase.co/storage/v1/object/public/logo/logo2.png`;
+    const logoUrl = `https://migmainc.com/logo2.png`;
 
     return `
 <!DOCTYPE html>
@@ -269,17 +270,17 @@ function generateLateFeeEmail(clientName: string, installmentNumber: number, due
                     <tr>
                         <td style="padding: 30px; background: #1a1a1a; border-radius: 8px; border: 1px solid #ff4d4d;">
                             <h1 style="margin: 0 0 20px 0; font-size: 24px; color: #ff4d4d; text-align: center; font-weight: bold;">
-                                ⚠️ Payment Overdue Notice
+                                ⚠️ Late Payment Notice
                             </h1>
                             <p style="color: #e0e0e0; font-size: 16px;">Hello <strong>${clientName}</strong>,</p>
                             <p style="color: #e0e0e0; font-size: 15px; line-height: 1.6;">
-                                We inform you that the payment for installment <strong>#${installmentNumber}</strong>, due on ${formattedDate}, has not been received.
+                                We inform you that the payment for the scholarship maintenance fee installment <strong>#${installmentNumber}</strong>, due on ${formattedDate}, has not been received.
                             </p>
                             <div style="background: #0a0a0a; border: 1px solid #ff4d4d; padding: 20px; margin: 25px 0; border-radius: 8px;">
                                 <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
                                     <tr>
                                         <td style="color: #888; padding-bottom: 5px;">Base Amount:</td>
-                                        <td align="right" style="color: #e0e0e0;">$650.00</td>
+                                        <td align="right" style="color: #e0e0e0;">$105.00</td>
                                     </tr>
                                     <tr>
                                         <td style="color: #ff4d4d; padding-bottom: 10px;">Late Fee:</td>
@@ -293,7 +294,7 @@ function generateLateFeeEmail(clientName: string, installmentNumber: number, due
                             </div>
                             <div style="text-align: center; margin-top: 35px;">
                                 <a href="${checkoutUrl}" style="display: inline-block; padding: 16px 40px; background: linear-gradient(180deg, #F3E196 0%, #CE9F48 100%); color: #000; text-decoration: none; font-weight: bold; border-radius: 6px; font-size: 16px;">
-                                    Regularize Payment Now →
+                                    Regularize Scholarship Fee Now →
                                 </a>
                             </div>
                         </td>

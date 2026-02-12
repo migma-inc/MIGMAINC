@@ -179,7 +179,41 @@
         "need_help_message": "Si vous avez des questions ou besoin d'assistance, contactez-nous via notre page de contact.",
         "estimated_time": "Temps estimé",
         "business_hours": "Jusqu'à 48 heures ouvrables",
-        "contact_us": "Nous Contacter"
+        "contact_us": "Nous Contacter",
+        "zelle": {
+            "title": "Détails du Paiement Zelle",
+            "recipient_email": "E-mail du Destinataire",
+            "copy": "Copier",
+            "copied": "Copié",
+            "instructions": "Instructions",
+            "step1": "Effectuez le transfert Zelle avec le montant exact dans votre application bancaire.",
+            "step2": "Prenez une capture d'écran de l'<strong>écran de confirmation</strong> immédiatement après l'envoi.",
+            "step3": "Téléchargez l'image ci-dessous pour un traitement automatique.",
+            "tips_title": "Conseils Importants",
+            "images_only": "IMAGES UNIQUEMENT : Téléchargez uniquement des captures d'écran (PNG/JPG). Les PDFs ne sont pas acceptés.",
+            "image_requirements": "L'image doit montrer : le code de confirmation, la date, le montant exact et le destinataire (adm@migmainc.com).",
+            "attach_receipt": "Joindre le Reçu",
+            "select_screenshot": "Sélectionnez ou glissez la capture d'écran du paiement.",
+            "success_selected": "Document sélectionné avec succès !",
+            "drag_here": "Glissez le reçu ici",
+            "click_to_select": "sélectionner un fichier",
+            "formats_notice": "Formats acceptés : JPG, PNG uniquement",
+            "change_file": "Changer de Fichier",
+            "error_invalid_type": "Veuillez télécharger un fichier image (PNG/JPG uniquement)."
+        },
+        "coupon": {
+            "title": "Coupon de Réduction",
+            "placeholder": "Code de coupon",
+            "apply": "Appliquer",
+            "remove": "Retirer",
+            "applied_success": "Coupon appliqué avec succès !",
+            "invalid": "Coupon invalide ou inactif.",
+            "limit_reached": "Limite d'utilisation de ce coupon atteinte.",
+            "expired": "Ce coupon a expiré.",
+            "not_yet_valid": "Ce coupon n'est pas encore valide.",
+            "error_validate": "Erreur lors de la validation du coupon.",
+            "error_remove": "Erreur lors du retrait du coupon."
+        }
     },
     "global_partner": {
         "nav": {

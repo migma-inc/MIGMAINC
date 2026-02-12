@@ -23,20 +23,20 @@ serve(async (req) => {
             throw new Error('schedule_id is required');
         }
 
-        console.log(`[EB-3 Installment] Sending link for schedule: ${schedule_id}`);
+        console.log(`[Scholarship Installment] Sending link for schedule: ${schedule_id}`);
 
         // Fetch schedule detail
         const { data: schedule, error: scheduleError } = await supabaseClient
-            .from('eb3_recurrence_schedules')
+            .from('scholarship_recurrence_schedules')
             .select(`
                 id,
                 installment_number,
                 due_date,
                 amount_usd,
                 client_id,
-                order_id,
+                control_id,
                 clients!inner(full_name, email),
-                visa_orders!eb3_recurrence_schedules_order_id_fkey(seller_id)
+                scholarship_recurrence_control!inner(seller_id)
             `)
             .eq('id', schedule_id)
             .single();
@@ -45,23 +45,23 @@ serve(async (req) => {
             throw new Error('Schedule not found');
         }
 
-        // Generate a prefill token with client data (same format as SellerLinks)
+        // Generate a prefill token with client data
         const token = crypto.randomUUID();
         const expiresAt = new Date();
         expiresAt.setDate(expiresAt.getDate() + 30); // 30 days
 
-        const sellerId = (schedule as any).visa_orders?.seller_id || null;
+        const sellerId = (schedule as any).scholarship_recurrence_control?.seller_id || null;
 
         const { error: tokenError } = await supabaseClient
             .from('checkout_prefill_tokens')
             .insert({
                 token,
-                product_slug: 'eb3-installment-monthly',
+                product_slug: 'scholarship-maintenance-fee',
                 seller_id: sellerId,
                 client_data: {
                     clientName: schedule.clients.full_name,
                     clientEmail: schedule.clients.email,
-                    eb3_schedule_id: schedule.id,
+                    scholarship_schedule_id: schedule.id,
                     installment_number: schedule.installment_number,
                     due_date: schedule.due_date,
                     amount_usd: schedule.amount_usd,
@@ -70,23 +70,16 @@ serve(async (req) => {
             });
 
         if (tokenError) {
-            console.error('[EB-3 Installment] Error creating prefill token:', tokenError);
+            console.error('[Scholarship Installment] Error creating prefill token:', tokenError);
             throw new Error('Failed to create checkout link');
         }
 
         const PUBLIC_SITE_URL = Deno.env.get('PUBLIC_SITE_URL') || 'https://migmainc.com';
         const sellerParam = sellerId ? `&seller=${sellerId}` : '';
-        const checkoutUrl = `${PUBLIC_SITE_URL}/checkout/visa/eb3-installment-monthly?prefill=${token}${sellerParam}`;
+        const checkoutUrl = `${PUBLIC_SITE_URL}/checkout/visa/scholarship-maintenance-fee?prefill=${token}${sellerParam}`;
         const formattedDate = new Date(schedule.due_date).toLocaleDateString('en-US', { day: 'numeric', month: 'long', year: 'numeric' });
 
-        const getOrdinal = (n: number) => {
-            const s = ["th", "st", "nd", "rd"];
-            const v = n % 100;
-            return n + (s[(v - 20) % 10] || s[v] || s[0]);
-        };
-
-        const installmentOrdinal = getOrdinal(schedule.installment_number);
-        const installmentText = schedule.installment_number === 1 ? 'first' : installmentOrdinal.toLowerCase();
+        const subject = `🔗 Payment Link: Scholarship Maintenance Fee - #${schedule.installment_number}`;
 
         // Email HTML - Migma Standard Black/Gold
         const emailHtml = `
@@ -102,24 +95,19 @@ serve(async (req) => {
         <tr>
             <td align="center" style="padding: 40px 20px;">
                 <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="600" style="max-width: 600px; background-color: #000000; border-radius: 8px;">
-                    <!-- Logo Header -->
                     <tr>
                         <td align="center" style="padding: 0 20px 30px;">
                             <img src="${Deno.env.get('SUPABASE_URL')}/storage/v1/object/public/logo/logo2.png" alt="MIGMA Logo" width="200" style="display: block;">
                         </td>
                     </tr>
-                    <!-- Main Content -->
                     <tr>
                         <td style="padding: 30px; background: #1a1a1a; border-radius: 8px; border: 1px solid #CE9F48;">
                             <h1 style="margin: 0 0 20px 0; font-size: 26px; color: #CE9F48; text-align: center; font-weight: bold;">
-                                Your ${installmentOrdinal} EB-3 Installment is available
+                                Scholarship Maintenance Fee
                             </h1>
                             <p style="color: #e0e0e0; font-size: 16px;">Hello <strong>${schedule.clients.full_name}</strong>,</p>
                             <p style="color: #e0e0e0; font-size: 15px; line-height: 1.6;">
-                                ${schedule.installment_number === 1
-                ? 'As agreed, your payment plan has been initiated. The payment link for your **first installment** is now available below:'
-                : `We hope you are doing well. The payment link for your **${installmentText} installment** is now available below:`
-            }
+                                The payment link for your scholarship maintenance fee installment <strong>#${schedule.installment_number}</strong> is now available below:
                             </p>
 
                             <div style="background: #0a0a0a; border: 1px solid #CE9F48; padding: 25px; margin: 30px 0; border-radius: 12px; text-align: center;">
@@ -130,7 +118,7 @@ serve(async (req) => {
 
                             <div style="text-align: center; margin-bottom: 30px;">
                                 <a href="${checkoutUrl}" style="display: inline-block; padding: 18px 45px; background: linear-gradient(180deg, #F3E196 0%, #CE9F48 100%); color: #000; text-decoration: none; font-weight: bold; border-radius: 8px; font-size: 16px; box-shadow: 0 4px 15px rgba(206, 159, 72, 0.3);">
-                                    Pay ${installmentOrdinal} Installment Now →
+                                    Pay Installment Now →
                                 </a>
                             </div>
 
@@ -139,10 +127,9 @@ serve(async (req) => {
                             </p>
                         </td>
                     </tr>
-                    <!-- Footer -->
                     <tr>
                         <td align="center" style="padding: 25px;">
-                            <p style="margin: 0; font-size: 12px; color: #666;">© 2026 MIGMA INC. | EB-3 Payment System</p>
+                            <p style="margin: 0; font-size: 12px; color: #666;">© 2026 MIGMA INC. | Scholarship System</p>
                         </td>
                     </tr>
                 </table>
@@ -156,7 +143,7 @@ serve(async (req) => {
         const { error: emailError } = await supabaseClient.functions.invoke('send-email', {
             body: {
                 to: schedule.clients.email,
-                subject: `🔗 Payment Link: ${installmentOrdinal} EB-3 Installment Available`,
+                subject: subject,
                 html: emailHtml
             }
         });
@@ -165,7 +152,7 @@ serve(async (req) => {
 
         // Log e-mail to history
         try {
-            await supabaseClient.from('eb3_email_logs').insert({
+            await supabaseClient.from('scholarship_email_logs').insert({
                 client_id: schedule.client_id,
                 schedule_id: schedule.id,
                 email_type: 'installment_link',
@@ -173,11 +160,11 @@ serve(async (req) => {
                 status: 'sent',
                 metadata: {
                     installment_number: schedule.installment_number,
-                    order_id: schedule.order_id
+                    control_id: schedule.control_id
                 }
             });
         } catch (logErr: any) {
-            console.error('[EB-3 Link] Failed to log email:', logErr);
+            console.error('[Scholarship Link] Failed to log email:', logErr);
         }
 
         return new Response(JSON.stringify({ success: true }), {
@@ -186,7 +173,7 @@ serve(async (req) => {
         });
 
     } catch (error: any) {
-        console.error('[EB-3 Link] Error:', error);
+        console.error('[Scholarship Link] Error:', error);
         return new Response(JSON.stringify({ error: error.message }), {
             headers: { ...corsHeaders, 'Content-Type': 'application/json' },
             status: 500

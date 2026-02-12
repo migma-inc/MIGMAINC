@@ -1,6 +1,7 @@
 import React, { useRef, useState } from 'react';
 import { cn } from '@/lib/utils';
 import { CheckCircle2, X, Info, Mail, AlertTriangle, Lightbulb, Copy, Check } from 'lucide-react';
+import { useTranslation, Trans } from 'react-i18next';
 
 interface ZelleUploadProps {
     onFileSelect: (file: File) => void;
@@ -9,6 +10,7 @@ interface ZelleUploadProps {
 }
 
 export const ZelleUpload: React.FC<ZelleUploadProps> = ({ onFileSelect, currentFile, onClear }) => {
+    const { t } = useTranslation();
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [isDragOver, setIsDragOver] = useState(false);
     const [copied, setCopied] = useState(false);
@@ -49,7 +51,7 @@ export const ZelleUpload: React.FC<ZelleUploadProps> = ({ onFileSelect, currentF
         if (validTypes.includes(file.type)) {
             onFileSelect(file);
         } else {
-            alert('Please upload an image file (PNG/JPG only).');
+            alert(t('checkout.zelle.error_invalid_type', 'Please upload an image file (PNG/JPG only).'));
         }
     };
 
@@ -63,12 +65,12 @@ export const ZelleUpload: React.FC<ZelleUploadProps> = ({ onFileSelect, currentF
             <div className="bg-gradient-to-br from-gold-light/20 to-gold-dark/10 border border-gold-medium/30 rounded-xl overflow-hidden shadow-xl">
                 <div className="bg-gold-medium/10 p-4 border-b border-gold-medium/20 flex items-center gap-3">
                     <Mail className="w-5 h-5 text-gold-medium" />
-                    <h3 className="font-bold text-white uppercase tracking-wider text-sm">Zelle Payment Details</h3>
+                    <h3 className="font-bold text-white uppercase tracking-wider text-sm">{t('checkout.zelle.title', 'Zelle Payment Details')}</h3>
                 </div>
                 <div className="p-6 space-y-4">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-black/40 p-4 rounded-lg border border-white/5">
                         <div>
-                            <p className="text-[10px] uppercase font-bold text-gray-400 tracking-widest mb-1">Recipient Email</p>
+                            <p className="text-[10px] uppercase font-bold text-gray-400 tracking-widest mb-1">{t('checkout.zelle.recipient_email', 'Recipient Email')}</p>
                             <p className="text-xl font-mono font-bold text-gold-light select-all">adm@migmainc.com</p>
                         </div>
                         <button
@@ -83,12 +85,12 @@ export const ZelleUpload: React.FC<ZelleUploadProps> = ({ onFileSelect, currentF
                             {copied ? (
                                 <>
                                     <Check className="w-3.5 h-3.5" />
-                                    Copied
+                                    {t('checkout.zelle.copied', 'Copied')}
                                 </>
                             ) : (
                                 <>
                                     <Copy className="w-3.5 h-3.5" />
-                                    Copy
+                                    {t('checkout.zelle.copy', 'Copy')}
                                 </>
                             )}
                         </button>
@@ -102,20 +104,24 @@ export const ZelleUpload: React.FC<ZelleUploadProps> = ({ onFileSelect, currentF
                 <div className="bg-black/30 border border-white/10 rounded-xl p-5 space-y-4">
                     <div className="flex items-center gap-2 text-gold-medium">
                         <Info className="w-4 h-4" />
-                        <h4 className="font-bold text-sm uppercase">Instructions</h4>
+                        <h4 className="font-bold text-sm uppercase">{t('checkout.zelle.instructions', 'Instructions')}</h4>
                     </div>
                     <ul className="space-y-3">
                         <li className="flex gap-3 text-sm text-gray-300">
                             <span className="flex-shrink-0 w-6 h-6 rounded-full bg-gold-medium/20 text-gold-medium flex items-center justify-center text-xs font-bold border border-gold-medium/30">1</span>
-                            <span>Complete the Zelle transfer with the exact amount in your banking app.</span>
+                            <span>{t('checkout.zelle.step1', 'Complete the Zelle transfer with the exact amount in your banking app.')}</span>
                         </li>
                         <li className="flex gap-3 text-sm text-gray-300">
                             <span className="flex-shrink-0 w-6 h-6 rounded-full bg-gold-medium/20 text-gold-medium flex items-center justify-center text-xs font-bold border border-gold-medium/30">2</span>
-                            <span>Take a print/screenshot of the <strong>confirmation screen</strong> immediately after sending.</span>
+                            <span>
+                                <Trans i18nKey="checkout.zelle.step2">
+                                    Take a print/screenshot of the <strong>confirmation screen</strong> immediately after sending.
+                                </Trans>
+                            </span>
                         </li>
                         <li className="flex gap-3 text-sm text-gray-300">
                             <span className="flex-shrink-0 w-6 h-6 rounded-full bg-gold-medium/20 text-gold-medium flex items-center justify-center text-xs font-bold border border-gold-medium/30">3</span>
-                            <span>Upload the image below for automatic processing.</span>
+                            <span>{t('checkout.zelle.step3', 'Upload the image below for automatic processing.')}</span>
                         </li>
                     </ul>
                 </div>
@@ -124,17 +130,19 @@ export const ZelleUpload: React.FC<ZelleUploadProps> = ({ onFileSelect, currentF
                 <div className="bg-gold-medium/5 border border-gold-medium/20 rounded-xl p-5 space-y-4">
                     <div className="flex items-center gap-2 text-gold-medium">
                         <Lightbulb className="w-4 h-4" />
-                        <h4 className="font-bold text-sm uppercase">Important Tips</h4>
+                        <h4 className="font-bold text-sm uppercase">{t('checkout.zelle.tips_title', 'Important Tips')}</h4>
                     </div>
                     <div className="space-y-3">
                         <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg">
                             <p className="text-xs text-red-200 leading-relaxed font-medium">
                                 <AlertTriangle className="w-3 h-3 inline-block mr-1 text-red-400" />
-                                <strong>IMAGES ONLY</strong>: Upload only screenshots (PNG/JPG). PDFs are not accepted.
+                                <Trans i18nKey="checkout.zelle.images_only">
+                                    <strong>IMAGES ONLY</strong>: Upload only screenshots (PNG/JPG). PDFs are not accepted.
+                                </Trans>
                             </p>
                         </div>
                         <p className="text-[11px] text-gray-400 leading-relaxed">
-                            The image must show: Confirmation Code, Date, Exact Amount, and Recipient (adm@migmainc.com).
+                            {t('checkout.zelle.image_requirements', 'The image must show: Confirmation Code, Date, Exact Amount, and Recipient (adm@migmainc.com).')}
                         </p>
                     </div>
                 </div>
@@ -158,9 +166,11 @@ export const ZelleUpload: React.FC<ZelleUploadProps> = ({ onFileSelect, currentF
                 </div>
 
                 <div className="p-6 pt-0">
-                    <h3 className="font-bold text-xl text-gray-900">Attach Receipt</h3>
+                    <h3 className="font-bold text-xl text-gray-900">{t('checkout.zelle.attach_receipt', 'Attach Receipt')}</h3>
                     <p className="text-gray-500 mb-6 text-sm">
-                        {currentFile ? 'Document selected successfully!' : 'Select or drag the payment screenshot.'}
+                        {currentFile
+                            ? t('checkout.zelle.success_selected', 'Document selected successfully!')
+                            : t('checkout.zelle.select_screenshot', 'Select or drag the payment screenshot.')}
                     </p>
 
                     {currentFile ? (
@@ -174,7 +184,7 @@ export const ZelleUpload: React.FC<ZelleUploadProps> = ({ onFileSelect, currentF
                                 onClick={triggerFileSelect}
                                 className="mt-6 px-6 py-2 rounded-full border border-gold-medium text-gold-medium font-bold text-sm hover:bg-gold-medium hover:text-white transition-all"
                             >
-                                Change File
+                                {t('checkout.zelle.change_file', 'Change File')}
                             </button>
                         </div>
                     ) : (
@@ -197,11 +207,13 @@ export const ZelleUpload: React.FC<ZelleUploadProps> = ({ onFileSelect, currentF
                                     <polyline points="21 15 16 10 5 21" />
                                 </svg>
                             </div>
-                            <span className="block font-bold text-gray-900 mb-1 text-center">Drag receipt here</span>
+                            <span className="block font-bold text-gray-900 mb-1 text-center">{t('checkout.zelle.drag_here', 'Drag receipt here')}</span>
                             <span className="block text-gray-500 text-sm text-center">
-                                Or click to <strong className="text-gold-medium font-bold">select a file</strong>
+                                <Trans i18nKey="checkout.zelle.click_to_select">
+                                    Or click to <strong className="text-gold-medium font-bold">select a file</strong>
+                                </Trans>
                             </span>
-                            <p className="mt-4 text-[10px] text-gray-400 uppercase font-bold tracking-widest">Accepted formats: JPG, PNG only</p>
+                            <p className="mt-4 text-[10px] text-gray-400 uppercase font-bold tracking-widest">{t('checkout.zelle.formats_notice', 'Accepted formats: JPG, PNG only')}</p>
                         </div>
                     )}
                 </div>
@@ -214,6 +226,6 @@ export const ZelleUpload: React.FC<ZelleUploadProps> = ({ onFileSelect, currentF
                 accept="image/jpeg,image/jpg,image/png"
                 className="hidden"
             />
-        </div >
+        </div>
     );
 };
