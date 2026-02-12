@@ -47,8 +47,8 @@ Deno.serve(async (req) => {
         }
 
         // 2. Create Schedule
-        // Default EB-3 Installment plan: 24 months of 650 USD
-        const totalInstallments = 24;
+        // Default EB-3 Installment plan: 8 months (Updated per user request)
+        const totalInstallments = 8;
         const amountPerInstallment = 650.00;
 
         const { data: schedule, error: scheduleError } = await supabase

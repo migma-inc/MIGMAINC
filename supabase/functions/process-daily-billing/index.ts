@@ -46,7 +46,7 @@ Deno.serve(async (req) => {
 
             if (!order) continue;
 
-            const checkoutUrl = `https://migma-inc.com/checkout?billing_token=${inst.checkout_token}`;
+            const checkoutUrl = `https://migmainc.com/checkout?billing_token=${inst.checkout_token}`;
 
             console.log(`[Daily Billing] Notifying ${order.client_email} for installment ${inst.installment_number}`);
 
