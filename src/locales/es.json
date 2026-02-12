@@ -200,6 +200,19 @@
             "formats_notice": "Formatos aceptados: solo JPG, PNG",
             "change_file": "Cambiar Archivo",
             "error_invalid_type": "Por favor, cargue un archivo de imagen (solo PNG/JPG)."
+        },
+        "coupon": {
+            "title": "Cupón de Descuento",
+            "placeholder": "Código del cupón",
+            "apply": "Aplicar",
+            "remove": "Eliminar",
+            "applied_success": "¡Cupón aplicado con éxito!",
+            "invalid": "Cupón inválido o inactivo.",
+            "limit_reached": "Se ha alcanzado el límite de uso de este cupón.",
+            "expired": "Este cupón ha expirado.",
+            "not_yet_valid": "Este cupón aún no es válido.",
+            "error_validate": "Error al validar el cupón.",
+            "error_remove": "Error al eliminar el cupón."
         }
     },
     "global_partner": {

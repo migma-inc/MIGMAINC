@@ -270,11 +270,13 @@ Deno.serve(async (req: Request) => {
 
         const clientId = clientData?.id;
 
-        // 2. Increment Coupon Usage if applicable
+        // 2. Increment Coupon Usage if applicable - REMOVED (handled at checkout)
+        /*
         if (orderToProcess.coupon_code) {
-          console.log(`[Zelle Webhook] 🎟️ Incrementando uso do cupom: ${orderToProcess.coupon_code}`);
+          console.log(`[Zelle Webhook] 🎟️ Incrementing usage for coupon: ${orderToProcess.coupon_code}`);
           await supabase.rpc('increment_coupon_usage', { p_code: orderToProcess.coupon_code });
         }
+        */
 
         // 3. EB-3 RECURRENCE: Activate if Job Catalog
         if (orderToProcess.product_slug === 'eb3-installment-catalog') {

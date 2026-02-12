@@ -34,6 +34,8 @@ export const useDraftRecovery = (
         setSignatureConfirmed,
         setServiceRequestId,
         setClientId,
+        setCouponCode,
+        setAppliedCoupon,
     } = actions;
 
     const isRestoringRef = useRef(false);
@@ -80,6 +82,8 @@ export const useDraftRecovery = (
                 setPaymentMethod(parsed.paymentMethod || '');
                 setSignatureImageDataUrl(parsed.signatureImageDataUrl || null);
                 setSignatureConfirmed(parsed.signatureConfirmed || false);
+                setCouponCode(parsed.couponCode || '');
+                setAppliedCoupon(parsed.appliedCoupon || null);
 
                 // Identifiers
                 if (parsed.serviceRequestId) setServiceRequestId(parsed.serviceRequestId);

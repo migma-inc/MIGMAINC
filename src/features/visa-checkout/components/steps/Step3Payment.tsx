@@ -86,6 +86,10 @@ export const Step3Payment: React.FC<Step3Props> = ({ state, actions, handlers, o
                     actions={actions}
                     couponCode={state.couponCode}
                     appliedCoupon={state.appliedCoupon}
+                    serviceRequestId={state.serviceRequestId || ''}
+                    clientName={state.clientName || ''}
+                    clientEmail={state.clientEmail || ''}
+                    productSlug={productSlug || ''}
                 />
 
                 <PaymentMethodSelector

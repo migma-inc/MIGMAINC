@@ -548,7 +548,8 @@ export const ZelleApprovalPage = () => {
         }
       }
 
-      // Increment coupon usage if authorized
+      // Increment coupon usage if authorized - REMOVED (handled at checkout)
+      /*
       if (order.coupon_code) {
         console.log(`[Zelle Approval] 🎟️ Incrementing usage for coupon: ${order.coupon_code}`);
         const { error: rpcError } = await supabase.rpc('increment_coupon_usage', {
@@ -566,6 +567,7 @@ export const ZelleApprovalPage = () => {
           console.log(`[Zelle Approval] ✅ Coupon usage incremented successfully.`);
         }
       }
+      */
 
       // Only show generic success if EB-3 specific message wasn't shown
       if (order.product_slug !== 'eb3-installment-catalog') {
