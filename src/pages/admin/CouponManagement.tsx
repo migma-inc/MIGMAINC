@@ -15,6 +15,7 @@ import {
     deleteCoupon,
     updateCoupon,
     getCouponUsage,
+    removeCouponFromOrder,
     type Coupon,
     type CouponFormData,
     type CouponUsage
@@ -43,6 +44,9 @@ export function CouponManagement() {
     const [currentUsage, setCurrentUsage] = useState<CouponUsage[]>([]);
     const [usageLoading, setUsageLoading] = useState(false);
     const [selectedCouponCode, setSelectedCouponCode] = useState<string>('');
+    const [usageToDelete, setUsageToDelete] = useState<CouponUsage | null>(null);
+    const [isDeletingUsage, setIsDeletingUsage] = useState(false);
+    const [removeUsageModalOpen, setRemoveUsageModalOpen] = useState(false);
 
     useEffect(() => {
         loadCoupons();
@@ -71,6 +75,41 @@ export function CouponManagement() {
             console.error('Failed to load coupon usage', err);
         } finally {
             setUsageLoading(false);
+        }
+    };
+
+    const handleRemoveUsage = (usage: CouponUsage) => {
+        setUsageToDelete(usage);
+        setRemoveUsageModalOpen(true);
+    };
+
+    const confirmRemoveUsage = async () => {
+        if (!usageToDelete) return;
+
+        setIsDeletingUsage(true);
+        try {
+            await removeCouponFromOrder(usageToDelete.id, selectedCouponCode);
+
+            // Update local state for usage history
+            setCurrentUsage(prev => prev.filter(u => u.id !== usageToDelete.id));
+
+            // Update coupons list to show decremented uses
+            setCoupons(prev => prev.map(c =>
+                c.code === selectedCouponCode
+                    ? { ...c, current_uses: Math.max(0, c.current_uses - 1) }
+                    : c
+            ));
+
+            // If it was the last usage, we can stay in the modal, otherwise it's fine
+            if (currentUsage.length <= 1) {
+                setUsageModalOpen(false);
+            }
+        } catch (err) {
+            console.error('Failed to remove usage', err);
+        } finally {
+            setIsDeletingUsage(false);
+            setUsageToDelete(null);
+            setRemoveUsageModalOpen(false);
         }
     };
 
@@ -317,18 +356,27 @@ export function CouponManagement() {
                             </div>
 
                             <div className="space-y-2">
-                                <Label>Usage Limit (Optional)</Label>
+                                <Label>Usage Limit <span className="text-red-500">*</span></Label>
                                 <Input
                                     type="number"
                                     placeholder="Ex: 100"
                                     value={formData.max_uses || ''}
                                     onChange={e => setFormData({ ...formData, max_uses: e.target.value ? parseInt(e.target.value) : undefined })}
                                     className="bg-black/50 border-white/10"
+                                    required
+                                    min="1"
                                 />
                             </div>
 
                             <DialogFooter>
-                                <Button type="button" variant="outline" onClick={() => setIsCreateOpen(false)} className="border-white/10 text-gray-400 hover:text-white">Cancel</Button>
+                                <Button
+                                    type="button"
+                                    variant="ghost"
+                                    onClick={() => setIsCreateOpen(false)}
+                                    className="text-gray-400 hover:bg-white/10 hover:text-white border border-white/5"
+                                >
+                                    Cancel
+                                </Button>
                                 <Button type="submit" className="bg-gold-medium text-black hover:bg-gold-light" disabled={isSubmitting}>
                                     {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : (editingCouponId ? 'Save Changes' : 'Create Coupon')}
                                 </Button>
@@ -450,7 +498,7 @@ export function CouponManagement() {
 
             {/* Usage History Modal */}
             <Dialog open={usageModalOpen} onOpenChange={setUsageModalOpen}>
-                <DialogContent className="bg-zinc-900 border-gold-medium/30 text-white max-w-4xl max-h-[80vh] overflow-y-auto">
+                <DialogContent className="bg-zinc-900 border-gold-medium/30 text-white max-w-6xl max-h-[85vh] overflow-y-auto">
                     <DialogHeader>
                         <DialogTitle className="text-gold-light flex items-center gap-2">
                             <Ticket className="w-5 h-5" />
@@ -481,6 +529,8 @@ export function CouponManagement() {
                                             <th className="px-4 py-3">Service</th>
                                             <th className="px-4 py-3 text-right">Discount</th>
                                             <th className="px-4 py-3 text-right">Total Paid</th>
+                                            <th className="px-4 py-3">Payment Status</th>
+                                            <th className="px-4 py-3 text-right">Actions</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-white/5">
@@ -503,6 +553,34 @@ export function CouponManagement() {
                                                             : use.total_price_usd?.toFixed(2)
                                                     }
                                                 </td>
+                                                <td className="px-4 py-3">
+                                                    <Badge
+                                                        variant={use.payment_status === 'completed' ? 'default' : 'secondary'}
+                                                        className={
+                                                            use.payment_status === 'completed'
+                                                                ? 'bg-green-600/20 text-green-400 border-green-600/50'
+                                                                : 'bg-yellow-500/20 text-yellow-400 border-yellow-500/50'
+                                                        }
+                                                    >
+                                                        {use.payment_status === 'completed' ? 'Paid' : use.payment_status}
+                                                    </Badge>
+                                                </td>
+                                                <td className="px-4 py-3 text-right">
+                                                    <Button
+                                                        size="sm"
+                                                        variant="ghost"
+                                                        onClick={() => handleRemoveUsage(use)}
+                                                        disabled={isDeletingUsage}
+                                                        className="hover:bg-red-500/20 text-red-400 hover:text-red-300"
+                                                        title="Remove coupon from this order"
+                                                    >
+                                                        {isDeletingUsage && usageToDelete?.id === use.id ? (
+                                                            <Loader2 className="w-4 h-4 animate-spin" />
+                                                        ) : (
+                                                            <Trash2 className="w-4 h-4" />
+                                                        )}
+                                                    </Button>
+                                                </td>
                                             </tr>
                                         ))}
                                     </tbody>
@@ -512,13 +590,24 @@ export function CouponManagement() {
                     </div>
                     <DialogFooter>
                         <Button
-                            variant="outline"
+                            variant="ghost"
                             onClick={() => setUsageModalOpen(false)}
-                            className="bg-black border-white/10 text-white hover:bg-white/10"
+                            className="text-gray-400 hover:bg-white/10 hover:text-white border border-white/5"
                         >
                             Close
                         </Button>
                     </DialogFooter>
+
+                    {/* Moved inside here to ensure it appears on top of this modal */}
+                    <ConfirmModal
+                        isOpen={removeUsageModalOpen}
+                        onClose={() => setRemoveUsageModalOpen(false)}
+                        onConfirm={confirmRemoveUsage}
+                        title="Remove Coupon Usage"
+                        message={`Are you sure you want to remove the coupon from order ${usageToDelete?.order_number}? This will decrement the coupon usage count and update the order.`}
+                        confirmText="Remove Usage"
+                        variant="danger"
+                    />
                 </DialogContent>
             </Dialog>
 
@@ -531,6 +620,6 @@ export function CouponManagement() {
                 confirmText="Delete"
                 variant="danger"
             />
-        </div>
+        </div >
     );
 }

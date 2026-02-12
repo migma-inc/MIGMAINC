@@ -179,7 +179,41 @@
         "need_help_message": "If you have any questions or need support, please contact us through our contact page.",
         "estimated_time": "Estimated time",
         "business_hours": "Up to 48 business hours",
-        "contact_us": "Contact Us"
+        "contact_us": "Contact Us",
+        "zelle": {
+            "title": "Zelle Payment Details",
+            "recipient_email": "Recipient Email",
+            "copy": "Copy",
+            "copied": "Copied",
+            "instructions": "Instructions",
+            "step1": "Complete the Zelle transfer with the exact amount in your banking app.",
+            "step2": "Take a print/screenshot of the <strong>confirmation screen</strong> immediately after sending.",
+            "step3": "Upload the image below for automatic processing.",
+            "tips_title": "Important Tips",
+            "images_only": "IMAGES ONLY: Upload only screenshots (PNG/JPG). PDFs are not accepted.",
+            "image_requirements": "The image must show: Confirmation Code, Date, Exact Amount, and Recipient (adm@migmainc.com).",
+            "attach_receipt": "Attach Receipt",
+            "select_screenshot": "Select or drag the payment screenshot.",
+            "success_selected": "Document selected successfully!",
+            "drag_here": "Drag receipt here",
+            "click_to_select": "select a file",
+            "formats_notice": "Accepted formats: JPG, PNG only",
+            "change_file": "Change File",
+            "error_invalid_type": "Please upload an image file (PNG/JPG only)."
+        },
+        "coupon": {
+            "title": "Discount Coupon",
+            "placeholder": "Coupon code",
+            "apply": "Apply",
+            "remove": "Remove",
+            "applied_success": "Coupon applied successfully!",
+            "invalid": "Invalid or inactive coupon.",
+            "limit_reached": "Usage limit reached for this coupon.",
+            "expired": "This coupon has expired.",
+            "not_yet_valid": "This coupon is not yet valid.",
+            "error_validate": "Error validating coupon.",
+            "error_remove": "Error removing coupon."
+        }
     },
     "global_partner": {
         "nav": {

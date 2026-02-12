@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
-import { FileText, ClipboardList, LayoutDashboard, Phone, ShoppingCart, DollarSign, UserCircle2, Mail, FileCode, Calendar, X, Activity, Ticket, LinkIcon } from 'lucide-react';
+import { FileText, ClipboardList, LayoutDashboard, Phone, ShoppingCart, DollarSign, UserCircle2, Mail, FileCode, Calendar, X, Activity, Ticket, LinkIcon, ChevronDown, ChevronRight, GraduationCap } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useState, useEffect } from 'react';
 
@@ -11,6 +11,9 @@ interface SidebarProps {
 
 export function Sidebar({ className, isMobileOpen = false, onMobileClose }: SidebarProps) {
   const location = useLocation();
+  const [isRecurrenceOpen, setIsRecurrenceOpen] = useState(
+    location.pathname.includes('eb3-recurring') || location.pathname.includes('scholarship-recurring')
+  );
 
   const [counts, setCounts] = useState<{
     applications: number;
@@ -182,12 +185,7 @@ export function Sidebar({ className, isMobileOpen = false, onMobileClose }: Side
       exact: false,
       badge: counts.zelleApprovals
     },
-    {
-      title: 'EB-3 Recurring',
-      icon: Calendar,
-      path: '/dashboard/eb3-recurring',
-      exact: false,
-    },
+    // EB-3 Recurring e Scholarship movidos para dropdown
     {
       title: 'Sellers & Sales',
       icon: UserCircle2,
@@ -258,8 +256,92 @@ export function Sidebar({ className, isMobileOpen = false, onMobileClose }: Side
         )}
       </div>
 
-      <nav className="space-y-1 flex-1">
-        {menuItems.map((item) => {
+      <nav className="space-y-1 flex-1 overflow-y-auto pr-1 custom-scrollbar">
+        {menuItems.slice(0, 7).map((item) => {
+          const Icon = item.icon;
+          const isActive = item.exact
+            ? location.pathname === item.path
+            : location.pathname.startsWith(item.path);
+
+          return (
+            <Link
+              key={item.path}
+              to={item.path}
+              onClick={onMobileClose}
+              className={cn(
+                'flex items-center justify-between px-4 py-3 rounded-lg transition-colors group',
+                isActive
+                  ? 'bg-gold-medium/20 text-gold-light font-medium border border-gold-medium/50'
+                  : 'text-gray-400 hover:bg-gold-medium/10 hover:text-gold-light'
+              )}
+            >
+              <div className="flex items-center gap-3">
+                <Icon className="w-5 h-5" />
+                <span>{(item as any).title}</span>
+              </div>
+              {(item as any).badge > 0 && (
+                <span className={cn(
+                  "px-2 py-0.5 rounded-full text-[10px] font-bold min-w-[1.25rem] text-center",
+                  isActive ? "bg-gold-medium text-black" : "bg-gold-medium/20 text-gold-light group-hover:bg-gold-medium group-hover:text-black"
+                )}>
+                  {(item as any).badge}
+                </span>
+              )}
+            </Link>
+          );
+        })}
+
+        {/* Dropdown: Current Service Recurrence (Posicionado onde era EB-3) */}
+        <div className="space-y-1">
+          <button
+            onClick={() => setIsRecurrenceOpen(!isRecurrenceOpen)}
+            className={cn(
+              'w-full flex items-center justify-between px-4 py-3 rounded-lg transition-colors group border border-transparent',
+              (location.pathname.includes('eb3-recurring') || location.pathname.includes('scholarship-recurring'))
+                ? 'bg-gold-medium/5 text-gold-light font-medium'
+                : 'text-gray-400 hover:bg-gold-medium/10 hover:text-gold-light'
+            )}
+          >
+            <div className="flex items-center gap-3">
+              <Activity className="w-5 h-5" />
+              <span>Current Service Recurrence</span>
+            </div>
+            {isRecurrenceOpen ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+          </button>
+
+          {isRecurrenceOpen && (
+            <div className="pl-6 space-y-1 mt-1">
+              <Link
+                to="/dashboard/eb3-recurring"
+                onClick={onMobileClose}
+                className={cn(
+                  'flex items-center gap-3 px-4 py-2 rounded-lg text-sm transition-colors',
+                  location.pathname.includes('eb3-recurring')
+                    ? 'text-gold-light font-medium'
+                    : 'text-gray-500 hover:text-gold-light'
+                )}
+              >
+                <Calendar className="w-4 h-4" />
+                <span>EB-3 Recurring</span>
+              </Link>
+              <Link
+                to="/dashboard/scholarship-recurring"
+                onClick={onMobileClose}
+                className={cn(
+                  'flex items-center gap-3 px-4 py-2 rounded-lg text-sm transition-colors',
+                  location.pathname.includes('scholarship-recurring')
+                    ? 'text-gold-light font-medium'
+                    : 'text-gray-500 hover:text-gold-light'
+                )}
+              >
+                <GraduationCap className="w-4 h-4" />
+                <span>Scholarship Recurring</span>
+              </Link>
+            </div>
+          )}
+        </div>
+
+        {menuItems.slice(7).map((item) => {
           const Icon = item.icon;
           const isActive = item.exact
             ? location.pathname === item.path

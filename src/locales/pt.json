@@ -179,7 +179,41 @@
         "need_help_message": "Se você tiver alguma dúvida ou precisar de suporte, entre em contato conosco através da nossa página de contato.",
         "estimated_time": "Tempo estimado",
         "business_hours": "Até 48 horas úteis",
-        "contact_us": "Entre em Contato"
+        "contact_us": "Entre em Contato",
+        "zelle": {
+            "title": "Detalhes do Pagamento Zelle",
+            "recipient_email": "E-mail do Destinatário",
+            "copy": "Copiar",
+            "copied": "Copiado",
+            "instructions": "Instruções",
+            "step1": "Realize a transferência Zelle com o valor exato em seu aplicativo bancário.",
+            "step2": "Tire um print/screenshot da <strong>tela de confirmação</strong> imediatamente após o envio.",
+            "step3": "Carregue a imagem abaixo para processamento automático.",
+            "tips_title": "Dicas Importantes",
+            "images_only": "APENAS IMAGENS: Carregue apenas screenshots (PNG/JPG). PDFs não são aceitos.",
+            "image_requirements": "A imagem deve mostrar: Código de Confirmação, Data, Valor Exato e Destinatário (adm@migmainc.com).",
+            "attach_receipt": "Anexar Comprovante",
+            "select_screenshot": "Selecione ou arraste o print do pagamento.",
+            "success_selected": "Documento selecionado com sucesso!",
+            "drag_here": "Arraste o comprovante aqui",
+            "click_to_select": "selecionar um arquivo",
+            "formats_notice": "Formatos aceitos: apenas JPG, PNG",
+            "change_file": "Alterar Arquivo",
+            "error_invalid_type": "Por favor, carregue um arquivo de imagem (apenas PNG/JPG)."
+        },
+        "coupon": {
+            "title": "Cupom de Desconto",
+            "placeholder": "Código do cupom",
+            "apply": "Aplicar",
+            "remove": "Remover",
+            "applied_success": "Cupom aplicado com sucesso!",
+            "invalid": "Cupom inválido ou inativo.",
+            "limit_reached": "Limite de uso deste cupom atingido.",
+            "expired": "Este cupom expirou.",
+            "not_yet_valid": "Este cupom ainda não é válido.",
+            "error_validate": "Erro ao validar cupom.",
+            "error_remove": "Erro ao remover cupom."
+        }
     },
     "global_partner": {
         "nav": {
