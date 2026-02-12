@@ -164,11 +164,13 @@ async function processSplitPaymentWebhook(
 
     const orders = allOrders || [mainOrder];
 
-    // Incrementar uso de cupom se existir
+    // Incrementar uso de cupom se existir - REMOVIDO (agora é no checkout)
+    /*
     if (mainOrder.coupon_code) {
       console.log(`[Split Webhook] 🎟️ Incrementando uso do cupom: ${mainOrder.coupon_code}`);
       await supabase.rpc('increment_coupon_usage', { p_code: mainOrder.coupon_code });
     }
+    */
 
     // Gerar PDFs
     for (const orderItem of orders) {
@@ -525,7 +527,8 @@ async function processParcelowWebhookEvent(event: ParcelowWebhookEvent, supabase
       } catch (e) { }
     }
 
-    // Increment coupon usage if authorized
+    // Increment coupon usage if authorized - REMOVED (now handled at checkout)
+    /*
     if (mainOrder.coupon_code) {
       console.log(`[parcelow-webhook] 🎟️ Incrementing usage for coupon: ${mainOrder.coupon_code}`);
       const { error: rpcError } = await supabase.rpc('increment_coupon_usage', {
@@ -538,6 +541,7 @@ async function processParcelowWebhookEvent(event: ParcelowWebhookEvent, supabase
         console.log(`[parcelow-webhook] ✅ Coupon usage incremented successfully.`);
       }
     }
+    */
 
     // ====== EB-3 RECURRENCE: Activate if Job Catalog ======
     if (mainOrder.product_slug === 'eb3-installment-catalog') {
