@@ -331,29 +331,41 @@ export async function deleteScheduledMeeting(
   meetingId: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    const { error: delErrorManual } = await supabase
+    // Tenta deletar da tabela scheduled_meetings
+    const { data: deletedFromManual, error: delErrorManual } = await supabase
       .from('scheduled_meetings')
       .delete()
-      .eq('id', meetingId);
+      .eq('id', meetingId)
+      .select();
 
-    if (delErrorManual) {
-      const { error: delErrorPartner } = await supabase
-        .from('global_partner_applications')
-        .update({
-          meeting_date: null,
-          meeting_time: null,
-          meeting_link: null,
-          meeting_scheduled_by: null
-        })
-        .eq('id', meetingId);
-
-      if (delErrorPartner) {
-        console.error('[MEETINGS] Error deleting/clearing meeting:', delErrorManual, delErrorPartner);
-        return { success: false, error: 'Failed to delete meeting' };
-      }
+    // Se deletou com sucesso da tabela manual
+    if (!delErrorManual && deletedFromManual && deletedFromManual.length > 0) {
+      console.log('[MEETINGS] Meeting deleted from scheduled_meetings:', meetingId);
+      return { success: true };
     }
 
-    return { success: true };
+    // Se não encontrou na tabela manual, tenta limpar da tabela partner
+    const { data: updatedPartner, error: delErrorPartner } = await supabase
+      .from('global_partner_applications')
+      .update({
+        meeting_date: null,
+        meeting_time: null,
+        meeting_link: null,
+        meeting_scheduled_by: null
+      })
+      .eq('id', meetingId)
+      .select();
+
+    // Se atualizou com sucesso na tabela partner
+    if (!delErrorPartner && updatedPartner && updatedPartner.length > 0) {
+      console.log('[MEETINGS] Meeting cleared from global_partner_applications:', meetingId);
+      return { success: true };
+    }
+
+    // Se chegou aqui, não encontrou em nenhuma tabela
+    console.error('[MEETINGS] Meeting not found in any table:', meetingId);
+    return { success: false, error: 'Meeting not found' };
+
   } catch (error) {
     console.error('[MEETINGS] Error deleting meeting:', error);
     return {
