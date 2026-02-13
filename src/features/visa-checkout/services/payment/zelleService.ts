@@ -81,15 +81,23 @@ export class ZelleService {
                 }
             );
 
-            // 4. Create Unified Visa Order record (Main + Upsell)
-            const orderNumber = `ORD-ZEL-${Date.now()}`;
+            // 4. Check if an order already exists for this service request
+            const { data: existingOrder } = await supabase
+                .from('visa_orders')
+                .select('id, order_number')
+                .eq('service_request_id', request.service_request_id)
+                .eq('payment_status', 'pending')
+                .maybeSingle();
+
+            const finalOrderNumber = existingOrder?.order_number || `ORD-ZEL-${Date.now()}`;
             const baseUpsellPrice = request.upsell_product_slug === 'canada-tourist-premium' ? 399 : (request.upsell_product_slug === 'canada-tourist-revolution' ? 199 : 0);
             const upsellAmount = baseUpsellPrice > 0 ? baseUpsellPrice + (request.extra_units * 50) : 0;
 
             const { data: order, error: orderError } = await supabase
                 .from('visa_orders')
-                .insert({
-                    order_number: orderNumber,
+                .upsert({
+                    id: existingOrder?.id, // If present, updates the existing record
+                    order_number: finalOrderNumber,
                     service_request_id: request.service_request_id,
                     product_slug: request.product_slug,
                     seller_id: request.seller_id,
@@ -126,6 +134,7 @@ export class ZelleService {
                         },
                         billing_installment_id: request.billing_installment_id || null,
                         eb3_schedule_id: request.eb3_schedule_id || null,
+                        scholarship_schedule_id: request.scholarship_schedule_id || null,
                         has_upsell: !!upsellAmount,
                         upsell_details: upsellAmount > 0 ? {
                             slug: request.upsell_product_slug,

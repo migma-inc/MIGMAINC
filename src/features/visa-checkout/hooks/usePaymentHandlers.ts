@@ -50,6 +50,7 @@ export const usePaymentHandlers = (
         couponCode,
         billingInstallmentId,
         eb3ScheduleId,
+        scholarshipScheduleId,
         // discountAmount removed from state destructuring to avoid conflict
     } = state;
 
@@ -74,34 +75,28 @@ export const usePaymentHandlers = (
                 state.splitPaymentConfig?.part1_method === 'card' ||
                 state.splitPaymentConfig?.part2_method === 'card';
 
-            if (requiresCard && !creditCardName) {
-                setError('Please enter the name exactly as it appears on your card');
-                return false;
-            }
-            // Complete CPF checksum validation
-            const validateCPF = (val: string) => {
-                const cleaned = val.replace(/\D/g, '');
-                if (cleaned.length !== 11 || /^(\d)\1{10}$/.test(cleaned)) return false;
-
-                let sum = 0;
-                let rest;
-                for (let i = 1; i <= 9; i++) sum = sum + parseInt(cleaned.substring(i - 1, i)) * (11 - i);
-                rest = (sum * 10) % 11;
-                if ((rest === 10) || (rest === 11)) rest = 0;
-                if (rest !== parseInt(cleaned.substring(9, 10))) return false;
-
-                sum = 0;
-                for (let i = 1; i <= 10; i++) sum = sum + parseInt(cleaned.substring(i - 1, i)) * (12 - i);
-                rest = (sum * 10) % 11;
-                if ((rest === 10) || (rest === 11)) rest = 0;
-                if (rest !== parseInt(cleaned.substring(10, 11))) return false;
-
-                return true;
-            };
-
-            if (!validateCPF(cpf)) {
-                setError('The CPF provided is invalid. Please check the digits.');
-                return false;
+            if (state.payerInfo) {
+                if (!state.payerInfo.name) {
+                    setError('Please enter the payer name');
+                    return false;
+                }
+                if (!state.payerInfo.cpf || !validateCPF(state.payerInfo.cpf)) {
+                    setError('The payer CPF provided is invalid');
+                    return false;
+                }
+                if (!state.payerInfo.email) {
+                    setError('Please enter the payer email');
+                    return false;
+                }
+            } else {
+                if (requiresCard && !creditCardName) {
+                    setError('Please enter the name exactly as it appears on your card');
+                    return false;
+                }
+                if (!validateCPF(cpf)) {
+                    setError('The CPF provided is invalid. Please check the digits.');
+                    return false;
+                }
             }
         }
         if (!serviceRequestId) {
@@ -123,7 +118,28 @@ export const usePaymentHandlers = (
         }
 
         return true;
-    }, [termsAccepted, dataAuthorization, signatureConfirmed, signatureImageDataUrl, serviceRequestId, contractTemplate, setError, creditCardName, cpf]);
+    }, [termsAccepted, dataAuthorization, signatureConfirmed, signatureImageDataUrl, serviceRequestId, contractTemplate, setError, creditCardName, cpf, state.payerInfo, state.splitPaymentConfig]);
+
+    // Helper to validate CPF checksum
+    const validateCPF = (val: string) => {
+        const cleaned = val.replace(/\D/g, '');
+        if (cleaned.length !== 11 || /^(\d)\1{10}$/.test(cleaned)) return false;
+
+        let sum = 0;
+        let rest;
+        for (let i = 1; i <= 9; i++) sum = sum + parseInt(cleaned.substring(i - 1, i)) * (11 - i);
+        rest = (sum * 10) % 11;
+        if ((rest === 10) || (rest === 11)) rest = 0;
+        if (rest !== parseInt(cleaned.substring(9, 10))) return false;
+
+        sum = 0;
+        for (let i = 1; i <= 10; i++) sum = sum + parseInt(cleaned.substring(i - 1, i)) * (12 - i);
+        rest = (sum * 10) % 11;
+        if ((rest === 10) || (rest === 11)) rest = 0;
+        if (rest !== parseInt(cleaned.substring(10, 11))) return false;
+
+        return true;
+    };
 
     const handleStripeCheckout = useCallback(async (method: 'card' | 'pix') => {
         if (state.submitting) return;
@@ -255,6 +271,7 @@ export const usePaymentHandlers = (
                 upsell_contract_template_id: state.upsellContractTemplate?.id,
                 billing_installment_id: billingInstallmentId,
                 eb3_schedule_id: eb3ScheduleId,
+                scholarship_schedule_id: scholarshipScheduleId,
                 coupon_code: couponCode,
                 discount_amount: discountAmount,
             };
@@ -337,9 +354,6 @@ export const usePaymentHandlers = (
                     throw new Error('Product not found');
                 }
 
-                // Create Order
-                const orderNumber = `ORD-${new Date().toISOString().split('T')[0].replace(/-/g, '')}-${Math.floor(Math.random() * 10000).toString().padStart(4, '0')}`;
-
                 const upsellProductSlug = state.selectedUpsell === 'canada-premium'
                     ? 'canada-tourist-premium'
                     : state.selectedUpsell === 'canada-revolution'
@@ -349,10 +363,21 @@ export const usePaymentHandlers = (
                 const baseUpsellPrice = state.selectedUpsell === 'canada-premium' ? 399 : (state.selectedUpsell === 'canada-revolution' ? 199 : 0);
                 const upsellAmount = baseUpsellPrice > 0 ? baseUpsellPrice + (extraUnits * 50) : 0;
 
+                // Check if an order already exists for this service request
+                const { data: existingOrder } = await supabase
+                    .from('visa_orders')
+                    .select('id, order_number')
+                    .eq('service_request_id', serviceRequestId)
+                    .eq('payment_status', 'pending')
+                    .maybeSingle();
+
+                const finalOrderNumber = existingOrder?.order_number || `ORD-${new Date().toISOString().split('T')[0].replace(/-/g, '')}-${Math.floor(Math.random() * 10000).toString().padStart(4, '0')}`;
+
                 const { data: order, error: orderError } = await supabase
                     .from('visa_orders')
-                    .insert({
-                        order_number: orderNumber,
+                    .upsert({
+                        id: existingOrder?.id, // If ID is present, it will UPDATE
+                        order_number: finalOrderNumber,
                         product_slug: productSlug,
                         seller_id: sellerId || null,
                         service_request_id: serviceRequestId,
@@ -378,7 +403,7 @@ export const usePaymentHandlers = (
                         signature_image_url: signatureUrl,
                         contract_accepted: true,
                         contract_signed_at: new Date().toISOString(),
-                        is_split_payment: true, // 🆕 Marcar como split
+                        is_split_payment: true,
                         payment_metadata: {
                             credit_card_name: creditCardName,
                             cpf: cpf,
@@ -386,12 +411,14 @@ export const usePaymentHandlers = (
                             is_split_payment: true,
                             billing_installment_id: billingInstallmentId,
                             eb3_schedule_id: eb3ScheduleId,
+                            scholarship_schedule_id: scholarshipScheduleId,
                             upsell_details: upsellAmount > 0 ? {
                                 slug: upsellProductSlug,
                                 base_price: baseUpsellPrice,
                                 dependents: extraUnits,
                                 total: upsellAmount
-                            } : null
+                            } : null,
+                            payer_info: state.payerInfo
                         },
                         coupon_code: couponCode || null,
                         discount_amount: discountAmount || 0
@@ -464,9 +491,6 @@ export const usePaymentHandlers = (
                 ? existingContractData.contract_selfie_url
                 : documentFiles?.selfie?.url || '';
 
-            // Create Order
-            const orderNumber = `ORD-${new Date().toISOString().split('T')[0].replace(/-/g, '')}-${Math.floor(Math.random() * 10000).toString().padStart(4, '0')}`;
-
             // Upload signature if needed
             let signatureUrl = '';
             if (signatureImageDataUrl) {
@@ -476,28 +500,6 @@ export const usePaymentHandlers = (
                 }
             }
 
-            console.log('[Debug Main Flow] Selected Upsell:', state.selectedUpsell);
-            console.log('[Debug Main Flow] Extra Units:', extraUnits);
-
-            console.log('🔍 [STEP 1] Calculando valores...');
-            const baseUpsellPrice = state.selectedUpsell === 'canada-premium' ? 399 : (state.selectedUpsell === 'canada-revolution' ? 199 : 0);
-            const upsellAmount = baseUpsellPrice > 0 ? baseUpsellPrice + (extraUnits * 50) : 0;
-            const mainPriceUSD = totalWithFees - upsellAmount;
-
-            console.log('🔥 [Parcelow Debug] Calculando preços:', {
-                productSlug,
-                productBasePrice: product.base_price_usd,
-                productExtraPrice: product.extra_unit_price,
-                productDependentPrice: product.price_per_dependent_usd,
-                extraUnits,
-                upsellAmount,
-                totalWithFees,
-                mainPriceUSD,
-                calculationType: product.calculation_type
-            });
-
-            console.log('🔍 [STEP 2] Criando pedido principal...');
-
             // Determine upsell product slug
             const upsellProductSlug = state.selectedUpsell === 'canada-premium'
                 ? 'canada-tourist-premium'
@@ -505,10 +507,24 @@ export const usePaymentHandlers = (
                     ? 'canada-tourist-revolution'
                     : null;
 
+            const baseUpsellPrice = state.selectedUpsell === 'canada-premium' ? 399 : (state.selectedUpsell === 'canada-revolution' ? 199 : 0);
+            const upsellAmount = baseUpsellPrice > 0 ? baseUpsellPrice + (extraUnits * 50) : 0;
+
+            // Check if an order already exists for this service request
+            const { data: existingOrder } = await supabase
+                .from('visa_orders')
+                .select('id, order_number')
+                .eq('service_request_id', serviceRequestId)
+                .eq('payment_status', 'pending')
+                .maybeSingle();
+
+            const finalOrderNumber = existingOrder?.order_number || `ORD-${new Date().toISOString().split('T')[0].replace(/-/g, '')}-${Math.floor(Math.random() * 10000).toString().padStart(4, '0')}`;
+
             const { data: order, error: orderError } = await supabase
                 .from('visa_orders')
-                .insert({
-                    order_number: orderNumber,
+                .upsert({
+                    id: existingOrder?.id, // If ID is present, it will UPDATE
+                    order_number: finalOrderNumber,
                     product_slug: productSlug,
                     seller_id: sellerId || null,
                     service_request_id: serviceRequestId,
@@ -527,8 +543,8 @@ export const usePaymentHandlers = (
                     payment_method: 'parcelow',
                     payment_status: 'pending',
                     total_price_usd: totalWithFees, // Total completo (main + upsell)
-                    upsell_product_slug: upsellProductSlug, // Novo campo
-                    upsell_price_usd: upsellAmount > 0 ? upsellAmount : null, // Novo campo
+                    upsell_product_slug: upsellProductSlug,
+                    upsell_price_usd: upsellAmount > 0 ? upsellAmount : null,
                     contract_document_url: documentFrontUrl,
                     contract_selfie_url: selfieUrl,
                     signature_image_url: signatureUrl,
@@ -540,12 +556,14 @@ export const usePaymentHandlers = (
                         has_upsell: !!upsellAmount,
                         billing_installment_id: billingInstallmentId,
                         eb3_schedule_id: eb3ScheduleId,
+                        scholarship_schedule_id: scholarshipScheduleId,
                         upsell_details: upsellAmount > 0 ? {
                             slug: upsellProductSlug,
                             base_price: baseUpsellPrice,
                             dependents: extraUnits,
                             total: upsellAmount
-                        } : null
+                        } : null,
+                        payer_info: state.payerInfo
                     },
                     coupon_code: couponCode || null,
                     discount_amount: discountAmount || 0
@@ -671,7 +689,8 @@ export const usePaymentHandlers = (
                                         base_price: baseUpsellPrice,
                                         dependents: extraUnits,
                                         total: upsellAmount
-                                    } : null
+                                    } : null,
+                                    payer_info: state.payerInfo
                                 }
                             })
                             .eq('id', existingOrder.id);

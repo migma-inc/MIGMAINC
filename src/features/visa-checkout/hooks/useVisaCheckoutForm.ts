@@ -53,6 +53,7 @@ export const useVisaCheckoutForm = () => {
     const [zelleReceipt, setZelleReceipt] = useState<File | null>(null);
     const [signatureImageDataUrl, setSignatureImageDataUrl] = useState<string | null>(null);
     const [signatureConfirmed, setSignatureConfirmed] = useState<boolean>(false);
+    const [payerInfo, setPayerInfo] = useState<any | null>(null);
 
     // Persistence/Identifiers
     const [serviceRequestId, setServiceRequestId] = useState<string | null>(null);
@@ -90,6 +91,10 @@ export const useVisaCheckoutForm = () => {
     const [eb3ScheduleId, setEb3ScheduleId] = useState<string | null>(null);
     const [customAmount, setCustomAmount] = useState<number | null>(null);
     const [eb3LateFee, setEb3LateFee] = useState<number>(0);
+
+    // Scholarship Maintenance Fee
+    const [scholarshipScheduleId, setScholarshipScheduleId] = useState<string | null>(null);
+    const [scholarshipLateFee, setScholarshipLateFee] = useState<number>(0);
 
     const state: VisaCheckoutState = {
         currentStep,
@@ -148,6 +153,9 @@ export const useVisaCheckoutForm = () => {
         eb3ScheduleId,
         customAmount,
         eb3LateFee,
+        scholarshipScheduleId,
+        scholarshipLateFee,
+        payerInfo,
     };
 
     const actions: VisaCheckoutActions = useMemo(() => ({
@@ -207,6 +215,9 @@ export const useVisaCheckoutForm = () => {
         setEb3ScheduleId,
         setCustomAmount,
         setEb3LateFee,
+        setScholarshipScheduleId,
+        setScholarshipLateFee,
+        setPayerInfo,
     }), []);
 
     return { state, actions };

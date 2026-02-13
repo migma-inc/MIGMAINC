@@ -38,6 +38,8 @@ export const OrderSummary: React.FC<OrderSummaryProps> = ({
     const basePrice = parseFloat(product.base_price_usd);
     const extraUnitPrice = parseFloat(product.extra_unit_price);
 
+    console.log('[OrderSummary] Render:', { paymentMethod, isPaymentReady, isSubmitting });
+
     return (
         <Card className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30 lg:sticky lg:top-4">
             <CardHeader>
@@ -103,13 +105,6 @@ export const OrderSummary: React.FC<OrderSummaryProps> = ({
                                 </ul>
                             </div>
                         )}
-                        {/* STRIPE REMOVED - No longer using Stripe
-                        {paymentMethod === 'pix' && exchangeRate && (
-                            <p className="text-[10px] sm:text-xs text-gray-400 mt-1 text-right">
-                                Includes processing fee
-                            </p>
-                        )}
-                        */}
                     </div>
                 </div>
 
@@ -119,7 +114,7 @@ export const OrderSummary: React.FC<OrderSummaryProps> = ({
                             onClick={onPay}
                             disabled={!isPaymentReady || isSubmitting}
                             className={`w-full font-bold min-h-12 h-auto py-3 px-2 text-sm sm:text-base whitespace-normal leading-tight ${paymentMethod === 'parcelow'
-                                ? 'bg-[#22c55e] hover:bg-[#16a34a] text-white'
+                                ? '!bg-[#22c55e] hover:!bg-[#16a34a] text-white'
                                 : 'bg-gold-medium hover:bg-gold-light text-black'
                                 }`}
                         >

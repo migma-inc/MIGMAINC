@@ -73,6 +73,33 @@ export const usePrefillData = (
                                     actions.setCustomAmount(finalAmount);
                                 }
                             }
+                            // Scholarship Maintenance Fee
+                            if (clientData.scholarship_schedule_id) {
+                                actions.setScholarshipScheduleId(clientData.scholarship_schedule_id);
+
+                                // 🛡️ BUSCA DADOS REAIS DO BANCO PARA SEGURANÇA
+                                console.log('🛡️ [Scholarship] Fetching installment data for ID:', clientData.scholarship_schedule_id);
+                                const { data: schedule, error: scheduleError } = await supabase
+                                    .from('scholarship_recurrence_schedules')
+                                    .select('amount_usd, late_fee_usd, due_date, status')
+                                    .eq('id', clientData.scholarship_schedule_id)
+                                    .single();
+
+                                if (!scheduleError && schedule) {
+                                    const today = new Date();
+                                    today.setHours(0, 0, 0, 0);
+                                    const dueDate = new Date(schedule.due_date);
+                                    dueDate.setHours(0, 0, 0, 0);
+
+                                    const isOverdue = today > dueDate && schedule.status === 'pending';
+                                    const lateFee = isOverdue ? Number(schedule.late_fee_usd) : 0;
+                                    const finalAmount = Number(schedule.amount_usd) + lateFee;
+
+                                    console.log('💰 [Scholarship] Dynamic amount calculated:', finalAmount, isOverdue ? `(WITH LATE FEE: ${lateFee})` : '');
+                                    actions.setScholarshipLateFee(lateFee);
+                                    actions.setCustomAmount(finalAmount);
+                                }
+                            }
                         }
                     }
                 } catch (err) {
