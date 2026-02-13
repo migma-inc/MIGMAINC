@@ -17,6 +17,8 @@ import { LanguageSelector } from '@/components/LanguageSelector';
 import { StepIndicator } from '@/features/visa-checkout/components/shared/StepIndicator';
 import { SignaturePadComponent } from '@/components/ui/signature-pad';
 import { ZelleUpload } from '@/features/visa-checkout/components/steps/step3/ZelleUpload';
+import { PayerAlternativeForm } from '@/features/visa-checkout/components/payment/PayerAlternativeForm';
+import type { PayerInfo } from '@/features/visa-checkout/types/form.types';
 
 interface InstallmentData {
     id: string;
@@ -57,6 +59,7 @@ export const EB3InstallmentCheckout = () => {
     const [zelleReceipt, setZelleReceipt] = useState<File | null>(null);
     const [cpf, setCpf] = useState('');
     const [creditCardName, setCreditCardName] = useState('');
+    const [payerInfo, setPayerInfo] = useState<PayerInfo | null>(null);
 
     const hasLoaded = useRef(false);
 
@@ -209,7 +212,8 @@ export const EB3InstallmentCheckout = () => {
                         late_fee: isOverdue ? String(installment.late_fee_usd) : '0',
                         terms_accepted: termsAccepted,
                         data_authorization: dataAuthorization,
-                        seller_context: sellerPublicId
+                        seller_context: sellerPublicId,
+                        payer_info: payerInfo
                     }
                 })
                 .select()
@@ -260,7 +264,8 @@ export const EB3InstallmentCheckout = () => {
                             metadata: {
                                 type: 'eb3-installment',
                                 schedule_id: installment.id,
-                                cpf: cpf
+                                cpf: payerInfo?.cpf || cpf,
+                                payer_info: payerInfo
                             }
                         }
                     }
@@ -516,24 +521,35 @@ export const EB3InstallmentCheckout = () => {
 
                                     {paymentMethod === 'parcelow' && (
                                         <div className="space-y-4 animate-in fade-in slide-in-from-top-2 pt-2">
-                                            <div className="space-y-2">
-                                                <Label className="text-white text-sm">Brazilian CPF *</Label>
-                                                <Input
-                                                    value={cpf}
-                                                    onChange={(e) => setCpf(e.target.value.replace(/\D/g, '').slice(0, 11))}
-                                                    placeholder="000.000.000-00"
-                                                    className="bg-black border-white/10 text-white h-11"
-                                                />
-                                            </div>
-                                            <div className="space-y-2">
-                                                <Label className="text-white text-sm">Name on Card *</Label>
-                                                <Input
-                                                    value={creditCardName}
-                                                    onChange={(e) => setCreditCardName(e.target.value.toUpperCase())}
-                                                    placeholder="AS PRINTED ON CARD"
-                                                    className="bg-black border-white/10 text-white h-11 uppercase"
-                                                />
-                                            </div>
+                                            <PayerAlternativeForm
+                                                payerInfo={payerInfo}
+                                                onPayerInfoChange={setPayerInfo}
+                                                baseCpf={cpf}
+                                                baseCardName={creditCardName}
+                                            />
+
+                                            {!payerInfo && (
+                                                <div className="space-y-4">
+                                                    <div className="space-y-2">
+                                                        <Label className="text-white text-sm">Brazilian CPF *</Label>
+                                                        <Input
+                                                            value={cpf}
+                                                            onChange={(e) => setCpf(e.target.value.replace(/\D/g, '').slice(0, 11))}
+                                                            placeholder="000.000.000-00"
+                                                            className="bg-black border-white/10 text-white h-11"
+                                                        />
+                                                    </div>
+                                                    <div className="space-y-2">
+                                                        <Label className="text-white text-sm">Name on Card *</Label>
+                                                        <Input
+                                                            value={creditCardName}
+                                                            onChange={(e) => setCreditCardName(e.target.value.toUpperCase())}
+                                                            placeholder="AS PRINTED ON CARD"
+                                                            className="bg-black border-white/10 text-white h-11 uppercase"
+                                                        />
+                                                    </div>
+                                                </div>
+                                            )}
                                         </div>
                                     )}
 

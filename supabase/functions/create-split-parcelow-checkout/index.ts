@@ -86,11 +86,11 @@ Deno.serve(async (req: Request) => {
 
         console.log("[Split Checkout] ✅ Validação OK");
 
-        // 3. Criar registro de split_payment
-        console.log("[Split Checkout] 💾 Criando registro de split payment...");
+        // 3. Criar ou atualizar registro de split_payment
+        console.log("[Split Checkout] 💾 Criando/Atualizando registro de split payment...");
         const { data: splitPayment, error: splitError } = await supabase
             .from("split_payments")
-            .insert({
+            .upsert({
                 order_id: order.id,
                 total_amount_usd: parseFloat(order.total_price_usd),
                 split_count: 2,
@@ -98,7 +98,10 @@ Deno.serve(async (req: Request) => {
                 part1_payment_method: part1_method,
                 part2_amount_usd: part2_amount,
                 part2_payment_method: part2_method,
-                overall_status: 'pending',
+                overall_status: 'pending', // Reset status as we are regenerating checkouts
+            }, {
+                onConflict: 'order_id',
+                ignoreDuplicates: false // We want to update the data if it exists
             })
             .select()
             .single();
