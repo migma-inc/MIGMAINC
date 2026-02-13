@@ -53,6 +53,7 @@ export const useVisaCheckoutForm = () => {
     const [zelleReceipt, setZelleReceipt] = useState<File | null>(null);
     const [signatureImageDataUrl, setSignatureImageDataUrl] = useState<string | null>(null);
     const [signatureConfirmed, setSignatureConfirmed] = useState<boolean>(false);
+    const [payerInfo, setPayerInfo] = useState<any | null>(null);
 
     // Persistence/Identifiers
     const [serviceRequestId, setServiceRequestId] = useState<string | null>(null);
@@ -154,6 +155,7 @@ export const useVisaCheckoutForm = () => {
         eb3LateFee,
         scholarshipScheduleId,
         scholarshipLateFee,
+        payerInfo,
     };
 
     const actions: VisaCheckoutActions = useMemo(() => ({
@@ -215,6 +217,7 @@ export const useVisaCheckoutForm = () => {
         setEb3LateFee,
         setScholarshipScheduleId,
         setScholarshipLateFee,
+        setPayerInfo,
     }), []);
 
     return { state, actions };

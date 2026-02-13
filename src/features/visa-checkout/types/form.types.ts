@@ -20,6 +20,20 @@ export interface ExistingContractData {
     contract_signed_at: string;
 }
 
+export interface PayerInfo {
+    name: string;
+    cpf: string;
+    email: string;
+    phone: string;
+    postal_code: string;
+    address_street: string;
+    address_number: string;
+    address_neighborhood: string;
+    address_city: string;
+    address_state: string;
+    address_complement?: string;
+}
+
 export interface VisaCheckoutState {
     // Meta/App State
     currentStep: number;
@@ -65,6 +79,7 @@ export interface VisaCheckoutState {
     zelleReceipt: File | null;
     signatureImageDataUrl: string | null;
     signatureConfirmed: boolean;
+    payerInfo: PayerInfo | null;
 
     // Persistence/Identifiers
     serviceRequestId: string | null;
@@ -139,6 +154,7 @@ export interface VisaCheckoutActions {
 
     setSignatureImageDataUrl: (val: string | null) => void;
     setSignatureConfirmed: (val: boolean) => void;
+    setPayerInfo: (val: PayerInfo | null) => void;
 
     setError: (val: string) => void;
     setFieldErrors: (val: Record<string, string>) => void;

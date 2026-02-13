@@ -17,20 +17,11 @@ function cleanDocumentNumber(doc: string | null | undefined): string | null {
   const cleaned = doc.replace(/\D/g, '');
 
   // CPF should have 11 digits, CNPJ should have 14 digits
-  if (cleaned.length === 11 || cleaned.length === 14) {
-    return cleaned;
+  if (cleaned.length !== 11 && cleaned.length !== 14) {
+    console.warn(`[Parcelow] Document has unexpected length: ${cleaned.length} (expected 11 for CPF or 14 for CNPJ). Value: ${cleaned}`);
   }
 
-  // For development/testing: pad with zeros if less than 11 digits
-  // This allows testing with incomplete CPFs
-  if (cleaned.length > 0 && cleaned.length < 11) {
-    const padded = cleaned.padEnd(11, '0');
-    console.warn(`[Parcelow] CPF has ${cleaned.length} digits, padding to 11 digits for testing: ${padded.substring(0, 3)}***`);
-    return padded;
-  }
-
-  console.warn(`[Parcelow] Invalid document length: ${cleaned.length} (expected 11 for CPF or 14 for CNPJ)`);
-  return cleaned; // Return anyway, let API validate
+  return cleaned;
 }
 
 // Parcelow API Client (simplified for Edge Function)
@@ -526,17 +517,23 @@ Deno.serve(async (req: Request) => {
             clientCpf = client.document_number || null;
             clientBirthdate = client.date_of_birth || null;
 
+            // Extract number from address_line if possible (e.g. "Rua X, 123" -> 123)
+            const addressLine = client.address_line || "";
+            const numberMatch = addressLine.match(/,\s*(\d+)$/) || addressLine.match(/\s+(\d+)$/);
+            const extractedNumber = numberMatch ? numberMatch[1] : "0";
+            const extractedStreet = numberMatch ? addressLine.replace(numberMatch[0], "").trim() : addressLine;
+
             clientAddress = {
               cep: client.postal_code,
-              street: client.address_line,
-              number: "N/A",
-              neighborhood: "Centro",
+              street: extractedStreet,
+              number: extractedNumber,
+              neighborhood: "Centro", // Default since it's not in DB
               city: client.city,
               state: client.state,
               complement: "",
               phone: client.phone
             };
-            console.log("[Parcelow Checkout] ✅ Found client data from clients table");
+            console.log("[Parcelow Checkout] ✅ Found client data from clients table", { extractedNumber, extractedStreet });
           }
         }
       } catch (error: any) {
@@ -644,34 +641,112 @@ Deno.serve(async (req: Request) => {
     }
 
     // Prepare client data
-    // Prioritize payment-specific CPF (from Step 3) over profile document (which might be a passport)
-    const rawCpf = order.payment_metadata?.cpf || clientCpf || order.client_cpf || '';
+    // Prioritize payer_info (Different Payer feature) over everything else
+    const paymentMetadata = order.payment_metadata || {};
+    const payerInfo = paymentMetadata.payer_info;
+
+    console.log("[Parcelow Checkout] 🛡️ Payer Data Selection Debug:");
+    console.log("- PayerInfo object present:", !!payerInfo);
+    if (payerInfo) {
+      console.log("- PayerInfo contents:", JSON.stringify({
+        name: payerInfo.name,
+        cpf_length: payerInfo.cpf?.length,
+        has_email: !!payerInfo.email,
+        keys: Object.keys(payerInfo)
+      }));
+    }
+    console.log("- Metadata direct CPF:", paymentMetadata.cpf);
+    console.log("- Client DB CPF:", clientCpf);
+
+    // Prioritize payment-specific CPF (from PayerInfo then Metadata) over profile document (which might be a passport like GM201728)
+    const rawCpf = (payerInfo?.cpf && payerInfo.cpf.length >= 11)
+      ? payerInfo.cpf
+      : (paymentMetadata.cpf && paymentMetadata.cpf.length >= 11)
+        ? paymentMetadata.cpf
+        : clientCpf || '';
+
     const clientCpfToUse = cleanDocumentNumber(rawCpf);
 
+    console.log("- Final Selected rawCpf:", rawCpf);
+    console.log("- Final Cleaned CPF:", clientCpfToUse);
+
     if (!clientCpfToUse || clientCpfToUse.length < 11) {
+      console.error("[Parcelow Checkout] ❌ INVALID CPF DETECTED:", { rawCpf, clientCpfToUse });
       return new Response(
         JSON.stringify({
-          error: "Invalid or incomplete CPF. Please check the 11 digits.",
-          details: "CPF missing or invalid"
+          error: "Invalid or incomplete CPF. Required: 11 digits.",
+          details: `CPF found: ${clientCpfToUse || 'none'}`,
+          debug_raw: rawCpf
         }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    const clientData = {
+    const clientAddressNumberRaw = payerInfo?.address_number || order.client_address_number || clientAddress?.number || '0';
+    const clientAddressNumber = parseInt(clientAddressNumberRaw.toString().replace(/\D/g, '')) || 0;
+
+    // Final fallback for PEP to avoid Parcelow API error "Please enter the payer zip code"
+    // If empty, we use a generic commercial ZIP code (Migma/Avenida Paulista)
+    const clientCep = (payerInfo?.postal_code || order.client_cep || clientAddress?.cep || '01310-900').replace(/\D/g, '');
+
+    // Normalize city: remove " - XX" suffix if present
+    let clientCity = (payerInfo?.address_city || order.client_address_city || clientAddress?.city || 'São Paulo');
+    if (clientCity.includes(' - ')) {
+      clientCity = clientCity.split(' - ')[0].trim();
+    }
+
+    const clientState = (payerInfo?.address_state || order.client_address_state || clientAddress?.state || 'SP').substring(0, 2).toUpperCase();
+    const clientStreet = payerInfo?.address_street || order.client_address_street || clientAddress?.street || 'Avenida Paulista';
+    const clientNeighborhood = payerInfo?.address_neighborhood || order.client_address_neighborhood || clientAddress?.neighborhood || 'Bela Vista';
+    const clientComplement = payerInfo?.address_complement || order.client_address_complement || clientAddress?.complement || '';
+    const clientBirthDateFormatted = clientBirthdate || order.client_birthdate || undefined;
+
+    const clientEmailFinal = payerInfo?.email || order.client_email;
+
+    // Construct clean client data object strictly following Swagger POST docs
+    const clientData: any = {
       cpf: clientCpfToUse,
-      name: order.client_name,
-      email: order.client_email,
-      phone: order.client_whatsapp || clientAddress?.phone || '',
-      birthdate: clientBirthdate || order.client_birthdate || undefined,
-      cep: order.client_cep || clientAddress?.cep,
-      address_street: order.client_address_street || clientAddress?.street,
-      address_number: order.client_address_number || clientAddress?.number,
-      address_neighborhood: order.client_address_neighborhood || clientAddress?.neighborhood,
-      address_city: order.client_address_city || clientAddress?.city,
-      address_state: order.client_address_state || clientAddress?.state,
-      address_complement: order.client_address_complement || clientAddress?.complement,
+      name: payerInfo?.name || order.client_name,
+      email: clientEmailFinal,
+      phone: (payerInfo?.phone || order.client_whatsapp || clientAddress?.phone || '11999999999').replace(/\D/g, ''),
+      birthdate: clientBirthDateFormatted, // YYYY-MM-DD
+      cep: clientCep,
+
+      // Standard address fields (Documented in POST /api/orders)
+      address_street: clientStreet,
+      address_number: clientAddressNumber, // Integer as per schema
+      address_neighborhood: clientNeighborhood,
+      address_city: clientCity,
+      address_state: clientState,
+      address_complement: clientComplement,
     };
+
+    // If using a third-party payer, we want to pre-fill the billing address on Parcelow's page
+    // Using is_diferent_card_address = 1 forces these fields to be parsed by Parcelow
+    if (payerInfo) {
+      clientData.is_diferent_card_address = 1;
+      clientData.card_address_cep = clientCep;
+      clientData.card_address_street = clientStreet;
+      clientData.card_address_number = clientAddressNumber;
+      clientData.card_address_neighborhood = clientNeighborhood;
+      clientData.card_address_city = clientCity;
+      clientData.card_address_state = clientState;
+      clientData.card_address_complement = clientComplement;
+    } else {
+      clientData.is_diferent_card_address = 0;
+    }
+
+    // Prepare clear reference for internal tracking (Payer vs Client)
+    const orderReference = body.is_split_part
+      ? `${order.order_number}-P${body.split_part_number || 1}`
+      : order.order_number;
+
+    console.log("[Parcelow Checkout] 📦 Final ClientData for Parcelow API:", JSON.stringify({
+      ...clientData,
+      cpf: "****", // Mask for logs
+      email: clientData.email.replace(/.*@/, '****@') // Partial mask
+    }));
+
 
     // Prepare redirect URLs
     const redirectUrls = {
@@ -692,7 +767,7 @@ Deno.serve(async (req: Request) => {
 
         const notifyUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/parcelow-webhook`;
         parcelowResponse = await parcelowClient.createOrderBRL({
-          reference: body.is_split_part ? `${order.order_number}-P${body.split_part_number || 1}` : order.order_number,
+          reference: orderReference,
           partner_reference: order.id,
           client: clientData,
           items,
@@ -703,7 +778,7 @@ Deno.serve(async (req: Request) => {
         try {
           const notifyUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/parcelow-webhook`;
           parcelowResponse = await parcelowClient.createOrderUSD({
-            reference: body.is_split_part ? `${order.order_number}-P${body.split_part_number || 1}` : order.order_number,
+            reference: orderReference,
             partner_reference: order.id,
             client: clientData,
             items,
@@ -711,6 +786,8 @@ Deno.serve(async (req: Request) => {
             notify_url: notifyUrl,
           });
         } catch (err: any) {
+          // If even with the unique timestamp it says "Email exists", it's a Parcelow server-side lock.
+          // In this case, we'd need to contact support or try a 100% random string.
           if (err.message && err.message.includes('Email do cliente existente')) {
             console.warn('[Parcelow Checkout] ⚠️ Customer email exists, retrying with aliased email...');
             const emailParts = clientData.email.split('@');

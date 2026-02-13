@@ -75,34 +75,28 @@ export const usePaymentHandlers = (
                 state.splitPaymentConfig?.part1_method === 'card' ||
                 state.splitPaymentConfig?.part2_method === 'card';
 
-            if (requiresCard && !creditCardName) {
-                setError('Please enter the name exactly as it appears on your card');
-                return false;
-            }
-            // Complete CPF checksum validation
-            const validateCPF = (val: string) => {
-                const cleaned = val.replace(/\D/g, '');
-                if (cleaned.length !== 11 || /^(\d)\1{10}$/.test(cleaned)) return false;
-
-                let sum = 0;
-                let rest;
-                for (let i = 1; i <= 9; i++) sum = sum + parseInt(cleaned.substring(i - 1, i)) * (11 - i);
-                rest = (sum * 10) % 11;
-                if ((rest === 10) || (rest === 11)) rest = 0;
-                if (rest !== parseInt(cleaned.substring(9, 10))) return false;
-
-                sum = 0;
-                for (let i = 1; i <= 10; i++) sum = sum + parseInt(cleaned.substring(i - 1, i)) * (12 - i);
-                rest = (sum * 10) % 11;
-                if ((rest === 10) || (rest === 11)) rest = 0;
-                if (rest !== parseInt(cleaned.substring(10, 11))) return false;
-
-                return true;
-            };
-
-            if (!validateCPF(cpf)) {
-                setError('The CPF provided is invalid. Please check the digits.');
-                return false;
+            if (state.payerInfo) {
+                if (!state.payerInfo.name) {
+                    setError('Please enter the payer name');
+                    return false;
+                }
+                if (!state.payerInfo.cpf || !validateCPF(state.payerInfo.cpf)) {
+                    setError('The payer CPF provided is invalid');
+                    return false;
+                }
+                if (!state.payerInfo.email) {
+                    setError('Please enter the payer email');
+                    return false;
+                }
+            } else {
+                if (requiresCard && !creditCardName) {
+                    setError('Please enter the name exactly as it appears on your card');
+                    return false;
+                }
+                if (!validateCPF(cpf)) {
+                    setError('The CPF provided is invalid. Please check the digits.');
+                    return false;
+                }
             }
         }
         if (!serviceRequestId) {
@@ -124,7 +118,28 @@ export const usePaymentHandlers = (
         }
 
         return true;
-    }, [termsAccepted, dataAuthorization, signatureConfirmed, signatureImageDataUrl, serviceRequestId, contractTemplate, setError, creditCardName, cpf]);
+    }, [termsAccepted, dataAuthorization, signatureConfirmed, signatureImageDataUrl, serviceRequestId, contractTemplate, setError, creditCardName, cpf, state.payerInfo, state.splitPaymentConfig]);
+
+    // Helper to validate CPF checksum
+    const validateCPF = (val: string) => {
+        const cleaned = val.replace(/\D/g, '');
+        if (cleaned.length !== 11 || /^(\d)\1{10}$/.test(cleaned)) return false;
+
+        let sum = 0;
+        let rest;
+        for (let i = 1; i <= 9; i++) sum = sum + parseInt(cleaned.substring(i - 1, i)) * (11 - i);
+        rest = (sum * 10) % 11;
+        if ((rest === 10) || (rest === 11)) rest = 0;
+        if (rest !== parseInt(cleaned.substring(9, 10))) return false;
+
+        sum = 0;
+        for (let i = 1; i <= 10; i++) sum = sum + parseInt(cleaned.substring(i - 1, i)) * (12 - i);
+        rest = (sum * 10) % 11;
+        if ((rest === 10) || (rest === 11)) rest = 0;
+        if (rest !== parseInt(cleaned.substring(10, 11))) return false;
+
+        return true;
+    };
 
     const handleStripeCheckout = useCallback(async (method: 'card' | 'pix') => {
         if (state.submitting) return;
@@ -402,7 +417,8 @@ export const usePaymentHandlers = (
                                 base_price: baseUpsellPrice,
                                 dependents: extraUnits,
                                 total: upsellAmount
-                            } : null
+                            } : null,
+                            payer_info: state.payerInfo
                         },
                         coupon_code: couponCode || null,
                         discount_amount: discountAmount || 0
@@ -546,7 +562,8 @@ export const usePaymentHandlers = (
                             base_price: baseUpsellPrice,
                             dependents: extraUnits,
                             total: upsellAmount
-                        } : null
+                        } : null,
+                        payer_info: state.payerInfo
                     },
                     coupon_code: couponCode || null,
                     discount_amount: discountAmount || 0
@@ -672,7 +689,8 @@ export const usePaymentHandlers = (
                                         base_price: baseUpsellPrice,
                                         dependents: extraUnits,
                                         total: upsellAmount
-                                    } : null
+                                    } : null,
+                                    payer_info: state.payerInfo
                                 }
                             })
                             .eq('id', existingOrder.id);
