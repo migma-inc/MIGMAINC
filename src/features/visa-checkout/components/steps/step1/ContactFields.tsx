@@ -12,6 +12,7 @@ interface ContactFieldsProps {
     onClientEmailChange: (val: string) => void;
     onDateOfBirthChange: (val: string) => void;
     isSimplified?: boolean;
+    isEmailReadOnly?: boolean;
 }
 
 export const ContactFields: React.FC<ContactFieldsProps> = ({

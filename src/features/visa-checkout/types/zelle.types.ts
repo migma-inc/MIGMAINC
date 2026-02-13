@@ -26,6 +26,7 @@ export interface ZellePaymentRequest {
     upsell_contract_template_id?: string | null;
     billing_installment_id?: string | null;
     eb3_schedule_id?: string | null;
+    scholarship_schedule_id?: string | null;
 }
 
 export interface ZellePaymentResponse {
