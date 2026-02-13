@@ -250,7 +250,10 @@ export const SellerZelleApprovalPage = () => {
                 } else {
                     // Try to find ANY existing item for the same email
                     const clientEmail = (migma.client_email || '').trim().toLowerCase();
-                    const emailMatch = Array.from(unifiedMap.values()).find(item => (item.client_email || '').trim().toLowerCase() === clientEmail);
+                    const emailMatch = Array.from(unifiedMap.values()).find(item =>
+                        item.status === 'pending' &&
+                        (item.client_email || '').trim().toLowerCase() === clientEmail
+                    );
 
                     if (emailMatch) {
                         emailMatch.migma_id = migma.id;

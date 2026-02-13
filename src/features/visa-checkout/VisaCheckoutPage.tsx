@@ -283,15 +283,22 @@ export const VisaCheckoutPage: React.FC = () => {
                                     state.termsAccepted &&
                                     (state.paymentMethod !== 'zelle' || !!state.zelleReceipt) &&
                                     (state.paymentMethod !== 'parcelow' || (
-                                        !!state.cpf && state.cpf.length >= 11 && (
-                                            // Se for split, só exige nome do cartão se alguma parte for 'card'
-                                            state.splitPaymentConfig?.enabled
-                                                ? (
-                                                    (state.splitPaymentConfig.part1_method !== 'card' && state.splitPaymentConfig.part2_method !== 'card') ||
-                                                    !!state.creditCardName
+                                        state.payerInfo
+                                            ? (
+                                                state.payerInfo.name.toString().trim().length >= 3 &&
+                                                state.payerInfo.cpf.toString().replace(/\D/g, '').length === 11 &&
+                                                state.payerInfo.email.toString().trim().includes('@')
+                                            )
+                                            : (
+                                                !!state.cpf && state.cpf.length >= 11 && (
+                                                    state.splitPaymentConfig?.enabled
+                                                        ? (
+                                                            (state.splitPaymentConfig.part1_method !== 'card' && state.splitPaymentConfig.part2_method !== 'card') ||
+                                                            !!state.creditCardName
+                                                        )
+                                                        : !!state.creditCardName
                                                 )
-                                                : !!state.creditCardName // Se não for split, exige nome (padrão card)
-                                        )
+                                            )
                                     ))
                                 }
                                 onPay={() => {

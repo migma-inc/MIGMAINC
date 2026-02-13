@@ -266,10 +266,11 @@ export const ZelleApprovalPage = () => {
           );
         }
 
-        // 3. Heurística final: qualquer ordem do mesmo email que ainda não esteja vinculada
+        // 3. Heurística final: qualquer ordem PENDENTE do mesmo email que ainda não esteja vinculada
         if (!match) {
           match = entries.find(item =>
             item.type === 'order' &&
+            item.status === 'pending' &&
             (item.client_email || '').trim().toLowerCase() === email &&
             !item.migma_id
           );
