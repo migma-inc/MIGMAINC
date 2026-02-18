@@ -7,9 +7,9 @@ import type { VisaProduct } from '@/types/visa-product';
 
 interface QuantitySelectorProps {
     product: VisaProduct;
-    extraUnits: number;
+    extraUnits: number | null;
     dependentNames: string[];
-    onExtraUnitsChange: (val: number) => void;
+    onExtraUnitsChange: (val: number | null) => void;
     onDependentNamesChange: (val: string[]) => void;
     fieldErrors?: Record<string, string>;
 }
@@ -59,11 +59,11 @@ export const QuantitySelector: React.FC<QuantitySelectorProps> = ({
                     <span className="text-red-500 ml-1 font-bold">*</span>
                 </Label>
                 <Select
-                    value={String(extraUnits)}
+                    value={extraUnits !== null ? String(extraUnits) : ''}
                     onValueChange={handleUnitsChange}
                 >
                     <SelectTrigger className="bg-white text-black min-h-[44px]">
-                        <SelectValue placeholder="0" />
+                        <SelectValue placeholder={t('checkout.select_quantity_placeholder', 'Select quantity')} />
                     </SelectTrigger>
                     <SelectContent>
                         {(product.calculation_type === 'units_only' ? [1, 2, 3, 4, 5] : [0, 1, 2, 3, 4, 5]).map(n => (

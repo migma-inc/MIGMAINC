@@ -12,7 +12,7 @@ export interface Step1FormData {
   clientNationality: string;
   clientWhatsApp: string;
   maritalStatus: 'single' | 'married' | 'divorced' | 'widowed' | 'other' | '';
-  extraUnits?: number;
+  extraUnits: number | null;
 }
 
 export interface ValidationResult {
@@ -176,10 +176,10 @@ export function validateStep1(formData: Step1FormData, productSlug?: string): Va
   }
 
   // Mandatory Extra Units for RFE Defense (since base price is 0)
-  if (productSlug === 'rfe-defense') {
-    if (formData.extraUnits === undefined || formData.extraUnits < 1) {
-      errors.extraUnits = 'At least 1 evidence must be selected for this service';
-    }
+  if (formData.extraUnits === null) {
+    errors.extraUnits = 'Please select a quantity';
+  } else if (productSlug === 'rfe-defense' && formData.extraUnits < 1) {
+    errors.extraUnits = 'At least 1 evidence must be selected for this service';
   }
 
   const valid = Object.keys(errors).length === 0;
