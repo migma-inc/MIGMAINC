@@ -20,7 +20,7 @@ export const useVisaCheckoutForm = () => {
     const [step3Errors, setStep3Errors] = useState<Record<string, string>>({});
 
     // Step 1: Personal Info
-    const [extraUnits, setExtraUnits] = useState(0);
+    const [extraUnits, setExtraUnits] = useState<number | null>(null);
     const [dependentNames, setDependentNames] = useState<string[]>([]);
     const [clientName, setClientName] = useState('');
     const [clientEmail, setClientEmail] = useState('');
