@@ -53,7 +53,7 @@ export const Step3Payment: React.FC<Step3Props> = ({ state, actions, handlers, o
                         <UpsellSelection
                             selectedUpsell={state.selectedUpsell}
                             onSelect={actions.setSelectedUpsell}
-                            extraUnits={state.extraUnits}
+                            extraUnits={state.extraUnits || 0}
                         />
                     </div>
                 )}

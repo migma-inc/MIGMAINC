@@ -6,7 +6,7 @@ import { CreditCard, DollarSign, Lock, CheckCircle } from 'lucide-react';
 
 interface OrderSummaryProps {
     product: VisaProduct;
-    extraUnits: number;
+    extraUnits: number | null;
     totalWithFees: number;
     paymentMethod: string;
     showPaymentButton?: boolean;
@@ -53,7 +53,7 @@ export const OrderSummary: React.FC<OrderSummaryProps> = ({
                                 <span className="text-gray-400">{t('checkout.base_price', 'Base Price')}</span>
                                 <span className="text-white">US$ {basePrice.toFixed(2)}</span>
                             </div>
-                            {extraUnits > 0 && product.allow_extra_units && (
+                            {extraUnits !== null && extraUnits > 0 && product.allow_extra_units && (
                                 <div className="flex justify-between text-xs sm:text-sm">
                                     <span className="text-gray-400">{product.extra_unit_label} ({extraUnits})</span>
                                     <span className="text-white">US$ {(extraUnits * extraUnitPrice).toFixed(2)}</span>
@@ -72,8 +72,8 @@ export const OrderSummary: React.FC<OrderSummaryProps> = ({
                     )}
                     {product.calculation_type === 'units_only' && (
                         <div className="flex justify-between text-xs sm:text-sm">
-                            <span className="text-gray-400">{t('checkout.number_of_applicants', 'Number of applicants')} ({extraUnits})</span>
-                            <span className="text-white">US$ {(extraUnits * extraUnitPrice).toFixed(2)}</span>
+                            <span className="text-gray-400">{t('checkout.number_of_applicants', 'Number of applicants')} ({extraUnits || 0})</span>
+                            <span className="text-white">US$ {((extraUnits || 0) * extraUnitPrice).toFixed(2)}</span>
                         </div>
                     )}
 

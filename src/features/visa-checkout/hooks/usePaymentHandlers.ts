@@ -361,7 +361,7 @@ export const usePaymentHandlers = (
                         : null;
 
                 const baseUpsellPrice = state.selectedUpsell === 'canada-premium' ? 399 : (state.selectedUpsell === 'canada-revolution' ? 199 : 0);
-                const upsellAmount = baseUpsellPrice > 0 ? baseUpsellPrice + (extraUnits * 50) : 0;
+                const upsellAmount = baseUpsellPrice > 0 ? baseUpsellPrice + ((extraUnits || 0) * 50) : 0;
 
                 // Check if an order already exists for this service request
                 const { data: existingOrder } = await supabase
@@ -384,7 +384,7 @@ export const usePaymentHandlers = (
                         base_price_usd: product.base_price_usd,
                         price_per_dependent_usd: product.price_per_dependent_usd || 0,
                         extra_unit_price_usd: product.price_per_dependent_usd || product.extra_unit_price || 0,
-                        extra_units: extraUnits,
+                        extra_units: extraUnits || 0,
                         extra_unit_label: product.extra_unit_label || 'Additional Dependent',
                         dependent_names: dependentNames,
                         client_name: clientName,
@@ -415,7 +415,7 @@ export const usePaymentHandlers = (
                             upsell_details: upsellAmount > 0 ? {
                                 slug: upsellProductSlug,
                                 base_price: baseUpsellPrice,
-                                dependents: extraUnits,
+                                dependents: extraUnits || 0,
                                 total: upsellAmount
                             } : null,
                             payer_info: state.payerInfo
@@ -508,7 +508,7 @@ export const usePaymentHandlers = (
                     : null;
 
             const baseUpsellPrice = state.selectedUpsell === 'canada-premium' ? 399 : (state.selectedUpsell === 'canada-revolution' ? 199 : 0);
-            const upsellAmount = baseUpsellPrice > 0 ? baseUpsellPrice + (extraUnits * 50) : 0;
+            const upsellAmount = baseUpsellPrice > 0 ? baseUpsellPrice + ((extraUnits || 0) * 50) : 0;
 
             // Check if an order already exists for this service request
             const { data: existingOrder } = await supabase
@@ -608,7 +608,7 @@ export const usePaymentHandlers = (
                             console.log('[Debug] Tentando recuperar/criar upsell para pedido existente...');
                             const upsellSlug = state.selectedUpsell === 'canada-premium' ? 'canada-tourist-premium' : 'canada-tourist-revolution';
                             const baseUpsellPrice = state.selectedUpsell === 'canada-premium' ? 399 : 199;
-                            const upsellAmount = baseUpsellPrice + (extraUnits * 50);
+                            const upsellAmount = baseUpsellPrice + ((extraUnits || 0) * 50);
 
                             // Check if upsell order already exists too
                             const { data: previousUpsell } = await supabase

@@ -2,7 +2,7 @@
 export interface StripeCheckoutRequest {
     product_slug: string;
     seller_id: string | null;
-    extra_units: number;
+    extra_units: number | null;
     dependent_names: string[];
     client_name: string;
     client_email: string;

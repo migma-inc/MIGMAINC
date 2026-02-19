@@ -42,15 +42,16 @@ export function getUserAgent(): string {
  * @param upsellAmount Valor opcional do upsell em USD
  * @returns Total base em USD
  */
-export function calculateBaseTotal(product: VisaProduct, extraUnits: number, upsellAmount: number = 0): number {
+export function calculateBaseTotal(product: VisaProduct, extraUnits: number | null, upsellAmount: number = 0): number {
+  const units = extraUnits || 0;
   let totalUSD = 0;
   if (product.calculation_type === 'units_only') {
     // Se for units_only, o preço é apenas extra_units * extra_unit_price
-    totalUSD = extraUnits * parseFloat(product.extra_unit_price);
+    totalUSD = units * parseFloat(product.extra_unit_price);
   } else {
     // base_plus_units: base_price + (extra_units * extra_unit_price)
     const basePrice = parseFloat(product.base_price_usd);
-    const extraPrice = extraUnits * parseFloat(product.extra_unit_price);
+    const extraPrice = units * parseFloat(product.extra_unit_price);
     totalUSD = basePrice + extraPrice;
   }
 

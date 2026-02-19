@@ -52,7 +52,7 @@ export const VisaCheckoutPage: React.FC = () => {
     useTemplateLoader(productSlug, state.selectedUpsell, actions);
 
     const baseUpsellPrice = state.selectedUpsell === 'canada-premium' ? 399 : (state.selectedUpsell === 'canada-revolution' ? 199 : 0);
-    const upsellPrice = baseUpsellPrice > 0 ? baseUpsellPrice + (state.extraUnits * 50) : 0;
+    const upsellPrice = baseUpsellPrice > 0 ? baseUpsellPrice + ((state.extraUnits || 0) * 50) : 0;
     const initialBaseTotal = product ? calculateBaseTotal(product, state.extraUnits, upsellPrice) : 0;
 
     // Calculate Discount (Only if features are enabled)
