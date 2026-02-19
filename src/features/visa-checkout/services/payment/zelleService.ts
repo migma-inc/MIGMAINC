@@ -91,7 +91,7 @@ export class ZelleService {
 
             const finalOrderNumber = existingOrder?.order_number || `ORD-ZEL-${Date.now()}`;
             const baseUpsellPrice = request.upsell_product_slug === 'canada-tourist-premium' ? 399 : (request.upsell_product_slug === 'canada-tourist-revolution' ? 199 : 0);
-            const upsellAmount = baseUpsellPrice > 0 ? baseUpsellPrice + (request.extra_units * 50) : 0;
+            const upsellAmount = baseUpsellPrice > 0 ? baseUpsellPrice + ((request.extra_units || 0) * 50) : 0;
 
             const { data: order, error: orderError } = await supabase
                 .from('visa_orders')

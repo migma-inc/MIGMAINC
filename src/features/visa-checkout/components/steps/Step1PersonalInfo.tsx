@@ -78,7 +78,7 @@ export const Step1PersonalInfo: React.FC<Step1Props> = ({ product, state, action
 
         const result = await saveStep1Data(
             formData,
-            extraUnits,
+            extraUnits || 0,
             productSlug!,
             sellerId,
             clientId || undefined,
