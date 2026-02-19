@@ -177,7 +177,7 @@ export function validateStep1(formData: Step1FormData, productSlug?: string): Va
 
   // Mandatory Extra Units for RFE Defense (since base price is 0)
   if (formData.extraUnits === null) {
-    errors.extraUnits = 'Please select a quantity';
+    errors.extraUnits = 'checkout.error_extra_units_required';
   } else if (productSlug === 'rfe-defense' && formData.extraUnits < 1) {
     errors.extraUnits = 'At least 1 evidence must be selected for this service';
   }

@@ -67,6 +67,7 @@
         "continue": "Continuar",
         "back": "Voltar",
         "error_save_info": "Falha ao salvar informações",
+        "error_fill_required_fields": "Por favor, preencha todos os campos obrigatórios marcados com * para continuar.",
         "full_name": "Nome Completo",
         "email": "E-mail",
         "date_of_birth": "Data de Nascimento",

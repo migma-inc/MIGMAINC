@@ -67,14 +67,23 @@ export const Step1PersonalInfo: React.FC<Step1Props> = ({ product, state, action
         const validation = validateStep1(formData, productSlug);
         if (!validation.valid) {
             setFieldErrors(validation.errors || {});
-            // Optional: Scroll to first error
+
+            // Set global error message to trigger scroll-to-top and show alert banner
+            setError(t('checkout.error_fill_required_fields', 'Please fill in all required fields marked with * to proceed.'));
+
+            // Still scroll to specific field for precision
             const firstError = Object.keys(validation.errors || {})[0];
             if (firstError) {
                 const el = document.getElementById(firstError === 'state' ? 'state' : firstError);
-                el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                if (el) {
+                    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }
             }
             return;
         }
+
+        // Clear global error if validation passes
+        setError('');
 
         const result = await saveStep1Data(
             formData,

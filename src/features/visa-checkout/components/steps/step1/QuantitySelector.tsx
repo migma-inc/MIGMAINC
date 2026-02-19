@@ -74,7 +74,7 @@ export const QuantitySelector: React.FC<QuantitySelectorProps> = ({
                     </SelectContent>
                 </Select>
                 {fieldErrors?.extraUnits && (
-                    <p className="text-red-400 text-xs mt-1 animate-in fade-in slide-in-from-top-1">{fieldErrors.extraUnits}</p>
+                    <p className="text-red-400 text-xs mt-1 animate-in fade-in slide-in-from-top-1">{t(fieldErrors.extraUnits, 'Please select a quantity')}</p>
                 )}
             </div>
 
