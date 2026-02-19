@@ -72,7 +72,7 @@ export const useDraftRecovery = (
                 setPostalCode(parsed.postalCode || '');
                 setMaritalStatus(parsed.maritalStatus || '');
                 setClientObservations(parsed.clientObservations || '');
-                setExtraUnits(parsed.extraUnits || 0);
+                setExtraUnits(parsed.extraUnits !== undefined && parsed.extraUnits !== null && parsed.extraUnits !== 0 ? parsed.extraUnits : null);
                 setDependentNames(parsed.dependentNames || []);
 
                 // Restore Step 3
