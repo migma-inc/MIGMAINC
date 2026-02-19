@@ -44,7 +44,7 @@ export interface SaveStep3Result {
  */
 export async function saveStep1Data(
   formData: Step1FormData,
-  extraUnits: number,
+  extraUnits: number | null,
   productSlug: string,
   sellerId: string,
   clientId?: string,
@@ -100,7 +100,7 @@ export async function saveStep1Data(
       id: serviceRequestId || undefined,
       client_id: clientIdToUse,
       service_id: productSlug,
-      dependents_count: extraUnits,
+      dependents_count: extraUnits || 0,
       seller_id: sellerId || null,
       updated_at: new Date().toISOString(),
     };

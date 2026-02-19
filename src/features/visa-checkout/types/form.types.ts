@@ -46,7 +46,7 @@ export interface VisaCheckoutState {
     step3Errors: Record<string, string>;
 
     // Step 1: Personal Info
-    extraUnits: number;
+    extraUnits: number | null;
     dependentNames: string[];
     clientName: string;
     clientEmail: string;
@@ -124,7 +124,7 @@ export interface VisaCheckoutState {
 }
 
 export interface VisaCheckoutActions {
-    setExtraUnits: (val: number) => void;
+    setExtraUnits: (val: number | null) => void;
     setDependentNames: (val: string[]) => void;
     setClientName: (val: string) => void;
     setClientEmail: (val: string) => void;

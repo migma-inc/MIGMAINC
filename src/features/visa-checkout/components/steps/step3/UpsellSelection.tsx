@@ -7,19 +7,20 @@ import { Check, Star } from 'lucide-react';
 interface UpsellSelectionProps {
     selectedUpsell: 'none' | 'canada-premium' | 'canada-revolution';
     onSelect: (val: 'none' | 'canada-premium' | 'canada-revolution') => void;
-    extraUnits?: number;
+    extraUnits: number | null;
 }
 
 export const UpsellSelection: React.FC<UpsellSelectionProps> = ({ selectedUpsell, onSelect, extraUnits = 0 }) => {
     // Canada Premium Pricing
     const premiumOfferBase = 399;
     const premiumOfferDep = 50;
-    const premiumOfferTotal = premiumOfferBase + (extraUnits * premiumOfferDep);
+    const units = extraUnits || 0;
+    const premiumOfferTotal = premiumOfferBase + (units * premiumOfferDep);
 
     // Canada Revolution Pricing
     const revolutionOfferBase = 199;
     const revolutionOfferDep = 50;
-    const revolutionOfferTotal = revolutionOfferBase + (extraUnits * revolutionOfferDep);
+    const revolutionOfferTotal = revolutionOfferBase + (units * revolutionOfferDep);
 
 
 
@@ -59,10 +60,10 @@ export const UpsellSelection: React.FC<UpsellSelectionProps> = ({ selectedUpsell
                                         <span className="text-gray-400">Main applicant:</span>
                                         <span className="text-gray-200">${premiumOfferBase}</span>
                                     </div>
-                                    {extraUnits > 0 && (
+                                    {units > 0 && (
                                         <div className="flex justify-between text-sm">
-                                            <span className="text-gray-400">Dependents ({extraUnits}x $50):</span>
-                                            <span className="text-gray-200">+${extraUnits * 50}</span>
+                                            <span className="text-gray-400">Dependents ({units}x $50):</span>
+                                            <span className="text-gray-200">+${units * 50}</span>
                                         </div>
                                     )}
                                     <div className="h-px bg-white/10 my-1" />
@@ -109,10 +110,10 @@ export const UpsellSelection: React.FC<UpsellSelectionProps> = ({ selectedUpsell
                                         <span className="text-gray-400">Main applicant:</span>
                                         <span className="text-gray-200">${revolutionOfferBase}</span>
                                     </div>
-                                    {extraUnits > 0 && (
+                                    {units > 0 && (
                                         <div className="flex justify-between text-sm">
-                                            <span className="text-gray-400">Dependents ({extraUnits}x $50):</span>
-                                            <span className="text-gray-200">+${extraUnits * 50}</span>
+                                            <span className="text-gray-400">Dependents ({units}x $50):</span>
+                                            <span className="text-gray-200">+${units * 50}</span>
                                         </div>
                                     )}
                                     <div className="h-px bg-white/10 my-1" />
