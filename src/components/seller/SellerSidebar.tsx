@@ -81,6 +81,7 @@ export function SellerSidebar({ className, sellerName, isMobileOpen = false, onM
   const menuItems = [
     { title: 'Overview', icon: LayoutDashboard, path: '/seller/dashboard', exact: true },
     { title: 'Orders', icon: ShoppingCart, path: '/seller/dashboard/orders', exact: false },
+    { title: 'Financial Processes', icon: ShoppingCart, path: '/seller/dashboard/financial-processes', exact: false },
     { title: 'Sales Links', icon: LinkIcon, path: '/seller/dashboard/links', exact: false },
     { title: 'Leads & Users', icon: Users, path: '/seller/dashboard/leads', exact: false },
     { title: 'Commissions', icon: Coins, path: '/seller/dashboard/commissions', exact: false },
