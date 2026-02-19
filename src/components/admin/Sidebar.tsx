@@ -198,6 +198,12 @@ export function Sidebar({ className, isMobileOpen = false, onMobileClose }: Side
       path: '/dashboard/coupons',
       exact: false,
     },
+    {
+      title: 'Financial Processes',
+      icon: DollarSign,
+      path: '/dashboard/financial-processes',
+      exact: false,
+    },
     // PAYMENT REQUEST - COMENTADO TEMPORARIAMENTE
     // {
     //   title: 'Payment Requests',
@@ -205,6 +211,7 @@ export function Sidebar({ className, isMobileOpen = false, onMobileClose }: Side
     //   path: '/dashboard/payment-requests',
     //   exact: false,
     // },
+
     {
       title: 'Contact Messages',
       icon: Mail,

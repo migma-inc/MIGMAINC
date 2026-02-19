@@ -655,6 +655,19 @@ export const SellersPage = () => {
                           size="sm"
                           onClick={(e) => {
                             e.stopPropagation();
+                            const url = `/dashboard/sellers/${stats.seller.seller_id_public}/financial-processes`;
+                            window.open(url, '_blank', 'width=1400,height=900,resizable=yes,scrollbars=yes');
+                          }}
+                          className="text-green-400 hover:text-green-300 hover:bg-green-500/10 shrink-0"
+                          title="Financial Processes"
+                        >
+                          <Wallet className="w-4 h-4 sm:w-5 sm:h-5" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
                             setSellerToEdit(stats.seller);
                             setIsEditModalOpen(true);
                           }}

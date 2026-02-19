@@ -38,6 +38,7 @@ import { SellerOrders } from './pages/seller/SellerOrders';
 import { SellerLinks } from './pages/seller/SellerLinks';
 import { SellerLeads } from './pages/seller/SellerLeads';
 import { SellerOrderDetail } from './pages/SellerOrderDetail';
+import { SellerFinancialProcessesPage } from './pages/seller/SellerFinancialProcessesPage';
 import { SellerZelleApprovalPage } from './pages/seller/SellerZelleApprovalPage';
 import { SellerRoute } from './components/seller/SellerRoute';
 import { VisaOrdersPage } from './pages/VisaOrdersPage';
@@ -54,6 +55,7 @@ import { ViewVisaOrderContract } from './pages/ViewVisaOrderContract';
 import { ScheduleMeetingPage } from './pages/admin/ScheduleMeetingPage';
 import { AdminSellerAnalytics } from './pages/admin/AdminSellerAnalytics';
 import { AdminSellerOrders } from './pages/admin/AdminSellerOrders';
+import { AdminSellerFinancialProcesses } from './pages/admin/AdminSellerFinancialProcesses';
 import { AdminRoute } from './components/admin/AdminRoute';
 import { SlackReportsPage } from './pages/admin/SlackReportsPage';
 import { VisaContractApprovalPage } from './pages/VisaContractApprovalPage';
@@ -65,6 +67,7 @@ import { EB3RecurringDetail } from './pages/admin/EB3RecurringDetail';
 import { ScholarshipRecurringManagement } from './pages/admin/ScholarshipRecurringManagement';
 import { ScholarshipRecurringDetail } from './pages/admin/ScholarshipRecurringDetail';
 import { EB3InstallmentCheckout } from './pages/EB3InstallmentCheckout';
+import { FinancialProcessesPage } from './pages/admin/FinancialProcessesPage';
 import { NotFound } from './pages/NotFound';
 
 function App() {
@@ -108,6 +111,7 @@ function App() {
           <Route path="orders" element={<SellerOrders />} />
           <Route path="links" element={<SellerLinks />} />
           <Route path="leads" element={<SellerLeads />} />
+          <Route path="financial-processes" element={<SellerFinancialProcessesPage />} />
           <Route path="zelle-approvals" element={<SellerZelleApprovalPage />} />
         </Route>
         <Route path="/seller/orders/:orderId" element={<SellerRoute><SellerOrderDetail /></SellerRoute>} />
@@ -135,6 +139,7 @@ function App() {
           <Route path="sellers" element={<SellersPage />} />
           <Route path="sellers/:sellerId/analytics" element={<AdminRoute><AdminSellerAnalytics /></AdminRoute>} />
           <Route path="sellers/:sellerId/orders" element={<AdminRoute><AdminSellerOrders /></AdminRoute>} />
+          <Route path="sellers/:sellerId/financial-processes" element={<AdminRoute><AdminSellerFinancialProcesses /></AdminRoute>} />
           <Route path="contact-messages" element={<ContactMessagesPage />} />
           <Route path="contact-messages/:id" element={<ContactMessageDetail />} />
           <Route path="contract-templates" element={<ContractTemplatesPage />} />
@@ -148,6 +153,7 @@ function App() {
           <Route path="send-existing-contracts" element={<SendExistingContracts />} />
           <Route path="links" element={<SellerLinks />} />
           <Route path="coupons" element={<CouponManagement />} />
+          <Route path="financial-processes" element={<FinancialProcessesPage />} />
         </Route>
 
         {/* Catch-all 404 Route */}
