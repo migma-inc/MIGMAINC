@@ -281,10 +281,20 @@ export const VisaCheckoutPage: React.FC = () => {
                                 isPaymentReady={
                                     state.signatureConfirmed &&
                                     state.termsAccepted &&
+                                    state.dataAuthorization &&
                                     (state.paymentMethod !== 'zelle' || !!state.zelleReceipt) &&
                                     (state.paymentMethod !== 'parcelow_card' || (
-                                        !!state.cpf && state.cpf.replace(/\D/g, '').length >= 11 &&
-                                        (!!state.payerInfo || !!state.creditCardName)
+                                        (state.payerInfo ? (
+                                            !!state.payerInfo.name &&
+                                            !!state.payerInfo.cpf &&
+                                            state.payerInfo.cpf.replace(/\D/g, '').length >= 11 &&
+                                            !!state.payerInfo.email &&
+                                            !!state.payerInfo.phone
+                                        ) : (
+                                            !!state.cpf &&
+                                            state.cpf.replace(/\D/g, '').length >= 11 &&
+                                            !!state.creditCardName
+                                        ))
                                     )) &&
                                     ((state.paymentMethod !== 'parcelow_pix' && state.paymentMethod !== 'parcelow_ted') || (
                                         !!state.cpf && state.cpf.replace(/\D/g, '').length >= 11

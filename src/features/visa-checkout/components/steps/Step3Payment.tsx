@@ -209,8 +209,17 @@ export const Step3Payment: React.FC<Step3Props> = ({ state, actions, handlers, o
                                 !dataAuthorization ||
                                 (paymentMethod === 'zelle' && !zelleReceipt) ||
                                 (paymentMethod === 'parcelow_card' && (
-                                    !state.cpf || state.cpf.replace(/\D/g, '').length < 11 ||
-                                    (!state.payerInfo && !state.creditCardName)
+                                    state.payerInfo ? (
+                                        !state.payerInfo.name ||
+                                        !state.payerInfo.cpf ||
+                                        state.payerInfo.cpf.replace(/\D/g, '').length < 11 ||
+                                        !state.payerInfo.email ||
+                                        !state.payerInfo.phone
+                                    ) : (
+                                        !state.cpf ||
+                                        state.cpf.replace(/\D/g, '').length < 11 ||
+                                        !state.creditCardName
+                                    )
                                 )) ||
                                 ((paymentMethod === 'parcelow_pix' || paymentMethod === 'parcelow_ted') && (
                                     !state.cpf || state.cpf.replace(/\D/g, '').length < 11
