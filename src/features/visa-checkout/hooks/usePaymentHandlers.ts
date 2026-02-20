@@ -69,12 +69,8 @@ export const usePaymentHandlers = (
             setError('Please accept terms and confirm your signature');
             return false;
         }
-        if (paymentMethod === 'parcelow') {
-            const isSplitActive = state.splitPaymentConfig?.enabled;
-            const requiresCard = !isSplitActive ||
-                state.splitPaymentConfig?.part1_method === 'card' ||
-                state.splitPaymentConfig?.part2_method === 'card';
-
+        if (paymentMethod === 'parcelow_card') {
+            // Cartão: exige CPF + dados de cartão (ou payerInfo completo se for cartão de terceiro)
             if (state.payerInfo) {
                 if (!state.payerInfo.name) {
                     setError('Please enter the payer name');
@@ -89,16 +85,23 @@ export const usePaymentHandlers = (
                     return false;
                 }
             } else {
-                if (requiresCard && !creditCardName) {
-                    setError('Please enter the name exactly as it appears on your card');
-                    return false;
-                }
                 if (!validateCPF(cpf)) {
                     setError('The CPF provided is invalid. Please check the digits.');
                     return false;
                 }
+                if (!creditCardName) {
+                    setError('Please enter the name exactly as it appears on your card');
+                    return false;
+                }
+            }
+        } else if (paymentMethod === 'parcelow_pix' || paymentMethod === 'parcelow_ted') {
+            // PIX / TED: só exige CPF
+            if (!validateCPF(cpf)) {
+                setError('The CPF provided is invalid. Please check the digits.');
+                return false;
             }
         }
+
         if (!serviceRequestId) {
             setError('Service request ID is missing');
             return false;
@@ -295,7 +298,7 @@ export const usePaymentHandlers = (
 
         setSubmitting(true);
         try {
-            if (!await validateStep3('parcelow')) {
+            if (!await validateStep3(state.paymentMethod)) {
                 setSubmitting(false);
                 return;
             }
@@ -303,13 +306,13 @@ export const usePaymentHandlers = (
             if (sellerId && productSlug) {
                 await trackFormCompleted(sellerId, productSlug, {
                     extra_units: extraUnits,
-                    payment_method: 'parcelow',
+                    payment_method: state.paymentMethod,
                     service_request_id: serviceRequestId,
                     client_name: clientName,
                     client_email: clientEmail,
                     client_whatsapp: clientWhatsApp,
                 });
-                await trackPaymentStarted(sellerId, productSlug, 'parcelow' as any, {
+                await trackPaymentStarted(sellerId, productSlug, state.paymentMethod as any, {
                     total_amount: totalWithFees,
                     extra_units: extraUnits,
                     service_request_id: serviceRequestId,
@@ -393,7 +396,7 @@ export const usePaymentHandlers = (
                         client_country: clientCountry,
                         client_nationality: clientNationality,
                         client_observations: clientObservations,
-                        payment_method: 'parcelow',
+                        payment_method: state.paymentMethod,
                         payment_status: 'pending',
                         total_price_usd: totalWithFees,
                         upsell_product_slug: upsellProductSlug,
@@ -540,7 +543,7 @@ export const usePaymentHandlers = (
                     client_country: clientCountry,
                     client_nationality: clientNationality,
                     client_observations: clientObservations,
-                    payment_method: 'parcelow',
+                    payment_method: state.paymentMethod,
                     payment_status: 'pending',
                     total_price_usd: totalWithFees, // Total completo (main + upsell)
                     upsell_product_slug: upsellProductSlug,
@@ -641,7 +644,7 @@ export const usePaymentHandlers = (
                                         client_country: clientCountry,
                                         client_nationality: clientNationality,
                                         client_observations: clientObservations,
-                                        payment_method: 'parcelow',
+                                        payment_method: state.paymentMethod,
                                         payment_status: 'pending',
                                         total_price_usd: upsellAmount,
                                         contract_document_url: documentFrontUrl,

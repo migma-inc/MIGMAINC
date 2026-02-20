@@ -119,7 +119,13 @@ export const SellersPage = () => {
         return;
       }
 
-      if (!sellers || sellers.length === 0) {
+      // Filter out 'victordev' in production to comply with user request
+      const isProd = import.meta.env.PROD;
+      const availableSellers = isProd
+        ? (sellers || []).filter(s => s.seller_id_public !== 'victordev')
+        : (sellers || []);
+
+      if (availableSellers.length === 0) {
         setSellersStats([]);
         setSummaryStats({
           totalSellers: 0,
@@ -135,7 +141,7 @@ export const SellersPage = () => {
       }
 
       // For each seller, load their orders, balance, commissions, and payment requests
-      const statsPromises = sellers.map(async (seller) => {
+      const statsPromises = availableSellers.map(async (seller) => {
         // Load orders
         const { data: orders, error: ordersError } = await adminSupabase
           .from('visa_orders')
