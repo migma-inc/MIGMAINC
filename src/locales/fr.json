@@ -104,7 +104,7 @@
         "continue_to_payment": "Continuer vers le Paiement",
         "name_on_card": "Nom sur la Carte",
         "name_on_card_instruction": "Veuillez saisir exactement le nom tel qu'il apparaît sur votre carte.",
-        "cpf_label": "CPF (ID Fiscal Brésilien)",
+        "cpf_label": "CPF",
         "cpf_instruction": "Requis pour le traitement des paiements au Brésil.",
         "is_card_owner_question": "La carte de crédit que vous utiliserez est-elle la vôtre ou celle de quelqu'un d'autre ?",
         "my_card": "Ma Carte",
