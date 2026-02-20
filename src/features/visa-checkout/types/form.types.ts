@@ -1,7 +1,11 @@
 import type { ContractTemplate } from '@/lib/contract-templates';
 import type { SplitPaymentConfig } from '../components/steps/step3/SplitPaymentSelector';
 
-export type PaymentMethod = '' | 'card' | 'pix' | 'zelle' | 'wise' | 'parcelow';
+export type PaymentMethod = '' | 'card' | 'pix' | 'zelle' | 'wise' | 'parcelow_card' | 'parcelow_pix' | 'parcelow_ted';
+
+/** Helper para verificar se o método selecionado é qualquer variante do Parcelow */
+export const isParcelowMethod = (method: PaymentMethod): boolean =>
+    method === 'parcelow_card' || method === 'parcelow_pix' || method === 'parcelow_ted';
 
 export interface DocumentFile {
     file: File;

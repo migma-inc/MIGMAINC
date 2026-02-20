@@ -1,4 +1,5 @@
 import type { VisaCheckoutState, VisaCheckoutActions } from '../../types/form.types';
+import { isParcelowMethod } from '../../types/form.types';
 import { useTranslation } from 'react-i18next';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -11,8 +12,6 @@ import { PaymentMethodSelector } from './step3/PaymentMethodSelector';
 import { ZelleUpload } from './step3/ZelleUpload';
 
 import { CouponSection } from './step3/CouponSection';
-import { SplitPaymentSelector } from './step3/SplitPaymentSelector';
-import { SHOW_BETA_FEATURES } from '@/lib/env-utils';
 import { UpsellSelection } from './step3/UpsellSelection';
 import { PayerAlternativeForm } from '../payment/PayerAlternativeForm';
 
@@ -26,10 +25,9 @@ interface Step3Props {
     };
     onPrev: () => void;
     productSlug?: string;
-    totalWithFees: number;
 }
 
-export const Step3Payment: React.FC<Step3Props> = ({ state, actions, handlers, onPrev, totalWithFees, productSlug }) => {
+export const Step3Payment: React.FC<Step3Props> = ({ state, actions, handlers, onPrev, productSlug }) => {
     const {
         termsAccepted, dataAuthorization, contractTemplate, chargebackAnnexTemplate, upsellContractTemplate, paymentMethod,
         zelleReceipt, signatureImageDataUrl, signatureConfirmed /*, selectedUpsell */
@@ -98,85 +96,78 @@ export const Step3Payment: React.FC<Step3Props> = ({ state, actions, handlers, o
                     onMethodChange={setPaymentMethod}
                 />
 
-                {/* 🆕 Split Payment Selector - Apenas para Parcelow e em ambiente de desenvolvimento */}
-                {paymentMethod === 'parcelow' && SHOW_BETA_FEATURES && (
-                    <div className="animate-in fade-in slide-in-from-top-2">
-                        <SplitPaymentSelector
-                            totalAmount={totalWithFees}
-                            onSplitChange={(config) => {
-                                // Armazenar configuração de split no estado
-                                actions.setSplitPaymentConfig(config);
-                            }}
-                            disabled={state.submitting}
-                        />
-                    </div>
-                )}
-
-                {paymentMethod === 'parcelow' && (
-                    <div className="space-y-6 pt-2 animate-in fade-in slide-in-from-top-2">
+                {/* Parcelow – Cartão: lógica completa de cartão (meu cartão / cartão de terceiros) */}
+                {paymentMethod === 'parcelow_card' && (
+                    <div className="space-y-4 pt-2 animate-in fade-in slide-in-from-top-2">
+                        {/* Meu cartão / Cartão de terceiro — fica primeiro */}
                         <PayerAlternativeForm
                             payerInfo={state.payerInfo}
                             onPayerInfoChange={actions.setPayerInfo}
-                            baseCpf={state.cpf}
-                            baseCardName={state.creditCardName}
+                            baseCpf={state.cpf || ''}
+                            baseCardName={state.creditCardName || ''}
                         />
 
-                        {/* Standard fields only if NOT using a different payer info */}
+                        {/* CPF e Nome no cartão — só mostrar para "Meu Cartão" */}
                         {!state.payerInfo && (
-                            <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2">
-                                {/* 
-                                    Ocultar "Name on Card" se o Split Payment estiver ativo E 
-                                    nenhuma das partes for "Card".
-                                */}
-                                {(!state.splitPaymentConfig?.enabled ||
-                                    state.splitPaymentConfig.part1_method === 'card' ||
-                                    state.splitPaymentConfig.part2_method === 'card') && (
-                                        <div className="bg-zinc-900/40 border border-white/10 rounded-xl p-5 space-y-3 shadow-lg">
-                                            <div className="flex flex-col space-y-1">
-                                                <label htmlFor="cardName" className="text-sm font-bold text-gold-light uppercase tracking-wide">
-                                                    {t('checkout.name_on_card', 'Name on Card')} *
-                                                </label>
-                                                <p className="text-[10px] text-gray-400 uppercase">
-                                                    {t('checkout.name_on_card_instruction', 'Exactly as it appears on your card.')}
-                                                </p>
-                                            </div>
-                                            <Input
-                                                id="cardName"
-                                                value={state.creditCardName || ''}
-                                                onChange={(e) => {
-                                                    const val = e.target.value.replace(/[^a-zA-ZÀ-ÿ\s]/g, '').toUpperCase();
-                                                    actions.setCreditCardName(val);
-                                                }}
-                                                placeholder="JOÃO SILVA"
-                                                className="bg-black/40 border-gold-medium/20 text-white uppercase h-11 focus:border-gold-medium transition-all"
-                                            />
-                                        </div>
-                                    )}
-
-                                <div className="bg-zinc-900/40 border border-white/10 rounded-xl p-5 space-y-3 shadow-lg">
-                                    <div className="flex flex-col space-y-1">
-                                        <label htmlFor="cpfInput" className="text-sm font-bold text-gold-light uppercase tracking-wide">
-                                            {t('checkout.cpf_label', 'CPF (Brazilian Tax ID)')} *
-                                        </label>
-                                        <p className="text-[10px] text-gray-400 uppercase">
-                                            {t('checkout.cpf_instruction', 'Required for payment processing in Brazil.')}
-                                        </p>
-                                    </div>
+                            <div className="bg-zinc-900/40 border border-white/10 rounded-xl p-5 space-y-4 shadow-lg">
+                                <div className="flex flex-col space-y-1">
+                                    <label htmlFor="cpfInputCard" className="text-sm font-bold text-gold-light uppercase tracking-wide">
+                                        {t('checkout.cpf_label', 'CPF')} *
+                                    </label>
                                     <Input
-                                        id="cpfInput"
+                                        id="cpfInputCard"
                                         value={state.cpf || ''}
                                         onChange={(e) => {
                                             const val = e.target.value.replace(/\D/g, '').slice(0, 11);
                                             actions.setCpf(val);
                                         }}
-                                        placeholder="000.000.000-00"
+                                        placeholder=""
                                         className="bg-black/40 border-gold-medium/20 text-white h-11 focus:border-gold-medium transition-all"
+                                    />
+                                </div>
+
+                                <div className="flex flex-col space-y-1">
+                                    <label htmlFor="cardNameInput" className="text-sm font-bold text-gold-light uppercase tracking-wide">
+                                        {t('checkout.name_on_card', 'Name on Card')} *
+                                    </label>
+                                    <Input
+                                        id="cardNameInput"
+                                        value={state.creditCardName || ''}
+                                        onChange={(e) => actions.setCreditCardName(e.target.value.toUpperCase())}
+                                        placeholder=""
+                                        className="bg-black/40 border-gold-medium/20 text-white h-11 focus:border-gold-medium transition-all uppercase"
                                     />
                                 </div>
                             </div>
                         )}
                     </div>
                 )}
+
+
+                {/* Parcelow – PIX / TED: apenas CPF */}
+                {(paymentMethod === 'parcelow_pix' || paymentMethod === 'parcelow_ted') && (
+                    <div className="space-y-4 pt-2 animate-in fade-in slide-in-from-top-2">
+                        <div className="bg-zinc-900/40 border border-white/10 rounded-xl p-5 space-y-3 shadow-lg">
+                            <div className="flex flex-col space-y-1">
+                                <label htmlFor="cpfInput" className="text-sm font-bold text-gold-light uppercase tracking-wide">
+                                    {t('checkout.cpf_label', 'CPF')} *
+                                </label>
+
+                            </div>
+                            <Input
+                                id="cpfInput"
+                                value={state.cpf || ''}
+                                onChange={(e) => {
+                                    const val = e.target.value.replace(/\D/g, '').slice(0, 11);
+                                    actions.setCpf(val);
+                                }}
+                                placeholder=""
+                                className="bg-black/40 border-gold-medium/20 text-white h-11 focus:border-gold-medium transition-all"
+                            />
+                        </div>
+                    </div>
+                )}
+
 
                 {paymentMethod === 'zelle' && (
                     <div className="space-y-2 pt-2 animate-in fade-in slide-in-from-top-2 flex justify-center">
@@ -205,7 +196,7 @@ export const Step3Payment: React.FC<Step3Props> = ({ state, actions, handlers, o
                             onClick={() => {
                                 if (state.submitting) return;
                                 actions.setSubmitting(true);
-                                if (paymentMethod === 'parcelow') {
+                                if (isParcelowMethod(paymentMethod)) {
                                     handlers.handleParcelowPayment();
                                 } else if (paymentMethod === 'zelle' && zelleReceipt) {
                                     handlers.handleZellePayment();
@@ -217,28 +208,15 @@ export const Step3Payment: React.FC<Step3Props> = ({ state, actions, handlers, o
                                 !termsAccepted ||
                                 !dataAuthorization ||
                                 (paymentMethod === 'zelle' && !zelleReceipt) ||
-                                (paymentMethod === 'parcelow' && (
-                                    state.payerInfo
-                                        ? !(
-                                            state.payerInfo.name.toString().trim().length >= 3 &&
-                                            state.payerInfo.cpf.toString().replace(/\D/g, '').length === 11 &&
-                                            state.payerInfo.email.toString().trim().includes('@')
-                                        )
-                                        : (
-                                            !state.cpf ||
-                                            state.cpf.length < 11 ||
-                                            (
-                                                state.splitPaymentConfig?.enabled
-                                                    ? (
-                                                        (state.splitPaymentConfig.part1_method === 'card' || state.splitPaymentConfig.part2_method === 'card') &&
-                                                        !state.creditCardName
-                                                    )
-                                                    : !state.creditCardName
-                                            )
-                                        )
+                                (paymentMethod === 'parcelow_card' && (
+                                    !state.cpf || state.cpf.replace(/\D/g, '').length < 11 ||
+                                    (!state.payerInfo && !state.creditCardName)
+                                )) ||
+                                ((paymentMethod === 'parcelow_pix' || paymentMethod === 'parcelow_ted') && (
+                                    !state.cpf || state.cpf.replace(/\D/g, '').length < 11
                                 ))
                             }
-                            className={`w-full inline-flex items-center justify-center gap-2 px-4 py-3 text-sm sm:text-base font-bold rounded-md transition-colors h-auto whitespace-normal leading-tight ${state.submitting ? 'opacity-70 cursor-not-allowed' : ''} ${paymentMethod === 'parcelow'
+                            className={`w-full inline-flex items-center justify-center gap-2 px-4 py-3 text-sm sm:text-base font-bold rounded-md transition-colors h-auto whitespace-normal leading-tight ${state.submitting ? 'opacity-70 cursor-not-allowed' : ''} ${isParcelowMethod(paymentMethod)
                                 ? 'bg-[#22c55e] hover:bg-[#16a34a] text-white'
                                 : 'bg-gold-medium hover:bg-gold-light text-black'
                                 }`}
@@ -266,7 +244,7 @@ export const Step3Payment: React.FC<Step3Props> = ({ state, actions, handlers, o
                                             </>
                                         )}
                                     </svg>
-                                    <span>{paymentMethod === 'parcelow' ? t('checkout.pay_with_parcelow', 'Pay with Parcelow') : t('checkout.confirm_zelle_payment', 'Confirm Zelle Payment')}</span>
+                                    <span>{isParcelowMethod(paymentMethod) ? t('checkout.pay_with_parcelow', 'Pay with Parcelow') : t('checkout.confirm_zelle_payment', 'Confirm Zelle Payment')}</span>
                                 </div>
                             )}
                         </button>
