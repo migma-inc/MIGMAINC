@@ -789,12 +789,30 @@ Deno.serve(async (req: Request) => {
           // If even with the unique timestamp it says "Email exists", it's a Parcelow server-side lock.
           // In this case, we'd need to contact support or try a 100% random string.
           if (err.message && err.message.includes('Email do cliente existente')) {
-            console.warn('[Parcelow Checkout] ⚠️ Customer email exists, retrying with aliased email...');
-            const emailParts = clientData.email.split('@');
-            const aliasedEmail = `${emailParts[0]}+${Date.now()}@${emailParts[1]}`;
-            const clientDataRetry = { ...clientData, email: aliasedEmail };
+            console.warn('[Parcelow Checkout] ⚠️ Customer email exists, retrying with discreet alias...');
 
+            const email = clientData.email.toLowerCase();
+            const [local, domain] = email.split('@');
+            let aliasedEmail: string;
+
+            // Discreet logic: 
+            // 1. If Gmail, use the dot trick (Gmail ignores dots, Parcelow sees a new email)
+            // 2. Otherwise, use a very short 2-char random suffix
+            if (domain.includes('gmail.com')) {
+              aliasedEmail = local.includes('.')
+                ? `${local.replace('.', '')}@${domain}`
+                : `${local.substring(0, 1)}.${local.substring(1)}@${domain}`;
+            } else {
+              // Short 2-char random to be discreet
+              const shortId = Math.random().toString(36).substring(2, 4);
+              aliasedEmail = `${local}+${shortId}@${domain}`;
+            }
+
+            console.log(`[Parcelow Checkout] 🔄 Retrying with: ${aliasedEmail.replace(/.*@/, '****@')}`);
+
+            const clientDataRetry = { ...clientData, email: aliasedEmail };
             const notifyUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/parcelow-webhook`;
+
             parcelowResponse = await parcelowClient.createOrderUSD({
               reference: body.is_split_part ? `${order.order_number}-P${body.split_part_number || 1}` : order.order_number,
               partner_reference: order.id,
