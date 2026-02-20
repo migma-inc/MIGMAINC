@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useSearchParams, Link } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
+import { isParcelowMethod } from './types/form.types';
 import { useVisaCheckoutForm } from './hooks/useVisaCheckoutForm';
 import { useCheckoutSteps } from './hooks/useCheckoutSteps';
 import { useDraftRecovery } from './hooks/useDraftRecovery';
@@ -263,7 +264,6 @@ export const VisaCheckoutPage: React.FC = () => {
                                     handlers={paymentHandlers}
                                     onPrev={handlePrev}
                                     productSlug={productSlug}
-                                    totalWithFees={totalWithFees}
                                 />
                             </div>
                         )}
@@ -282,23 +282,12 @@ export const VisaCheckoutPage: React.FC = () => {
                                     state.signatureConfirmed &&
                                     state.termsAccepted &&
                                     (state.paymentMethod !== 'zelle' || !!state.zelleReceipt) &&
-                                    (state.paymentMethod !== 'parcelow' || (
-                                        state.payerInfo
-                                            ? (
-                                                state.payerInfo.name.toString().trim().length >= 3 &&
-                                                state.payerInfo.cpf.toString().replace(/\D/g, '').length === 11 &&
-                                                state.payerInfo.email.toString().trim().includes('@')
-                                            )
-                                            : (
-                                                !!state.cpf && state.cpf.length >= 11 && (
-                                                    state.splitPaymentConfig?.enabled
-                                                        ? (
-                                                            (state.splitPaymentConfig.part1_method !== 'card' && state.splitPaymentConfig.part2_method !== 'card') ||
-                                                            !!state.creditCardName
-                                                        )
-                                                        : !!state.creditCardName
-                                                )
-                                            )
+                                    (state.paymentMethod !== 'parcelow_card' || (
+                                        !!state.cpf && state.cpf.replace(/\D/g, '').length >= 11 &&
+                                        (!!state.payerInfo || !!state.creditCardName)
+                                    )) &&
+                                    ((state.paymentMethod !== 'parcelow_pix' && state.paymentMethod !== 'parcelow_ted') || (
+                                        !!state.cpf && state.cpf.replace(/\D/g, '').length >= 11
                                     ))
                                 }
                                 onPay={() => {
@@ -308,7 +297,7 @@ export const VisaCheckoutPage: React.FC = () => {
 
                                     if (state.paymentMethod === 'zelle') {
                                         paymentHandlers.handleZellePayment();
-                                    } else if (state.paymentMethod === 'parcelow') {
+                                    } else if (isParcelowMethod(state.paymentMethod)) {
                                         paymentHandlers.handleParcelowPayment?.();
                                     } else {
                                         paymentHandlers.handleStripeCheckout(state.paymentMethod as 'card' | 'pix');

@@ -105,7 +105,7 @@
         "continue_to_payment": "Continuar para Pagamento",
         "name_on_card": "Nome no Cartão",
         "name_on_card_instruction": "Por favor, insira exatamente o nome como aparece no seu cartão.",
-        "cpf_label": "CPF (ID Fiscal Brasileiro)",
+        "cpf_label": "CPF",
         "cpf_instruction": "Necessário para processamento de pagamento no Brasil.",
         "is_card_owner_question": "O cartão de crédito que você vai usar é seu ou de outra pessoa?",
         "my_card": "Meu Cartão",

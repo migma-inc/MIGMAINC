@@ -2,6 +2,7 @@ import React from 'react';
 import { Button } from '@/components/ui/button';
 import { ChevronLeft } from 'lucide-react';
 import type { PaymentMethod } from '../../../types/form.types';
+import { isParcelowMethod } from '../../../types/form.types';
 
 interface PaymentButtonsProps {
     paymentMethod: PaymentMethod;
@@ -55,7 +56,7 @@ export const PaymentButtons: React.FC<PaymentButtonsProps> = ({
                             </div>
                         )}
                     </Button>
-                ) : paymentMethod === 'parcelow' ? (
+                ) : isParcelowMethod(paymentMethod) ? (
                     <Button
                         onClick={onParcelowPayment}
                         disabled={submitting || !isReady}

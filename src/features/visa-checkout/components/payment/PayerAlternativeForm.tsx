@@ -100,8 +100,8 @@ export const PayerAlternativeForm: React.FC<PayerAlternativeFormProps> = ({
             </div>
 
             {isDifferentPayer && payerInfo && (
-                <div className="bg-zinc-900/40 border border-white/10 rounded-lg p-4 space-y-4 animate-in fade-in slide-in-from-top-2">
-                    <h3 className="text-white font-bold text-sm border-b border-white/5 pb-2 mb-2">
+                <div className="bg-zinc-900/40 border border-gold-medium/20 rounded-lg p-4 space-y-4 animate-in fade-in slide-in-from-top-2">
+                    <h3 className="text-gold-light font-bold text-sm border-b border-gold-medium/20 pb-2 mb-2">
                         {t('checkout.payer_data_title', 'Dados do Titular do Cartão')}
                     </h3>
 
@@ -111,7 +111,7 @@ export const PayerAlternativeForm: React.FC<PayerAlternativeFormProps> = ({
                             <Input
                                 value={payerInfo.name}
                                 onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateField('name', e.target.value.toUpperCase())}
-                                className="bg-black/40 border-white/10 text-white text-sm h-9"
+                                className="bg-black/40 border-gold-medium/20 text-white text-sm h-9"
                             />
                         </div>
                         <div className="space-y-1">
@@ -119,7 +119,7 @@ export const PayerAlternativeForm: React.FC<PayerAlternativeFormProps> = ({
                             <Input
                                 value={payerInfo.cpf}
                                 onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateField('cpf', e.target.value.replace(/\D/g, '').slice(0, 11))}
-                                className="bg-black/40 border-white/10 text-white text-sm h-9"
+                                className="bg-black/40 border-gold-medium/20 text-white text-sm h-9"
                             />
                         </div>
                     </div>
@@ -131,7 +131,7 @@ export const PayerAlternativeForm: React.FC<PayerAlternativeFormProps> = ({
                                 type="email"
                                 value={payerInfo.email}
                                 onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateField('email', e.target.value)}
-                                className="bg-black/40 border-white/10 text-white text-sm h-9"
+                                className="bg-black/40 border-gold-medium/20 text-white text-sm h-9"
                             />
                         </div>
                         <div className="space-y-1">
@@ -139,7 +139,7 @@ export const PayerAlternativeForm: React.FC<PayerAlternativeFormProps> = ({
                             <Input
                                 value={payerInfo.phone}
                                 onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateField('phone', e.target.value)}
-                                className="bg-black/40 border-white/10 text-white text-sm h-9"
+                                className="bg-black/40 border-gold-medium/20 text-white text-sm h-9"
                             />
                         </div>
                     </div>

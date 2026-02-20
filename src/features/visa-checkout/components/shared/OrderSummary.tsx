@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { CreditCard, DollarSign, Lock, CheckCircle } from 'lucide-react';
+import { isParcelowMethod } from '../../types/form.types';
 
 interface OrderSummaryProps {
     product: VisaProduct;
@@ -93,7 +94,7 @@ export const OrderSummary: React.FC<OrderSummaryProps> = ({
                                 US$ {totalWithFees.toFixed(2)}
                             </span>
                         </div>
-                        {paymentMethod === 'parcelow' && (
+                        {isParcelowMethod(paymentMethod as any) && (
                             <div className="bg-gold-dark/10 border border-gold-medium/30 rounded-md p-2 mt-2">
                                 <p className="text-[10px] sm:text-xs text-gray-300 leading-relaxed">
                                     ⚠️ <strong className="text-gold-light">{t('checkout.note', 'Note')}:</strong> {t('checkout.parcelow_note', 'Final amount will be calculated by Parcelow at checkout, including:')}
@@ -113,7 +114,7 @@ export const OrderSummary: React.FC<OrderSummaryProps> = ({
                         <Button
                             onClick={onPay}
                             disabled={!isPaymentReady || isSubmitting}
-                            className={`w-full font-bold min-h-12 h-auto py-3 px-2 text-sm sm:text-base whitespace-normal leading-tight ${paymentMethod === 'parcelow'
+                            className={`w-full font-bold min-h-12 h-auto py-3 px-2 text-sm sm:text-base whitespace-normal leading-tight ${isParcelowMethod(paymentMethod as any)
                                 ? '!bg-[#22c55e] hover:!bg-[#16a34a] text-white'
                                 : 'bg-gold-medium hover:bg-gold-light text-black'
                                 }`}
@@ -122,7 +123,7 @@ export const OrderSummary: React.FC<OrderSummaryProps> = ({
                                 t('checkout.processing', 'Processing...')
                             ) : (
                                 <div className="flex items-center justify-center gap-2 w-full">
-                                    {paymentMethod === 'parcelow' ? (
+                                    {isParcelowMethod(paymentMethod as any) ? (
                                         <>
                                             <CreditCard className="w-5 h-5 flex-shrink-0" />
                                             <span>{t('checkout.pay_with_parcelow', 'Pay with Parcelow')}</span>

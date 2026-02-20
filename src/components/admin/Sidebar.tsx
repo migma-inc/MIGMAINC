@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
-import { FileText, ClipboardList, LayoutDashboard, Phone, ShoppingCart, DollarSign, UserCircle2, Mail, FileCode, Calendar, X, Activity, Ticket, LinkIcon, ChevronDown, ChevronRight, GraduationCap } from 'lucide-react';
+import { FileText, ClipboardList, LayoutDashboard, Phone, ShoppingCart, DollarSign, UserCircle2, Mail, FileCode, Calendar, X, Activity, Ticket, LinkIcon, ChevronDown, ChevronRight, GraduationCap, UserPlus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useState, useEffect } from 'react';
 
@@ -20,11 +20,13 @@ export function Sidebar({ className, isMobileOpen = false, onMobileClose }: Side
     partnerContracts: number;
     visaApprovals: number;
     zelleApprovals: number;
+    orphanSales: number;
   }>({
     applications: 0,
     partnerContracts: 0,
     visaApprovals: 0,
-    zelleApprovals: 0
+    zelleApprovals: 0,
+    orphanSales: 0
   });
 
   const loadCounts = async () => {
@@ -119,11 +121,19 @@ export function Sidebar({ className, isMobileOpen = false, onMobileClose }: Side
         });
       }
 
+      // 5. Orphan Sales Count
+      const { count: orphanCount } = await supabase
+        .from('visa_orders')
+        .select('*', { count: 'exact', head: true })
+        .eq('payment_status', 'completed')
+        .or('seller_id.is.null,seller_id.eq.""');
+
       setCounts({
         applications: appCount || 0,
         partnerContracts: partnerCount || 0,
         visaApprovals: visaApprovalsCount,
-        zelleApprovals: unifiedPendingKeys.size
+        zelleApprovals: unifiedPendingKeys.size,
+        orphanSales: orphanCount || 0
       });
     } catch (err) {
       console.error('Error loading sidebar counts:', err);
@@ -191,6 +201,13 @@ export function Sidebar({ className, isMobileOpen = false, onMobileClose }: Side
       icon: UserCircle2,
       path: '/dashboard/sellers',
       exact: false,
+    },
+    {
+      title: 'Sync Sales',
+      icon: UserPlus,
+      path: '/dashboard/sync-sales',
+      exact: false,
+      badge: counts.orphanSales
     },
     {
       title: 'Vouchers & Coupons',
