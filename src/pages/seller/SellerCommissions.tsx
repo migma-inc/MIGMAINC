@@ -3,14 +3,9 @@ import { useOutletContext } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent } from '@/components/ui/tabs';
-import { Coins, CheckCircle, AlertCircle, RefreshCw } from 'lucide-react';
-import { type SellerCommission } from '@/lib/seller-commissions';
-import type { SellerPaymentRequest } from '@/types/seller';
-import { PaymentRequestTimer } from '@/components/seller/PaymentRequestTimer';
-import { PaymentRequestForm } from '@/components/seller/PaymentRequestForm';
+import { Coins, AlertCircle, RefreshCw } from 'lucide-react';
 import { useSellerStats } from '@/hooks/useSellerStats';
 
 interface SellerInfo {
@@ -40,7 +35,7 @@ export function SellerCommissions() {
   };
 
   // Use shared hook for stats
-  const { balance, totalReceived, refresh: refreshStats } = useSellerStats(seller?.seller_id_public);
+  const { refresh: refreshStats } = useSellerStats(seller?.seller_id_public);
 
   // Calculate total from the list to ensure it's always in sync with what's visible
   const totalInList = commissions.reduce((acc, item) => {
@@ -72,11 +67,6 @@ export function SellerCommissions() {
       window.removeEventListener('requestWindowStatusChange', handleWindowStatusChange);
     };
   }, [seller, refreshStats]);
-
-  // Temporary state for payment requests (commented logic)
-  const [paymentRequests] = useState<SellerPaymentRequest[]>([]);
-  const [submitting] = useState(false);
-  const [firstSaleDate] = useState<string | null>(null);
 
   // Cache utilities
   const getCacheKey = (key: string) => `seller_commissions_${seller?.seller_id_public}_${key}`;
@@ -162,7 +152,6 @@ export function SellerCommissions() {
     loadCommissions();
   }, [seller]);
 
-  const handleSubmitPaymentRequest = async (_formData: any) => Promise.resolve();
 
   const handleRefresh = async () => {
     if (!seller) return;
