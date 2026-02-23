@@ -62,7 +62,7 @@ export const QuantitySelector: React.FC<QuantitySelectorProps> = ({
                     value={extraUnits !== null ? String(extraUnits) : ''}
                     onValueChange={handleUnitsChange}
                 >
-                    <SelectTrigger className="bg-white text-black min-h-[44px]">
+                    <SelectTrigger id="extraUnits" className="bg-white text-black min-h-[44px]">
                         <SelectValue placeholder={t('checkout.select_quantity_placeholder', 'Select quantity')} />
                     </SelectTrigger>
                     <SelectContent>

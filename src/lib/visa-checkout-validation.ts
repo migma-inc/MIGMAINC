@@ -13,6 +13,7 @@ export interface Step1FormData {
   clientWhatsApp: string;
   maritalStatus: 'single' | 'married' | 'divorced' | 'widowed' | 'other' | '';
   extraUnits: number | null;
+  dependentNames?: string[];
 }
 
 export interface ValidationResult {
@@ -34,9 +35,14 @@ export interface ValidationResultWithFields {
  * Valida os dados do Step 1 (Personal Information)
  * @param formData Dados do formulário
  * @param productSlug Slug do produto para validação condicional
+ * @param allowExtraUnits Se o produto permite unidades extras (dependentes)
  * @returns Resultado da validação com mensagens de erro por campo
  */
-export function validateStep1(formData: Step1FormData, productSlug?: string): ValidationResultWithFields {
+export function validateStep1(
+  formData: Step1FormData,
+  productSlug?: string,
+  allowExtraUnits: boolean = false
+): ValidationResultWithFields {
   const errors: FieldErrors = {};
   const isSimplified = productSlug === 'consultation-common';
 
@@ -175,12 +181,24 @@ export function validateStep1(formData: Step1FormData, productSlug?: string): Va
     }
   }
 
-  // Mandatory Extra Units: only for non-simplified checkouts or specifically for RFE Defense
-  if (!isSimplified) {
+  // Mandatory Extra Units: only if the product allows extra units and is not simplified
+  if (!isSimplified && allowExtraUnits) {
     if (formData.extraUnits === null) {
       errors.extraUnits = 'checkout.error_extra_units_required';
-    } else if (productSlug === 'rfe-defense' && formData.extraUnits < 1) {
-      errors.extraUnits = 'At least 1 evidence must be selected for this service';
+    } else {
+      if (productSlug === 'rfe-defense' && formData.extraUnits < 1) {
+        errors.extraUnits = 'At least 1 evidence must be selected for this service';
+      }
+
+      // Validação dos nomes dos dependentes/evidências
+      if (formData.dependentNames && formData.dependentNames.length > 0) {
+        const emptyNames = formData.dependentNames.some(name => !name.trim());
+        if (emptyNames) {
+          errors.extraUnits = productSlug === 'rfe-defense'
+            ? 'Please fill in all evidence descriptions'
+            : 'Please fill in all dependent/applicant names';
+        }
+      }
     }
   }
 
