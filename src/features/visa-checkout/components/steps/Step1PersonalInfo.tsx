@@ -61,10 +61,11 @@ export const Step1PersonalInfo: React.FC<Step1Props> = ({ product, state, action
         const formData: Step1FormData = {
             clientName, clientEmail, dateOfBirth, documentType, documentNumber,
             addressLine, city, state: clientState, postalCode, clientCountry,
-            clientNationality, clientWhatsApp, maritalStatus, extraUnits
+            clientNationality, clientWhatsApp, maritalStatus, extraUnits,
+            dependentNames
         };
 
-        const validation = validateStep1(formData, productSlug);
+        const validation = validateStep1(formData, productSlug, product.allow_extra_units);
         if (!validation.valid) {
             setFieldErrors(validation.errors || {});
 
