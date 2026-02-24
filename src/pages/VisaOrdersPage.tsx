@@ -574,7 +574,7 @@ export const VisaOrdersPage = () => {
       let filteredOrders = orders;
 
       if (filterType === 'completed') {
-        filteredOrders = orders.filter(order => order.payment_status === 'completed');
+        filteredOrders = orders.filter(order => order.payment_status === 'completed' || order.payment_status === 'paid');
       } else if (filterType === 'pending') {
         filteredOrders = orders.filter(order => order.payment_status === 'pending');
       } else if (filterType === 'real') {

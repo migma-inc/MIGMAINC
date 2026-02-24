@@ -138,7 +138,7 @@ export async function exportVisaOrdersToExcel(orders: VisaOrder[]): Promise<void
         const dateValue = new Date(order.created_at);
 
         // Traduzir status se necessário, ou usar direto
-        const status = order.payment_status === 'completed' ? 'Pago' :
+        const status = (order.payment_status === 'completed' || order.payment_status === 'paid') ? 'Pago' :
             order.payment_status === 'pending' ? 'Pendente' :
                 order.payment_status;
 
@@ -168,7 +168,7 @@ export async function exportVisaOrdersToExcel(orders: VisaOrder[]): Promise<void
         statusCell.alignment = centerAlign as any;
         statusCell.border = borderStyle as any;
         // Cor condicional para status
-        if (order.payment_status === 'completed') {
+        if (order.payment_status === 'completed' || order.payment_status === 'paid') {
             statusCell.font = { color: { argb: 'FF00B050' }, bold: true }; // Verde
         } else if (order.payment_status === 'pending') {
             statusCell.font = { color: { argb: 'FFFFA500' }, bold: true }; // Laranja
