@@ -1312,6 +1312,7 @@ export function SellerLinks() {
                           .from('checkout_prefill_tokens')
                           .insert({
                             token,
+                            seller_id: seller?.seller_id_public,
                             product_slug: prefillFormData.productSlug,
                             client_data: {
                               clientName: prefillFormData.clientName,
@@ -1340,8 +1341,8 @@ export function SellerLinks() {
 
                         // Generate link
                         const siteUrl = window.location.origin;
-                        // When using prefill token, we don't need seller ID in the URL as it's included in the token
-                        const link = `${siteUrl}/checkout/visa/${prefillFormData.productSlug}?prefill=${token}`;
+                        const sellerParam = seller?.seller_id_public ? `&seller=${seller.seller_id_public}` : '';
+                        const link = `${siteUrl}/checkout/visa/${prefillFormData.productSlug}?prefill=${token}${sellerParam}`;
                         setGeneratedPrefillLink(link);
 
                         // Auto-copy to clipboard
@@ -1527,6 +1528,7 @@ export function SellerLinks() {
                                                 .from('checkout_prefill_tokens')
                                                 .insert({
                                                   token,
+                                                  seller_id: seller?.seller_id_public,
                                                   product_slug: product.slug,
                                                   client_data: {},
                                                   expires_at: expiresAt.toISOString(),
@@ -1535,7 +1537,8 @@ export function SellerLinks() {
                                               if (insertError) throw insertError;
 
                                               const siteUrl = window.location.origin;
-                                              const link = `${siteUrl}/checkout/visa/${product.slug}?prefill=${token}`;
+                                              const sellerParam = seller?.seller_id_public ? `&seller=${seller.seller_id_public}` : '';
+                                              const link = `${siteUrl}/checkout/visa/${product.slug}?prefill=${token}${sellerParam}`;
                                               setProductGeneratedLinks({
                                                 ...productGeneratedLinks,
                                                 [product.slug]: link,
@@ -1570,6 +1573,7 @@ export function SellerLinks() {
                                                 .from('checkout_prefill_tokens')
                                                 .insert({
                                                   token,
+                                                  seller_id: seller?.seller_id_public,
                                                   product_slug: product.slug,
                                                   client_data: {},
                                                   expires_at: expiresAt.toISOString(),
@@ -1578,7 +1582,8 @@ export function SellerLinks() {
                                               if (insertError) throw insertError;
 
                                               const siteUrl = window.location.origin;
-                                              const link = `${siteUrl}/checkout/contract/${product.slug}?prefill=${token}`;
+                                              const sellerParam = seller?.seller_id_public ? `&seller=${seller.seller_id_public}` : '';
+                                              const link = `${siteUrl}/checkout/contract/${product.slug}?prefill=${token}${sellerParam}`;
                                               setProductGeneratedLinks({
                                                 ...productGeneratedLinks,
                                                 [product.slug]: link,
@@ -1739,6 +1744,7 @@ export function SellerLinks() {
                                           .from('checkout_prefill_tokens')
                                           .insert({
                                             token,
+                                            seller_id: seller?.seller_id_public,
                                             product_slug: product.slug,
                                             client_data: {},
                                             expires_at: expiresAt.toISOString(),
@@ -1747,7 +1753,8 @@ export function SellerLinks() {
                                         if (insertError) throw insertError;
 
                                         const siteUrl = window.location.origin;
-                                        const link = `${siteUrl}/checkout/visa/${product.slug}?prefill=${token}`;
+                                        const sellerParam = seller?.seller_id_public ? `&seller=${seller.seller_id_public}` : '';
+                                        const link = `${siteUrl}/checkout/visa/${product.slug}?prefill=${token}${sellerParam}`;
                                         setProductGeneratedLinks({
                                           ...productGeneratedLinks,
                                           [product.slug]: link,
@@ -1782,6 +1789,7 @@ export function SellerLinks() {
                                           .from('checkout_prefill_tokens')
                                           .insert({
                                             token,
+                                            seller_id: seller?.seller_id_public,
                                             product_slug: product.slug,
                                             client_data: {},
                                             expires_at: expiresAt.toISOString(),
@@ -1790,7 +1798,8 @@ export function SellerLinks() {
                                         if (insertError) throw insertError;
 
                                         const siteUrl = window.location.origin;
-                                        const link = `${siteUrl}/checkout/contract/${product.slug}?prefill=${token}`;
+                                        const sellerParam = seller?.seller_id_public ? `&seller=${seller.seller_id_public}` : '';
+                                        const link = `${siteUrl}/checkout/contract/${product.slug}?prefill=${token}${sellerParam}`;
                                         setProductGeneratedLinks({
                                           ...productGeneratedLinks,
                                           [product.slug]: link,
