@@ -183,6 +183,9 @@ const OrderTableSection = ({
                         <span className={`text-[10px] ${feeAmount > 0 ? 'text-red-400' : 'text-zinc-600'}`}>
                           {feeAmount > 0 ? `-$${feeAmount.toFixed(2)} fee` : '$0.00 fee'}
                         </span>
+                        {order.extra_units && order.extra_units > 0 ? (
+                          <span className="text-blue-400">+{order.extra_units} dependent{order.extra_units > 1 ? 's' : ''}</span>
+                        ) : null}
                       </div>
                     )}
                   </td>
@@ -237,6 +240,9 @@ const OrderTableSection = ({
                   <div>
                     <p className="text-gray-400">{isSignatureOnly ? 'Value' : 'Total (with fee)'}</p>
                     <p className="text-gold-light font-bold">${totalPrice.toFixed(2)}</p>
+                    {order.extra_units && order.extra_units > 0 ? (
+                      <div className="text-[10px] text-blue-400 mt-1">+{order.extra_units} dependent{order.extra_units > 1 ? 's' : ''}</div>
+                    ) : null}
                   </div>
                   {!isSignatureOnly && (
                     <div>
