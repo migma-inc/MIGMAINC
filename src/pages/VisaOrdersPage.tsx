@@ -40,6 +40,7 @@ interface VisaOrder {
   is_hidden?: boolean;
   parcelow_status?: string;
   coupon_code?: string | null;
+  extra_units?: number;
 }
 
 // Helper function to calculate net amount and fee
@@ -212,6 +213,10 @@ const OrderTable = ({
                           <span className="text-[10px] uppercase font-bold tracking-wider">{order.coupon_code}</span>
                         </div>
                       )}
+
+                      {order.extra_units && order.extra_units > 0 ? (
+                        <span className="text-blue-400">+{order.extra_units} dependent{order.extra_units > 1 ? 's' : ''}</span>
+                      ) : null}
                     </div>
                   )}
                 </td>
@@ -389,6 +394,9 @@ const OrderTable = ({
                       <span className="text-[10px] uppercase font-bold tracking-wider">{order.coupon_code}</span>
                     </div>
                   )}
+                  {order.extra_units && order.extra_units > 0 ? (
+                    <div className="text-[10px] text-blue-400 mt-1">+{order.extra_units} dependent{order.extra_units > 1 ? 's' : ''}</div>
+                  ) : null}
                 </div>
                 {!isSignatureOnly && (
                   <div>
