@@ -73,7 +73,7 @@ export const SellerDashboard = () => {
   });
   const [generatedPrefillLink, setGeneratedPrefillLink] = useState<string | null>(null);
   const [prefillError, setPrefillError] = useState('');
-  
+
   // Dropdown state for service groups
   const [expandedServices, setExpandedServices] = useState<{ [key: string]: boolean }>({
     initial: true,
@@ -171,8 +171,8 @@ export const SellerDashboard = () => {
           const formCompleted = funnelData.filter(e => e.event_type === 'form_completed').length;
           const paymentStarted = funnelData.filter(e => e.event_type === 'payment_started').length;
           const paymentCompleted = funnelData.filter(e => e.event_type === 'payment_completed').length;
-          
-          const conversionRate = linkClicks > 0 
+
+          const conversionRate = linkClicks > 0
             ? ((paymentCompleted / linkClicks) * 100).toFixed(1)
             : '0.0';
 
@@ -202,13 +202,13 @@ export const SellerDashboard = () => {
 
   const copyLink = (productSlug: string) => {
     if (!seller) return;
-    
+
     const siteUrl = window.location.origin;
     const link = `${siteUrl}/checkout/visa/${productSlug}?seller=${seller.seller_id_public}`;
-    
+
     navigator.clipboard.writeText(link);
     setCopiedLink(link);
-    
+
     setTimeout(() => setCopiedLink(null), 3000);
   };
 
@@ -364,7 +364,7 @@ export const SellerDashboard = () => {
                   <div className="text-right">
                     <p className="text-2xl font-bold text-purple-300">{funnelStats.formStarted}</p>
                     <p className="text-xs text-gray-500">
-                      {funnelStats.linkClicks > 0 
+                      {funnelStats.linkClicks > 0
                         ? `${((funnelStats.formStarted / funnelStats.linkClicks) * 100).toFixed(1)}%`
                         : '0%'}
                     </p>
@@ -383,7 +383,7 @@ export const SellerDashboard = () => {
                   <div className="text-right">
                     <p className="text-2xl font-bold text-indigo-300">{funnelStats.formCompleted}</p>
                     <p className="text-xs text-gray-500">
-                      {funnelStats.linkClicks > 0 
+                      {funnelStats.linkClicks > 0
                         ? `${((funnelStats.formCompleted / funnelStats.linkClicks) * 100).toFixed(1)}%`
                         : '0%'}
                     </p>
@@ -402,7 +402,7 @@ export const SellerDashboard = () => {
                   <div className="text-right">
                     <p className="text-2xl font-bold text-orange-300">{funnelStats.paymentStarted}</p>
                     <p className="text-xs text-gray-500">
-                      {funnelStats.linkClicks > 0 
+                      {funnelStats.linkClicks > 0
                         ? `${((funnelStats.paymentStarted / funnelStats.linkClicks) * 100).toFixed(1)}%`
                         : '0%'}
                     </p>
@@ -421,7 +421,7 @@ export const SellerDashboard = () => {
                   <div className="text-right">
                     <p className="text-2xl font-bold text-green-300">{funnelStats.paymentCompleted}</p>
                     <p className="text-xs text-gray-500">
-                      {funnelStats.linkClicks > 0 
+                      {funnelStats.linkClicks > 0
                         ? `${((funnelStats.paymentCompleted / funnelStats.linkClicks) * 100).toFixed(1)}%`
                         : '0%'}
                     </p>
@@ -713,7 +713,7 @@ export const SellerDashboard = () => {
                   }
 
                   setPrefillError('');
-                  
+
                   // Generate token and create prefill record
                   try {
                     const token = crypto.randomUUID();
@@ -784,6 +784,8 @@ export const SellerDashboard = () => {
                   initial: { name: 'INITIAL Application', products: [] },
                   cos: { name: 'Change of Status (COS)', products: [] },
                   transfer: { name: 'TRANSFER', products: [] },
+                  eb2: { name: 'EB-2 Program', products: [] },
+                  eb3: { name: 'EB-3 Program', products: [] },
                   other: { name: 'Other Services', products: [] },
                 };
 
@@ -794,6 +796,10 @@ export const SellerDashboard = () => {
                     serviceGroups.cos.products.push(product);
                   } else if (product.slug.startsWith('transfer-')) {
                     serviceGroups.transfer.products.push(product);
+                  } else if (product.slug.startsWith('eb2-') && product.name !== 'U.S. Visa EB-2 (Main applicant)') {
+                    serviceGroups.eb2.products.push(product);
+                  } else if (product.slug.startsWith('eb3-') && product.name !== 'U.S. Visa EB-3 (Main applicant)') {
+                    serviceGroups.eb3.products.push(product);
                   } else {
                     serviceGroups.other.products.push(product);
                   }
@@ -814,7 +820,7 @@ export const SellerDashboard = () => {
 
                   const sortedProducts = sortProducts(group.products);
                   const paymentLabels = ['Selection Process', 'Scholarship', 'I-20 Control'];
-                  const isServiceGroup = ['initial', 'cos', 'transfer'].includes(key);
+                  const isServiceGroup = ['initial', 'cos', 'transfer', 'eb2', 'eb3'].includes(key);
                   const isExpanded = expandedServices[key] ?? false;
 
                   // For INITIAL, COS, TRANSFER - use dropdown
@@ -848,7 +854,9 @@ export const SellerDashboard = () => {
                               const link = `${window.location.origin}/checkout/visa/${product.slug}?seller=${seller.seller_id_public}`;
                               const isCopied = copiedLink === link;
                               const paymentNumber = index + 1;
-                              const paymentLabel = paymentLabels[index] || `Payment ${paymentNumber}`;
+                              const paymentLabel = key === 'eb2' || key === 'eb3' || key === 'other'
+                                ? product.name
+                                : (paymentLabels[index] || `Payment ${paymentNumber}`);
 
                               return (
                                 <div
@@ -873,11 +881,10 @@ export const SellerDashboard = () => {
                                   <Button
                                     onClick={() => copyLink(product.slug)}
                                     size="sm"
-                                    className={`ml-4 ${
-                                      isCopied
+                                    className={`ml-4 ${isCopied
                                         ? 'bg-green-500 hover:bg-green-600'
                                         : 'bg-gold-medium hover:bg-gold-light'
-                                    } text-black`}
+                                      } text-black`}
                                   >
                                     {isCopied ? (
                                       <>
@@ -919,11 +926,10 @@ export const SellerDashboard = () => {
                             <Button
                               onClick={() => copyLink(product.slug)}
                               size="sm"
-                              className={`ml-4 ${
-                                isCopied
+                              className={`ml-4 ${isCopied
                                   ? 'bg-green-500 hover:bg-green-600'
                                   : 'bg-gold-medium hover:bg-gold-light'
-                              } text-black`}
+                                } text-black`}
                             >
                               {isCopied ? (
                                 <>
@@ -1011,9 +1017,9 @@ export const SellerDashboard = () => {
                               </Button>
                             </Link>
                             {order.annex_pdf_url && (
-                              <Button 
-                                size="sm" 
-                                variant="outline" 
+                              <Button
+                                size="sm"
+                                variant="outline"
                                 onClick={() => {
                                   setSelectedPdfUrl(order.annex_pdf_url);
                                   setSelectedPdfTitle(`ANNEX I - ${order.order_number}`);
@@ -1025,9 +1031,9 @@ export const SellerDashboard = () => {
                               </Button>
                             )}
                             {order.contract_pdf_url && (
-                              <Button 
-                                size="sm" 
-                                variant="outline" 
+                              <Button
+                                size="sm"
+                                variant="outline"
                                 onClick={() => {
                                   setSelectedPdfUrl(order.contract_pdf_url);
                                   setSelectedPdfTitle(`Contract - ${order.order_number}`);
