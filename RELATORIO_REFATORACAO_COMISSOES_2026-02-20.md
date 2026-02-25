@@ -32,3 +32,98 @@ O objetivo principal de hoje foi transformar a página de comissões do vendedor
 **Melhorias Futuras Sugeridas**:
 1. Recalcular as comissões retroativas via SQL para limpar os dados indevidos de consultas no banco de dados.
 2. Adicionar filtros por data ou tipo de produto para facilitar a navegação em volumes maiores de vendas.
+
+---
+
+# Relatório de Atividades — 23 de Fevereiro de 2026
+
+---
+
+## 1. Correção de Bug: `seller_id` Ausente nos Links de Checkout (`SellerLinks.tsx`)
+
+**Problema identificado:** Ao gerar links via o Dashboard do Vendedor (Quick Client Setup, Get Pay Link, Sign Link), o `seller_id` **não estava sendo salvo** na tabela `checkout_prefill_tokens`. Isso fazia com que os links gerados ficassem sem atribuição de vendedor, aparecendo como "venda direta" ao invés de serem vinculados ao vendedor correto.
+
+**Causa raiz:** O campo `seller_id` foi omitido nos `INSERT` da tabela `checkout_prefill_tokens` durante uma refatoração anterior do fluxo de checkout.
+
+**Correções aplicadas em `src/pages/seller/SellerLinks.tsx`:**
+
+| Seção | O que foi corrigido |
+|---|---|
+| Quick Client Setup (formulário completo) | Adicionado `seller_id: seller?.seller_id_public` no INSERT |
+| Get Pay Link (produto individual — dropdown) | Adicionado `seller_id: seller?.seller_id_public` no INSERT |
+| Sign Link (contrato individual — dropdown) | Adicionado `seller_id: seller?.seller_id_public` no INSERT |
+| Get Pay Link (produto individual — lista expandida) | Adicionado `seller_id: seller?.seller_id_public` no INSERT |
+| Sign Link (contrato individual — lista expandida) | Adicionado `seller_id: seller?.seller_id_public` no INSERT |
+
+**Redundância adicional nos links gerados:** Todos os links passaram a incluir `&seller=[ID]` na URL como caminho alternativo de atribuição, caso o token expire ou o parâmetro seja necessário para rastreamento de funil.
+
+**Resultado:** Links gerados por vendedores agora atribuem corretamente o `seller_id` tanto no banco de dados (via token) quanto na URL (via parâmetro).
+
+---
+
+## 2. Correção Manual de Registro de Cliente — Isabella Cristina
+
+**Contexto:** Cliente **Isabella Cristina Andrade de Souza Dias** (`iandradedesouzadias@gmail.com`) tinha um pedido no produto `cos-selection-process` com método de pagamento `manual` e status mal configurado, impedindo que seu pedido fosse incluído nos relatórios financeiros e no export Excel.
+
+### Correções no banco de dados (`visa_orders`):
+
+| Campo | Antes | Depois |
+|---|---|---|
+| `payment_method` | `manual` | `zelle` |
+| `payment_status` | `paid` | `paid` (mantido) |
+
+**Pedido:** `ORD-MAN-20260219-4282` — ID: `4e1ff050-120b-49ce-8473-c25f466b3527`
+
+### Correções no banco de dados (`service_requests`):
+
+| Campo | Antes | Depois |
+|---|---|---|
+| `status` | `pending_payment` | `paid` |
+| `payment_method` | `null` | `zelle` |
+| `seller_id` | `null` | `LARISSA_COSTA` |
+
+**Service Request ID:** `1c7941dd-2e28-4eee-9f94-3e3da3633fa7`
+
+**Verificação de comissão:** Confirmado que a comissão de `$2.00` (0,5% sobre $400,00) já estava corretamente vinculada a `LARISSA_COSTA` na tabela `seller_commissions`.
+
+---
+
+## 3. Correção: Export Excel Ignorava Pedidos com Status `'paid'`
+
+**Problema identificado:** O botão **"Apenas Pagos"** no export Excel do admin (`VisaOrdersPage`) filtrava apenas pedidos com `payment_status = 'completed'`. Pedidos com status `'paid'` (como o da Isabella) eram silenciosamente excluídos do relatório.
+
+**Correções aplicadas:**
+
+### `src/pages/VisaOrdersPage.tsx` — Filtro do export:
+```ts
+// Antes:
+filteredOrders = orders.filter(order => order.payment_status === 'completed');
+
+// Depois:
+filteredOrders = orders.filter(order => order.payment_status === 'completed' || order.payment_status === 'paid');
+```
+
+### `src/lib/visaOrdersExport.ts` — Texto e cor no Excel:
+- **Texto**: Status `'paid'` agora aparece como **"Pago"** (antes aparecia como o valor bruto `paid`).
+- **Cor**: Célula de status com `'paid'` agora recebe a cor **verde** (`#00B050`), igual ao `'completed'`.
+
+**Resultado:** Todos os pedidos com pagamento confirmado — independentemente de o status ser `'completed'` ou `'paid'` — agora aparecem corretamente no export Excel.
+
+---
+
+## 4. Arquivos HTML de Onboarding — Upload e Export em PDF
+
+Três arquivos de onboarding foram padronizados, movidos para `public/onboarding/` e receberam funcionalidade de **exportar para PDF** via botão dedicado com o script `pipeline-pdf-handler.js`.
+
+| Nome do Arquivo | Rota | Público-Alvo |
+|---|---|---|
+| `clickup-manager.html` | `/onboarding/clickup-manager.html` | Gestores de ClickUp / Migma |
+| `head-of-sales.html` | `/onboarding/head-of-sales.html` | Head of Sales |
+| `visa-ops.html` | `/onboarding/visa-ops.html` | Time de Operações Visa |
+
+**Funcionalidades adicionadas em cada arquivo:**
+- Botão de **Download PDF** integrado ao topo da página
+- Script `pipeline-pdf-handler.js` incluído para controlar o comportamento de exportação
+- Chave única de `localStorage` por arquivo para o sistema de checklist (evita conflito entre páginas)
+- Tema visual padronizado: **preto e dourado premium**
+
