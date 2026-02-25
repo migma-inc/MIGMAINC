@@ -1386,6 +1386,7 @@ export function SellerLinks() {
                     initial: { name: 'INITIAL Application', products: [] },
                     cos: { name: 'Change of Status (COS)', products: [] },
                     transfer: { name: 'TRANSFER', products: [] },
+                    eb2: { name: 'EB-2 Program', products: [] },
                     eb3: { name: 'EB-3 Program', products: [] },
                     other: { name: 'Other Services', products: [] },
                   };
@@ -1397,6 +1398,8 @@ export function SellerLinks() {
                       serviceGroups.cos.products.push(product);
                     } else if (product.slug.startsWith('transfer-')) {
                       serviceGroups.transfer.products.push(product);
+                    } else if (product.slug.startsWith('eb2-') && product.name !== 'U.S. Visa EB-2 (Main applicant)') {
+                      serviceGroups.eb2.products.push(product);
                     } else if (product.slug.startsWith('eb3-') && product.name !== 'U.S. Visa EB-3 (Main applicant)') {
                       serviceGroups.eb3.products.push(product);
                     } else {
@@ -1436,7 +1439,7 @@ export function SellerLinks() {
                     if (group.products.length === 0) return null;
 
                     const sortedProducts = sortProducts(group.products, key);
-                    const isServiceGroup = ['initial', 'cos', 'transfer', 'eb3'].includes(key);
+                    const isServiceGroup = ['initial', 'cos', 'transfer', 'eb2', 'eb3'].includes(key);
                     const isExpanded = expandedServices[key] ?? false;
 
                     // For INITIAL, COS, TRANSFER - use dropdown
@@ -1470,7 +1473,7 @@ export function SellerLinks() {
                                 const isCopied = copiedLink === productGeneratedLinks[product.slug];
                                 const paymentNumber = index + 1;
                                 // Use mapped label for Initial/COS/Transfer, but actual names for EB-3 and others
-                                const paymentLabel = key === 'eb3' || key === 'other'
+                                const paymentLabel = key === 'eb2' || key === 'eb3' || key === 'other'
                                   ? product.name
                                   : (paymentLabels[index] || `Payment ${paymentNumber}`);
                                 const basePrice = parseFloat(product.base_price_usd || '0');
