@@ -143,6 +143,9 @@ Deno.serve(async (req: Request) => {
       upsell_contract_template_id,
       contract_template_id,
       billing_installment_id,
+      payer_info,
+      coupon_code,
+      discount_amount,
     } = body;
 
     // Validate extra_units
@@ -237,6 +240,13 @@ Deno.serve(async (req: Request) => {
     const upsellPrice = upsell_product_slug === 'canada-tourist-premium' ? 399 : (upsell_product_slug === 'canada-tourist-revolution' ? 199 : 0);
     const mainProductPrice = totalBeforeFees;
     totalBeforeFees += upsellPrice;
+
+    // Apply discount if provided
+    const discountAmountNum = parseFloat(discount_amount) || 0;
+    if (discountAmountNum > 0) {
+      console.log(`[Checkout] Applying discount: $${discountAmountNum} USD (Coupon: ${coupon_code})`);
+      totalBeforeFees = Math.max(0, totalBeforeFees - discountAmountNum);
+    }
 
     // Validate total before fees
     if (isNaN(totalBeforeFees) || totalBeforeFees <= 0) {
@@ -372,6 +382,8 @@ Deno.serve(async (req: Request) => {
       service_request_id: serviceRequestIdToUse || "",
       anti_chargeback: "enabled",
       billing_installment_id: billing_installment_id || "",
+      coupon_code: coupon_code || "",
+      discount_amount: discountAmountNum.toString(),
     };
 
     // Create Stripe checkout session FIRST (before creating order)
@@ -398,10 +410,20 @@ Deno.serve(async (req: Request) => {
         cancel_url: `${siteUrl}/checkout/cancel`,
         customer_email: client_email,
         metadata: antiChargebackMetadata,
-        // Basic anti-fraud settings (work automatically, no dashboard config needed)
-        billing_address_collection: "required", // Require billing address
+        // Customized Branding (Black & Gold)
+        branding_settings: {
+          display_name: "Migma Inc",
+          background_color: "#000000",
+          button_color: "#CE9F48",
+          logo: {
+            type: "url",
+            url: `${siteUrl}/logo2.png`,
+          },
+        },
+        // Basic anti-fraud settings
+        billing_address_collection: "required",
         phone_number_collection: {
-          enabled: true, // Collect phone number for verification
+          enabled: true,
         },
       });
     } catch (stripeError: any) {
@@ -488,8 +510,11 @@ Deno.serve(async (req: Request) => {
           payment_id: paymentData?.id || null,
           has_upsell: !!upsell_product_slug,
           billing_installment_id: billing_installment_id || null,
+          payer_info: payer_info || null,
         },
         contract_template_id: contract_template_id || null,
+        coupon_code: coupon_code || null,
+        discount_amount: discountAmountNum || 0,
       })
       .select()
       .single();
@@ -595,7 +620,7 @@ Deno.serve(async (req: Request) => {
     return new Response(
       JSON.stringify({
         success: true,
-        checkout_url: session.url,
+        url: session.url,
         session_id: session.id,
         order_id: order.id,
         order_number: orderNumber,

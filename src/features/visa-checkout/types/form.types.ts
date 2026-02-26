@@ -125,6 +125,10 @@ export interface VisaCheckoutState {
     // Scholarship Maintenance Fee
     scholarshipScheduleId: string | null;
     scholarshipLateFee: number;
+
+    // Geolocation for payment restrictions
+    isBrazil: boolean;
+    loadingLocation: boolean;
 }
 
 export interface VisaCheckoutActions {
@@ -203,4 +207,8 @@ export interface VisaCheckoutActions {
     // Scholarship Maintenance Fee
     setScholarshipScheduleId: (val: string | null) => void;
     setScholarshipLateFee: (val: number) => void;
+
+    // Geolocation
+    setIsBrazil: (val: boolean) => void;
+    setLoadingLocation: (val: boolean) => void;
 }

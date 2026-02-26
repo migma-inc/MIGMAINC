@@ -149,7 +149,9 @@ async function processSplitPaymentWebhook(
 
     // 🔍 Test User Detection
     const isTestUser = mainOrder.client_email?.toLowerCase() === 'victuribdev@gmail.com' ||
-      mainOrder.client_name?.toLowerCase().includes('paulo victor');
+      mainOrder.client_email?.toLowerCase() === 'victtinho.ribeiro@gmail.com' ||
+      mainOrder.client_name?.toLowerCase().includes('paulo victor') ||
+      mainOrder.client_name?.toLowerCase().includes('paulo víctor');
 
     if (isTestUser) {
       console.log(`[parcelow-webhook] 🧪 Usuário de teste detectado: ${mainOrder.client_email}. Marcando como teste.`);
@@ -499,7 +501,9 @@ async function processParcelowWebhookEvent(event: ParcelowWebhookEvent, supabase
 
     // 🔍 Test User Detection
     const isTestUser = mainOrder.client_email?.toLowerCase() === 'victuribdev@gmail.com' ||
-      mainOrder.client_name?.toLowerCase().includes('paulo victor');
+      mainOrder.client_email?.toLowerCase() === 'victtinho.ribeiro@gmail.com' ||
+      mainOrder.client_name?.toLowerCase().includes('paulo victor') ||
+      mainOrder.client_name?.toLowerCase().includes('paulo víctor');
 
     if (isTestUser) {
       console.log(`[parcelow-webhook] 🧪 Usuário de teste detectado: ${mainOrder.client_email}. Marcando como teste.`);

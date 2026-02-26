@@ -96,6 +96,10 @@ export const useVisaCheckoutForm = () => {
     const [scholarshipScheduleId, setScholarshipScheduleId] = useState<string | null>(null);
     const [scholarshipLateFee, setScholarshipLateFee] = useState<number>(0);
 
+    // Geolocation
+    const [isBrazil, setIsBrazil] = useState(false);
+    const [loadingLocation, setLoadingLocation] = useState(true);
+
     const state: VisaCheckoutState = {
         currentStep,
         loading,
@@ -156,6 +160,8 @@ export const useVisaCheckoutForm = () => {
         scholarshipScheduleId,
         scholarshipLateFee,
         payerInfo,
+        isBrazil,
+        loadingLocation,
     };
 
     const actions: VisaCheckoutActions = useMemo(() => ({
@@ -218,6 +224,8 @@ export const useVisaCheckoutForm = () => {
         setScholarshipScheduleId,
         setScholarshipLateFee,
         setPayerInfo,
+        setIsBrazil,
+        setLoadingLocation,
     }), []);
 
     return { state, actions };

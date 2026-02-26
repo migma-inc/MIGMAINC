@@ -55,6 +55,7 @@
         "confirm_zelle_payment": "Confirm Zelle Payment",
         "confirm_sign_contract": "Confirm & Sign Contract",
         "pay_now": "Pay Now",
+        "stripe_fee_notice": "* Processing fees included in the total.",
         "legally_verified": "Legally verified",
         "secure_payment": "100% Secure Payment",
         "step_1_title": "Step 1: Personal Information",
