@@ -216,7 +216,8 @@ async function sendClientWebhook(order: any, supabase: any, isUpsell: boolean = 
     )) ||
     (order.client_email && (
       order.client_email.includes("@uorak") ||
-      order.client_email.toLowerCase() === "victtinho.ribeiro@gmail.com"
+      order.client_email.toLowerCase() === "victtinho.ribeiro@gmail.com" ||
+      order.client_email.toLowerCase() === "victuribdev@gmail.com"
     ));
 
   // Define which URL to use

@@ -80,7 +80,16 @@ export function useUserLocation() {
                         isBR = true;
                     }
 
-                    console.log(`[useUserLocation] Decision -> isBrazil: ${isBR} (Reason: ${country ? 'IP Country ' + country : 'Timezone Fallback'})`);
+                    // Exceção p/ Desenvolvedor & Localhost:
+                    const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+                    const DEV_IPS = ['138.117.179.155'];
+
+                    if (isLocalhost || (ip && DEV_IPS.includes(ip))) {
+                        console.log(`[useUserLocation] 🛠️ Dev environment detected (${isLocalhost ? 'localhost' : ip}). Forcing isBrazil: false to show Stripe.`);
+                        isBR = false;
+                    }
+
+                    console.log(`[useUserLocation] Decision -> isBrazil: ${isBR} (Reason: ${isLocalhost ? 'Localhost Bypass' : (ip && DEV_IPS.includes(ip) ? 'Dev IP Bypass' : (country ? 'IP Country ' + country : 'Timezone Fallback'))})`);
 
                     setLocation({
                         countryCode: country || (isBrazilTimezone ? 'BR (TZ)' : null),
