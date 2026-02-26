@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { adminSupabase } from '@/lib/auth';
+import { formatCurrency } from '@/lib/utils';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -173,11 +174,11 @@ const OrderTableSection = ({
                                         </Badge>
                                     </td>
                                     <td className={`py-3 px-4 text-sm font-bold ${isSignatureOnly ? 'text-blue-400' : 'text-gold-light'}`}>
-                                        <div>${totalPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                                        <div>{formatCurrency(totalPrice)}</div>
                                         {!isSignatureOnly && (
                                             <div className="text-[10px] font-normal mt-0.5 flex flex-col gap-0.5">
                                                 <span className={`text-[10px] ${feeAmount > 0 ? 'text-red-400' : 'text-zinc-600'}`}>
-                                                    {feeAmount > 0 ? `-$${feeAmount.toFixed(2)} fee` : '$0.00 fee'}
+                                                    {feeAmount > 0 ? `-${formatCurrency(feeAmount)} fee` : '$0.00 fee'}
                                                 </span>
                                                 {order.extra_units && order.extra_units > 0 ? (
                                                     <span className="text-blue-400">+{order.extra_units} dependent{order.extra_units > 1 ? 's' : ''}</span>
@@ -187,7 +188,7 @@ const OrderTableSection = ({
                                     </td>
                                     {!isSignatureOnly && (
                                         <td className="py-3 px-4 text-sm text-white font-semibold">
-                                            ${netAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                            {formatCurrency(netAmount)}
                                         </td>
                                     )}
                                     <td className="py-3 px-4">
@@ -235,7 +236,7 @@ const OrderTableSection = ({
                                     </div>
                                     <div>
                                         <p className="text-gray-400">{isSignatureOnly ? 'Value' : 'Total (with fee)'}</p>
-                                        <p className="text-gold-light font-bold">${totalPrice.toFixed(2)}</p>
+                                        <p className="text-gold-light font-bold">{formatCurrency(totalPrice)}</p>
                                         {order.extra_units && order.extra_units > 0 ? (
                                             <div className="text-[10px] text-blue-400 mt-1">+{order.extra_units} dependent{order.extra_units > 1 ? 's' : ''}</div>
                                         ) : null}
@@ -243,7 +244,7 @@ const OrderTableSection = ({
                                     {!isSignatureOnly && (
                                         <div>
                                             <p className="text-gray-400">Net Amount</p>
-                                            <p className="text-white font-semibold">${netAmount.toFixed(2)}</p>
+                                            <p className="text-white font-semibold">{formatCurrency(netAmount)}</p>
                                         </div>
                                     )}
                                     {!isSignatureOnly && (

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { formatCurrency } from '@/lib/utils';
 import { useOutletContext } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import { Card, CardContent } from '@/components/ui/card';
@@ -222,7 +223,7 @@ export function SellerCommissions() {
               <div className="flex-1 min-w-0">
                 <p className="text-[10px] font-bold text-gold-light/60 uppercase tracking-wider mb-0.5">Total Accumulated</p>
                 <p className="text-2xl font-black text-white migma-gold-text">
-                  ${totalInList.toFixed(2)}
+                  {formatCurrency(totalInList)}
                 </p>
               </div>
             </div>
@@ -298,7 +299,7 @@ export function SellerCommissions() {
                             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-4 text-xs sm:text-sm pt-2 border-t border-white/5">
                               <div>
                                 <span className="text-gray-400">Net Amount:</span>
-                                <span className="text-white ml-2">${commission.net_amount_usd.toFixed(2)}</span>
+                                <span className="text-white ml-2">{formatCurrency(commission.net_amount_usd)}</span>
                               </div>
                               <div>
                                 <span className="text-gray-400">Percentage:</span>
@@ -307,7 +308,7 @@ export function SellerCommissions() {
                               <div>
                                 <span className="text-gray-400">Value:</span>
                                 <span className="text-gold-light font-bold ml-2">
-                                  ${commission.commission_amount_usd.toFixed(2)}
+                                  {formatCurrency(commission.commission_amount_usd)}
                                 </span>
                               </div>
                             </div>

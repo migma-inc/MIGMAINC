@@ -4,6 +4,7 @@ import { adminSupabase } from '@/lib/auth';
 import { calculateNetAmount } from '@/lib/seller-commissions';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { formatCurrency } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ConfirmModal } from '@/components/ui/confirm-modal';
@@ -447,7 +448,7 @@ export const SellersPage = () => {
                   <div>
                     <p className="text-xs sm:text-sm text-gray-400 mb-1">Total Revenue</p>
                     <p className="text-xl sm:text-2xl font-bold text-green-300">
-                      ${summaryStats.totalRevenue.toFixed(2)}
+                      {formatCurrency(summaryStats.totalRevenue)}
                     </p>
                   </div>
                   <DollarSign className="w-8 h-8 sm:w-10 sm:h-10 text-green-400 shrink-0" />
@@ -461,7 +462,7 @@ export const SellersPage = () => {
                   <div>
                     <p className="text-xs sm:text-sm text-gray-400 mb-1">Total Commissions</p>
                     <p className="text-xl sm:text-2xl font-bold text-purple-300">
-                      ${summaryStats.totalCommissions.toFixed(2)}
+                      {formatCurrency(summaryStats.totalCommissions)}
                     </p>
                   </div>
                   <Coins className="w-8 h-8 sm:w-10 sm:h-10 text-purple-400 shrink-0" />
@@ -478,7 +479,7 @@ export const SellersPage = () => {
                       {summaryStats.totalPendingRequests}
                     </p>
                     <p className="text-xs text-gray-500 mt-1">
-                      ${summaryStats.totalPendingRequestsAmount.toFixed(2)}
+                      {formatCurrency(summaryStats.totalPendingRequestsAmount)}
                     </p>
                   </div>
                   <Clock className="w-8 h-8 sm:w-10 sm:h-10 text-yellow-400 shrink-0" />
@@ -529,7 +530,7 @@ export const SellersPage = () => {
                           </div>
                         </div>
                         <div className="text-right shrink-0">
-                          <p className="text-gold-light font-bold">${stats.totalRevenue.toFixed(2)}</p>
+                          <p className="text-gold-light font-bold">{formatCurrency(stats.totalRevenue)}</p>
                           <p className="text-xs text-gray-500">{stats.paidOrders} orders</p>
                         </div>
                       </div>
@@ -577,9 +578,9 @@ export const SellersPage = () => {
                           </div>
                         </div>
                         <div className="text-right shrink-0">
-                          <p className="text-purple-300 font-bold">${stats.totalCommissions.toFixed(2)}</p>
+                          <p className="text-purple-300 font-bold">{formatCurrency(stats.totalCommissions)}</p>
                           <p className="text-xs text-gray-500">
-                            ${stats.balance.available_balance.toFixed(2)} available
+                            {formatCurrency(stats.balance.available_balance)} available
                           </p>
                         </div>
                       </div>
@@ -704,7 +705,7 @@ export const SellersPage = () => {
                           <span className="text-xs sm:text-sm text-gray-400">Revenue</span>
                         </div>
                         <p className="text-lg sm:text-xl font-bold text-green-300">
-                          ${stats.totalRevenue.toFixed(2)}
+                          {formatCurrency(stats.totalRevenue)}
                         </p>
                       </div>
 
@@ -715,7 +716,7 @@ export const SellersPage = () => {
                           <span className="text-xs sm:text-sm text-gray-400">Commissions</span>
                         </div>
                         <p className="text-lg sm:text-xl font-bold text-purple-300">
-                          ${stats.totalCommissions.toFixed(2)}
+                          {formatCurrency(stats.totalCommissions)}
                         </p>
                       </div>
 
@@ -726,7 +727,7 @@ export const SellersPage = () => {
                           <span className="text-xs sm:text-sm text-gray-400">Available</span>
                         </div>
                         <p className="text-lg sm:text-xl font-bold text-blue-300">
-                          ${stats.balance.available_balance.toFixed(2)}
+                          {formatCurrency(stats.balance.available_balance)}
                         </p>
                       </div>
 
@@ -737,7 +738,7 @@ export const SellersPage = () => {
                           <span className="text-xs sm:text-sm text-gray-400">Pending</span>
                         </div>
                         <p className="text-lg sm:text-xl font-bold text-yellow-300">
-                          ${stats.balance.pending_balance.toFixed(2)}
+                          {formatCurrency(stats.balance.pending_balance)}
                         </p>
                         {stats.balance.next_withdrawal_date && (
                           <p className="text-xs text-gray-500 mt-1">
@@ -839,14 +840,14 @@ export const SellersPage = () => {
                                       </td>
                                       <td className="py-3 px-4 text-sm text-white">{order.product_slug}</td>
                                       <td className="py-3 px-4 text-sm text-gold-light font-bold">
-                                        ${parseFloat(order.total_price_usd || '0').toFixed(2)}
+                                        {formatCurrency(order.total_price_usd)}
                                       </td>
                                       <td className="py-3 px-4 text-sm text-white font-semibold">
-                                        ${netAmount.toFixed(2)}
+                                        {formatCurrency(netAmount)}
                                       </td>
                                       <td className="py-3 px-4 text-sm text-gray-400">
                                         {feeAmount > 0 ? (
-                                          <span className="text-red-400">-${feeAmount.toFixed(2)}</span>
+                                          <span className="text-red-400">-{formatCurrency(feeAmount)}</span>
                                         ) : (
                                           <span className="text-gray-500">$0.00</span>
                                         )}
