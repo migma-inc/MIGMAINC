@@ -94,6 +94,11 @@ export const usePaymentHandlers = (
                     return false;
                 }
             }
+        } else if (paymentMethod === 'card') {
+            if (!creditCardName) {
+                setError('Please enter the name exactly as it appears on your card');
+                return false;
+            }
         } else if (paymentMethod === 'parcelow_pix' || paymentMethod === 'parcelow_ted') {
             // PIX / TED: só exige CPF
             if (!validateCPF(cpf)) {
@@ -212,6 +217,9 @@ export const usePaymentHandlers = (
                 upsell_product_slug: state.selectedUpsell === 'none' ? null : (state.selectedUpsell === 'canada-premium' ? 'canada-tourist-premium' : 'canada-tourist-revolution') as any,
                 upsell_contract_template_id: state.upsellContractTemplate?.id,
                 billing_installment_id: billingInstallmentId,
+                payer_info: state.payerInfo,
+                coupon_code: couponCode,
+                discount_amount: discountAmount,
             };
 
             const response = await StripeService.createCheckoutSession(request);
@@ -220,7 +228,7 @@ export const usePaymentHandlers = (
             setError(err instanceof Error ? err.message : 'Stripe payment failed');
             setSubmitting(false);
         }
-    }, [productSlug, sellerId, totalWithFees, extraUnits, serviceRequestId, clientName, clientEmail, clientWhatsApp, validateStep3, documentFiles, hasExistingContract, existingContractData, dependentNames, clientCountry, clientNationality, clientObservations, exchangeRate, contractTemplate, setSubmitting, setError, state.submitting, state.selectedUpsell, state.upsellContractTemplate]);
+    }, [productSlug, sellerId, totalWithFees, extraUnits, serviceRequestId, clientName, clientEmail, clientWhatsApp, validateStep3, documentFiles, hasExistingContract, existingContractData, dependentNames, clientCountry, clientNationality, clientObservations, exchangeRate, contractTemplate, setSubmitting, setError, state.submitting, state.selectedUpsell, state.upsellContractTemplate, couponCode, discountAmount, billingInstallmentId]);
 
     const handleZellePayment = useCallback(async () => {
         if (state.submitting) return;

@@ -128,18 +128,41 @@ async function processSuccessfulSession(session: Stripe.Checkout.Session, supaba
     } catch (e) { }
   }
 
-  // 4. Generate PDFs for each order
+  // 4. 🔍 Test User Detection
+  const isTestUser = mainOrder.client_email?.toLowerCase() === 'victuribdev@gmail.com' ||
+    mainOrder.client_email?.toLowerCase() === 'victtinho.ribeiro@gmail.com' ||
+    mainOrder.client_name?.toLowerCase().includes('paulo victor') ||
+    mainOrder.client_name?.toLowerCase().includes('paulo víctor') ||
+    mainOrder.client_email?.toLowerCase().includes('@uorak');
+
+  if (isTestUser) {
+    console.log(`[Webhook] 🧪 Usuário de teste detectado: ${mainOrder.client_email}. Marcando como teste.`);
+    await supabase.from('visa_orders').update({ is_test: true }).eq('id', mainOrder.id);
+  }
+
+  // 5. 📄 Generate PDFs for each order
   for (const orderForPdf of orders) {
+    console.log(`[Webhook] 📄 Generating PDFs for order ${orderForPdf.order_number}...`);
+
     if (orderForPdf.product_slug !== 'consultation-common') {
       try { await supabase.functions.invoke("generate-visa-contract-pdf", { body: { order_id: orderForPdf.id } }); } catch (e) { }
     }
+
     try { await supabase.functions.invoke("generate-annex-pdf", { body: { order_id: orderForPdf.id } }); } catch (e) { }
     try { await supabase.functions.invoke("generate-invoice-pdf", { body: { order_id: orderForPdf.id } }); } catch (e) { }
+
+    // Generate PDFs for upsells if recorded within the same order (legacy check)
+    if (orderForPdf.payment_metadata?.is_upsell) {
+      console.log(`[Webhook] 📄 Processing upsell order: ${orderForPdf.order_number}`);
+    }
   }
 
-  // 5. Send confirmation email
+  // 6. 📧 Send confirmation email and admin notification
   try {
     const totalPaid = orders.reduce((sum: number, o: any) => sum + parseFloat(o.total_price_usd || 0), 0);
+    const currency = (mainOrder.payment_metadata as any)?.currency || (paymentMethod === "pix" ? "BRL" : "USD");
+
+    console.log("[Webhook] 📧 Sending confirmation email to client...");
     await supabase.functions.invoke("send-payment-confirmation-email", {
       body: {
         clientName: mainOrder.client_name,
@@ -148,13 +171,31 @@ async function processSuccessfulSession(session: Stripe.Checkout.Session, supaba
         productSlug: mainOrder.product_slug,
         totalAmount: totalPaid,
         paymentMethod: paymentMethod === "pix" ? "stripe_pix" : "stripe_card",
-        currency: (mainOrder.payment_metadata as any)?.currency || (paymentMethod === "pix" ? "BRL" : "USD"),
+        currency: currency,
         finalAmount: totalPaid,
         is_bundle: orders.length > 1,
         extraUnits: mainOrder.extra_units
       },
     });
-  } catch (e) { }
+
+    console.log("[Webhook] 🔔 Sending admin notification...");
+    await supabase.functions.invoke("send-admin-payment-notification", {
+      body: {
+        orderNumber: mainOrder.order_number,
+        clientName: mainOrder.client_name,
+        clientEmail: mainOrder.client_email,
+        productSlug: mainOrder.product_slug,
+        totalAmount: totalPaid,
+        paymentMethod: paymentMethod === "pix" ? "stripe_pix" : "stripe_card",
+        currency: currency,
+        finalAmount: totalPaid,
+        is_bundle: orders.length > 1,
+        is_test: isTestUser
+      }
+    });
+  } catch (e) {
+    console.error("[Webhook] ⚠️ Error sending notifications:", e);
+  }
 }
 
 Deno.serve(async (req: Request) => {

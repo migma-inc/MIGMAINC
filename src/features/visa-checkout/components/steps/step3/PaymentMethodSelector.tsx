@@ -8,11 +8,13 @@ import type { PaymentMethod } from '../../../types/form.types';
 interface PaymentMethodSelectorProps {
     paymentMethod: PaymentMethod;
     onMethodChange: (method: PaymentMethod) => void;
+    showStripe?: boolean;
 }
 
 export const PaymentMethodSelector: React.FC<PaymentMethodSelectorProps> = ({
     paymentMethod,
     onMethodChange,
+    showStripe = true,
 }) => {
     const { t } = useTranslation();
     return (
@@ -59,20 +61,14 @@ export const PaymentMethodSelector: React.FC<PaymentMethodSelectorProps> = ({
                         </div>
                     </SelectItem>
 
-                    {/* STRIPE REMOVED - No longer using Stripe payments
-                    <SelectItem value="card" className="cursor-pointer hover:bg-gray-100 focus:bg-gray-100 focus:text-black">
-                        <div className="flex items-center gap-2">
-                            <CreditCard className="w-4 h-4 text-gray-600" />
-                            <span>Credit Card</span>
-                        </div>
-                    </SelectItem>
-                    <SelectItem value="pix" className="cursor-pointer hover:bg-gray-100 focus:bg-gray-100 focus:text-black">
-                        <div className="flex items-center gap-2">
-                            <DollarSign className="w-4 h-4 text-green-600" />
-                            <span>PIX</span>
-                        </div>
-                    </SelectItem> 
-                    */}
+                    {showStripe && (
+                        <SelectItem value="card" className="cursor-pointer hover:bg-gray-100 focus:bg-gray-100 focus:text-black">
+                            <div className="flex items-center gap-2">
+                                <CreditCard className="w-4 h-4 text-indigo-600" />
+                                <span>{t('checkout.stripe_card', 'Stripe – Cartão')}</span>
+                            </div>
+                        </SelectItem>
+                    )}
                 </SelectContent>
             </Select>
         </div>
