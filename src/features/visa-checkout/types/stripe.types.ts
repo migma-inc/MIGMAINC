@@ -23,6 +23,14 @@ export interface StripeCheckoutRequest {
     upsell_product_slug?: 'canada-tourist-premium' | 'canada-tourist-revolution' | null;
     upsell_contract_template_id?: string | null;
     billing_installment_id?: string | null;
+    payer_info?: {
+        name: string;
+        cpf: string;
+        email: string;
+        phone: string;
+    } | null;
+    coupon_code?: string | null;
+    discount_amount?: number | null;
 }
 
 export interface StripeCheckoutResponse {

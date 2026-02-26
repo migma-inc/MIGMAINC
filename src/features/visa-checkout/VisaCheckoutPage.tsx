@@ -9,6 +9,7 @@ import { useDocumentUpload } from './hooks/useDocumentUpload';
 import { usePaymentHandlers } from './hooks/usePaymentHandlers';
 import { useTemplateLoader } from './hooks/useTemplateLoader';
 import { usePrefillData } from './hooks/usePrefillData';
+import { useUserLocation } from '@/hooks/useUserLocation';
 
 import { StepIndicator } from './components/shared/StepIndicator';
 import { OrderSummary } from './components/shared/OrderSummary';
@@ -38,7 +39,15 @@ export const VisaCheckoutPage: React.FC = () => {
     // 1. Inicializar estado central
     const { state, actions } = useVisaCheckoutForm();
 
-    // 1.1 Carregar dados de preenchimento automático (Prefill) e determinar Seller ID
+    // 1.1 Localização do usuário (apenas para restrição do Stripe)
+    const userLocation = useUserLocation();
+
+    useEffect(() => {
+        actions.setIsBrazil(userLocation.isBrazil);
+        actions.setLoadingLocation(userLocation.loading);
+    }, [userLocation.isBrazil, userLocation.loading]);
+
+    // 1.2 Carregar dados de preenchimento automático (Prefill) e determinar Seller ID
     const { isLoadingPrefill, sellerId: prefillSellerId } = usePrefillData(productSlug, actions);
     const effectiveSellerId = prefillSellerId || urlSellerId;
 
@@ -169,13 +178,18 @@ export const VisaCheckoutPage: React.FC = () => {
             {state.submitting && <CheckoutLoadingOverlay />}
             <div className="max-w-6xl mx-auto">
                 <header className="flex flex-col mb-8 gap-2">
-                    <div className="flex justify-between items-start">
-                        <Link to="/" className="inline-flex items-center text-gold-light hover:text-gold-medium transition-colors mb-2">
+                    <div className="flex justify-between items-center mb-4">
+                        <Link to="/" className="inline-flex items-center text-gold-light hover:text-gold-medium transition-colors">
                             <ArrowLeft className="w-4 h-4 mr-2" /> {t('checkout.back_to_home', 'Back to Home')}
                         </Link>
                         <LanguageSelector />
                     </div>
-                    <h1 className="text-2xl sm:text-3xl font-bold migma-gold-text">{t('checkout.visa_title', 'Visa Application Checkout')}</h1>
+                    <div className="flex items-center gap-4">
+                        <img src="/logo2.png" alt="MIGMA INC" className="h-10 md:h-12 w-auto" />
+                        <h1 className="text-2xl sm:text-3xl font-bold migma-gold-text">
+                            {t('checkout.visa_title', 'Visa Application Checkout')}
+                        </h1>
+                    </div>
                     {effectiveSellerId && (
                         <p className="text-gray-400 text-sm">Seller ID: <span className="text-gold-light">{effectiveSellerId}</span></p>
                     )}
@@ -283,21 +297,25 @@ export const VisaCheckoutPage: React.FC = () => {
                                     state.termsAccepted &&
                                     state.dataAuthorization &&
                                     (state.paymentMethod !== 'zelle' || !!state.zelleReceipt) &&
-                                    (state.paymentMethod !== 'parcelow_card' || (
-                                        (state.payerInfo ? (
-                                            !!state.payerInfo.name &&
-                                            !!state.payerInfo.cpf &&
-                                            state.payerInfo.cpf.replace(/\D/g, '').length >= 11 &&
-                                            !!state.payerInfo.email &&
-                                            !!state.payerInfo.phone
-                                        ) : (
-                                            !!state.cpf &&
-                                            state.cpf.replace(/\D/g, '').length >= 11 &&
-                                            !!state.creditCardName
+                                    (state.paymentMethod === 'card' ? (
+                                        !!state.creditCardName // Stripe Card exige pelo menos o nome para a assinatura/contrato
+                                    ) : (
+                                        (state.paymentMethod !== 'parcelow_card' || (
+                                            (state.payerInfo ? (
+                                                !!state.payerInfo.name &&
+                                                !!state.payerInfo.cpf &&
+                                                state.payerInfo.cpf.replace(/\D/g, '').length >= 11 &&
+                                                !!state.payerInfo.email &&
+                                                !!state.payerInfo.phone
+                                            ) : (
+                                                !!state.cpf &&
+                                                state.cpf.replace(/\D/g, '').length >= 11 &&
+                                                !!state.creditCardName
+                                            ))
+                                        )) &&
+                                        ((state.paymentMethod !== 'parcelow_pix' && state.paymentMethod !== 'parcelow_ted') || (
+                                            !!state.cpf && state.cpf.replace(/\D/g, '').length >= 11
                                         ))
-                                    )) &&
-                                    ((state.paymentMethod !== 'parcelow_pix' && state.paymentMethod !== 'parcelow_ted') || (
-                                        !!state.cpf && state.cpf.replace(/\D/g, '').length >= 11
                                     ))
                                 }
                                 onPay={() => {
