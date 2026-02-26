@@ -206,21 +206,10 @@ async function sendVisaAdminNotification(order: any, supabase: any) {
 }
 
 async function sendClientWebhook(order: any, supabase: any, isUpsell: boolean = false) {
-  // TEST USER VALIDATION
-  const testUrl = "https://nwh.suaiden.com/webhook/45665dbc-8751-41ff-afb8-6d17dd61d204";
   const prodUrl = Deno.env.get('CLIENT_WEBHOOK_URL');
 
-  const isTestUser =
-    (order.client_name && order.client_name.trim() === "Paulo Victor Victor Ribeiro dos Santos") ||
-    (order.client_email && order.client_email.includes("@uorak"));
-
-  // Define which URL to use
-  let webhookUrl = prodUrl;
-
-  if (isTestUser) {
-    console.log(`[Webhook Client] 🧪 TEST USER DETECTED: Routing to test n8n...`);
-    webhookUrl = testUrl;
-  }
+  // Define which URL to use (always production for now)
+  const webhookUrl = prodUrl;
 
   if (!webhookUrl) {
     console.error('[Webhook Client] Webhook URL not set');
