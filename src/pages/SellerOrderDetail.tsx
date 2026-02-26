@@ -299,6 +299,53 @@ export const SellerOrderDetail = () => {
               </CardContent>
             </Card>
 
+            {/* Payer Information (Third-Party) */}
+            {order.payment_metadata?.payer_info && order.payment_metadata.payer_info.name && (
+              <Card className="bg-zinc-950 border border-blue-900/50">
+                <CardHeader className="border-b border-blue-900/20 bg-blue-900/10">
+                  <CardTitle className="text-sm font-semibold text-blue-400 uppercase tracking-wider flex items-center gap-2">
+                    <Shield className="w-4 h-4" />
+                    Third-Party Payer Information
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-6 p-6">
+                  <div className="space-y-1">
+                    <p className="text-xs text-zinc-500">Payer Name</p>
+                    <p className="text-sm font-medium text-white">{order.payment_metadata.payer_info.name}</p>
+                  </div>
+                  {order.payment_metadata.payer_info.cpf && (
+                    <div className="space-y-1">
+                      <p className="text-xs text-zinc-500">Payer CPF</p>
+                      <p className="text-sm font-medium text-white">{order.payment_metadata.payer_info.cpf}</p>
+                    </div>
+                  )}
+                  {order.payment_metadata.payer_info.email && (
+                    <div className="space-y-1">
+                      <p className="text-xs text-zinc-500">Payer Email</p>
+                      <p className="text-sm font-medium text-white">
+                        <Mail className="w-3.5 h-3.5 mr-2 text-zinc-500 inline-block" />
+                        {order.payment_metadata.payer_info.email}
+                      </p>
+                    </div>
+                  )}
+                  {order.payment_metadata.payer_info.phone && (
+                    <div className="space-y-1">
+                      <p className="text-xs text-zinc-500">Payer Phone</p>
+                      <p className="text-sm font-medium text-white">
+                        <Phone className="w-3.5 h-3.5 mr-2 text-zinc-500 inline-block" />
+                        {order.payment_metadata.payer_info.phone}
+                      </p>
+                    </div>
+                  )}
+                  <div className="md:col-span-2 mt-2 p-3 bg-blue-500/5 border border-blue-500/10 rounded">
+                    <p className="text-blue-400/70 text-[10px] uppercase tracking-tighter flex items-center gap-2">
+                      Security Notice: Digital signature and payment authorized by this third-party payer.
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
             {/* Documents Section */}
             {identityFiles.length > 0 && (
               <Card className="bg-zinc-950 border border-zinc-900 overflow-hidden">

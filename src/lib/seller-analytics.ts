@@ -17,8 +17,17 @@ export interface ProductMetric {
   percentage: number;
 }
 
+export interface PeriodSummary {
+  totalRevenue: number;
+  totalSales: number;
+  soldContracts: number;
+  completedOrders: number;
+  commissions: number;
+}
+
 export interface PeriodComparison {
   previousPeriod: { start: Date; end: Date };
+  previousSummary: PeriodSummary;
   revenueChange: number; // %
   salesChange: number; // %
   completedOrdersChange: number; // %
@@ -362,8 +371,10 @@ export async function getProductMetrics(
       // Calculate revenue using net amount (total_price_usd - fee_amount)
       const revenue = calculateNetAmount(order);
 
-      existing.sales += 1;
-      existing.revenue += isCompleted ? revenue : 0;
+      if (isCompleted) {
+        existing.sales += 1;
+        existing.revenue += revenue;
+      }
 
       productStats.set(slug, existing);
     });
@@ -425,6 +436,13 @@ export async function getPeriodComparison(
 
     return {
       previousPeriod,
+      previousSummary: {
+        totalRevenue: previousStats.totalRevenue,
+        totalSales: previousStats.totalSales,
+        soldContracts: previousStats.soldContracts,
+        completedOrders: previousStats.completedOrders,
+        commissions: previousCommissionSummary.totalCommissions,
+      },
       revenueChange: calculatePercentageChange(currentStats.totalRevenue, previousStats.totalRevenue),
       salesChange: calculatePercentageChange(currentStats.soldContracts, previousStats.soldContracts),
       completedOrdersChange: calculatePercentageChange(currentStats.completedOrders, previousStats.completedOrders),
@@ -441,6 +459,13 @@ export async function getPeriodComparison(
       salesChange: 0,
       completedOrdersChange: 0,
       commissionChange: 0,
+      previousSummary: {
+        totalRevenue: 0,
+        totalSales: 0,
+        soldContracts: 0,
+        completedOrders: 0,
+        commissions: 0,
+      }
     };
   }
 }
