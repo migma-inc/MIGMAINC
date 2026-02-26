@@ -45,7 +45,7 @@ export function useUserLocation() {
                             if (geoCountryCode) break;
                         }
                     } catch (e) {
-                        console.warn(`[useUserLocation] Service ${service} error:`, e.name);
+                        console.warn(`[useUserLocation] Service ${service} error:`, e instanceof Error ? e.name : String(e));
                     }
                 }
 
