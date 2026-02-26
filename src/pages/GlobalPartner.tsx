@@ -34,11 +34,15 @@ export const GlobalPartner = () => {
     };
 
     return (
-        <div className="min-h-screen bg-background font-sans text-foreground notranslate" translate="no">
+        <div className="min-h-screen bg-black font-sans text-white notranslate" translate="no">
             <GlobalPartnerHeader isScrolled={isScrolled} />
 
             {/* Section A: Hero */}
-            <section ref={heroRef} className="pt-8 pb-20 md:pt-5 md:pb-10 overflow-x-clip">
+            <section
+                ref={heroRef}
+                className="pt-[100px] pb-20 md:pt-[120px] md:pb-24 overflow-x-clip"
+                style={{ background: "radial-gradient(ellipse 200% 100% at bottom left, #000000, #1a1a1a 100%)" }}
+            >
                 <div className="container">
                     <div className="md:flex items-center">
                         <div className="md:w-[478px]">
@@ -51,7 +55,7 @@ export const GlobalPartner = () => {
                             </p>
                             <div className="flex gap-2 items-center mt-[30px]">
                                 <button onClick={scrollToForm} className="btn btn-primary">{t('global_partner.hero.cta', 'Apply Now')}</button>
-                                <a href="#benefits" className="btn btn-text gap-1">
+                                <a href="#benefits" className="btn btn-text text-white hover:text-gold-light gap-1">
                                     <span>{t('global_partner.hero.learn_more', 'Learn more')}</span>
                                     <ChevronRight className="h-4 w-4" />
                                 </a>
