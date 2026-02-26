@@ -16,12 +16,12 @@ export function parseLocalDate(dateString: string): Date | null {
   if (!dateString || typeof dateString !== 'string') {
     return null;
   }
-  
+
   const parts = dateString.split('-').map(Number);
   if (parts.length !== 3 || parts.some(isNaN)) {
     return null;
   }
-  
+
   const [year, month, day] = parts;
   return new Date(year, month - 1, day);
 }
@@ -37,7 +37,7 @@ export function formatLocalDate(date: Date): string {
   if (!date || !(date instanceof Date) || isNaN(date.getTime())) {
     return '';
   }
-  
+
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, '0');
   const day = String(date.getDate()).padStart(2, '0');
@@ -52,4 +52,18 @@ export function formatLocalDate(date: Date): string {
  */
 export function getTodayLocalDate(): string {
   return formatLocalDate(new Date());
+}
+
+/**
+ * Format a number as currency (USD) with thousands separators and 2 decimal places.
+ * Example: 1234.5 -> $1,234.50
+ */
+export function formatCurrency(amount: number | string): string {
+  const num = typeof amount === 'number' ? amount : parseFloat(amount || '0');
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(num);
 }

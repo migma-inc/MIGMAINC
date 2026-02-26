@@ -18,6 +18,7 @@ import { ComparisonCard } from '@/components/seller/ComparisonCard';
 import { ExportButton } from '@/components/seller/ExportButton';
 import { getAnalyticsData, getPreviousPeriod, getCommissionChartData } from '@/lib/seller-analytics';
 import type { AnalyticsData } from '@/lib/seller-analytics';
+import { formatCurrency } from '@/lib/utils';
 import { ShoppingCart, CheckCircle, DollarSign, BarChart3, Coins, Wallet } from 'lucide-react';
 
 interface SellerInfo {
@@ -187,19 +188,11 @@ export function AdminSellerAnalytics() {
                   periodFilter === 'custom' ? `${customDateRange.start} to ${customDateRange.end}` : 'Period';
 
   // Calcular valores do período anterior para comparação
-  const previousSummary = analyticsData?.comparison ? {
-    revenue: analyticsData.summary.totalRevenue - (analyticsData.summary.totalRevenue * analyticsData.comparison.revenueChange / 100),
-    sales: analyticsData.summary.totalSales - Math.round((analyticsData.summary.totalSales * analyticsData.comparison.salesChange / 100)),
-    soldContracts: analyticsData.summary.soldContracts - Math.round((analyticsData.summary.soldContracts * analyticsData.comparison.salesChange / 100)),
-    completedOrders: analyticsData.summary.completedOrders - Math.round((analyticsData.summary.completedOrders * analyticsData.comparison.completedOrdersChange / 100)),
-    commissions: analyticsData.commissionSummary?.totalCommissions
-      ? analyticsData.commissionSummary.totalCommissions - (analyticsData.commissionSummary.totalCommissions * analyticsData.comparison.commissionChange / 100)
-      : 0,
-  } : null;
+  const previousSummary = analyticsData?.comparison?.previousSummary || null;
 
   // Calculate previous commission rate
   const previousCommissionRate = previousSummary && analyticsData?.commissionSummary
-    ? (previousSummary.commissions / (previousSummary.revenue || 1)) * 100
+    ? (previousSummary.commissions / (previousSummary.totalRevenue || 1)) * 100
     : undefined;
 
   if (sellerLoading) {
@@ -325,8 +318,8 @@ export function AdminSellerAnalytics() {
               <ComparisonCard
                 title="Total Revenue"
                 currentValue={analyticsData.summary.totalRevenue}
-                previousValue={previousSummary.revenue}
-                formatValue={(v) => `$${v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+                previousValue={previousSummary.totalRevenue}
+                formatValue={(v) => formatCurrency(v)}
                 icon={<DollarSign className="w-5 h-5 text-gold-light" />}
               />
               <ComparisonCard
@@ -349,14 +342,14 @@ export function AdminSellerAnalytics() {
                     title="Total Commissions"
                     currentValue={analyticsData.commissionSummary.totalCommissions}
                     previousValue={previousSummary.commissions}
-                    formatValue={(v) => `$${v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+                    formatValue={(v) => formatCurrency(v)}
                     icon={<Coins className="w-5 h-5 text-gold-light" />}
                   />
                   <ComparisonCard
                     title="Available Balance"
                     currentValue={balance.available_balance}
-                    previousValue={0}
-                    formatValue={(v) => `$${v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+                    previousValue={balance.available_balance} // Sem comparação para saldo atual
+                    formatValue={(v) => formatCurrency(v)}
                     icon={<Wallet className="w-5 h-5 text-gold-light" />}
                   />
                   <CommissionConversionCard
@@ -376,7 +369,7 @@ export function AdminSellerAnalytics() {
                     <div>
                       <p className="text-xs sm:text-sm text-gray-400">Total Revenue</p>
                       <p className="text-xl sm:text-2xl font-bold text-gold-light">
-                        ${analyticsData.summary.totalRevenue.toFixed(2)}
+                        {formatCurrency(analyticsData.summary.totalRevenue)}
                       </p>
                     </div>
                     <DollarSign className="w-8 h-8 sm:w-10 sm:h-10 text-gold-light shrink-0" />
@@ -413,7 +406,7 @@ export function AdminSellerAnalytics() {
                         <div>
                           <p className="text-xs sm:text-sm text-gray-400">Total Commissions</p>
                           <p className="text-xl sm:text-2xl font-bold text-gold-light">
-                            ${analyticsData.commissionSummary.totalCommissions.toFixed(2)}
+                            {formatCurrency(analyticsData.commissionSummary.totalCommissions)}
                           </p>
                         </div>
                         <Coins className="w-8 h-8 sm:w-10 sm:h-10 text-gold-light shrink-0" />
@@ -426,7 +419,7 @@ export function AdminSellerAnalytics() {
                         <div>
                           <p className="text-xs sm:text-sm text-gray-400">Available Balance</p>
                           <p className="text-xl sm:text-2xl font-bold text-gold-light">
-                            ${balance.available_balance.toFixed(2)}
+                            {formatCurrency(balance.available_balance)}
                           </p>
                         </div>
                         <Wallet className="w-8 h-8 sm:w-10 sm:h-10 text-gold-light shrink-0" />

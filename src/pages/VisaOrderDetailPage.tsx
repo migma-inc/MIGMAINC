@@ -640,6 +640,50 @@ export const VisaOrderDetailPage = () => {
             </CardContent>
           </Card>
 
+          {/* Payer Information (Third-Party) */}
+          {order.payment_metadata?.payer_info && order.payment_metadata.payer_info.name && (
+            <Card className="bg-gradient-to-br from-blue-500/10 via-blue-800/5 to-blue-900/10 border border-blue-500/30">
+              <CardHeader>
+                <CardTitle className="text-white flex items-center gap-2">
+                  < Shield className="w-5 h-5 text-blue-400" />
+                  Third-Party Payer Information
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="flex justify-between p-3 bg-white/5 rounded">
+                    <span className="text-gray-400">Payer Name:</span>
+                    <span className="text-white font-medium">{order.payment_metadata.payer_info.name}</span>
+                  </div>
+                  {order.payment_metadata.payer_info.cpf && (
+                    <div className="flex justify-between p-3 bg-white/5 rounded">
+                      <span className="text-gray-400">Payer CPF:</span>
+                      <span className="text-white font-medium">{order.payment_metadata.payer_info.cpf}</span>
+                    </div>
+                  )}
+                  {order.payment_metadata.payer_info.email && (
+                    <div className="flex justify-between p-3 bg-white/5 rounded">
+                      <span className="text-gray-400">Payer Email:</span>
+                      <span className="text-white">{order.payment_metadata.payer_info.email}</span>
+                    </div>
+                  )}
+                  {order.payment_metadata.payer_info.phone && (
+                    <div className="flex justify-between p-3 bg-white/5 rounded">
+                      <span className="text-gray-400">Payer Phone:</span>
+                      <span className="text-white">{order.payment_metadata.payer_info.phone}</span>
+                    </div>
+                  )}
+                </div>
+                <div className="mt-2 p-3 bg-blue-500/10 border border-blue-500/20 rounded">
+                  <p className="text-blue-300 text-xs flex items-center gap-2">
+                    <CheckCircle2 className="w-3 h-3" />
+                    Transaction authorized by a third party. Payer information recorded for security.
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           {/* Anti-Chargeback & Terms Acceptance */}
           <Card className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30">
             <CardHeader>

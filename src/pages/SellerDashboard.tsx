@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { formatCurrency } from '@/lib/utils';
 import { Link, useNavigate, Navigate } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import { Button } from '@/components/ui/button';
@@ -307,7 +308,7 @@ export const SellerDashboard = () => {
                 <div>
                   <p className="text-sm text-gray-400">Total Revenue</p>
                   <p className="text-2xl font-bold text-gold-light">
-                    ${stats.totalRevenue.toFixed(2)}
+                    {formatCurrency(stats.totalRevenue)}
                   </p>
                 </div>
                 <DollarSign className="w-10 h-10 text-gold-light" />
@@ -882,8 +883,8 @@ export const SellerDashboard = () => {
                                     onClick={() => copyLink(product.slug)}
                                     size="sm"
                                     className={`ml-4 ${isCopied
-                                        ? 'bg-green-500 hover:bg-green-600'
-                                        : 'bg-gold-medium hover:bg-gold-light'
+                                      ? 'bg-green-500 hover:bg-green-600'
+                                      : 'bg-gold-medium hover:bg-gold-light'
                                       } text-black`}
                                   >
                                     {isCopied ? (
@@ -927,8 +928,8 @@ export const SellerDashboard = () => {
                               onClick={() => copyLink(product.slug)}
                               size="sm"
                               className={`ml-4 ${isCopied
-                                  ? 'bg-green-500 hover:bg-green-600'
-                                  : 'bg-gold-medium hover:bg-gold-light'
+                                ? 'bg-green-500 hover:bg-green-600'
+                                : 'bg-gold-medium hover:bg-gold-light'
                                 } text-black`}
                             >
                               {isCopied ? (
