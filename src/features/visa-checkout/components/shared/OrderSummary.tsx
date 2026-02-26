@@ -106,6 +106,14 @@ export const OrderSummary: React.FC<OrderSummaryProps> = ({
                                 </ul>
                             </div>
                         )}
+
+                        {(paymentMethod === 'card' || paymentMethod === 'pix') && (
+                            <div className="bg-blue-500/5 border border-blue-500/20 rounded-md p-2 mt-2">
+                                <p className="text-[10px] sm:text-xs text-blue-200/70 leading-relaxed italic text-center">
+                                    {t('checkout.stripe_fee_notice', '* Processing and management fees included in the total.')}
+                                </p>
+                            </div>
+                        )}
                     </div>
                 </div>
 

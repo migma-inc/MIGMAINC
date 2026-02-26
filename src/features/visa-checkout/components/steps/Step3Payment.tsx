@@ -94,12 +94,32 @@ export const Step3Payment: React.FC<Step3Props> = ({ state, actions, handlers, o
                 <PaymentMethodSelector
                     paymentMethod={paymentMethod}
                     onMethodChange={setPaymentMethod}
+                    showStripe={!state.isBrazil}
                 />
 
-                {/* Parcelow – Cartão: lógica completa de cartão (meu cartão / cartão de terceiros) */}
+                {/* Caso Stripe: Apenas Nome no Cartão */}
+                {paymentMethod === 'card' && (
+                    <div className="space-y-4 pt-2 animate-in fade-in slide-in-from-top-2">
+                        <div className="bg-zinc-900/40 border border-white/10 rounded-xl p-5 space-y-4 shadow-lg">
+                            <div className="flex flex-col space-y-1">
+                                <label htmlFor="cardNameInputStripe" className="text-sm font-bold text-gold-light uppercase tracking-wide">
+                                    {t('checkout.name_on_card', 'Name on Card')} *
+                                </label>
+                                <Input
+                                    id="cardNameInputStripe"
+                                    value={state.creditCardName || ''}
+                                    onChange={(e) => actions.setCreditCardName(e.target.value.toUpperCase())}
+                                    placeholder=""
+                                    className="bg-black/40 border-gold-medium/20 text-white h-11 focus:border-gold-medium transition-all uppercase"
+                                />
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* Caso Parcelow: Opção de Terceiro + CPF/Nome */}
                 {paymentMethod === 'parcelow_card' && (
                     <div className="space-y-4 pt-2 animate-in fade-in slide-in-from-top-2">
-                        {/* Meu cartão / Cartão de terceiro — fica primeiro */}
                         <PayerAlternativeForm
                             payerInfo={state.payerInfo}
                             onPayerInfoChange={actions.setPayerInfo}
@@ -107,15 +127,14 @@ export const Step3Payment: React.FC<Step3Props> = ({ state, actions, handlers, o
                             baseCardName={state.creditCardName || ''}
                         />
 
-                        {/* CPF e Nome no cartão — só mostrar para "Meu Cartão" */}
                         {!state.payerInfo && (
                             <div className="bg-zinc-900/40 border border-white/10 rounded-xl p-5 space-y-4 shadow-lg">
                                 <div className="flex flex-col space-y-1">
-                                    <label htmlFor="cpfInputCard" className="text-sm font-bold text-gold-light uppercase tracking-wide">
+                                    <label htmlFor="cpfInputParcelow" className="text-sm font-bold text-gold-light uppercase tracking-wide">
                                         {t('checkout.cpf_label', 'CPF')} *
                                     </label>
                                     <Input
-                                        id="cpfInputCard"
+                                        id="cpfInputParcelow"
                                         value={state.cpf || ''}
                                         onChange={(e) => {
                                             const val = e.target.value.replace(/\D/g, '').slice(0, 11);
@@ -125,13 +144,12 @@ export const Step3Payment: React.FC<Step3Props> = ({ state, actions, handlers, o
                                         className="bg-black/40 border-gold-medium/20 text-white h-11 focus:border-gold-medium transition-all"
                                     />
                                 </div>
-
                                 <div className="flex flex-col space-y-1">
-                                    <label htmlFor="cardNameInput" className="text-sm font-bold text-gold-light uppercase tracking-wide">
+                                    <label htmlFor="cardNameInputParcelow" className="text-sm font-bold text-gold-light uppercase tracking-wide">
                                         {t('checkout.name_on_card', 'Name on Card')} *
                                     </label>
                                     <Input
-                                        id="cardNameInput"
+                                        id="cardNameInputParcelow"
                                         value={state.creditCardName || ''}
                                         onChange={(e) => actions.setCreditCardName(e.target.value.toUpperCase())}
                                         placeholder=""
@@ -198,6 +216,8 @@ export const Step3Payment: React.FC<Step3Props> = ({ state, actions, handlers, o
                                 actions.setSubmitting(true);
                                 if (isParcelowMethod(paymentMethod)) {
                                     handlers.handleParcelowPayment();
+                                } else if (paymentMethod === 'card') {
+                                    handlers.handleStripeCheckout('card');
                                 } else if (paymentMethod === 'zelle' && zelleReceipt) {
                                     handlers.handleZellePayment();
                                 }
@@ -221,6 +241,7 @@ export const Step3Payment: React.FC<Step3Props> = ({ state, actions, handlers, o
                                         !state.creditCardName
                                     )
                                 )) ||
+                                (paymentMethod === 'card' && !state.creditCardName) ||
                                 ((paymentMethod === 'parcelow_pix' || paymentMethod === 'parcelow_ted') && (
                                     !state.cpf || state.cpf.replace(/\D/g, '').length < 11
                                 ))
@@ -253,7 +274,13 @@ export const Step3Payment: React.FC<Step3Props> = ({ state, actions, handlers, o
                                             </>
                                         )}
                                     </svg>
-                                    <span>{isParcelowMethod(paymentMethod) ? t('checkout.pay_with_parcelow', 'Pay with Parcelow') : t('checkout.confirm_zelle_payment', 'Confirm Zelle Payment')}</span>
+                                    <span>
+                                        {isParcelowMethod(paymentMethod)
+                                            ? t('checkout.pay_with_parcelow', 'Pay with Parcelow')
+                                            : paymentMethod === 'card'
+                                                ? t('checkout.pay_with_stripe', 'Pagar com Cartão (Stripe)')
+                                                : t('checkout.confirm_zelle_payment', 'Confirm Zelle Payment')}
+                                    </span>
                                 </div>
                             )}
                         </button>
