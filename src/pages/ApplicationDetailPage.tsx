@@ -174,10 +174,9 @@ function ApplicationDetailContent() {
           variant: 'success',
         });
         setShowAlert(true);
-        // Reload application to get updated status after alert is closed
         setTimeout(() => {
-          window.location.reload();
-        }, 2000);
+          // No auto-reload, wait for user to close alert or just reload later
+        }, 0);
       } else {
         setAlertData({
           title: 'Error',
@@ -224,10 +223,9 @@ function ApplicationDetailContent() {
           variant: 'success',
         });
         setShowAlert(true);
-        // Reload application to get updated status after alert is closed
         setTimeout(() => {
-          window.location.reload();
-        }, 2000);
+          // No auto-reload
+        }, 0);
       } else {
         setAlertData({
           title: 'Error',
@@ -263,10 +261,9 @@ function ApplicationDetailContent() {
           variant: 'success',
         });
         setShowAlert(true);
-        // Reload application to get updated status after alert is closed
         setTimeout(() => {
-          window.location.reload();
-        }, 2000);
+          // No auto-reload
+        }, 0);
       } else {
         setAlertData({
           title: 'Error',
@@ -338,10 +335,9 @@ function ApplicationDetailContent() {
           variant: 'success',
         });
         setShowAlert(true);
-        // Reload application to get updated status after alert is closed
         setTimeout(() => {
-          window.location.reload();
-        }, 2000);
+          // No auto-reload
+        }, 0);
       } else {
         setAlertData({
           title: 'Error',
@@ -388,10 +384,9 @@ function ApplicationDetailContent() {
           variant: 'success',
         });
         setShowAlert(true);
-        // Reload application to get updated status after alert is closed
         setTimeout(() => {
-          window.location.reload();
-        }, 2000);
+          // No auto-reload
+        }, 0);
       } else {
         setAlertData({
           title: 'Error',
@@ -1407,8 +1402,12 @@ function ApplicationDetailContent() {
         <AlertModal
           isOpen={showAlert}
           onClose={() => {
+            const needsReload = alertData.variant === 'success';
             setShowAlert(false);
             setAlertData(null);
+            if (needsReload) {
+              window.location.reload();
+            }
           }}
           title={alertData.title}
           message={alertData.message}
