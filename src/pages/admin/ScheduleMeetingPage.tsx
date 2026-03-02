@@ -390,8 +390,8 @@ export function ScheduleMeetingPage() {
 
         {/* Edit Meeting Modal */}
         {editingMeeting && showEditModal && (
-          <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-            <Card className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+          <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+            <Card className="bg-black border border-gold-medium/30 max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl">
               <CardHeader>
                 <CardTitle className="text-white">Edit Meeting</CardTitle>
               </CardHeader>
