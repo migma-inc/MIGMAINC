@@ -188,8 +188,8 @@ export async function approveApplicationForMeeting(
       return { success: false, error: updateError.message };
     }
 
-    // Send meeting invitation email
-    const emailSent = await sendMeetingInvitationEmail(
+    // Send meeting invitation email in background
+    sendMeetingInvitationEmail(
       application.email,
       application.full_name,
       meetingDate,
@@ -197,18 +197,8 @@ export async function approveApplicationForMeeting(
       meetingLink
     );
 
-    if (!emailSent) {
-      console.warn('[ADMIN] Meeting invitation email failed to send, but status was updated');
-      // Status was updated, so we consider it a partial success
-      return {
-        success: true,
-        error: 'Application approved for meeting, but email sending failed. Please send manually.',
-      };
-    }
-
-    // Invalidate cache after status update
+    // Invalidate cache and return success immediately
     invalidateAllCache();
-
     return { success: true };
   } catch (error) {
     console.error('[ADMIN] Error approving application for meeting:', error);
@@ -293,9 +283,9 @@ export async function updateMeetingInfo(
       return { success: false, error: updateError.message };
     }
 
-    // Send meeting update email
+    // Send meeting update email in background
     const { sendMeetingUpdateEmail } = await import('./emails');
-    const emailSent = await sendMeetingUpdateEmail(
+    sendMeetingUpdateEmail(
       application.email,
       application.full_name,
       meetingDate,
@@ -303,18 +293,8 @@ export async function updateMeetingInfo(
       meetingLink
     );
 
-    if (!emailSent) {
-      console.warn('[ADMIN] Meeting update email failed to send, but information was updated');
-      // Information was updated, so we consider it a partial success
-      return {
-        success: true,
-        error: 'Meeting information updated, but email sending failed. Please send manually.',
-      };
-    }
-
-    // Invalidate cache after update
+    // Invalidate cache and return success immediately
     invalidateAllCache();
-
     return { success: true };
   } catch (error) {
     console.error('[ADMIN] Error updating meeting information:', error);
