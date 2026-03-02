@@ -107,11 +107,11 @@ export function MeetingScheduleModal({
 
   return (
     <div
-      className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+      className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4 backdrop-blur-sm"
       onClick={onClose}
     >
       <div
-        className="bg-black border border-gold-medium/50 rounded-lg shadow-2xl w-full max-w-md"
+        className="bg-black border border-gold-medium/50 rounded-lg shadow-2xl w-full max-w-md overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="p-6">
@@ -218,8 +218,8 @@ export function MeetingScheduleModal({
               disabled={isLoading}
               className="bg-green-600 hover:bg-green-700 text-white"
             >
-              {isLoading 
-                ? (isEditMode ? 'Updating...' : 'Scheduling...') 
+              {isLoading
+                ? (isEditMode ? 'Updating...' : 'Scheduling...')
                 : (isEditMode ? 'Update Meeting & Send Email' : 'Schedule Meeting & Send Email')}
             </Button>
           </div>

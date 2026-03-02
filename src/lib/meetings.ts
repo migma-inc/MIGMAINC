@@ -208,18 +208,40 @@ export async function updateScheduledMeeting(
   data: Partial<ScheduleMeetingData>
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    // Validate meeting exists
-    const { data: existingMeeting, error: fetchError } = await supabase
+    // 1. Validate meeting exists in either table
+    let meeting;
+    let source: 'manual' | 'partner' = 'manual';
+
+    const { data: manualMeeting } = await supabase
       .from('scheduled_meetings')
       .select('*')
       .eq('id', meetingId)
-      .single();
+      .maybeSingle();
 
-    if (fetchError || !existingMeeting) {
+    if (manualMeeting) {
+      meeting = manualMeeting;
+      source = 'manual';
+    } else {
+      const { data: partnerMeeting } = await supabase
+        .from('global_partner_applications')
+        .select('id, email, full_name, meeting_date, meeting_time, meeting_link, meeting_scheduled_by')
+        .eq('id', meetingId)
+        .maybeSingle();
+
+      if (partnerMeeting) {
+        meeting = {
+          ...partnerMeeting,
+          scheduled_by: partnerMeeting.meeting_scheduled_by
+        };
+        source = 'partner';
+      }
+    }
+
+    if (!meeting) {
       return { success: false, error: 'Meeting not found' };
     }
 
-    // Build update object
+    // 2. Build update object
     const updateData: any = {
       updated_at: new Date().toISOString(),
     };
@@ -237,7 +259,7 @@ export async function updateScheduledMeeting(
     }
 
     if (data.meeting_date !== undefined) {
-      // Validate date is in the future (if updating)
+      // Validate date is not in the past (if updating)
       const [year, month, day] = data.meeting_date.split('-').map(Number);
       const meetingDate = new Date(year, month - 1, day);
       const today = new Date();
@@ -263,40 +285,53 @@ export async function updateScheduledMeeting(
     }
 
     if (data.scheduled_by !== undefined) {
-      updateData.scheduled_by = data.scheduled_by?.trim() || null;
-    }
-
-    if (data.notes !== undefined) {
-      updateData.notes = data.notes?.trim() || null;
-    }
-
-    // Update meeting - check both tables
-    const { error: updateErrorManual } = await supabase
-      .from('scheduled_meetings')
-      .update(updateData)
-      .eq('id', meetingId);
-
-    if (updateErrorManual) {
-      // Try partner table
-      const partnerUpdateData = {
-        meeting_date: updateData.meeting_date,
-        meeting_time: updateData.meeting_time,
-        meeting_link: updateData.meeting_link,
-        meeting_scheduled_by: updateData.scheduled_by,
-      };
-
-      const { error: updateErrorPartner } = await supabase
-        .from('global_partner_applications')
-        .update(JSON.parse(JSON.stringify(partnerUpdateData))) // Remove undefined
-        .eq('id', meetingId);
-
-      if (updateErrorPartner) {
-        console.error('[MEETINGS] Error updating meeting in both tables:', updateErrorManual, updateErrorPartner);
-        return { success: false, error: 'Failed to update meeting' };
+      // For partner table we use meeting_scheduled_by, for manual we use scheduled_by
+      if (source === 'manual') {
+        updateData.scheduled_by = data.scheduled_by?.trim() || null;
+      } else {
+        updateData.meeting_scheduled_by = data.scheduled_by?.trim() || null;
       }
     }
 
-    // If email, name, date, time, or link changed, send update email
+    if (data.notes !== undefined && source === 'manual') {
+      updateData.notes = data.notes?.trim() || null;
+    }
+
+    // 3. Update meeting in the correct table
+    if (source === 'manual') {
+      const { error: updateError } = await supabase
+        .from('scheduled_meetings')
+        .update(updateData)
+        .eq('id', meetingId);
+
+      if (updateError) {
+        console.error('[MEETINGS] Error updating manual meeting:', updateError);
+        return { success: false, error: 'Failed to update meeting' };
+      }
+    } else {
+      // Partner meeting update
+      const partnerUpdateData: any = {};
+      if (updateData.meeting_date) partnerUpdateData.meeting_date = updateData.meeting_date;
+      if (updateData.meeting_time) partnerUpdateData.meeting_time = updateData.meeting_time;
+      if (updateData.meeting_link) partnerUpdateData.meeting_link = updateData.meeting_link;
+      if (updateData.meeting_scheduled_by !== undefined) partnerUpdateData.meeting_scheduled_by = updateData.meeting_scheduled_by;
+
+      // Also update email and name if they changed (though usually these come from the application)
+      if (updateData.email) partnerUpdateData.email = updateData.email;
+      if (updateData.full_name) partnerUpdateData.full_name = updateData.full_name;
+
+      const { error: updateErrorPartner } = await supabase
+        .from('global_partner_applications')
+        .update(partnerUpdateData)
+        .eq('id', meetingId);
+
+      if (updateErrorPartner) {
+        console.error('[MEETINGS] Error updating partner meeting:', updateErrorPartner);
+        return { success: false, error: 'Failed to update partner meeting' };
+      }
+    }
+
+    // 4. If critical fields changed, send update email
     if (
       data.email !== undefined ||
       data.full_name !== undefined ||
@@ -304,14 +339,14 @@ export async function updateScheduledMeeting(
       data.meeting_time !== undefined ||
       data.meeting_link !== undefined
     ) {
-      const finalEmail = data.email || existingMeeting.email;
-      const finalName = data.full_name || existingMeeting.full_name;
-      const finalDate = data.meeting_date || existingMeeting.meeting_date;
-      const finalTime = data.meeting_time || existingMeeting.meeting_time;
-      const finalLink = data.meeting_link || existingMeeting.meeting_link;
+      const finalEmail = data.email || meeting.email;
+      const finalName = data.full_name || meeting.full_name;
+      const finalDate = data.meeting_date || meeting.meeting_date;
+      const finalTime = data.meeting_time || meeting.meeting_time;
+      const finalLink = data.meeting_link || meeting.meeting_link;
 
-      // Send update email for scheduled meeting
-      await sendScheduledMeetingUpdateEmail(finalEmail, finalName, finalDate, finalTime, finalLink);
+      // Send update email in background to speed up UI response
+      sendScheduledMeetingUpdateEmail(finalEmail, finalName, finalDate, finalTime, finalLink);
     }
 
     return { success: true };
