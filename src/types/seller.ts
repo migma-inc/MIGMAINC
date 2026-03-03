@@ -8,6 +8,8 @@ export interface SellerInfo {
   full_name: string;
   email: string;
   status: string;
+  role?: string;
+  head_of_sales_id?: string | null;
 }
 
 export interface SellerCommission {

@@ -1,5 +1,6 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { LayoutDashboard, TrendingUp, ShoppingCart, Link as LinkIcon, Users, LogOut, BarChart3, X, Coins, CheckCircle } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/lib/supabase';
@@ -10,9 +11,18 @@ interface SellerSidebarProps {
   sellerName?: string;
   isMobileOpen?: boolean;
   onMobileClose?: () => void;
+  role?: string;
 }
 
-export function SellerSidebar({ className, sellerName, isMobileOpen = false, onMobileClose }: SellerSidebarProps) {
+type MenuItem = {
+  title: string;
+  icon: LucideIcon;
+  path: string;
+  exact: boolean;
+  badge?: number;
+};
+
+export function SellerSidebar({ className, sellerName, isMobileOpen = false, onMobileClose, role = 'seller' }: SellerSidebarProps) {
   const location = useLocation();
   const navigate = useNavigate();
   const [pendingCount, setPendingCount] = useState(0);
@@ -78,7 +88,8 @@ export function SellerSidebar({ className, sellerName, isMobileOpen = false, onM
     };
   }, []);
 
-  const menuItems = [
+
+  const sellerMenuItems: MenuItem[] = [
     { title: 'Overview', icon: LayoutDashboard, path: '/seller/dashboard', exact: true },
     { title: 'Orders', icon: ShoppingCart, path: '/seller/dashboard/orders', exact: false },
     { title: 'Sales Links', icon: LinkIcon, path: '/seller/dashboard/links', exact: false },
@@ -88,6 +99,19 @@ export function SellerSidebar({ className, sellerName, isMobileOpen = false, onM
     { title: 'Conversion Funnel', icon: TrendingUp, path: '/seller/dashboard/funnel', exact: false },
     { title: 'Zelle Approvals', icon: CheckCircle, path: '/seller/dashboard/zelle-approvals', exact: false, badge: pendingCount },
   ];
+
+
+  const headOfSalesMenuItems: MenuItem[] = [
+    { title: 'Overview', icon: LayoutDashboard, path: '/seller/dashboard', exact: true },
+    { title: 'My Team', icon: Users, path: '/seller/dashboard/team', exact: false },
+    { title: 'Sales Links', icon: LinkIcon, path: '/seller/dashboard/links', exact: false },
+    { title: 'Team Orders', icon: ShoppingCart, path: '/seller/dashboard/team-orders', exact: false },
+  ];
+
+  // HoS features only available in dev environment
+  const isHeadOfSalesInDev = import.meta.env.DEV && role === 'head_of_sales';
+  const menuItems: MenuItem[] = isHeadOfSalesInDev ? headOfSalesMenuItems : sellerMenuItems;
+
 
   useEffect(() => {
     if (isMobileOpen && onMobileClose) {
