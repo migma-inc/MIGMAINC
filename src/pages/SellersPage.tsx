@@ -43,6 +43,8 @@ interface Seller {
   created_at: string;
   user_id: string;
   status: string;
+  role?: string;
+  head_of_sales_id?: string | null;
 }
 
 interface Order {
@@ -119,6 +121,8 @@ export const SellersPage = () => {
   const [globalAnalyticsData, setGlobalAnalyticsData] = useState<AnalyticsData | null>(null);
   const [analyticsLoading, setAnalyticsLoading] = useState(false);
   const [granularity, setGranularity] = useState<'day' | 'week' | 'month'>('day');
+  const [headsOfSales, setHeadsOfSales] = useState<{ id: string; full_name: string; email: string }[]>([]);
+
 
   useEffect(() => {
     loadSellersData();
@@ -201,6 +205,12 @@ export const SellersPage = () => {
       const availableSellers = sellers || [];
 
 >>>>>>> 1667cd8 (feat: add is_test flag to hide test sellers/orders from production dashboard)
+
+      // Extract Heads of Sales for the dropdowns
+      const hosList = availableSellers
+        .filter(s => s.role === 'head_of_sales')
+        .map(s => ({ id: s.id, full_name: s.full_name, email: s.email }));
+      setHeadsOfSales(hosList);
 
       if (availableSellers.length === 0) {
         setSellersStats([]);
@@ -773,7 +783,7 @@ export const SellersPage = () => {
                         </Button>
                         <div className="flex-1 min-w-0">
                           <CardTitle
-                            className="text-white text-base sm:text-xl break-words cursor-pointer hover:text-gold-light transition-colors"
+                            className="text-white text-base sm:text-xl break-words cursor-pointer hover:text-gold-light transition-colors flex items-center gap-2"
                             onClick={(e) => {
                               e.stopPropagation();
                               setSelectedSellerId(stats.seller.seller_id_public);
@@ -782,10 +792,20 @@ export const SellersPage = () => {
                             title="Click to view seller analytics"
                           >
                             {stats.seller.full_name || stats.seller.email}
+                            {stats.seller.role === 'head_of_sales' && (
+                              <Badge className="bg-purple-500/20 text-purple-300 border-purple-500/50 text-[10px] uppercase font-bold tracking-wider">
+                                Head of Sales
+                              </Badge>
+                            )}
                           </CardTitle>
                           <p className="text-xs sm:text-sm text-gray-400 mt-1 break-words">
                             ID: {stats.seller.seller_id_public} | {stats.seller.email}
                           </p>
+                          {stats.seller.role !== 'head_of_sales' && stats.seller.head_of_sales_id && (
+                            <p className="text-xs text-purple-400/80 mt-1 flex items-center gap-1">
+                              📍 Gestor: {headsOfSales.find(h => h.id === stats.seller.head_of_sales_id)?.full_name || 'Desconhecido'}
+                            </p>
+                          )}
                         </div>
                       </div>
 
@@ -1069,6 +1089,7 @@ export const SellersPage = () => {
         {sellerToEdit && (
           <EditSellerModal
             seller={sellerToEdit}
+            headsOfSales={headsOfSales}
             isOpen={isEditModalOpen}
             onClose={() => {
               setIsEditModalOpen(false);
