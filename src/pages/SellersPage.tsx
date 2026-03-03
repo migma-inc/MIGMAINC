@@ -205,12 +205,15 @@ export const SellersPage = () => {
       const availableSellers = sellers || [];
 
 >>>>>>> 1667cd8 (feat: add is_test flag to hide test sellers/orders from production dashboard)
+<<<<<<< HEAD
 
       // Extract Heads of Sales for the dropdowns
       const hosList = availableSellers
         .filter(s => s.role === 'head_of_sales')
         .map(s => ({ id: s.id, full_name: s.full_name, email: s.email }));
       setHeadsOfSales(hosList);
+=======
+>>>>>>> 531207b (feat: add is_test flag to hide test sellers/orders from production dashboard)
 
       // Extract Heads of Sales for the dropdowns
       const hosList = availableSellers
