@@ -212,6 +212,12 @@ export const SellersPage = () => {
         .map(s => ({ id: s.id, full_name: s.full_name, email: s.email }));
       setHeadsOfSales(hosList);
 
+      // Extract Heads of Sales for the dropdowns
+      const hosList = availableSellers
+        .filter(s => s.role === 'head_of_sales')
+        .map(s => ({ id: s.id, full_name: s.full_name, email: s.email }));
+      setHeadsOfSales(hosList);
+
       if (availableSellers.length === 0) {
         setSellersStats([]);
         setLoading(false);
