@@ -6,7 +6,8 @@ import type { SellerInfo } from '@/types/seller';
 export function DashboardOverviewRouter() {
     const { seller } = useOutletContext<{ seller: SellerInfo }>();
 
-    if (seller.role === 'head_of_sales') {
+    // HoS overview only available in dev environment
+    if (import.meta.env.DEV && seller.role === 'head_of_sales') {
         return <HeadOfSalesOverview />;
     }
 
