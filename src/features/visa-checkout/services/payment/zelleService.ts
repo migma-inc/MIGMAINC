@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase';
 import { processZellePaymentWithN8n } from '@/lib/zelle-n8n-integration';
+import { isTestEnvironment } from '@/lib/utils';
 import type { ZellePaymentRequest, ZellePaymentResponse } from '../../types/zelle.types';
 
 /**
@@ -140,7 +141,8 @@ export class ZelleService {
                             slug: request.upsell_product_slug,
                             total: upsellAmount
                         } : null
-                    }
+                    },
+                    is_test: isTestEnvironment()
                 })
                 .select()
                 .single();
@@ -174,7 +176,8 @@ export class ZelleService {
                         product_slug: request.product_slug,
                         client_email: request.client_email,
                         coupon_code: request.coupon_code
-                    }
+                    },
+                    is_test: isTestEnvironment()
                 });
 
             if (paymentRecordError) {

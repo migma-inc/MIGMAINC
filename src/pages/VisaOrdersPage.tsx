@@ -546,11 +546,18 @@ export const VisaOrdersPage = () => {
       try {
         setLoading(true);
         // Load Orders
-        const { data: ordersData, error: ordersError } = await supabase
+        let ordersQuery = supabase
           .from('visa_orders')
           .select('*')
           .order('created_at', { ascending: false })
           .limit(100);
+
+        // In production, hide test orders from the dashboard
+        if (!isLocal) {
+          ordersQuery = ordersQuery.eq('is_test', false);
+        }
+
+        const { data: ordersData, error: ordersError } = await ordersQuery;
 
         if (ordersError) throw ordersError;
         setOrders(ordersData || []);
