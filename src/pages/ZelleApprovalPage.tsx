@@ -11,6 +11,8 @@ import { AlertModal } from '@/components/ui/alert-modal';
 import { Skeleton } from '@/components/ui/skeleton';
 import { getSecureUrl } from '@/lib/storage';
 
+const isLocal = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+
 interface ZelleOrder {
   id: string;
   order_number: string;
@@ -98,13 +100,17 @@ export const ZelleApprovalPage = () => {
     try {
       setLoading(true);
       // 1. Load regular visa_orders
-      const { data: ordersData, error: ordersError } = await supabase
+      let ordersQuery = supabase
         .from('visa_orders')
         .select('*')
         .eq('payment_method', 'zelle')
-        .in('payment_status', ['pending', 'completed']) // Fetch both to allow deduplication/unification
+        .in('payment_status', ['pending', 'completed'])
         .eq('is_hidden', false)
         .order('created_at', { ascending: false });
+
+      if (!isLocal) ordersQuery = ordersQuery.eq('is_test', false);
+
+      const { data: ordersData, error: ordersError } = await ordersQuery;
 
       if (ordersError) throw ordersError;
 
@@ -160,7 +166,8 @@ export const ZelleApprovalPage = () => {
       }
 
       // Collect admin/seller IDs from history
-      const { data: histOrdersData } = await supabase
+      // History orders
+      let histQuery = supabase
         .from('visa_orders')
         .select('*')
         .eq('payment_method', 'zelle')
@@ -168,6 +175,10 @@ export const ZelleApprovalPage = () => {
         .eq('is_hidden', false)
         .order('updated_at', { ascending: false })
         .limit(20);
+
+      if (!isLocal) histQuery = histQuery.eq('is_test', false);
+
+      const { data: histOrdersData } = await histQuery;
 
       const { data: histMigmaData } = await supabase
         .from('migma_payments')

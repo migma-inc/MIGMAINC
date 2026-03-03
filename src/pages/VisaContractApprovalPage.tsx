@@ -31,6 +31,8 @@ import {
 import { Textarea } from '@/components/ui/textarea';
 import { Skeleton } from '@/components/ui/skeleton';
 
+const isLocal = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+
 interface VisaOrder {
     id: string;
     order_number: string;
@@ -83,11 +85,14 @@ export function VisaContractApprovalPage() {
     const loadOrders = async () => {
         try {
             setLoading(true);
-            const { data, error } = await supabase
+            const loadQuery = supabase
                 .from('visa_orders')
                 .select('*')
                 .or('contract_pdf_url.not.is.null,annex_pdf_url.not.is.null,upsell_contract_pdf_url.not.is.null,upsell_annex_pdf_url.not.is.null')
                 .order('created_at', { ascending: false });
+
+            // In production, filter out test orders
+            const { data, error } = await (isLocal ? loadQuery : loadQuery.eq('is_test', false));
 
             if (error) throw error;
 
