@@ -30,7 +30,9 @@ import { ForgotPassword } from './pages/ForgotPassword';
 import { ResetPassword } from './pages/ResetPassword';
 import { SellerRegister } from './pages/SellerRegister';
 import { SellerDashboardLayout } from './pages/seller/SellerDashboardLayout';
-import { SellerOverview } from './pages/seller/SellerOverview';
+import { DashboardOverviewRouter } from './pages/seller/DashboardOverviewRouter';
+import { HeadOfSalesTeam } from './pages/seller/HeadOfSalesTeam';
+import { HeadOfSalesOrders } from './pages/seller/HeadOfSalesOrders';
 import { SellerAnalytics } from './pages/seller/SellerAnalytics';
 import { SellerCommissions } from './pages/seller/SellerCommissions';
 import { SellerFunnel } from './pages/seller/SellerFunnel';
@@ -58,6 +60,7 @@ import { AdminRoute } from './components/admin/AdminRoute';
 import { SlackReportsPage } from './pages/admin/SlackReportsPage';
 import { VisaContractApprovalPage } from './pages/VisaContractApprovalPage';
 import { AdminProfile } from './pages/admin/AdminProfile';
+import { HeadOfSalesManagement } from './pages/admin/HeadOfSalesManagement';
 import { SendExistingContracts } from './pages/admin/SendExistingContracts';
 import { CouponManagement } from './pages/admin/CouponManagement';
 import { EB3RecurringManagement } from './pages/admin/EB3RecurringManagement';
@@ -102,7 +105,9 @@ function App() {
         <Route path="/seller/login" element={<SellerLogin />} />
         <Route path="/seller/register" element={<SellerRegister />} />
         <Route path="/seller/dashboard" element={<SellerRoute><SellerDashboardLayout /></SellerRoute>}>
-          <Route index element={<SellerOverview />} />
+          <Route index element={<DashboardOverviewRouter />} />
+          <Route path="team" element={<HeadOfSalesTeam />} />
+          <Route path="team-orders" element={<HeadOfSalesOrders />} />
           <Route path="analytics" element={<SellerAnalytics />} />
           <Route path="commissions" element={<SellerCommissions />} />
           <Route path="funnel" element={<SellerFunnel />} />
@@ -134,6 +139,7 @@ function App() {
           <Route path="visa-contract-approval" element={<VisaContractApprovalPage />} />
           <Route path="zelle-approval" element={<ZelleApprovalPage />} />
           <Route path="sellers" element={<SellersPage />} />
+          <Route path="head-of-sales" element={<AdminRoute><HeadOfSalesManagement /></AdminRoute>} />
           <Route path="sellers/:sellerId/analytics" element={<AdminRoute><AdminSellerAnalytics /></AdminRoute>} />
           <Route path="sellers/:sellerId/orders" element={<AdminRoute><AdminSellerOrders /></AdminRoute>} />
           <Route path="contact-messages" element={<ContactMessagesPage />} />

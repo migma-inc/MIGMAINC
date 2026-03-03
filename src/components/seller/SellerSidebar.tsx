@@ -10,9 +10,10 @@ interface SellerSidebarProps {
   sellerName?: string;
   isMobileOpen?: boolean;
   onMobileClose?: () => void;
+  role?: string;
 }
 
-export function SellerSidebar({ className, sellerName, isMobileOpen = false, onMobileClose }: SellerSidebarProps) {
+export function SellerSidebar({ className, sellerName, isMobileOpen = false, onMobileClose, role = 'seller' }: SellerSidebarProps) {
   const location = useLocation();
   const navigate = useNavigate();
   const [pendingCount, setPendingCount] = useState(0);
@@ -78,7 +79,7 @@ export function SellerSidebar({ className, sellerName, isMobileOpen = false, onM
     };
   }, []);
 
-  const menuItems = [
+  const sellerMenuItems = [
     { title: 'Overview', icon: LayoutDashboard, path: '/seller/dashboard', exact: true },
     { title: 'Orders', icon: ShoppingCart, path: '/seller/dashboard/orders', exact: false },
     { title: 'Sales Links', icon: LinkIcon, path: '/seller/dashboard/links', exact: false },
@@ -88,6 +89,14 @@ export function SellerSidebar({ className, sellerName, isMobileOpen = false, onM
     { title: 'Conversion Funnel', icon: TrendingUp, path: '/seller/dashboard/funnel', exact: false },
     { title: 'Zelle Approvals', icon: CheckCircle, path: '/seller/dashboard/zelle-approvals', exact: false, badge: pendingCount },
   ];
+
+  const headOfSalesMenuItems = [
+    { title: 'Overview', icon: LayoutDashboard, path: '/seller/dashboard', exact: true },
+    { title: 'My Team', icon: Users, path: '/seller/dashboard/team', exact: false },
+    { title: 'Team Orders', icon: ShoppingCart, path: '/seller/dashboard/team-orders', exact: false },
+  ];
+
+  const menuItems = role === 'head_of_sales' ? headOfSalesMenuItems : sellerMenuItems;
 
   useEffect(() => {
     if (isMobileOpen && onMobileClose) {
