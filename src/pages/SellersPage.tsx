@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ConfirmModal } from '@/components/ui/confirm-modal';
 import { EditSellerModal } from '@/components/admin/EditSellerModal';
-import { Dialog, DialogContent } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { AdminSellerAnalytics } from '@/pages/admin/AdminSellerAnalytics';
 import { ChevronDown, ChevronRight, DollarSign, Users, ShoppingCart, Eye, Coins, Wallet, Clock, TrendingUp, Award, Trash2, Edit } from 'lucide-react';
 import { PeriodFilter, type PeriodOption, type CustomDateRange } from '@/components/seller/PeriodFilter';
@@ -18,8 +18,6 @@ import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { ComparisonCard } from '@/components/seller/ComparisonCard';
 import { CommissionConversionCard } from '@/components/seller/CommissionConversionCard';
-import { AdminSellerAnalytics } from './admin/AdminSellerAnalytics';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ExportButton } from '@/components/seller/ExportButton';
 
@@ -118,8 +116,6 @@ export const SellersPage = () => {
     };
   });
   const [enableComparison, setEnableComparison] = useState(false);
-  const [selectedSellerId, setSelectedSellerId] = useState<string | null>(null);
-  const [isAnalyticsModalOpen, setIsAnalyticsModalOpen] = useState(false);
   const [globalAnalyticsData, setGlobalAnalyticsData] = useState<AnalyticsData | null>(null);
   const [analyticsLoading, setAnalyticsLoading] = useState(false);
   const [granularity, setGranularity] = useState<'day' | 'week' | 'month'>('day');
