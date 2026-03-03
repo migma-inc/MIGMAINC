@@ -163,6 +163,7 @@ export const SellersPage = () => {
     try {
       setLoading(true);
 
+<<<<<<< HEAD
       const { start: prevStart, end: prevEnd } = getPeriodDates(
         periodFilter === 'all_time' ? { start: '2000-01-01', end: new Date().toISOString() } : periodFilter,
         periodFilter === 'custom' ? customDateRange : undefined
@@ -170,15 +171,20 @@ export const SellersPage = () => {
       const previousPeriod = getPreviousPeriod(prevStart, prevEnd, periodFilter === 'custom' ? 'custom' : periodFilter);
 
       // Load all sellers using adminSupabase
+=======
+      // Load sellers excluding test users (is_test = true) — always filtered regardless of environment
+>>>>>>> 1667cd8 (feat: add is_test flag to hide test sellers/orders from production dashboard)
       const { data: sellers, error: sellersError } = await adminSupabase
         .from('sellers')
-        .select('*');
+        .select('*')
+        .eq('is_test', false);
 
       if (sellersError) {
         console.error('Error loading sellers:', sellersError);
         return;
       }
 
+<<<<<<< HEAD
       // Calculate previous total sellers
       const prevSellersCount = (sellers || []).filter(s => {
         const createdDate = new Date(s.created_at);
@@ -191,6 +197,10 @@ export const SellersPage = () => {
       const availableSellers = isProd
         ? (sellers || []).filter(s => s.seller_id_public !== 'victordev')
         : (sellers || []);
+=======
+      const availableSellers = sellers || [];
+
+>>>>>>> 1667cd8 (feat: add is_test flag to hide test sellers/orders from production dashboard)
 
       if (availableSellers.length === 0) {
         setSellersStats([]);
