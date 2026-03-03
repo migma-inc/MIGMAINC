@@ -9,6 +9,8 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ConfirmModal } from '@/components/ui/confirm-modal';
 import { EditSellerModal } from '@/components/admin/EditSellerModal';
+import { Dialog, DialogContent } from '@/components/ui/dialog';
+import { AdminSellerAnalytics } from '@/pages/admin/AdminSellerAnalytics';
 import { ChevronDown, ChevronRight, DollarSign, Users, ShoppingCart, Eye, Coins, Wallet, Clock, TrendingUp, Award, Trash2, Edit } from 'lucide-react';
 
 // Helper function to calculate net amount and fee
@@ -100,6 +102,8 @@ export const SellersPage = () => {
   const [isDeleting, setIsDeleting] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [sellerToEdit, setSellerToEdit] = useState<Seller | null>(null);
+  const [selectedSellerId, setSelectedSellerId] = useState<string | null>(null);
+  const [isAnalyticsModalOpen, setIsAnalyticsModalOpen] = useState(false);
 
   useEffect(() => {
     loadSellersData();
@@ -519,10 +523,10 @@ export const SellersPage = () => {
                               className="text-white font-semibold truncate cursor-pointer hover:text-gold-light transition-colors"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                const url = `/dashboard/sellers/${stats.seller.seller_id_public}/analytics`;
-                                window.open(url, '_blank', 'width=1400,height=900,resizable=yes,scrollbars=yes');
+                                setSelectedSellerId(stats.seller.seller_id_public);
+                                setIsAnalyticsModalOpen(true);
                               }}
-                              title="Click to view seller analytics in new window"
+                              title="Click to view seller analytics"
                             >
                               {stats.seller.full_name || stats.seller.email}
                             </p>
@@ -567,10 +571,10 @@ export const SellersPage = () => {
                               className="text-white font-semibold truncate cursor-pointer hover:text-purple-300 transition-colors"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                const url = `/dashboard/sellers/${stats.seller.seller_id_public}/analytics`;
-                                window.open(url, '_blank', 'width=1400,height=900,resizable=yes,scrollbars=yes');
+                                setSelectedSellerId(stats.seller.seller_id_public);
+                                setIsAnalyticsModalOpen(true);
                               }}
-                              title="Click to view seller analytics in new window"
+                              title="Click to view seller analytics"
                             >
                               {stats.seller.full_name || stats.seller.email}
                             </p>
@@ -593,6 +597,15 @@ export const SellersPage = () => {
         )}
 
         {/* All Sellers List */}
+        <Dialog open={isAnalyticsModalOpen} onOpenChange={setIsAnalyticsModalOpen}>
+          <DialogContent className="max-w-[98vw] w-full lg:max-w-[1600px] max-h-[98vh] h-full overflow-y-auto p-0 border-white/20 bg-black [&>button]:text-white [&>button]:right-6 [&>button]:top-6 [&>button]:opacity-100 hover:[&>button]:opacity-80 [&>button:focus]:ring-white [&>button:focus]:ring-offset-black [&>button[data-state=open]]:bg-black [&>button]:border [&>button]:border-transparent">
+            <div className="p-2 sm:p-4">
+              {selectedSellerId && (
+                <AdminSellerAnalytics sellerId={selectedSellerId} isModal={true} />
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
         {sellersStats.length === 0 ? (
           <Card className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30">
             <CardContent className="p-6 text-center">
@@ -630,10 +643,10 @@ export const SellersPage = () => {
                             className="text-white text-base sm:text-xl break-words cursor-pointer hover:text-gold-light transition-colors"
                             onClick={(e) => {
                               e.stopPropagation();
-                              const url = `/dashboard/sellers/${stats.seller.seller_id_public}/analytics`;
-                              window.open(url, '_blank', 'width=1400,height=900,resizable=yes,scrollbars=yes');
+                              setSelectedSellerId(stats.seller.seller_id_public);
+                              setIsAnalyticsModalOpen(true);
                             }}
-                            title="Click to view seller analytics in new window"
+                            title="Click to view seller analytics"
                           >
                             {stats.seller.full_name || stats.seller.email}
                           </CardTitle>
@@ -885,6 +898,7 @@ export const SellersPage = () => {
             })}
           </div>
         )}
+
 
         <ConfirmModal
           isOpen={isDeleteModalOpen}
