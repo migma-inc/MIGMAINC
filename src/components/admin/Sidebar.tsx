@@ -202,12 +202,12 @@ export function Sidebar({ className, isMobileOpen = false, onMobileClose }: Side
       path: '/dashboard/sellers',
       exact: false,
     },
-    {
+    ...(import.meta.env.DEV ? [{
       title: 'Head of Sales',
       icon: Crown,
       path: '/dashboard/head-of-sales',
       exact: false,
-    },
+    }] : []),
     {
       title: 'Sync Sales',
       icon: UserPlus,
