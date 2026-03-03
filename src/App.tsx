@@ -106,8 +106,12 @@ function App() {
         <Route path="/seller/register" element={<SellerRegister />} />
         <Route path="/seller/dashboard" element={<SellerRoute><SellerDashboardLayout /></SellerRoute>}>
           <Route index element={<DashboardOverviewRouter />} />
-          <Route path="team" element={<HeadOfSalesTeam />} />
-          <Route path="team-orders" element={<HeadOfSalesOrders />} />
+          {import.meta.env.DEV && (
+            <>
+              <Route path="team" element={<HeadOfSalesTeam />} />
+              <Route path="team-orders" element={<HeadOfSalesOrders />} />
+            </>
+          )}
           <Route path="analytics" element={<SellerAnalytics />} />
           <Route path="commissions" element={<SellerCommissions />} />
           <Route path="funnel" element={<SellerFunnel />} />
@@ -139,7 +143,9 @@ function App() {
           <Route path="visa-contract-approval" element={<VisaContractApprovalPage />} />
           <Route path="zelle-approval" element={<ZelleApprovalPage />} />
           <Route path="sellers" element={<SellersPage />} />
-          <Route path="head-of-sales" element={<AdminRoute><HeadOfSalesManagement /></AdminRoute>} />
+          {import.meta.env.DEV && (
+            <Route path="head-of-sales" element={<AdminRoute><HeadOfSalesManagement /></AdminRoute>} />
+          )}
           <Route path="sellers/:sellerId/analytics" element={<AdminRoute><AdminSellerAnalytics /></AdminRoute>} />
           <Route path="sellers/:sellerId/orders" element={<AdminRoute><AdminSellerOrders /></AdminRoute>} />
           <Route path="contact-messages" element={<ContactMessagesPage />} />
