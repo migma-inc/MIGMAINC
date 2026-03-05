@@ -13,6 +13,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 export function AdminSyncSales() {
     const [orders, setOrders] = useState<Order[]>([]);
     const [sellers, setSellers] = useState<Seller[]>([]);
+    const [products, setProducts] = useState<Record<string, string>>({});
     const [loading, setLoading] = useState(true);
     const [processingId, setProcessingId] = useState<string | null>(null);
     const [selectedSellerForOrder, setSelectedSellerForOrder] = useState<Record<string, string>>({});
@@ -66,10 +67,22 @@ export function AdminSyncSales() {
 
             if (sellersError) throw sellersError;
 
+            // 3. Fetch products
+            const { data: productsData } = await adminSupabase
+                .from('visa_products')
+                .select('slug, name');
+
+            const productsMap = (productsData || []).reduce((acc, p: any) => ({
+                ...acc,
+                [p.slug]: p.name
+            }), {} as Record<string, string>);
+
+            setProducts(productsMap);
+
             // Filter out 'victordev' in production to comply with user request
             const isProd = import.meta.env.PROD;
             const availableSellers = isProd
-                ? (sellersData || []).filter(s => s.seller_id_public !== 'victordev')
+                ? (sellersData || []).filter((s: any) => s.seller_id_public !== 'victordev')
                 : (sellersData || []);
 
             setSellers(availableSellers);
@@ -290,7 +303,7 @@ export function AdminSyncSales() {
                                                     </td>
                                                     <td className="py-4 px-6">
                                                         <Badge variant="outline" className="border-gold-medium/30 text-[10px] text-gray-400 bg-transparent uppercase mb-1">
-                                                            {order.product_slug}
+                                                            {products[order.product_slug] || order.product_slug}
                                                         </Badge>
                                                         <p className="text-gold-light font-bold">${price.toFixed(2)}</p>
                                                     </td>

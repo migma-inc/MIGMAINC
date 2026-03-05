@@ -72,7 +72,7 @@ async function processSuccessfulSession(session: Stripe.Checkout.Session, supaba
 
   // 1. Update all orders
   for (const orderItem of orders) {
-    await supabase
+    const { error: updateError } = await supabase
       .from("visa_orders")
       .update({
         payment_status: "completed",
@@ -87,6 +87,11 @@ async function processSuccessfulSession(session: Stripe.Checkout.Session, supaba
         },
       })
       .eq("id", orderItem.id);
+
+    if (updateError) {
+      console.error(`[Webhook] Error updating order ${orderItem.id}:`, updateError);
+      throw new Error(`Database update failed: ${updateError.message}`);
+    }
   }
 
   // 2. Update payment and service request

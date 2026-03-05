@@ -93,8 +93,9 @@ interface SummaryStats {
 export const SellersPage = () => {
   const [sellersStats, setSellersStats] = useState<SellerStats[]>([]);
   const [summaryStats, setSummaryStats] = useState<SummaryStats | null>(null);
-  const [loading, setLoading] = useState(true);
   const [expandedSellers, setExpandedSellers] = useState<Set<string>>(new Set());
+  const [products, setProducts] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [sellerToDelete, setSellerToDelete] = useState<{ id: string, name: string } | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -296,6 +297,12 @@ export const SellersPage = () => {
         ),
       };
 
+      // Fetch products for names
+      const { data: productsData } = await adminSupabase
+        .from('visa_products')
+        .select('slug, name');
+      setProducts(productsData || []);
+
       setSellersStats(validStats);
       setSummaryStats(summary);
     } catch (err) {
@@ -349,6 +356,10 @@ export const SellersPage = () => {
     } finally {
       setIsDeleting(false);
     }
+  };
+
+  const getProductName = (slug: string) => {
+    return products.find(p => p.slug === slug)?.name || slug;
   };
 
   const getStatusBadge = (status: string) => {
@@ -838,7 +849,7 @@ export const SellersPage = () => {
                                           <p className="text-gray-400 text-xs">{order.client_email}</p>
                                         </div>
                                       </td>
-                                      <td className="py-3 px-4 text-sm text-white">{order.product_slug}</td>
+                                      <td className="py-3 px-4 text-sm text-white">{getProductName(order.product_slug)}</td>
                                       <td className="py-3 px-4 text-sm text-gold-light font-bold">
                                         {formatCurrency(order.total_price_usd)}
                                       </td>

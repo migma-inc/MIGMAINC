@@ -87,6 +87,7 @@ export const ZelleApprovalPage = () => {
 
   const [historyOrders, setHistoryOrders] = useState<ZelleOrder[]>([]);
   const [historyMigma, setHistoryMigma] = useState<MigmaPayment[]>([]);
+  const [products, setProducts] = useState<any[]>([]);
 
   const [unifiedApprovals, setUnifiedApprovals] = useState<any[]>([]);
 
@@ -134,7 +135,13 @@ export const ZelleApprovalPage = () => {
 
       if (migmaError) console.error('Error loading Migma:', migmaError);
 
-      // 4. Enrich Migma with client names and Fetch Processed By names
+      // 4. Load Products for names
+      const { data: productsData } = await supabase
+        .from('visa_products')
+        .select('slug, name');
+      setProducts(productsData || []);
+
+      // 5. Enrich Migma with client names and Fetch Processed By names
       let enrichedMigma: MigmaPayment[] = [];
       const adminIds = new Set<string>();
 
@@ -356,6 +363,10 @@ export const ZelleApprovalPage = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const getProductName = (slug: string) => {
+    return products.find(p => p.slug === slug)?.name || slug;
   };
 
   const handleApprove = (item: any) => {
@@ -1083,7 +1094,7 @@ export const ZelleApprovalPage = () => {
                       <div>
                         <span className="text-gray-500 block text-[10px] uppercase font-bold tracking-wider mb-1">Service / Product</span>
                         <div className="flex flex-col gap-1">
-                          <span className="text-white font-semibold">{item.product}</span>
+                          <span className="text-white font-semibold">{getProductName(item.product)}</span>
                           {item.upsell_product && (
                             <Badge variant="outline" className="w-fit bg-gold-medium/10 text-gold-light border-gold-medium/30 text-[10px] py-0">
                               + {item.upsell_product.toString().toUpperCase()}
@@ -1261,7 +1272,7 @@ export const ZelleApprovalPage = () => {
                       <div className="flex flex-col">
                         <span className="text-[10px] text-gray-500 uppercase font-bold tracking-tighter mb-0.5">Service</span>
                         <div className="flex flex-col">
-                          <span className="text-sm text-gray-300">{item.type === 'order' ? item.product_slug : item.fee_type_global}</span>
+                          <span className="text-sm text-gray-300">{getProductName(item.type === 'order' ? item.product_slug : item.fee_type_global)}</span>
                           {item.type === 'order' && (item.upsell_product_slug || item.payment_metadata?.upsell_details?.slug) && (
                             <span className="text-[9px] text-gold-medium/80 font-medium">
                               + {(item.upsell_product_slug || item.payment_metadata?.upsell_details?.slug).replace(/-/g, ' ')}
