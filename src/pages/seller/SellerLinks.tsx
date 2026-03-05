@@ -121,12 +121,7 @@ export function SellerLinks() {
   const hasLoadedRef = useRef(hasCachedProducts);
   const copyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Seller selection for Head of Sales / Admins
-  const [teamMembers, setTeamMembers] = useState<SellerInfo[]>([]);
-  const [selectedSellerId, setSelectedSellerId] = useState<string>('');
   const [targetSeller, setTargetSeller] = useState<SellerInfo | null>(null);
-  // loadingTeam used below in the selector
-  const [loadingTeam, setLoadingTeam] = useState(false);
 
   // Dropdown state for service groups
   const [expandedServices, setExpandedServices] = useState<{ [key: string]: boolean }>({
@@ -385,28 +380,6 @@ export function SellerLinks() {
 
         if (currentSeller && !targetSeller) {
           setTargetSeller(currentSeller);
-          setSelectedSellerId(currentSeller.id);
-        }
-
-        // 3. Load team members if HoS or Admin
-        if (currentSeller && (currentSeller.role === 'head_of_sales' || userIsAdmin)) {
-          setLoadingTeam(true);
-          try {
-            let query = supabase.from('sellers').select('*').eq('status', 'active');
-
-            if (currentSeller.role === 'head_of_sales' && !userIsAdmin) {
-              query = query.or(`id.eq.${currentSeller.id},head_of_sales_id.eq.${currentSeller.id}`);
-            }
-
-            const { data: members } = await query.order('full_name');
-            if (members) {
-              setTeamMembers(members as SellerInfo[]);
-            }
-          } catch (err) {
-            console.error('[SellerLinks] Error loading team members:', err);
-          } finally {
-            setLoadingTeam(false);
-          }
         }
       } catch (err) {
         console.error('[SellerLinks] Error loading seller info:', err);
