@@ -71,6 +71,7 @@ export const SellerOrderDetail = () => {
   const [order, setOrder] = useState<Order | null>(null);
   const [termsAcceptance, setTermsAcceptance] = useState<TermsAcceptance | null>(null);
   const [identityFiles, setIdentityFiles] = useState<IdentityFile[]>([]);
+  const [products, setProducts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [_seller, setSeller] = useState<any>(null);
   const [showAlert, setShowAlert] = useState(false);
@@ -148,6 +149,12 @@ export const SellerOrderDetail = () => {
             setIdentityFiles(filesData);
           }
         }
+
+        // Fetch products for names
+        const { data: productsData } = await supabase
+          .from('visa_products')
+          .select('slug, name');
+        setProducts(productsData || []);
       } catch (err) {
         console.error('Error loading data:', err);
         navigate('/seller/dashboard');
@@ -172,6 +179,10 @@ export const SellerOrderDetail = () => {
       default:
         return <Badge>{status}</Badge>;
     }
+  };
+
+  const getProductName = (slug: string) => {
+    return products.find(p => p.slug === slug)?.name || slug;
   };
 
 
@@ -435,7 +446,7 @@ export const SellerOrderDetail = () => {
                 <div className="space-y-2">
                   <div className="flex justify-between text-sm">
                     <span className="text-zinc-500">Product</span>
-                    <span className="text-white font-medium">{order.product_slug}</span>
+                    <span className="text-white font-medium">{getProductName(order.product_slug)}</span>
                   </div>
                   <div className="flex justify-between text-sm">
                     <span className="text-zinc-500">Base Price</span>
@@ -453,7 +464,7 @@ export const SellerOrderDetail = () => {
                       <div className="flex flex-col">
                         <span className="text-zinc-500 text-[10px] items-center gap-1 uppercase tracking-wider font-bold">Combo Copa / Upsell:</span>
                         <span className="text-green-400 font-medium text-xs">
-                          {order.upsell_product_slug}
+                          {getProductName(order.upsell_product_slug)}
                         </span>
                       </div>
                       <span className="text-white font-medium">+${parseFloat(order.upsell_price_usd || '0').toFixed(2)}</span>

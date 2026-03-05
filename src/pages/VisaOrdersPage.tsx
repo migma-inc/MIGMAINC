@@ -183,8 +183,8 @@ const OrderTable = ({
                 </td>
                 <td className="py-3 px-4 text-sm text-white">
                   <div className="flex items-center gap-1.5">
-                    <span className="font-medium truncate max-w-[120px]" title={order.product_slug}>
-                      {order.product_slug}
+                    <span className="font-medium truncate max-w-[120px]" title={getProductName(order.product_slug)}>
+                      {getProductName(order.product_slug)}
                     </span>
                     {order.upsell_product_slug && (
                       <span

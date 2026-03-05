@@ -84,6 +84,7 @@ export const SellerZelleApprovalPage = () => {
 
     const [historyOrders, setHistoryOrders] = useState<ZelleOrder[]>([]);
     const [historyMigma, setHistoryMigma] = useState<MigmaPayment[]>([]);
+    const [products, setProducts] = useState<any[]>([]);
 
     const [unifiedApprovals, setUnifiedApprovals] = useState<any[]>([]);
 
@@ -143,6 +144,10 @@ export const SellerZelleApprovalPage = () => {
         }
     };
 
+    const getProductName = (slug: string) => {
+        return products.find(p => p.slug === slug)?.name || slug;
+    };
+
     const loadOrders = async (currentSellerId: string) => {
         try {
             const { data: ordersData, error: ordersError } = await supabase
@@ -155,6 +160,12 @@ export const SellerZelleApprovalPage = () => {
                 .order('created_at', { ascending: false });
 
             if (ordersError) throw ordersError;
+
+            // Load Products for names
+            const { data: productsData } = await supabase
+                .from('visa_products')
+                .select('slug, name');
+            setProducts(productsData || []);
 
             const paymentsMap: Record<string, ZellePayment> = {};
             if (ordersData && ordersData.length > 0) {
@@ -642,7 +653,7 @@ export const SellerZelleApprovalPage = () => {
                                                 <div className="min-w-0">
                                                     <p className="text-[10px] text-gray-500 uppercase font-bold tracking-wider mb-1">Service / Product</p>
                                                     <div className="flex flex-col gap-1">
-                                                        <p className="text-sm text-gray-300 font-medium truncate uppercase">{item.product}</p>
+                                                        <p className="text-sm text-gray-300 font-medium truncate uppercase">{getProductName(item.product)}</p>
                                                         {item.upsell_product && (
                                                             <Badge variant="outline" className="w-fit bg-gold-medium/10 text-gold-light border-gold-medium/30 text-[10px] py-0">
                                                                 + {item.upsell_product.replace(/-/g, ' ').toUpperCase()} BUNDLE
@@ -705,7 +716,7 @@ export const SellerZelleApprovalPage = () => {
                                 <div className="min-w-0">
                                     <p className="font-bold text-white text-sm truncate">{item.client_name || 'N/A'}</p>
                                     <div className="flex flex-col">
-                                        <p className="text-xs text-gray-400 truncate uppercase mt-0.5">{item.product_slug || item.fee_type_global}</p>
+                                        <p className="text-xs text-gray-400 truncate uppercase mt-0.5">{getProductName(item.product_slug || item.fee_type_global)}</p>
                                         {item.type === 'order' && (item.upsell_product_slug || item.payment_metadata?.upsell_details?.slug) && (
                                             <span className="text-[9px] text-gold-medium/80 font-medium italic">
                                                 + {(item.upsell_product_slug || item.payment_metadata?.upsell_details?.slug).replace(/-/g, ' ')}

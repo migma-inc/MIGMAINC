@@ -99,6 +99,7 @@ export const SellersPage = () => {
   const [sellersStats, setSellersStats] = useState<SellerStats[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedSellers, setExpandedSellers] = useState<Set<string>>(new Set());
+  const [products, setProducts] = useState<any[]>([]);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [sellerToDelete, setSellerToDelete] = useState<{ id: string, name: string } | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -166,6 +167,12 @@ export const SellersPage = () => {
   const loadSellersData = async () => {
     try {
       setLoading(true);
+
+      // Load products for name mapping
+      const { data: productsData } = await adminSupabase
+        .from('visa_products')
+        .select('slug, name');
+      if (productsData) setProducts(productsData);
 
       const { start: prevStart, end: prevEnd } = getPeriodDates(
         periodFilter === 'all_time' ? { start: '2000-01-01', end: new Date().toISOString() } : periodFilter,
@@ -457,6 +464,10 @@ export const SellersPage = () => {
     } finally {
       setIsDeleting(false);
     }
+  };
+
+  const getProductName = (slug: string) => {
+    return products.find(p => p.slug === slug)?.name || slug;
   };
 
   const getStatusBadge = (status: string) => {
@@ -1007,7 +1018,7 @@ export const SellersPage = () => {
                                           <p className="text-gray-400 text-xs">{order.client_email}</p>
                                         </div>
                                       </td>
-                                      <td className="py-3 px-4 text-sm text-white">{order.product_slug}</td>
+                                      <td className="py-3 px-4 text-sm text-white">{getProductName(order.product_slug)}</td>
                                       <td className="py-3 px-4 text-sm text-gold-light font-bold">
                                         {formatCurrency(order.total_price_usd)}
                                       </td>
