@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
-import { FileText, ClipboardList, LayoutDashboard, Phone, ShoppingCart, DollarSign, UserCircle2, Mail, FileCode, Calendar, X, Activity, Ticket, LinkIcon, ChevronDown, ChevronRight, GraduationCap, UserPlus } from 'lucide-react';
+import { FileText, ClipboardList, LayoutDashboard, Phone, ShoppingCart, DollarSign, UserCircle2, Mail, FileCode, Calendar, X, Activity, Ticket, LinkIcon, ChevronDown, ChevronRight, GraduationCap, UserPlus, Crown } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useState, useEffect } from 'react';
 
@@ -202,6 +202,12 @@ export function Sidebar({ className, isMobileOpen = false, onMobileClose }: Side
       path: '/dashboard/sellers',
       exact: false,
     },
+    ...(import.meta.env.DEV ? [{
+      title: 'Head of Sales',
+      icon: Crown,
+      path: '/dashboard/head-of-sales',
+      exact: false,
+    }] : []),
     {
       title: 'Sync Sales',
       icon: UserPlus,

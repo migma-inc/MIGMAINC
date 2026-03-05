@@ -12,13 +12,16 @@ interface EditSellerModalProps {
         email: string;
         phone: string | null;
         status: string;
+        role?: string;
+        head_of_sales_id?: string | null;
     };
+    headsOfSales?: { id: string; full_name: string; email: string }[];
     isOpen: boolean;
     onClose: () => void;
     onSuccess: () => void;
 }
 
-export function EditSellerModal({ seller, isOpen, onClose, onSuccess }: EditSellerModalProps) {
+export function EditSellerModal({ seller, headsOfSales = [], isOpen, onClose, onSuccess }: EditSellerModalProps) {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
     const [success, setSuccess] = useState('');
@@ -29,6 +32,8 @@ export function EditSellerModal({ seller, isOpen, onClose, onSuccess }: EditSell
         email: seller.email,
         phone: seller.phone || '',
         seller_id_public: seller.seller_id_public,
+        role: seller.role || 'seller',
+        head_of_sales_id: seller.head_of_sales_id || '',
         new_password: '',
         confirm_password: '',
     });
@@ -40,6 +45,8 @@ export function EditSellerModal({ seller, isOpen, onClose, onSuccess }: EditSell
             email: seller.email,
             phone: seller.phone || '',
             seller_id_public: seller.seller_id_public,
+            role: seller.role || 'seller',
+            head_of_sales_id: seller.head_of_sales_id || '',
             new_password: '',
             confirm_password: '',
         });
@@ -99,6 +106,8 @@ export function EditSellerModal({ seller, isOpen, onClose, onSuccess }: EditSell
                     email: formData.email.trim(),
                     phone: formData.phone.trim(),
                     seller_id_public: formData.seller_id_public.trim(),
+                    role: formData.role,
+                    head_of_sales_id: formData.role === 'seller' ? formData.head_of_sales_id : null,
                     new_password: formData.new_password || undefined,
                 },
             });
@@ -246,6 +255,51 @@ export function EditSellerModal({ seller, isOpen, onClose, onSuccess }: EditSell
                             </div>
                         )}
                     </div>
+
+                    {/* Role Selection */}
+                    <div>
+                        <label className="block text-sm font-medium text-gray-300 mb-2">
+                            Tipo de Conta
+                        </label>
+                        <select
+                            name="role"
+                            value={formData.role}
+                            onChange={(e) => {
+                                handleInputChange(e as any);
+                                if (e.target.value === 'head_of_sales') {
+                                    setFormData(prev => ({ ...prev, head_of_sales_id: '' }));
+                                }
+                            }}
+                            className="w-full px-4 py-2 bg-black/50 border border-gold-medium/30 rounded-lg text-white focus:outline-none focus:border-gold-medium"
+                            disabled={loading}
+                        >
+                            <option value="seller">Vendedor</option>
+                            <option value="head_of_sales">Gestor (Head of Sales)</option>
+                        </select>
+                    </div>
+
+                    {/* Manager Selection (only if role is seller) */}
+                    {formData.role === 'seller' && (
+                        <div>
+                            <label className="block text-sm font-medium text-gray-300 mb-2">
+                                Gestor (Opcional)
+                            </label>
+                            <select
+                                name="head_of_sales_id"
+                                value={formData.head_of_sales_id || ''}
+                                onChange={handleInputChange as any}
+                                className="w-full px-4 py-2 bg-black/50 border border-gold-medium/30 rounded-lg text-white focus:outline-none focus:border-gold-medium"
+                                disabled={loading}
+                            >
+                                <option value="">Sem Gestor</option>
+                                {headsOfSales.map((manager) => (
+                                    <option key={manager.id} value={manager.id}>
+                                        {manager.full_name || manager.email}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+                    )}
 
                     {/* Divider */}
                     <div className="border-t border-gold-medium/30 pt-6">

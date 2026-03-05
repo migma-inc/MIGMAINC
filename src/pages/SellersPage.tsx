@@ -9,7 +9,17 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ConfirmModal } from '@/components/ui/confirm-modal';
 import { EditSellerModal } from '@/components/admin/EditSellerModal';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { AdminSellerAnalytics } from '@/pages/admin/AdminSellerAnalytics';
 import { ChevronDown, ChevronRight, DollarSign, Users, ShoppingCart, Eye, Coins, Wallet, Clock, TrendingUp, Award, Trash2, Edit } from 'lucide-react';
+import { PeriodFilter, type PeriodOption, type CustomDateRange } from '@/components/seller/PeriodFilter';
+import { getPeriodDates, getAnalyticsData, getPreviousPeriod, calculatePercentageChange, type AnalyticsData } from '@/lib/seller-analytics';
+import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox';
+import { ComparisonCard } from '@/components/seller/ComparisonCard';
+import { CommissionConversionCard } from '@/components/seller/CommissionConversionCard';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { ExportButton } from '@/components/seller/ExportButton';
 
 // Helper function to calculate net amount and fee
 const calculateNetAmountAndFee = (order: Order) => {
@@ -33,6 +43,8 @@ interface Seller {
   created_at: string;
   user_id: string;
   status: string;
+  role?: string;
+  head_of_sales_id?: string | null;
 }
 
 interface Order {
@@ -77,22 +89,15 @@ interface SellerStats {
   orders: Order[];
   balance: SellerBalance;
   totalCommissions: number;
+  previousTotalRevenue: number;
+  previousTotalCommissions: number;
   pendingPaymentRequests: PaymentRequest[];
 }
 
-interface SummaryStats {
-  totalSellers: number;
-  totalRevenue: number;
-  totalCommissions: number;
-  totalAvailableBalance: number;
-  totalPendingBalance: number;
-  totalPendingRequests: number;
-  totalPendingRequestsAmount: number;
-}
 
 export const SellersPage = () => {
   const [sellersStats, setSellersStats] = useState<SellerStats[]>([]);
-  const [summaryStats, setSummaryStats] = useState<SummaryStats | null>(null);
+  const [loading, setLoading] = useState(true);
   const [expandedSellers, setExpandedSellers] = useState<Set<string>>(new Set());
   const [products, setProducts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -101,43 +106,103 @@ export const SellersPage = () => {
   const [isDeleting, setIsDeleting] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [sellerToEdit, setSellerToEdit] = useState<Seller | null>(null);
+  const [selectedSellerId, setSelectedSellerId] = useState<string | null>(null);
+  const [isAnalyticsModalOpen, setIsAnalyticsModalOpen] = useState(false);
+
+  const [periodFilter, setPeriodFilter] = useState<PeriodOption>('all_time');
+  const [customDateRange, setCustomDateRange] = useState<CustomDateRange>(() => {
+    const end = new Date();
+    const start = new Date();
+    start.setDate(start.getDate() - 30);
+    return {
+      start: start.toISOString().split('T')[0],
+      end: end.toISOString().split('T')[0],
+    };
+  });
+  const [enableComparison, setEnableComparison] = useState(false);
+  const [globalAnalyticsData, setGlobalAnalyticsData] = useState<AnalyticsData | null>(null);
+  const [analyticsLoading, setAnalyticsLoading] = useState(false);
+  const [granularity, setGranularity] = useState<'day' | 'week' | 'month'>('day');
+  const [headsOfSales, setHeadsOfSales] = useState<{ id: string; full_name: string; email: string }[]>([]);
+
 
   useEffect(() => {
     loadSellersData();
-  }, []);
+    loadGlobalAnalytics();
+  }, [periodFilter, customDateRange, enableComparison, granularity]);
+
+  const loadGlobalAnalytics = async () => {
+    setAnalyticsLoading(true);
+    try {
+      const data = await getAnalyticsData(
+        null,
+        periodFilter === 'all_time' ? { start: '2000-01-01', end: new Date().toISOString() } : periodFilter,
+        enableComparison,
+        periodFilter === 'custom' ? customDateRange : undefined,
+        granularity
+      );
+      setGlobalAnalyticsData(data);
+    } catch (error) {
+      console.error('Error loading global analytics:', error);
+    } finally {
+      setAnalyticsLoading(false);
+    }
+  };
+
+  const periodLabel = periodFilter === 'thismonth' ? 'This Month' :
+    periodFilter === 'lastmonth' ? 'Last Month' :
+      periodFilter === 'today' ? 'Today' :
+        periodFilter === 'yesterday' ? 'Yesterday' :
+          periodFilter === 'last7days' ? 'Last 7 Days' :
+            periodFilter === 'last30days' ? 'Last 30 Days' :
+              periodFilter === 'last3months' ? 'Last 3 Months' :
+                periodFilter === 'last6months' ? 'Last 6 Months' :
+                  periodFilter === 'lastyear' ? 'Last Year' :
+                    periodFilter === 'all_time' ? 'All Time' :
+                      periodFilter === 'custom' ? `${customDateRange.start} to ${customDateRange.end}` : 'Period';
+
+  const [previousTotalSellers, setPreviousTotalSellers] = useState(0);
+
+  const currentTotalSellers = sellersStats.length;
 
   const loadSellersData = async () => {
     try {
       setLoading(true);
 
-      // Load all sellers using adminSupabase
-      // We'll order by last sale date after loading orders
+      const { start: prevStart, end: prevEnd } = getPeriodDates(
+        periodFilter === 'all_time' ? { start: '2000-01-01', end: new Date().toISOString() } : periodFilter,
+        periodFilter === 'custom' ? customDateRange : undefined
+      );
+      const previousPeriod = getPreviousPeriod(prevStart, prevEnd, periodFilter === 'custom' ? 'custom' : periodFilter);
+
+      // Load sellers excluding test users (is_test = true) — always filtered regardless of environment
       const { data: sellers, error: sellersError } = await adminSupabase
         .from('sellers')
-        .select('*');
+        .select('*')
+        .eq('is_test', false);
 
       if (sellersError) {
         console.error('Error loading sellers:', sellersError);
         return;
       }
 
-      // Filter out 'victordev' in production to comply with user request
-      const isProd = import.meta.env.PROD;
-      const availableSellers = isProd
-        ? (sellers || []).filter(s => s.seller_id_public !== 'victordev')
-        : (sellers || []);
+      // Calculate previous total sellers
+      const prevSellersCount = (sellers || []).filter(s => {
+        const createdDate = new Date(s.created_at);
+        return createdDate <= previousPeriod.end;
+      }).length;
+      setPreviousTotalSellers(prevSellersCount);
+
+      const availableSellers = sellers || [];
+
+      // Extract Heads of Sales for the dropdowns
+      const hosList = availableSellers
+        .filter(s => s.role === 'head_of_sales')
+        .map(s => ({ id: s.id, full_name: s.full_name, email: s.email }));
+      setHeadsOfSales(hosList);
 
       if (availableSellers.length === 0) {
         setSellersStats([]);
-        setSummaryStats({
-          totalSellers: 0,
-          totalRevenue: 0,
-          totalCommissions: 0,
-          totalAvailableBalance: 0,
-          totalPendingBalance: 0,
-          totalPendingRequests: 0,
-          totalPendingRequestsAmount: 0,
-        });
         setLoading(false);
         return;
       }
@@ -145,11 +210,32 @@ export const SellersPage = () => {
       // For each seller, load their orders, balance, commissions, and payment requests
       const statsPromises = availableSellers.map(async (seller) => {
         // Load orders
-        const { data: orders, error: ordersError } = await adminSupabase
+        let ordersQuery = adminSupabase
           .from('visa_orders')
           .select('*, payment_metadata')
-          .eq('seller_id', seller.seller_id_public)
+          .eq('seller_id', seller.seller_id_public);
+
+        if (periodFilter !== 'all_time') {
+          ordersQuery = ordersQuery
+            .gte('created_at', prevStart.toISOString())
+            .lte('created_at', prevEnd.toISOString());
+        }
+
+        const { data: orders, error: ordersError } = await ordersQuery
           .order('created_at', { ascending: false });
+
+        // Load PREVIOUS period orders for comparison
+        let prevOrdersQuery = adminSupabase
+          .from('visa_orders')
+          .select('*, payment_metadata')
+          .eq('seller_id', seller.seller_id_public);
+
+        prevOrdersQuery = prevOrdersQuery
+          .gte('created_at', previousPeriod.start.toISOString())
+          .lte('created_at', previousPeriod.end.toISOString());
+
+        const { data: prevOrders } = await prevOrdersQuery;
+        const prevOrdersList = (prevOrders || []) as Order[];
 
         if (ordersError) {
           console.error(`Error loading orders for seller ${seller.seller_id_public}:`, ordersError);
@@ -202,14 +288,25 @@ export const SellersPage = () => {
 
         // Load total commissions
         let totalCommissions = 0;
-        try {
-          const { data: commissionsData } = await adminSupabase
-            .from('seller_commissions')
-            .select('commission_amount_usd')
-            .eq('seller_id', seller.seller_id_public);
+        // Load commissions
+        let commQuery = adminSupabase
+          .from('seller_commissions')
+          .select('commission_amount_usd')
+          .eq('seller_id', seller.seller_id_public);
 
-          if (commissionsData) {
-            totalCommissions = commissionsData.reduce(
+        if (periodFilter !== 'all_time') {
+          commQuery = commQuery
+            .gte('created_at', prevStart.toISOString())
+            .lte('created_at', prevEnd.toISOString());
+        }
+
+        try {
+          const { data: commissions, error: commissionsError } = await commQuery;
+
+          if (commissionsError) {
+            console.error(`Error loading commissions for seller ${seller.seller_id_public}:`, commissionsError);
+          } else if (commissions) {
+            totalCommissions = commissions.reduce(
               (sum, c) => sum + parseFloat(c.commission_amount_usd || '0'),
               0
             );
@@ -217,6 +314,31 @@ export const SellersPage = () => {
         } catch (err) {
           console.error(`Error loading commissions for seller ${seller.seller_id_public}:`, err);
         }
+
+        // Load PREVIOUS period commissions for comparison
+        let previousTotalCommissions = 0;
+        let prevCommQuery = adminSupabase
+          .from('seller_commissions')
+          .select('commission_amount_usd')
+          .eq('seller_id', seller.seller_id_public)
+          .gte('created_at', previousPeriod.start.toISOString())
+          .lte('created_at', previousPeriod.end.toISOString());
+
+        try {
+          const { data: prevCommissions } = await prevCommQuery;
+          if (prevCommissions) {
+            previousTotalCommissions = prevCommissions.reduce(
+              (sum, c) => sum + parseFloat(c.commission_amount_usd || '0'),
+              0
+            );
+          }
+        } catch (err) {
+          console.error(`Error loading prev commissions for seller ${seller.seller_id_public}:`, err);
+        }
+
+        const previousTotalRevenue = prevOrdersList
+          .filter(o => o.payment_status === 'paid' || o.payment_status === 'completed')
+          .reduce((sum, o) => sum + calculateNetAmount(o), 0);
 
         // PAYMENT REQUEST - COMENTADO TEMPORARIAMENTE
         // Load pending payment requests
@@ -252,6 +374,8 @@ export const SellersPage = () => {
           orders: ordersList,
           balance,
           totalCommissions,
+          previousTotalRevenue,
+          previousTotalCommissions,
           pendingPaymentRequests,
         } as SellerStats;
       });
@@ -283,28 +407,7 @@ export const SellersPage = () => {
         return new Date(b.seller.created_at).getTime() - new Date(a.seller.created_at).getTime();
       });
 
-      // Calculate summary stats
-      const summary: SummaryStats = {
-        totalSellers: validStats.length,
-        totalRevenue: validStats.reduce((sum, s) => sum + s.totalRevenue, 0),
-        totalCommissions: validStats.reduce((sum, s) => sum + s.totalCommissions, 0),
-        totalAvailableBalance: validStats.reduce((sum, s) => sum + s.balance.available_balance, 0),
-        totalPendingBalance: validStats.reduce((sum, s) => sum + s.balance.pending_balance, 0),
-        totalPendingRequests: validStats.reduce((sum, s) => sum + s.pendingPaymentRequests.length, 0),
-        totalPendingRequestsAmount: validStats.reduce(
-          (sum, s) => sum + s.pendingPaymentRequests.reduce((reqSum, req) => reqSum + req.amount, 0),
-          0
-        ),
-      };
-
-      // Fetch products for names
-      const { data: productsData } = await adminSupabase
-        .from('visa_products')
-        .select('slug, name');
-      setProducts(productsData || []);
-
       setSellersStats(validStats);
-      setSummaryStats(summary);
     } catch (err) {
       console.error('Error loading sellers data:', err);
     } finally {
@@ -433,72 +536,98 @@ export const SellersPage = () => {
   return (
     <div className="p-4 sm:p-6 lg:p-8">
       <div className="max-w-7xl mx-auto">
-        <div className="mb-6 sm:mb-8">
-          <h1 className="text-2xl sm:text-3xl font-bold migma-gold-text mb-2">Sellers & Sales</h1>
-          <p className="text-sm sm:text-base text-gray-400">Comprehensive overview of sellers, commissions, and sales performance</p>
+        <div className="mb-6 sm:mb-8 flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-bold migma-gold-text mb-2">Sellers & Sales</h1>
+            <p className="text-sm sm:text-base text-gray-400">Comprehensive overview of sellers, commissions, and sales performance</p>
+          </div>
+          <div className="flex flex-col items-end gap-3 w-full lg:w-auto">
+            {globalAnalyticsData && (
+              <ExportButton data={globalAnalyticsData} periodLabel={periodLabel} />
+            )}
+            <div className="w-full sm:w-auto flex flex-col sm:flex-row items-center gap-3 bg-black/20 p-2 rounded-lg border border-gold-medium/10">
+              <PeriodFilter
+                value={periodFilter}
+                onChange={setPeriodFilter}
+                customDateRange={customDateRange}
+                onCustomDateRangeChange={setCustomDateRange}
+                showLabel={true}
+              />
+
+              <div className="flex items-center gap-2 px-2 border-l border-gold-medium/20">
+                <Label htmlFor="granularity" className="text-gray-400 text-xs whitespace-nowrap">
+                  Group by:
+                </Label>
+                <Select
+                  value={granularity}
+                  onValueChange={(value) => setGranularity(value as 'day' | 'week' | 'month')}
+                >
+                  <SelectTrigger
+                    id="granularity"
+                    className="w-[100px] h-8 bg-black/50 border-gold-medium/30 text-white text-xs hover:bg-black/70"
+                  >
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="day">Daily</SelectItem>
+                    <SelectItem value="week">Weekly</SelectItem>
+                    <SelectItem value="month">Monthly</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="flex items-center gap-2 px-2 border-l border-gold-medium/20">
+                <Checkbox
+                  id="comparison"
+                  checked={enableComparison}
+                  onCheckedChange={(checked) => setEnableComparison(checked === true)}
+                  className="h-4 w-4 shrink-0"
+                />
+                <Label htmlFor="comparison" className="text-gray-400 text-xs cursor-pointer">
+                  Compare
+                </Label>
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* Summary Cards */}
-        {summaryStats && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6 sm:mb-8">
-            <Card className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30">
-              <CardContent className="p-4 sm:p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-xs sm:text-sm text-gray-400 mb-1">Total Sellers</p>
-                    <p className="text-2xl sm:text-3xl font-bold text-white">{summaryStats.totalSellers}</p>
-                  </div>
-                  <Users className="w-8 h-8 sm:w-10 sm:h-10 text-gold-light shrink-0" />
-                </div>
-              </CardContent>
-            </Card>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6 sm:mb-8">
+          {analyticsLoading || !globalAnalyticsData ? (
+            Array(4).fill(0).map((_, i) => <Skeleton key={i} className="h-32" />)
+          ) : (
+            <>
+              <ComparisonCard
+                title="Total Sellers"
+                currentValue={currentTotalSellers}
+                previousValue={previousTotalSellers}
+                formatValue={(v) => v.toString()}
+                icon={<Users className="w-5 h-5 text-gold-light" />}
+              />
+              <ComparisonCard
+                title="Total Revenue"
+                currentValue={globalAnalyticsData.summary.totalRevenue}
+                previousValue={globalAnalyticsData.comparison?.previousSummary.totalRevenue || 0}
+                formatValue={(v) => formatCurrency(v)}
+                icon={<DollarSign className="w-5 h-5 text-green-400" />}
+              />
+              <ComparisonCard
+                title="Total Commissions"
+                currentValue={globalAnalyticsData.summary.commission}
+                previousValue={globalAnalyticsData.comparison?.previousSummary.commissions || 0}
+                formatValue={(v) => formatCurrency(v)}
+                icon={<Coins className="w-5 h-5 text-purple-400" />}
+              />
+              <CommissionConversionCard
+                currentRate={globalAnalyticsData.commissionSummary?.commissionRate || 0}
+                previousRate={globalAnalyticsData.comparison?.previousSummary.commissions ? (globalAnalyticsData.comparison.previousSummary.commissions / globalAnalyticsData.comparison.previousSummary.totalRevenue) * 100 : undefined}
+                currentRevenue={globalAnalyticsData.summary.totalRevenue}
+                currentCommissions={globalAnalyticsData.summary.commission}
+              />
+            </>
+          )}
+        </div>
 
-            <Card className="bg-gradient-to-br from-green-500/10 via-green-500/5 to-green-500/10 border border-green-500/30">
-              <CardContent className="p-4 sm:p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-xs sm:text-sm text-gray-400 mb-1">Total Revenue</p>
-                    <p className="text-xl sm:text-2xl font-bold text-green-300">
-                      {formatCurrency(summaryStats.totalRevenue)}
-                    </p>
-                  </div>
-                  <DollarSign className="w-8 h-8 sm:w-10 sm:h-10 text-green-400 shrink-0" />
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="bg-gradient-to-br from-purple-500/10 via-purple-500/5 to-purple-500/10 border border-purple-500/30">
-              <CardContent className="p-4 sm:p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-xs sm:text-sm text-gray-400 mb-1">Total Commissions</p>
-                    <p className="text-xl sm:text-2xl font-bold text-purple-300">
-                      {formatCurrency(summaryStats.totalCommissions)}
-                    </p>
-                  </div>
-                  <Coins className="w-8 h-8 sm:w-10 sm:h-10 text-purple-400 shrink-0" />
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="bg-gradient-to-br from-yellow-500/10 via-yellow-500/5 to-yellow-500/10 border border-yellow-500/30">
-              <CardContent className="p-4 sm:p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-xs sm:text-sm text-gray-400 mb-1">Pending Requests</p>
-                    <p className="text-xl sm:text-2xl font-bold text-yellow-300">
-                      {summaryStats.totalPendingRequests}
-                    </p>
-                    <p className="text-xs text-gray-500 mt-1">
-                      {formatCurrency(summaryStats.totalPendingRequestsAmount)}
-                    </p>
-                  </div>
-                  <Clock className="w-8 h-8 sm:w-10 sm:h-10 text-yellow-400 shrink-0" />
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        )}
 
         {/* Top Sellers Section */}
         {sellersStats.length > 0 && (
@@ -530,10 +659,10 @@ export const SellersPage = () => {
                               className="text-white font-semibold truncate cursor-pointer hover:text-gold-light transition-colors"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                const url = `/dashboard/sellers/${stats.seller.seller_id_public}/analytics`;
-                                window.open(url, '_blank', 'width=1400,height=900,resizable=yes,scrollbars=yes');
+                                setSelectedSellerId(stats.seller.seller_id_public);
+                                setIsAnalyticsModalOpen(true);
                               }}
-                              title="Click to view seller analytics in new window"
+                              title="Click to view seller analytics"
                             >
                               {stats.seller.full_name || stats.seller.email}
                             </p>
@@ -578,10 +707,10 @@ export const SellersPage = () => {
                               className="text-white font-semibold truncate cursor-pointer hover:text-purple-300 transition-colors"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                const url = `/dashboard/sellers/${stats.seller.seller_id_public}/analytics`;
-                                window.open(url, '_blank', 'width=1400,height=900,resizable=yes,scrollbars=yes');
+                                setSelectedSellerId(stats.seller.seller_id_public);
+                                setIsAnalyticsModalOpen(true);
                               }}
-                              title="Click to view seller analytics in new window"
+                              title="Click to view seller analytics"
                             >
                               {stats.seller.full_name || stats.seller.email}
                             </p>
@@ -604,6 +733,15 @@ export const SellersPage = () => {
         )}
 
         {/* All Sellers List */}
+        <Dialog open={isAnalyticsModalOpen} onOpenChange={setIsAnalyticsModalOpen}>
+          <DialogContent className="max-w-[98vw] w-full lg:max-w-[1600px] max-h-[98vh] h-full overflow-y-auto p-0 border-white/20 bg-black [&>button]:text-white [&>button]:right-6 [&>button]:top-6 [&>button]:opacity-100 hover:[&>button]:opacity-80 [&>button:focus]:ring-white [&>button:focus]:ring-offset-black [&>button[data-state=open]]:bg-black [&>button]:border [&>button]:border-transparent">
+            <div className="p-2 sm:p-4">
+              {selectedSellerId && (
+                <AdminSellerAnalytics sellerId={selectedSellerId} isModal={true} />
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
         {sellersStats.length === 0 ? (
           <Card className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30">
             <CardContent className="p-6 text-center">
@@ -638,19 +776,29 @@ export const SellersPage = () => {
                         </Button>
                         <div className="flex-1 min-w-0">
                           <CardTitle
-                            className="text-white text-base sm:text-xl break-words cursor-pointer hover:text-gold-light transition-colors"
+                            className="text-white text-base sm:text-xl break-words cursor-pointer hover:text-gold-light transition-colors flex items-center gap-2"
                             onClick={(e) => {
                               e.stopPropagation();
-                              const url = `/dashboard/sellers/${stats.seller.seller_id_public}/analytics`;
-                              window.open(url, '_blank', 'width=1400,height=900,resizable=yes,scrollbars=yes');
+                              setSelectedSellerId(stats.seller.seller_id_public);
+                              setIsAnalyticsModalOpen(true);
                             }}
-                            title="Click to view seller analytics in new window"
+                            title="Click to view seller analytics"
                           >
                             {stats.seller.full_name || stats.seller.email}
+                            {stats.seller.role === 'head_of_sales' && (
+                              <Badge className="bg-purple-500/20 text-purple-300 border-purple-500/50 text-[10px] uppercase font-bold tracking-wider">
+                                Head of Sales
+                              </Badge>
+                            )}
                           </CardTitle>
                           <p className="text-xs sm:text-sm text-gray-400 mt-1 break-words">
                             ID: {stats.seller.seller_id_public} | {stats.seller.email}
                           </p>
+                          {stats.seller.role !== 'head_of_sales' && stats.seller.head_of_sales_id && (
+                            <p className="text-xs text-purple-400/80 mt-1 flex items-center gap-1">
+                              📍 Gestor: {headsOfSales.find(h => h.id === stats.seller.head_of_sales_id)?.full_name || 'Desconhecido'}
+                            </p>
+                          )}
                         </div>
                       </div>
 
@@ -711,9 +859,17 @@ export const SellersPage = () => {
 
                       {/* Total Revenue */}
                       <div className="bg-green-900/20 rounded-lg p-3 sm:p-4 border border-green-500/30">
-                        <div className="flex items-center gap-2 mb-2">
-                          <DollarSign className="w-3 h-3 sm:w-4 sm:h-4 text-green-300" />
-                          <span className="text-xs sm:text-sm text-gray-400">Revenue</span>
+                        <div className="flex items-center justify-between gap-2 mb-2">
+                          <div className="flex items-center gap-2">
+                            <DollarSign className="w-3 h-3 sm:w-4 sm:h-4 text-green-300" />
+                            <span className="text-xs sm:text-sm text-gray-400">Revenue</span>
+                          </div>
+                          {enableComparison && stats.previousTotalRevenue > 0 && (
+                            <div className={`flex items-center gap-0.5 text-[10px] font-bold ${stats.totalRevenue >= stats.previousTotalRevenue ? 'text-green-400' : 'text-red-400'}`}>
+                              {stats.totalRevenue >= stats.previousTotalRevenue ? <TrendingUp className="w-2.5 h-2.5" /> : <TrendingUp className="w-2.5 h-2.5 rotate-180" />}
+                              {calculatePercentageChange(stats.totalRevenue, stats.previousTotalRevenue).toFixed(0)}%
+                            </div>
+                          )}
                         </div>
                         <p className="text-lg sm:text-xl font-bold text-green-300">
                           {formatCurrency(stats.totalRevenue)}
@@ -722,9 +878,17 @@ export const SellersPage = () => {
 
                       {/* Total Commissions */}
                       <div className="bg-purple-900/20 rounded-lg p-3 sm:p-4 border border-purple-500/30">
-                        <div className="flex items-center gap-2 mb-2">
-                          <Coins className="w-3 h-3 sm:w-4 sm:h-4 text-purple-300" />
-                          <span className="text-xs sm:text-sm text-gray-400">Commissions</span>
+                        <div className="flex items-center justify-between gap-2 mb-2">
+                          <div className="flex items-center gap-2">
+                            <Coins className="w-3 h-3 sm:w-4 sm:h-4 text-purple-300" />
+                            <span className="text-xs sm:text-sm text-gray-400">Commissions</span>
+                          </div>
+                          {enableComparison && stats.previousTotalCommissions > 0 && (
+                            <div className={`flex items-center gap-0.5 text-[10px] font-bold ${stats.totalCommissions >= stats.previousTotalCommissions ? 'text-purple-300' : 'text-red-400'}`}>
+                              {stats.totalCommissions >= stats.previousTotalCommissions ? <TrendingUp className="w-2.5 h-2.5" /> : <TrendingUp className="w-2.5 h-2.5 rotate-180" />}
+                              {calculatePercentageChange(stats.totalCommissions, stats.previousTotalCommissions).toFixed(0)}%
+                            </div>
+                          )}
                         </div>
                         <p className="text-lg sm:text-xl font-bold text-purple-300">
                           {formatCurrency(stats.totalCommissions)}
@@ -897,6 +1061,7 @@ export const SellersPage = () => {
           </div>
         )}
 
+
         <ConfirmModal
           isOpen={isDeleteModalOpen}
           onClose={() => {
@@ -917,6 +1082,7 @@ export const SellersPage = () => {
         {sellerToEdit && (
           <EditSellerModal
             seller={sellerToEdit}
+            headsOfSales={headsOfSales}
             isOpen={isEditModalOpen}
             onClose={() => {
               setIsEditModalOpen(false);
@@ -927,6 +1093,21 @@ export const SellersPage = () => {
             }}
           />
         )}
+
+        <Dialog open={isAnalyticsModalOpen} onOpenChange={setIsAnalyticsModalOpen}>
+          <DialogContent className="max-w-[95vw] w-full max-h-[90vh] overflow-y-auto custom-scrollbar bg-black border-gold-medium/30 p-0 sm:p-2">
+            <DialogHeader className="p-4 sm:p-6 pb-0">
+              <DialogTitle className="text-xl sm:text-2xl font-bold migma-gold-text">
+                Seller Analytics
+              </DialogTitle>
+            </DialogHeader>
+            <div className="p-2 sm:p-4">
+              {selectedSellerId && (
+                <AdminSellerAnalytics sellerId={selectedSellerId} isModal={true} />
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );
