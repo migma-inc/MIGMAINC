@@ -168,6 +168,12 @@ export const SellersPage = () => {
     try {
       setLoading(true);
 
+      // Load products for name mapping
+      const { data: productsData } = await adminSupabase
+        .from('visa_products')
+        .select('slug, name');
+      if (productsData) setProducts(productsData);
+
       const { start: prevStart, end: prevEnd } = getPeriodDates(
         periodFilter === 'all_time' ? { start: '2000-01-01', end: new Date().toISOString() } : periodFilter,
         periodFilter === 'custom' ? customDateRange : undefined
