@@ -103,6 +103,7 @@ export const VisaOrderDetailPage = () => {
   const [schedule, setSchedule] = useState<Schedule | null>(null);
   const [termsAcceptance, setTermsAcceptance] = useState<TermsAcceptance | null>(null);
   const [identityFiles, setIdentityFiles] = useState<IdentityFile[]>([]);
+  const [products, setProducts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showPdfModal, setShowPdfModal] = useState(false);
   const [selectedPdfUrl, setSelectedPdfUrl] = useState<string | null>(null);
@@ -133,13 +134,18 @@ export const VisaOrderDetailPage = () => {
           .select('*')
           .eq('id', id)
           .single();
-
         if (orderError || !orderData) {
           console.error('Order not found:', orderError);
           return;
         }
 
         setOrder(orderData);
+
+        // Load Products for names
+        const { data: productsData } = await supabase
+          .from('visa_products')
+          .select('slug, name');
+        setProducts(productsData || []);
 
         // Load terms acceptance if service_request_id exists
         if (orderData.service_request_id) {
@@ -371,6 +377,10 @@ export const VisaOrderDetailPage = () => {
     }
   };
 
+  const getProductName = (slug: string) => {
+    return products.find(p => p.slug === slug)?.name || slug;
+  };
+
   const getDocumentUrl = (filePath: string): string => {
     return filePath; // As URLs já são resolvidas no carregamento
   };
@@ -427,7 +437,7 @@ export const VisaOrderDetailPage = () => {
 
         <div className="space-y-6">
           {/* Action Card: Generate Schedule */}
-          {!schedule && order?.product_slug === 'eb3-installment-initial' && order?.payment_status === 'paid' && (
+          {!schedule && getProductName(order?.product_slug || '') === 'INITIAL Application - Full Process Payment' && order?.payment_status === 'paid' && (
             <Card className="bg-gold-medium/10 border border-gold-medium/50 overflow-hidden">
               <CardContent className="p-6">
                 <div className="flex flex-col md:flex-row justify-between items-center gap-4">
@@ -470,7 +480,7 @@ export const VisaOrderDetailPage = () => {
                   <h4 className="text-gold-light font-semibold mb-2 border-b border-gold-medium/20 pb-1">Primary Product</h4>
                   <div className="flex justify-between">
                     <span className="text-gray-400">Product:</span>
-                    <span className="text-white font-semibold uppercase">{order.product_slug.replace(/-/g, ' ')}</span>
+                    <span className="text-white font-semibold uppercase">{getProductName(order.product_slug)}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-gray-400">Base Price:</span>
@@ -513,7 +523,7 @@ export const VisaOrderDetailPage = () => {
                       <div className="flex justify-between">
                         <span className="text-gray-400">Bundle:</span>
                         <Badge className="bg-gold-medium/20 text-gold-light border-gold-medium/50 uppercase">
-                          + {order.upsell_product_slug.replace(/-/g, ' ')}
+                          + {getProductName(order.upsell_product_slug)}
                         </Badge>
                       </div>
                       <div className="flex justify-between">

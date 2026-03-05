@@ -68,6 +68,7 @@ interface IdentityFile {
 export function VisaContractApprovalPage() {
     const [orders, setOrders] = useState<VisaOrder[]>([]);
     const [idFiles, setIdFiles] = useState<Record<string, IdentityFile[]>>({});
+    const [products, setProducts] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [statusFilter, setStatusFilter] = useState<'pending' | 'approved' | 'rejected' | 'all'>('pending');
     const [selectedPdfUrl, setSelectedPdfUrl] = useState<string | null>(null);
@@ -104,6 +105,12 @@ export function VisaContractApprovalPage() {
             });
 
             setOrders(relevantOrders);
+
+            // Fetch products for names
+            const { data: productsData } = await supabase
+                .from('visa_products')
+                .select('slug, name');
+            setProducts(productsData || []);
 
             // Fetch identity files for these orders
             const srIds = relevantOrders.map(o => o.service_request_id).filter(Boolean) as string[];
@@ -163,6 +170,10 @@ export function VisaContractApprovalPage() {
         setPendingItem({ id, type });
         setRejectionReason('');
         setShowRejectPrompt(true);
+    };
+
+    const getProductName = (slug: string) => {
+        return products.find(p => p.slug === slug)?.name || slug;
     };
 
     const confirmApprove = async () => {
@@ -428,7 +439,7 @@ export function VisaContractApprovalPage() {
                                                 {order.client_name}
                                                 <span className="text-sm font-mono text-gray-400 ml-2">#{order.order_number}</span>
                                             </CardTitle>
-                                            <p className="text-sm text-gray-400 mt-1">{order.product_slug}</p>
+                                            <p className="text-sm text-gray-400 mt-1">{getProductName(order.product_slug)}</p>
                                         </div>
                                         <div className="flex flex-col items-end gap-2">
                                             <div className="flex items-center gap-2">
@@ -447,6 +458,7 @@ export function VisaContractApprovalPage() {
                                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                                         {/* Identification Records */}
                                         <div className="space-y-4">
+
                                             <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-widest">Identification</h4>
                                             <div className="flex flex-wrap gap-2">
                                                 {order.service_request_id && idFiles[order.service_request_id] ? (

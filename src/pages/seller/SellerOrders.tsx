@@ -112,7 +112,8 @@ const OrderTableSection = ({
   currentPage: number,
   setCurrentPage: (p: number) => void,
   ITEMS_PER_PAGE: number,
-  isSignatureOnly?: boolean
+  isSignatureOnly?: boolean,
+  getProductName: (slug: string) => string
 }) => {
   const paginatedOrders = useMemo(() => {
     const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
@@ -298,6 +299,7 @@ export function SellerOrders() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [searchParams, setSearchParams] = useSearchParams();
   const [loading, setLoading] = useState(true);
+  const [products, setProducts] = useState<any[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
 
   // Filters
@@ -319,6 +321,12 @@ export function SellerOrders() {
         if (ordersData) {
           setOrders(ordersData as Order[]);
         }
+
+        // Fetch products for names
+        const { data: productsData } = await supabase
+          .from('visa_products')
+          .select('slug, name');
+        setProducts(productsData || []);
       } catch (err) {
         console.error('Error loading orders:', err);
       } finally {
@@ -433,6 +441,10 @@ export function SellerOrders() {
     setSearchQuery('');
   };
 
+  const getProductName = (slug: string) => {
+    return products.find(p => p.slug === slug)?.name || slug;
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
@@ -536,6 +548,7 @@ export function SellerOrders() {
                 currentPage={currentPage}
                 setCurrentPage={setCurrentPage}
                 ITEMS_PER_PAGE={ITEMS_PER_PAGE}
+                getProductName={getProductName}
               />
             </TabsContent>
 
@@ -548,6 +561,7 @@ export function SellerOrders() {
                 setCurrentPage={setCurrentPage}
                 ITEMS_PER_PAGE={ITEMS_PER_PAGE}
                 isSignatureOnly={true}
+                getProductName={getProductName}
               />
             </TabsContent>
           </Tabs>
