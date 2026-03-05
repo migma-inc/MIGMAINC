@@ -100,7 +100,6 @@ export const SellersPage = () => {
   const [loading, setLoading] = useState(true);
   const [expandedSellers, setExpandedSellers] = useState<Set<string>>(new Set());
   const [products, setProducts] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [sellerToDelete, setSellerToDelete] = useState<{ id: string, name: string } | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
