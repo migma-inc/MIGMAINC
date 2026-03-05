@@ -29,8 +29,14 @@ interface SellerInfo {
   status: string;
 }
 
-export function AdminSellerAnalytics() {
-  const { sellerId } = useParams<{ sellerId: string }>();
+interface AdminSellerAnalyticsProps {
+  sellerId?: string;
+  isModal?: boolean;
+}
+
+export function AdminSellerAnalytics({ sellerId: propSellerId, isModal }: AdminSellerAnalyticsProps = {}) {
+  const params = useParams<{ sellerId: string }>();
+  const sellerId = propSellerId || params.sellerId;
   const [seller, setSeller] = useState<SellerInfo | null>(null);
   const [sellerLoading, setSellerLoading] = useState(true);
   const [periodFilter, setPeriodFilter] = useState<PeriodOption>('thismonth');
@@ -208,7 +214,7 @@ export function AdminSellerAnalytics() {
 
   if (!seller) {
     return (
-      <div className="min-h-screen bg-black flex items-center justify-center">
+      <div className={`${isModal ? '' : 'min-h-screen bg-black'} flex items-center justify-center p-8`}>
         <div className="text-center">
           <p className="text-gray-400 text-lg">Seller not found</p>
         </div>
@@ -217,35 +223,39 @@ export function AdminSellerAnalytics() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-black via-[#1a1a1a] to-black p-4 sm:p-6 lg:p-8">
+    <div className={isModal ? "" : "min-h-screen bg-gradient-to-b from-black via-[#1a1a1a] to-black p-4 sm:p-6 lg:p-8"}>
       <div>
-        {/* Header com informação do seller */}
-        <div className="mb-4 sm:mb-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-          <div className="mb-2">
-            <h1 className="text-xl sm:text-2xl font-bold migma-gold-text flex items-center gap-2">
-              <BarChart3 className="w-5 h-5 sm:w-6 sm:h-6" />
-              Analytics - {seller.full_name || seller.email}
-            </h1>
-            <p className="text-gray-400 text-xs sm:text-sm mt-1">
-              Seller ID: {seller.seller_id_public} | Sales and commission performance
-            </p>
+        {/* Header com informação do seller - Omit if modal */}
+        {!isModal && (
+          <div className="mb-4 sm:mb-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            <div className="mb-2">
+              <h1 className="text-xl sm:text-2xl font-bold migma-gold-text flex items-center gap-2">
+                <BarChart3 className="w-5 h-5 sm:w-6 sm:h-6" />
+                Analytics - {seller.full_name || seller.email}
+              </h1>
+              <p className="text-gray-400 text-xs sm:text-sm mt-1">
+                Seller ID: {seller.seller_id_public} | Sales and commission performance
+              </p>
+            </div>
+            <Link to={`/dashboard/sellers/${seller.seller_id_public}/orders`}>
+              <Button variant="outline" className="border-gold-medium/50 text-gold-light hover:bg-gold-medium/10">
+                <ShoppingCart className="w-4 h-4 mr-2" />
+                View Orders
+              </Button>
+            </Link>
           </div>
-          <Link to={`/dashboard/sellers/${seller.seller_id_public}/orders`}>
-            <Button variant="outline" className="border-gold-medium/50 text-gold-light hover:bg-gold-medium/10">
-              <ShoppingCart className="w-4 h-4 mr-2" />
-              View Orders
-            </Button>
-          </Link>
-        </div>
+        )}
 
-        {/* Header Simplificado */}
+        {/* Header Simplificado - Adjust for modal */}
         <div className="mb-4 sm:mb-6">
           <div className="flex flex-col gap-4 mb-4">
-            <div>
-              <h2 className="text-lg sm:text-xl font-bold text-white flex items-center gap-2">
-                Analytics Dashboard
-              </h2>
-            </div>
+            {!isModal && (
+              <div>
+                <h2 className="text-lg sm:text-xl font-bold text-white flex items-center gap-2">
+                  Analytics Dashboard
+                </h2>
+              </div>
+            )}
             {analyticsData && (
               <div className="w-full sm:w-auto">
                 <ExportButton data={analyticsData} periodLabel={periodLabel} />

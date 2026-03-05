@@ -67,3 +67,18 @@ export function formatCurrency(amount: number | string): string {
     maximumFractionDigits: 2,
   }).format(num);
 }
+
+/**
+ * Detect if the current environment is running locally (localhost/127.0.0.1)
+ * or in a preview deployment format such as vercel preview URLs.
+ */
+export function isTestEnvironment(): boolean {
+  if (typeof window === 'undefined') return false;
+  const hostname = window.location.hostname;
+
+  return (
+    hostname === 'localhost' ||
+    hostname === '127.0.0.1' ||
+    hostname.includes('vercel.app') && hostname.includes('preview')
+  );
+}

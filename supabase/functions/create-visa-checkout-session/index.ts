@@ -456,6 +456,7 @@ Deno.serve(async (req: Request) => {
         currency: currency.toUpperCase(),
         status: "pending",
         external_payment_id: session.id,
+        is_test: !envInfo.isProduction,
       })
       .select()
       .single();
@@ -515,6 +516,7 @@ Deno.serve(async (req: Request) => {
         contract_template_id: contract_template_id || null,
         coupon_code: coupon_code || null,
         discount_amount: discountAmountNum || 0,
+        is_test: !envInfo.isProduction,
       })
       .select()
       .single();
@@ -558,7 +560,8 @@ Deno.serve(async (req: Request) => {
             is_upsell: true,
             parent_order_id: order.id,
             base_amount: upsellPrice.toFixed(2),
-          }
+          },
+          is_test: !envInfo.isProduction,
         })
         .select()
         .single();

@@ -32,6 +32,8 @@ export interface PeriodComparison {
   salesChange: number; // %
   completedOrdersChange: number; // %
   commissionChange: number; // %
+  previousChartData?: ChartDataPoint[];
+  previousCommissionChartData?: ChartDataPoint[];
 }
 
 export interface TrendsData {
@@ -238,15 +240,20 @@ export function getPreviousPeriod(
  * Agrega dados de vendas por período para gráficos
  */
 export async function getSellerChartData(
-  sellerId: string,
+  sellerId: string | null | undefined,
   period: { start: Date; end: Date },
   granularity: 'day' | 'week' | 'month' = 'day'
 ): Promise<ChartDataPoint[]> {
   try {
-    const { data: orders, error } = await supabase
+    let query = supabase
       .from('visa_orders')
-      .select('*')
-      .eq('seller_id', sellerId)
+      .select('*');
+
+    if (sellerId) {
+      query = query.eq('seller_id', sellerId);
+    }
+
+    const { data: orders, error } = await query
       .gte('created_at', period.start.toISOString())
       .lte('created_at', period.end.toISOString())
       .order('created_at', { ascending: true });
@@ -329,14 +336,19 @@ export async function getSellerChartData(
  * Calcula métricas por produto
  */
 export async function getProductMetrics(
-  sellerId: string,
+  sellerId: string | null | undefined,
   period: { start: Date; end: Date }
 ): Promise<ProductMetric[]> {
   try {
-    const { data: orders, error } = await supabase
+    let query = supabase
       .from('visa_orders')
-      .select('*')
-      .eq('seller_id', sellerId)
+      .select('*');
+
+    if (sellerId) {
+      query = query.eq('seller_id', sellerId);
+    }
+
+    const { data: orders, error } = await query
       .gte('created_at', period.start.toISOString())
       .lte('created_at', period.end.toISOString());
 
@@ -404,24 +416,34 @@ export async function getProductMetrics(
  * Calcula comparação entre período atual e anterior
  */
 export async function getPeriodComparison(
-  sellerId: string,
+  sellerId: string | null | undefined,
   currentPeriod: { start: Date; end: Date },
   previousPeriod: { start: Date; end: Date }
 ): Promise<PeriodComparison> {
   try {
     // Buscar dados do período atual
-    const { data: currentOrders } = await supabase
+    let currentQuery = supabase
       .from('visa_orders')
-      .select('*')
-      .eq('seller_id', sellerId)
+      .select('*');
+
+    if (sellerId) {
+      currentQuery = currentQuery.eq('seller_id', sellerId);
+    }
+
+    const { data: currentOrders } = await currentQuery
       .gte('created_at', currentPeriod.start.toISOString())
       .lte('created_at', currentPeriod.end.toISOString());
 
     // Buscar dados do período anterior
-    const { data: previousOrders } = await supabase
+    let prevQuery = supabase
       .from('visa_orders')
-      .select('*')
-      .eq('seller_id', sellerId)
+      .select('*');
+
+    if (sellerId) {
+      prevQuery = prevQuery.eq('seller_id', sellerId);
+    }
+
+    const { data: previousOrders } = await prevQuery
       .gte('created_at', previousPeriod.start.toISOString())
       .lte('created_at', previousPeriod.end.toISOString());
 
@@ -474,7 +496,7 @@ export async function getPeriodComparison(
  * Calcula tendências e projeções
  */
 export async function getTrends(
-  sellerId: string,
+  sellerId: string | null | undefined,
   period: { start: Date; end: Date }
 ): Promise<TrendsData> {
   try {
@@ -482,10 +504,15 @@ export async function getTrends(
     const historicalStart = new Date(period.start);
     historicalStart.setMonth(historicalStart.getMonth() - 3);
 
-    const { data: orders } = await supabase
+    let query = supabase
       .from('visa_orders')
-      .select('created_at, total_price_usd, payment_status')
-      .eq('seller_id', sellerId)
+      .select('created_at, total_price_usd, payment_status, payment_metadata');
+
+    if (sellerId) {
+      query = query.eq('seller_id', sellerId);
+    }
+
+    const { data: orders } = await query
       .gte('created_at', historicalStart.toISOString())
       .lte('created_at', period.end.toISOString())
       .order('created_at', { ascending: true });
@@ -564,20 +591,26 @@ export async function getTrends(
  * Busca todos os dados de analytics de uma vez
  */
 export async function getAnalyticsData(
-  sellerId: string,
+  sellerId: string | null | undefined,
   periodOption: string | { start: string; end: string },
   enableComparison: boolean = false,
-  customRange?: { start: string; end: string }
+  customRange?: { start: string; end: string },
+  granularity: 'day' | 'week' | 'month' = 'day'
 ): Promise<AnalyticsData> {
-  const period = typeof periodOption === 'object'
-    ? getPeriodDates(periodOption)
+  const period = typeof periodOption === 'string'
+    ? getPeriodDates(periodOption, customRange)
     : getPeriodDates(periodOption, customRange);
 
   // Buscar pedidos do período
-  const { data: orders } = await supabase
+  let query = supabase
     .from('visa_orders')
-    .select('*')
-    .eq('seller_id', sellerId)
+    .select('*');
+
+  if (sellerId) {
+    query = query.eq('seller_id', sellerId);
+  }
+
+  const { data: orders } = await query
     .gte('created_at', period.start.toISOString())
     .lte('created_at', period.end.toISOString());
 
@@ -585,17 +618,14 @@ export async function getAnalyticsData(
 
   const periodType = typeof periodOption === 'string' ? periodOption : 'custom';
 
-  // Buscar dados em paralelo
-  const [chartData, productMetrics, trends, comparison, commissionSummary, commissionByProduct, commissionChartData] = await Promise.all([
-    getSellerChartData(sellerId, period, 'day'),
+  const [chartData, productMetrics, trends, compData, commissionSummary, commissionByProduct, commissionChartData] = await Promise.all([
+    getSellerChartData(sellerId, period, granularity),
     getProductMetrics(sellerId, period),
     getTrends(sellerId, period),
-    enableComparison
-      ? getPeriodComparison(sellerId, period, getPreviousPeriod(period.start, period.end, periodType))
-      : Promise.resolve(undefined),
+    enableComparison ? getPeriodComparison(sellerId, period, getPreviousPeriod(period.start, period.end, periodType)) : Promise.resolve(undefined),
     getCommissionSummary(sellerId, period),
     getCommissionByProduct(sellerId, period),
-    getCommissionChartData(sellerId, period, 'day'),
+    getCommissionChartData(sellerId, period, granularity),
   ]);
 
   // Merge commission data into chart data
@@ -607,11 +637,29 @@ export async function getAnalyticsData(
     };
   });
 
+  // Fetch comparison data if enabled
+  let periodComparison: PeriodComparison | undefined = undefined;
+  if (enableComparison) {
+    const previousPeriod = getPreviousPeriod(period.start, period.end, periodType);
+    const [prevChartData, prevCommChartData] = await Promise.all([
+      getSellerChartData(sellerId, previousPeriod, granularity),
+      getCommissionChartData(sellerId, previousPeriod, granularity),
+    ]);
+
+    if (compData) {
+      periodComparison = {
+        ...compData,
+        previousChartData: prevChartData,
+        previousCommissionChartData: prevCommChartData,
+      };
+    }
+  }
+
   return {
     period,
     summary,
     commissionSummary,
-    comparison,
+    comparison: periodComparison,
     chartData: mergedChartData,
     productMetrics,
     commissionByProduct,
@@ -801,7 +849,7 @@ function calculateStats(orders: any[]): {
   };
 }
 
-function calculatePercentageChange(current: number, previous: number): number {
+export function calculatePercentageChange(current: number, previous: number): number {
   if (previous === 0) {
     return current > 0 ? 100 : 0;
   }
@@ -812,16 +860,21 @@ function calculatePercentageChange(current: number, previous: number): number {
  * Get commission chart data grouped by period
  */
 export async function getCommissionChartData(
-  sellerId: string,
+  sellerId: string | null | undefined,
   period: { start: Date; end: Date },
   granularity: 'day' | 'week' | 'month' = 'day'
 ): Promise<ChartDataPoint[]> {
   try {
     // Get commissions for the period
-    const { data: commissions, error } = await supabase
+    let query = supabase
       .from('seller_commissions')
-      .select('*')
-      .eq('seller_id', sellerId)
+      .select('*');
+
+    if (sellerId) {
+      query = query.eq('seller_id', sellerId);
+    }
+
+    const { data: commissions, error } = await query
       .gte('created_at', period.start.toISOString())
       .lte('created_at', period.end.toISOString())
       .order('created_at', { ascending: true });
@@ -878,15 +931,19 @@ export async function getCommissionChartData(
  * Get commission metrics summary for a period
  */
 export async function getCommissionSummary(
-  sellerId: string,
+  sellerId: string | null | undefined,
   period: { start: Date; end: Date }
 ): Promise<CommissionSummary> {
   try {
-    // Get all commissions for the period
-    const { data: commissions, error } = await supabase
+    let commQuery = supabase
       .from('seller_commissions')
-      .select('commission_amount_usd, withdrawn_amount, available_for_withdrawal_at')
-      .eq('seller_id', sellerId)
+      .select('commission_amount_usd, withdrawn_amount, available_for_withdrawal_at');
+
+    if (sellerId) {
+      commQuery = commQuery.eq('seller_id', sellerId);
+    }
+
+    const { data: commissions, error } = await commQuery
       .gte('created_at', period.start.toISOString())
       .lte('created_at', period.end.toISOString());
 
@@ -938,10 +995,15 @@ export async function getCommissionSummary(
     });
 
     // Get orders to calculate average commission rate
-    const { data: orders } = await supabase
+    let ordersQuery = supabase
       .from('visa_orders')
-      .select('total_price_usd, payment_status, payment_metadata')
-      .eq('seller_id', sellerId)
+      .select('total_price_usd, payment_status, payment_metadata');
+
+    if (sellerId) {
+      ordersQuery = ordersQuery.eq('seller_id', sellerId);
+    }
+
+    const { data: orders } = await ordersQuery
       .gte('created_at', period.start.toISOString())
       .lte('created_at', period.end.toISOString());
 
@@ -975,15 +1037,19 @@ export async function getCommissionSummary(
  * Get commissions grouped by product
  */
 export async function getCommissionByProduct(
-  sellerId: string,
+  sellerId: string | null | undefined,
   period: { start: Date; end: Date }
 ): Promise<CommissionByProduct[]> {
   try {
-    // Get commissions for the period
-    const { data: commissions, error } = await supabase
+    let query = supabase
       .from('seller_commissions')
-      .select('order_id, commission_amount_usd')
-      .eq('seller_id', sellerId)
+      .select('order_id, commission_amount_usd');
+
+    if (sellerId) {
+      query = query.eq('seller_id', sellerId);
+    }
+
+    const { data: commissions, error } = await query
       .gte('created_at', period.start.toISOString())
       .lte('created_at', period.end.toISOString());
 

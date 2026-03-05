@@ -11,6 +11,8 @@ interface SellerInfo {
   full_name: string;
   email: string;
   status: string;
+  role?: string;
+  head_of_sales_id?: string | null;
 }
 
 const SELLER_CACHE_KEY = 'seller_cache';
@@ -21,9 +23,9 @@ function getCachedSeller(): SellerInfo | null {
   try {
     const cached = sessionStorage.getItem(SELLER_CACHE_KEY);
     const timestamp = sessionStorage.getItem(SELLER_CACHE_TIMESTAMP_KEY);
-    
+
     if (!cached || !timestamp) return null;
-    
+
     const age = Date.now() - parseInt(timestamp, 10);
     if (age > CACHE_DURATION) {
       // Cache expirado
@@ -31,7 +33,7 @@ function getCachedSeller(): SellerInfo | null {
       sessionStorage.removeItem(SELLER_CACHE_TIMESTAMP_KEY);
       return null;
     }
-    
+
     return JSON.parse(cached);
   } catch (err) {
     console.error('[SellerDashboardLayout] Error reading cache:', err);
@@ -137,10 +139,11 @@ export function SellerDashboardLayout() {
 
   return (
     <div className="min-h-screen bg-black flex">
-      <SellerSidebar 
-        sellerName={seller.full_name} 
+      <SellerSidebar
+        sellerName={seller.full_name}
         isMobileOpen={isMobileMenuOpen}
         onMobileClose={() => setIsMobileMenuOpen(false)}
+        role={seller.role}
       />
       <main className="flex-1 overflow-auto bg-gradient-to-b from-black via-[#1a1a1a] to-black">
         {/* Mobile Menu Button */}
