@@ -18,6 +18,8 @@ interface SellerInfo {
   full_name: string;
   email: string;
   status: string;
+  role?: string;
+  head_of_sales_id?: string | null;
 }
 
 interface VisaProduct {
@@ -60,8 +62,8 @@ interface PrefillValidationResult {
 // Lista de países ordenada alfabeticamente com "Other" por último
 const countries = getSortedCountries();
 
-const PRODUCTS_CACHE_KEY = 'seller_products_cache';
-const PRODUCTS_CACHE_TIMESTAMP_KEY = 'seller_products_cache_timestamp';
+const PRODUCTS_CACHE_KEY = 'seller_products_cache_v4';
+const PRODUCTS_CACHE_TIMESTAMP_KEY = 'seller_products_cache_timestamp_v4';
 const PRODUCTS_CACHE_DURATION = 10 * 60 * 1000; // 10 minutos (produtos mudam menos frequentemente)
 
 function getCachedProducts(): VisaProduct[] | null {
@@ -118,6 +120,13 @@ export function SellerLinks() {
   const [loading, setLoading] = useState(!hasCachedProducts);
   const hasLoadedRef = useRef(hasCachedProducts);
   const copyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Seller selection for Head of Sales / Admins
+  const [teamMembers, setTeamMembers] = useState<SellerInfo[]>([]);
+  const [selectedSellerId, setSelectedSellerId] = useState<string>('');
+  const [targetSeller, setTargetSeller] = useState<SellerInfo | null>(null);
+  // loadingTeam used below in the selector
+  const [loadingTeam, setLoadingTeam] = useState(false);
 
   // Dropdown state for service groups
   const [expandedServices, setExpandedServices] = useState<{ [key: string]: boolean }>({
@@ -321,59 +330,82 @@ export function SellerLinks() {
         const userIsAdmin = session.user.user_metadata?.role === 'admin';
         setIsAdmin(userIsAdmin);
 
-        if (seller) {
-          setIsSearchingSeller(false);
-          return;
-        }
+        let currentSeller: SellerInfo | null = seller;
 
-        // 1. Tenta carregar o vendedor específico do usuário
-        const { data: sellerData } = await supabase
-          .from('sellers')
-          .select('*')
-          .eq('user_id', session.user.id)
-          .eq('status', 'active')
-          .single();
-
-        if (sellerData) {
-          setSeller(sellerData);
-          setIsSearchingSeller(false);
-          return;
-        }
-
-        // 2. Se não encontrou e é Admin, busca por "Migma" ou qualquer vendedor ativo
-        if (userIsAdmin) {
-          // Tenta encontrar "Migma"
-          const { data: migmaSeller } = await supabase
+        if (!currentSeller) {
+          // 1. Tenta carregar o vendedor específico do usuário
+          const { data: sellerData } = await supabase
             .from('sellers')
             .select('*')
-            .ilike('full_name', '%Migma%')
+            .eq('user_id', session.user.id)
             .eq('status', 'active')
-            .limit(1)
-            .maybeSingle();
+            .single();
 
-          if (migmaSeller) {
-            setSeller(migmaSeller);
-          } else {
-            // Se ainda não encontrou, pega o primeiro vendedor ativo da lista
-            const { data: anySeller } = await supabase
+          if (sellerData) {
+            currentSeller = sellerData as SellerInfo;
+            setSeller(currentSeller);
+          } else if (userIsAdmin) {
+            // 2. Se não encontrou e é Admin, busca por "Migma" ou qualquer vendedor ativo
+            const { data: migmaSeller } = await supabase
               .from('sellers')
               .select('*')
+              .ilike('full_name', '%Migma%')
               .eq('status', 'active')
               .limit(1)
               .maybeSingle();
 
-            if (anySeller) {
-              setSeller(anySeller);
+            if (migmaSeller) {
+              currentSeller = migmaSeller as SellerInfo;
+              setSeller(currentSeller);
             } else {
-              // Fallback extremo: Perfil Virtual Admin
-              setSeller({
-                id: 'admin',
-                seller_id_public: 'MIGMA', // Tenta usar um slug que provavelmente existe ou é aceito
-                full_name: 'Migma Admin',
-                email: session.user.email || '',
-                status: 'active'
-              } as SellerInfo);
+              const { data: anySeller } = await supabase
+                .from('sellers')
+                .select('*')
+                .eq('status', 'active')
+                .limit(1)
+                .maybeSingle();
+
+              if (anySeller) {
+                currentSeller = anySeller as SellerInfo;
+                setSeller(currentSeller);
+              } else {
+                currentSeller = {
+                  id: 'admin',
+                  seller_id_public: 'MIGMA',
+                  full_name: 'Migma Admin',
+                  email: session.user.email || '',
+                  status: 'active',
+                  role: 'admin'
+                } as SellerInfo;
+                setSeller(currentSeller);
+              }
             }
+          }
+        }
+
+        if (currentSeller && !targetSeller) {
+          setTargetSeller(currentSeller);
+          setSelectedSellerId(currentSeller.id);
+        }
+
+        // 3. Load team members if HoS or Admin
+        if (currentSeller && (currentSeller.role === 'head_of_sales' || userIsAdmin)) {
+          setLoadingTeam(true);
+          try {
+            let query = supabase.from('sellers').select('*').eq('status', 'active');
+
+            if (currentSeller.role === 'head_of_sales' && !userIsAdmin) {
+              query = query.or(`id.eq.${currentSeller.id},head_of_sales_id.eq.${currentSeller.id}`);
+            }
+
+            const { data: members } = await query.order('full_name');
+            if (members) {
+              setTeamMembers(members as SellerInfo[]);
+            }
+          } catch (err) {
+            console.error('[SellerLinks] Error loading team members:', err);
+          } finally {
+            setLoadingTeam(false);
           }
         }
       } catch (err) {
@@ -560,15 +592,55 @@ export function SellerLinks() {
 
   return (
     <div className={isSharedInAdmin ? "p-4 sm:p-6 lg:p-8" : ""}>
-      <div className={isSharedInAdmin ? "max-w-7xl mx-auto" : ""}>
-        <div className="mb-6 sm:mb-8">
-          <h1 className="text-2xl sm:text-3xl font-bold migma-gold-text mb-2">Sales Links</h1>
-          <p className="text-sm sm:text-base text-gray-400">Generate and copy your personalized checkout links</p>
+      <div className={isSharedInAdmin ? "max-w-7xl mx-auto space-y-6" : "space-y-6"}>
+        <div>
+          <h1 className="text-3xl font-bold text-white tracking-tight">Sales Links</h1>
+          <p className="text-gray-400 mt-1">Generate and share your personalized sales links.</p>
         </div>
+
+        {/* Target Seller Selector (Admin and Head of Sales only) */}
+        {/* {(isAdmin || seller?.role === 'head_of_sales') && teamMembers.length > 0 && (
+          <Card className="bg-black/40 border-gold-medium/20">
+            <CardContent className="pt-6">
+              <div className="flex flex-col sm:flex-row items-center gap-4">
+                <div className="flex items-center gap-2 text-gold-light shrink-0">
+                  <Users className="w-5 h-5" />
+                  <span className="font-semibold text-sm">Commission for:</span>
+                </div>
+                <Select
+                  value={selectedSellerId}
+                  disabled={loadingTeam}
+                  onValueChange={(id) => {
+                    setSelectedSellerId(id);
+                    const member = teamMembers.find(m => m.id === id);
+                    if (member) setTargetSeller(member);
+                  }}
+                >
+                  <SelectTrigger className="bg-zinc-900 border-gold-medium/30 text-white h-10 w-full sm:max-w-xs">
+                    <SelectValue placeholder="Select a seller" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-zinc-900 border-gold-medium/30 text-white">
+                    {teamMembers.map(member => (
+                      <SelectItem key={member.id} value={member.id}>
+                        {member.full_name} ({member.seller_id_public})
+                        {member.id === seller?.id ? ' (You)' : ''}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {targetSeller && (
+                  <p className="text-xs text-gray-500 italic">
+                    All links generated below will be attributed to <strong>{targetSeller.full_name}</strong>
+                  </p>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        )} */}
 
         {/* Quick Client Setup Form */}
         <Card
-          className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30 mb-8 cursor-pointer hover:border-gold-medium/50 transition-colors"
+          className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30 overflow-hidden cursor-pointer hover:border-gold-medium/50 transition-colors"
           onClick={() => {
             if (!prefillFormExpanded) {
               setPrefillFormExpanded(true);
@@ -1308,11 +1380,13 @@ export function SellerLinks() {
                         const expiresAt = new Date();
                         expiresAt.setDate(expiresAt.getDate() + 30); // 30 days validity
 
+                        const targetSellerId = targetSeller?.seller_id_public || seller?.seller_id_public;
+
                         const { error: insertError } = await supabase
                           .from('checkout_prefill_tokens')
                           .insert({
                             token,
-                            seller_id: seller?.seller_id_public,
+                            seller_id: targetSellerId,
                             product_slug: prefillFormData.productSlug,
                             client_data: {
                               clientName: prefillFormData.clientName,
@@ -1341,7 +1415,8 @@ export function SellerLinks() {
 
                         // Generate link
                         const siteUrl = window.location.origin;
-                        const sellerParam = seller?.seller_id_public ? `&seller=${seller.seller_id_public}` : '';
+                        const sellerIdToUse = targetSeller?.seller_id_public || seller?.seller_id_public;
+                        const sellerParam = sellerIdToUse ? `&seller=${sellerIdToUse}` : '';
                         const link = `${siteUrl}/checkout/visa/${prefillFormData.productSlug}?prefill=${token}${sellerParam}`;
                         setGeneratedPrefillLink(link);
 
@@ -1425,7 +1500,7 @@ export function SellerLinks() {
                       });
                     }
 
-                    const order = ['selection-process', 'scholarship', 'i20-control'];
+                    const order = ['selection-process', 'scholarship', 'i20-control', 'total-process'];
                     return products.sort((a, b) => {
                       const aIndex = order.findIndex(o => a.slug.includes(o));
                       const bIndex = order.findIndex(o => b.slug.includes(o));
@@ -1433,12 +1508,16 @@ export function SellerLinks() {
                     });
                   };
 
-                  const paymentLabels = ['Selection Process', 'Scholarship', 'I-20 Control'];
+                  const paymentLabels = ['Selection Process', 'Scholarship', 'I-20 Control', 'INITIAL Application - Full Process Payment'];
 
                   return Object.entries(serviceGroups).map(([key, group]) => {
                     if (group.products.length === 0) return null;
 
                     const sortedProducts = sortProducts(group.products, key);
+                    const totalProductsInGroup = sortedProducts.length;
+                    const hasTotalProcessProduct = sortedProducts.some((p: VisaProduct) => p.slug.includes('total-process'));
+                    const stepDenominator = hasTotalProcessProduct ? totalProductsInGroup - 1 : totalProductsInGroup;
+
                     const isServiceGroup = ['initial', 'cos', 'transfer', 'eb2', 'eb3'].includes(key);
                     const isExpanded = expandedServices[key] ?? false;
 
@@ -1479,6 +1558,8 @@ export function SellerLinks() {
                                 const basePrice = parseFloat(product.base_price_usd || '0');
                                 const extraPrice = parseFloat(product.extra_unit_price || '0');
                                 const hasExtraUnits = product.allow_extra_units && extraPrice > 0;
+                                const isTotalProcess = product.slug.includes('total-process');
+
 
                                 return (
                                   <div
@@ -1489,9 +1570,11 @@ export function SellerLinks() {
                                       <div className="flex-1 space-y-2 w-full">
                                         {/* Payment Label with Number */}
                                         <div className="flex items-center gap-2">
-                                          <span className="text-xs font-semibold text-gold-light bg-gold-medium/20 px-2 py-1 rounded">
-                                            {paymentNumber}/{sortedProducts.length}
-                                          </span>
+                                          {!isTotalProcess && (
+                                            <span className="text-xs font-semibold text-gold-light bg-gold-medium/20 px-2 py-1 rounded">
+                                              {paymentNumber}/{stepDenominator}
+                                            </span>
+                                          )}
                                           <h4 className="text-white font-semibold">{paymentLabel}</h4>
                                         </div>
 
@@ -1527,11 +1610,13 @@ export function SellerLinks() {
                                               const expiresAt = new Date();
                                               expiresAt.setDate(expiresAt.getDate() + 30);
 
+                                              const targetSellerId = targetSeller?.seller_id_public || seller?.seller_id_public;
+
                                               const { error: insertError } = await supabase
                                                 .from('checkout_prefill_tokens')
                                                 .insert({
                                                   token,
-                                                  seller_id: seller?.seller_id_public,
+                                                  seller_id: targetSellerId,
                                                   product_slug: product.slug,
                                                   client_data: {},
                                                   expires_at: expiresAt.toISOString(),
@@ -1540,7 +1625,8 @@ export function SellerLinks() {
                                               if (insertError) throw insertError;
 
                                               const siteUrl = window.location.origin;
-                                              const sellerParam = seller?.seller_id_public ? `&seller=${seller.seller_id_public}` : '';
+                                              const sellerIdToUse = targetSeller?.seller_id_public || seller?.seller_id_public;
+                                              const sellerParam = sellerIdToUse ? `&seller=${sellerIdToUse}` : '';
                                               const link = `${siteUrl}/checkout/visa/${product.slug}?prefill=${token}${sellerParam}`;
                                               setProductGeneratedLinks({
                                                 ...productGeneratedLinks,
@@ -1572,11 +1658,13 @@ export function SellerLinks() {
                                               const expiresAt = new Date();
                                               expiresAt.setDate(expiresAt.getDate() + 30);
 
+                                              const targetSellerId = targetSeller?.seller_id_public || seller?.seller_id_public;
+
                                               const { error: insertError } = await supabase
                                                 .from('checkout_prefill_tokens')
                                                 .insert({
                                                   token,
-                                                  seller_id: seller?.seller_id_public,
+                                                  seller_id: targetSellerId,
                                                   product_slug: product.slug,
                                                   client_data: {},
                                                   expires_at: expiresAt.toISOString(),
@@ -1585,7 +1673,8 @@ export function SellerLinks() {
                                               if (insertError) throw insertError;
 
                                               const siteUrl = window.location.origin;
-                                              const sellerParam = seller?.seller_id_public ? `&seller=${seller.seller_id_public}` : '';
+                                              const sellerIdToUse = targetSeller?.seller_id_public || seller?.seller_id_public;
+                                              const sellerParam = sellerIdToUse ? `&seller=${sellerIdToUse}` : '';
                                               const link = `${siteUrl}/checkout/contract/${product.slug}?prefill=${token}${sellerParam}`;
                                               setProductGeneratedLinks({
                                                 ...productGeneratedLinks,
@@ -1743,11 +1832,13 @@ export function SellerLinks() {
                                         const expiresAt = new Date();
                                         expiresAt.setDate(expiresAt.getDate() + 30);
 
+                                        const targetSellerId = targetSeller?.seller_id_public || seller?.seller_id_public;
+
                                         const { error: insertError } = await supabase
                                           .from('checkout_prefill_tokens')
                                           .insert({
                                             token,
-                                            seller_id: seller?.seller_id_public,
+                                            seller_id: targetSellerId,
                                             product_slug: product.slug,
                                             client_data: {},
                                             expires_at: expiresAt.toISOString(),
@@ -1756,7 +1847,7 @@ export function SellerLinks() {
                                         if (insertError) throw insertError;
 
                                         const siteUrl = window.location.origin;
-                                        const sellerParam = seller?.seller_id_public ? `&seller=${seller.seller_id_public}` : '';
+                                        const sellerParam = targetSellerId ? `&seller=${targetSellerId}` : '';
                                         const link = `${siteUrl}/checkout/visa/${product.slug}?prefill=${token}${sellerParam}`;
                                         setProductGeneratedLinks({
                                           ...productGeneratedLinks,
@@ -1788,11 +1879,13 @@ export function SellerLinks() {
                                         const expiresAt = new Date();
                                         expiresAt.setDate(expiresAt.getDate() + 30);
 
+                                        const targetSellerId = targetSeller?.seller_id_public || seller?.seller_id_public;
+
                                         const { error: insertError } = await supabase
                                           .from('checkout_prefill_tokens')
                                           .insert({
                                             token,
-                                            seller_id: seller?.seller_id_public,
+                                            seller_id: targetSellerId,
                                             product_slug: product.slug,
                                             client_data: {},
                                             expires_at: expiresAt.toISOString(),
@@ -1801,7 +1894,7 @@ export function SellerLinks() {
                                         if (insertError) throw insertError;
 
                                         const siteUrl = window.location.origin;
-                                        const sellerParam = seller?.seller_id_public ? `&seller=${seller.seller_id_public}` : '';
+                                        const sellerParam = targetSellerId ? `&seller=${targetSellerId}` : '';
                                         const link = `${siteUrl}/checkout/contract/${product.slug}?prefill=${token}${sellerParam}`;
                                         setProductGeneratedLinks({
                                           ...productGeneratedLinks,
