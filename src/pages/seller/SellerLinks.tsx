@@ -1440,7 +1440,7 @@ export function SellerLinks() {
                   };
 
                   products.forEach((product) => {
-                    if (product.slug.startsWith('initial-')) {
+                    if (product.slug.startsWith('initial-') || product.slug === 'INITIAL Application - Full Process Payment') {
                       serviceGroups.initial.products.push(product);
                     } else if (product.slug.startsWith('cos-')) {
                       serviceGroups.cos.products.push(product);
@@ -1473,10 +1473,10 @@ export function SellerLinks() {
                       });
                     }
 
-                    const order = ['selection-process', 'scholarship', 'i20-control', 'total-process'];
+                    const order = ['selection-process', 'scholarship', 'i20-control', 'total-process', 'INITIAL Application - Full Process Payment'];
                     return products.sort((a, b) => {
-                      const aIndex = order.findIndex(o => a.slug.includes(o));
-                      const bIndex = order.findIndex(o => b.slug.includes(o));
+                      const aIndex = order.findIndex(o => a.slug.includes(o) || a.slug === o);
+                      const bIndex = order.findIndex(o => b.slug.includes(o) || b.slug === o);
                       return (aIndex === -1 ? 999 : aIndex) - (bIndex === -1 ? 999 : bIndex);
                     });
                   };
@@ -1488,7 +1488,7 @@ export function SellerLinks() {
 
                     const sortedProducts = sortProducts(group.products, key);
                     const totalProductsInGroup = sortedProducts.length;
-                    const hasTotalProcessProduct = sortedProducts.some((p: VisaProduct) => p.slug.includes('total-process'));
+                    const hasTotalProcessProduct = sortedProducts.some((p: VisaProduct) => p.slug.includes('total-process') || p.slug === 'INITIAL Application - Full Process Payment');
                     const stepDenominator = hasTotalProcessProduct ? totalProductsInGroup - 1 : totalProductsInGroup;
 
                     const isServiceGroup = ['initial', 'cos', 'transfer', 'eb2', 'eb3'].includes(key);
@@ -1531,7 +1531,7 @@ export function SellerLinks() {
                                 const basePrice = parseFloat(product.base_price_usd || '0');
                                 const extraPrice = parseFloat(product.extra_unit_price || '0');
                                 const hasExtraUnits = product.allow_extra_units && extraPrice > 0;
-                                const isTotalProcess = product.slug.includes('total-process');
+                                const isTotalProcess = product.slug.includes('total-process') || product.slug === 'INITIAL Application - Full Process Payment';
 
 
                                 return (
