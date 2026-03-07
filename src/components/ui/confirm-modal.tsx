@@ -5,6 +5,7 @@ interface ConfirmModalProps {
   isOpen: boolean;
   onClose: () => void;
   onConfirm: () => void;
+  onCancel?: () => void;
   title: string;
   message: string;
   confirmText?: string;
@@ -17,6 +18,7 @@ export function ConfirmModal({
   isOpen,
   onClose,
   onConfirm,
+  onCancel,
   title,
   message,
   confirmText = 'Confirm',
@@ -28,6 +30,14 @@ export function ConfirmModal({
 
   const handleConfirm = () => {
     onConfirm();
+  };
+
+  const handleCancel = () => {
+    if (onCancel) {
+      onCancel();
+    } else {
+      onClose();
+    }
   };
 
   return (
@@ -55,7 +65,7 @@ export function ConfirmModal({
           <div className="flex gap-3 justify-end">
             <Button
               variant="outline"
-              onClick={onClose}
+              onClick={handleCancel}
               disabled={isLoading}
               className="border-gold-medium/50 bg-black/50 text-white hover:bg-black/50 hover:text-white"
             >

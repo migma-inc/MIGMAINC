@@ -20,6 +20,7 @@ import { PromptModal } from '@/components/ui/prompt-modal';
 import { AlertModal } from '@/components/ui/alert-modal';
 import { MeetingScheduleModal } from '@/components/admin/MeetingScheduleModal';
 import { ContractTemplateSelector } from '@/components/admin/ContractTemplateSelector';
+import { ContractEditModal } from '@/components/admin/ContractEditModal';
 
 function StatusBadge({ status }: { status: Application['status'] }) {
   const variants: Record<string, string> = {
@@ -68,6 +69,8 @@ function ApplicationDetailContent() {
   const [showRejectTemplateSelector, setShowRejectTemplateSelector] = useState(false);
   const [pendingRejection, setPendingRejection] = useState<{ acceptanceId: string; reason?: string } | null>(null);
   const [termsAcceptance, setTermsAcceptance] = useState<any>(null);
+  const [showResendConfirmWithEdit, setShowResendConfirmWithEdit] = useState(false);
+  const [showContractEditModal, setShowContractEditModal] = useState(false);
 
   useEffect(() => {
     async function loadApplication() {
@@ -284,25 +287,71 @@ function ApplicationDetailContent() {
     }
   };
 
-  const handleResendEmail = async () => {
+  const handleResendEmail = () => {
+    if (!application) return;
+    setShowResendConfirmWithEdit(true);
+  };
+
+  const handleResendContractAfterConfirm = async (shouldEdit: boolean) => {
+    setShowResendConfirmWithEdit(false);
+
     if (!application) return;
 
+    if (shouldEdit) {
+      setShowContractEditModal(true);
+    } else {
+      // Reenviar sem editar
+      setIsProcessing(true);
+      try {
+        const result = await resendContractTermsEmail(application.id, true);
+
+        if (result.success) {
+          setAlertData({
+            title: 'Success',
+            message: 'Contract terms email resent successfully!',
+            variant: 'success',
+          });
+          setShowAlert(true);
+        } else {
+          setAlertData({
+            title: 'Error',
+            message: result.error || 'Failed to resend email',
+            variant: 'error',
+          });
+          setShowAlert(true);
+        }
+      } catch (error) {
+        setAlertData({
+          title: 'Error',
+          message: error instanceof Error ? error.message : 'Unknown error occurred',
+          variant: 'error',
+        });
+        setShowAlert(true);
+      } finally {
+        setIsProcessing(false);
+      }
+    }
+  };
+
+  const handleContractEditConfirm = async (newContent: string) => {
+    if (!application) return;
+
+    setShowContractEditModal(false);
     setIsProcessing(true);
     try {
-      // Forçar uso de URL de produção
-      const result = await resendContractTermsEmail(application.id, true);
+      const result = await resendContractTermsEmail(application.id, true, newContent);
 
       if (result.success) {
         setAlertData({
           title: 'Success',
-          message: 'Contract terms email resent successfully! The email was sent with the production URL.',
+          message: 'Contrato editado e e-mail enviado com sucesso!',
           variant: 'success',
         });
         setShowAlert(true);
       } else {
         setAlertData({
           title: 'Error',
-          message: result.error || 'Failed to resend email',
+          message: result.error || 'Falha ao reenviar e-mail com contrato editado',
           variant: 'error',
         });
         setShowAlert(true);
@@ -310,7 +359,7 @@ function ApplicationDetailContent() {
     } catch (error) {
       setAlertData({
         title: 'Error',
-        message: error instanceof Error ? error.message : 'Unknown error occurred',
+        message: error instanceof Error ? error.message : 'Ocorreu um erro inesperado',
         variant: 'error',
       });
       setShowAlert(true);
@@ -1395,6 +1444,30 @@ function ApplicationDetailContent() {
         cancelText="Cancel"
         variant="danger"
         isLoading={isProcessing}
+      />
+
+      {/* Resend Choice Modal */}
+      <ConfirmModal
+        isOpen={showResendConfirmWithEdit}
+        onClose={() => setShowResendConfirmWithEdit(false)}
+        onConfirm={() => handleResendContractAfterConfirm(true)}
+        onCancel={() => handleResendContractAfterConfirm(false)}
+        title="Reenviar Contrato"
+        message="Deseja alterar o conteúdo do contrato antes de reenviar?"
+        confirmText="Sim, Editar"
+        cancelText="Não, apenas Reenviar"
+        variant="default"
+        isLoading={isProcessing}
+      />
+
+      {/* Contract Edit Modal */}
+      <ContractEditModal
+        isOpen={showContractEditModal}
+        onClose={() => setShowContractEditModal(false)}
+        onConfirm={handleContractEditConfirm}
+        isLoading={isProcessing}
+        applicationId={application?.id}
+        applicationName={application?.full_name}
       />
 
       {/* Alert Modal */}
