@@ -62,8 +62,8 @@ interface PrefillValidationResult {
 // Lista de países ordenada alfabeticamente com "Other" por último
 const countries = getSortedCountries();
 
-const PRODUCTS_CACHE_KEY = 'seller_products_cache_v4';
-const PRODUCTS_CACHE_TIMESTAMP_KEY = 'seller_products_cache_timestamp_v4';
+const PRODUCTS_CACHE_KEY = 'seller_products_cache_v5';
+const PRODUCTS_CACHE_TIMESTAMP_KEY = 'seller_products_cache_timestamp_v5';
 const PRODUCTS_CACHE_DURATION = 10 * 60 * 1000; // 10 minutos (produtos mudam menos frequentemente)
 
 function getCachedProducts(): VisaProduct[] | null {
@@ -1442,9 +1442,9 @@ export function SellerLinks() {
                   products.forEach((product) => {
                     if (product.slug.startsWith('initial-') || product.slug === 'INITIAL Application - Full Process Payment') {
                       serviceGroups.initial.products.push(product);
-                    } else if (product.slug.startsWith('cos-')) {
+                    } else if (product.slug.startsWith('cos-') || product.slug === 'Change of Status - Full Process Payment') {
                       serviceGroups.cos.products.push(product);
-                    } else if (product.slug.startsWith('transfer-')) {
+                    } else if (product.slug.startsWith('transfer-') || product.slug === 'TRANSFER - Full Process Payment') {
                       serviceGroups.transfer.products.push(product);
                     } else if (product.slug.startsWith('eb2-') && product.name !== 'U.S. Visa EB-2 (Main applicant)') {
                       serviceGroups.eb2.products.push(product);
@@ -1473,7 +1473,7 @@ export function SellerLinks() {
                       });
                     }
 
-                    const order = ['selection-process', 'scholarship', 'i20-control', 'total-process', 'INITIAL Application - Full Process Payment'];
+                    const order = ['selection-process', 'scholarship', 'i20-control', 'total-process', 'INITIAL Application - Full Process Payment', 'Change of Status - Full Process Payment', 'TRANSFER - Full Process Payment'];
                     return products.sort((a, b) => {
                       const aIndex = order.findIndex(o => a.slug.includes(o) || a.slug === o);
                       const bIndex = order.findIndex(o => b.slug.includes(o) || b.slug === o);
@@ -1481,14 +1481,14 @@ export function SellerLinks() {
                     });
                   };
 
-                  const paymentLabels = ['Selection Process', 'Scholarship', 'I-20 Control', 'INITIAL Application - Full Process Payment'];
+                  const paymentLabels = ['Selection Process', 'Scholarship', 'I-20 Control'];
 
                   return Object.entries(serviceGroups).map(([key, group]) => {
                     if (group.products.length === 0) return null;
 
                     const sortedProducts = sortProducts(group.products, key);
                     const totalProductsInGroup = sortedProducts.length;
-                    const hasTotalProcessProduct = sortedProducts.some((p: VisaProduct) => p.slug.includes('total-process') || p.slug === 'INITIAL Application - Full Process Payment');
+                    const hasTotalProcessProduct = sortedProducts.some((p: VisaProduct) => p.slug.includes('total-process') || p.slug.includes('Full Process Payment'));
                     const stepDenominator = hasTotalProcessProduct ? totalProductsInGroup - 1 : totalProductsInGroup;
 
                     const isServiceGroup = ['initial', 'cos', 'transfer', 'eb2', 'eb3'].includes(key);
@@ -1525,13 +1525,13 @@ export function SellerLinks() {
                                 const isCopied = copiedLink === productGeneratedLinks[product.slug];
                                 const paymentNumber = index + 1;
                                 // Use mapped label for Initial/COS/Transfer, but actual names for EB-3 and others
-                                const paymentLabel = key === 'eb2' || key === 'eb3' || key === 'other'
+                                const paymentLabel = (key === 'eb2' || key === 'eb3' || key === 'other' || product.slug.includes('Full Process Payment') || product.slug.includes('total-process'))
                                   ? product.name
                                   : (paymentLabels[index] || `Payment ${paymentNumber}`);
                                 const basePrice = parseFloat(product.base_price_usd || '0');
                                 const extraPrice = parseFloat(product.extra_unit_price || '0');
                                 const hasExtraUnits = product.allow_extra_units && extraPrice > 0;
-                                const isTotalProcess = product.slug.includes('total-process') || product.slug === 'INITIAL Application - Full Process Payment';
+                                const isTotalProcess = product.slug.includes('total-process') || product.slug.includes('Full Process Payment');
 
 
                                 return (

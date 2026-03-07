@@ -27,7 +27,7 @@ export async function generateContractViewToken(
           expiresAt: null,
         };
       }
-      
+
       // Se tem expiração, verificar se ainda é válido
       const expiresAt = new Date(existingToken.expires_at);
       const now = new Date();
@@ -48,7 +48,7 @@ export async function generateContractViewToken(
 
     // Gerar token único
     const token = `view_${Date.now()}_${Math.random().toString(36).substring(2, 15)}_${Math.random().toString(36).substring(2, 15)}`;
-    
+
     // Calcular data de expiração (null = infinito)
     let expiresAt: Date | null = null;
     if (expiresInDays !== null) {
@@ -176,23 +176,26 @@ export async function getContractViewData(acceptanceId: string) {
     //   return null;
     // }
 
-    // Buscar conteúdo do contrato (template ou termos padrão)
-    let contractContent = '';
-    if (acceptance.contract_template_id && acceptance.contract_templates) {
-      contractContent = acceptance.contract_templates.content || '';
-    } else {
-      // Buscar termos padrão
-      const { data: defaultTerms } = await supabase
-        .from('application_terms')
-        .select('content')
-        .eq('term_type', 'partner_contract')
-        .eq('is_active', true)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .single();
-      
-      if (defaultTerms) {
-        contractContent = defaultTerms.content || '';
+    // Buscar conteúdo do contrato (prioridade: custom_content > template > termos padrão)
+    let contractContent = acceptance.custom_content || '';
+
+    if (!contractContent) {
+      if (acceptance.contract_template_id && acceptance.contract_templates) {
+        contractContent = acceptance.contract_templates.content || '';
+      } else {
+        // Buscar termos padrão
+        const { data: defaultTerms } = await supabase
+          .from('application_terms')
+          .select('content')
+          .eq('term_type', 'partner_contract')
+          .eq('is_active', true)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .single();
+
+        if (defaultTerms) {
+          contractContent = defaultTerms.content || '';
+        }
       }
     }
 
