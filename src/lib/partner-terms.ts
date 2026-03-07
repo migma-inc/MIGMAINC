@@ -11,12 +11,13 @@ import { sendTermsLinkEmail } from './emails';
 export async function generateTermsToken(
     applicationId: string,
     expiresInDays: number = 30,
-    contractTemplateId?: string | null
+    contractTemplateId?: string | null,
+    customContent?: string | null
 ): Promise<{ token: string; expiresAt: Date } | null> {
     try {
         // Gerar token único
         const token = `migma_${Date.now()}_${Math.random().toString(36).substring(2, 15)}_${Math.random().toString(36).substring(2, 15)}`;
-        
+
         // Calcular data de expiração
         const expiresAt = new Date();
         expiresAt.setDate(expiresAt.getDate() + expiresInDays);
@@ -31,6 +32,11 @@ export async function generateTermsToken(
         // Adicionar contract_template_id se fornecido
         if (contractTemplateId) {
             insertData.contract_template_id = contractTemplateId;
+        }
+
+        // Adicionar custom_content se fornecido
+        if (customContent) {
+            insertData.custom_content = customContent;
         }
 
         // Inserir token no banco
@@ -98,7 +104,8 @@ export async function validateTermsToken(token: string) {
 export async function approveCandidateAndSendTermsLink(
     applicationId: string,
     expiresInDays: number = 30,
-    contractTemplateId?: string | null
+    contractTemplateId?: string | null,
+    customContent?: string | null
 ): Promise<string | null> {
     try {
         // Buscar dados da aplicação
@@ -113,8 +120,8 @@ export async function approveCandidateAndSendTermsLink(
             return null;
         }
 
-        // Gerar token com template se fornecido
-        const tokenResult = await generateTermsToken(applicationId, expiresInDays, contractTemplateId);
+        // Gerar token com template e customContent se fornecido
+        const tokenResult = await generateTermsToken(applicationId, expiresInDays, contractTemplateId, customContent);
         if (!tokenResult) {
             console.error('Failed to generate token');
             return null;
@@ -126,9 +133,9 @@ export async function approveCandidateAndSendTermsLink(
         const getBaseUrl = (): string => {
             return 'https://migmainc.com';
         };
-        
+
         const baseUrl = getBaseUrl();
-        
+
         // Log the URL being used for debugging
         console.log('[PARTNER TERMS] Sending terms link email:', {
             email: application.email,
@@ -136,7 +143,7 @@ export async function approveCandidateAndSendTermsLink(
             isLocalhost: baseUrl.includes('localhost') || baseUrl.includes('127.0.0.1'),
             source: import.meta.env.VITE_APP_URL ? 'env' : (typeof window !== 'undefined' ? 'browser' : 'fallback')
         });
-        
+
         const emailSent = await sendTermsLinkEmail(
             application.email,
             application.full_name,
@@ -167,7 +174,8 @@ export async function approveCandidateAndSendTermsLink(
  */
 export async function resendContractTermsEmail(
     applicationId: string,
-    forceProductionUrl: boolean = true
+    forceProductionUrl: boolean = true,
+    customContent?: string | null
 ): Promise<{ success: boolean; token?: string; error?: string }> {
     try {
         // Buscar dados da aplicação
@@ -183,9 +191,9 @@ export async function resendContractTermsEmail(
         }
 
         if (application.status !== 'approved_for_contract') {
-            return { 
-                success: false, 
-                error: `Application must be in 'approved_for_contract' status. Current status: ${application.status}` 
+            return {
+                success: false,
+                error: `Application must be in 'approved_for_contract' status. Current status: ${application.status}`
             };
         }
 
@@ -200,8 +208,21 @@ export async function resendContractTermsEmail(
 
         let tokenToUse: string;
 
-        // Verificar se o token existente é válido (não expirado e não aceito)
-        if (existingToken && !tokenError) {
+        // Se houver conteúdo customizado, gera um novo token para garantir que seja salvo
+        if (customContent) {
+            console.log('[RESEND EMAIL] Custom content provided, generating new token');
+            const tokenResult = await generateTermsToken(
+                applicationId,
+                30,
+                existingToken?.contract_template_id || null,
+                customContent
+            );
+            if (!tokenResult) {
+                return { success: false, error: 'Failed to generate new token with custom content' };
+            }
+            tokenToUse = tokenResult.token;
+        } else if (existingToken && !tokenError) {
+            // Verificar se o token existente é válido (não expirado e não aceito)
             const now = new Date();
             const expiresAt = new Date(existingToken.expires_at);
             const isExpired = now > expiresAt;
@@ -215,8 +236,8 @@ export async function resendContractTermsEmail(
                 // Token expirado ou já aceito, gerar novo
                 console.log('[RESEND EMAIL] Existing token is expired or accepted, generating new token');
                 const tokenResult = await generateTermsToken(
-                    applicationId, 
-                    30, 
+                    applicationId,
+                    30,
                     existingToken.contract_template_id
                 );
                 if (!tokenResult) {
@@ -238,9 +259,9 @@ export async function resendContractTermsEmail(
         const getBaseUrl = (): string => {
             return 'https://migmainc.com';
         };
-        
+
         const baseUrl = getBaseUrl();
-        
+
         // Log the URL being used for debugging
         console.log('[RESEND EMAIL] Resending contract terms link email:', {
             email: application.email,
@@ -250,7 +271,7 @@ export async function resendContractTermsEmail(
             token: tokenToUse,
             envVarValue: import.meta.env.VITE_APP_URL
         });
-        
+
         const emailSent = await sendTermsLinkEmail(
             application.email,
             application.full_name,
@@ -259,18 +280,18 @@ export async function resendContractTermsEmail(
         );
 
         if (!emailSent) {
-            return { 
-                success: false, 
-                error: 'Failed to send email. Token was generated/retrieved but email sending failed.' 
+            return {
+                success: false,
+                error: 'Failed to send email. Token was generated/retrieved but email sending failed.'
             };
         }
 
         return { success: true, token: tokenToUse };
     } catch (error) {
         console.error('[RESEND EMAIL] Error resending contract terms email:', error);
-        return { 
-            success: false, 
-            error: error instanceof Error ? error.message : 'Unknown error occurred' 
+        return {
+            success: false,
+            error: error instanceof Error ? error.message : 'Unknown error occurred'
         };
     }
 }

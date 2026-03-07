@@ -102,11 +102,16 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Fetch contract content - check if template is specified, otherwise use default
+    // Fetch contract content - check if custom content is provided, then template, then default
     let termsContent: string | null = null;
     let termsTitle: string | null = null;
 
-    if (termAcceptance.contract_template_id) {
+    if (termAcceptance.custom_content) {
+      // Prioridade máxima: conteúdo customizado pelo admin
+      termsContent = termAcceptance.custom_content;
+      termsTitle = "Contrato Individualizado";
+      console.log("[EDGE FUNCTION] Using custom contract content from acceptance");
+    } else if (termAcceptance.contract_template_id) {
       // Template obrigatório - não pode fazer fallback
       const { data: templateData, error: templateError } = await supabase
         .from('contract_templates')

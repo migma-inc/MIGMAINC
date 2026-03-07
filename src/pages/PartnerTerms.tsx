@@ -260,7 +260,11 @@ export const PartnerTerms = () => {
                 // loadingContent já está true desde o início
                 setTemplateLoadError(null);
 
-                if (data.contract_template_id) {
+                if (data.custom_content) {
+                    // Prioridade máxima: conteúdo customizado pelo admin no reenvio
+                    setContractContent(data.custom_content);
+                    console.log('[PARTNER TERMS] Loaded custom contract content from token');
+                } else if (data.contract_template_id) {
                     // Template obrigatório - não pode fazer fallback
                     try {
                         const template = await getContractTemplate(data.contract_template_id);
@@ -1191,22 +1195,27 @@ export const PartnerTerms = () => {
                             </div>
                         )}
 
-                        <PartnerAgreementText />
+                        {/* Only show default boilerplate if no dynamic content is loaded */}
+                        {!contractContent && !templateLoadError && (
+                            <>
+                                <PartnerAgreementText />
 
-                        <div className="space-y-2">
-                            <h3 className="text-xl font-bold text-gold-light">24. Waiver</h3>
-                            <p>A waiver of breach does not waive future breaches.</p>
-                        </div>
+                                <div className="space-y-2">
+                                    <h3 className="text-xl font-bold text-gold-light">24. Waiver</h3>
+                                    <p>A waiver of breach does not waive future breaches.</p>
+                                </div>
 
-                        <Separator className="bg-gold-medium/30" />
+                                <Separator className="bg-gold-medium/30" />
 
-                        <div className="space-y-2">
-                            <h3 className="text-xl font-bold text-gold-light">25. Execution</h3>
-                            <p>
-                                This Agreement is fully effective upon Contractor electronic acceptance, without
-                                requiring signature from MIGMA INC.
-                            </p>
-                        </div>
+                                <div className="space-y-2">
+                                    <h3 className="text-xl font-bold text-gold-light">25. Execution</h3>
+                                    <p>
+                                        This Agreement is fully effective upon Contractor electronic acceptance, without
+                                        requiring signature from MIGMA INC.
+                                    </p>
+                                </div>
+                            </>
+                        )}
                     </CardContent>
                 </Card>
 
