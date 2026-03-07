@@ -18,6 +18,7 @@ import { PartnerContractsList } from '@/components/admin/PartnerContractsList';
 import { Sidebar } from '@/components/admin/Sidebar';
 import type { Application } from '@/types/application';
 import { approveApplication, rejectApplication, getApplicationStats, approveApplicationForMeeting, approveApplicationAfterMeeting } from '@/lib/admin';
+import { resendContractTermsEmail } from '@/lib/partner-terms';
 import { approvePartnerContract, rejectPartnerContract } from '@/lib/partner-contracts';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ConfirmModal } from '@/components/ui/confirm-modal';
@@ -25,6 +26,7 @@ import { PromptModal } from '@/components/ui/prompt-modal';
 import { AlertModal } from '@/components/ui/alert-modal';
 import { MeetingScheduleModal } from '@/components/admin/MeetingScheduleModal';
 import { ContractTemplateSelector } from '@/components/admin/ContractTemplateSelector';
+import { ContractEditModal } from '@/components/admin/ContractEditModal';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 function LoginForm({ onLoginSuccess }: { onLoginSuccess: () => void }) {
@@ -270,6 +272,8 @@ export function DashboardContent() {
   const [showRejectTemplateSelector, setShowRejectTemplateSelector] = useState(false);
   const [pendingContract, setPendingContract] = useState<any>(null);
   const [pendingRejection, setPendingRejection] = useState<{ acceptanceId: string; reason?: string } | null>(null);
+  const [showResendConfirm, setShowResendConfirm] = useState(false);
+  const [showContractEdit, setShowContractEdit] = useState(false);
 
   useEffect(() => {
     loadStats();
@@ -541,10 +545,17 @@ export function DashboardContent() {
   };
 
   const handleResendEmail = async (application: Application) => {
+    setPendingApplication(application);
+    setShowResendConfirm(true);
+  };
+
+  const confirmResendOnly = async () => {
+    if (!pendingApplication) return;
+
+    setShowResendConfirm(false);
     setIsProcessing(true);
     try {
-      const { resendContractTermsEmail } = await import('@/lib/partner-terms');
-      const result = await resendContractTermsEmail(application.id);
+      const result = await resendContractTermsEmail(pendingApplication.id);
 
       if (result.success) {
         setAlertData({
@@ -570,6 +581,43 @@ export function DashboardContent() {
       setShowAlert(true);
     } finally {
       setIsProcessing(false);
+      setPendingApplication(null);
+    }
+  };
+
+  const handleContractEditSave = async (content: string) => {
+    if (!pendingApplication) return;
+
+    setShowContractEdit(false);
+    setIsProcessing(true);
+    try {
+      const result = await resendContractTermsEmail(pendingApplication.id, true, content);
+
+      if (result.success) {
+        setAlertData({
+          title: 'Success',
+          message: 'Contract edited and resent successfully!',
+          variant: 'success',
+        });
+        setShowAlert(true);
+      } else {
+        setAlertData({
+          title: 'Error',
+          message: result.error || 'Failed to edit and resend contract',
+          variant: 'error',
+        });
+        setShowAlert(true);
+      }
+    } catch (error) {
+      setAlertData({
+        title: 'Error',
+        message: error instanceof Error ? error.message : 'Unknown error occurred',
+        variant: 'error',
+      });
+      setShowAlert(true);
+    } finally {
+      setIsProcessing(false);
+      setPendingApplication(null);
     }
   };
 
@@ -1224,6 +1272,37 @@ export function DashboardContent() {
           title={alertData.title}
           message={alertData.message}
           variant={alertData.variant}
+        />
+      )}
+
+      <ConfirmModal
+        isOpen={showResendConfirm}
+        onClose={() => {
+          setShowResendConfirm(false);
+          setPendingApplication(null);
+        }}
+        onConfirm={confirmResendOnly}
+        onCancel={() => {
+          setShowResendConfirm(false);
+          setShowContractEdit(true);
+        }}
+        title="Resend Contract"
+        message={`Você deseja alterar o contrato de ${pendingApplication?.full_name} antes de reenviar?`}
+        confirmText="Não, apenas reenviar"
+        cancelText="Sim, alterar contrato"
+        variant="default"
+      />
+
+      {showContractEdit && pendingApplication && (
+        <ContractEditModal
+          isOpen={showContractEdit}
+          onClose={() => {
+            setShowContractEdit(false);
+            setPendingApplication(null);
+          }}
+          onConfirm={handleContractEditSave}
+          applicationId={pendingApplication.id}
+          applicationName={pendingApplication.full_name}
         />
       )}
     </div>
