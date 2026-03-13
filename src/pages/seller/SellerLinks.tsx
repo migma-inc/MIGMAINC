@@ -122,6 +122,9 @@ export function SellerLinks() {
   const copyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [targetSeller, setTargetSeller] = useState<SellerInfo | null>(null);
+  const [teamMembers, setTeamMembers] = useState<SellerInfo[]>([]);
+  const [loadingTeam, setLoadingTeam] = useState(false);
+  const [selectedSellerId, setSelectedSellerId] = useState<string>('direct');
 
   // Dropdown state for service groups
   const [expandedServices, setExpandedServices] = useState<{ [key: string]: boolean }>({
@@ -378,8 +381,31 @@ export function SellerLinks() {
           }
         }
 
-        if (currentSeller && !targetSeller) {
+        if (userIsAdmin) {
+          // No caso de admin, o padrão é ser "Direto" (sem vendedor)
+          // mas carregamos a lista de vendedores para ele poder escolher
+          setTargetSeller(null);
+          setSelectedSellerId('direct');
+          
+          try {
+            setLoadingTeam(true);
+            const { data: allSellers } = await supabase
+              .from('sellers')
+              .select('*')
+              .eq('status', 'active')
+              .order('full_name');
+            
+            if (allSellers) {
+              setTeamMembers(allSellers as SellerInfo[]);
+            }
+          } catch (teamErr) {
+            console.error('[SellerLinks] Error loading all sellers:', teamErr);
+          } finally {
+            setLoadingTeam(false);
+          }
+        } else if (currentSeller && !targetSeller) {
           setTargetSeller(currentSeller);
+          setSelectedSellerId(currentSeller.id);
         }
       } catch (err) {
         console.error('[SellerLinks] Error loading seller info:', err);
@@ -572,7 +598,7 @@ export function SellerLinks() {
         </div>
 
         {/* Target Seller Selector (Admin and Head of Sales only) */}
-        {/* {(isAdmin || seller?.role === 'head_of_sales') && teamMembers.length > 0 && (
+        {(isAdmin || seller?.role === 'head_of_sales') && (
           <Card className="bg-black/40 border-gold-medium/20">
             <CardContent className="pt-6">
               <div className="flex flex-col sm:flex-row items-center gap-4">
@@ -585,14 +611,19 @@ export function SellerLinks() {
                   disabled={loadingTeam}
                   onValueChange={(id) => {
                     setSelectedSellerId(id);
-                    const member = teamMembers.find(m => m.id === id);
-                    if (member) setTargetSeller(member);
+                    if (id === 'direct') {
+                      setTargetSeller(null);
+                    } else {
+                      const member = teamMembers.find(m => m.id === id);
+                      if (member) setTargetSeller(member);
+                    }
                   }}
                 >
                   <SelectTrigger className="bg-zinc-900 border-gold-medium/30 text-white h-10 w-full sm:max-w-xs">
                     <SelectValue placeholder="Select a seller" />
                   </SelectTrigger>
                   <SelectContent className="bg-zinc-900 border-gold-medium/30 text-white">
+                    <SelectItem value="direct">Direct Sale / Migma (No Seller)</SelectItem>
                     {teamMembers.map(member => (
                       <SelectItem key={member.id} value={member.id}>
                         {member.full_name} ({member.seller_id_public})
@@ -601,15 +632,19 @@ export function SellerLinks() {
                     ))}
                   </SelectContent>
                 </Select>
-                {targetSeller && (
+                {targetSeller ? (
                   <p className="text-xs text-gray-500 italic">
                     All links generated below will be attributed to <strong>{targetSeller.full_name}</strong>
+                  </p>
+                ) : (
+                  <p className="text-xs text-gray-500 italic">
+                    All links generated below will be <strong>Direct Sales</strong> (No Seller ID in URL)
                   </p>
                 )}
               </div>
             </CardContent>
           </Card>
-        )} */}
+        )}
 
         {/* Quick Client Setup Form */}
         <Card
@@ -1353,7 +1388,7 @@ export function SellerLinks() {
                         const expiresAt = new Date();
                         expiresAt.setDate(expiresAt.getDate() + 30); // 30 days validity
 
-                        const targetSellerId = targetSeller?.seller_id_public || seller?.seller_id_public;
+                        const targetSellerId = targetSeller?.seller_id_public;
 
                         const { error: insertError } = await supabase
                           .from('checkout_prefill_tokens')
@@ -1388,8 +1423,7 @@ export function SellerLinks() {
 
                         // Generate link
                         const siteUrl = window.location.origin;
-                        const sellerIdToUse = targetSeller?.seller_id_public || seller?.seller_id_public;
-                        const sellerParam = sellerIdToUse ? `&seller=${sellerIdToUse}` : '';
+                        const sellerParam = targetSellerId ? `&seller=${targetSellerId}` : '';
                         const link = `${siteUrl}/checkout/visa/${prefillFormData.productSlug}?prefill=${token}${sellerParam}`;
                         setGeneratedPrefillLink(link);
 
@@ -1583,7 +1617,7 @@ export function SellerLinks() {
                                               const expiresAt = new Date();
                                               expiresAt.setDate(expiresAt.getDate() + 30);
 
-                                              const targetSellerId = targetSeller?.seller_id_public || seller?.seller_id_public;
+                                              const targetSellerId = targetSeller?.seller_id_public;
 
                                               const { error: insertError } = await supabase
                                                 .from('checkout_prefill_tokens')
@@ -1598,8 +1632,7 @@ export function SellerLinks() {
                                               if (insertError) throw insertError;
 
                                               const siteUrl = window.location.origin;
-                                              const sellerIdToUse = targetSeller?.seller_id_public || seller?.seller_id_public;
-                                              const sellerParam = sellerIdToUse ? `&seller=${sellerIdToUse}` : '';
+                                              const sellerParam = targetSellerId ? `&seller=${targetSellerId}` : '';
                                               const link = `${siteUrl}/checkout/visa/${product.slug}?prefill=${token}${sellerParam}`;
                                               setProductGeneratedLinks({
                                                 ...productGeneratedLinks,
@@ -1631,7 +1664,7 @@ export function SellerLinks() {
                                               const expiresAt = new Date();
                                               expiresAt.setDate(expiresAt.getDate() + 30);
 
-                                              const targetSellerId = targetSeller?.seller_id_public || seller?.seller_id_public;
+                                              const targetSellerId = targetSeller?.seller_id_public;
 
                                               const { error: insertError } = await supabase
                                                 .from('checkout_prefill_tokens')
@@ -1646,8 +1679,7 @@ export function SellerLinks() {
                                               if (insertError) throw insertError;
 
                                               const siteUrl = window.location.origin;
-                                              const sellerIdToUse = targetSeller?.seller_id_public || seller?.seller_id_public;
-                                              const sellerParam = sellerIdToUse ? `&seller=${sellerIdToUse}` : '';
+                                              const sellerParam = targetSellerId ? `&seller=${targetSellerId}` : '';
                                               const link = `${siteUrl}/checkout/contract/${product.slug}?prefill=${token}${sellerParam}`;
                                               setProductGeneratedLinks({
                                                 ...productGeneratedLinks,
@@ -1805,7 +1837,7 @@ export function SellerLinks() {
                                         const expiresAt = new Date();
                                         expiresAt.setDate(expiresAt.getDate() + 30);
 
-                                        const targetSellerId = targetSeller?.seller_id_public || seller?.seller_id_public;
+                                        const targetSellerId = targetSeller?.seller_id_public;
 
                                         const { error: insertError } = await supabase
                                           .from('checkout_prefill_tokens')
@@ -1852,7 +1884,7 @@ export function SellerLinks() {
                                         const expiresAt = new Date();
                                         expiresAt.setDate(expiresAt.getDate() + 30);
 
-                                        const targetSellerId = targetSeller?.seller_id_public || seller?.seller_id_public;
+                                        const targetSellerId = targetSeller?.seller_id_public;
 
                                         const { error: insertError } = await supabase
                                           .from('checkout_prefill_tokens')
