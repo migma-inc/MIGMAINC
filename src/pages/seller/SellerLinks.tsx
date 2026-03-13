@@ -343,7 +343,7 @@ export function SellerLinks() {
             currentSeller = sellerData as SellerInfo;
             setSeller(currentSeller);
           } else if (userIsAdmin) {
-            // 2. Se não encontrou e é Admin, busca por "Migma" ou qualquer vendedor ativo
+            // 2. Se não encontrou e é Admin, busca por "Migma"
             const { data: migmaSeller } = await supabase
               .from('sellers')
               .select('*')
@@ -356,27 +356,16 @@ export function SellerLinks() {
               currentSeller = migmaSeller as SellerInfo;
               setSeller(currentSeller);
             } else {
-              const { data: anySeller } = await supabase
-                .from('sellers')
-                .select('*')
-                .eq('status', 'active')
-                .limit(1)
-                .maybeSingle();
-
-              if (anySeller) {
-                currentSeller = anySeller as SellerInfo;
-                setSeller(currentSeller);
-              } else {
-                currentSeller = {
-                  id: 'admin',
-                  seller_id_public: 'MIGMA',
-                  full_name: 'Migma Admin',
-                  email: session.user.email || '',
-                  status: 'active',
-                  role: 'admin'
-                } as SellerInfo;
-                setSeller(currentSeller);
-              }
+              // Create virtual Admin seller instead of picking a random one
+              currentSeller = {
+                id: session.user.id,
+                seller_id_public: 'MIGMA',
+                full_name: 'Migma Admin',
+                email: session.user.email || '',
+                status: 'active',
+                role: 'admin'
+              } as SellerInfo;
+              setSeller(currentSeller);
             }
           }
         }
