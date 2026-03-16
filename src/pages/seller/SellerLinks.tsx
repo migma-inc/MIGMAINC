@@ -386,6 +386,7 @@ export function SellerLinks() {
               .from('sellers')
               .select('*')
               .eq('status', 'active')
+              .eq('is_test', false)
               .order('full_name');
             
             if (allSellers) {
@@ -417,6 +418,7 @@ export function SellerLinks() {
               .select('*')
               .eq('head_of_sales_id', currentSeller.id)
               .eq('status', 'active')
+              .eq('is_test', false)
               .order('full_name');
             
             if (myTeam) {
