@@ -63,21 +63,25 @@ export const SellerLogin = () => {
       console.log('[SellerLogin] Login successful, user:', data.user.id);
 
       // Check if user is a seller
-      const { data: sellerData, error: sellerError } = await supabase
+      const { data: sellerData } = await supabase
         .from('sellers')
         .select('*')
         .eq('user_id', data.user.id)
         .single();
 
-      if (sellerError || !sellerData) {
-        console.error('[SellerLogin] Not a seller account');
+      const userRole = data.user.user_metadata?.role;
+      const isAdmin = userRole === 'admin';
+      const isHoS = userRole === 'head_of_sales';
+
+      if (!sellerData && !isAdmin && !isHoS) {
+        console.error('[SellerLogin] Not a seller and no authorized role account');
         setError('This account is not registered as a seller');
         await supabase.auth.signOut();
         setLoading(false);
         return;
       }
 
-      console.log('[SellerLogin] Seller verified, redirecting to dashboard...');
+      console.log('[SellerLogin] User verified, redirecting to dashboard...');
 
       // Redirect to dashboard
       navigate('/seller/dashboard', { replace: true });

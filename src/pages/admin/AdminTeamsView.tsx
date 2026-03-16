@@ -70,7 +70,8 @@ export function AdminTeamsView({ selectedMonth }: AdminTeamsViewProps) {
             // 1. Load all sellers with their roles
             const { data: allSellers, error: sellerError } = await supabase
                 .from('sellers')
-                .select('id, full_name, email, seller_id_public, role, head_of_sales_id, team_name');
+                .select('id, full_name, email, seller_id_public, role, head_of_sales_id, team_name')
+                .eq('is_test', false);
 
             if (sellerError) throw sellerError;
 
@@ -178,7 +179,7 @@ export function AdminTeamsView({ selectedMonth }: AdminTeamsViewProps) {
 
     if (loading) {
         return (
-            <div className="flex items-center justify-center py-24">
+            <div className="p-4 sm:p-6 lg:p-8 flex items-center justify-center py-24">
                 <Loader2 className="w-8 h-8 text-gold-medium animate-spin" />
             </div>
         );
@@ -186,7 +187,7 @@ export function AdminTeamsView({ selectedMonth }: AdminTeamsViewProps) {
 
     if (teams.length === 0) {
         return (
-            <div className="py-16 text-center text-gray-500">
+            <div className="p-4 sm:p-6 lg:p-8 py-16 text-center text-gray-500">
                 <Crown className="w-10 h-10 mx-auto mb-3 opacity-30" />
                 <p>Nenhum Head of Sales encontrado.</p>
                 <p className="text-xs mt-1">Promova vendedores na aba "Pessoas".</p>
@@ -195,7 +196,8 @@ export function AdminTeamsView({ selectedMonth }: AdminTeamsViewProps) {
     }
 
     return (
-        <div className="space-y-6">
+        <div className="p-4 sm:p-6 lg:p-8">
+            <div className="max-w-7xl mx-auto space-y-6">
             {teams.map((team, teamIndex) => (
                 <Card
                     key={team.id}
@@ -358,6 +360,7 @@ export function AdminTeamsView({ selectedMonth }: AdminTeamsViewProps) {
                     </CardContent>
                 </Card>
             ))}
+            </div>
         </div>
     );
 }

@@ -33,6 +33,8 @@ import { SellerDashboardLayout } from './pages/seller/SellerDashboardLayout';
 import { DashboardOverviewRouter } from './pages/seller/DashboardOverviewRouter';
 import { HeadOfSalesTeam } from './pages/seller/HeadOfSalesTeam';
 import { HeadOfSalesOrders } from './pages/seller/HeadOfSalesOrders';
+import { HeadOfSalesCommissions } from './pages/seller/HeadOfSalesCommissions';
+import { HeadOfSalesTotalSales } from './pages/seller/HeadOfSalesTotalSales';
 import { SellerAnalytics } from './pages/seller/SellerAnalytics';
 import { SellerCommissions } from './pages/seller/SellerCommissions';
 import { SellerFunnel } from './pages/seller/SellerFunnel';
@@ -58,6 +60,7 @@ import { AdminSellerAnalytics } from './pages/admin/AdminSellerAnalytics';
 import { AdminSellerOrders } from './pages/admin/AdminSellerOrders';
 import { AdminRoute } from './components/admin/AdminRoute';
 import { SlackReportsPage } from './pages/admin/SlackReportsPage';
+import { AdminHoSAnalytics } from './pages/admin/AdminHoSAnalytics';
 import { VisaContractApprovalPage } from './pages/VisaContractApprovalPage';
 import { AdminProfile } from './pages/admin/AdminProfile';
 import { HeadOfSalesManagement } from './pages/admin/HeadOfSalesManagement';
@@ -110,6 +113,8 @@ function App() {
             <>
               <Route path="team" element={<HeadOfSalesTeam />} />
               <Route path="team-orders" element={<HeadOfSalesOrders />} />
+              <Route path="team-commissions" element={<HeadOfSalesCommissions />} />
+              <Route path="team-total-sales" element={<HeadOfSalesTotalSales />} />
             </>
           )}
           <Route path="analytics" element={<SellerAnalytics />} />
@@ -144,7 +149,10 @@ function App() {
           <Route path="zelle-approval" element={<ZelleApprovalPage />} />
           <Route path="sellers" element={<SellersPage />} />
           {import.meta.env.DEV && (
-            <Route path="head-of-sales" element={<AdminRoute><HeadOfSalesManagement /></AdminRoute>} />
+            <>
+              <Route path="head-of-sales" element={<AdminRoute><HeadOfSalesManagement /></AdminRoute>} />
+              <Route path="head-of-sales/:hosId/analytics" element={<AdminRoute><AdminHoSAnalytics /></AdminRoute>} />
+            </>
           )}
           <Route path="sellers/:sellerId/analytics" element={<AdminRoute><AdminSellerAnalytics /></AdminRoute>} />
           <Route path="sellers/:sellerId/orders" element={<AdminRoute><AdminSellerOrders /></AdminRoute>} />

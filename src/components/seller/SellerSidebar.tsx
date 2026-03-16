@@ -103,14 +103,17 @@ export function SellerSidebar({ className, sellerName, isMobileOpen = false, onM
 
   const headOfSalesMenuItems: MenuItem[] = [
     { title: 'Overview', icon: LayoutDashboard, path: '/seller/dashboard', exact: true },
-    { title: 'My Team', icon: Users, path: '/seller/dashboard/team', exact: false },
     { title: 'Sales Links', icon: LinkIcon, path: '/seller/dashboard/links', exact: false },
+    { title: 'My Team', icon: Users, path: '/seller/dashboard/team', exact: false },
     { title: 'Team Orders', icon: ShoppingCart, path: '/seller/dashboard/team-orders', exact: false },
+    { title: 'My Overrides', icon: Coins, path: '/seller/dashboard/team-commissions', exact: false },
+    { title: 'Total Sales', icon: BarChart3, path: '/seller/dashboard/team-total-sales', exact: false },
   ];
 
-  // HoS features only available in dev environment
-  const isHeadOfSalesInDev = import.meta.env.DEV && role === 'head_of_sales';
-  const menuItems: MenuItem[] = isHeadOfSalesInDev ? headOfSalesMenuItems : sellerMenuItems;
+  // HoS features available for both managers and admins
+  const isManager = role === 'head_of_sales' || role === 'admin';
+  const isHeadOfSalesView = isManager;
+  const menuItems: MenuItem[] = isHeadOfSalesView ? headOfSalesMenuItems : sellerMenuItems;
 
 
   useEffect(() => {
@@ -125,7 +128,9 @@ export function SellerSidebar({ className, sellerName, isMobileOpen = false, onM
         <div className="flex items-center justify-between mb-8">
           <div className="flex items-center gap-2">
             <LayoutDashboard className="w-6 h-6 text-gold-medium" />
-            <h2 className="text-lg font-bold migma-gold-text">Seller Panel</h2>
+            <h2 className="text-lg font-bold migma-gold-text">
+              {role === 'head_of_sales' ? 'HoS Panel' : 'Seller Panel'}
+            </h2>
           </div>
           <button onClick={onMobileClose} className="lg:hidden text-gray-400 hover:text-gold-light p-1" aria-label="Close menu">
             <X className="w-5 h-5" />
@@ -142,7 +147,9 @@ export function SellerSidebar({ className, sellerName, isMobileOpen = false, onM
         <nav className="space-y-1">
           {menuItems.map((item) => {
             const Icon = item.icon;
-            const isActive = item.exact ? location.pathname === item.path : location.pathname.startsWith(item.path);
+            const isActive = item.exact 
+              ? location.pathname === item.path 
+              : location.pathname === item.path || location.pathname.startsWith(item.path + '/');
 
             return (
               <Link

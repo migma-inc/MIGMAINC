@@ -79,6 +79,7 @@ export function AdminSellerAnalytics({ sellerId: propSellerId, isModal }: AdminS
           .from('sellers')
           .select('*')
           .eq('seller_id_public', sellerId)
+          .eq('is_test', false)
           .single();
 
         if (error || !sellerData) {
@@ -224,7 +225,7 @@ export function AdminSellerAnalytics({ sellerId: propSellerId, isModal }: AdminS
 
   return (
     <div className={isModal ? "" : "min-h-screen bg-gradient-to-b from-black via-[#1a1a1a] to-black p-4 sm:p-6 lg:p-8"}>
-      <div>
+      <div className={isModal ? "" : "max-w-7xl mx-auto space-y-6"}>
         {/* Header com informação do seller - Omit if modal */}
         {!isModal && (
           <div className="mb-4 sm:mb-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
