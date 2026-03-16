@@ -43,6 +43,7 @@ export function HeadOfSalesManagement() {
             const { data, error } = await supabase
                 .from('sellers')
                 .select('id, full_name, email, seller_id_public, status, role, head_of_sales_id, is_test')
+                .eq('is_test', false)
                 .order('full_name');
 
             if (error) {
