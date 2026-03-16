@@ -28,6 +28,15 @@
 - **Analytics Administrativo**: Criada nova interface de análise por equipe com breakdown por vendedor.
 - **Design Polish**: Aplicado estilo visual premium com tons dourados na seção de performance para destacar métricas críticas.
 
+### 6. Proteção de Ambiente (Apenas DEV)
+- **Restrição de Acesso**: Reverti a liberação e re-apliquei as proteções `import.meta.env.DEV`.
+- **Modo Sandbox**: As ferramentas de Head of Sales e Analytics de Gestão voltaram a ficar visíveis **apenas em localhost**, garantindo que nada incompleto chegue ao usuário final em produção.
+
+### 7. Limpeza de Vendedores de Teste (Produção)
+- **Correção de Dados**: O vendedor "Vendedor de teste DEV" e outros perfis fictícios foram marcados como `is_test: true` no banco de dados.
+- **Filtragem Unificada**: Implementado filtro `.eq('is_test', false)` nos componentes de Checkout e Geração de Links para garantir que perfis de teste nunca apareçam para o usuário final.
+
 ## Próximos Passos
 - Implementar gráficos de tendência histórica no analytics de HoS.
 - Refinar filtros temporais globais para outras áreas do admin.
+- Validar fluxos de comissão antes da liberação oficial.
