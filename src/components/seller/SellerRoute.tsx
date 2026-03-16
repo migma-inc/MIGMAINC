@@ -31,11 +31,15 @@ export const SellerRoute = ({ children }: SellerRouteProps) => {
           .eq('status', 'active')
           .single();
 
-        if (error || !sellerData) {
-          console.error('[SellerRoute] Not a seller or inactive:', error);
+        const userRole = session.user.user_metadata?.role;
+        const isAdmin = userRole === 'admin';
+        const isHoS = userRole === 'head_of_sales';
+
+        if (!sellerData && !isAdmin && !isHoS) {
+          console.error('[SellerRoute] Access denied: Not a seller/admin/hos', error);
           setIsAuthorized(false);
         } else {
-          console.log('[SellerRoute] Seller authorized:', sellerData.email);
+          console.log('[SellerRoute] Access authorized:', isAdmin ? 'Admin' : (isHoS ? 'Head of Sales' : sellerData?.email));
           setIsAuthorized(true);
         }
       } catch (error) {

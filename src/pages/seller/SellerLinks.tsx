@@ -370,6 +370,10 @@ export function SellerLinks() {
           }
         }
 
+        // Check for sellerId in URL search params
+        const urlParams = new URLSearchParams(window.location.search);
+        const sellerIdFromUrl = urlParams.get('sellerId');
+
         if (userIsAdmin) {
           // No caso de admin, o padrão é ser "Direto" (sem vendedor)
           // mas carregamos a lista de vendedores para ele poder escolher
@@ -386,9 +390,51 @@ export function SellerLinks() {
             
             if (allSellers) {
               setTeamMembers(allSellers as SellerInfo[]);
+              
+              // If sellerId provided in URL, select it
+              if (sellerIdFromUrl) {
+                const target = allSellers.find(m => m.id === sellerIdFromUrl);
+                if (target) {
+                  setTargetSeller(target as SellerInfo);
+                  setSelectedSellerId(sellerIdFromUrl);
+                }
+              }
             }
           } catch (teamErr) {
             console.error('[SellerLinks] Error loading all sellers:', teamErr);
+          } finally {
+            setLoadingTeam(false);
+          }
+        } else if (currentSeller?.role === 'head_of_sales') {
+          // Se for HoS, carrega apenas os membros da sua equipe
+          setTargetSeller(currentSeller);
+          setSelectedSellerId(currentSeller.id);
+          
+          try {
+            setLoadingTeam(true);
+            const { data: myTeam } = await supabase
+              .from('sellers')
+              .select('*')
+              .eq('head_of_sales_id', currentSeller.id)
+              .eq('status', 'active')
+              .order('full_name');
+            
+            if (myTeam) {
+              // Inclui o próprio HoS na lista para ele poder gerar links para si mesmo também
+              const members = [currentSeller, ...myTeam.filter(m => m.id !== currentSeller.id)];
+              setTeamMembers(members as SellerInfo[]);
+
+              // If sellerId provided in URL, select it
+              if (sellerIdFromUrl) {
+                const target = members.find(m => m.id === sellerIdFromUrl);
+                if (target) {
+                  setTargetSeller(target as SellerInfo);
+                  setSelectedSellerId(sellerIdFromUrl);
+                }
+              }
+            }
+          } catch (teamErr) {
+            console.error('[SellerLinks] Error loading team members:', teamErr);
           } finally {
             setLoadingTeam(false);
           }
@@ -612,7 +658,9 @@ export function SellerLinks() {
                     <SelectValue placeholder="Select a seller" />
                   </SelectTrigger>
                   <SelectContent className="bg-zinc-900 border-gold-medium/30 text-white">
-                    <SelectItem value="direct">Direct Sale / Migma (No Seller)</SelectItem>
+                    {(isAdmin || seller?.role === 'head_of_sales') && (
+                      <SelectItem value="direct">Direct Sale / Migma (No Seller)</SelectItem>
+                    )}
                     {teamMembers.map(member => (
                       <SelectItem key={member.id} value={member.id}>
                         {member.full_name} ({member.seller_id_public})
@@ -1535,7 +1583,9 @@ export function SellerLinks() {
                               <div className="text-left">
                                 <h3 className="text-lg font-bold text-gold-light">{group.name}</h3>
                                 <p className="text-xs text-gray-400 mt-1">
-                                  {sortedProducts.length} sequential payments
+                                  {(key === 'initial' || key === 'cos' || key === 'transfer') 
+                                    ? "3 Step Payments or Full Process Payment" 
+                                    : `${sortedProducts.length} sequential payments`}
                                 </p>
                               </div>
                             </div>

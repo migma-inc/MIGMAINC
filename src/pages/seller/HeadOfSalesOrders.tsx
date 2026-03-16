@@ -55,7 +55,7 @@ export function HeadOfSalesOrders() {
     }, [seller.id]);
 
     return (
-        <div className="space-y-6">
+        <div className="max-w-7xl mx-auto space-y-6">
             <div className="flex items-center justify-between">
                 <div>
                     <h1 className="text-3xl font-bold text-white tracking-tight">Pedidos da Equipe</h1>
@@ -94,7 +94,14 @@ export function HeadOfSalesOrders() {
                                             <td className="px-6 py-4 font-medium text-purple-300">{order.seller_name}</td>
                                             <td className="px-6 py-4">{order.client_name}</td>
                                             <td className="px-6 py-4">{order.product_slug}</td>
-                                            <td className="px-6 py-4 font-bold text-gold-light">{formatCurrency(order.total_price_usd)}</td>
+                                            <td className="px-6 py-4 font-bold text-gold-light">
+                                                {formatCurrency(
+                                                    Number(order.base_price_usd || 0) + 
+                                                    (Number(order.extra_units || 0) * Number(order.extra_unit_price_usd || 0)) + 
+                                                    Number(order.upsell_price_usd || 0) - 
+                                                    Number(order.discount_amount || 0)
+                                                )}
+                                            </td>
                                             <td className="px-6 py-4">
                                                 <span className={`px-2 py-1 rounded text-xs ${order.payment_status === 'completed' ? 'bg-green-500/20 text-green-400' : 'bg-yellow-500/20 text-yellow-400'}`}>
                                                     {order.payment_status}
