@@ -87,17 +87,30 @@ export function SellerDashboardLayout() {
           .eq('status', 'active')
           .single();
 
-        if (error || !sellerData) {
-          console.error('[SellerDashboardLayout] Not a seller or inactive:', error);
+        const userRole = session.user.user_metadata?.role;
+        const isAdmin = userRole === 'admin';
+        const isHoS = userRole === 'head_of_sales';
+
+        if (!sellerData && !isAdmin && !isHoS) {
+          console.error('[SellerDashboardLayout] Not authorized:', error);
           setSeller(null);
           setLoading(false);
           clearCachedSeller();
           return;
         }
 
+        const activeSeller = sellerData || {
+          id: session.user.id,
+          seller_id_public: isAdmin ? 'admin' : 'hos',
+          full_name: session.user.user_metadata?.full_name || (isAdmin ? 'Administrator' : 'Head of Sales'),
+          email: session.user.email!,
+          status: 'active',
+          role: isAdmin ? 'admin' : 'head_of_sales'
+        };
+
         // Save to cache and state
-        setCachedSeller(sellerData);
-        setSeller(sellerData);
+        setCachedSeller(activeSeller);
+        setSeller(activeSeller);
       } catch (err) {
         console.error('[SellerDashboardLayout] Error loading seller:', err);
         setSeller(null);

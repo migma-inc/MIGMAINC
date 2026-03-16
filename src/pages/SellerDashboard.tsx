@@ -842,7 +842,9 @@ export const SellerDashboard = () => {
                             <div className="text-left">
                               <h3 className="text-lg font-bold text-gold-light">{group.name}</h3>
                               <p className="text-xs text-gray-400 mt-1">
-                                {sortedProducts.length} sequential payments
+                                {(key === 'initial' || key === 'cos' || key === 'transfer') 
+                                  ? "3 Step Payments or Full Process Payment" 
+                                  : `${sortedProducts.length} sequential payments`}
                               </p>
                             </div>
                           </div>

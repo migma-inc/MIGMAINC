@@ -63,6 +63,7 @@ export function AdminSyncSales() {
                 .from('sellers')
                 .select('seller_id_public, full_name, email')
                 .eq('status', 'active')
+                .eq('is_test', false)
                 .order('full_name', { ascending: true });
 
             if (sellersError) throw sellersError;
@@ -79,13 +80,7 @@ export function AdminSyncSales() {
 
             setProducts(productsMap);
 
-            // Filter out 'victordev' in production to comply with user request
-            const isProd = import.meta.env.PROD;
-            const availableSellers = isProd
-                ? (sellersData || []).filter((s: any) => s.seller_id_public !== 'victordev')
-                : (sellersData || []);
-
-            setSellers(availableSellers);
+            setSellers(sellersData || []);
 
         } catch (error) {
             console.error('[AdminSyncSales] Error loading data:', error);
