@@ -20,6 +20,8 @@ interface SellerInfo {
   status: string;
   role?: string;
   head_of_sales_id?: string | null;
+  team_id?: string | null;
+  is_test?: boolean;
 }
 
 interface VisaProduct {
@@ -373,21 +375,28 @@ export function SellerLinks() {
         // Check for sellerId in URL search params
         const urlParams = new URLSearchParams(window.location.search);
         const sellerIdFromUrl = urlParams.get('sellerId');
+        
+        // Em desenvolvimento/localhost, permitimos que Admin e HoS vejam todos os vendedores
+        const shouldShowAllSellers = userIsAdmin || (!import.meta.env.PROD && currentSeller?.role === 'head_of_sales');
 
-        if (userIsAdmin) {
-          // No caso de admin, o padrão é ser "Direto" (sem vendedor)
-          // mas carregamos a lista de vendedores para ele poder escolher
+        if (shouldShowAllSellers) {
+          // No caso de admin ou HoS em dev, carregamos a lista de todos os vendedores
           setTargetSeller(null);
           setSelectedSellerId('direct');
           
           try {
             setLoadingTeam(true);
-            const { data: allSellers } = await supabase
+            let query = supabase
               .from('sellers')
               .select('*')
-              .eq('status', 'active')
-              .eq('is_test', false)
-              .order('full_name');
+              .eq('status', 'active');
+            
+            // Only hide test sellers if in production and current user is not a test user
+            if (import.meta.env.PROD && !currentSeller?.is_test) {
+              query = query.eq('is_test', false);
+            }
+
+            const { data: allSellers } = await query.order('full_name');
             
             if (allSellers) {
               setTeamMembers(allSellers as SellerInfo[]);
@@ -399,6 +408,10 @@ export function SellerLinks() {
                   setTargetSeller(target as SellerInfo);
                   setSelectedSellerId(sellerIdFromUrl);
                 }
+              } else if (!userIsAdmin && currentSeller) {
+                // Se for HoS em dev, já pré-seleciona a si mesmo
+                setTargetSeller(currentSeller);
+                setSelectedSellerId(currentSeller.id);
               }
             }
           } catch (teamErr) {
@@ -407,23 +420,38 @@ export function SellerLinks() {
             setLoadingTeam(false);
           }
         } else if (currentSeller?.role === 'head_of_sales') {
-          // Se for HoS, carrega apenas os membros da sua equipe
+          // Se for HoS (em produção), carrega apenas os membros da sua equipe
           setTargetSeller(currentSeller);
           setSelectedSellerId(currentSeller.id);
           
           try {
             setLoadingTeam(true);
-            const { data: myTeam } = await supabase
+
+            // Fetch team members by team_id (or just self if no team)
+            let query = supabase
               .from('sellers')
               .select('*')
-              .eq('head_of_sales_id', currentSeller.id)
-              .eq('status', 'active')
-              .eq('is_test', false)
-              .order('full_name');
+              .eq('status', 'active');
+            
+            if (currentSeller.team_id) {
+              query = query.eq('team_id', currentSeller.team_id);
+            } else {
+              query = query.eq('id', currentSeller.id);
+            }
+
+            // In production, respect test filter
+            if (import.meta.env.PROD && !currentSeller?.is_test) {
+              query = query.eq('is_test', false);
+            }
+            
+            const { data: myTeam } = await query.order('full_name');
             
             if (myTeam) {
-              // Inclui o próprio HoS na lista para ele poder gerar links para si mesmo também
-              const members = [currentSeller, ...myTeam.filter(m => m.id !== currentSeller.id)];
+              // Garante que o próprio HoS está na lista mesmo que o filtro exclua
+              const members = myTeam.some(m => m.id === currentSeller.id) 
+                ? myTeam 
+                : [currentSeller, ...myTeam];
+                
               setTeamMembers(members as SellerInfo[]);
 
               // If sellerId provided in URL, select it
@@ -434,13 +462,17 @@ export function SellerLinks() {
                   setSelectedSellerId(sellerIdFromUrl);
                 }
               }
+            } else {
+              setTeamMembers([currentSeller]);
             }
           } catch (teamErr) {
             console.error('[SellerLinks] Error loading team members:', teamErr);
+            setTeamMembers([currentSeller]);
           } finally {
             setLoadingTeam(false);
           }
         } else if (currentSeller && !targetSeller) {
+          setTeamMembers([currentSeller]);
           setTargetSeller(currentSeller);
           setSelectedSellerId(currentSeller.id);
         }
@@ -1519,9 +1551,9 @@ export function SellerLinks() {
                       serviceGroups.cos.products.push(product);
                     } else if (product.slug.startsWith('transfer-') || product.slug === 'TRANSFER - Full Process Payment') {
                       serviceGroups.transfer.products.push(product);
-                    } else if (product.slug.startsWith('eb2-') && product.name !== 'U.S. Visa EB-2 (Main applicant)') {
+                    } else if (product.slug.startsWith('eb2-')) {
                       serviceGroups.eb2.products.push(product);
-                    } else if (product.slug.startsWith('eb3-') && product.name !== 'U.S. Visa EB-3 (Main applicant)') {
+                    } else if (product.slug.startsWith('eb3-')) {
                       serviceGroups.eb3.products.push(product);
                     } else {
                       serviceGroups.other.products.push(product);
@@ -1546,7 +1578,23 @@ export function SellerLinks() {
                       });
                     }
 
-                    const order = ['selection-process', 'scholarship', 'i20-control', 'total-process', 'INITIAL Application - Full Process Payment', 'Change of Status - Full Process Payment', 'TRANSFER - Full Process Payment'];
+                    const order = [
+                      // Priority for "Other"/General services
+                      'rfe-defense',
+                      'scholarship-maintenance-fee',
+                      'b1-premium',
+                      'b1-revolution',
+                      'e2-l1-visa',
+                      'o1-visa',
+                      // Standard process order
+                      'selection-process', 
+                      'scholarship', 
+                      'i20-control', 
+                      'total-process', 
+                      'INITIAL Application - Full Process Payment', 
+                      'Change of Status - Full Process Payment', 
+                      'TRANSFER - Full Process Payment'
+                    ];
                     return products.sort((a, b) => {
                       const aIndex = order.findIndex(o => a.slug.includes(o) || a.slug === o);
                       const bIndex = order.findIndex(o => b.slug.includes(o) || b.slug === o);
@@ -1587,6 +1635,8 @@ export function SellerLinks() {
                                 <p className="text-xs text-gray-400 mt-1">
                                   {(key === 'initial' || key === 'cos' || key === 'transfer') 
                                     ? "3 Step Payments or Full Process Payment" 
+                                    : key === 'eb3'
+                                    ? "5 Step Payments or Full Process Payment"
                                     : `${sortedProducts.length} sequential payments`}
                                 </p>
                               </div>
@@ -1606,7 +1656,7 @@ export function SellerLinks() {
                                 const basePrice = parseFloat(product.base_price_usd || '0');
                                 const extraPrice = parseFloat(product.extra_unit_price || '0');
                                 const hasExtraUnits = product.allow_extra_units && extraPrice > 0;
-                                const isTotalProcess = product.slug.includes('total-process') || product.slug.includes('Full Process Payment');
+                                const isTotalProcess = product.slug.includes('total-process') || product.slug.includes('Full Process Payment') || product.slug === 'eb3-visa';
 
 
                                 return (

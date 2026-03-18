@@ -6,21 +6,34 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Coins, TrendingUp, UserCheck } from 'lucide-react';
 import type { SellerInfo } from '@/types/seller';
 import { format } from 'date-fns';
+import { useDashboardCache } from '@/contexts/DashboardCacheContext';
+import { Skeleton } from '@/components/ui/skeleton';
 
 export function HeadOfSalesCommissions() {
     const { seller } = useOutletContext<{ seller: SellerInfo }>();
-    const [commissions, setCommissions] = useState<any[]>([]);
-    const [totalTeamCommission, setTotalTeamCommission] = useState(0);
-    const [loading, setLoading] = useState(true);
+    const { cache, setCacheValue } = useDashboardCache();
+    const [commissions, setCommissions] = useState<any[]>(cache.commissions || []);
+    const [totalTeamCommission, setTotalTeamCommission] = useState(() => {
+        if (cache.commissions) {
+            return cache.commissions.reduce((acc: number, curr: any) => acc + curr.commission_amount, 0);
+        }
+        return 0;
+    });
+    const [loading, setLoading] = useState(!cache.commissions);
 
     useEffect(() => {
         async function loadCommissions() {
+            if (!seller.team_id) {
+                setLoading(false);
+                return;
+            }
+
             try {
-                // 1. Obter membros da equipe
+                // 1. Obter membros da equipe pelo team_id
                 const { data: teamMembers } = await supabase
                     .from('sellers')
                     .select('id, full_name, seller_id_public')
-                    .eq('head_of_sales_id', seller.id);
+                    .eq('team_id', seller.team_id);
 
                 if (teamMembers && teamMembers.length > 0) {
                     const sellerIds = teamMembers.map(m => m.seller_id_public);
@@ -65,7 +78,15 @@ export function HeadOfSalesCommissions() {
 
                         setCommissions(processed);
                         setTotalTeamCommission(processed.reduce((acc, curr) => acc + curr.commission_amount, 0));
+                        setCacheValue('commissions', processed);
+                    } else {
+                        setCommissions([]);
+                        setTotalTeamCommission(0);
+                        setCacheValue('commissions', []);
                     }
+                } else {
+                    setCommissions([]);
+                    setTotalTeamCommission(0);
                 }
             } catch (error) {
                 console.error('Error loading team commissions:', error);
@@ -77,24 +98,24 @@ export function HeadOfSalesCommissions() {
         if (seller.id) {
             loadCommissions();
         }
-    }, [seller.id]);
+    }, [seller.id, seller.team_id]);
 
     return (
         <div className="max-w-7xl mx-auto space-y-6">
             <div>
-                <h1 className="text-3xl font-bold text-white tracking-tight">Comissões de Gestão (Overrides)</h1>
-                <p className="text-gray-400 mt-1">Acompanhe seus ganhos de override sobre as vendas realizadas pelo seu time.</p>
+                <h1 className="text-3xl font-bold text-white tracking-tight">Comissão</h1>
+                <p className="text-gray-400 mt-1">Acompanhe sua comissão sobre as vendas realizadas pelo seu time.</p>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <Card className="bg-black/40 border-gold-medium/20 backdrop-blur-md">
                     <CardHeader className="flex flex-row items-center justify-between pb-2">
-                        <CardTitle className="text-sm font-medium text-gray-400">Total em Overrides (Gestão)</CardTitle>
+                        <CardTitle className="text-sm font-medium text-gray-400">Total em Comissão</CardTitle>
                         <Coins className="w-4 h-4 text-gold-medium" />
                     </CardHeader>
                     <CardContent>
                         <div className="text-2xl font-bold text-gold-light">
-                            {loading ? '...' : formatCurrency(totalTeamCommission)}
+                            {loading && commissions.length === 0 ? <Skeleton className="h-8 w-32" /> : formatCurrency(totalTeamCommission)}
                         </div>
                     </CardContent>
                 </Card>
@@ -106,7 +127,7 @@ export function HeadOfSalesCommissions() {
                     </CardHeader>
                     <CardContent>
                         <div className="text-2xl font-bold text-green-400">
-                            {loading ? '...' : commissions.length}
+                            {loading && commissions.length === 0 ? <Skeleton className="h-8 w-12" /> : commissions.length}
                         </div>
                     </CardContent>
                 </Card>
@@ -118,7 +139,7 @@ export function HeadOfSalesCommissions() {
                     </CardHeader>
                     <CardContent>
                         <div className="text-2xl font-bold text-blue-400">
-                            {loading ? '...' : formatCurrency(commissions.length > 0 ? totalTeamCommission / commissions.length : 0)}
+                            {loading && commissions.length === 0 ? <Skeleton className="h-8 w-24" /> : formatCurrency(commissions.length > 0 ? totalTeamCommission / commissions.length : 0)}
                         </div>
                     </CardContent>
                 </Card>
@@ -132,14 +153,20 @@ export function HeadOfSalesCommissions() {
                                 <th className="px-6 py-4">Vendedor</th>
                                 <th className="px-6 py-4">Cliente</th>
                                 <th className="px-6 py-4">Valor Líquido</th>
-                                <th className="px-6 py-4">Meu Override</th>
+                                <th className="px-6 py-4">Comissão</th>
                                 <th className="px-6 py-4 text-right">Data</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gold-medium/10">
-                            {loading ? (
+                            {loading && commissions.length === 0 ? (
                                 Array(5).fill(0).map((_, i) => (
-                                    <tr key={i} className="animate-pulse bg-white/5 h-16" />
+                                    <tr key={i} className="bg-white/5 h-16">
+                                        <td className="px-6 py-4"><Skeleton className="h-4 w-32" /></td>
+                                        <td className="px-6 py-4"><Skeleton className="h-4 w-24" /></td>
+                                        <td className="px-6 py-4"><Skeleton className="h-4 w-20" /></td>
+                                        <td className="px-6 py-4"><Skeleton className="h-4 w-20" /></td>
+                                        <td className="px-6 py-4 text-right"><Skeleton className="h-4 w-24 ml-auto" /></td>
+                                    </tr>
                                 ))
                             ) : commissions.length > 0 ? (
                                 commissions.map((item) => (
@@ -161,7 +188,7 @@ export function HeadOfSalesCommissions() {
                             ) : (
                                 <tr>
                                     <td colSpan={5} className="px-6 py-12 text-center text-gray-500 italic">
-                                        Nenhuma comissão de gestão (override) gerada até o momento.
+                                        Nenhuma comissão gerada até o momento para seu time.
                                     </td>
                                 </tr>
                             )}

@@ -162,42 +162,88 @@ async function processSuccessfulSession(session: Stripe.Checkout.Session, supaba
     }
   }
 
-  // 6. 📧 Send confirmation email and admin notification
+  // 6. 📧 Send notifications (Client, Admin, Seller, HoS)
   try {
     const totalPaid = orders.reduce((sum: number, o: any) => sum + parseFloat(o.total_price_usd || 0), 0);
     const currency = (mainOrder.payment_metadata as any)?.currency || (paymentMethod === "pix" ? "BRL" : "USD");
 
+    const commonNotificationData = {
+      clientName: mainOrder.client_name,
+      clientEmail: mainOrder.client_email,
+      orderNumber: mainOrder.order_number,
+      productSlug: mainOrder.product_slug,
+      totalAmount: totalPaid,
+      paymentMethod: paymentMethod === "pix" ? "stripe_pix" : "stripe_card",
+      currency: currency,
+      finalAmount: totalPaid,
+      is_bundle: orders.length > 1,
+      extraUnits: mainOrder.extra_units
+    };
+
+    const netAmount = totalPaid - feeAmount;
+
+    // Client Notification
     console.log("[Webhook] 📧 Sending confirmation email to client...");
     await supabase.functions.invoke("send-payment-confirmation-email", {
-      body: {
-        clientName: mainOrder.client_name,
-        clientEmail: mainOrder.client_email,
-        orderNumber: mainOrder.order_number,
-        productSlug: mainOrder.product_slug,
-        totalAmount: totalPaid,
-        paymentMethod: paymentMethod === "pix" ? "stripe_pix" : "stripe_card",
-        currency: currency,
-        finalAmount: totalPaid,
-        is_bundle: orders.length > 1,
-        extraUnits: mainOrder.extra_units
-      },
+      body: commonNotificationData,
     });
 
+    // Admin Notification
     console.log("[Webhook] 🔔 Sending admin notification...");
     await supabase.functions.invoke("send-admin-payment-notification", {
-      body: {
-        orderNumber: mainOrder.order_number,
-        clientName: mainOrder.client_name,
-        clientEmail: mainOrder.client_email,
-        productSlug: mainOrder.product_slug,
-        totalAmount: totalPaid,
-        paymentMethod: paymentMethod === "pix" ? "stripe_pix" : "stripe_card",
-        currency: currency,
-        finalAmount: totalPaid,
-        is_bundle: orders.length > 1,
-        is_test: isTestUser
-      }
+      body: { ...commonNotificationData, is_test: isTestUser }
     });
+
+    // Seller & HoS Notification
+    if (mainOrder.seller_id) {
+      console.log(`[Webhook] 👤 Fetching seller details for ${mainOrder.seller_id}...`);
+      const { data: seller } = await supabase
+        .from('sellers')
+        .select('*')
+        .eq('seller_id_public', mainOrder.seller_id)
+        .maybeSingle();
+
+      if (seller) {
+        const netNotificationData = {
+          ...commonNotificationData,
+          totalAmount: netAmount,
+          finalAmount: netAmount
+        };
+
+        // Seller Notification
+        console.log(`[Webhook] 📧 Notifying seller: ${seller.email} with Net Amount: ${netAmount}`);
+        await supabase.functions.invoke("send-seller-payment-notification", {
+          body: { ...netNotificationData, sellerEmail: seller.email, sellerName: seller.full_name }
+        });
+
+        // HoS Notification
+        if (seller.role === 'head_of_sales') {
+          console.log(`[Webhook] 👑 Notifying HoS (Own Sale): ${seller.email}`);
+          await supabase.functions.invoke("send-hos-payment-notification", {
+            body: { ...netNotificationData, hosEmail: seller.email, hosName: seller.full_name, type: 'own_sale' }
+          });
+        } else if (seller.head_of_sales_id) {
+          const { data: hos } = await supabase
+            .from('sellers')
+            .select('*')
+            .eq('id', seller.head_of_sales_id)
+            .maybeSingle();
+
+          if (hos) {
+            console.log(`[Webhook] 🚀 Notifying HoS (Team Sale): ${hos.email}`);
+            await supabase.functions.invoke("send-hos-payment-notification", {
+              body: { 
+                ...netNotificationData, 
+                hosEmail: hos.email, 
+                hosName: hos.full_name, 
+                sellerName: seller.full_name, 
+                type: 'team_sale' 
+              }
+            });
+          }
+        }
+      }
+    }
   } catch (e) {
     console.error("[Webhook] ⚠️ Error sending notifications:", e);
   }

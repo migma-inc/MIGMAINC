@@ -5,19 +5,27 @@ import { supabase } from '@/lib/supabase';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ShoppingCart } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
+import { useDashboardCache } from '@/contexts/DashboardCacheContext';
+import { Skeleton } from '@/components/ui/skeleton';
 
 export function HeadOfSalesOrders() {
     const { seller } = useOutletContext<{ seller: SellerInfo }>();
-    const [orders, setOrders] = useState<any[]>([]);
-    const [loading, setLoading] = useState(true);
+    const { cache, setCacheValue } = useDashboardCache();
+    const [orders, setOrders] = useState<any[]>(cache.orders || []);
+    const [loading, setLoading] = useState(!cache.orders);
 
     useEffect(() => {
         async function loadOrders() {
+            if (!seller.team_id) {
+                setLoading(false);
+                return;
+            }
+
             try {
                 const { data: teamMembers } = await supabase
                     .from('sellers')
                     .select('seller_id_public, full_name')
-                    .eq('head_of_sales_id', seller.id);
+                    .eq('team_id', seller.team_id);
 
                 if (teamMembers && teamMembers.length > 0) {
                     const sellerMap = teamMembers.reduce((acc, current) => {
@@ -40,7 +48,11 @@ export function HeadOfSalesOrders() {
                             seller_name: sellerMap[o.seller_id] || o.seller_id
                         }));
                         setOrders(withNames);
+                        setCacheValue('orders', withNames);
                     }
+                } else {
+                    setOrders([]);
+                    setCacheValue('orders', []);
                 }
             } catch (error) {
                 console.error('Error loading team orders:', error);
@@ -52,7 +64,7 @@ export function HeadOfSalesOrders() {
         if (seller.id) {
             loadOrders();
         }
-    }, [seller.id]);
+    }, [seller.id, seller.team_id]);
 
     return (
         <div className="max-w-7xl mx-auto space-y-6">
@@ -71,10 +83,29 @@ export function HeadOfSalesOrders() {
                     </CardTitle>
                 </CardHeader>
                 <CardContent>
-                    {loading ? (
-                        <p className="text-gray-400">Carregando...</p>
+                    {loading && orders.length === 0 ? (
+                        <div className="overflow-x-auto">
+                            <table className="w-full">
+                                <thead className="text-xs text-gray-400 uppercase bg-white/5 border-b border-white/10">
+                                    <tr>
+                                        {Array(6).fill(0).map((_, i) => (
+                                            <th key={i} className="px-6 py-3"><Skeleton className="h-4 w-20" /></th>
+                                        ))}
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {Array(5).fill(0).map((_, i) => (
+                                        <tr key={i} className="border-b border-white/10">
+                                            {Array(6).fill(0).map((_, j) => (
+                                                <td key={j} className="px-6 py-4"><Skeleton className="h-4 w-full" /></td>
+                                            ))}
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
                     ) : orders.length === 0 ? (
-                        <p className="text-gray-400 text-center py-6">Nenhum pedido encontrado para sua equipe.</p>
+                        <p className="text-gray-400 text-center py-6">Nenhum pedido encontrado na sua equipe.</p>
                     ) : (
                         <div className="overflow-x-auto">
                             <table className="w-full text-sm text-left text-gray-300">

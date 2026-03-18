@@ -7,21 +7,29 @@ import { Briefcase, Layers, TrendingUp, BarChart3 } from 'lucide-react';
 import type { SellerInfo } from '@/types/seller';
 import { subDays, startOfMonth, isWithinInterval } from 'date-fns';
 import { Button } from '@/components/ui/button';
+import { useDashboardCache } from '@/contexts/DashboardCacheContext';
+import { Skeleton } from '@/components/ui/skeleton';
 
 export function HeadOfSalesTotalSales() {
     const { seller } = useOutletContext<{ seller: SellerInfo }>();
-    const [orders, setOrders] = useState<any[]>([]);
-    const [filteredOrders, setFilteredOrders] = useState<any[]>([]);
+    const { cache, setCacheValue } = useDashboardCache();
+    const [orders, setOrders] = useState<any[]>(cache.totalSales || []);
+    const [filteredOrders, setFilteredOrders] = useState<any[]>(cache.totalSales || []);
     const [period, setPeriod] = useState<'all' | 'month' | 'week' | 'day'>('all');
-    const [loading, setLoading] = useState(true);
+    const [loading, setLoading] = useState(!cache.totalSales);
 
     useEffect(() => {
         async function loadAllSales() {
+            if (!seller.team_id) {
+                setLoading(false);
+                return;
+            }
+
             try {
                 const { data: teamMembers } = await supabase
                     .from('sellers')
                     .select('seller_id_public, full_name')
-                    .eq('head_of_sales_id', seller.id);
+                    .eq('team_id', seller.team_id);
 
                 if (teamMembers && teamMembers.length > 0) {
                     const sellerIds = teamMembers.map(m => m.seller_id_public);
@@ -43,6 +51,11 @@ export function HeadOfSalesTotalSales() {
 
                     setOrders(processed || []);
                     setFilteredOrders(processed || []);
+                    setCacheValue('totalSales', processed);
+                } else {
+                    setOrders([]);
+                    setFilteredOrders([]);
+                    setCacheValue('totalSales', []);
                 }
             } catch (error) {
                 console.error('Error loading team sales:', error);
@@ -54,7 +67,7 @@ export function HeadOfSalesTotalSales() {
         if (seller.id) {
             loadAllSales();
         }
-    }, [seller.id]);
+    }, [seller.id, seller.team_id]);
 
     useEffect(() => {
         const now = new Date();
@@ -88,8 +101,8 @@ export function HeadOfSalesTotalSales() {
         <div className="max-w-7xl mx-auto space-y-6">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
-                    <h1 className="text-3xl font-bold text-white tracking-tight">Vendas Totais</h1>
-                    <p className="text-gray-400 mt-1">Visão consolidada de todas as vendas realizadas pelo time.</p>
+                    <h1 className="text-3xl font-bold text-white tracking-tight">Vendas Totais do Time</h1>
+                    <p className="text-gray-400 mt-1">Visão consolidada de todas as vendas realizadas pelo seu time.</p>
                 </div>
 
                 <div className="flex items-center gap-2 bg-black/40 p-1 rounded-lg border border-gold-medium/20">
@@ -128,7 +141,7 @@ export function HeadOfSalesTotalSales() {
                     </CardHeader>
                     <CardContent>
                         <div className="text-2xl font-bold text-gold-light">
-                            {loading ? '...' : formatCurrency(totalSalesValue)}
+                            {loading && orders.length === 0 ? <Skeleton className="h-8 w-32" /> : formatCurrency(totalSalesValue)}
                         </div>
                     </CardContent>
                 </Card>
@@ -140,7 +153,7 @@ export function HeadOfSalesTotalSales() {
                     </CardHeader>
                     <CardContent>
                         <div className="text-2xl font-bold text-blue-400">
-                            {loading ? '...' : filteredOrders.length}
+                            {loading && orders.length === 0 ? <Skeleton className="h-8 w-12" /> : filteredOrders.length}
                         </div>
                     </CardContent>
                 </Card>
@@ -152,7 +165,7 @@ export function HeadOfSalesTotalSales() {
                     </CardHeader>
                     <CardContent>
                         <div className="text-2xl font-bold text-green-400">
-                            {loading ? '...' : formatCurrency(filteredOrders.length > 0 ? totalSalesValue / filteredOrders.length : 0)}
+                            {loading && orders.length === 0 ? <Skeleton className="h-8 w-24" /> : formatCurrency(filteredOrders.length > 0 ? totalSalesValue / filteredOrders.length : 0)}
                         </div>
                     </CardContent>
                 </Card>
@@ -160,26 +173,70 @@ export function HeadOfSalesTotalSales() {
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <Card className="bg-black/40 border-gold-medium/20">
-                    <CardHeader>
+                    <CardHeader className="border-b border-gold-medium/10">
                         <CardTitle className="text-lg font-bold text-white flex items-center gap-2">
                             <Briefcase className="w-5 h-5 text-gold-medium" />
                             Vendas por Produto
                         </CardTitle>
                     </CardHeader>
-                    <CardContent>
-                        <div className="space-y-4">
-                            {Object.entries(productStats).map(([slug, stats]: [string, any]) => (
-                                <div key={slug} className="flex items-center justify-between p-3 rounded bg-white/5 border border-white/10">
-                                    <div>
-                                        <div className="font-medium text-gray-200 uppercase text-xs">{slug}</div>
-                                        <div className="text-xl font-bold text-white">{stats.count} vds</div>
+                    <CardContent className="pt-6">
+                        <div className="space-y-3">
+                            {loading && orders.length === 0 ? (
+                                Array(3).fill(0).map((_, i) => (
+                                    <div key={i} className="flex items-center justify-between p-4 rounded-xl bg-white/5 border border-white/10">
+                                        <div className="space-y-2 flex-1">
+                                            <Skeleton className="h-3 w-16" />
+                                            <Skeleton className="h-5 w-32" />
+                                        </div>
+                                        <div className="text-right space-y-2">
+                                            <Skeleton className="h-3 w-16 ml-auto" />
+                                            <Skeleton className="h-5 w-24 ml-auto" />
+                                        </div>
                                     </div>
-                                    <div className="text-right">
-                                        <div className="text-xs text-gray-500 uppercase">Faturamento</div>
-                                        <div className="text-lg font-bold text-gold-light">{formatCurrency(stats.revenue)}</div>
-                                    </div>
-                                </div>
-                            ))}
+                                ))
+                            ) : Object.entries(productStats).length === 0 ? (
+                                <div className="text-center py-8 text-gray-500 italic">Nenhuma venda encontrada na equipe para este período.</div>
+                            ) : (
+                                Object.entries(productStats)
+                                    .sort(([, a]: any, [, b]: any) => b.revenue - a.revenue)
+                                    .map(([slug, stats]: [string, any]) => {
+                                        const formatName = (s: string) => {
+                                            return s.split('-')
+                                                .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+                                                .join(' ');
+                                        };
+
+                                        return (
+                                            <div key={slug} className="group relative overflow-hidden flex items-center justify-between p-4 rounded-xl bg-white/5 border border-white/10 hover:border-gold-medium/30 hover:bg-white/[0.08] transition-all">
+                                                <div className="flex-1 min-w-0">
+                                                    <div className="text-[10px] font-bold text-gold-medium uppercase tracking-wider mb-1 opacity-70 group-hover:opacity-100 transition-opacity">
+                                                        {slug.includes('-') ? slug.split('-')[0] : 'Product'}
+                                                    </div>
+                                                    <h3 className="font-semibold text-white text-sm sm:text-base truncate pr-4">
+                                                        {formatName(slug)}
+                                                    </h3>
+                                                    <div className="flex items-center gap-2 mt-1">
+                                                        <div className="px-1.5 py-0.5 rounded bg-gold-medium/20 text-[10px] font-bold text-gold-light border border-gold-medium/20">
+                                                            {stats.count} {stats.count === 1 ? 'Venda' : 'Vendas'}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div className="text-right shrink-0">
+                                                    <div className="text-[10px] text-gray-500 uppercase font-bold tracking-tighter mb-0.5">Faturamento</div>
+                                                    <div className="text-lg font-bold text-gold-light tabular-nums leading-none">
+                                                        {formatCurrency(stats.revenue)}
+                                                    </div>
+                                                </div>
+                                                
+                                                {/* Subtle progress bar background indicator */}
+                                                <div 
+                                                    className="absolute bottom-0 left-0 h-[2px] bg-gold-medium/30 transition-all duration-500" 
+                                                    style={{ width: `${Math.min((stats.revenue / totalSalesValue) * 100, 100)}%` }}
+                                                />
+                                            </div>
+                                        );
+                                    })
+                            )}
                         </div>
                     </CardContent>
                 </Card>
@@ -199,7 +256,15 @@ export function HeadOfSalesTotalSales() {
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-gold-medium/10">
-                                    {filteredOrders.slice(0, 8).map((o) => (
+                                    {loading && orders.length === 0 ? (
+                                        Array(5).fill(0).map((_, i) => (
+                                            <tr key={i} className="h-12">
+                                                <td className="px-4 py-3"><Skeleton className="h-4 w-24" /></td>
+                                                <td className="px-4 py-3"><Skeleton className="h-4 w-20" /></td>
+                                                <td className="px-4 py-3 text-right"><Skeleton className="h-4 w-16 ml-auto" /></td>
+                                            </tr>
+                                        ))
+                                    ) : filteredOrders.slice(0, 8).map((o) => (
                                         <tr key={o.id} className="hover:bg-white/5 transition-colors">
                                             <td className="px-4 py-3">
                                                 <div className="font-medium text-white">{o.seller_name}</div>

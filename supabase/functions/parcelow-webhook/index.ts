@@ -214,44 +214,78 @@ async function processSplitPaymentWebhook(
       }
     }
 
-    // Enviar email de confirmação
+    // Enviar email de confirmação e notificações (Client, Admin, Seller, HoS)
     try {
-      console.log("[Split Webhook] 📧 Enviando email de confirmação...");
+      console.log("[Split Webhook] 📧 Iniciando fluxo de notificações...");
 
-      await supabase.functions.invoke("send-payment-confirmation-email", {
-        body: {
-          clientName: mainOrder.client_name,
-          clientEmail: mainOrder.client_email,
-          orderNumber: mainOrder.order_number,
-          productSlug: mainOrder.product_slug,
-          totalAmount: totalBrlPaid,
-          paymentMethod: "parcelow_split",
-          currency: "BRL",
-          finalAmount: totalBrlPaid,
-          is_bundle: orders.length > 1,
-          extraUnits: mainOrder.extra_units
-        }
-      });
+      const commonData = {
+        clientName: mainOrder.client_name,
+        clientEmail: mainOrder.client_email,
+        orderNumber: mainOrder.order_number,
+        productSlug: mainOrder.product_slug,
+        totalAmount: totalBrlPaid,
+        paymentMethod: "parcelow_split",
+        currency: "BRL",
+        finalAmount: totalBrlPaid,
+        is_bundle: orders.length > 1,
+        extraUnits: mainOrder.extra_units
+      };
 
-      console.log("[Split Webhook] ✅ Email enviado com sucesso");
+      // Calculate Net BRL Value for Seller/HoS (Base Service Value only)
+      // Proportion: ServiceTotalUsd / TotalUsdPaid
+      const netProportion = serviceTotalUsd / totalUsdPaid;
+      const netBrlValue = totalBrlPaid * netProportion;
+      const netNotificationData = {
+        ...commonData,
+        totalAmount: netBrlValue,
+        finalAmount: netBrlValue
+      };
 
-      // Send Admin Notification
-      console.log("[Split Webhook] 🔔 Enviando notificação administrativa...");
+      // Client Notification
+      await supabase.functions.invoke("send-payment-confirmation-email", { body: commonData });
+
+      // Admin Notification
       await supabase.functions.invoke("send-admin-payment-notification", {
-        body: {
-          orderNumber: mainOrder.order_number,
-          clientName: mainOrder.client_name,
-          clientEmail: mainOrder.client_email,
-          productSlug: mainOrder.product_slug,
-          totalAmount: totalBrlPaid,
-          paymentMethod: "parcelow_split",
-          currency: "BRL",
-          finalAmount: totalBrlPaid,
-          is_bundle: orders.length > 1
-        }
+        body: { ...commonData, is_test: isTestUser }
       });
-    } catch (emailError) {
-      console.error("[Split Webhook] ⚠️ Erro ao enviar emails:", emailError);
+
+      // Seller & HoS Notification
+      if (mainOrder.seller_id) {
+        const { data: seller } = await supabase
+          .from('sellers')
+          .select('*')
+          .eq('seller_id_public', mainOrder.seller_id)
+          .maybeSingle();
+
+        if (seller) {
+          // Seller Notification
+          await supabase.functions.invoke("send-seller-payment-notification", {
+            body: { ...netNotificationData, sellerEmail: seller.email, sellerName: seller.full_name }
+          });
+
+          // HoS Notification
+          if (seller.role === 'head_of_sales') {
+            await supabase.functions.invoke("send-hos-payment-notification", {
+              body: { ...netNotificationData, hosEmail: seller.email, hosName: seller.full_name, type: 'own_sale' }
+            });
+          } else if (seller.head_of_sales_id) {
+            const { data: hos } = await supabase
+              .from('sellers')
+              .select('*')
+              .eq('id', seller.head_of_sales_id)
+              .maybeSingle();
+
+            if (hos) {
+              await supabase.functions.invoke("send-hos-payment-notification", {
+                body: { ...netNotificationData, hosEmail: hos.email, hosName: hos.full_name, sellerName: seller.full_name, type: 'team_sale' }
+              });
+            }
+          }
+        }
+      }
+      console.log("[Split Webhook] ✅ Notificações enviadas com sucesso");
+    } catch (notificationError) {
+      console.error("[Split Webhook] ⚠️ Erro ao enviar notificações:", notificationError);
     }
 
     // ====== EB-3 RECURRENCE: Activate if Job Catalog (Split Payment) ======
@@ -668,38 +702,79 @@ async function processParcelowWebhookEvent(event: ParcelowWebhookEvent, supabase
     }
 
     try {
-      const totalBrl = actualTotalBrl || parcelowOrder.total_brl || 0;
-      await supabase.functions.invoke("send-payment-confirmation-email", {
-        body: {
-          clientName: mainOrder.client_name,
-          clientEmail: mainOrder.client_email,
-          orderNumber: mainOrder.order_number,
-          productSlug: mainOrder.product_slug,
-          totalAmount: totalBrl,
-          paymentMethod: "parcelow",
-          currency: "BRL",
-          finalAmount: totalBrl,
-          is_bundle: orders.length > 1,
-          extraUnits: mainOrder.extra_units,
-          eb3_schedule_id: mainOrder.payment_metadata?.eb3_schedule_id,
-          scholarship_schedule_id: mainOrder.payment_metadata?.scholarship_schedule_id
-        }
+      console.log(`[Parcelow Webhook] 📧 Iniciando fluxo de notificações para order ${mainOrder.order_number}...`);
+      const totalBrlValue = actualTotalBrl || parcelowOrder.total_brl || 0;
+
+      const commonData = {
+        clientName: mainOrder.client_name,
+        clientEmail: mainOrder.client_email,
+        orderNumber: mainOrder.order_number,
+        productSlug: mainOrder.product_slug,
+        totalAmount: totalBrlValue,
+        paymentMethod: "parcelow",
+        currency: "BRL",
+        finalAmount: totalBrlValue,
+        is_bundle: orders.length > 1,
+        extraUnits: mainOrder.extra_units
+      };
+
+      // Calculate Net BRL Value for Seller/HoS (Base Service Value only)
+      // Proportion: order_amount / total_usd
+      const totalUsdPaid = (parcelowOrder.total_usd || 0) / 100;
+      const serviceUsdValue = (parcelowOrder.order_amount || 0) / 100;
+      const netProportion = totalUsdPaid > 0 ? (serviceUsdValue / totalUsdPaid) : 1;
+      const netBrlValue = totalBrlValue * netProportion;
+      const netNotificationData = {
+        ...commonData,
+        totalAmount: netBrlValue,
+        finalAmount: netBrlValue
+      };
+
+      // Client Notification
+      await supabase.functions.invoke("send-payment-confirmation-email", { body: commonData });
+
+      // Admin Notification
+      await supabase.functions.invoke("send-admin-payment-notification", {
+        body: { ...commonData, is_test: (mainOrder as any).is_test } // mainOrder might have been updated with is_test
       });
 
-      await supabase.functions.invoke("send-admin-payment-notification", {
-        body: {
-          orderNumber: mainOrder.order_number,
-          clientName: mainOrder.client_name,
-          clientEmail: mainOrder.client_email,
-          productSlug: mainOrder.product_slug,
-          totalAmount: totalBrl,
-          paymentMethod: "parcelow",
-          currency: "BRL",
-          finalAmount: totalBrl,
-          is_bundle: orders.length > 1
+      // Seller & HoS Notification
+      if (mainOrder.seller_id) {
+        const { data: seller } = await supabase
+          .from('sellers')
+          .select('*')
+          .eq('seller_id_public', mainOrder.seller_id)
+          .maybeSingle();
+
+        if (seller) {
+          // Seller Notification
+          await supabase.functions.invoke("send-seller-payment-notification", {
+            body: { ...netNotificationData, sellerEmail: seller.email, sellerName: seller.full_name }
+          });
+
+          // HoS Notification
+          if (seller.role === 'head_of_sales') {
+            await supabase.functions.invoke("send-hos-payment-notification", {
+              body: { ...netNotificationData, hosEmail: seller.email, hosName: seller.full_name, type: 'own_sale' }
+            });
+          } else if (seller.head_of_sales_id) {
+            const { data: hos } = await supabase
+              .from('sellers')
+              .select('*')
+              .eq('id', seller.head_of_sales_id)
+              .maybeSingle();
+
+            if (hos) {
+              await supabase.functions.invoke("send-hos-payment-notification", {
+                body: { ...netNotificationData, hosEmail: hos.email, hosName: hos.full_name, sellerName: seller.full_name, type: 'team_sale' }
+              });
+            }
+          }
         }
-      });
-    } catch (e) { }
+      }
+    } catch (e) {
+      console.error("[Parcelow Webhook] ⚠️ Error sending notifications:", e);
+    }
   } else {
     await supabase.from("visa_orders").update(updateData).eq("parcelow_order_id", parcelowOrder.id.toString());
   }

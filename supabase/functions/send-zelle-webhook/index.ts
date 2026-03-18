@@ -435,19 +435,66 @@ Deno.serve(async (req: Request) => {
           scholarship_schedule_id: orderToProcess.payment_metadata?.scholarship_schedule_id
         }, "enviar email de confirmação");
 
-        // 10. Send Admin Notification
-        console.log("[Zelle Webhook] 🔔 Enviando notificação administrativa...");
-        await invokeEdgeFunction(supabase, "send-admin-payment-notification", {
-          orderNumber: orderToProcess.order_number,
-          clientName: orderToProcess.client_name,
-          clientEmail: orderToProcess.client_email,
-          productSlug: orderToProcess.product_slug,
-          totalAmount: orderToProcess.total_price_usd,
-          paymentMethod: "zelle",
-          currency: "USD",
-          finalAmount: orderToProcess.total_price_usd,
-          is_bundle: !!orderToProcess.upsell_product_slug
-        }, "enviar notificação administrativa");
+        // 11. Send Seller & HoS Notifications
+        if (orderToProcess.seller_id) {
+          console.log(`[Zelle Webhook] 👤 Buscando detalhes do vendedor: ${orderToProcess.seller_id}...`);
+          const { data: seller } = await supabase
+            .from('sellers')
+            .select('*')
+            .eq('seller_id_public', orderToProcess.seller_id)
+            .maybeSingle();
+
+          if (seller) {
+            const commonNotificationData = {
+              clientName: orderToProcess.client_name,
+              clientEmail: orderToProcess.client_email,
+              orderNumber: orderToProcess.order_number,
+              productSlug: orderToProcess.product_slug,
+              totalAmount: orderToProcess.total_price_usd,
+              paymentMethod: "zelle",
+              currency: "USD",
+              finalAmount: orderToProcess.total_price_usd,
+              is_bundle: !!orderToProcess.upsell_product_slug,
+              extraUnits: orderToProcess.extra_units
+            };
+
+            // Seller Notification
+            console.log(`[Zelle Webhook] 📧 Notificando vendedor: ${seller.email}`);
+            await invokeEdgeFunction(supabase, "send-seller-payment-notification", {
+              ...commonNotificationData,
+              sellerEmail: seller.email,
+              sellerName: seller.full_name
+            }, "enviar notificação ao vendedor");
+
+            // HoS Notification
+            if (seller.role === 'head_of_sales') {
+              console.log(`[Zelle Webhook] 👑 Notificando HoS (Venda Própria): ${seller.email}`);
+              await invokeEdgeFunction(supabase, "send-hos-payment-notification", {
+                ...commonNotificationData,
+                hosEmail: seller.email,
+                hosName: seller.full_name,
+                type: 'own_sale'
+              }, "enviar notificação HoS (Direct)");
+            } else if (seller.head_of_sales_id) {
+              const { data: hos } = await supabase
+                .from('sellers')
+                .select('*')
+                .eq('id', seller.head_of_sales_id)
+                .maybeSingle();
+
+              if (hos) {
+                console.log(`[Zelle Webhook] 🚀 Notificando HoS (Venda de Time): ${hos.email}`);
+                await invokeEdgeFunction(supabase, "send-hos-payment-notification", {
+                  ...commonNotificationData,
+                  hosEmail: hos.email,
+                  hosName: hos.full_name,
+                  sellerName: seller.full_name,
+                  type: 'team_sale'
+                }, "enviar notificação HoS (Team)");
+              }
+            }
+          }
+        }
 
         console.log("[Zelle Webhook] ✅ Pipeline sequencial concluído!");
       } catch (pipelineError) {
