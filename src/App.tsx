@@ -43,6 +43,7 @@ import { SellerLinks } from './pages/seller/SellerLinks';
 import { SellerLeads } from './pages/seller/SellerLeads';
 import { SellerOrderDetail } from './pages/SellerOrderDetail';
 import { SellerZelleApprovalPage } from './pages/seller/SellerZelleApprovalPage';
+import { HosVisaContractApprovalPage } from './pages/seller/HosVisaContractApprovalPage';
 import { SellerRoute } from './components/seller/SellerRoute';
 import { VisaOrdersPage } from './pages/VisaOrdersPage';
 import { VisaOrderDetailPage } from './pages/VisaOrderDetailPage';
@@ -115,6 +116,7 @@ function App() {
               <Route path="team-orders" element={<HeadOfSalesOrders />} />
               <Route path="team-commissions" element={<HeadOfSalesCommissions />} />
               <Route path="team-total-sales" element={<HeadOfSalesTotalSales />} />
+              <Route path="team-contract-approval" element={<HosVisaContractApprovalPage />} />
             </>
           )}
           <Route path="analytics" element={<SellerAnalytics />} />
