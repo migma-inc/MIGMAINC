@@ -79,7 +79,6 @@ export function AdminSellerAnalytics({ sellerId: propSellerId, isModal }: AdminS
           .from('sellers')
           .select('*')
           .eq('seller_id_public', sellerId)
-          .eq('is_test', false)
           .single();
 
         if (error || !sellerData) {
@@ -239,7 +238,7 @@ export function AdminSellerAnalytics({ sellerId: propSellerId, isModal }: AdminS
               </p>
             </div>
             <Link to={`/dashboard/sellers/${seller.seller_id_public}/orders`}>
-              <Button variant="outline" className="border-gold-medium/50 text-gold-light hover:bg-gold-medium/10">
+              <Button variant="outline" className="bg-black border-gold-medium/50 text-gold-light hover:bg-gold-medium/10">
                 <ShoppingCart className="w-4 h-4 mr-2" />
                 View Orders
               </Button>

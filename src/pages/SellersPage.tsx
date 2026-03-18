@@ -180,11 +180,10 @@ export const SellersPage = () => {
       );
       const previousPeriod = getPreviousPeriod(prevStart, prevEnd, periodFilter === 'custom' ? 'custom' : periodFilter);
 
-      // Load sellers excluding test users (is_test = true) — always filtered regardless of environment
+      // Load sellers
       const { data: sellers, error: sellersError } = await adminSupabase
         .from('sellers')
-        .select('*')
-        .eq('is_test', false);
+        .select('*');
 
       if (sellersError) {
         console.error('Error loading sellers:', sellersError);
@@ -801,7 +800,7 @@ export const SellersPage = () => {
                           </p>
                           {stats.seller.role !== 'head_of_sales' && stats.seller.head_of_sales_id && (
                             <p className="text-xs text-purple-400/80 mt-1 flex items-center gap-1">
-                              📍 Gestor: {headsOfSales.find(h => h.id === stats.seller.head_of_sales_id)?.full_name || 'Desconhecido'}
+                              Head of Sales: {headsOfSales.find(h => h.id === stats.seller.head_of_sales_id)?.full_name || 'Desconhecido'}
                             </p>
                           )}
                         </div>

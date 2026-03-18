@@ -6,25 +6,35 @@ import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { formatCurrency } from '@/lib/utils';
 import { format } from 'date-fns';
+import { useDashboardCache } from '@/contexts/DashboardCacheContext';
+import { Skeleton } from '@/components/ui/skeleton';
 
 export function HeadOfSalesOverview() {
     const { seller } = useOutletContext<{ seller: SellerInfo }>();
-    const [teamSize, setTeamSize] = useState(0);
-    const [teamSales, setTeamSales] = useState(0);
-    const [ordersCount, setOrdersCount] = useState(0);
-    const [conversionRate, setConversionRate] = useState(0);
-    const [topSellers, setTopSellers] = useState<any[]>([]);
-    const [recentOrders, setRecentOrders] = useState<any[]>([]);
-    const [loading, setLoading] = useState(true);
+    const { cache, setCacheValue } = useDashboardCache();
+    
+    // Initialize states from cache if available
+    const [teamSize, setTeamSize] = useState(cache.overview?.teamSize || 0);
+    const [teamSales, setTeamSales] = useState(cache.overview?.teamSales || 0);
+    const [ordersCount, setOrdersCount] = useState(cache.overview?.ordersCount || 0);
+    const [conversionRate, setConversionRate] = useState(cache.overview?.conversionRate || 0);
+    const [topSellers, setTopSellers] = useState<any[]>(cache.overview?.topSellers || []);
+    const [recentOrders, setRecentOrders] = useState<any[]>(cache.overview?.recentOrders || []);
+    const [loading, setLoading] = useState(!cache.overview);
 
     useEffect(() => {
         async function loadStats() {
+            if (!seller.team_id) {
+                setLoading(false);
+                return;
+            }
+
             try {
-                // 1. Obter membros da equipe
+                // 1. Obter membros da equipe pelo team_id
                 const { data: teamMembers } = await supabase
                     .from('sellers')
                     .select('id, full_name, seller_id_public')
-                    .eq('head_of_sales_id', seller.id);
+                    .eq('team_id', seller.team_id);
 
                 setTeamSize(teamMembers?.length || 0);
 
@@ -94,6 +104,16 @@ export function HeadOfSalesOverview() {
                                        Number(order.discount_amount || 0)
                         }));
                     setRecentOrders(recent || []);
+
+                    // Update Cache
+                    setCacheValue('overview', {
+                        teamSize: teamMembers?.length || 0,
+                        teamSales: totalRevenue,
+                        ordersCount: totalOrders,
+                        conversionRate: leadsCount && leadsCount > 0 ? (totalOrders / leadsCount) * 100 : 0,
+                        topSellers: sellersRanking,
+                        recentOrders: recent || []
+                    });
                 }
             } catch (error) {
                 console.error('Error loading team stats:', error);
@@ -105,7 +125,7 @@ export function HeadOfSalesOverview() {
         if (seller.id) {
             loadStats();
         }
-    }, [seller.id]);
+    }, [seller.id, seller.team_id]);
 
     return (
         <div className="max-w-7xl mx-auto space-y-8">
@@ -125,7 +145,7 @@ export function HeadOfSalesOverview() {
                     </CardHeader>
                     <CardContent>
                         <div className="text-2xl font-bold text-green-400">
-                            {loading ? '...' : formatCurrency(teamSales)}
+                            {loading && !cache.overview ? <Skeleton className="h-8 w-32" /> : formatCurrency(teamSales)}
                         </div>
                         <p className="text-xs text-gray-500 mt-1">Líquido (sem taxas)</p>
                     </CardContent>
@@ -138,7 +158,7 @@ export function HeadOfSalesOverview() {
                     </CardHeader>
                     <CardContent>
                         <div className="text-2xl font-bold text-blue-400">
-                            {loading ? '...' : ordersCount}
+                            {loading && !cache.overview ? <Skeleton className="h-8 w-12" /> : ordersCount}
                         </div>
                         <p className="text-xs text-gray-500 mt-1">Vendas concluídas</p>
                     </CardContent>
@@ -151,7 +171,7 @@ export function HeadOfSalesOverview() {
                     </CardHeader>
                     <CardContent>
                         <div className="text-2xl font-bold text-purple-400">
-                            {loading ? '...' : `${conversionRate.toFixed(1)}%`}
+                            {loading && !cache.overview ? <Skeleton className="h-8 w-16" /> : `${conversionRate.toFixed(1)}%`}
                         </div>
                         <p className="text-xs text-gray-500 mt-1">Funnel de vendas</p>
                     </CardContent>
@@ -164,7 +184,7 @@ export function HeadOfSalesOverview() {
                     </CardHeader>
                     <CardContent>
                         <div className="text-2xl font-bold text-gold-light">
-                            {loading ? '...' : teamSize}
+                            {loading && !cache.overview ? <Skeleton className="h-8 w-12" /> : teamSize}
                         </div>
                         <p className="text-xs text-gray-500 mt-1">Vendedores vinculados</p>
                     </CardContent>
@@ -183,9 +203,21 @@ export function HeadOfSalesOverview() {
                     </CardHeader>
                     <CardContent className="p-0">
                         <div className="divide-y divide-gold-medium/10">
-                            {loading ? (
+                            {loading && !cache.overview ? (
                                 Array(3).fill(0).map((_, i) => (
-                                    <div key={i} className="p-4 animate-pulse bg-white/5" />
+                                    <div key={i} className="p-4 flex items-center justify-between">
+                                        <div className="flex items-center gap-4">
+                                            <Skeleton className="w-8 h-8 rounded-full" />
+                                            <div className="space-y-2">
+                                                <Skeleton className="h-4 w-32" />
+                                                <Skeleton className="h-3 w-16" />
+                                            </div>
+                                        </div>
+                                        <div className="text-right space-y-2">
+                                            <Skeleton className="h-4 w-20 ml-auto" />
+                                            <Skeleton className="h-3 w-24 ml-auto" />
+                                        </div>
+                                    </div>
                                 ))
                             ) : topSellers.length > 0 ? (
                                 topSellers.map((seller, idx) => (
@@ -234,9 +266,14 @@ export function HeadOfSalesOverview() {
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-gold-medium/10">
-                                    {loading ? (
+                                    {loading && !cache.overview ? (
                                         Array(3).fill(0).map((_, i) => (
-                                            <tr key={i} className="animate-pulse bg-white/5 h-12" />
+                                            <tr key={i} className="h-12 border-b border-white/5">
+                                                <td className="px-4 py-3"><Skeleton className="h-4 w-24" /></td>
+                                                <td className="px-4 py-3"><Skeleton className="h-4 w-20" /></td>
+                                                <td className="px-4 py-3"><Skeleton className="h-4 w-16" /></td>
+                                                <td className="px-4 py-3"><Skeleton className="h-4 w-12 ml-auto" /></td>
+                                            </tr>
                                         ))
                                     ) : recentOrders.length > 0 ? (
                                         recentOrders.map((order, idx) => (

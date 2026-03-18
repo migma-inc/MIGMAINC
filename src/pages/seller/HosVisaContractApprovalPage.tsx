@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
-import { cn } from '@/lib/utils';
+import { cn, isTestEnvironment } from '@/lib/utils';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -30,17 +30,18 @@ import {
 } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { Skeleton } from '@/components/ui/skeleton';
-
-const isLocal = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+import { useOutletContext } from 'react-router-dom';
+import type { SellerInfo } from '@/types/seller';
+import { useDashboardCache } from '@/contexts/DashboardCacheContext';
 
 interface VisaOrder {
     id: string;
     order_number: string;
-    seller_id: string | null;
     product_slug: string;
     upsell_product_slug?: string | null;
     client_name: string;
     client_email: string;
+    seller_id: string;
     contract_pdf_url: string | null;
     annex_pdf_url: string | null;
     upsell_contract_pdf_url?: string | null;
@@ -57,15 +58,7 @@ interface VisaOrder {
     service_request_id: string | null;
     payment_metadata?: any | null;
     created_at: string;
-    // Approval details
-    contract_approval_reviewed_by?: string | null;
-    contract_approval_reviewed_at?: string | null;
-    annex_approval_reviewed_by?: string | null;
-    annex_approval_reviewed_at?: string | null;
-    upsell_contract_approval_reviewed_by?: string | null;
-    upsell_contract_approval_reviewed_at?: string | null;
-    upsell_annex_approval_reviewed_by?: string | null;
-    upsell_annex_approval_reviewed_at?: string | null;
+    seller_name?: string;
 }
 
 interface IdentityFile {
@@ -75,12 +68,13 @@ interface IdentityFile {
     file_path: string;
 }
 
-export function VisaContractApprovalPage() {
-    const [orders, setOrders] = useState<VisaOrder[]>([]);
+export function HosVisaContractApprovalPage() {
+    const { seller } = useOutletContext<{ seller: SellerInfo }>();
+    const { cache, setCacheValue } = useDashboardCache();
+    const [orders, setOrders] = useState<VisaOrder[]>(cache.approvals || []);
     const [idFiles, setIdFiles] = useState<Record<string, IdentityFile[]>>({});
     const [products, setProducts] = useState<any[]>([]);
-    const [sellers, setSellers] = useState<any[]>([]);
-    const [loading, setLoading] = useState(true);
+    const [loading, setLoading] = useState(!cache.approvals);
     const [statusFilter, setStatusFilter] = useState<'pending' | 'approved' | 'rejected' | 'all'>('pending');
     const [selectedPdfUrl, setSelectedPdfUrl] = useState<string | null>(null);
     const [selectedPdfTitle, setSelectedPdfTitle] = useState<string>('');
@@ -97,14 +91,40 @@ export function VisaContractApprovalPage() {
     const loadOrders = async () => {
         try {
             setLoading(true);
-            const loadQuery = supabase
+            
+            // 1. Buscar membros do time para obter seus seller_id_public
+            const { data: teamMembers } = await supabase
+                .from('sellers')
+                .select('seller_id_public, full_name')
+                .eq('head_of_sales_id', seller.id);
+
+            if (!teamMembers || teamMembers.length === 0) {
+                setOrders([]);
+                setLoading(false);
+                return;
+            }
+
+            const sellerMap = teamMembers.reduce((acc, current) => {
+                acc[current.seller_id_public] = current.full_name;
+                return acc;
+            }, {} as Record<string, string>);
+
+            const sellerPublicIds = teamMembers.map(m => m.seller_id_public);
+
+            // 2. Buscar pedidos vinculados a esses vendedores
+            let query = supabase
                 .from('visa_orders')
                 .select('*')
+                .in('seller_id', sellerPublicIds)
                 .or('contract_pdf_url.not.is.null,annex_pdf_url.not.is.null,upsell_contract_pdf_url.not.is.null,upsell_annex_pdf_url.not.is.null')
                 .order('created_at', { ascending: false });
 
-            // In production, filter out test orders
-            const { data, error } = await (isLocal ? loadQuery : loadQuery.eq('is_test', false));
+            // Filtro de teste se não estiver em localhost
+            if (!isTestEnvironment()) {
+                query = query.eq('is_test', false);
+            }
+
+            const { data, error } = await query;
 
             if (error) throw error;
 
@@ -113,9 +133,13 @@ export function VisaContractApprovalPage() {
                     return order.payment_status === 'completed';
                 }
                 return true;
-            });
+            }).map(order => ({
+                ...order,
+                seller_name: sellerMap[order.seller_id] || order.seller_id
+            }));
 
             setOrders(relevantOrders);
+            setCacheValue('approvals', relevantOrders);
 
             // Fetch products for names
             const { data: productsData } = await supabase
@@ -140,22 +164,18 @@ export function VisaContractApprovalPage() {
                     setIdFiles(filesMap);
                 }
             }
-
-            // Fetch sellers to map names and Heads of Sales
-            const { data: sellersData } = await supabase
-                .from('sellers')
-                .select('id, full_name, seller_id_public, head_of_sales_id, email');
-            setSellers(sellersData || []);
         } catch (err) {
-            console.error('Error loading visa contracts:', err);
+            console.error('Error loading team visa contracts:', err);
         } finally {
             setLoading(false);
         }
     };
 
     useEffect(() => {
-        loadOrders();
-    }, []);
+        if (seller?.id) {
+            loadOrders();
+        }
+    }, [seller?.id]);
 
     const filteredOrders = orders.filter(order => {
         if (statusFilter === 'all') return true;
@@ -198,12 +218,33 @@ export function VisaContractApprovalPage() {
         setIsProcessing(true);
         try {
             const user = await getCurrentUser();
-            const reviewer = user?.email || user?.id || 'admin';
+            const reviewer = user?.email || user?.id || 'hos';
 
             const result = await approveVisaContract(pendingItem.id, reviewer, pendingItem.type);
             if (result.success) {
                 await loadOrders();
                 setShowApproveConfirm(false);
+            } else {
+                alert('Error: ' + result.error);
+            }
+        } catch (err) {
+            console.error(err);
+        } finally {
+            setIsProcessing(false);
+        }
+    };
+
+    const confirmReject = async () => {
+        if (!pendingItem) return;
+        setIsProcessing(true);
+        try {
+            const user = await getCurrentUser();
+            const reviewer = user?.email || user?.id || 'hos';
+
+            const result = await rejectVisaContract(pendingItem.id, reviewer, rejectionReason, pendingItem.type);
+            if (result.success) {
+                await loadOrders();
+                setShowRejectPrompt(false);
             } else {
                 alert('Error: ' + result.error);
             }
@@ -248,27 +289,6 @@ export function VisaContractApprovalPage() {
         );
     };
 
-    const confirmReject = async () => {
-        if (!pendingItem) return;
-        setIsProcessing(true);
-        try {
-            const user = await getCurrentUser();
-            const reviewer = user?.email || user?.id || 'admin';
-
-            const result = await rejectVisaContract(pendingItem.id, reviewer, rejectionReason, pendingItem.type);
-            if (result.success) {
-                await loadOrders();
-                setShowRejectPrompt(false);
-            } else {
-                alert('Error: ' + result.error);
-            }
-        } catch (err) {
-            console.error(err);
-        } finally {
-            setIsProcessing(false);
-        }
-    };
-
     const StatusBadge = ({ status }: { status: string | null }) => {
         const s = status || 'pending';
         switch (s) {
@@ -287,18 +307,14 @@ export function VisaContractApprovalPage() {
         status,
         orderId,
         type,
-        clientName,
-        reviewedBy,
-        reviewedAt
+        clientName
     }: {
         title: string,
         pdfUrl: string | null,
         status: string | null,
         orderId: string,
         type: 'contract' | 'annex' | 'upsell_contract' | 'upsell_annex',
-        clientName: string,
-        reviewedBy?: string | null,
-        reviewedAt?: string | null
+        clientName: string
     }) => {
         if (!pdfUrl) return null;
 
@@ -326,22 +342,6 @@ export function VisaContractApprovalPage() {
                     View Document
                     <ExternalLink className="w-3 h-3 ml-auto opacity-50" />
                 </Button>
-
-                {status === 'approved' && reviewedBy && (
-                    <div className="pt-1 flex flex-col gap-1">
-                        <div className="flex items-center gap-1.5 text-[10px] text-green-400 font-medium bg-green-500/5 p-1.5 rounded-lg border border-green-500/10">
-                            <Check className="w-3 h-3" />
-                            <span>Aprovado por: <span className="text-white">
-                                {sellers.find(s => s.email === reviewedBy)?.full_name || reviewedBy}
-                            </span></span>
-                        </div>
-                        {reviewedAt && (
-                            <span className="text-[9px] text-gray-500 ml-4.5 italic">
-                                em {new Date(reviewedAt).toLocaleString('pt-BR')}
-                            </span>
-                        )}
-                    </div>
-                )}
 
                 {isPending && (
                     <div className="grid grid-cols-2 gap-2 pt-2">
@@ -371,88 +371,57 @@ export function VisaContractApprovalPage() {
     };
 
     const getDocumentUrl = (file: IdentityFile): string => {
-        // Se já for uma URL completa, retorna
         if (file.file_path.startsWith('http')) return file.file_path;
-
-        // Caso contrário, retorna o caminho relativo que o getSecureUrl entende
-        // O getSecureUrl do storage.ts já tem lógica para identificar buckets se passarmos "bucket/path"
-        // ou se passarmos apenas o path (ele tenta adivinhar).
-        // Aqui os arquivos de identidade costumam estar no bucket 'identity-photos'
         return `identity-photos/${file.file_path}`;
     };
 
-    if (loading) {
-        return (
-            <div className="p-4 sm:p-6 lg:p-8 space-y-8 animate-in fade-in duration-500">
-                <div className="space-y-4">
-                    <Skeleton className="h-10 w-64" />
-                    <Skeleton className="h-4 w-96" />
+    const SkeletonCard = () => (
+        <Card className="bg-black/40 border-gold-medium/20 overflow-hidden">
+            <CardHeader className="border-b border-gold-medium/10">
+                <div className="flex justify-between items-center">
+                    <div className="space-y-2">
+                        <Skeleton className="h-6 w-48" />
+                        <Skeleton className="h-4 w-32" />
+                    </div>
+                    <Skeleton className="h-10 w-24" />
                 </div>
-
-                <div className="flex gap-2">
-                    <Skeleton className="h-10 w-32" />
-                    <Skeleton className="h-10 w-32" />
-                    <Skeleton className="h-10 w-32" />
+            </CardHeader>
+            <CardContent className="p-6">
+                <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+                    <div className="lg:col-span-1 border-r border-gold-medium/10 pr-6 space-y-4">
+                        <Skeleton className="h-4 w-20" />
+                        <div className="grid grid-cols-2 gap-2">
+                            <Skeleton className="aspect-square w-full rounded-lg" />
+                            <Skeleton className="aspect-square w-full rounded-lg" />
+                        </div>
+                    </div>
+                    <div className="lg:col-span-3 space-y-4">
+                        <Skeleton className="h-4 w-24" />
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <Skeleton className="h-32 w-full rounded-xl" />
+                            <Skeleton className="h-32 w-full rounded-xl" />
+                        </div>
+                    </div>
                 </div>
-
-                <div className="space-y-6">
-                    {[1, 2, 3].map((i) => (
-                        <Card key={i} className="bg-zinc-900/40 border-white/5 overflow-hidden">
-                            <CardHeader className="border-b border-white/5 pb-4">
-                                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                                    <div className="space-y-2">
-                                        <div className="flex items-center gap-2">
-                                            <Skeleton className="h-5 w-5 rounded-full" />
-                                            <Skeleton className="h-6 w-48" />
-                                        </div>
-                                        <Skeleton className="h-4 w-32" />
-                                    </div>
-                                    <div className="flex items-center gap-2">
-                                        <Skeleton className="h-5 w-16 px-2" />
-                                        <Skeleton className="h-5 w-32" />
-                                    </div>
-                                </div>
-                            </CardHeader>
-                            <CardContent className="p-6">
-                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                                    <div className="space-y-4">
-                                        <Skeleton className="h-3 w-24" />
-                                        <div className="flex gap-2">
-                                            <Skeleton className="w-20 h-20 rounded-lg" />
-                                            <Skeleton className="w-20 h-20 rounded-lg" />
-                                            <Skeleton className="w-20 h-20 rounded-lg" />
-                                        </div>
-                                    </div>
-                                    {[1, 2].map((j) => (
-                                        <div key={j} className="p-4 rounded-xl border border-white/5 bg-white/5 space-y-4">
-                                            <div className="flex justify-between items-center">
-                                                <Skeleton className="h-4 w-24" />
-                                                <Skeleton className="h-5 w-16" />
-                                            </div>
-                                            <Skeleton className="h-10 w-full" />
-                                            <div className="grid grid-cols-2 gap-2 pt-2">
-                                                <Skeleton className="h-8 w-full" />
-                                                <Skeleton className="h-8 w-full" />
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            </CardContent>
-                        </Card>
-                    ))}
-                </div>
-            </div>
-        );
-    }
+            </CardContent>
+        </Card>
+    );
 
     return (
-        <div className="p-4 sm:p-6 lg:p-8">
-            <div className="mb-8">
-                <h1 className="text-2xl sm:text-3xl font-bold migma-gold-text mb-2">Visa Contract Approvals</h1>
-                <p className="text-gray-400">Independently review and approve main contracts and service annexes.</p>
+        <div className="max-w-7xl mx-auto space-y-8">
+            <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+                <div>
+                    <h1 className="text-3xl font-bold text-white tracking-tight flex items-center gap-3">
+                        <FileCheck className="w-8 h-8 text-gold-medium" />
+                        Aprovação de Contratos (Equipe)
+                    </h1>
+                    <p className="text-gray-400 mt-1">
+                        Revise e aprove os contratos assinados pelos clientes dos seus vendedores.
+                    </p>
+                </div>
             </div>
 
-            <Tabs value={statusFilter} onValueChange={(v) => setStatusFilter(v as any)} className="mb-6">
+            <Tabs value={statusFilter} onValueChange={(v) => setStatusFilter(v as any)} className="w-full">
                 <TabsList className="bg-black/50 border border-gold-medium/30">
                     <TabsTrigger value="pending" className="data-[state=active]:bg-gold-medium data-[state=active]:text-black">Pendentes</TabsTrigger>
                     <TabsTrigger value="approved" className="data-[state=active]:bg-gold-medium data-[state=active]:text-black">Aprovados</TabsTrigger>
@@ -461,7 +430,9 @@ export function VisaContractApprovalPage() {
                 </TabsList>
 
                 <div className="mt-6 space-y-6">
-                    {filteredOrders.length === 0 ? (
+                    {loading && orders.length === 0 ? (
+                        Array(3).fill(0).map((_, i) => <SkeletonCard key={i} />)
+                    ) : filteredOrders.length === 0 ? (
                         <Card className="bg-black/40 border-gold-medium/20 py-12 text-center">
                             <p className="text-gray-500">
                                 {statusFilter === 'pending' ? 'Nenhum contrato pendente de aprovação.' : 
@@ -481,55 +452,29 @@ export function VisaContractApprovalPage() {
                                                 {order.client_name}
                                                 <span className="text-sm font-mono text-gray-400 ml-2">#{order.order_number}</span>
                                             </CardTitle>
-                                            <p className="text-sm text-gray-400 mt-1">{getProductName(order.product_slug)}</p>
-                                            
-                                            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-3">
-                                                {/* Seller Name */}
-                                                <div className="flex items-center gap-1.5 text-xs text-gray-300">
-                                                    <span className="text-gray-500 uppercase text-[9px] font-bold">Vendedor:</span>
-                                                    <span className="font-semibold text-white">
-                                                        {sellers.find(s => s.seller_id_public === order.seller_id)?.full_name || order.seller_id || 'N/A'}
-                                                    </span>
-                                                </div>
-
-                                                {/* Head of Sales Name */}
-                                                {(() => {
-                                                    const sellerData = sellers.find(s => s.seller_id_public === order.seller_id);
-                                                    if (sellerData?.head_of_sales_id) {
-                                                        const hos = sellers.find(h => h.id === sellerData.head_of_sales_id);
-                                                        return (
-                                                            <div className="flex items-center gap-1.5 text-xs text-purple-300 bg-purple-500/10 px-2 py-0.5 rounded-full border border-purple-500/20">
-                                                                <span className="text-[9px] font-bold uppercase">Head of Sales:</span>
-                                                                <span className="font-bold">
-                                                                    {hos?.full_name || 'Desconhecido'}
-                                                                </span>
-                                                            </div>
-                                                        );
-                                                    }
-                                                    return null;
-                                                })()}
+                                            <div className="flex items-center gap-3 mt-1">
+                                                <p className="text-sm text-gray-400">{getProductName(order.product_slug)}</p>
+                                                <span className="text-gray-600">•</span>
+                                                <p className="text-sm text-purple-300 font-medium">Vendedor: {order.seller_name}</p>
                                             </div>
                                         </div>
-                                        <div className="flex flex-col items-end gap-2">
-                                            <div className="flex items-center gap-2">
-                                                <Badge variant="outline" className="capitalize border-gold-medium/30 text-gold-light text-[10px]">
-                                                    {order.payment_method || 'N/A'}
-                                                </Badge>
-                                                <div className="flex items-center gap-1 text-xs text-gray-500">
-                                                    <Calendar className="w-3 h-3" />
-                                                    {order.contract_signed_at ? new Date(order.contract_signed_at).toLocaleString() : 'N/A'}
-                                                </div>
+                                        <div className="flex flex-col items-end gap-2 text-right">
+                                            <Badge variant="outline" className="capitalize border-gold-medium/30 text-gold-light">
+                                                {order.payment_method || 'N/A'}
+                                            </Badge>
+                                            <div className="flex items-center gap-1 text-xs text-gray-500">
+                                                <Calendar className="w-3 h-3" />
+                                                {order.contract_signed_at ? new Date(order.contract_signed_at).toLocaleString() : 'N/A'}
                                             </div>
                                         </div>
                                     </div>
                                 </CardHeader>
                                 <CardContent className="p-6">
-                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                                        {/* Identification Records */}
-                                        <div className="space-y-4">
-
-                                            <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-widest">Identification</h4>
-                                            <div className="flex flex-wrap gap-2">
+                                    <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+                                        {/* Fotos de Identidade */}
+                                        <div className="lg:col-span-1 border-r border-gold-medium/10 pr-6">
+                                            <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-widest mb-4">Identificação</h4>
+                                            <div className="grid grid-cols-2 gap-2">
                                                 {order.service_request_id && idFiles[order.service_request_id] ? (
                                                     idFiles[order.service_request_id].map(file => (
                                                         <div
@@ -539,7 +484,7 @@ export function VisaContractApprovalPage() {
                                                                 setSelectedImageUrl(secureUrl);
                                                                 setSelectedImageTitle(`${file.file_type.replace('_', ' ').toUpperCase()} - ${order.client_name}`);
                                                             }}
-                                                            className="group relative cursor-pointer w-28 h-28 sm:w-32 sm:h-32 rounded-lg overflow-hidden border border-gold-medium/30 bg-black/50 hover:border-gold-medium transition-all hover:scale-105 duration-300 shadow-lg shadow-black/50"
+                                                            className="group relative cursor-pointer aspect-square rounded-lg overflow-hidden border border-gold-medium/30 bg-black/50 hover:border-gold-medium transition-all shadow-lg"
                                                         >
                                                             <ImageWithSkeleton
                                                                 src={getDocumentUrl(file)}
@@ -549,71 +494,60 @@ export function VisaContractApprovalPage() {
                                                             <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
                                                                 <ImageIcon className="w-6 h-6 text-white" />
                                                             </div>
-                                                            <span className="absolute bottom-0 inset-x-0 bg-black/80 text-[10px] text-center text-white py-0.5 capitalize z-10">
-                                                                {file.file_type === 'document_front' ? 'Doc Front' :
-                                                                    file.file_type === 'document_back' ? 'Doc Back' :
-                                                                        file.file_type === 'selfie_doc' ? 'Selfie' :
-                                                                            file.file_type.replace('_', ' ')}
-                                                            </span>
                                                         </div>
                                                     ))
                                                 ) : (
-                                                    <p className="text-xs text-gray-500 italic">No photos found.</p>
+                                                    <p className="text-xs text-gray-500 italic">Sem fotos enviadas.</p>
                                                 )}
                                             </div>
                                         </div>
 
-                                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 lg:col-span-3">
-                                            {/* Main Contract Action */}
-                                            {order.product_slug !== 'consultation-common' && (
+                                        {/* Ações de Documentos */}
+                                        <div className="lg:col-span-3">
+                                            <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-widest mb-4">Documentos</h4>
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                {/* Contrato Principal */}
+                                                {order.product_slug !== 'consultation-common' && (
+                                                    <DocumentActionBlock
+                                                        title="Contrato Principal"
+                                                        pdfUrl={order.contract_pdf_url}
+                                                        status={order.contract_approval_status}
+                                                        orderId={order.id}
+                                                        type="contract"
+                                                        clientName={order.client_name}
+                                                    />
+                                                )}
+
+                                                {/* Anexo I */}
                                                 <DocumentActionBlock
-                                                    title="Main Contract"
-                                                    pdfUrl={order.contract_pdf_url}
-                                                    status={order.contract_approval_status}
+                                                    title="Anexo I"
+                                                    pdfUrl={order.annex_pdf_url}
+                                                    status={order.annex_approval_status}
                                                     orderId={order.id}
-                                                    type="contract"
+                                                    type="annex"
                                                     clientName={order.client_name}
-                                                    reviewedBy={order.contract_approval_reviewed_by}
-                                                    reviewedAt={order.contract_approval_reviewed_at}
                                                 />
-                                            )}
 
-                                            {/* Annex I Action */}
-                                            <DocumentActionBlock
-                                                title="Annex I"
-                                                pdfUrl={order.annex_pdf_url}
-                                                status={order.annex_approval_status}
-                                                orderId={order.id}
-                                                type="annex"
-                                                clientName={order.client_name}
-                                                reviewedBy={order.annex_approval_reviewed_by}
-                                                reviewedAt={order.annex_approval_reviewed_at}
-                                            />
+                                                {/* Contrato Upsell */}
+                                                <DocumentActionBlock
+                                                    title={`Contrato (${order.upsell_product_slug || 'Upsell'})`}
+                                                    pdfUrl={order.upsell_contract_pdf_url || null}
+                                                    status={order.upsell_contract_approval_status || null}
+                                                    orderId={order.id}
+                                                    type="upsell_contract"
+                                                    clientName={order.client_name}
+                                                />
 
-
-                                            {/* Upsell Contract Action */}
-                                            <DocumentActionBlock
-                                                title={`Contract (${order.upsell_product_slug || 'Upsell'})`}
-                                                pdfUrl={order.upsell_contract_pdf_url || null}
-                                                status={order.upsell_contract_approval_status || null}
-                                                orderId={order.id}
-                                                type="upsell_contract"
-                                                clientName={order.client_name}
-                                                reviewedBy={order.upsell_contract_approval_reviewed_by}
-                                                reviewedAt={order.upsell_contract_approval_reviewed_at}
-                                            />
-
-                                            {/* Upsell Annex Action */}
-                                            <DocumentActionBlock
-                                                title={`Annex I (${order.upsell_product_slug || 'Upsell'})`}
-                                                pdfUrl={order.upsell_annex_pdf_url || null}
-                                                status={order.upsell_annex_approval_status || null}
-                                                orderId={order.id}
-                                                type="upsell_annex"
-                                                clientName={order.client_name}
-                                                reviewedBy={order.upsell_annex_approval_reviewed_by}
-                                                reviewedAt={order.upsell_annex_approval_reviewed_at}
-                                            />
+                                                {/* Anexo Upsell */}
+                                                <DocumentActionBlock
+                                                    title={`Anexo I (${order.upsell_product_slug || 'Upsell'})`}
+                                                    pdfUrl={order.upsell_annex_pdf_url || null}
+                                                    status={order.upsell_annex_approval_status || null}
+                                                    orderId={order.id}
+                                                    type="upsell_annex"
+                                                    clientName={order.client_name}
+                                                />
+                                            </div>
                                         </div>
                                     </div>
                                 </CardContent>
@@ -623,7 +557,7 @@ export function VisaContractApprovalPage() {
                 </div>
             </Tabs>
 
-            {/* Approve Confirm Dialog */}
+            {/* Modais (Aprovação, Rejeição, PDF, Imagem) */}
             <Dialog open={showApproveConfirm} onOpenChange={setShowApproveConfirm}>
                 <DialogContent className="bg-black border border-gold-medium/50 text-white shadow-2xl max-w-md">
                     <DialogHeader>
@@ -631,38 +565,21 @@ export function VisaContractApprovalPage() {
                             <div className="bg-green-500/20 p-2 rounded-full">
                                 <Check className="w-6 h-6 text-green-400" />
                             </div>
-                            <DialogTitle className="text-xl font-bold">Approve {pendingItem?.type.replace('_', ' ').toUpperCase()}</DialogTitle>
+                            <DialogTitle className="text-xl font-bold">Aprovar Documento</DialogTitle>
                         </div>
                         <DialogDescription className="text-gray-300 text-base leading-relaxed">
-                            Confirm that this document is correctly signed and valid. The client will be notified immediately.
+                            Confirme que o documento está devidamente assinado. O cliente será notificado da aprovação.
                         </DialogDescription>
                     </DialogHeader>
-                    <DialogFooter className="mt-4 gap-2 sm:gap-0">
-                        <Button
-                            variant="ghost"
-                            onClick={() => setShowApproveConfirm(false)}
-                            disabled={isProcessing}
-                            className="text-gray-400 hover:text-white hover:bg-white/10"
-                        >
-                            Cancel
-                        </Button>
-                        <Button
-                            onClick={confirmApprove}
-                            className="bg-green-600 hover:bg-green-700 text-white font-bold px-6 shadow-[0_0_15px_rgba(22,163,74,0.4)]"
-                            disabled={isProcessing}
-                        >
-                            {isProcessing ? (
-                                <div className="flex items-center gap-2">
-                                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                                    Processing...
-                                </div>
-                            ) : 'Yes, Approve'}
+                    <DialogFooter className="mt-4 gap-2">
+                        <Button variant="ghost" onClick={() => setShowApproveConfirm(false)} disabled={isProcessing}>Cancelar</Button>
+                        <Button onClick={confirmApprove} className="bg-green-600 hover:bg-green-700 text-white font-bold px-6" disabled={isProcessing}>
+                            {isProcessing ? 'Processando...' : 'Confirmar Aprovação'}
                         </Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
 
-            {/* Reject Prompt Dialog */}
             <Dialog open={showRejectPrompt} onOpenChange={setShowRejectPrompt}>
                 <DialogContent className="bg-black border border-gold-medium/50 text-white shadow-2xl max-w-md">
                     <DialogHeader>
@@ -670,47 +587,29 @@ export function VisaContractApprovalPage() {
                             <div className="bg-red-500/20 p-2 rounded-full">
                                 <X className="w-6 h-6 text-red-400" />
                             </div>
-                            <DialogTitle className="text-xl font-bold">Reject {pendingItem?.type.replace('_', ' ').toUpperCase()}</DialogTitle>
+                            <DialogTitle className="text-xl font-bold">Rejeitar Documento</DialogTitle>
                         </div>
                         <DialogDescription className="text-gray-300 text-base">
-                            The client will receive an email with instructions to resubmit.
+                            O cliente receberá um e-mail com o motivo e instruções para reenviar.
                         </DialogDescription>
                     </DialogHeader>
                     <div className="my-4">
-                        <label className="text-sm font-semibold text-gray-400 mb-2 block uppercase tracking-wider text-[10px]">Reason for Rejection</label>
                         <Textarea
                             value={rejectionReason}
                             onChange={(e) => setRejectionReason(e.target.value)}
-                            placeholder="Ex: Signature is missing on page 3..."
-                            className="bg-white/5 border-white/10 focus:border-gold-medium/50 text-white min-h-[100px] resize-none"
+                            placeholder="Motivo da rejeição (será enviado ao cliente)..."
+                            className="bg-white/5 border-white/10 text-white min-h-[100px]"
                         />
                     </div>
-                    <DialogFooter className="gap-2 sm:gap-0">
-                        <Button
-                            variant="ghost"
-                            onClick={() => setShowRejectPrompt(false)}
-                            disabled={isProcessing}
-                            className="text-gray-400 hover:text-white hover:bg-white/10"
-                        >
-                            Cancel
-                        </Button>
-                        <Button
-                            onClick={confirmReject}
-                            className="bg-red-600 hover:bg-red-700 text-white font-bold px-6 shadow-[0_0_15px_rgba(220,38,38,0.4)]"
-                            disabled={isProcessing || !rejectionReason.trim()}
-                        >
-                            {isProcessing ? (
-                                <div className="flex items-center gap-2">
-                                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                                    Processing...
-                                </div>
-                            ) : 'Reject Document'}
+                    <DialogFooter className="gap-2">
+                        <Button variant="ghost" onClick={() => setShowRejectPrompt(false)} disabled={isProcessing}>Cancelar</Button>
+                        <Button onClick={confirmReject} className="bg-red-600 hover:bg-red-700 text-white font-bold px-6" disabled={isProcessing || !rejectionReason.trim()}>
+                            {isProcessing ? 'Processando...' : 'Confirmar Rejeição'}
                         </Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
 
-            {/* PDF View Modal */}
             {selectedPdfUrl && (
                 <PdfModal
                     isOpen={!!selectedPdfUrl}
@@ -720,7 +619,6 @@ export function VisaContractApprovalPage() {
                 />
             )}
 
-            {/* Image View Modal */}
             {selectedImageUrl && (
                 <ImageModal
                     isOpen={!!selectedImageUrl}

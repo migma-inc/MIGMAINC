@@ -2,10 +2,12 @@ import { useOutletContext } from 'react-router-dom';
 import type { SellerInfo } from '@/types/seller';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Users, TrendingUp, ShoppingBag, Loader2, LinkIcon } from 'lucide-react';
+import { Users, TrendingUp, ShoppingBag, LinkIcon } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { formatCurrency } from '@/lib/utils';
+import { useDashboardCache } from '@/contexts/DashboardCacheContext';
+import { Skeleton } from '@/components/ui/skeleton';
 
 interface TeamMember {
     id: string;
@@ -19,18 +21,25 @@ interface TeamMember {
 
 export function HeadOfSalesTeam() {
     const { seller } = useOutletContext<{ seller: SellerInfo }>();
-    const [members, setMembers] = useState<TeamMember[]>([]);
-    const [loading, setLoading] = useState(true);
+    const { cache, setCacheValue } = useDashboardCache();
+    const [members, setMembers] = useState<TeamMember[]>(cache.team || []);
+    const [loading, setLoading] = useState(!cache.team);
 
     useEffect(() => {
         async function loadTeamData() {
+            if (!seller.team_id) {
+                setLoading(false);
+                return;
+            }
+            
             setLoading(true);
             try {
-                // 1. Buscar membros da equipe vinculados a este HoS
+                // 1. Buscar membros da equipe vinculados ao MESMO TIME que este HoS
                 const { data: teamData, error: teamError } = await supabase
                     .from('sellers')
                     .select('id, full_name, email, seller_id_public, status')
-                    .eq('head_of_sales_id', seller.id)
+                    .eq('team_id', seller.team_id)
+                    .eq('role', 'seller') // Apenas vendedores, não o próprio HoS
                     .order('full_name');
 
                 if (teamError) throw teamError;
@@ -66,8 +75,10 @@ export function HeadOfSalesTeam() {
                     }).sort((a, b) => b.revenue - a.revenue);
 
                     setMembers(processedMembers);
+                    setCacheValue('team', processedMembers);
                 } else {
                     setMembers([]);
+                    setCacheValue('team', []);
                 }
             } catch (error) {
                 console.error('[HeadOfSalesTeam] Error loading team data:', error);
@@ -79,7 +90,7 @@ export function HeadOfSalesTeam() {
         if (seller.id) {
             loadTeamData();
         }
-    }, [seller.id]);
+    }, [seller.id, seller.team_id]);
 
     return (
         <div className="max-w-7xl mx-auto space-y-6">
@@ -95,17 +106,44 @@ export function HeadOfSalesTeam() {
 
             <Card className="bg-black/40 border-gold-medium/20 overflow-hidden">
                 <CardContent className="p-0">
-                    {loading ? (
-                        <div className="flex flex-col items-center justify-center py-24 gap-4">
-                            <Loader2 className="w-10 h-10 text-gold-medium animate-spin" />
-                            <p className="text-gray-500 font-medium">Carregando dados da equipe...</p>
+                    {loading && members.length === 0 ? (
+                        <div className="p-0">
+                            <div className="overflow-x-auto">
+                                <table className="w-full">
+                                    <thead className="border-b border-gold-medium/20 bg-gold-medium/5">
+                                        <tr>
+                                            {Array(5).fill(0).map((_, i) => (
+                                                <th key={i} className="px-6 py-4">
+                                                    <Skeleton className="h-4 w-24 bg-gold-medium/10" />
+                                                </th>
+                                            ))}
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {Array(5).fill(0).map((_, i) => (
+                                            <tr key={i} className="border-b border-white/5">
+                                                <td className="px-6 py-4">
+                                                    <div className="space-y-2">
+                                                        <Skeleton className="h-4 w-32" />
+                                                        <Skeleton className="h-3 w-48 opacity-50" />
+                                                    </div>
+                                                </td>
+                                                <td className="px-6 py-4"><Skeleton className="h-6 w-16 mx-auto rounded-full" /></td>
+                                                <td className="px-6 py-4"><Skeleton className="h-4 w-20 mx-auto" /></td>
+                                                <td className="px-6 py-4"><Skeleton className="h-4 w-12 mx-auto" /></td>
+                                                <td className="px-6 py-4"><Skeleton className="h-8 w-24 ml-auto" /></td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
                         </div>
                     ) : members.length === 0 ? (
                         <div className="text-center py-20 px-8">
                             <Users className="w-12 h-12 text-gray-700 mx-auto mb-4" />
-                            <h3 className="text-xl font-bold text-white mb-2">Nenhum vendedor encontrado</h3>
+                            <h3 className="text-xl font-bold text-white mb-2">Nenhum vendedor encontrado na equipe</h3>
                             <p className="text-gray-400 max-w-md mx-auto">
-                                Sua equipe parece estar vazia no momento. Entre em contato com o administrador para vincular novos vendedores ao seu perfil.
+                                Sua equipe parece estar vazia no momento. Entre em contato com o administrador para vincular novos vendedores ao seu time.
                             </p>
                         </div>
                     ) : (
@@ -178,17 +216,6 @@ export function HeadOfSalesTeam() {
                 </CardContent>
             </Card>
 
-            <div className="bg-gold-medium/5 border border-gold-medium/20 rounded-xl p-6 flex flex-col md:flex-row items-center justify-between gap-4">
-                <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 bg-black/40 rounded-full flex items-center justify-center border border-gold-medium/20">
-                        <Users className="w-6 h-6 text-gold-medium" />
-                    </div>
-                    <div>
-                        <h4 className="font-bold text-white">Gestão Centralizada</h4>
-                        <p className="text-sm text-gray-400">A inclusão ou remoção de membros é realizada exclusivamente pela administração.</p>
-                    </div>
-                </div>
-            </div>
         </div>
     );
 }

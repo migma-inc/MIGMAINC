@@ -211,4 +211,5 @@ export interface VisaCheckoutActions {
     // Geolocation
     setIsBrazil: (val: boolean) => void;
     setLoadingLocation: (val: boolean) => void;
+    fillDevData: () => void;
 }

@@ -10,6 +10,7 @@ export interface SellerInfo {
   status: string;
   role?: string;
   head_of_sales_id?: string | null;
+  team_id?: string | null;
 }
 
 export interface SellerCommission {

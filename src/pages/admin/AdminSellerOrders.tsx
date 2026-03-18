@@ -313,7 +313,6 @@ export function AdminSellerOrders() {
                     .from('sellers')
                     .select('*')
                     .eq('seller_id_public', sellerId)
-                    .eq('is_test', false)
                     .single();
 
                 if (error || !sellerData) {
