@@ -135,7 +135,7 @@ export function HeadOfSalesManagement() {
         }
     };
 
-    const demoteToSeller = async (seller: Seller) => {
+    const _demoteToSeller = async (seller: Seller) => {
         console.log('[HeadOfSalesManagement] Demoting seller:', seller.id);
         setSaving(seller.id);
         try {
