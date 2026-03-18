@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import {
-    Crown, Users, TrendingUp, DollarSign, Loader2, Medal, Trophy
+    Crown, Users, Loader2, Medal, Trophy
 } from 'lucide-react';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -111,7 +111,6 @@ export function AdminTeamsView({ selectedMonth }: AdminTeamsViewProps) {
             // Note: In this project, visa_orders.seller_id is often the public ID (e.g. '551c44a8').
             // Let's map sellers.seller_id_public to sellers.id
             const publicToUuid: Record<string, string> = {};
-            const uuidToPublic: Record<string, string> = {};
             // We need public_id in the select above
             const { data: sellersWithPublic } = await supabase.from('sellers').select('id, seller_id_public');
             sellersWithPublic?.forEach(s => {
