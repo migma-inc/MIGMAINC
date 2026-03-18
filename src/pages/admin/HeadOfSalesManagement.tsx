@@ -135,31 +135,7 @@ export function HeadOfSalesManagement() {
         }
     };
 
-    const _demoteToSeller = async (seller: Seller) => {
-        console.log('[HeadOfSalesManagement] Demoting seller:', seller.id);
-        setSaving(seller.id);
-        try {
-            const { error } = await supabase.functions.invoke('admin-update-seller', {
-                body: {
-                    seller_id: seller.id,
-                    full_name: seller.full_name,
-                    email: seller.email,
-                    phone: '-',
-                    seller_id_public: seller.seller_id_public,
-                    role: 'seller',
-                    head_of_sales_id: null,
-                    team_id: seller.team_id
-                },
-            });
-
-            if (error) throw error;
-            await loadData();
-        } catch (err) {
-            console.error('[HeadOfSalesManagement] Error demoting seller:', err);
-        } finally {
-            setSaving(null);
-        }
-    };    const deleteTeam = async (teamId: string) => {
+    const deleteTeam = async (teamId: string) => {
         if (!confirm('Are you sure you want to delete this team? Members will be unlinked.')) return;
         setSaving(teamId);
         try {
