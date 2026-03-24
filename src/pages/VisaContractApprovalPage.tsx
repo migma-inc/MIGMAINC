@@ -36,6 +36,7 @@ const isLocal = typeof window !== 'undefined' && (window.location.hostname === '
 interface VisaOrder {
     id: string;
     order_number: string;
+    seller_id: string | null;
     product_slug: string;
     upsell_product_slug?: string | null;
     client_name: string;
@@ -56,6 +57,15 @@ interface VisaOrder {
     service_request_id: string | null;
     payment_metadata?: any | null;
     created_at: string;
+    // Approval details
+    contract_approval_reviewed_by?: string | null;
+    contract_approval_reviewed_at?: string | null;
+    annex_approval_reviewed_by?: string | null;
+    annex_approval_reviewed_at?: string | null;
+    upsell_contract_approval_reviewed_by?: string | null;
+    upsell_contract_approval_reviewed_at?: string | null;
+    upsell_annex_approval_reviewed_by?: string | null;
+    upsell_annex_approval_reviewed_at?: string | null;
 }
 
 interface IdentityFile {
@@ -69,6 +79,7 @@ export function VisaContractApprovalPage() {
     const [orders, setOrders] = useState<VisaOrder[]>([]);
     const [idFiles, setIdFiles] = useState<Record<string, IdentityFile[]>>({});
     const [products, setProducts] = useState<any[]>([]);
+    const [sellers, setSellers] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [statusFilter, setStatusFilter] = useState<'pending' | 'approved' | 'rejected' | 'all'>('pending');
     const [selectedPdfUrl, setSelectedPdfUrl] = useState<string | null>(null);
@@ -129,6 +140,12 @@ export function VisaContractApprovalPage() {
                     setIdFiles(filesMap);
                 }
             }
+
+            // Fetch sellers to map names and Heads of Sales
+            const { data: sellersData } = await supabase
+                .from('sellers')
+                .select('id, full_name, seller_id_public, head_of_sales_id, email');
+            setSellers(sellersData || []);
         } catch (err) {
             console.error('Error loading visa contracts:', err);
         } finally {
@@ -270,14 +287,18 @@ export function VisaContractApprovalPage() {
         status,
         orderId,
         type,
-        clientName
+        clientName,
+        reviewedBy,
+        reviewedAt
     }: {
         title: string,
         pdfUrl: string | null,
         status: string | null,
         orderId: string,
         type: 'contract' | 'annex' | 'upsell_contract' | 'upsell_annex',
-        clientName: string
+        clientName: string,
+        reviewedBy?: string | null,
+        reviewedAt?: string | null
     }) => {
         if (!pdfUrl) return null;
 
@@ -305,6 +326,22 @@ export function VisaContractApprovalPage() {
                     View Document
                     <ExternalLink className="w-3 h-3 ml-auto opacity-50" />
                 </Button>
+
+                {status === 'approved' && reviewedBy && (
+                    <div className="pt-1 flex flex-col gap-1">
+                        <div className="flex items-center gap-1.5 text-[10px] text-green-400 font-medium bg-green-500/5 p-1.5 rounded-lg border border-green-500/10">
+                            <Check className="w-3 h-3" />
+                            <span>Aprovado por: <span className="text-white">
+                                {sellers.find(s => s.email === reviewedBy)?.full_name || reviewedBy}
+                            </span></span>
+                        </div>
+                        {reviewedAt && (
+                            <span className="text-[9px] text-gray-500 ml-4.5 italic">
+                                em {new Date(reviewedAt).toLocaleString('pt-BR')}
+                            </span>
+                        )}
+                    </div>
+                )}
 
                 {isPending && (
                     <div className="grid grid-cols-2 gap-2 pt-2">
@@ -417,16 +454,21 @@ export function VisaContractApprovalPage() {
 
             <Tabs value={statusFilter} onValueChange={(v) => setStatusFilter(v as any)} className="mb-6">
                 <TabsList className="bg-black/50 border border-gold-medium/30">
-                    <TabsTrigger value="pending" className="data-[state=active]:bg-gold-medium data-[state=active]:text-black">Pending Review</TabsTrigger>
-                    <TabsTrigger value="approved" className="data-[state=active]:bg-gold-medium data-[state=active]:text-black">Approved</TabsTrigger>
-                    <TabsTrigger value="rejected" className="data-[state=active]:bg-gold-medium data-[state=active]:text-black">Rejected</TabsTrigger>
-                    <TabsTrigger value="all" className="data-[state=active]:bg-gold-medium data-[state=active]:text-black">All Orders</TabsTrigger>
+                    <TabsTrigger value="pending" className="data-[state=active]:bg-gold-medium data-[state=active]:text-black">Pendentes</TabsTrigger>
+                    <TabsTrigger value="approved" className="data-[state=active]:bg-gold-medium data-[state=active]:text-black">Aprovados</TabsTrigger>
+                    <TabsTrigger value="rejected" className="data-[state=active]:bg-gold-medium data-[state=active]:text-black">Rejeitados</TabsTrigger>
+                    <TabsTrigger value="all" className="data-[state=active]:bg-gold-medium data-[state=active]:text-black">Todos</TabsTrigger>
                 </TabsList>
 
                 <div className="mt-6 space-y-6">
                     {filteredOrders.length === 0 ? (
                         <Card className="bg-black/40 border-gold-medium/20 py-12 text-center">
-                            <p className="text-gray-500">No pending document reviews found.</p>
+                            <p className="text-gray-500">
+                                {statusFilter === 'pending' ? 'Nenhum contrato pendente de aprovação.' : 
+                                 statusFilter === 'approved' ? 'Nenhum contrato aprovado encontrado.' :
+                                 statusFilter === 'rejected' ? 'Nenhum contrato rejeitado encontrado.' :
+                                 'Nenhum contrato encontrado.'}
+                            </p>
                         </Card>
                     ) : (
                         filteredOrders.map(order => (
@@ -440,6 +482,33 @@ export function VisaContractApprovalPage() {
                                                 <span className="text-sm font-mono text-gray-400 ml-2">#{order.order_number}</span>
                                             </CardTitle>
                                             <p className="text-sm text-gray-400 mt-1">{getProductName(order.product_slug)}</p>
+                                            
+                                            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-3">
+                                                {/* Seller Name */}
+                                                <div className="flex items-center gap-1.5 text-xs text-gray-300">
+                                                    <span className="text-gray-500 uppercase text-[9px] font-bold">Vendedor:</span>
+                                                    <span className="font-semibold text-white">
+                                                        {sellers.find(s => s.seller_id_public === order.seller_id)?.full_name || order.seller_id || 'N/A'}
+                                                    </span>
+                                                </div>
+
+                                                {/* Head of Sales Name */}
+                                                {(() => {
+                                                    const sellerData = sellers.find(s => s.seller_id_public === order.seller_id);
+                                                    if (sellerData?.head_of_sales_id) {
+                                                        const hos = sellers.find(h => h.id === sellerData.head_of_sales_id);
+                                                        return (
+                                                            <div className="flex items-center gap-1.5 text-xs text-purple-300 bg-purple-500/10 px-2 py-0.5 rounded-full border border-purple-500/20">
+                                                                <span className="text-[9px] font-bold uppercase">Head of Sales:</span>
+                                                                <span className="font-bold">
+                                                                    {hos?.full_name || 'Desconhecido'}
+                                                                </span>
+                                                            </div>
+                                                        );
+                                                    }
+                                                    return null;
+                                                })()}
+                                            </div>
                                         </div>
                                         <div className="flex flex-col items-end gap-2">
                                             <div className="flex items-center gap-2">
@@ -504,6 +573,8 @@ export function VisaContractApprovalPage() {
                                                     orderId={order.id}
                                                     type="contract"
                                                     clientName={order.client_name}
+                                                    reviewedBy={order.contract_approval_reviewed_by}
+                                                    reviewedAt={order.contract_approval_reviewed_at}
                                                 />
                                             )}
 
@@ -515,6 +586,8 @@ export function VisaContractApprovalPage() {
                                                 orderId={order.id}
                                                 type="annex"
                                                 clientName={order.client_name}
+                                                reviewedBy={order.annex_approval_reviewed_by}
+                                                reviewedAt={order.annex_approval_reviewed_at}
                                             />
 
 
@@ -526,6 +599,8 @@ export function VisaContractApprovalPage() {
                                                 orderId={order.id}
                                                 type="upsell_contract"
                                                 clientName={order.client_name}
+                                                reviewedBy={order.upsell_contract_approval_reviewed_by}
+                                                reviewedAt={order.upsell_contract_approval_reviewed_at}
                                             />
 
                                             {/* Upsell Annex Action */}
@@ -536,6 +611,8 @@ export function VisaContractApprovalPage() {
                                                 orderId={order.id}
                                                 type="upsell_annex"
                                                 clientName={order.client_name}
+                                                reviewedBy={order.upsell_annex_approval_reviewed_by}
+                                                reviewedAt={order.upsell_annex_approval_reviewed_at}
                                             />
                                         </div>
                                     </div>

@@ -279,7 +279,7 @@ async function sendClientWebhook(order: any, supabase: any, isUpsell: boolean = 
     const payload: any = {
       servico: serviceName,
       plano_servico: productSlug,
-      nome_completo: order.client_name,
+      nome_completo_cliente_principal: order.client_name,
       whatsapp: order.client_whatsapp || '',
       email: order.client_email,
       valor_servico: basePrice.toFixed(2),

@@ -950,21 +950,23 @@ export function DashboardContent() {
         onValueChange={(val) => setStatusFilter(val === 'rejected' ? 'rejected' : undefined)}
         className="space-y-6"
       >
-        <div className="flex justify-between items-end">
-          <TabsList className="bg-zinc-900/60 border border-gold-medium/20 h-11 p-1">
-            <TabsTrigger
-              value="active"
-              className="px-6 data-[state=active]:bg-gold-medium/30 data-[state=active]:text-gold-light text-gray-400 font-bold transition-all"
-            >
-              Main
-            </TabsTrigger>
-            <TabsTrigger
-              value="rejected"
-              className="px-6 data-[state=active]:bg-red-900/40 data-[state=active]:text-red-400 text-gray-400 font-bold transition-all"
-            >
-              Rejected
-            </TabsTrigger>
-          </TabsList>
+        <div className="flex justify-between items-end overflow-hidden">
+          <div className="overflow-x-auto w-full scrollbar-hide">
+            <TabsList className="bg-zinc-900/60 border border-gold-medium/20 h-11 p-1 inline-flex w-auto min-w-full sm:min-w-0">
+              <TabsTrigger
+                value="active"
+                className="px-6 data-[state=active]:bg-gold-medium/30 data-[state=active]:text-gold-light text-gray-400 font-bold transition-all whitespace-nowrap"
+              >
+                Main
+              </TabsTrigger>
+              <TabsTrigger
+                value="rejected"
+                className="px-6 data-[state=active]:bg-red-900/40 data-[state=active]:text-red-400 text-gray-400 font-bold transition-all whitespace-nowrap"
+              >
+                Rejected
+              </TabsTrigger>
+            </TabsList>
+          </div>
         </div>
 
         <TabsContent value="active" className="mt-0 outline-none">

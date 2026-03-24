@@ -87,7 +87,29 @@ export const useVisaCheckoutForm = () => {
     // Recurring Billing
     const [billingInstallmentId, setBillingInstallmentId] = useState<string | null>(null);
 
-    // EB-3 Installment
+    // Dev Tools
+    const fillDevData = () => {
+        setClientName('John Doe Dev');
+        setClientEmail('victuribdev@gmail.com');
+        setClientWhatsApp('+1 555 0123 4567');
+        setClientCountry('US');
+        setClientNationality('American');
+        setDateOfBirth('1990-01-01');
+        setDocumentType('passport');
+        setDocumentNumber('A12345678');
+        setAddressLine('123 Dev Street');
+        setCity('San Francisco');
+        setAddressState('CA');
+        setPostalCode('94105');
+        setMaritalStatus('single');
+        setClientObservations('Auto-filled for development testing.');
+        setExtraUnits(0);
+        setTermsAccepted(true);
+        setDataAuthorization(true);
+        setSignatureConfirmed(true);
+    };
+
+    // Auto-scroll on step change
     const [eb3ScheduleId, setEb3ScheduleId] = useState<string | null>(null);
     const [customAmount, setCustomAmount] = useState<number | null>(null);
     const [eb3LateFee, setEb3LateFee] = useState<number>(0);
@@ -226,6 +248,7 @@ export const useVisaCheckoutForm = () => {
         setPayerInfo,
         setIsBrazil,
         setLoadingLocation,
+        fillDevData,
     }), []);
 
     return { state, actions };

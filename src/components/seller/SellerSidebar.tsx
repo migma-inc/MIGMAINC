@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, TrendingUp, ShoppingCart, Link as LinkIcon, Users, LogOut, BarChart3, X, Coins, CheckCircle } from 'lucide-react';
+import { LayoutDashboard, TrendingUp, ShoppingCart, Link as LinkIcon, Users, LogOut, BarChart3, X, Coins, CheckCircle, FileCheck } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -26,6 +26,7 @@ export function SellerSidebar({ className, sellerName, isMobileOpen = false, onM
   const location = useLocation();
   const navigate = useNavigate();
   const [pendingCount, setPendingCount] = useState(0);
+  const [pendingContractsCount, setPendingContractsCount] = useState(0);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -41,7 +42,7 @@ export function SellerSidebar({ className, sellerName, isMobileOpen = false, onM
 
         const { data: sellerData } = await supabase
           .from('sellers')
-          .select('seller_id_public')
+          .select('id, seller_id_public')
           .eq('user_id', user.id)
           .single();
 
@@ -74,6 +75,30 @@ export function SellerSidebar({ className, sellerName, isMobileOpen = false, onM
           if (isMounted) {
             setPendingCount((ordersCount || 0) + migmaCount);
           }
+
+          // Fetch team pending contracts if HoS
+          if (role === 'head_of_sales') {
+            const { data: teamMembers } = await supabase
+              .from('sellers')
+              .select('seller_id_public')
+              .eq('head_of_sales_id', sellerData?.id || user.id); // Try both to be safe
+
+            const teamPublicIds = teamMembers?.map(m => m.seller_id_public) || [];
+
+            if (teamPublicIds.length > 0) {
+              const { count: contractsCount } = await supabase
+                .from('visa_orders')
+                .select('*', { count: 'exact', head: true })
+                .in('seller_id', teamPublicIds)
+                .eq('is_hidden', false)
+                .not('payment_status', 'eq', 'cancelled')
+                .or('and(contract_pdf_url.not.is.null,or(contract_approval_status.eq.pending,contract_approval_status.is.null)),and(annex_pdf_url.not.is.null,or(annex_approval_status.eq.pending,annex_approval_status.is.null)),and(upsell_contract_pdf_url.not.is.null,or(upsell_contract_approval_status.eq.pending,upsell_contract_approval_status.is.null)),and(upsell_annex_pdf_url.not.is.null,or(upsell_annex_approval_status.eq.pending,upsell_annex_approval_status.is.null))');
+
+              if (isMounted) {
+                setPendingContractsCount(contractsCount || 0);
+              }
+            }
+          }
         }
       } catch (err) {
         console.error('Error fetching pending count:', err);
@@ -103,14 +128,19 @@ export function SellerSidebar({ className, sellerName, isMobileOpen = false, onM
 
   const headOfSalesMenuItems: MenuItem[] = [
     { title: 'Overview', icon: LayoutDashboard, path: '/seller/dashboard', exact: true },
-    { title: 'My Team', icon: Users, path: '/seller/dashboard/team', exact: false },
     { title: 'Sales Links', icon: LinkIcon, path: '/seller/dashboard/links', exact: false },
+    { title: 'My Team', icon: Users, path: '/seller/dashboard/team', exact: false },
     { title: 'Team Orders', icon: ShoppingCart, path: '/seller/dashboard/team-orders', exact: false },
+    { title: 'Team Overrides', icon: Coins, path: '/seller/dashboard/team-commissions', exact: false },
+    { title: 'Team Analytics', icon: BarChart3, path: '/seller/dashboard/team-analytics', exact: false },
+    { title: 'Contract Approvals', icon: FileCheck, path: '/seller/dashboard/team-contract-approval', exact: false, badge: pendingContractsCount },
+    { title: 'Total Sales', icon: BarChart3, path: '/seller/dashboard/team-total-sales', exact: false },
   ];
 
-  // HoS features only available in dev environment
-  const isHeadOfSalesInDev = import.meta.env.DEV && role === 'head_of_sales';
-  const menuItems: MenuItem[] = isHeadOfSalesInDev ? headOfSalesMenuItems : sellerMenuItems;
+  // HoS features available for both managers and admins
+  const isManager = role === 'head_of_sales' || role === 'admin';
+  const isHeadOfSalesView = isManager;
+  const menuItems: MenuItem[] = isHeadOfSalesView ? headOfSalesMenuItems : sellerMenuItems;
 
 
   useEffect(() => {
@@ -125,7 +155,9 @@ export function SellerSidebar({ className, sellerName, isMobileOpen = false, onM
         <div className="flex items-center justify-between mb-8">
           <div className="flex items-center gap-2">
             <LayoutDashboard className="w-6 h-6 text-gold-medium" />
-            <h2 className="text-lg font-bold migma-gold-text">Seller Panel</h2>
+            <h2 className="text-lg font-bold migma-gold-text">
+              {role === 'head_of_sales' ? 'HoS Panel' : 'Seller Panel'}
+            </h2>
           </div>
           <button onClick={onMobileClose} className="lg:hidden text-gray-400 hover:text-gold-light p-1" aria-label="Close menu">
             <X className="w-5 h-5" />
@@ -142,7 +174,9 @@ export function SellerSidebar({ className, sellerName, isMobileOpen = false, onM
         <nav className="space-y-1">
           {menuItems.map((item) => {
             const Icon = item.icon;
-            const isActive = item.exact ? location.pathname === item.path : location.pathname.startsWith(item.path);
+            const isActive = item.exact 
+              ? location.pathname === item.path 
+              : location.pathname === item.path || location.pathname.startsWith(item.path + '/');
 
             return (
               <Link

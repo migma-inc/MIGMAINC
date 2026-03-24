@@ -1,6 +1,7 @@
 import React, { useRef, useState } from 'react';
 import { cn } from '@/lib/utils';
 import { CheckCircle2, X, Info, Mail, AlertTriangle, Lightbulb, Copy, Check } from 'lucide-react';
+import { copyToClipboard } from '@/lib/utils';
 import { useTranslation, Trans } from 'react-i18next';
 
 interface ZelleUploadProps {
@@ -16,7 +17,7 @@ export const ZelleUpload: React.FC<ZelleUploadProps> = ({ onFileSelect, currentF
     const [copied, setCopied] = useState(false);
 
     const handleCopyEmail = () => {
-        navigator.clipboard.writeText('adm@migmainc.com');
+        copyToClipboard('adm@migmainc.com');
         setCopied(true);
         setTimeout(() => setCopied(false), 2000);
     };

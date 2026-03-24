@@ -224,23 +224,23 @@ export function AdminSellerAnalytics({ sellerId: propSellerId, isModal }: AdminS
 
   return (
     <div className={isModal ? "" : "min-h-screen bg-gradient-to-b from-black via-[#1a1a1a] to-black p-4 sm:p-6 lg:p-8"}>
-      <div>
+      <div className={isModal ? "" : "max-w-7xl mx-auto space-y-6"}>
         {/* Header com informação do seller - Omit if modal */}
         {!isModal && (
           <div className="mb-4 sm:mb-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-            <div className="mb-2">
-              <h1 className="text-xl sm:text-2xl font-bold migma-gold-text flex items-center gap-2">
-                <BarChart3 className="w-5 h-5 sm:w-6 sm:h-6" />
-                Analytics - {seller.full_name || seller.email}
+            <div className="mb-2 min-w-0 flex-1">
+              <h1 className="text-xl sm:text-2xl font-bold migma-gold-text flex items-center gap-2 truncate">
+                <BarChart3 className="w-5 h-5 sm:w-6 sm:h-6 shrink-0" />
+                <span className="truncate">Analytics - {seller.full_name || seller.email}</span>
               </h1>
-              <p className="text-gray-400 text-xs sm:text-sm mt-1">
-                Seller ID: {seller.seller_id_public} | Sales and commission performance
+              <p className="text-gray-400 text-[10px] sm:text-xs mt-1 truncate">
+                ID: {seller.seller_id_public} | Performance de vendas e comissões
               </p>
             </div>
-            <Link to={`/dashboard/sellers/${seller.seller_id_public}/orders`}>
-              <Button variant="outline" className="border-gold-medium/50 text-gold-light hover:bg-gold-medium/10">
+            <Link to={`/dashboard/sellers/${seller.seller_id_public}/orders`} className="w-full sm:w-auto">
+              <Button variant="outline" className="w-full sm:w-auto bg-black border-gold-medium/50 text-gold-light hover:bg-gold-medium/10 h-9 text-xs">
                 <ShoppingCart className="w-4 h-4 mr-2" />
-                View Orders
+                Ver Pedidos
               </Button>
             </Link>
           </div>
@@ -264,53 +264,57 @@ export function AdminSellerAnalytics({ sellerId: propSellerId, isModal }: AdminS
           </div>
 
           {/* Filtros Compactos */}
-          <div className="flex flex-col sm:flex-row sm:flex-wrap items-stretch sm:items-center gap-2 sm:gap-3 p-3 bg-black/20 rounded-lg border border-gold-medium/10">
-            <PeriodFilter
-              value={periodFilter}
-              onChange={setPeriodFilter}
-              showLabel={true}
-              customDateRange={customDateRange}
-              onCustomDateRangeChange={setCustomDateRange}
-            />
-
-            <div className="flex items-center gap-2">
-              <Label htmlFor="granularity" className="text-gray-400 text-xs whitespace-nowrap">
-                Group by:
-              </Label>
-              <Select
-                value={granularity}
-                onValueChange={(value) => setGranularity(value as 'day' | 'week' | 'month')}
-              >
-                <SelectTrigger
-                  id="granularity"
-                  className="flex-1 sm:w-[100px] h-8 bg-black/50 border-gold-medium/30 text-white text-xs hover:bg-black/70"
-                >
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="day">Daily</SelectItem>
-                  <SelectItem value="week">Weekly</SelectItem>
-                  <SelectItem value="month">Monthly</SelectItem>
-                </SelectContent>
-              </Select>
+          <div className="flex flex-col lg:flex-row lg:items-center gap-3 p-3 bg-black/20 rounded-xl border border-gold-medium/10">
+            <div className="flex-1 min-w-0">
+              <PeriodFilter
+                value={periodFilter}
+                onChange={setPeriodFilter}
+                showLabel={true}
+                customDateRange={customDateRange}
+                onCustomDateRangeChange={setCustomDateRange}
+              />
             </div>
 
-            <div className="flex items-center gap-2">
-              <Checkbox
-                id="comparison"
-                checked={enableComparison}
-                onCheckedChange={(checked) => setEnableComparison(checked === true)}
-                className="h-4 w-4 shrink-0"
-              />
-              <Label htmlFor="comparison" className="text-gray-400 text-xs cursor-pointer">
-                Compare previous period
-              </Label>
+            <div className="flex flex-wrap items-center gap-4 pt-3 lg:pt-0 lg:border-l lg:border-gold-medium/20 lg:pl-4">
+              <div className="flex items-center gap-2">
+                <Label htmlFor="granularity" className="text-gray-400 text-[10px] uppercase font-bold tracking-tight whitespace-nowrap">
+                  Agrupar:
+                </Label>
+                <Select
+                  value={granularity}
+                  onValueChange={(value) => setGranularity(value as 'day' | 'week' | 'month')}
+                >
+                  <SelectTrigger
+                    id="granularity"
+                    className="w-[90px] h-8 bg-black/40 border-gold-medium/20 text-white text-xs hover:bg-black/60"
+                  >
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="bg-zinc-900 border-gold-medium/30 text-white">
+                    <SelectItem value="day">Diário</SelectItem>
+                    <SelectItem value="week">Semanal</SelectItem>
+                    <SelectItem value="month">Mensal</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="flex items-center gap-2 bg-black/40 px-3 h-8 rounded-lg border border-gold-medium/20">
+                <Checkbox
+                  id="comparison"
+                  checked={enableComparison}
+                  onCheckedChange={(checked) => setEnableComparison(checked === true)}
+                  className="h-3.5 w-3.5 border-gold-medium/50 data-[state=checked]:bg-gold-medium data-[state=checked]:text-black"
+                />
+                <Label htmlFor="comparison" className="text-gray-400 text-[10px] uppercase font-bold tracking-tight cursor-pointer whitespace-nowrap">
+                  Comparar
+                </Label>
+              </div>
             </div>
           </div>
         </div>
 
         {/* Resumo Executivo com Comparação */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 mb-6 sm:mb-8">
+        <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 mb-6 sm:mb-8">
           {loading ? (
             // Skeletons apenas nos cards
             <>
@@ -374,65 +378,65 @@ export function AdminSellerAnalytics({ sellerId: propSellerId, isModal }: AdminS
           ) : (
             <>
               <Card className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30">
-                <CardContent className="p-4 sm:p-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-xs sm:text-sm text-gray-400">Total Revenue</p>
-                      <p className="text-xl sm:text-2xl font-bold text-gold-light">
+                <CardContent className="p-3 sm:p-5 lg:p-6">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="text-[9px] sm:text-sm text-gray-400 uppercase font-black tracking-widest mb-1">Total Revenue</p>
+                      <p className="text-base sm:text-2xl font-black text-gold-light truncate">
                         {formatCurrency(analyticsData.summary.totalRevenue)}
                       </p>
                     </div>
-                    <DollarSign className="w-8 h-8 sm:w-10 sm:h-10 text-gold-light shrink-0" />
+                    <DollarSign className="w-4 h-4 sm:w-8 sm:h-8 text-gold-light shrink-0 opacity-40 group-hover:opacity-60 transition-opacity" />
                   </div>
                 </CardContent>
               </Card>
-              <Card className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30">
-                <CardContent className="p-4 sm:p-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-xs sm:text-sm text-gray-400">Contratos Vendidos</p>
-                      <p className="text-2xl sm:text-3xl font-bold text-white">{Math.round(analyticsData.summary.soldContracts).toLocaleString('en-US')}</p>
+              <Card className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30 overflow-hidden group">
+                <CardContent className="p-3 sm:p-5 lg:p-6">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="text-[9px] sm:text-sm text-gray-400 uppercase font-black tracking-widest mb-1">Contratos</p>
+                      <p className="text-base sm:text-3xl font-black text-white truncate">{Math.round(analyticsData.summary.soldContracts).toLocaleString('en-US')}</p>
                     </div>
-                    <ShoppingCart className="w-8 h-8 sm:w-10 sm:h-10 text-gold-light shrink-0" />
+                    <ShoppingCart className="w-4 h-4 sm:w-8 sm:h-8 text-gold-light shrink-0 opacity-40 group-hover:opacity-60 transition-opacity" />
                   </div>
                 </CardContent>
               </Card>
-              <Card className="bg-gradient-to-br from-green-500/10 via-green-500/5 to-green-500/10 border border-green-500/30">
-                <CardContent className="p-4 sm:p-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-xs sm:text-sm text-gray-400">Completed Orders</p>
-                      <p className="text-2xl sm:text-3xl font-bold text-green-300">{Math.round(analyticsData.summary.completedOrders).toLocaleString('en-US')}</p>
+              <Card className="bg-gradient-to-br from-green-500/10 via-green-500/5 to-green-500/10 border border-green-500/30 overflow-hidden group">
+                <CardContent className="p-3 sm:p-5 lg:p-6">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="text-[9px] sm:text-sm text-gray-400 uppercase font-black tracking-widest mb-1">Completed</p>
+                      <p className="text-base sm:text-3xl font-black text-green-300 truncate">{Math.round(analyticsData.summary.completedOrders).toLocaleString('en-US')}</p>
                     </div>
-                    <CheckCircle className="w-8 h-8 sm:w-10 sm:h-10 text-green-400 shrink-0" />
+                    <CheckCircle className="w-4 h-4 sm:w-8 sm:h-8 text-green-400 shrink-0 opacity-40 group-hover:opacity-60 transition-opacity" />
                   </div>
                 </CardContent>
               </Card>
               {analyticsData.commissionSummary && (
                 <>
-                  <Card className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30">
-                    <CardContent className="p-4 sm:p-6">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-xs sm:text-sm text-gray-400">Total Commissions</p>
-                          <p className="text-xl sm:text-2xl font-bold text-gold-light">
+                  <Card className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30 overflow-hidden group">
+                    <CardContent className="p-3 sm:p-5 lg:p-6">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="text-[9px] sm:text-sm text-gray-400 uppercase font-black tracking-widest mb-1">Commissions</p>
+                          <p className="text-base sm:text-2xl font-black text-gold-light truncate">
                             {formatCurrency(analyticsData.commissionSummary.totalCommissions)}
                           </p>
                         </div>
-                        <Coins className="w-8 h-8 sm:w-10 sm:h-10 text-gold-light shrink-0" />
+                        <Coins className="w-4 h-4 sm:w-8 sm:h-8 text-gold-light shrink-0 opacity-40 group-hover:opacity-60 transition-opacity" />
                       </div>
                     </CardContent>
                   </Card>
-                  <Card className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30">
-                    <CardContent className="p-4 sm:p-6">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-xs sm:text-sm text-gray-400">Available Balance</p>
-                          <p className="text-xl sm:text-2xl font-bold text-gold-light">
+                  <Card className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30 overflow-hidden group">
+                    <CardContent className="p-3 sm:p-5 lg:p-6">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="text-[9px] sm:text-sm text-gray-400 uppercase font-black tracking-widest mb-1">Balance</p>
+                          <p className="text-base sm:text-2xl font-black text-gold-light truncate">
                             {formatCurrency(balance.available_balance)}
                           </p>
                         </div>
-                        <Wallet className="w-8 h-8 sm:w-10 sm:h-10 text-gold-light shrink-0" />
+                        <Wallet className="w-4 h-4 sm:w-8 sm:h-8 text-gold-light shrink-0 opacity-40 group-hover:opacity-60 transition-opacity" />
                       </div>
                     </CardContent>
                   </Card>

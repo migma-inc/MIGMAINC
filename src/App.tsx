@@ -33,6 +33,9 @@ import { SellerDashboardLayout } from './pages/seller/SellerDashboardLayout';
 import { DashboardOverviewRouter } from './pages/seller/DashboardOverviewRouter';
 import { HeadOfSalesTeam } from './pages/seller/HeadOfSalesTeam';
 import { HeadOfSalesOrders } from './pages/seller/HeadOfSalesOrders';
+import { HeadOfSalesCommissions } from './pages/seller/HeadOfSalesCommissions';
+import { HeadOfSalesTotalSales } from './pages/seller/HeadOfSalesTotalSales';
+import { HeadOfSalesAnalytics } from './pages/seller/HeadOfSalesAnalytics';
 import { SellerAnalytics } from './pages/seller/SellerAnalytics';
 import { SellerCommissions } from './pages/seller/SellerCommissions';
 import { SellerFunnel } from './pages/seller/SellerFunnel';
@@ -41,6 +44,7 @@ import { SellerLinks } from './pages/seller/SellerLinks';
 import { SellerLeads } from './pages/seller/SellerLeads';
 import { SellerOrderDetail } from './pages/SellerOrderDetail';
 import { SellerZelleApprovalPage } from './pages/seller/SellerZelleApprovalPage';
+import { HosVisaContractApprovalPage } from './pages/seller/HosVisaContractApprovalPage';
 import { SellerRoute } from './components/seller/SellerRoute';
 import { VisaOrdersPage } from './pages/VisaOrdersPage';
 import { VisaOrderDetailPage } from './pages/VisaOrderDetailPage';
@@ -58,6 +62,7 @@ import { AdminSellerAnalytics } from './pages/admin/AdminSellerAnalytics';
 import { AdminSellerOrders } from './pages/admin/AdminSellerOrders';
 import { AdminRoute } from './components/admin/AdminRoute';
 import { SlackReportsPage } from './pages/admin/SlackReportsPage';
+import { AdminHoSAnalytics } from './pages/admin/AdminHoSAnalytics';
 import { VisaContractApprovalPage } from './pages/VisaContractApprovalPage';
 import { AdminProfile } from './pages/admin/AdminProfile';
 import { HeadOfSalesManagement } from './pages/admin/HeadOfSalesManagement';
@@ -106,12 +111,12 @@ function App() {
         <Route path="/seller/register" element={<SellerRegister />} />
         <Route path="/seller/dashboard" element={<SellerRoute><SellerDashboardLayout /></SellerRoute>}>
           <Route index element={<DashboardOverviewRouter />} />
-          {import.meta.env.DEV && (
-            <>
-              <Route path="team" element={<HeadOfSalesTeam />} />
-              <Route path="team-orders" element={<HeadOfSalesOrders />} />
-            </>
-          )}
+          <Route path="team" element={<HeadOfSalesTeam />} />
+          <Route path="team-orders" element={<HeadOfSalesOrders />} />
+          <Route path="team-commissions" element={<HeadOfSalesCommissions />} />
+          <Route path="team-total-sales" element={<HeadOfSalesTotalSales />} />
+          <Route path="team-analytics" element={<HeadOfSalesAnalytics />} />
+          <Route path="team-contract-approval" element={<HosVisaContractApprovalPage />} />
           <Route path="analytics" element={<SellerAnalytics />} />
           <Route path="commissions" element={<SellerCommissions />} />
           <Route path="funnel" element={<SellerFunnel />} />
@@ -143,9 +148,8 @@ function App() {
           <Route path="visa-contract-approval" element={<VisaContractApprovalPage />} />
           <Route path="zelle-approval" element={<ZelleApprovalPage />} />
           <Route path="sellers" element={<SellersPage />} />
-          {import.meta.env.DEV && (
-            <Route path="head-of-sales" element={<AdminRoute><HeadOfSalesManagement /></AdminRoute>} />
-          )}
+          <Route path="head-of-sales" element={<AdminRoute><HeadOfSalesManagement /></AdminRoute>} />
+          <Route path="head-of-sales/:hosId/analytics" element={<AdminRoute><AdminHoSAnalytics /></AdminRoute>} />
           <Route path="sellers/:sellerId/analytics" element={<AdminRoute><AdminSellerAnalytics /></AdminRoute>} />
           <Route path="sellers/:sellerId/orders" element={<AdminRoute><AdminSellerOrders /></AdminRoute>} />
           <Route path="contact-messages" element={<ContactMessagesPage />} />

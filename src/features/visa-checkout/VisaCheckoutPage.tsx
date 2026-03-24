@@ -25,7 +25,9 @@ import { LanguageSelector } from '@/components/LanguageSelector';
 import { calculateBaseTotal, calculateTotalWithFees } from '@/lib/visa-checkout-utils';
 import { trackLinkClick } from '@/lib/funnel-tracking';
 import type { VisaProduct } from '@/types/visa-product';
-import { AlertCircle, ArrowLeft } from 'lucide-react';
+import { AlertCircle, ArrowLeft, Bug } from 'lucide-react';
+import { saveStep1Data, saveStep2Data } from '@/lib/visa-checkout-service';
+import { DRAFT_STORAGE_KEY } from '@/lib/visa-checkout-constants';
 
 export const VisaCheckoutPage: React.FC = () => {
     const { t } = useTranslation();
@@ -278,6 +280,7 @@ export const VisaCheckoutPage: React.FC = () => {
                                     handlers={paymentHandlers}
                                     onPrev={handlePrev}
                                     productSlug={productSlug}
+                                    totalAmount={totalWithFees}
                                 />
                             </div>
                         )}
@@ -340,6 +343,88 @@ export const VisaCheckoutPage: React.FC = () => {
                     )}
                 </div>
             </div>
+
+            {/* Dev Tools Button */}
+            {import.meta.env.DEV && (
+                <div className="fixed bottom-4 right-4 z-50">
+                    <button
+                        onClick={async () => {
+                            actions.setSubmitting(true);
+                            try {
+                                // 1. Preencher dados no estado
+                                actions.fillDevData();
+
+                                // 2. Preparar dados para o Step 1
+                                const devFormData = {
+                                    clientName: 'John Doe Dev',
+                                    clientEmail: 'victuribdev@gmail.com',
+                                    clientWhatsApp: '+1 555 0123 4567',
+                                    clientCountry: 'US',
+                                    clientNationality: 'American',
+                                    dateOfBirth: '1990-01-01',
+                                    documentType: 'passport' as const,
+                                    documentNumber: 'A12345678',
+                                    addressLine: '123 Dev Street',
+                                    city: 'San Francisco',
+                                    state: 'CA',
+                                    postalCode: '94105',
+                                    maritalStatus: 'single' as const,
+                                    extraUnits: 0,
+                                    dependentNames: [],
+                                };
+
+                                // 3. Salvar Step 1
+                                const step1Result = await saveStep1Data(
+                                    devFormData,
+                                    0,
+                                    productSlug!,
+                                    urlSellerId,
+                                    state.clientId || undefined,
+                                    state.serviceRequestId || undefined,
+                                    actions.setClientId,
+                                    actions.setServiceRequestId,
+                                    state.formStartedTracked,
+                                    actions.setFormStartedTracked,
+                                    DRAFT_STORAGE_KEY
+                                );
+
+                                if (!step1Result.success) throw new Error(step1Result.error);
+
+                                // Se for consulta comum, já vai pro 3
+                                if (productSlug === 'consultation-common') {
+                                    actions.setCurrentStep(3);
+                                    return;
+                                }
+
+                                // 4. Salvar Step 2 (Simulado com contract existente para ir rápido)
+                                // Usamos a lógica de "hasExistingContract" para pular upload de arquivos se o usuário preferir,
+                                // mas para o dev tool, vamos apenas forçar o status para pending_payment
+                                const step2Result = await saveStep2Data(
+                                    step1Result.serviceRequestId!,
+                                    null,
+                                    {
+                                        contract_document_url: 'https://dev-tool-mock-doc.pdf',
+                                        contract_selfie_url: 'https://dev-tool-mock-selfie.png',
+                                    }
+                                );
+
+                                if (!step2Result.success) throw new Error(step2Result.error);
+
+                                // 5. Ir para o último passo
+                                actions.setCurrentStep(3);
+                            } catch (err: any) {
+                                actions.setError('Dev Tool Error: ' + err.message);
+                            } finally {
+                                actions.setSubmitting(false);
+                            }
+                        }}
+                        className="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-full shadow-lg flex items-center gap-2 border-2 border-white/20 transition-all hover:scale-105 active:scale-95"
+                    >
+                        <Bug className="w-5 h-5" />
+                        DEV: Auto-Fill
+                    </button>
+                </div>
+            )}
         </div>
     );
 };

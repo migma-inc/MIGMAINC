@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { formatCurrency } from '@/lib/utils';
+import { formatCurrency, generateUUID, copyToClipboard } from '@/lib/utils';
 import { Link, useNavigate, Navigate } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import { Button } from '@/components/ui/button';
@@ -207,7 +207,7 @@ export const SellerDashboard = () => {
     const siteUrl = window.location.origin;
     const link = `${siteUrl}/checkout/visa/${productSlug}?seller=${seller.seller_id_public}`;
 
-    navigator.clipboard.writeText(link);
+    copyToClipboard(link);
     setCopiedLink(link);
 
     setTimeout(() => setCopiedLink(null), 3000);
@@ -678,7 +678,7 @@ export const SellerDashboard = () => {
                     />
                     <Button
                       onClick={() => {
-                        navigator.clipboard.writeText(generatedPrefillLink);
+                        copyToClipboard(generatedPrefillLink);
                         setCopiedLink(generatedPrefillLink);
                         setTimeout(() => setCopiedLink(null), 3000);
                       }}
@@ -717,7 +717,7 @@ export const SellerDashboard = () => {
 
                   // Generate token and create prefill record
                   try {
-                    const token = crypto.randomUUID();
+                    const token = generateUUID();
                     const expiresAt = new Date();
                     expiresAt.setDate(expiresAt.getDate() + 30); // 30 days validity
 
@@ -797,9 +797,9 @@ export const SellerDashboard = () => {
                     serviceGroups.cos.products.push(product);
                   } else if (product.slug.startsWith('transfer-')) {
                     serviceGroups.transfer.products.push(product);
-                  } else if (product.slug.startsWith('eb2-') && product.name !== 'U.S. Visa EB-2 (Main applicant)') {
+                  } else if (product.slug.startsWith('eb2-')) {
                     serviceGroups.eb2.products.push(product);
-                  } else if (product.slug.startsWith('eb3-') && product.name !== 'U.S. Visa EB-3 (Main applicant)') {
+                  } else if (product.slug.startsWith('eb3-')) {
                     serviceGroups.eb3.products.push(product);
                   } else {
                     serviceGroups.other.products.push(product);
@@ -807,14 +807,26 @@ export const SellerDashboard = () => {
                 });
 
                 // Sort products within each group
-                const sortProducts = (products: VisaProduct[]) => {
-                  const order = ['selection-process', 'scholarship', 'i20-control'];
-                  return products.sort((a, b) => {
-                    const aIndex = order.findIndex(o => a.slug.includes(o));
-                    const bIndex = order.findIndex(o => b.slug.includes(o));
-                    return (aIndex === -1 ? 999 : aIndex) - (bIndex === -1 ? 999 : bIndex);
-                  });
-                };
+                 const sortProducts = (products: VisaProduct[]) => {
+                   const order = [
+                     // Priority for "Other"/General services
+                     'rfe-defense',
+                     'scholarship-maintenance-fee',
+                     'b1-premium',
+                     'b1-revolution',
+                     'e2-l1-visa',
+                     'o1-visa',
+                     // Standard process order
+                     'selection-process', 
+                     'scholarship', 
+                     'i20-control'
+                   ];
+                   return products.sort((a, b) => {
+                     const aIndex = order.findIndex(o => a.slug.includes(o));
+                     const bIndex = order.findIndex(o => b.slug.includes(o));
+                     return (aIndex === -1 ? 999 : aIndex) - (bIndex === -1 ? 999 : bIndex);
+                   });
+                 };
 
                 return Object.entries(serviceGroups).map(([key, group]) => {
                   if (group.products.length === 0) return null;
@@ -842,7 +854,11 @@ export const SellerDashboard = () => {
                             <div className="text-left">
                               <h3 className="text-lg font-bold text-gold-light">{group.name}</h3>
                               <p className="text-xs text-gray-400 mt-1">
-                                {sortedProducts.length} sequential payments
+                                {(key === 'initial' || key === 'cos' || key === 'transfer') 
+                                  ? "3 Step Payments or Full Process Payment" 
+                                  : key === 'eb3'
+                                  ? "5 Step Payments or Full Process Payment"
+                                  : `${sortedProducts.length} sequential payments`}
                               </p>
                             </div>
                           </div>
@@ -858,6 +874,7 @@ export const SellerDashboard = () => {
                               const paymentLabel = key === 'eb2' || key === 'eb3' || key === 'other'
                                 ? product.name
                                 : (paymentLabels[index] || `Payment ${paymentNumber}`);
+                              const isTotalProcess = product.slug.includes('total-process') || product.slug.includes('Full Process Payment') || product.slug === 'eb3-visa';
 
                               return (
                                 <div
@@ -866,9 +883,11 @@ export const SellerDashboard = () => {
                                 >
                                   <div className="flex-1">
                                     <div className="flex items-center gap-2">
-                                      <span className="text-xs font-semibold text-gold-light bg-gold-medium/20 px-2 py-1 rounded">
-                                        {paymentNumber}/{sortedProducts.length}
-                                      </span>
+                                      {!isTotalProcess && (
+                                        <span className="text-xs font-semibold text-gold-light bg-gold-medium/20 px-2 py-1 rounded">
+                                          {paymentNumber}/{sortedProducts.length}
+                                        </span>
+                                      )}
                                       <p className="text-white font-medium">{paymentLabel}</p>
                                     </div>
                                     <p className="text-xs text-gray-400 mt-1">

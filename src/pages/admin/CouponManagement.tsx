@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { ConfirmModal } from '@/components/ui/confirm-modal';
-import { Ticket, Plus, Trash2, Power, Search, Loader2, Edit, Eye } from 'lucide-react';
+import { Ticket, Plus, Trash2, Power, Search, Loader2, Edit, Eye, Users, Award } from 'lucide-react';
 import {
     getCoupons,
     createCoupon,
@@ -245,15 +245,24 @@ export function CouponManagement() {
         return date < today;
     };
 
+    const activeCouponsCount = coupons.filter(c => c.is_active && !isExpired(c.valid_until || '')).length;
+    const totalGlobalUses = coupons.reduce((sum, c) => sum + (c.current_uses || 0), 0);
+    const topCoupon = coupons.length > 0 ? [...coupons].sort((a, b) => (b.current_uses || 0) - (a.current_uses || 0))[0] : null;
+
     return (
-        <div className="p-4 sm:p-6 lg:p-8 space-y-6">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                <div>
-                    <h1 className="text-2xl sm:text-3xl font-bold migma-gold-text flex items-center gap-2">
-                        <Ticket className="w-6 h-6 sm:w-8 sm:h-8" />
-                        Vouchers & Coupons
-                    </h1>
-                    <p className="text-gray-400">Manage promotional codes and discounts</p>
+        <div className="p-2 sm:p-6 lg:p-8 space-y-4 md:space-y-6">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3">
+                <div className="flex items-center gap-2 md:gap-3">
+                    <div className="p-2 bg-gold-medium/10 rounded-xl border border-gold-medium/20 hidden md:block">
+                      <Ticket className="w-6 h-6 sm:w-8 sm:h-8 text-gold-medium" />
+                    </div>
+                    <div>
+                        <h1 className="text-xl sm:text-3xl font-black migma-gold-text uppercase tracking-widest flex items-center gap-2">
+                            <Ticket className="w-5 h-5 md:hidden" />
+                            Vouchers & Coupons
+                        </h1>
+                        <p className="text-[10px] md:text-sm text-gray-500 font-bold uppercase tracking-widest opacity-70">Gerencie códigos promocionais e descontos</p>
+                    </div>
                 </div>
 
                 <Dialog open={isCreateOpen} onOpenChange={(open) => {
@@ -261,124 +270,121 @@ export function CouponManagement() {
                     if (!open) resetForm();
                 }}>
                     <DialogTrigger asChild>
-                        <Button className="bg-gold-medium hover:bg-gold-light text-black font-bold">
+                        <Button className="w-full md:w-auto bg-gold-medium hover:bg-gold-light text-black font-black uppercase tracking-widest text-[11px] h-9 md:h-11 px-6 shadow-lg shadow-gold-medium/10">
                             <Plus className="w-4 h-4 mr-2" /> New Coupon
                         </Button>
                     </DialogTrigger>
-                    <DialogContent className="bg-zinc-900 border-gold-medium/30 text-white">
+                    <DialogContent className="bg-zinc-900 border-gold-medium/30 text-white p-4 md:p-6 w-[95vw] sm:max-w-md rounded-2xl">
                         <DialogHeader>
-                            <DialogTitle className="text-gold-light">
+                            <DialogTitle className="text-gold-light font-black uppercase tracking-widest">
                                 {editingCouponId ? 'Edit Coupon' : 'Create New Coupon'}
                             </DialogTitle>
-                            <DialogDescription className="text-gray-400">
+                            <DialogDescription className="text-gray-500 text-xs font-medium">
                                 {editingCouponId
-                                    ? 'Update the details of the discount coupon.'
-                                    : 'Fill in the details below to create a new discount coupon.'}
+                                    ? 'Atualize os detalhes do cupom de desconto.'
+                                    : 'Preencha os detalhes abaixo para criar um novo cupom.'}
                             </DialogDescription>
                         </DialogHeader>
                         <form onSubmit={handleCreateSubmit} className="space-y-4 pt-4">
-                            <div className="space-y-2">
-                                <Label>Coupon Code</Label>
+                            <div className="space-y-1.5">
+                                <Label className="text-[10px] font-black uppercase tracking-widest text-gray-400">Cupom Code</Label>
                                 <Input
                                     value={formData.code}
                                     onChange={e => setFormData({ ...formData, code: e.target.value.toUpperCase() })}
                                     placeholder="EX: SUMMER10"
-                                    className="bg-black/50 border-white/10 uppercase"
+                                    className="bg-black/50 border-white/10 uppercase font-mono font-bold text-sm h-10"
                                     required
                                 />
                             </div>
 
-                            <div className="space-y-2">
-                                <Label>Description (Optional)</Label>
+                            <div className="space-y-1.5">
+                                <Label className="text-[10px] font-black uppercase tracking-widest text-gray-400">Descrição (Opcional)</Label>
                                 <Input
                                     value={formData.description || ''}
                                     onChange={e => setFormData({ ...formData, description: e.target.value })}
-                                    placeholder="Summer Campaign 2026"
-                                    className="bg-black/50 border-white/10"
+                                    placeholder="Ex: Campanha de Verão"
+                                    className="bg-black/50 border-white/10 text-sm h-10"
                                 />
                             </div>
 
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="space-y-2">
-                                    <Label>Discount Type</Label>
+                            <div className="grid grid-cols-2 gap-3">
+                                <div className="space-y-1.5">
+                                    <Label className="text-[10px] font-black uppercase tracking-widest text-gray-400">Tipo</Label>
                                     <Select
                                         value={formData.discount_type}
                                         onValueChange={(val: 'fixed' | 'percentage') => setFormData({ ...formData, discount_type: val })}
                                     >
-                                        <SelectTrigger className="bg-black/50 border-white/10">
+                                        <SelectTrigger className="bg-black/50 border-white/10 h-10">
                                             <SelectValue />
                                         </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="percentage">Percentage (%)</SelectItem>
-                                            <SelectItem value="fixed">Fixed Value ($)</SelectItem>
+                                        <SelectContent className="bg-zinc-900 border-white/10">
+                                            <SelectItem value="percentage">Porcentagem (%)</SelectItem>
+                                            <SelectItem value="fixed">Valor Fixo ($)</SelectItem>
                                         </SelectContent>
                                     </Select>
                                 </div>
-                                <div className="space-y-2">
-                                    <Label>Value</Label>
+                                <div className="space-y-1.5">
+                                    <Label className="text-[10px] font-black uppercase tracking-widest text-gray-400">Valor</Label>
                                     <Input
                                         type="number"
                                         value={formData.discount_value || ''}
                                         onChange={e => setFormData({ ...formData, discount_value: e.target.value === '' ? 0 : parseFloat(e.target.value) })}
-                                        className="bg-black/50 border-white/10"
+                                        className="bg-black/50 border-white/10 h-10 font-bold"
                                         required
                                         min="0"
                                     />
                                 </div>
                             </div>
 
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="space-y-2">
-                                    <Label>Validity (Start)</Label>
+                            <div className="grid grid-cols-2 gap-3">
+                                <div className="space-y-1.5">
+                                    <Label className="text-[10px] font-black uppercase tracking-widest text-gray-400">Início</Label>
                                     <Input
                                         type="date"
                                         value={formData.valid_from}
                                         onChange={e => setFormData({ ...formData, valid_from: e.target.value })}
-                                        className="bg-black/50 border-white/10"
+                                        className="bg-black/50 border-white/10 h-10 text-[11px]"
                                         required
-                                        min={new Date().toISOString().split('T')[0]}
-                                        onInvalid={e => (e.target as HTMLInputElement).setCustomValidity('Please select a date from today onwards.')}
-                                        onInput={e => (e.target as HTMLInputElement).setCustomValidity('')}
                                     />
                                 </div>
-                                <div className="space-y-2">
-                                    <Label>Validity (End)</Label>
+                                <div className="space-y-1.5">
+                                    <Label className="text-[10px] font-black uppercase tracking-widest text-gray-400">Expiração</Label>
                                     <Input
                                         type="date"
                                         value={formData.valid_until || ''}
                                         onChange={e => setFormData({ ...formData, valid_until: e.target.value })}
-                                        className="bg-black/50 border-white/10"
-                                        min={formData.valid_from ? new Date(new Date(formData.valid_from).setDate(new Date(formData.valid_from).getDate() + 1)).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]}
-                                        onInvalid={e => (e.target as HTMLInputElement).setCustomValidity('The expiration date must be strictly after the start date.')}
-                                        onInput={e => (e.target as HTMLInputElement).setCustomValidity('')}
+                                        className="bg-black/50 border-white/10 h-10 text-[11px]"
                                     />
                                 </div>
                             </div>
 
-                            <div className="space-y-2">
-                                <Label>Usage Limit <span className="text-red-500">*</span></Label>
+                            <div className="space-y-1.5">
+                                <Label className="text-[10px] font-black uppercase tracking-widest text-gray-400">Limite de Usos</Label>
                                 <Input
                                     type="number"
                                     placeholder="Ex: 100"
                                     value={formData.max_uses || ''}
                                     onChange={e => setFormData({ ...formData, max_uses: e.target.value ? parseInt(e.target.value) : undefined })}
-                                    className="bg-black/50 border-white/10"
+                                    className="bg-black/50 border-white/10 h-10 font-bold"
                                     required
                                     min="1"
                                 />
                             </div>
 
-                            <DialogFooter>
+                            <DialogFooter className="gap-2 pt-2">
                                 <Button
                                     type="button"
                                     variant="ghost"
-                                    onClick={() => setIsCreateOpen(false)}
-                                    className="text-gray-400 hover:bg-white/10 hover:text-white border border-white/5"
+                                    onClick={() => {
+                                      setIsCreateOpen(false);
+                                      resetForm();
+                                    }}
+                                    className="text-gray-500 hover:text-white border border-white/5 uppercase text-[10px] font-black tracking-widest"
                                 >
-                                    Cancel
+                                    Cancelar
                                 </Button>
-                                <Button type="submit" className="bg-gold-medium text-black hover:bg-gold-light" disabled={isSubmitting}>
-                                    {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : (editingCouponId ? 'Save Changes' : 'Create Coupon')}
+                                <Button type="submit" className="bg-gold-medium text-black hover:bg-gold-light uppercase text-[10px] font-black tracking-widest" disabled={isSubmitting}>
+                                    {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : (editingCouponId ? 'Salvar' : 'Criar Cupom')}
                                 </Button>
                             </DialogFooter>
                         </form>
@@ -386,77 +392,116 @@ export function CouponManagement() {
                 </Dialog>
             </div>
 
-            <Card className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30">
-                <CardHeader>
-                    <div className="flex justify-between items-center">
-                        <CardTitle className="text-white">Active Coupons</CardTitle>
-                        <div className="relative w-64">
-                            <Search className="absolute left-2 top-2.5 h-4 w-4 text-gray-400" />
+            {/* Quick Metrics Dashboard */}
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-2 md:gap-4">
+                <div className="bg-black/40 border border-gold-medium/10 rounded-xl p-3 md:p-5 flex items-center justify-between group hover:border-gold-medium/30 transition-all">
+                    <div>
+                        <p className="text-[9px] md:text-xs font-black text-gray-500 uppercase tracking-widest mb-1 opacity-70">Active Coupons</p>
+                        <h3 className="text-xl md:text-3xl font-black text-white leading-none">{activeCouponsCount}</h3>
+                    </div>
+                    <div className="p-2 md:p-3 bg-green-500/10 rounded-lg group-hover:bg-green-500/20 transition-all">
+                      <Power className="w-4 h-4 md:w-6 md:h-6 text-green-400" />
+                    </div>
+                </div>
+
+                <div className="bg-black/40 border border-gold-medium/10 rounded-xl p-3 md:p-5 flex items-center justify-between group hover:border-gold-medium/30 transition-all">
+                    <div>
+                        <p className="text-[9px] md:text-xs font-black text-gray-500 uppercase tracking-widest mb-1 opacity-70">Total Usages</p>
+                        <h3 className="text-xl md:text-3xl font-black text-white leading-none">{totalGlobalUses}</h3>
+                    </div>
+                    <div className="p-2 md:p-3 bg-blue-500/10 rounded-lg group-hover:bg-blue-500/20 transition-all">
+                      <Users className="w-4 h-4 md:w-6 md:h-6 text-blue-400" />
+                    </div>
+                </div>
+
+                <div className="hidden md:flex bg-black/40 border border-gold-medium/10 rounded-xl p-5 items-center justify-between group hover:border-gold-medium/30 transition-all overflow-hidden relative">
+                    <div className="relative z-10">
+                        <p className="text-xs font-black text-gray-500 uppercase tracking-widest mb-1 opacity-70">Global Performance</p>
+                        <h3 className="text-2xl font-black text-gold-light leading-none truncate max-w-[150px]">
+                          {topCoupon ? topCoupon.code : 'N/A'}
+                        </h3>
+                        <p className="text-[10px] text-gray-500 font-bold uppercase mt-1">RANK #1 CODE</p>
+                    </div>
+                    <div className="p-3 bg-gold-medium/10 rounded-lg group-hover:bg-gold-medium/20 transition-all">
+                      <Award className="w-6 h-6 text-gold-medium" />
+                    </div>
+                </div>
+            </div>
+
+            <Card className="bg-zinc-900/40 border-gold-medium/20 overflow-hidden">
+                <CardHeader className="p-3 md:p-6 pb-2 md:pb-4">
+                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3">
+                        <CardTitle className="text-white text-base md:text-xl font-black uppercase tracking-widest px-1">Active Coupons</CardTitle>
+                        <div className="relative w-full md:w-64">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" />
                             <Input
                                 placeholder="Search coupon..."
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
-                                className="pl-8 bg-black/50 border-gold-medium/30 text-white"
+                                className="pl-10 bg-black/50 border-gold-medium/30 text-white h-10 md:h-11 font-medium"
                             />
                         </div>
                     </div>
                 </CardHeader>
-                <CardContent>
-                    <div className="overflow-x-auto">
+                <CardContent className="p-2 md:p-6 pt-0">
+                    {/* Desktop Table View */}
+                    <div className="hidden md:block overflow-x-auto">
                         <table className="w-full text-sm text-left text-gray-400">
                             <thead className="text-xs uppercase bg-black/40 text-gold-light">
                                 <tr>
-                                    <th className="px-6 py-3">Code</th>
-                                    <th className="px-6 py-3">Discount</th>
-                                    <th className="px-6 py-3">Uses</th>
-                                    <th className="px-6 py-3">Validity</th>
-                                    <th className="px-6 py-3">Status</th>
-                                    <th className="px-6 py-3 text-right">Actions</th>
+                                    <th className="px-6 py-3 font-black tracking-widest">Code</th>
+                                    <th className="px-6 py-3 font-black tracking-widest">Discount</th>
+                                    <th className="px-6 py-3 font-black tracking-widest">Uses</th>
+                                    <th className="px-6 py-3 font-black tracking-widest">Validity</th>
+                                    <th className="px-6 py-3 font-black tracking-widest">Status</th>
+                                    <th className="px-6 py-3 text-right font-black tracking-widest">Actions</th>
                                 </tr>
                             </thead>
-                            <tbody>
+                            <tbody className="divide-y divide-white/5">
                                 {loading ? (
-                                    <tr><td colSpan={6} className="text-center py-8"><Loader2 className="w-8 h-8 animate-spin mx-auto text-gold-medium" /></td></tr>
+                                    <tr><td colSpan={6} className="text-center py-12"><Loader2 className="w-8 h-8 animate-spin mx-auto text-gold-medium" /></td></tr>
                                 ) : filteredCoupons.length === 0 ? (
-                                    <tr><td colSpan={6} className="text-center py-8 text-gray-500">No coupons found</td></tr>
+                                    <tr><td colSpan={6} className="text-center py-12 text-gray-500 italic">No coupons found</td></tr>
                                 ) : (
                                     filteredCoupons.map((coupon) => (
-                                        <tr key={coupon.id} className="border-b border-gray-800 hover:bg-white/5 transition-colors">
-                                            <td className="px-6 py-4 font-mono font-bold text-white tracking-wider">{coupon.code}</td>
+                                        <tr key={coupon.id} className="hover:bg-white/5 transition-colors group">
+                                            <td className="px-6 py-4 font-mono font-black text-gold-light/90 tracking-widest text-base">{coupon.code}</td>
                                             <td className="px-6 py-4">
                                                 {coupon.discount_type === 'percentage' ? (
-                                                    <Badge className="bg-blue-500/20 text-blue-300 border-blue-500/50">{coupon.discount_value}% OFF</Badge>
+                                                    <Badge className="bg-blue-500/20 text-blue-300 border-blue-500/50 font-black px-2 py-0.5">{coupon.discount_value}% OFF</Badge>
                                                 ) : (
-                                                    <Badge className="bg-green-500/20 text-green-300 border-green-500/50">${coupon.discount_value} OFF</Badge>
+                                                    <Badge className="bg-green-500/20 text-green-300 border-green-500/50 font-black px-2 py-0.5">${coupon.discount_value} OFF</Badge>
                                                 )}
-                                                {coupon.description && <div className="text-xs text-gray-500 mt-1">{coupon.description}</div>}
+                                                {coupon.description && <div className="text-[10px] text-gray-500 mt-1 uppercase font-bold opacity-60">{coupon.description}</div>}
                                             </td>
                                             <td className="px-6 py-4">
-                                                <span className="text-white font-bold">{coupon.current_uses}</span>
-                                                {coupon.max_uses && <span className="text-gray-600"> / {coupon.max_uses}</span>}
-                                            </td>
-                                            <td className="px-6 py-4">
-                                                <div className="text-xs">
-                                                    <div>Start: {formatDate(coupon.valid_from)}</div>
-                                                    {coupon.valid_until ? (
-                                                        <div className={isExpired(coupon.valid_until) ? "text-red-400" : ""}>
-                                                            End: {formatDate(coupon.valid_until)}
-                                                        </div>
-                                                    ) : <span className="text-green-500/70">Always valid</span>}
+                                                <div className="flex items-center gap-1.5">
+                                                  <span className="text-white font-black text-lg">{coupon.current_uses}</span>
+                                                  {coupon.max_uses && <span className="text-gray-600 font-bold">/ {coupon.max_uses}</span>}
                                                 </div>
                                             </td>
                                             <td className="px-6 py-4">
-                                                <Badge variant={coupon.is_active ? "default" : "destructive"} className={coupon.is_active ? "bg-green-600" : "bg-red-900"}>
+                                                <div className="text-[11px] font-bold uppercase tracking-tighter space-y-0.5">
+                                                    <div className="text-gray-500">From: <span className="text-gray-300">{formatDate(coupon.valid_from)}</span></div>
+                                                    {coupon.valid_until ? (
+                                                        <div className={isExpired(coupon.valid_until) ? "text-red-500" : "text-gray-500"}>
+                                                            Until: <span className={isExpired(coupon.valid_until) ? "text-red-400" : "text-gray-300"}>{formatDate(coupon.valid_until)}</span>
+                                                        </div>
+                                                    ) : <div className="text-green-500/50">Always valid</div>}
+                                                </div>
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                <Badge variant={coupon.is_active ? "default" : "destructive"} className={`${coupon.is_active ? "bg-green-600" : "bg-red-900"} font-black uppercase tracking-widest text-[10px] px-2 py-0.5`}>
                                                     {coupon.is_active ? 'Active' : 'Inactive'}
                                                 </Badge>
                                             </td>
-                                            <td className="px-6 py-4 text-right space-x-2">
+                                            <td className="px-6 py-4 text-right">
+                                              <div className="flex items-center justify-end gap-1 opacity-40 group-hover:opacity-100 transition-opacity">
                                                 <Button
                                                     size="sm"
                                                     variant="ghost"
                                                     onClick={() => handleViewUsage(coupon)}
-                                                    title="View Usage History"
-                                                    className="hover:bg-white/10 text-blue-400 hover:text-blue-300"
+                                                    className="h-8 w-8 p-0 text-blue-400 hover:bg-blue-500/10 border border-blue-500/10"
                                                 >
                                                     <Eye className="w-4 h-4" />
                                                 </Button>
@@ -464,8 +509,7 @@ export function CouponManagement() {
                                                     size="sm"
                                                     variant="ghost"
                                                     onClick={() => handleEdit(coupon)}
-                                                    title="Edit"
-                                                    className="hover:bg-white/10 text-gold-light"
+                                                    className="h-8 w-8 p-0 text-gold-light hover:bg-gold-medium/10 border border-gold-medium/10"
                                                 >
                                                     <Edit className="w-4 h-4" />
                                                 </Button>
@@ -473,8 +517,7 @@ export function CouponManagement() {
                                                     size="sm"
                                                     variant="ghost"
                                                     onClick={() => handleToggleStatus(coupon.id, coupon.is_active)}
-                                                    title={coupon.is_active ? "Deactivate" : "Activate"}
-                                                    className="hover:bg-white/10"
+                                                    className="h-8 w-8 p-0 hover:bg-white/10 border border-white/5"
                                                 >
                                                     <Power className={`w-4 h-4 ${coupon.is_active ? "text-green-400" : "text-gray-500"}`} />
                                                 </Button>
@@ -482,10 +525,11 @@ export function CouponManagement() {
                                                     size="sm"
                                                     variant="ghost"
                                                     onClick={() => handleDeleteClick(coupon.id)}
-                                                    className="hover:bg-red-500/20 text-red-400 hover:text-red-300"
+                                                    className="h-8 w-8 p-0 text-red-500 hover:bg-red-500/10 border border-red-500/10"
                                                 >
                                                     <Trash2 className="w-4 h-4" />
                                                 </Button>
+                                              </div>
                                             </td>
                                         </tr>
                                     ))
@@ -493,108 +537,242 @@ export function CouponManagement() {
                             </tbody>
                         </table>
                     </div>
+
+                    {/* Mobile Card Layout */}
+                    <div className="md:hidden space-y-3">
+                        {loading ? (
+                            <div className="flex justify-center py-12"><Loader2 className="w-10 h-10 animate-spin text-gold-medium" /></div>
+                        ) : filteredCoupons.length === 0 ? (
+                            <div className="text-center py-12 text-gray-500 italic">No coupons found</div>
+                        ) : (
+                            filteredCoupons.map((coupon) => (
+                                <div key={coupon.id} className="bg-black/20 border border-gold-medium/10 rounded-2xl p-3.5 space-y-4">
+                                    <div className="flex justify-between items-start gap-2">
+                                        <div className="min-w-0">
+                                            <h4 className="text-lg font-black text-gold-light font-mono tracking-widest leading-none mb-1 uppercase">{coupon.code}</h4>
+                                            {coupon.description && <p className="text-[10px] text-gray-500 font-bold uppercase truncate opacity-70 leading-none">{coupon.description}</p>}
+                                        </div>
+                                        <Badge variant={coupon.is_active ? "default" : "destructive"} className={`${coupon.is_active ? "bg-green-600/20 text-green-400 border-green-500/50" : "bg-red-900/20 text-red-400 border-red-500/50"} font-black uppercase tracking-widest text-[8px] h-4.5 px-1.5 flex items-center`}>
+                                            {coupon.is_active ? 'Active' : 'Inactive'}
+                                        </Badge>
+                                    </div>
+
+                                    <div className="grid grid-cols-2 gap-3 py-3 border-y border-white/5">
+                                        <div className="space-y-1">
+                                            <p className="text-[8px] text-gray-500 font-black uppercase tracking-widest opacity-60">Discount</p>
+                                            <div className="flex">
+                                              {coupon.discount_type === 'percentage' ? (
+                                                  <Badge className="bg-blue-500/20 text-blue-300 border-blue-500/50 font-black text-[10px] uppercase">{coupon.discount_value}% OFF</Badge>
+                                              ) : (
+                                                  <Badge className="bg-green-500/20 text-green-300 border-green-500/50 font-black text-[10px] uppercase">${coupon.discount_value} OFF</Badge>
+                                              )}
+                                            </div>
+                                        </div>
+                                        <div className="space-y-1 text-right">
+                                            <p className="text-[8px] text-gray-500 font-black uppercase tracking-widest opacity-60">Uses</p>
+                                            <p className="text-white font-black text-sm leading-none">
+                                              {coupon.current_uses} <span className="text-gray-600 font-bold text-[10px]">/ {coupon.max_uses || '∞'}</span>
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    <div className="flex items-center justify-between gap-4">
+                                        <div className="space-y-0.5">
+                                            <p className="text-[8px] text-gray-500 font-black uppercase tracking-widest opacity-60">Validity</p>
+                                            <p className={`text-[9px] font-bold uppercase ${isExpired(coupon.valid_until || '') ? 'text-red-400' : 'text-gray-300'}`}>
+                                              {formatDate(coupon.valid_from)} - {coupon.valid_until ? formatDate(coupon.valid_until) : 'FOREVER'}
+                                            </p>
+                                        </div>
+                                        <div className="flex items-center gap-1.5">
+                                          <Button
+                                              size="sm"
+                                              variant="ghost"
+                                              onClick={() => handleViewUsage(coupon)}
+                                              className="h-8 w-8 p-0 text-blue-400 bg-blue-500/5 border border-blue-500/10"
+                                          >
+                                              <Eye className="w-3.5 h-3.5" />
+                                          </Button>
+                                          <Button
+                                              size="sm"
+                                              variant="ghost"
+                                              onClick={() => handleEdit(coupon)}
+                                              className="h-8 w-8 p-0 text-gold-light bg-gold-medium/5 border border-gold-medium/10"
+                                          >
+                                              <Edit className="w-3.5 h-3.5" />
+                                          </Button>
+                                          <Button
+                                              size="sm"
+                                              variant="ghost"
+                                              onClick={() => handleToggleStatus(coupon.id, coupon.is_active)}
+                                              className="h-8 w-8 p-0 bg-white/5 border border-white/5"
+                                          >
+                                              <Power className={`w-3.5 h-3.5 ${coupon.is_active ? "text-green-400" : "text-gray-500"}`} />
+                                          </Button>
+                                          <Button
+                                              size="sm"
+                                              variant="ghost"
+                                              onClick={() => handleDeleteClick(coupon.id)}
+                                              className="h-8 w-8 p-0 text-red-500 bg-red-500/5 border border-red-500/10"
+                                          >
+                                              <Trash2 className="w-3.5 h-3.5" />
+                                          </Button>
+                                        </div>
+                                    </div>
+                                </div>
+                            ))
+                        )}
+                    </div>
                 </CardContent>
             </Card>
 
             {/* Usage History Modal */}
+            {/* Usage History Modal */}
             <Dialog open={usageModalOpen} onOpenChange={setUsageModalOpen}>
-                <DialogContent className="bg-zinc-900 border-gold-medium/30 text-white max-w-6xl max-h-[85vh] overflow-y-auto">
-                    <DialogHeader>
-                        <DialogTitle className="text-gold-light flex items-center gap-2">
-                            <Ticket className="w-5 h-5" />
-                            Coupon Usage History: {selectedCouponCode}
-                        </DialogTitle>
-                        <DialogDescription className="text-gray-400">
-                            List of all orders where this coupon was applied.
-                        </DialogDescription>
+                <DialogContent className="bg-zinc-900 border-gold-medium/30 text-white w-[98vw] md:max-w-6xl h-[92vh] md:h-auto md:max-h-[85vh] flex flex-col p-0 overflow-hidden rounded-2xl md:rounded-3xl shadow-2xl">
+                    <DialogHeader className="p-4 md:p-8 bg-black/40 border-b border-white/5 relative shrink-0">
+                        <div className="flex items-center gap-3">
+                            <div className="p-2 md:p-3 bg-blue-500/10 rounded-xl border border-blue-500/20">
+                                <Ticket className="w-5 h-5 md:w-6 md:h-6 text-blue-400" />
+                            </div>
+                            <div>
+                                <DialogTitle className="text-xl md:text-2xl font-black uppercase tracking-widest text-white leading-tight">
+                                    Usage History - <span className="text-gold-light font-mono italic">{selectedCouponCode}</span>
+                                </DialogTitle>
+                                <DialogDescription className="text-[10px] md:text-sm text-gray-500 font-bold uppercase tracking-widest opacity-80">
+                                    List of all orders that applied this discount code
+                                </DialogDescription>
+                            </div>
+                        </div>
                     </DialogHeader>
 
-                    <div className="mt-4">
+                    <div className="flex-1 overflow-y-auto p-2 md:p-6 custom-scrollbar min-h-0">
                         {usageLoading ? (
-                            <div className="flex justify-center p-8">
-                                <Loader2 className="w-8 h-8 animate-spin text-gold-medium" />
+                            <div className="flex justify-center py-20">
+                                <Loader2 className="w-10 h-10 animate-spin text-gold-medium" />
                             </div>
                         ) : currentUsage.length === 0 ? (
-                            <div className="text-center p-8 text-gray-500 bg-black/20 rounded-lg">
-                                No usage history found for this coupon.
+                            <div className="text-center py-20 text-gray-500 italic font-medium bg-black/10 rounded-2xl mx-2">
+                                This coupon hasn't been used yet.
                             </div>
                         ) : (
-                            <div className="overflow-x-auto rounded-lg border border-white/10">
-                                <table className="w-full text-sm text-left">
-                                    <thead className="text-xs uppercase bg-black/40 text-gray-300">
-                                        <tr>
-                                            <th className="px-4 py-3">Date</th>
-                                            <th className="px-4 py-3">Order #</th>
-                                            <th className="px-4 py-3">Client</th>
-                                            <th className="px-4 py-3">Service</th>
-                                            <th className="px-4 py-3 text-right">Discount</th>
-                                            <th className="px-4 py-3 text-right">Total Paid</th>
-                                            <th className="px-4 py-3">Payment Status</th>
-                                            <th className="px-4 py-3 text-right">Actions</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-white/5">
-                                        {currentUsage.map((use) => (
-                                            <tr key={use.id} className="hover:bg-white/5">
-                                                <td className="px-4 py-3 text-gray-400">{formatDateTime(use.created_at)}</td>
-                                                <td className="px-4 py-3 font-mono text-gold-light/80">{use.order_number}</td>
-                                                <td className="px-4 py-3">
-                                                    <div className="text-white">{use.client_name}</div>
-                                                    <div className="text-xs text-gray-500">{use.client_email}</div>
-                                                </td>
-                                                <td className="px-4 py-3 text-gray-300">{use.product_slug}</td>
-                                                <td className="px-4 py-3 text-right text-green-400 font-medium">
-                                                    -US$ {use.discount_amount?.toFixed(2)}
-                                                </td>
-                                                <td className="px-4 py-3 text-right text-white font-bold">
-                                                    US$ {
-                                                        use.payment_method === 'parcelow' && (use.total_price_usd === 0 || use.total_price_usd === 0.01)
-                                                            ? '0.01'
-                                                            : use.total_price_usd?.toFixed(2)
-                                                    }
-                                                </td>
-                                                <td className="px-4 py-3">
-                                                    <Badge
-                                                        variant={use.payment_status === 'completed' ? 'default' : 'secondary'}
-                                                        className={
-                                                            use.payment_status === 'completed'
-                                                                ? 'bg-green-600/20 text-green-400 border-green-600/50'
-                                                                : 'bg-yellow-500/20 text-yellow-400 border-yellow-500/50'
-                                                        }
-                                                    >
-                                                        {use.payment_status === 'completed' ? 'Paid' : use.payment_status}
-                                                    </Badge>
-                                                </td>
-                                                <td className="px-4 py-3 text-right">
-                                                    <Button
-                                                        size="sm"
-                                                        variant="ghost"
-                                                        onClick={() => handleRemoveUsage(use)}
-                                                        disabled={isDeletingUsage}
-                                                        className="hover:bg-red-500/20 text-red-400 hover:text-red-300"
-                                                        title="Remove coupon from this order"
-                                                    >
-                                                        {isDeletingUsage && usageToDelete?.id === use.id ? (
-                                                            <Loader2 className="w-4 h-4 animate-spin" />
-                                                        ) : (
-                                                            <Trash2 className="w-4 h-4" />
-                                                        )}
-                                                    </Button>
-                                                </td>
+                            <>
+                                {/* Desktop Table */}
+                                <div className="hidden md:block overflow-x-auto rounded-xl border border-white/5">
+                                    <table className="w-full text-sm text-left text-gray-400">
+                                        <thead className="text-xs uppercase bg-black/40 text-gold-light">
+                                            <tr>
+                                                <th className="px-6 py-4 font-black tracking-widest">Order / Date</th>
+                                                <th className="px-6 py-4 font-black tracking-widest">Client</th>
+                                                <th className="px-6 py-4 font-black tracking-widest">Service</th>
+                                                <th className="px-6 py-4 font-black tracking-widest">Discount</th>
+                                                <th className="px-6 py-4 font-black tracking-widest">Total</th>
+                                                <th className="px-6 py-4 font-black tracking-widest">Status</th>
+                                                <th className="px-6 py-4 text-right font-black tracking-widest">Action</th>
                                             </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
+                                        </thead>
+                                        <tbody className="divide-y divide-white/5">
+                                            {currentUsage.map((use) => (
+                                                <tr key={use.id} className="hover:bg-white/5 transition-colors group">
+                                                    <td className="px-6 py-4">
+                                                        <div className="font-mono font-black text-white text-sm">{use.order_number}</div>
+                                                        <div className="text-[10px] text-gray-500 font-bold uppercase">{formatDateTime(use.created_at)}</div>
+                                                    </td>
+                                                    <td className="px-6 py-4">
+                                                        <div className="text-white font-bold text-sm truncate max-w-[150px]">{use.client_name}</div>
+                                                        <div className="text-[10px] text-gray-500 font-medium truncate max-w-[150px]">{use.client_email}</div>
+                                                    </td>
+                                                    <td className="px-6 py-4">
+                                                      <div className="text-gray-300 font-bold text-xs uppercase">{use.product_slug}</div>
+                                                    </td>
+                                                    <td className="px-6 py-4 text-green-400 font-black">
+                                                        -US$ {use.discount_amount?.toFixed(2)}
+                                                    </td>
+                                                    <td className="px-6 py-4 font-black text-white">
+                                                        US$ {use.total_price_usd?.toFixed(2)}
+                                                    </td>
+                                                    <td className="px-6 py-4">
+                                                        <Badge className={`${use.payment_status === 'completed' ? 'bg-green-600' : 'bg-yellow-600'} font-black text-[9px] uppercase tracking-widest px-2 py-0.5`}>
+                                                            {use.payment_status === 'completed' ? 'PAID' : use.payment_status}
+                                                        </Badge>
+                                                    </td>
+                                                    <td className="px-6 py-4 text-right">
+                                                        <Button
+                                                            size="sm"
+                                                            variant="ghost"
+                                                            onClick={() => handleRemoveUsage(use)}
+                                                            disabled={isDeletingUsage}
+                                                            className="h-8 w-8 p-0 text-red-500 hover:bg-red-500/10 border border-red-500/10 opacity-30 group-hover:opacity-100 transition-opacity"
+                                                        >
+                                                            {isDeletingUsage && usageToDelete?.id === use.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                                                        </Button>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+
+                                {/* Mobile Cards */}
+                                <div className="md:hidden space-y-2 pb-4">
+                                    {currentUsage.map((use) => (
+                                        <div key={use.id} className="bg-black/40 border border-white/5 rounded-xl p-3 space-y-3">
+                                            <div className="flex justify-between items-start">
+                                                <div>
+                                                    <div className="text-white font-mono font-black text-xs uppercase tracking-widest leading-none">{use.order_number}</div>
+                                                    <div className="text-[9px] text-gray-500 font-bold uppercase mt-1">{formatDateTime(use.created_at)}</div>
+                                                </div>
+                                                <Badge className={`${use.payment_status === 'completed' ? 'bg-green-600/20 text-green-400 border border-green-500/30' : 'bg-yellow-600/20 text-yellow-400 border border-yellow-500/30'} font-black text-[8px] uppercase tracking-widest px-1.5 py-0`}>
+                                                    {use.payment_status === 'completed' ? 'PAID' : use.payment_status}
+                                                </Badge>
+                                            </div>
+
+                                            <div className="grid grid-cols-2 gap-2 py-2 border-y border-white/5">
+                                                <div>
+                                                    <p className="text-[8px] text-gray-500 font-black uppercase tracking-widest opacity-60">Client</p>
+                                                    <p className="text-[10px] text-white font-bold truncate leading-none mt-1">{use.client_name}</p>
+                                                    <p className="text-[8px] text-gray-600 truncate leading-none">{use.client_email}</p>
+                                                </div>
+                                                <div className="text-right">
+                                                    <p className="text-[8px] text-gray-500 font-black uppercase tracking-widest opacity-60">Discount</p>
+                                                    <p className="text-green-400 font-black text-xs leading-none mt-1">-US$ {use.discount_amount?.toFixed(2)}</p>
+                                                </div>
+                                            </div>
+
+                                            <div className="flex justify-between items-center">
+                                                <div>
+                                                    <p className="text-[8px] text-gray-500 font-black uppercase tracking-widest opacity-60 leading-none">Service</p>
+                                                    <p className="text-[10px] text-gray-300 font-bold uppercase leading-none mt-1 truncate max-w-[150px]">{use.product_slug}</p>
+                                                </div>
+                                                <div className="flex items-center gap-3">
+                                                  <div className="text-right">
+                                                      <p className="text-[8px] text-gray-500 font-black uppercase tracking-widest opacity-60 leading-none">Total</p>
+                                                      <p className="text-white font-black text-xs leading-none mt-1">US$ {use.total_price_usd?.toFixed(2)}</p>
+                                                  </div>
+                                                  <Button
+                                                      size="sm"
+                                                      variant="ghost"
+                                                      onClick={() => handleRemoveUsage(use)}
+                                                      disabled={isDeletingUsage}
+                                                      className="h-8 w-8 p-0 text-red-500 bg-red-500/5 border border-red-500/10"
+                                                  >
+                                                      {isDeletingUsage && usageToDelete?.id === use.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                                                  </Button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </>
                         )}
                     </div>
-                    <DialogFooter>
+                    
+                    <DialogFooter className="p-4 bg-black/20 border-t border-white/5 md:hidden">
                         <Button
                             variant="ghost"
                             onClick={() => setUsageModalOpen(false)}
-                            className="text-gray-400 hover:bg-white/10 hover:text-white border border-white/5"
+                            className="w-full text-gray-500 hover:text-white uppercase text-[10px] font-black tracking-widest h-10"
                         >
-                            Close
+                            Fechar Histórico
                         </Button>
                     </DialogFooter>
 

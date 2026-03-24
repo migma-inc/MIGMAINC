@@ -11,6 +11,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { getSortedCountries, getPhoneCodeFromCountry } from '@/lib/visa-checkout-constants';
 import { getProductsWithContracts } from '@/lib/contract-templates';
+import { generateUUID, copyToClipboard } from '@/lib/utils';
 
 interface SellerInfo {
   id: string;
@@ -20,6 +21,8 @@ interface SellerInfo {
   status: string;
   role?: string;
   head_of_sales_id?: string | null;
+  team_id?: string | null;
+  is_test?: boolean;
 }
 
 interface VisaProduct {
@@ -370,29 +373,107 @@ export function SellerLinks() {
           }
         }
 
-        if (userIsAdmin) {
-          // No caso de admin, o padrão é ser "Direto" (sem vendedor)
-          // mas carregamos a lista de vendedores para ele poder escolher
+        // Check for sellerId in URL search params
+        const urlParams = new URLSearchParams(window.location.search);
+        const sellerIdFromUrl = urlParams.get('sellerId');
+        
+        // Em desenvolvimento/localhost, permitimos que Admin e HoS vejam todos os vendedores
+        const shouldShowAllSellers = userIsAdmin || (!import.meta.env.PROD && currentSeller?.role === 'head_of_sales');
+
+        if (shouldShowAllSellers) {
+          // No caso de admin ou HoS em dev, carregamos a lista de todos os vendedores
           setTargetSeller(null);
           setSelectedSellerId('direct');
           
           try {
             setLoadingTeam(true);
-            const { data: allSellers } = await supabase
+            let query = supabase
               .from('sellers')
               .select('*')
-              .eq('status', 'active')
-              .order('full_name');
+              .eq('status', 'active');
+            
+            // Only hide test sellers if in production and current user is not a test user
+            if (import.meta.env.PROD && !currentSeller?.is_test) {
+              query = query.eq('is_test', false);
+            }
+
+            const { data: allSellers } = await query.order('full_name');
             
             if (allSellers) {
               setTeamMembers(allSellers as SellerInfo[]);
+              
+              // If sellerId provided in URL, select it
+              if (sellerIdFromUrl) {
+                const target = allSellers.find(m => m.id === sellerIdFromUrl);
+                if (target) {
+                  setTargetSeller(target as SellerInfo);
+                  setSelectedSellerId(sellerIdFromUrl);
+                }
+              } else if (!userIsAdmin && currentSeller) {
+                // Se for HoS em dev, já pré-seleciona a si mesmo
+                setTargetSeller(currentSeller);
+                setSelectedSellerId(currentSeller.id);
+              }
             }
           } catch (teamErr) {
             console.error('[SellerLinks] Error loading all sellers:', teamErr);
           } finally {
             setLoadingTeam(false);
           }
+        } else if (currentSeller?.role === 'head_of_sales') {
+          // Se for HoS (em produção), carrega apenas os membros da sua equipe
+          setTargetSeller(currentSeller);
+          setSelectedSellerId(currentSeller.id);
+          
+          try {
+            setLoadingTeam(true);
+
+            // Fetch team members by team_id (or just self if no team)
+            let query = supabase
+              .from('sellers')
+              .select('*')
+              .eq('status', 'active');
+            
+            if (currentSeller.team_id) {
+              query = query.eq('team_id', currentSeller.team_id);
+            } else {
+              query = query.eq('id', currentSeller.id);
+            }
+
+            // In production, respect test filter
+            if (import.meta.env.PROD && !currentSeller?.is_test) {
+              query = query.eq('is_test', false);
+            }
+            
+            const { data: myTeam } = await query.order('full_name');
+            
+            if (myTeam) {
+              // Garante que o próprio HoS está na lista mesmo que o filtro exclua
+              const members = myTeam.some(m => m.id === currentSeller.id) 
+                ? myTeam 
+                : [currentSeller, ...myTeam];
+                
+              setTeamMembers(members as SellerInfo[]);
+
+              // If sellerId provided in URL, select it
+              if (sellerIdFromUrl) {
+                const target = members.find(m => m.id === sellerIdFromUrl);
+                if (target) {
+                  setTargetSeller(target as SellerInfo);
+                  setSelectedSellerId(sellerIdFromUrl);
+                }
+              }
+            } else {
+              setTeamMembers([currentSeller]);
+            }
+          } catch (teamErr) {
+            console.error('[SellerLinks] Error loading team members:', teamErr);
+            setTeamMembers([currentSeller]);
+          } finally {
+            setLoadingTeam(false);
+          }
         } else if (currentSeller && !targetSeller) {
+          setTeamMembers([currentSeller]);
           setTargetSeller(currentSeller);
           setSelectedSellerId(currentSeller.id);
         }
@@ -612,7 +693,9 @@ export function SellerLinks() {
                     <SelectValue placeholder="Select a seller" />
                   </SelectTrigger>
                   <SelectContent className="bg-zinc-900 border-gold-medium/30 text-white">
-                    <SelectItem value="direct">Direct Sale / Migma (No Seller)</SelectItem>
+                    {(isAdmin || seller?.role === 'head_of_sales') && (
+                      <SelectItem value="direct">Direct Sale / Migma (No Seller)</SelectItem>
+                    )}
                     {teamMembers.map(member => (
                       <SelectItem key={member.id} value={member.id}>
                         {member.full_name} ({member.seller_id_public})
@@ -1322,7 +1405,7 @@ export function SellerLinks() {
                       />
                       <Button
                         onClick={() => {
-                          navigator.clipboard.writeText(generatedPrefillLink);
+                          copyToClipboard(generatedPrefillLink);
                           setCopiedLink(generatedPrefillLink);
                           copyTimeoutRef.current = setTimeout(() => {
                             setCopiedLink(null);
@@ -1373,7 +1456,7 @@ export function SellerLinks() {
 
                       // Generate token and create prefill record
                       try {
-                        const token = crypto.randomUUID();
+                        const token = generateUUID();
                         const expiresAt = new Date();
                         expiresAt.setDate(expiresAt.getDate() + 30); // 30 days validity
 
@@ -1417,7 +1500,7 @@ export function SellerLinks() {
                         setGeneratedPrefillLink(link);
 
                         // Auto-copy to clipboard
-                        navigator.clipboard.writeText(link);
+                        copyToClipboard(link);
                         setCopiedLink(link);
                         if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current);
                         copyTimeoutRef.current = setTimeout(() => {
@@ -1469,9 +1552,9 @@ export function SellerLinks() {
                       serviceGroups.cos.products.push(product);
                     } else if (product.slug.startsWith('transfer-') || product.slug === 'TRANSFER - Full Process Payment') {
                       serviceGroups.transfer.products.push(product);
-                    } else if (product.slug.startsWith('eb2-') && product.name !== 'U.S. Visa EB-2 (Main applicant)') {
+                    } else if (product.slug.startsWith('eb2-')) {
                       serviceGroups.eb2.products.push(product);
-                    } else if (product.slug.startsWith('eb3-') && product.name !== 'U.S. Visa EB-3 (Main applicant)') {
+                    } else if (product.slug.startsWith('eb3-')) {
                       serviceGroups.eb3.products.push(product);
                     } else {
                       serviceGroups.other.products.push(product);
@@ -1496,7 +1579,23 @@ export function SellerLinks() {
                       });
                     }
 
-                    const order = ['selection-process', 'scholarship', 'i20-control', 'total-process', 'INITIAL Application - Full Process Payment', 'Change of Status - Full Process Payment', 'TRANSFER - Full Process Payment'];
+                    const order = [
+                      // Priority for "Other"/General services
+                      'rfe-defense',
+                      'scholarship-maintenance-fee',
+                      'b1-premium',
+                      'b1-revolution',
+                      'e2-l1-visa',
+                      'o1-visa',
+                      // Standard process order
+                      'selection-process', 
+                      'scholarship', 
+                      'i20-control', 
+                      'total-process', 
+                      'INITIAL Application - Full Process Payment', 
+                      'Change of Status - Full Process Payment', 
+                      'TRANSFER - Full Process Payment'
+                    ];
                     return products.sort((a, b) => {
                       const aIndex = order.findIndex(o => a.slug.includes(o) || a.slug === o);
                       const bIndex = order.findIndex(o => b.slug.includes(o) || b.slug === o);
@@ -1535,7 +1634,11 @@ export function SellerLinks() {
                               <div className="text-left">
                                 <h3 className="text-lg font-bold text-gold-light">{group.name}</h3>
                                 <p className="text-xs text-gray-400 mt-1">
-                                  {sortedProducts.length} sequential payments
+                                  {(key === 'initial' || key === 'cos' || key === 'transfer') 
+                                    ? "3 Step Payments or Full Process Payment" 
+                                    : key === 'eb3'
+                                    ? "5 Step Payments or Full Process Payment"
+                                    : `${sortedProducts.length} sequential payments`}
                                 </p>
                               </div>
                             </div>
@@ -1554,7 +1657,7 @@ export function SellerLinks() {
                                 const basePrice = parseFloat(product.base_price_usd || '0');
                                 const extraPrice = parseFloat(product.extra_unit_price || '0');
                                 const hasExtraUnits = product.allow_extra_units && extraPrice > 0;
-                                const isTotalProcess = product.slug.includes('total-process') || product.slug.includes('Full Process Payment');
+                                const isTotalProcess = product.slug.includes('total-process') || product.slug.includes('Full Process Payment') || product.slug === 'eb3-visa';
 
 
                                 return (
@@ -1602,7 +1705,7 @@ export function SellerLinks() {
                                         <Button
                                           onClick={async () => {
                                             try {
-                                              const token = crypto.randomUUID();
+                                              const token = generateUUID();
                                               const expiresAt = new Date();
                                               expiresAt.setDate(expiresAt.getDate() + 30);
 
@@ -1629,7 +1732,7 @@ export function SellerLinks() {
                                               });
 
                                               // Copy to clipboard automatically
-                                              navigator.clipboard.writeText(link);
+                                              copyToClipboard(link);
                                               setCopiedLink(link);
                                               setTimeout(() => setCopiedLink(null), 3000);
 
@@ -1649,7 +1752,7 @@ export function SellerLinks() {
                                         <Button
                                           onClick={async () => {
                                             try {
-                                              const token = crypto.randomUUID();
+                                              const token = generateUUID();
                                               const expiresAt = new Date();
                                               expiresAt.setDate(expiresAt.getDate() + 30);
 
@@ -1676,7 +1779,7 @@ export function SellerLinks() {
                                               });
 
                                               // Copy to clipboard automatically
-                                              navigator.clipboard.writeText(link);
+                                              copyToClipboard(link);
                                               setCopiedLink(link);
                                               setTimeout(() => setCopiedLink(null), 3000);
 
@@ -1705,7 +1808,7 @@ export function SellerLinks() {
                                           <div className="flex gap-2">
                                             <Button
                                               onClick={() => {
-                                                navigator.clipboard.writeText(productGeneratedLinks[product.slug]);
+                                                copyToClipboard(productGeneratedLinks[product.slug]);
                                                 setCopiedLink(productGeneratedLinks[product.slug]);
                                                 setTimeout(() => setCopiedLink(null), 3000);
                                               }}
@@ -1822,7 +1925,7 @@ export function SellerLinks() {
                                   <Button
                                     onClick={async () => {
                                       try {
-                                        const token = crypto.randomUUID();
+                                        const token = generateUUID();
                                         const expiresAt = new Date();
                                         expiresAt.setDate(expiresAt.getDate() + 30);
 
@@ -1849,7 +1952,7 @@ export function SellerLinks() {
                                         });
 
                                         // Copy to clipboard automatically
-                                        navigator.clipboard.writeText(link);
+                                        copyToClipboard(link);
                                         setCopiedLink(link);
                                         setTimeout(() => setCopiedLink(null), 3000);
 
@@ -1869,7 +1972,7 @@ export function SellerLinks() {
                                   <Button
                                     onClick={async () => {
                                       try {
-                                        const token = crypto.randomUUID();
+                                        const token = generateUUID();
                                         const expiresAt = new Date();
                                         expiresAt.setDate(expiresAt.getDate() + 30);
 
@@ -1896,7 +1999,7 @@ export function SellerLinks() {
                                         });
 
                                         // Copy to clipboard automatically
-                                        navigator.clipboard.writeText(link);
+                                        copyToClipboard(link);
                                         setCopiedLink(link);
                                         setTimeout(() => setCopiedLink(null), 3000);
 
@@ -1925,7 +2028,7 @@ export function SellerLinks() {
                                     <div className="flex gap-2">
                                       <Button
                                         onClick={() => {
-                                          navigator.clipboard.writeText(productGeneratedLinks[product.slug]);
+                                          copyToClipboard(productGeneratedLinks[product.slug]);
                                           setCopiedLink(productGeneratedLinks[product.slug]);
                                           setTimeout(() => setCopiedLink(null), 3000);
                                         }}

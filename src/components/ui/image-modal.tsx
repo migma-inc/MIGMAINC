@@ -64,8 +64,29 @@ export function ImageModal({ isOpen, onClose, imageUrl, title = 'Image' }: Image
 
   if (!isOpen) return null;
 
-  const isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(imageUrl);
-  const isPdf = /\.pdf$/i.test(imageUrl);
+  // Extrair o pathname da URL para testar extensão (ignora query params e hash)
+  const getPathname = (url: string): string => {
+    try {
+      // blob: URLs retornam um UUID como pathname, não servem para detecção
+      if (url.startsWith('blob:') || url.startsWith('data:')) return '';
+      return new URL(url).pathname;
+    } catch {
+      return url;
+    }
+  };
+
+  // Testar tanto a URL original quanto a final (a original preserve a extensão)
+  const originalPathname = getPathname(imageUrl);
+  const finalPathname = getPathname(finalUrl || '');
+  const combinedTest = `${originalPathname} ${finalPathname} ${imageUrl}`;
+
+  const isImage = /\.(jpg|jpeg|png|gif|webp)/i.test(combinedTest);
+  const isPdf = /\.pdf/i.test(combinedTest);
+
+  // Se for blob/data URL e não conseguimos detectar tipo, assume imagem (componente é ImageModal)
+  const isBlobOrData = (finalUrl || imageUrl).startsWith('blob:') || (finalUrl || imageUrl).startsWith('data:');
+  const assumeImage = isBlobOrData && !isImage && !isPdf;
+
   // Nunca use a imageUrl original como fallback se ela for potencialmente privada
   const displayUrl = finalUrl;
 
@@ -129,7 +150,7 @@ export function ImageModal({ isOpen, onClose, imageUrl, title = 'Image' }: Image
               onLoad={handleImageLoad}
               onError={handleImageError}
             />
-          ) : isImage ? (
+          ) : (isImage || assumeImage) ? (
             <img
               src={displayUrl}
               alt={title}

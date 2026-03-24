@@ -11,7 +11,8 @@ import { ConfirmModal } from '@/components/ui/confirm-modal';
 import { EditSellerModal } from '@/components/admin/EditSellerModal';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { AdminSellerAnalytics } from '@/pages/admin/AdminSellerAnalytics';
-import { ChevronDown, ChevronRight, DollarSign, Users, ShoppingCart, Eye, Coins, Wallet, Clock, TrendingUp, Award, Trash2, Edit } from 'lucide-react';
+import { ChevronDown, ChevronRight, DollarSign, Users, ShoppingCart, Eye, Coins, Wallet, Clock, TrendingUp, Award, Trash2, Edit, ShoppingBag, Filter, X } from 'lucide-react';
+import { HorizontalStatBar } from '@/components/seller/HorizontalStatBar';
 import { PeriodFilter, type PeriodOption, type CustomDateRange } from '@/components/seller/PeriodFilter';
 import { getPeriodDates, getAnalyticsData, getPreviousPeriod, calculatePercentageChange, type AnalyticsData } from '@/lib/seller-analytics';
 import { Label } from '@/components/ui/label';
@@ -107,6 +108,7 @@ export const SellersPage = () => {
   const [sellerToEdit, setSellerToEdit] = useState<Seller | null>(null);
   const [selectedSellerId, setSelectedSellerId] = useState<string | null>(null);
   const [isAnalyticsModalOpen, setIsAnalyticsModalOpen] = useState(false);
+  const [isFiltersOpen, setIsFiltersOpen] = useState(false);
 
   const [periodFilter, setPeriodFilter] = useState<PeriodOption>('all_time');
   const [customDateRange, setCustomDateRange] = useState<CustomDateRange>(() => {
@@ -180,11 +182,10 @@ export const SellersPage = () => {
       );
       const previousPeriod = getPreviousPeriod(prevStart, prevEnd, periodFilter === 'custom' ? 'custom' : periodFilter);
 
-      // Load sellers excluding test users (is_test = true) — always filtered regardless of environment
+      // Load sellers
       const { data: sellers, error: sellersError } = await adminSupabase
         .from('sellers')
-        .select('*')
-        .eq('is_test', false);
+        .select('*');
 
       if (sellersError) {
         console.error('Error loading sellers:', sellersError);
@@ -539,96 +540,159 @@ export const SellersPage = () => {
   }
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8">
+    <div className="p-3.5 sm:p-6 lg:p-8">
       <div className="max-w-7xl mx-auto">
-        <div className="mb-6 sm:mb-8 flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-bold migma-gold-text mb-2">Sellers & Sales</h1>
-            <p className="text-sm sm:text-base text-gray-400">Comprehensive overview of sellers, commissions, and sales performance</p>
+        {/* Header & Filters Section */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-4">
+          <div className="flex items-center justify-between w-full md:w-auto">
+            <div className="flex items-center gap-2">
+              <ShoppingBag className="w-5 h-5 text-gold-medium" />
+              <h1 className="text-lg font-black uppercase tracking-widest text-white">
+                Sellers & Sales
+              </h1>
+            </div>
+            <div className="flex items-center gap-2 md:hidden">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setIsFiltersOpen(!isFiltersOpen)}
+                className={`p-2 h-8 w-8 rounded-lg border transition-all duration-200 ${isFiltersOpen ? 'bg-gold-medium/20 border-gold-medium/50 text-gold-light' : 'bg-black/40 border-gold-medium/20 text-gray-400'}`}
+              >
+                {isFiltersOpen ? <X className="w-4 h-4" /> : <Filter className="w-4 h-4" />}
+              </Button>
+            </div>
           </div>
-          <div className="flex flex-col items-end gap-3 w-full lg:w-auto">
-            {globalAnalyticsData && (
-              <ExportButton data={globalAnalyticsData} periodLabel={periodLabel} />
-            )}
-            <div className="w-full sm:w-auto flex flex-col sm:flex-row items-center gap-3 bg-black/20 p-2 rounded-lg border border-gold-medium/10">
-              <PeriodFilter
-                value={periodFilter}
-                onChange={setPeriodFilter}
-                customDateRange={customDateRange}
-                onCustomDateRangeChange={setCustomDateRange}
-                showLabel={true}
-              />
 
-              <div className="flex items-center gap-2 px-2 border-l border-gold-medium/20">
-                <Label htmlFor="granularity" className="text-gray-400 text-xs whitespace-nowrap">
-                  Group by:
-                </Label>
-                <Select
-                  value={granularity}
-                  onValueChange={(value) => setGranularity(value as 'day' | 'week' | 'month')}
-                >
-                  <SelectTrigger
-                    id="granularity"
-                    className="w-[100px] h-8 bg-black/50 border-gold-medium/30 text-white text-xs hover:bg-black/70"
-                  >
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="day">Daily</SelectItem>
-                    <SelectItem value="week">Weekly</SelectItem>
-                    <SelectItem value="month">Monthly</SelectItem>
-                  </SelectContent>
-                </Select>
+          <div className={`${isFiltersOpen ? 'flex' : 'hidden md:flex'} flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full xl:w-auto animate-in fade-in slide-in-from-top-2 duration-300`}>
+            <div className="bg-black/20 p-1.5 rounded-xl border border-gold-medium/10 flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full">
+              <div className="flex-1 sm:flex-initial">
+                <PeriodFilter
+                  value={periodFilter}
+                  onChange={setPeriodFilter}
+                  customDateRange={customDateRange}
+                  onCustomDateRangeChange={setCustomDateRange}
+                  showLabel={true}
+                />
               </div>
 
-              <div className="flex items-center gap-2 px-2 border-l border-gold-medium/20">
-                <Checkbox
-                  id="comparison"
-                  checked={enableComparison}
-                  onCheckedChange={(checked) => setEnableComparison(checked === true)}
-                  className="h-4 w-4 shrink-0"
-                />
-                <Label htmlFor="comparison" className="text-gray-400 text-xs cursor-pointer">
-                  Compare
-                </Label>
+              <div className="hidden sm:block w-px h-6 bg-gold-medium/20" />
+
+              <div className="flex items-center justify-between gap-2 px-1 sm:px-0">
+                <div className="flex items-center gap-1.5">
+                  <Label htmlFor="granularity" className="text-gray-500 text-[9px] uppercase font-black tracking-widest whitespace-nowrap">
+                    Agrupar:
+                  </Label>
+                  <Select
+                    value={granularity}
+                    onValueChange={(value) => setGranularity(value as 'day' | 'week' | 'month')}
+                  >
+                    <SelectTrigger
+                      id="granularity"
+                      className="w-full sm:w-[85px] h-7 bg-black/40 border-gold-medium/10 text-white text-[10px] hover:bg-black/60 focus:ring-1 focus:ring-gold-medium rounded-lg"
+                    >
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="bg-zinc-900 border-gold-medium/30 text-white">
+                      <SelectItem value="day">Diário</SelectItem>
+                      <SelectItem value="week">Semanal</SelectItem>
+                      <SelectItem value="month">Mensal</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="flex items-center gap-1.5">
+                  <div className="flex items-center gap-1.5 bg-black/40 px-2 h-7 rounded-lg border border-gold-medium/10">
+                    <Checkbox
+                      id="comparison"
+                      checked={enableComparison}
+                      onCheckedChange={(checked) => setEnableComparison(checked === true)}
+                      className="h-3 w-3 border-gold-medium/30 data-[state=checked]:bg-gold-medium data-[state=checked]:text-black"
+                    />
+                    <Label htmlFor="comparison" className="text-gray-500 text-[9px] uppercase font-black tracking-widest cursor-pointer whitespace-nowrap">
+                      Comparar
+                    </Label>
+                  </div>
+                </div>
               </div>
             </div>
+
+            {globalAnalyticsData && (
+              <div className="shrink-0">
+                <ExportButton data={globalAnalyticsData} periodLabel={periodLabel} />
+              </div>
+            )}
           </div>
         </div>
 
-        {/* Summary Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6 sm:mb-8">
+        {/* Global Summary Statistics */}
+        <div className="mb-4 sm:mb-8">
           {analyticsLoading || !globalAnalyticsData ? (
-            Array(4).fill(0).map((_, i) => <Skeleton key={i} className="h-32" />)
+             <div className="grid grid-cols-1 md:grid-cols-4 gap-2.5 sm:gap-4">
+               {Array(4).fill(0).map((_, i) => <Skeleton key={i} className="h-16 md:h-32 rounded-xl" />)}
+             </div>
           ) : (
             <>
-              <ComparisonCard
-                title="Total Sellers"
-                currentValue={currentTotalSellers}
-                previousValue={previousTotalSellers}
-                formatValue={(v) => v.toString()}
-                icon={<Users className="w-5 h-5 text-gold-light" />}
-              />
-              <ComparisonCard
-                title="Total Revenue"
-                currentValue={globalAnalyticsData.summary.totalRevenue}
-                previousValue={globalAnalyticsData.comparison?.previousSummary.totalRevenue || 0}
-                formatValue={(v) => formatCurrency(v)}
-                icon={<DollarSign className="w-5 h-5 text-green-400" />}
-              />
-              <ComparisonCard
-                title="Total Commissions"
-                currentValue={globalAnalyticsData.summary.commission}
-                previousValue={globalAnalyticsData.comparison?.previousSummary.commissions || 0}
-                formatValue={(v) => formatCurrency(v)}
-                icon={<Coins className="w-5 h-5 text-purple-400" />}
-              />
-              <CommissionConversionCard
-                currentRate={globalAnalyticsData.commissionSummary?.commissionRate || 0}
-                previousRate={globalAnalyticsData.comparison?.previousSummary.commissions ? (globalAnalyticsData.comparison.previousSummary.commissions / globalAnalyticsData.comparison.previousSummary.totalRevenue) * 100 : undefined}
-                currentRevenue={globalAnalyticsData.summary.totalRevenue}
-                currentCommissions={globalAnalyticsData.summary.commission}
-              />
+              {/* Mobile View: Horizontal Bars */}
+              <div className="md:hidden space-y-1.5">
+                <HorizontalStatBar
+                  title="Total Sellers"
+                  value={currentTotalSellers.toString()}
+                  trend={calculatePercentageChange(currentTotalSellers, previousTotalSellers)}
+                  icon={Users}
+                  variant="gold"
+                />
+                <HorizontalStatBar
+                  title="Total Revenue"
+                  value={formatCurrency(globalAnalyticsData.summary.totalRevenue)}
+                  trend={calculatePercentageChange(globalAnalyticsData.summary.totalRevenue, globalAnalyticsData.comparison?.previousSummary.totalRevenue || 0)}
+                  icon={DollarSign}
+                  variant="green"
+                />
+                <HorizontalStatBar
+                  title="Total Commissions"
+                  value={formatCurrency(globalAnalyticsData.summary.commission)}
+                  trend={calculatePercentageChange(globalAnalyticsData.summary.commission, globalAnalyticsData.comparison?.previousSummary.commissions || 0)}
+                  icon={Coins}
+                  variant="purple"
+                />
+                <HorizontalStatBar
+                  title="Comissão (%)"
+                  value={`${(globalAnalyticsData.commissionSummary?.commissionRate || 0).toFixed(2)}%`}
+                  icon={TrendingUp}
+                  variant="blue"
+                />
+              </div>
+
+              {/* Desktop View: Grid Cards */}
+              <div className="hidden md:grid md:grid-cols-4 gap-4">
+                <ComparisonCard
+                  title="Total Sellers"
+                  currentValue={currentTotalSellers}
+                  previousValue={previousTotalSellers}
+                  formatValue={(v) => v.toString()}
+                  icon={<Users className="w-5 h-5 text-gold-light" />}
+                />
+                <ComparisonCard
+                  title="Total Revenue"
+                  currentValue={globalAnalyticsData.summary.totalRevenue}
+                  previousValue={globalAnalyticsData.comparison?.previousSummary.totalRevenue || 0}
+                  formatValue={(v) => formatCurrency(v)}
+                  icon={<DollarSign className="w-5 h-5 text-green-400" />}
+                />
+                <ComparisonCard
+                  title="Total Commissions"
+                  currentValue={globalAnalyticsData.summary.commission}
+                  previousValue={globalAnalyticsData.comparison?.previousSummary.commissions || 0}
+                  formatValue={(v) => formatCurrency(v)}
+                  icon={<Coins className="w-5 h-5 text-purple-400" />}
+                />
+                <CommissionConversionCard
+                  currentRate={globalAnalyticsData.commissionSummary?.commissionRate || 0}
+                  previousRate={globalAnalyticsData.comparison?.previousSummary.commissions ? (globalAnalyticsData.comparison.previousSummary.commissions / globalAnalyticsData.comparison.previousSummary.totalRevenue) * 100 : undefined}
+                  currentRevenue={globalAnalyticsData.summary.totalRevenue}
+                  currentCommissions={globalAnalyticsData.summary.commission}
+                />
+              </div>
             </>
           )}
         </div>
@@ -636,47 +700,46 @@ export const SellersPage = () => {
 
         {/* Top Sellers Section */}
         {sellersStats.length > 0 && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 mb-6 sm:mb-8">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-6 mb-4 sm:mb-8">
             {/* Top Sellers by Revenue */}
-            <Card className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30">
-              <CardHeader>
-                <CardTitle className="text-white flex items-center gap-2">
-                  <TrendingUp className="w-5 h-5 text-gold-light" />
-                  Top Sellers by Revenue
+            <Card className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30 overflow-hidden">
+              <CardHeader className="p-3 pb-1 md:p-6 md:pb-2">
+                <CardTitle className="text-white flex items-center gap-2 text-[11px] md:text-base font-black uppercase tracking-widest">
+                  <TrendingUp className="w-3.5 h-3.5 text-gold-light" />
+                  Top Revenue
                 </CardTitle>
               </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
+              <CardContent className="p-2.5 md:p-6 pt-0">
+                <div className="space-y-1.5 md:space-y-2">
                   {topSellersByRevenue.length === 0 ? (
-                    <p className="text-gray-400 text-sm text-center py-4">No sellers with revenue yet</p>
+                    <p className="text-gray-400 text-[10px] text-center py-4">No data</p>
                   ) : (
                     topSellersByRevenue.map((stats, index) => (
                       <div
                         key={stats.seller.id}
-                        className="flex items-center justify-between p-3 bg-black/30 rounded-lg border border-gold-medium/20"
+                        className="flex items-center justify-between p-1.5 md:p-2 bg-black/40 rounded-xl border border-gold-medium/10 hover:border-gold-medium/30 transition-all group"
                       >
-                        <div className="flex items-center gap-3 flex-1 min-w-0">
-                          <div className="flex items-center justify-center w-8 h-8 rounded-full bg-gold-medium/20 text-gold-light font-bold text-sm shrink-0">
+                        <div className="flex items-center gap-2 md:gap-2.5 flex-1 min-w-0">
+                          <div className="hidden md:flex items-center justify-center w-6 h-6 rounded-lg bg-gold-medium/10 text-gold-light font-black text-[10px] shrink-0 border border-gold-medium/20">
                             {index + 1}
                           </div>
                           <div className="flex-1 min-w-0">
                             <p
-                              className="text-white font-semibold truncate cursor-pointer hover:text-gold-light transition-colors"
+                              className="text-white text-[10px] md:text-sm font-bold truncate cursor-pointer hover:text-gold-light transition-colors"
                               onClick={(e) => {
                                 e.stopPropagation();
                                 setSelectedSellerId(stats.seller.seller_id_public);
                                 setIsAnalyticsModalOpen(true);
                               }}
-                              title="Click to view seller analytics"
                             >
                               {stats.seller.full_name || stats.seller.email}
                             </p>
-                            <p className="text-xs text-gray-400 truncate">{stats.seller.seller_id_public}</p>
+                            <p className="hidden md:block text-[8px] sm:text-xs text-gray-500 truncate tracking-tight font-mono opacity-60 uppercase">{stats.seller.seller_id_public}</p>
                           </div>
                         </div>
                         <div className="text-right shrink-0">
-                          <p className="text-gold-light font-bold">{formatCurrency(stats.totalRevenue)}</p>
-                          <p className="text-xs text-gray-500">{stats.paidOrders} orders</p>
+                          <p className="text-gold-light font-black text-[10px] md:text-sm tracking-tight">{formatCurrency(stats.totalRevenue)}</p>
+                          <p className="text-[7px] md:text-[8px] text-gray-500 font-bold uppercase">{stats.paidOrders} ORD</p>
                         </div>
                       </div>
                     ))
@@ -686,47 +749,44 @@ export const SellersPage = () => {
             </Card>
 
             {/* Top Sellers by Commissions */}
-            <Card className="bg-gradient-to-br from-purple-500/10 via-purple-500/5 to-purple-500/10 border border-purple-500/30">
-              <CardHeader>
-                <CardTitle className="text-white flex items-center gap-2">
-                  <Award className="w-5 h-5 text-purple-300" />
-                  Top Sellers by Commissions
+            <Card className="bg-gradient-to-br from-purple-500/10 via-purple-500/5 to-purple-500/10 border border-purple-500/30 overflow-hidden">
+              <CardHeader className="p-3 pb-1 md:p-6 md:pb-2">
+                <CardTitle className="text-white flex items-center gap-2 text-[11px] md:text-base font-black uppercase tracking-widest">
+                  <Award className="w-3.5 h-3.5 text-purple-300" />
+                  Top Commissions
                 </CardTitle>
               </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
+              <CardContent className="p-2.5 md:p-6 pt-0">
+                <div className="space-y-1.5 md:space-y-2">
                   {topSellersByCommissions.length === 0 ? (
-                    <p className="text-gray-400 text-sm text-center py-4">No commissions yet</p>
+                    <p className="text-gray-400 text-[10px] text-center py-4">No data</p>
                   ) : (
                     topSellersByCommissions.map((stats, index) => (
                       <div
                         key={stats.seller.id}
-                        className="flex items-center justify-between p-3 bg-black/30 rounded-lg border border-purple-500/20"
+                        className="flex items-center justify-between p-1.5 md:p-2 bg-black/40 rounded-xl border border-purple-500/10 hover:border-purple-500/30 transition-all group"
                       >
-                        <div className="flex items-center gap-3 flex-1 min-w-0">
-                          <div className="flex items-center justify-center w-8 h-8 rounded-full bg-purple-500/20 text-purple-300 font-bold text-sm shrink-0">
+                        <div className="flex items-center gap-2 md:gap-2.5 flex-1 min-w-0">
+                          <div className="hidden md:flex items-center justify-center w-6 h-6 rounded-lg bg-purple-500/10 text-purple-300 font-black text-[10px] shrink-0 border border-purple-500/20">
                             {index + 1}
                           </div>
                           <div className="flex-1 min-w-0">
                             <p
-                              className="text-white font-semibold truncate cursor-pointer hover:text-purple-300 transition-colors"
+                              className="text-white text-[10px] md:text-sm font-bold truncate cursor-pointer hover:text-purple-300 transition-colors"
                               onClick={(e) => {
                                 e.stopPropagation();
                                 setSelectedSellerId(stats.seller.seller_id_public);
                                 setIsAnalyticsModalOpen(true);
                               }}
-                              title="Click to view seller analytics"
                             >
                               {stats.seller.full_name || stats.seller.email}
                             </p>
-                            <p className="text-xs text-gray-400 truncate">{stats.seller.seller_id_public}</p>
+                            <p className="hidden md:block text-[8px] sm:text-xs text-gray-500 truncate tracking-tight font-mono opacity-60 uppercase">{stats.seller.seller_id_public}</p>
                           </div>
                         </div>
                         <div className="text-right shrink-0">
-                          <p className="text-purple-300 font-bold">{formatCurrency(stats.totalCommissions)}</p>
-                          <p className="text-xs text-gray-500">
-                            {formatCurrency(stats.balance.available_balance)} available
-                          </p>
+                          <p className="text-purple-300 font-black text-[10px] md:text-sm tracking-tight">{formatCurrency(stats.totalCommissions)}</p>
+                          <p className="text-[7px] md:text-[8px] text-gray-500 font-bold uppercase">{stats.paidOrders} ORD</p>
                         </div>
                       </div>
                     ))
@@ -754,60 +814,82 @@ export const SellersPage = () => {
             </CardContent>
           </Card>
         ) : (
-          <div className="space-y-4">
-            <h2 className="text-xl font-bold text-white mb-4">All Sellers</h2>
+          <div className="space-y-2 md:space-y-4">
+            <h2 className="text-base md:text-xl font-black text-white uppercase tracking-widest mb-2 md:mb-4 px-1">All Sellers</h2>
             {sellersStats.map((stats) => {
               const isExpanded = expandedSellers.has(stats.seller.id);
 
               return (
                 <Card
                   key={stats.seller.id}
-                  className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30"
+                  className="bg-zinc-900/40 border-gold-medium/20 hover:border-gold-medium/40 transition-all overflow-hidden"
                 >
-                  <CardHeader>
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="flex items-center gap-2 sm:gap-4 flex-1 min-w-0">
+                  <CardHeader className="p-2 md:p-6 pb-1 md:pb-4 cursor-pointer hover:bg-white/5 transition-all" onClick={() => toggleSeller(stats.seller.id)}>
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-2 md:gap-3">
+                      <div className="flex items-center gap-2 md:gap-4 flex-1 min-w-0">
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => toggleSeller(stats.seller.id)}
-                          className="p-1 h-auto text-gold-light hover:text-gold-medium shrink-0"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleSeller(stats.seller.id);
+                          }}
+                          className="p-0 h-6 md:h-10 w-6 md:w-10 text-gold-medium hover:text-gold-light hover:bg-gold-medium/10 shrink-0"
                         >
                           {isExpanded ? (
-                            <ChevronDown className="w-4 h-4 sm:w-5 sm:h-5" />
+                            <ChevronDown className="w-4 h-4 md:w-6 md:h-6" />
                           ) : (
-                            <ChevronRight className="w-4 h-4 sm:w-5 sm:h-5" />
+                            <ChevronRight className="w-4 h-4 md:w-6 md:h-6 transition-transform" />
                           )}
                         </Button>
                         <div className="flex-1 min-w-0">
                           <CardTitle
-                            className="text-white text-base sm:text-xl break-words cursor-pointer hover:text-gold-light transition-colors flex items-center gap-2"
+                            className="text-white text-[11px] md:text-xl font-black uppercase tracking-tight break-words cursor-pointer hover:text-gold-light transition-colors flex items-center gap-1.5 md:gap-2 leading-none"
                             onClick={(e) => {
                               e.stopPropagation();
                               setSelectedSellerId(stats.seller.seller_id_public);
                               setIsAnalyticsModalOpen(true);
                             }}
-                            title="Click to view seller analytics"
                           >
                             {stats.seller.full_name || stats.seller.email}
                             {stats.seller.role === 'head_of_sales' && (
-                              <Badge className="bg-purple-500/20 text-purple-300 border-purple-500/50 text-[10px] uppercase font-bold tracking-wider">
-                                Head of Sales
+                              <Badge className="bg-purple-500/20 text-purple-300 border-purple-500/50 text-[8px] md:text-[10px] uppercase font-black tracking-widest px-1.5 py-0 h-3.5 flex items-center">
+                                HOS
                               </Badge>
                             )}
                           </CardTitle>
-                          <p className="text-xs sm:text-sm text-gray-400 mt-1 break-words">
-                            ID: {stats.seller.seller_id_public} | {stats.seller.email}
-                          </p>
-                          {stats.seller.role !== 'head_of_sales' && stats.seller.head_of_sales_id && (
-                            <p className="text-xs text-purple-400/80 mt-1 flex items-center gap-1">
-                              📍 Gestor: {headsOfSales.find(h => h.id === stats.seller.head_of_sales_id)?.full_name || 'Desconhecido'}
+                          <div className="flex flex-col md:flex-row md:items-center gap-1 mt-0.5">
+                            <p className="text-[9px] md:text-sm text-gray-500 font-mono uppercase opacity-70 leading-none">
+                              {stats.seller.seller_id_public}
                             </p>
+                            {stats.seller.role !== 'head_of_sales' && stats.seller.head_of_sales_id && (
+                              <p className="text-[8px] md:text-xs text-purple-400/60 uppercase font-black tracking-widest leading-none flex items-center gap-1">
+                                HOS: {headsOfSales.find(h => h.id === stats.seller.head_of_sales_id)?.full_name || '...'}
+                              </p>
+                            )}
+                          </div>
+
+                          {/* Mobile Mini Stats Summary (only when collapsed) */}
+                          {!isExpanded && (
+                            <div className="md:hidden flex items-center gap-3 mt-1.5 px-2 py-1 bg-black/40 rounded-lg border border-gold-medium/10 w-fit">
+                              <div className="flex items-center gap-1">
+                                <ShoppingCart className="w-2.5 h-2.5 text-gold-light" />
+                                <span className="text-[10px] font-black text-white">{stats.totalOrders}</span>
+                              </div>
+                              <div className="flex items-center gap-1">
+                                <DollarSign className="w-2.5 h-2.5 text-green-400" />
+                                <span className="text-[10px] font-black text-green-300">{formatCurrency(stats.totalRevenue)}</span>
+                              </div>
+                              <div className="flex items-center gap-1">
+                                <Coins className="w-2.5 h-2.5 text-purple-400" />
+                                <span className="text-[10px] font-black text-purple-300">{formatCurrency(stats.totalCommissions)}</span>
+                              </div>
+                            </div>
                           )}
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-1 md:gap-2 ml-8 md:ml-0">
                         <Button
                           variant="ghost"
                           size="sm"
@@ -816,10 +898,10 @@ export const SellersPage = () => {
                             const url = `/dashboard/sellers/${stats.seller.seller_id_public}/orders`;
                             window.open(url, '_blank', 'width=1400,height=900,resizable=yes,scrollbars=yes');
                           }}
-                          className="text-gold-light hover:text-gold-medium hover:bg-gold-medium/10 shrink-0"
+                          className="h-7 md:h-9 w-7 md:w-9 p-0 text-gold-light hover:bg-gold-medium/10 border border-gold-medium/10"
                           title="View Orders"
                         >
-                          <ShoppingCart className="w-4 h-4 sm:w-5 sm:h-5" />
+                          <ShoppingCart className="w-3.5 h-3.5 md:w-5 md:h-5" />
                         </Button>
                         <Button
                           variant="ghost"
@@ -829,10 +911,10 @@ export const SellersPage = () => {
                             setSellerToEdit(stats.seller);
                             setIsEditModalOpen(true);
                           }}
-                          className="text-blue-400 hover:text-blue-300 hover:bg-blue-500/10 shrink-0"
+                          className="h-7 md:h-9 w-7 md:w-9 p-0 text-blue-400 hover:bg-blue-500/10 border border-blue-500/10"
                           title="Edit Seller"
                         >
-                          <Edit className="w-4 h-4 sm:w-5 sm:h-5" />
+                          <Edit className="w-3.5 h-3.5 md:w-5 md:h-5" />
                         </Button>
                         <Button
                           variant="ghost"
@@ -841,108 +923,99 @@ export const SellersPage = () => {
                             e.stopPropagation();
                             handleDeleteSeller(stats.seller.id, stats.seller.full_name || stats.seller.email);
                           }}
-                          className="text-red-500 hover:text-red-400 hover:bg-red-500/10 shrink-0"
+                          className="h-7 md:h-9 w-7 md:w-9 p-0 text-red-500 hover:bg-red-500/10 border border-red-500/10"
                           title="Delete Seller"
                         >
-                          <Trash2 className="w-4 h-4 sm:w-5 sm:h-5" />
+                          <Trash2 className="w-3.5 h-3.5 md:w-5 md:h-5" />
                         </Button>
                       </div>
                     </div>
                   </CardHeader>
-                  <CardContent>
-                    {/* Statistics Grid */}
-                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4 mb-4">
+                  <CardContent className="p-2 md:p-6 pt-0">
+                    {/* Full Statistics Grid */}
+                    <div className={`${isExpanded ? 'grid' : 'hidden md:grid'} grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-2 sm:gap-4 mb-3`}>
                       {/* Total Orders */}
-                      <div className="bg-black/30 rounded-lg p-3 sm:p-4 border border-gold-medium/20">
-                        <div className="flex items-center gap-2 mb-2">
-                          <ShoppingCart className="w-3 h-3 sm:w-4 sm:h-4 text-gold-light" />
-                          <span className="text-xs sm:text-sm text-gray-400">Orders</span>
+                      <div className="bg-black/40 rounded-xl p-2.5 sm:p-4 border border-gold-medium/10 shadow-inner group transition-all hover:bg-black/60">
+                        <div className="flex items-center gap-1.5 mb-1 text-gray-500">
+                          <ShoppingCart className="w-3 h-3 text-gold-light" />
+                          <span className="text-[9px] sm:text-sm font-black uppercase tracking-widest">Orders</span>
                         </div>
-                        <p className="text-xl sm:text-2xl font-bold text-white">{stats.totalOrders}</p>
-                        <p className="text-xs text-gray-500 mt-1">{stats.paidOrders} paid</p>
+                        <p className="text-base sm:text-2xl font-black text-white leading-none">{stats.totalOrders}</p>
+                        <p className="text-[8px] text-gray-500 font-bold uppercase mt-1 opacity-70">{stats.paidOrders} PAID</p>
                       </div>
 
                       {/* Total Revenue */}
-                      <div className="bg-green-900/20 rounded-lg p-3 sm:p-4 border border-green-500/30">
-                        <div className="flex items-center justify-between gap-2 mb-2">
-                          <div className="flex items-center gap-2">
-                            <DollarSign className="w-3 h-3 sm:w-4 sm:h-4 text-green-300" />
-                            <span className="text-xs sm:text-sm text-gray-400">Revenue</span>
+                      <div className="bg-green-900/10 rounded-xl p-2.5 sm:p-4 border border-green-500/20 group transition-all hover:bg-green-900/20">
+                        <div className="flex items-center justify-between gap-1.5 mb-1">
+                          <div className="flex items-center gap-1.5 text-gray-500">
+                            <DollarSign className="w-3 h-3 text-green-300" />
+                            <span className="text-[9px] sm:text-sm font-black uppercase tracking-widest">Revenue</span>
                           </div>
                           {enableComparison && stats.previousTotalRevenue > 0 && (
-                            <div className={`flex items-center gap-0.5 text-[10px] font-bold ${stats.totalRevenue >= stats.previousTotalRevenue ? 'text-green-400' : 'text-red-400'}`}>
-                              {stats.totalRevenue >= stats.previousTotalRevenue ? <TrendingUp className="w-2.5 h-2.5" /> : <TrendingUp className="w-2.5 h-2.5 rotate-180" />}
+                            <div className={`flex items-center gap-0.5 text-[8px] font-black ${stats.totalRevenue >= stats.previousTotalRevenue ? 'text-green-400' : 'text-red-400'}`}>
                               {calculatePercentageChange(stats.totalRevenue, stats.previousTotalRevenue).toFixed(0)}%
                             </div>
                           )}
                         </div>
-                        <p className="text-lg sm:text-xl font-bold text-green-300">
+                        <p className="text-base sm:text-lg md:text-xl font-black text-green-300 leading-none">
                           {formatCurrency(stats.totalRevenue)}
                         </p>
                       </div>
 
                       {/* Total Commissions */}
-                      <div className="bg-purple-900/20 rounded-lg p-3 sm:p-4 border border-purple-500/30">
-                        <div className="flex items-center justify-between gap-2 mb-2">
-                          <div className="flex items-center gap-2">
-                            <Coins className="w-3 h-3 sm:w-4 sm:h-4 text-purple-300" />
-                            <span className="text-xs sm:text-sm text-gray-400">Commissions</span>
+                      <div className="bg-purple-900/10 rounded-xl p-2.5 sm:p-4 border border-purple-500/20 group transition-all hover:bg-purple-900/20">
+                        <div className="flex items-center justify-between gap-1.5 mb-1">
+                          <div className="flex items-center gap-1.5 text-gray-500">
+                            <Coins className="w-3 h-3 text-purple-300" />
+                            <span className="text-[9px] sm:text-sm font-black uppercase tracking-widest">Comissão</span>
                           </div>
                           {enableComparison && stats.previousTotalCommissions > 0 && (
-                            <div className={`flex items-center gap-0.5 text-[10px] font-bold ${stats.totalCommissions >= stats.previousTotalCommissions ? 'text-purple-300' : 'text-red-400'}`}>
-                              {stats.totalCommissions >= stats.previousTotalCommissions ? <TrendingUp className="w-2.5 h-2.5" /> : <TrendingUp className="w-2.5 h-2.5 rotate-180" />}
-                              {calculatePercentageChange(stats.totalCommissions, stats.previousTotalCommissions).toFixed(0)}%
+                            <div className={`flex items-center gap-0.5 text-[8px] font-black ${stats.totalCommissions >= stats.previousTotalCommissions ? 'text-purple-300' : 'text-red-400'}`}>
+                               {calculatePercentageChange(stats.totalCommissions, stats.previousTotalCommissions).toFixed(0)}%
                             </div>
                           )}
                         </div>
-                        <p className="text-lg sm:text-xl font-bold text-purple-300">
+                        <p className="text-base sm:text-lg md:text-xl font-black text-purple-300 leading-none">
                           {formatCurrency(stats.totalCommissions)}
                         </p>
                       </div>
 
                       {/* Available Balance */}
-                      <div className="bg-blue-900/20 rounded-lg p-3 sm:p-4 border border-blue-500/30">
-                        <div className="flex items-center gap-2 mb-2">
-                          <Wallet className="w-3 h-3 sm:w-4 sm:h-4 text-blue-300" />
-                          <span className="text-xs sm:text-sm text-gray-400">Available</span>
+                      <div className="bg-blue-900/10 rounded-xl p-2.5 sm:p-4 border border-blue-500/20 group transition-all hover:bg-blue-900/20">
+                        <div className="flex items-center gap-1.5 mb-1 text-gray-500">
+                          <Wallet className="w-3 h-3 text-blue-300" />
+                          <span className="text-[9px] sm:text-sm font-black uppercase tracking-widest">Available</span>
                         </div>
-                        <p className="text-lg sm:text-xl font-bold text-blue-300">
+                        <p className="text-base sm:text-lg md:text-xl font-black text-blue-300 leading-none">
                           {formatCurrency(stats.balance.available_balance)}
                         </p>
                       </div>
 
                       {/* Pending Balance */}
-                      <div className="bg-yellow-900/20 rounded-lg p-3 sm:p-4 border border-yellow-500/30">
-                        <div className="flex items-center gap-2 mb-2">
-                          <Clock className="w-3 h-3 sm:w-4 sm:h-4 text-yellow-300" />
-                          <span className="text-xs sm:text-sm text-gray-400">Pending</span>
+                      <div className="bg-yellow-900/10 rounded-xl p-2.5 sm:p-4 border border-yellow-500/20 group transition-all hover:bg-yellow-900/20">
+                        <div className="flex items-center gap-1.5 mb-1 text-gray-500">
+                          <Clock className="w-3 h-3 text-yellow-300" />
+                          <span className="text-[9px] sm:text-sm font-black uppercase tracking-widest">Pending</span>
                         </div>
-                        <p className="text-lg sm:text-xl font-bold text-yellow-300">
+                        <p className="text-base sm:text-lg md:text-xl font-black text-yellow-300 leading-none">
                           {formatCurrency(stats.balance.pending_balance)}
                         </p>
                         {stats.balance.next_withdrawal_date && (
-                          <p className="text-xs text-gray-500 mt-1">
-                            {formatTimeUntilRelease(stats.balance.next_withdrawal_date)}
+                          <p className="text-[8px] text-gray-500 font-medium truncate mt-1 opacity-60">
+                             {formatTimeUntilRelease(stats.balance.next_withdrawal_date)}
                           </p>
                         )}
                       </div>
 
                       {/* Pending Requests */}
-                      <div className="bg-orange-900/20 rounded-lg p-3 sm:p-4 border border-orange-500/30">
-                        <div className="flex items-center gap-2 mb-2">
-                          <Clock className="w-3 h-3 sm:w-4 sm:h-4 text-orange-300" />
-                          <span className="text-xs sm:text-sm text-gray-400">Requests</span>
+                      <div className="bg-orange-900/10 rounded-xl p-2.5 sm:p-4 border border-orange-500/20 group transition-all hover:bg-orange-900/20">
+                        <div className="flex items-center gap-1.5 mb-1 text-gray-500">
+                          <Clock className="w-3 h-3 text-orange-300" />
+                          <span className="text-[9px] sm:text-sm font-black uppercase tracking-widest">Requests</span>
                         </div>
-                        <p className="text-lg sm:text-xl font-bold text-orange-300">
-                          {/* PAYMENT REQUEST - COMENTADO: {stats.pendingPaymentRequests.length} */}
+                        <p className="text-base sm:text-lg md:text-xl font-black text-orange-300 leading-none">
                           0
                         </p>
-                        {/* PAYMENT REQUEST - COMENTADO TEMPORARIAMENTE */}
-                        {/* {stats.pendingPaymentRequests.length > 0 && (
-                          <p className="text-xs text-gray-500 mt-1">
-                            ${stats.pendingPaymentRequests.reduce((sum, req) => sum + req.amount, 0).toFixed(2)}
-                          </p>
-                        )} */}
                       </div>
                     </div>
 
@@ -991,61 +1064,54 @@ export const SellersPage = () => {
                         {stats.orders.length === 0 ? (
                           <p className="text-gray-400 text-center py-4 text-sm">No orders found</p>
                         ) : (
+                        <>
                           <div className="hidden md:block overflow-x-auto">
                             <table className="w-full">
                               <thead>
                                 <tr className="border-b border-gold-medium/30">
-                                  <th className="text-left py-3 px-4 text-sm text-gray-400 font-semibold">Order #</th>
-                                  <th className="text-left py-3 px-4 text-sm text-gray-400 font-semibold">Client</th>
-                                  <th className="text-left py-3 px-4 text-sm text-gray-400 font-semibold">Product</th>
-                                  <th className="text-left py-3 px-4 text-sm text-gray-400 font-semibold">Total (with fee)</th>
-                                  <th className="text-left py-3 px-4 text-sm text-gray-400 font-semibold">Net Amount</th>
-                                  <th className="text-left py-3 px-4 text-sm text-gray-400 font-semibold">Stripe Fee</th>
-                                  <th className="text-left py-3 px-4 text-sm text-gray-400 font-semibold">Status</th>
-                                  <th className="text-left py-3 px-4 text-sm text-gray-400 font-semibold">Date</th>
-                                  <th className="text-left py-3 px-4 text-sm text-gray-400 font-semibold">Actions</th>
+                                  <th className="text-left py-3 px-4 text-[10px] uppercase font-bold text-gray-500 tracking-wider">Order #</th>
+                                  <th className="text-left py-3 px-4 text-[10px] uppercase font-bold text-gray-500 tracking-wider">Client</th>
+                                  <th className="text-left py-3 px-4 text-[10px] uppercase font-bold text-gray-500 tracking-wider">Product</th>
+                                  <th className="text-left py-3 px-4 text-[10px] uppercase font-bold text-gray-500 tracking-wider">Total</th>
+                                  <th className="text-left py-3 px-4 text-[10px] uppercase font-bold text-gray-500 tracking-wider">Net</th>
+                                  <th className="text-left py-3 px-4 text-[10px] uppercase font-bold text-gray-500 tracking-wider">Status</th>
+                                  <th className="text-left py-3 px-4 text-[10px] uppercase font-bold text-gray-500 tracking-wider">Date</th>
+                                  <th className="text-right py-3 px-4 text-[10px] uppercase font-bold text-gray-500 tracking-wider">Action</th>
                                 </tr>
                               </thead>
                               <tbody>
                                 {stats.orders.map((order) => {
-                                  const { netAmount, feeAmount } = calculateNetAmountAndFee(order);
+                                  const { netAmount } = calculateNetAmountAndFee(order);
                                   return (
-                                    <tr key={order.id} className="border-b border-gold-medium/10 hover:bg-white/5">
-                                      <td className="py-3 px-4 text-sm text-white font-mono">{order.order_number}</td>
+                                    <tr key={order.id} className="border-b border-gold-medium/10 hover:bg-white/5 group transition-colors">
+                                      <td className="py-3 px-4 text-sm text-white font-mono group-hover:text-gold-light transition-colors">{order.order_number}</td>
                                       <td className="py-3 px-4">
                                         <div className="text-sm">
-                                          <p className="text-white">{order.client_name}</p>
-                                          <p className="text-gray-400 text-xs">{order.client_email}</p>
+                                          <p className="text-white font-medium">{order.client_name}</p>
+                                          <p className="text-gray-500 text-[10px] uppercase font-mono tracking-tighter">{order.client_email}</p>
                                         </div>
                                       </td>
-                                      <td className="py-3 px-4 text-sm text-white">{getProductName(order.product_slug)}</td>
+                                      <td className="py-3 px-4 text-sm text-white/90">{getProductName(order.product_slug)}</td>
                                       <td className="py-3 px-4 text-sm text-gold-light font-bold">
                                         {formatCurrency(order.total_price_usd)}
                                       </td>
                                       <td className="py-3 px-4 text-sm text-white font-semibold">
                                         {formatCurrency(netAmount)}
                                       </td>
-                                      <td className="py-3 px-4 text-sm text-gray-400">
-                                        {feeAmount > 0 ? (
-                                          <span className="text-red-400">-{formatCurrency(feeAmount)}</span>
-                                        ) : (
-                                          <span className="text-gray-500">$0.00</span>
-                                        )}
-                                      </td>
                                       <td className="py-3 px-4">
                                         {getStatusBadge(order.payment_status)}
                                       </td>
-                                      <td className="py-3 px-4 text-sm text-gray-400">
+                                      <td className="py-3 px-4 text-xs text-gray-500">
                                         {new Date(order.created_at).toLocaleDateString()}
                                       </td>
-                                      <td className="py-3 px-4">
+                                      <td className="py-3 px-4 text-right">
                                         <Link to={`/dashboard/visa-orders/${order.id}`}>
                                           <Button
                                             variant="outline"
                                             size="sm"
-                                            className="flex items-center gap-2 border-gold-medium/50 bg-black/50 text-white hover:bg-gold-medium/30 hover:text-gold-light"
+                                            className="h-8 border-gold-medium/30 bg-black/50 text-gold-light hover:bg-gold-medium text-[10px] font-bold uppercase tracking-wider px-3"
                                           >
-                                            <Eye className="w-4 h-4" />
+                                            <Eye className="w-3.5 h-3.5 mr-1.5" />
                                             View
                                           </Button>
                                         </Link>
@@ -1056,7 +1122,56 @@ export const SellersPage = () => {
                               </tbody>
                             </table>
                           </div>
-                        )}
+
+                          <div className="md:hidden space-y-2">
+                            {stats.orders.map((order) => {
+                              const { netAmount } = calculateNetAmountAndFee(order);
+                              return (
+                                <div key={order.id} className="bg-black/40 border border-gold-medium/10 rounded-xl p-2.5 space-y-2 shadow-lg">
+                                  <div className="flex justify-between items-start gap-2">
+                                    <div className="min-w-0 flex-1">
+                                      <p className="text-[9px] text-gray-500 font-mono uppercase tracking-widest leading-none mb-1 opacity-60">{order.order_number}</p>
+                                      <p className="text-white font-bold text-xs truncate leading-none">{order.client_name}</p>
+                                      <p className="text-gray-500 text-[9px] truncate opacity-80 mt-0.5">{order.client_email}</p>
+                                    </div>
+                                    <div className="shrink-0 scale-90 origin-top-right">
+                                      {getStatusBadge(order.payment_status)}
+                                    </div>
+                                  </div>
+
+                                  <div className="py-2 border-y border-white/5 flex items-center justify-between gap-4">
+                                    <div className="min-w-0 flex-1">
+                                      <p className="text-[8px] text-gray-500 uppercase font-black mb-0.5 opacity-60">Produto</p>
+                                      <p className="text-white text-[10px] font-medium truncate leading-tight uppercase">{getProductName(order.product_slug)}</p>
+                                    </div>
+                                    <div className="text-right shrink-0">
+                                      <p className="text-[8px] text-gray-500 uppercase font-black mb-0.5 opacity-60">Líquido</p>
+                                      <p className="text-gold-light text-[11px] font-black leading-tight">{formatCurrency(netAmount)}</p>
+                                    </div>
+                                  </div>
+
+                                  <div className="flex items-center justify-between gap-2">
+                                    <div className="flex items-center gap-1.5 bg-black/40 px-2 py-0.5 rounded border border-white/5">
+                                      <p className="text-[8px] text-gray-500 uppercase font-bold opacity-60">Total:</p>
+                                      <p className="text-white text-[10px] font-black">{formatCurrency(parseFloat(order.total_price_usd || '0'))}</p>
+                                    </div>
+                                    <Link to={`/dashboard/visa-orders/${order.id}`}>
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        className="h-7 border-gold-medium/30 bg-black/50 text-gold-light hover:bg-gold-medium text-[9px] font-black uppercase tracking-widest px-2.5"
+                                      >
+                                        <Eye className="w-3 h-3 mr-1" />
+                                        Detalhes
+                                      </Button>
+                                    </Link>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </>
+                      )}
                       </div>
                     )}
                   </CardContent>

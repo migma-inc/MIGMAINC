@@ -541,15 +541,15 @@ function ApplicationDetailContent() {
           <CardHeader>
             <CardTitle className="text-white">Personal Information</CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="p-4 sm:p-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
               <div>
                 <p className="text-sm text-gray-400 mb-1">Full Name</p>
                 <p className="font-medium text-base sm:text-lg text-gray-200 break-words">{application.full_name}</p>
               </div>
-              <div>
+              <div className="min-w-0">
                 <p className="text-sm text-gray-400 mb-1">Email</p>
-                <p className="font-medium text-gray-200">{application.email}</p>
+                <p className="font-medium text-gray-200 break-all sm:break-words">{application.email}</p>
               </div>
               <div>
                 <p className="text-sm text-gray-400 mb-1">Phone</p>
@@ -586,28 +586,28 @@ function ApplicationDetailContent() {
           <CardHeader>
             <CardTitle className="text-white">Business Information</CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="p-4 sm:p-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
               <div>
                 <p className="text-sm text-gray-400 mb-1">Has Business Registration</p>
                 <p className="font-medium text-gray-200">{application.has_business_registration}</p>
               </div>
               {application.business_name && (
-                <div>
+                <div className="min-w-0">
                   <p className="text-sm text-gray-400 mb-1">Business Name</p>
-                  <p className="font-medium text-gray-200">{application.business_name}</p>
+                  <p className="font-medium text-gray-200 break-words">{application.business_name}</p>
                 </div>
               )}
               {application.business_id && (
-                <div>
+                <div className="min-w-0">
                   <p className="text-sm text-gray-400 mb-1">Business ID (CNPJ/NIF)</p>
-                  <p className="font-medium text-gray-200">{application.business_id}</p>
+                  <p className="font-medium text-gray-200 break-all">{application.business_id}</p>
                 </div>
               )}
               {application.tax_id && (
-                <div>
+                <div className="min-w-0">
                   <p className="text-sm text-gray-400 mb-1">Tax ID</p>
-                  <p className="font-medium text-gray-200">{application.tax_id}</p>
+                  <p className="font-medium text-gray-200 break-all">{application.tax_id}</p>
                 </div>
               )}
               {application.registration_type && (
@@ -1025,7 +1025,7 @@ function ApplicationDetailContent() {
                   )}
                 </div>
               </div>
-              <div className="flex gap-4">
+              <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
                 <Button
                   onClick={async () => {
                     if (!termsAcceptance) return;
@@ -1076,9 +1076,9 @@ function ApplicationDetailContent() {
                     }
                   }}
                   disabled={isProcessing}
-                  className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 text-white text-xs sm:text-sm"
+                  className="w-full sm:w-auto flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 text-white text-sm"
                 >
-                  <CheckCircle className="w-3 h-3 sm:w-4 sm:h-4" />
+                  <CheckCircle className="w-4 h-4" />
                   Approve Contract
                 </Button>
                 <Button
@@ -1088,9 +1088,9 @@ function ApplicationDetailContent() {
                     setShowRejectPrompt(true);
                   }}
                   disabled={isProcessing}
-                  className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-red-600 hover:bg-red-700 text-white text-xs sm:text-sm"
+                  className="w-full sm:w-auto flex items-center justify-center gap-2 bg-red-600 hover:bg-red-700 text-white text-sm"
                 >
-                  <XCircle className="w-3 h-3 sm:w-4 sm:h-4" />
+                  <XCircle className="w-4 h-4" />
                   Reject Contract
                 </Button>
               </div>
@@ -1105,11 +1105,11 @@ function ApplicationDetailContent() {
               <CardTitle className="text-white">Actions</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="flex gap-4">
+              <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
                 <Button
                   onClick={handleApprove}
                   disabled={isProcessing}
-                  className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white"
+                  className="w-full sm:w-auto flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 text-white"
                 >
                   <CheckCircle className="w-4 h-4" />
                   {application.status === 'pending'
@@ -1121,7 +1121,7 @@ function ApplicationDetailContent() {
                     variant="destructive"
                     onClick={handleReject}
                     disabled={isProcessing}
-                    className="flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white"
+                    className="w-full sm:w-auto flex items-center justify-center gap-2 bg-red-600 hover:bg-red-700 text-white"
                   >
                     <XCircle className="w-4 h-4" />
                     Reject Application

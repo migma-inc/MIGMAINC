@@ -63,6 +63,7 @@ export function AdminSyncSales() {
                 .from('sellers')
                 .select('seller_id_public, full_name, email')
                 .eq('status', 'active')
+                .eq('is_test', false)
                 .order('full_name', { ascending: true });
 
             if (sellersError) throw sellersError;
@@ -79,13 +80,7 @@ export function AdminSyncSales() {
 
             setProducts(productsMap);
 
-            // Filter out 'victordev' in production to comply with user request
-            const isProd = import.meta.env.PROD;
-            const availableSellers = isProd
-                ? (sellersData || []).filter((s: any) => s.seller_id_public !== 'victordev')
-                : (sellersData || []);
-
-            setSellers(availableSellers);
+            setSellers(sellersData || []);
 
         } catch (error) {
             console.error('[AdminSyncSales] Error loading data:', error);
@@ -215,9 +210,9 @@ export function AdminSyncSales() {
 
                 <Card className="bg-zinc-950/40 border-gold-medium/20 backdrop-blur-sm overflow-hidden">
                     <CardHeader className="border-b border-gold-medium/10 pb-4">
-                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                            <div className="flex items-center gap-4">
-                                <CardTitle className="text-lg flex items-center gap-2 text-white">
+                        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                            <div className="flex flex-wrap items-center gap-2 sm:gap-4">
+                                <CardTitle className="text-base sm:text-lg flex items-center gap-2 text-white">
                                     <ShoppingBag className="w-5 h-5 text-gold-light" />
                                     Orphan Sales ({orders.length})
                                 </CardTitle>
@@ -227,10 +222,10 @@ export function AdminSyncSales() {
                                             size="sm"
                                             variant="outline"
                                             onClick={() => setConfirmIgnore({ isOpen: true, orderIds: selectedOrderIds })}
-                                            className="border-red-400/50 text-red-400 hover:bg-red-400/10 h-8 gap-2"
+                                            className="border-red-400/50 text-red-400 hover:bg-red-400/10 h-8 gap-1 sm:gap-2 px-2 sm:px-3 text-[10px] sm:text-xs"
                                         >
-                                            <EyeOff className="w-4 h-4" />
-                                            Mark {selectedOrderIds.length} as Direct Sale
+                                            <EyeOff className="w-3 h-3 sm:w-4 sm:h-4" />
+                                            <span className="hidden xs:inline">Mark</span> {selectedOrderIds.length} <span className="hidden xs:inline">as Direct</span>
                                         </Button>
                                         <button
                                             onClick={() => setShowHelp(true)}
@@ -242,7 +237,7 @@ export function AdminSyncSales() {
                                     </div>
                                 )}
                             </div>
-                            <div className="relative w-full md:w-72">
+                            <div className="relative w-full lg:w-72">
                                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
                                 <Input
                                     placeholder="Search by order or client..."
@@ -255,7 +250,8 @@ export function AdminSyncSales() {
                     </CardHeader>
                     <CardContent className="p-0">
                         <div className="overflow-x-auto">
-                            <table className="w-full">
+                            {/* Desktop Table */}
+                            <table className="w-full hidden md:table">
                                 <thead>
                                     <tr className="border-b border-gold-medium/10 bg-black/20">
                                         <th className="py-4 px-6 w-10">
@@ -275,7 +271,7 @@ export function AdminSyncSales() {
                                 <tbody className="divide-y divide-gold-medium/5">
                                     {filteredOrders.length === 0 ? (
                                         <tr>
-                                            <td colSpan={5} className="py-16 text-center text-gray-500 italic">
+                                            <td colSpan={6} className="py-16 text-center text-gray-500 italic">
                                                 {searchQuery ? 'No sales found for this search.' : 'There are no sales without a seller at the moment.'}
                                             </td>
                                         </tr>
@@ -347,6 +343,82 @@ export function AdminSyncSales() {
                                     )}
                                 </tbody>
                             </table>
+
+                            {/* Mobile Cards */}
+                            <div className="md:hidden divide-y divide-gold-medium/10">
+                                {filteredOrders.length === 0 ? (
+                                    <div className="py-12 text-center text-gray-500 italic px-4">
+                                        {searchQuery ? 'No sales found.' : 'No orphan sales at the moment.'}
+                                    </div>
+                                ) : (
+                                    filteredOrders.map((order) => {
+                                        let price = parseFloat(order.total_price_usd || '0');
+                                        if (price > 10000) price = price / 100;
+
+                                        return (
+                                            <div key={order.id} className={`p-3.5 space-y-3.5 ${selectedOrderIds.includes(order.id) ? 'bg-gold-medium/10' : ''}`}>
+                                                <div className="flex justify-between items-start gap-3">
+                                                    <div className="flex items-start gap-2.5 min-w-0">
+                                                        <Checkbox
+                                                            checked={selectedOrderIds.includes(order.id)}
+                                                            onCheckedChange={() => toggleSelectOrder(order.id)}
+                                                            className="border-gold-medium/50 data-[state=checked]:bg-gold-medium data-[state=checked]:text-black mt-0.5"
+                                                        />
+                                                        <div className="min-w-0">
+                                                            <p className="text-xs font-mono text-white truncate">{order.order_number}</p>
+                                                            <p className="text-[9px] text-gray-500">{new Date(order.created_at).toLocaleDateString()}</p>
+                                                        </div>
+                                                    </div>
+                                                    <div className="text-right shrink-0">
+                                                        <p className="text-gold-light font-black text-sm">${price.toFixed(2)}</p>
+                                                        <Badge variant="outline" className="border-gold-medium/20 text-[8px] text-gray-500 bg-transparent uppercase py-0 h-3.5 px-1 tracking-tighter">
+                                                            {products[order.product_slug] || order.product_slug}
+                                                        </Badge>
+                                                    </div>
+                                                </div>
+
+                                                <div className="bg-black/30 rounded-lg p-2.5 border border-white/5">
+                                                    <p className="text-xs text-white font-bold truncate">{order.client_name}</p>
+                                                    <p className="text-[10px] text-gray-400 truncate opacity-70">{order.client_email}</p>
+                                                </div>
+
+                                                <div className="flex flex-col gap-2.5">
+                                                    <div className="flex-1">
+                                                        <Select
+                                                            value={selectedSellerForOrder[order.id]}
+                                                            onValueChange={(val) => setSelectedSellerForOrder(prev => ({ ...prev, [order.id]: val }))}
+                                                        >
+                                                            <SelectTrigger className="w-full bg-black/40 border-gold-medium/20 text-white text-[11px] h-9">
+                                                                <SelectValue placeholder="Assign Seller" />
+                                                            </SelectTrigger>
+                                                            <SelectContent className="bg-zinc-950 border-gold-medium/30 text-white">
+                                                                {sellers.map(s => (
+                                                                    <SelectItem key={s.seller_id_public} value={s.seller_id_public} className="text-xs">
+                                                                        {s.full_name || s.email}
+                                                                    </SelectItem>
+                                                                ))}
+                                                            </SelectContent>
+                                                        </Select>
+                                                    </div>
+
+                                                    <Button
+                                                        onClick={() => handleSync(order.id)}
+                                                        disabled={processingId === order.id || !selectedSellerForOrder[order.id]}
+                                                        className="w-full bg-gold-medium hover:bg-gold-light text-black font-black h-9 text-xs uppercase tracking-widest gap-2 shadow-lg shadow-gold-medium/10"
+                                                    >
+                                                        {processingId === order.id ? (
+                                                            <Loader2 className="w-4 h-4 animate-spin" />
+                                                        ) : (
+                                                            <UserPlus className="w-4 h-4" />
+                                                        )}
+                                                        Sync Sale
+                                                    </Button>
+                                                </div>
+                                            </div>
+                                        );
+                                    })
+                                )}
+                            </div>
                         </div>
                     </CardContent>
                 </Card>

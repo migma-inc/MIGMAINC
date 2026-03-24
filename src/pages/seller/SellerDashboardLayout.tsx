@@ -4,6 +4,7 @@ import { supabase } from '@/lib/supabase';
 import { SellerSidebar } from '@/components/seller/SellerSidebar';
 import { Menu } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { DashboardCacheProvider } from '@/contexts/DashboardCacheContext';
 
 interface SellerInfo {
   id: string;
@@ -13,6 +14,7 @@ interface SellerInfo {
   status: string;
   role?: string;
   head_of_sales_id?: string | null;
+  team_id?: string | null;
 }
 
 const SELLER_CACHE_KEY = 'seller_cache';
@@ -87,17 +89,31 @@ export function SellerDashboardLayout() {
           .eq('status', 'active')
           .single();
 
-        if (error || !sellerData) {
-          console.error('[SellerDashboardLayout] Not a seller or inactive:', error);
+        const userRole = session.user.user_metadata?.role;
+        const isAdmin = userRole === 'admin';
+        const isHoS = userRole === 'head_of_sales';
+
+        if (!sellerData && !isAdmin && !isHoS) {
+          console.error('[SellerDashboardLayout] Not authorized:', error);
           setSeller(null);
           setLoading(false);
           clearCachedSeller();
           return;
         }
 
+        const activeSeller = sellerData || {
+          id: session.user.id,
+          seller_id_public: isAdmin ? 'admin' : 'hos',
+          full_name: session.user.user_metadata?.full_name || (isAdmin ? 'Administrator' : 'Head of Sales'),
+          email: session.user.email!,
+          status: 'active',
+          role: isAdmin ? 'admin' : 'head_of_sales',
+          team_id: null
+        };
+
         // Save to cache and state
-        setCachedSeller(sellerData);
-        setSeller(sellerData);
+        setCachedSeller(activeSeller);
+        setSeller(activeSeller);
       } catch (err) {
         console.error('[SellerDashboardLayout] Error loading seller:', err);
         setSeller(null);
@@ -159,11 +175,11 @@ export function SellerDashboardLayout() {
           </Button>
         </div>
         <div className="p-4 sm:p-6 lg:p-8">
-          <Outlet context={{ seller }} />
+          <DashboardCacheProvider>
+            <Outlet context={{ seller }} />
+          </DashboardCacheProvider>
         </div>
       </main>
     </div>
   );
 }
-
-
