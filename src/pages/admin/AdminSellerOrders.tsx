@@ -214,60 +214,63 @@ const OrderTableSection = ({
             </div>
 
             {/* Mobile view for OrderTableSection */}
-            <div className="md:hidden space-y-4 p-4">
+            <div className="md:hidden space-y-3 p-3.5">
                 {paginatedOrders.map((order) => {
                     const { netAmount, feeAmount, totalPrice } = calculateNetAmountAndFee(order);
                     return (
-                        <Card key={order.id} className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30">
-                            <CardContent className="p-4 space-y-3">
-                                <div className="flex justify-between items-start">
-                                    <div className="flex flex-col">
-                                        <span className="text-sm font-mono text-gold-light font-semibold">{order.order_number}</span>
-                                        <span className="text-base font-semibold text-white mt-1">{order.client_name}</span>
-                                        <span className="text-xs text-gray-400">{order.client_email}</span>
+                        <Card key={order.id} className="bg-zinc-900 border border-gold-medium/20 shadow-lg shadow-black/40 overflow-hidden">
+                            <CardContent className="p-3.5 space-y-3.5">
+                                <div className="flex justify-between items-start gap-4">
+                                    <div className="flex flex-col min-w-0">
+                                        <span className="text-[10px] font-mono text-gold-light/70 font-medium truncate">{order.order_number}</span>
+                                        <span className="text-sm font-bold text-white mt-0.5 truncate">{order.client_name}</span>
+                                        <span className="text-[10px] text-gray-500 truncate opacity-80">{order.client_email}</span>
                                     </div>
-                                    {getStatusBadge(order.payment_status)}
+                                    <div className="shrink-0">
+                                        {getStatusBadge(order.payment_status)}
+                                    </div>
                                 </div>
 
-                                <div className="grid grid-cols-2 gap-2 text-xs sm:text-sm pt-2">
-                                    <div>
-                                        <p className="text-gray-400">Product</p>
-                                        <p className="text-white break-words">{order.product_slug}</p>
+                                <div className="grid grid-cols-2 gap-3 pt-3 border-t border-white/5">
+                                    <div className="min-w-0">
+                                        <p className="text-[9px] text-gray-500 uppercase font-black tracking-widest mb-1">Product</p>
+                                        <Badge variant="outline" className="text-[9px] border-zinc-800 text-zinc-400 bg-transparent uppercase font-medium truncate max-w-full block text-center">
+                                            {order.product_slug}
+                                        </Badge>
                                     </div>
-                                    <div>
-                                        <p className="text-gray-400">{isSignatureOnly ? 'Value' : 'Total (with fee)'}</p>
-                                        <p className="text-gold-light font-bold">{formatCurrency(totalPrice)}</p>
+                                    <div className="text-right">
+                                        <p className="text-[9px] text-gray-500 uppercase font-black tracking-widest mb-1">Total</p>
+                                        <p className="text-sm text-gold-light font-black tracking-tight">{formatCurrency(totalPrice)}</p>
                                         {order.extra_units && order.extra_units > 0 ? (
-                                            <div className="text-[10px] text-blue-400 mt-1">+{order.extra_units} dependent{order.extra_units > 1 ? 's' : ''}</div>
+                                            <div className="text-[8px] text-blue-400 font-bold mt-0.5 font-mono">+{order.extra_units} DEP</div>
                                         ) : null}
                                     </div>
-                                    {!isSignatureOnly && (
-                                        <div>
-                                            <p className="text-gray-400">Net Amount</p>
-                                            <p className="text-white font-semibold">{formatCurrency(netAmount)}</p>
-                                        </div>
-                                    )}
-                                    {!isSignatureOnly && (
-                                        <div>
-                                            <p className="text-gray-400">Fee</p>
-                                            <p className="text-red-400">${feeAmount > 0 ? `-${feeAmount.toFixed(2)}` : '0.00'}</p>
-                                        </div>
-                                    )}
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-3">
                                     <div>
-                                        <p className="text-gray-400">Date</p>
-                                        <p className="text-white">{new Date(order.created_at).toLocaleDateString()}</p>
+                                        <p className="text-[9px] text-gray-500 uppercase font-black tracking-widest mb-1">Net Amount</p>
+                                        <p className="text-sm text-white font-black tracking-tight">{formatCurrency(netAmount)}</p>
+                                    </div>
+                                    <div className="text-right">
+                                        <p className="text-[9px] text-gray-500 uppercase font-black tracking-widest mb-1">Fee</p>
+                                        <p className="text-xs text-red-500/80 font-bold">${feeAmount > 0 ? `-${feeAmount.toFixed(2)}` : '0.00'}</p>
                                     </div>
                                 </div>
 
-                                <div className="flex flex-col gap-2 pt-2 border-t border-gold-medium/20">
-                                    <Link to={`/dashboard/visa-orders/${order.id}`}>
+                                <div className="flex items-center justify-between pt-3 border-t border-white/5 gap-3">
+                                    <div className="min-w-0">
+                                        <p className="text-[9px] text-gray-500 uppercase font-black tracking-widest mb-0.5">Date</p>
+                                        <p className="text-xs text-gray-400 font-medium">{new Date(order.created_at).toLocaleDateString()}</p>
+                                    </div>
+                                    <Link to={`/dashboard/visa-orders/${order.id}`} className="flex-1 max-w-[120px]">
                                         <Button
                                             variant="outline"
                                             size="sm"
-                                            className="w-full flex items-center justify-center gap-2 border-gold-medium/50 bg-black/50 text-white hover:bg-gold-medium/30 hover:text-gold-light text-xs"
+                                            className="w-full h-8.5 border-gold-medium/30 bg-white/5 text-white font-black uppercase text-[10px] tracking-widest hover:bg-gold-medium/10 transition-all rounded-lg gap-2"
                                         >
-                                            <Eye className="w-3 h-3" />
-                                            View Details
+                                            <Eye className="w-3.5 h-3.5" />
+                                            View
                                         </Button>
                                     </Link>
                                 </div>

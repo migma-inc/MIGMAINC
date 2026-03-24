@@ -163,11 +163,11 @@ export function ManageTeamModal({ isOpen, onClose, onSuccess, team }: ManageTeam
     );
 
     return (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-300">
-            <div className="bg-zinc-900 w-full max-w-5xl h-[85vh] rounded-2xl border border-white/10 shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-300">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-2 sm:p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-300">
+            <div className="bg-zinc-900 w-full max-w-5xl h-[95vh] sm:h-[85vh] rounded-2xl border border-white/10 shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-300">
                 {/* Header */}
-                <div className="px-6 py-4 border-b border-white/5 flex items-center justify-between bg-white/5 group/header">
-                    <div className="flex items-center gap-3 flex-1">
+                <div className="px-4 sm:px-6 py-4 border-b border-white/5 flex items-center justify-between bg-white/5 group/header gap-4">
+                    <div className="flex items-center gap-3 flex-1 min-w-0">
                         <Users className="w-5 h-5 text-gold-medium shrink-0" />
                         {isEditingName ? (
                             <div className="flex items-center gap-2 flex-1 max-w-md">
@@ -177,36 +177,35 @@ export function ManageTeamModal({ isOpen, onClose, onSuccess, team }: ManageTeam
                                     onChange={e => setTeamName(e.target.value)}
                                     autoFocus
                                     onKeyDown={e => e.key === 'Enter' && handleUpdateName()}
-                                    className="bg-black/40 border border-gold-medium/30 rounded-lg px-3 py-1.5 text-white font-bold text-sm w-full focus:outline-none focus:border-gold-medium transition-all"
+                                    className="bg-black/40 border border-gold-medium/30 rounded-lg px-2 sm:px-3 py-1.5 text-white font-bold text-xs sm:text-sm w-full focus:outline-none focus:border-gold-medium transition-all"
                                 />
-                                <Button 
-                                    size="sm" 
-                                    onClick={handleUpdateName}
-                                    disabled={savingName}
-                                    className="bg-gold-medium hover:bg-gold-light text-black font-bold h-9 px-3 shrink-0"
-                                >
-                                    {savingName ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
-                                </Button>
-                                <Button 
-                                    size="sm" 
-                                    variant="ghost" 
-                                    onClick={() => { setTeamName(team.name); setIsEditingName(false); }}
-                                    className="text-gray-400 hover:text-white hover:bg-white/10 h-9 w-9 p-0 shrink-0"
-                                >
-                                    <X className="w-4 h-4" />
-                                </Button>
+                                <div className="flex items-center gap-1">
+                                    <Button 
+                                        size="sm" 
+                                        onClick={handleUpdateName}
+                                        disabled={savingName}
+                                        className="bg-gold-medium hover:bg-gold-light text-black font-bold h-8 sm:h-9 px-2 sm:px-3 shrink-0"
+                                    >
+                                        {savingName ? <Loader2 className="w-3 h-3 sm:w-4 sm:h-4 animate-spin" /> : <Check className="w-3 h-3 sm:w-4 sm:h-4" />}
+                                    </Button>
+                                    <Button 
+                                        size="sm" 
+                                        variant="ghost" 
+                                        onClick={() => { setTeamName(team.name); setIsEditingName(false); }}
+                                        className="text-gray-400 hover:text-white hover:bg-white/10 h-8 sm:h-9 w-8 sm:w-9 p-0 shrink-0"
+                                    >
+                                        <X className="w-3 h-3 sm:w-4 sm:h-4" />
+                                    </Button>
+                                </div>
                             </div>
                         ) : (
                             <div 
-                                className="flex items-center gap-2 cursor-pointer group/title hover:opacity-80 transition-all" 
+                                className="flex items-center gap-2 cursor-pointer group/title hover:opacity-80 transition-all min-w-0" 
                                 onClick={() => setIsEditingName(true)}
                                 title="Click to edit team name"
                             >
-                                <h2 className="text-lg font-bold text-white tracking-tight">Manage Team: {teamName}</h2>
-                                <Pencil className="w-4 h-4 text-gold-medium/60 group-hover/title:text-gold-medium transition-all" />
-                                <span className="text-[10px] text-gray-500 font-medium uppercase tracking-wider opacity-0 group-hover/title:opacity-100 transition-all ml-1">
-                                    Click to edit
-                                </span>
+                                <h2 className="text-sm sm:text-lg font-bold text-white tracking-tight truncate">Manage Team: {teamName}</h2>
+                                <Pencil className="w-3 h-3 sm:w-4 sm:h-4 text-gold-medium/60 group-hover/title:text-gold-medium transition-all" />
                             </div>
                         )}
                     </div>
@@ -217,12 +216,12 @@ export function ManageTeamModal({ isOpen, onClose, onSuccess, team }: ManageTeam
 
                 {/* Conflict Warning Banner */}
                 {promotionError && (
-                    <div className="bg-amber-500/10 border-b border-amber-500/20 px-6 py-3 flex items-center justify-between animate-in slide-in-from-top duration-300">
+                    <div className="bg-amber-500/10 border-b border-amber-500/20 px-4 sm:px-6 py-2 sm:py-3 flex items-center justify-between animate-in slide-in-from-top duration-300">
                         <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 rounded-full bg-amber-500/20 flex items-center justify-center">
-                                <Crown className="w-4 h-4 text-amber-500" />
+                            <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-full bg-amber-500/20 flex items-center justify-center flex-shrink-0">
+                                <Crown className="w-3 h-3 sm:w-4 sm:h-4 text-amber-500" />
                             </div>
-                            <p className="text-sm font-medium text-amber-200/90">{promotionError}</p>
+                            <p className="text-[10px] sm:text-sm font-medium text-amber-200/90">{promotionError}</p>
                         </div>
                         <button 
                             onClick={() => setPromotionError(null)}

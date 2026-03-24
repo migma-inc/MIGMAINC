@@ -22,34 +22,38 @@ export function HeadOfSalesOrders() {
             }
 
             try {
-                const { data: teamMembers } = await supabase
+                // 1. Fetch ALL sellers to map names (including former ones)
+                const { data: allSellers } = await supabase
                     .from('sellers')
-                    .select('seller_id_public, full_name')
-                    .eq('team_id', seller.team_id);
+                    .select('seller_id_public, full_name, team_id');
 
-                if (teamMembers && teamMembers.length > 0) {
-                    const sellerMap = teamMembers.reduce((acc, current) => {
-                        acc[current.seller_id_public] = current.full_name;
-                        return acc;
-                    }, {} as Record<string, string>);
+                const sellerMap = allSellers?.reduce((acc, current) => {
+                    acc[current.seller_id_public] = {
+                        name: current.full_name,
+                        is_current: current.team_id === seller.team_id
+                    };
+                    return acc;
+                }, {} as Record<string, { name: string, is_current: boolean }>);
 
-                    const sellerIds = teamMembers.map(m => m.seller_id_public);
+                // 2. Fetch orders for the TEAM ID directly
+                const { data } = await supabase
+                    .from('visa_orders')
+                    .select('*')
+                    .eq('team_id', seller.team_id)
+                    .order('created_at', { ascending: false })
+                    .limit(100);
 
-                    const { data } = await supabase
-                        .from('visa_orders')
-                        .select('*')
-                        .in('seller_id', sellerIds)
-                        .order('created_at', { ascending: false })
-                        .limit(50);
-
-                    if (data) {
-                        const withNames = data.map(o => ({
+                if (data) {
+                    const withDetails = data.map(o => {
+                        const sellerDetail = sellerMap?.[o.seller_id];
+                        return {
                             ...o,
-                            seller_name: sellerMap[o.seller_id] || o.seller_id
-                        }));
-                        setOrders(withNames);
-                        setCacheValue('orders', withNames);
-                    }
+                            seller_name: sellerDetail?.name || o.seller_id,
+                            is_former: !sellerDetail?.is_current
+                        };
+                    });
+                    setOrders(withDetails);
+                    setCacheValue('orders', withDetails);
                 } else {
                     setOrders([]);
                     setCacheValue('orders', []);
@@ -70,8 +74,8 @@ export function HeadOfSalesOrders() {
         <div className="max-w-7xl mx-auto space-y-6">
             <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="text-3xl font-bold text-white tracking-tight">Pedidos da Equipe</h1>
-                    <p className="text-gray-400 mt-1">Últimos pedidos realizados pelos seus vendedores.</p>
+                    <h1 className="text-3xl font-bold text-white tracking-tight">Team Orders</h1>
+                    <p className="text-gray-400 mt-1">Latest orders placed by your sellers.</p>
                 </div>
             </div>
 
@@ -79,7 +83,7 @@ export function HeadOfSalesOrders() {
                 <CardHeader>
                     <CardTitle className="text-white flex items-center gap-2">
                         <ShoppingCart className="w-5 h-5 text-gold-light" />
-                        Vendas Recentes
+                        Recent Sales
                     </CardTitle>
                 </CardHeader>
                 <CardContent>
@@ -105,24 +109,33 @@ export function HeadOfSalesOrders() {
                             </table>
                         </div>
                     ) : orders.length === 0 ? (
-                        <p className="text-gray-400 text-center py-6">Nenhum pedido encontrado na sua equipe.</p>
+                        <p className="text-gray-400 text-center py-6">No orders found in your team.</p>
                     ) : (
                         <div className="overflow-x-auto">
                             <table className="w-full text-sm text-left text-gray-300">
                                 <thead className="text-xs text-gray-400 uppercase bg-white/5 border-b border-white/10">
                                     <tr>
-                                        <th className="px-6 py-3">Vendedor</th>
-                                        <th className="px-6 py-3">Cliente</th>
-                                        <th className="px-6 py-3">Produto</th>
-                                        <th className="px-6 py-3">Valor</th>
+                                        <th className="px-6 py-3">Seller</th>
+                                        <th className="px-6 py-3">Client</th>
+                                        <th className="px-6 py-3">Product</th>
+                                        <th className="px-6 py-3">Value</th>
                                         <th className="px-6 py-3">Status</th>
-                                        <th className="px-6 py-3">Data</th>
+                                        <th className="px-6 py-3">Date</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {orders.map(order => (
                                         <tr key={order.id} className="border-b border-white/10 hover:bg-white/5">
-                                            <td className="px-6 py-4 font-medium text-purple-300">{order.seller_name}</td>
+                                            <td className="px-6 py-4 font-medium text-purple-300">
+                                                <div className="flex flex-col">
+                                                    <span>{order.seller_name}</span>
+                                                    {order.is_former && (
+                                                        <span className="text-[10px] text-red-400 font-bold uppercase tracking-tighter">
+                                                            Former Member
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </td>
                                             <td className="px-6 py-4">{order.client_name}</td>
                                             <td className="px-6 py-4">{order.product_slug}</td>
                                             <td className="px-6 py-4 font-bold text-gold-light">

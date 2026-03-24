@@ -76,9 +76,9 @@ export class ZelleService {
                         discountAmount: request.discount_amount || 0,
                         originalAmount: baseTotal + (request.discount_amount || 0),
                         finalAmount: baseTotal
-                    } : undefined
-                    // Note: The zelle-n8n-integration.ts doesn't have a direct field for upsell_slug in its interface yet, 
-                    // but we can pass it in the payload or fee_type if needed.
+                    } : undefined,
+                    // Auto-route to Test Webhook on N8N using Auto Dev payload
+                    isTest: request.client_name === 'John Doe Dev' || isTestEnvironment()
                 }
             );
 

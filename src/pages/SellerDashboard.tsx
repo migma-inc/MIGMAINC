@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { formatCurrency } from '@/lib/utils';
+import { formatCurrency, generateUUID, copyToClipboard } from '@/lib/utils';
 import { Link, useNavigate, Navigate } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import { Button } from '@/components/ui/button';
@@ -207,7 +207,7 @@ export const SellerDashboard = () => {
     const siteUrl = window.location.origin;
     const link = `${siteUrl}/checkout/visa/${productSlug}?seller=${seller.seller_id_public}`;
 
-    navigator.clipboard.writeText(link);
+    copyToClipboard(link);
     setCopiedLink(link);
 
     setTimeout(() => setCopiedLink(null), 3000);
@@ -678,7 +678,7 @@ export const SellerDashboard = () => {
                     />
                     <Button
                       onClick={() => {
-                        navigator.clipboard.writeText(generatedPrefillLink);
+                        copyToClipboard(generatedPrefillLink);
                         setCopiedLink(generatedPrefillLink);
                         setTimeout(() => setCopiedLink(null), 3000);
                       }}
@@ -717,7 +717,7 @@ export const SellerDashboard = () => {
 
                   // Generate token and create prefill record
                   try {
-                    const token = crypto.randomUUID();
+                    const token = generateUUID();
                     const expiresAt = new Date();
                     expiresAt.setDate(expiresAt.getDate() + 30); // 30 days validity
 
@@ -797,7 +797,7 @@ export const SellerDashboard = () => {
                     serviceGroups.cos.products.push(product);
                   } else if (product.slug.startsWith('transfer-')) {
                     serviceGroups.transfer.products.push(product);
-                  } else if (product.slug.startsWith('eb2-') && product.name !== 'U.S. Visa EB-2 (Main applicant)') {
+                  } else if (product.slug.startsWith('eb2-')) {
                     serviceGroups.eb2.products.push(product);
                   } else if (product.slug.startsWith('eb3-')) {
                     serviceGroups.eb3.products.push(product);

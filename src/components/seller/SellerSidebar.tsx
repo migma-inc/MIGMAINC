@@ -131,7 +131,8 @@ export function SellerSidebar({ className, sellerName, isMobileOpen = false, onM
     { title: 'Sales Links', icon: LinkIcon, path: '/seller/dashboard/links', exact: false },
     { title: 'My Team', icon: Users, path: '/seller/dashboard/team', exact: false },
     { title: 'Team Orders', icon: ShoppingCart, path: '/seller/dashboard/team-orders', exact: false },
-    { title: 'My Overrides', icon: Coins, path: '/seller/dashboard/team-commissions', exact: false },
+    { title: 'Team Overrides', icon: Coins, path: '/seller/dashboard/team-commissions', exact: false },
+    { title: 'Team Analytics', icon: BarChart3, path: '/seller/dashboard/team-analytics', exact: false },
     { title: 'Contract Approvals', icon: FileCheck, path: '/seller/dashboard/team-contract-approval', exact: false, badge: pendingContractsCount },
     { title: 'Total Sales', icon: BarChart3, path: '/seller/dashboard/team-total-sales', exact: false },
   ];

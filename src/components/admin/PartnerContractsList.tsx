@@ -184,9 +184,8 @@ export function PartnerContractsList({
                 </div>
                 <Link to={`/dashboard/applications/${contract.application_id}`} className="w-full sm:w-auto">
                   <Button variant="outline" size="sm" className="w-full sm:w-auto flex items-center justify-center gap-2 border-gold-medium/50 bg-black/50 text-white hover:bg-gold-medium/30 hover:text-gold-light text-xs sm:text-sm">
-                    <Eye className="w-3 h-3 sm:w-4 sm:h-4" />
-                    <span className="hidden sm:inline">View Details</span>
-                    <span className="sm:hidden">View</span>
+                    <Eye className="w-4 h-4" />
+                    <span>View Details</span>
                   </Button>
                 </Link>
               </div>
@@ -236,26 +235,26 @@ export function PartnerContractsList({
 
                 {/* Action Buttons */}
                 {hasDocuments && (
-                  <div className="flex flex-wrap gap-2 pt-4 border-t border-gold-medium/20">
+                  <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 pt-4 border-t border-gold-medium/20">
                     {onApprove && (
                       <Button
                         onClick={() => onApprove(contract)}
-                        className="flex-1 sm:flex-none bg-green-600 hover:bg-green-700 text-white min-w-[120px]"
+                        className="w-full sm:w-auto flex-1 bg-green-600 hover:bg-green-700 text-white min-w-[120px] text-sm"
                         size="sm"
                       >
                         <CheckCircle className="w-4 h-4 mr-2" />
-                        Approve
+                        Approve Contract
                       </Button>
                     )}
                     {onReject && (
                       <Button
                         onClick={() => onReject(contract)}
                         variant="destructive"
-                        className="flex-1 sm:flex-none min-w-[120px]"
+                        className="w-full sm:w-auto flex-1 min-w-[120px] text-sm"
                         size="sm"
                       >
                         <XCircle className="w-4 h-4 mr-2" />
-                        Reject
+                        Reject Contract
                       </Button>
                     )}
                   </div>

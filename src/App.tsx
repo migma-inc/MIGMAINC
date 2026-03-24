@@ -35,6 +35,7 @@ import { HeadOfSalesTeam } from './pages/seller/HeadOfSalesTeam';
 import { HeadOfSalesOrders } from './pages/seller/HeadOfSalesOrders';
 import { HeadOfSalesCommissions } from './pages/seller/HeadOfSalesCommissions';
 import { HeadOfSalesTotalSales } from './pages/seller/HeadOfSalesTotalSales';
+import { HeadOfSalesAnalytics } from './pages/seller/HeadOfSalesAnalytics';
 import { SellerAnalytics } from './pages/seller/SellerAnalytics';
 import { SellerCommissions } from './pages/seller/SellerCommissions';
 import { SellerFunnel } from './pages/seller/SellerFunnel';
@@ -116,6 +117,7 @@ function App() {
               <Route path="team-orders" element={<HeadOfSalesOrders />} />
               <Route path="team-commissions" element={<HeadOfSalesCommissions />} />
               <Route path="team-total-sales" element={<HeadOfSalesTotalSales />} />
+              <Route path="team-analytics" element={<HeadOfSalesAnalytics />} />
               <Route path="team-contract-approval" element={<HosVisaContractApprovalPage />} />
             </>
           )}

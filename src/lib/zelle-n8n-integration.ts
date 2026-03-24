@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { generateUUID } from './utils';
 
 /**
  * Interface for n8n webhook payload
@@ -157,9 +158,16 @@ export function buildN8nPayload(
  */
 export async function sendZellePaymentToN8n(
   payload: N8nWebhookPayload,
-  timeout: number = 30000 // 30 seconds default timeout
+  timeout: number = 30000, // 30 seconds default timeout
+  isTest: boolean = false
 ): Promise<N8nResponse> {
-  const webhookUrl = import.meta.env.VITE_N8N_WEBHOOK_URL;
+  let webhookUrl = import.meta.env.VITE_N8N_WEBHOOK_URL;
+  
+  // Magic routing for Test Dev Tool webhook to n8n webhook-test route!
+  if (isTest && webhookUrl && webhookUrl.includes('/webhook/')) {
+      webhookUrl = webhookUrl.replace('/webhook/', '/webhook-test/');
+      console.log('🧪 Auto Dev Tool Mode: Routing N8N webhook to test endpoint ->', webhookUrl);
+  }
 
   if (!webhookUrl) {
     console.warn('[Zelle n8n] VITE_N8N_WEBHOOK_URL not configured, skipping n8n validation');
@@ -352,6 +360,7 @@ export async function processZellePaymentWithN8n(
       originalAmount: number;
       finalAmount: number;
     };
+    isTest?: boolean;
   }
 ): Promise<{
   paymentId: string;
@@ -362,7 +371,7 @@ export async function processZellePaymentWithN8n(
   decision: PaymentStatusDecision;
 }> {
   // 1. Generate unique payment ID
-  const paymentId = crypto.randomUUID();
+  const paymentId = generateUUID();
 
   // 2. Upload receipt to storage
   const { imageUrl, imagePath } = await uploadZelleReceipt(file, userId);
@@ -380,7 +389,7 @@ export async function processZellePaymentWithN8n(
   // 4. Send to n8n (with error handling)
   let n8nResponse: N8nResponse;
   try {
-    n8nResponse = await sendZellePaymentToN8n(payload);
+    n8nResponse = await sendZellePaymentToN8n(payload, 30000, options?.isTest);
   } catch (error) {
     console.error('[Zelle n8n] CRITICAL ERROR sending to n8n:', error);
     // Return a default response for error case

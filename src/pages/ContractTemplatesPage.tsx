@@ -357,31 +357,33 @@ export function ContractTemplatesPage() {
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={handleTabChange} className="mb-6">
-        <TabsList className="bg-black border border-gold-medium/30">
-          <TabsTrigger
-            value="global_partner"
-            className="data-[state=active]:bg-gold-medium/20 data-[state=active]:text-gold-light"
-          >
-            Global Partner
-          </TabsTrigger>
-          <TabsTrigger
-            value="visa_service"
-            className="data-[state=active]:bg-gold-medium/20 data-[state=active]:text-gold-light"
-          >
-            Visa Services
-          </TabsTrigger>
-          <TabsTrigger
-            value="chargeback_annex"
-            className="data-[state=active]:bg-gold-medium/20 data-[state=active]:text-gold-light"
-          >
-            Chargeback Annex
-          </TabsTrigger>
-        </TabsList>
+        <div className="overflow-x-auto pb-1">
+          <TabsList className="bg-black border border-gold-medium/30 w-max min-w-full sm:w-auto">
+            <TabsTrigger
+              value="global_partner"
+              className="data-[state=active]:bg-gold-medium/20 data-[state=active]:text-gold-light text-xs sm:text-sm whitespace-nowrap"
+            >
+              Global Partner
+            </TabsTrigger>
+            <TabsTrigger
+              value="visa_service"
+              className="data-[state=active]:bg-gold-medium/20 data-[state=active]:text-gold-light text-xs sm:text-sm whitespace-nowrap"
+            >
+              Visa Services
+            </TabsTrigger>
+            <TabsTrigger
+              value="chargeback_annex"
+              className="data-[state=active]:bg-gold-medium/20 data-[state=active]:text-gold-light text-xs sm:text-sm whitespace-nowrap"
+            >
+              Chargeback Annex
+            </TabsTrigger>
+          </TabsList>
+        </div>
 
         {/* Filters */}
         <div className="mt-4 mb-6">
           <Select value={filter} onValueChange={(value) => setFilter(value as FilterType)}>
-            <SelectTrigger className="w-[200px] bg-black text-white border-gold-medium/50">
+            <SelectTrigger className="w-full sm:w-[200px] bg-black text-white border-gold-medium/50">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -481,30 +483,30 @@ export function ContractTemplatesPage() {
                 key={template.id}
                 className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30"
               >
-                <CardHeader>
+                <CardHeader className="pb-2">
                   <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <CardTitle className="text-white text-lg mb-1">{template.name}</CardTitle>
+                    <div className="flex-1 min-w-0">
+                      <CardTitle className="text-white text-base sm:text-lg mb-1 break-words">{template.name}</CardTitle>
                       {template.description && (
-                        <p className="text-sm text-gray-400 mb-2">{template.description}</p>
+                        <p className="text-xs sm:text-sm text-gray-400 mb-2 break-words">{template.description}</p>
                       )}
-                      <div className="flex flex-wrap gap-2 mb-2">
+                      <div className="flex flex-wrap gap-1.5 mb-2">
                         <Badge
                           className={
                             template.is_active
-                              ? 'bg-green-500/20 text-green-300 border-green-500/50'
-                              : 'bg-gray-500/20 text-gray-300 border-gray-500/50'
+                              ? 'bg-green-500/20 text-green-300 border-green-500/50 text-xs'
+                              : 'bg-gray-500/20 text-gray-300 border-gray-500/50 text-xs'
                           }
                         >
                           {template.is_active ? 'Active' : 'Inactive'}
                         </Badge>
                         {(template.template_type === 'visa_service' || template.template_type === 'chargeback_annex') && template.product_slug && (
-                          <Badge className="bg-blue-500/20 text-blue-300 border-blue-500/50">
+                          <Badge className="bg-blue-500/20 text-blue-300 border-blue-500/50 text-xs max-w-[120px] truncate">
                             {template.product_slug}
                           </Badge>
                         )}
                         {template.template_type === 'chargeback_annex' && !template.product_slug && (
-                          <Badge className="bg-purple-500/20 text-purple-300 border-purple-500/50">
+                          <Badge className="bg-purple-500/20 text-purple-300 border-purple-500/50 text-xs">
                             Global
                           </Badge>
                         )}
@@ -512,16 +514,16 @@ export function ContractTemplatesPage() {
                     </div>
                   </div>
                 </CardHeader>
-                <CardContent>
-                  <div className="space-y-2 mb-4">
+                <CardContent className="pt-2">
+                  <div className="space-y-1 mb-3">
                     <p className="text-xs text-gray-500">
                       Created: {new Date(template.created_at).toLocaleDateString()}
                     </p>
                     {template.created_by && (
-                      <p className="text-xs text-gray-500">By: {template.created_by}</p>
+                      <p className="text-xs text-gray-500 truncate">By: {template.created_by}</p>
                     )}
                   </div>
-                  <div className="flex flex-wrap gap-2">
+                  <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-2">
                     <Button
                       variant="outline"
                       size="sm"

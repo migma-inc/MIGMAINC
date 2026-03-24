@@ -280,6 +280,7 @@ export const VisaCheckoutPage: React.FC = () => {
                                     handlers={paymentHandlers}
                                     onPrev={handlePrev}
                                     productSlug={productSlug}
+                                    totalAmount={totalWithFees}
                                 />
                             </div>
                         )}

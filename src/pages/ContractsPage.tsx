@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { FileText, Download, Eye, FileDown, User, MapPin, Hash, FileCode, Globe, Check, X, AlertCircle } from 'lucide-react';
+import { FileText, Download, Eye, User, FileCode, Globe, Check, X, AlertCircle } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -203,161 +203,164 @@ export function ContractsPage() {
 
   // Helper component to render contract card
   const renderContractCard = (contract: AcceptedContract) => (
-    <Card key={contract.id} className="hover:shadow-lg transition-shadow bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30">
-      <CardHeader>
-        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+    <Card key={contract.id} className="hover:shadow-xl transition-all duration-300 bg-gradient-to-br from-zinc-900 via-black to-zinc-900 border border-gold-medium/20 hover:border-gold-medium/40 group relative overflow-hidden">
+      <div className="absolute top-0 right-0 w-32 h-32 bg-gold-medium/5 blur-3xl -mr-16 -mt-16 group-hover:bg-gold-medium/10 transition-all rounded-full" />
+      
+      <CardHeader className="p-3 sm:p-6 pb-2 sm:pb-4 relative">
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 sm:gap-4">
           <div className="flex-1 min-w-0">
-            <CardTitle className="text-base sm:text-xl mb-2 text-white break-words">
-              {contract.application?.full_name || 'Unknown Partner'}
-            </CardTitle>
-            <div className="flex flex-wrap gap-2 text-xs sm:text-sm text-gray-400">
-              <span className="flex items-center gap-1">
-                <User className="w-3 h-3 sm:w-4 sm:h-4 shrink-0" />
-                <span className="truncate">{contract.application?.email}</span>
+            <div className="flex items-center gap-2 mb-1">
+              <div className="p-1.5 bg-gold-medium/10 rounded-lg border border-gold-medium/20 sm:hidden">
+                <User className="w-3.5 h-3.5 text-gold-light" />
+              </div>
+              <CardTitle className="text-base sm:text-xl font-black uppercase tracking-tight text-white truncate">
+                {contract.application?.full_name || 'Unknown Partner'}
+              </CardTitle>
+            </div>
+            
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[10px] sm:text-sm text-gray-500 font-bold uppercase tracking-wider">
+              <span className="flex items-center gap-1 opacity-80">
+                <span className="text-gray-400 break-all">{contract.application?.email}</span>
               </span>
-              <span>•</span>
-              <span>{contract.application?.country}</span>
-              <span>•</span>
-              <span>Accepted: {formatDate(contract.accepted_at)}</span>
+              <span className="text-gold-medium/30 hidden sm:inline">•</span>
+              <span className="bg-white/5 px-1.5 py-0.5 rounded border border-white/5">{contract.application?.country}</span>
+              <span className="text-gold-medium/30 hidden sm:inline">•</span>
+              <div className="w-full sm:w-auto mt-0.5 sm:mt-0 opacity-60">
+                Accepted: <span className="text-gray-400">{formatDate(contract.accepted_at)}</span>
+              </div>
             </div>
           </div>
-          <div className="flex justify-start sm:justify-end">
+          <div className="flex justify-start sm:justify-end shrink-0 pt-1 sm:pt-0">
             <VerificationStatusBadge status={contract.verification_status} />
           </div>
         </div>
       </CardHeader>
-      <CardContent>
-        {/* Legal Information Section */}
+
+      <CardContent className="p-3 sm:p-6 pt-0 sm:pt-0 relative">
+        {/* Legal Information Section - Ultra Compact on Mobile */}
         {(contract.contract_version || contract.contract_hash || contract.geolocation_country || contract.signature_name) && (
-          <div className="mb-4 p-3 bg-black/30 rounded-lg border border-gold-medium/20">
-            <h4 className="text-sm font-semibold text-gold-light mb-3 flex items-center gap-2">
-              <FileCode className="w-4 h-4" />
+          <div className="mb-4 p-2.5 sm:p-4 bg-black/40 rounded-xl border border-white/5 space-y-2 sm:space-y-3">
+            <h4 className="text-[10px] sm:text-xs font-black text-gold-light/80 uppercase tracking-[0.2em] flex items-center gap-2 opacity-80">
+              <FileCode className="w-3 h-3 sm:w-4 sm:h-4 text-gold-medium" />
               Legal Records
             </h4>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3 text-xs sm:text-sm">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-4">
               {contract.contract_version && (
-                <div className="flex items-start gap-2">
-                  <FileCode className="w-4 h-4 text-gold-medium mt-0.5 flex-shrink-0" />
-                  <div>
-                    <span className="text-gray-400">Contract Version:</span>
-                    <span className="text-white ml-2 font-mono">{contract.contract_version}</span>
+                <div className="flex items-center gap-2.5">
+                  <div className="w-1.5 h-1.5 rounded-full bg-gold-medium/40" />
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-[9px] sm:text-xs text-gray-500 font-bold uppercase tracking-widest whitespace-nowrap">Version</span>
+                    <span className="text-white font-black font-mono text-[10px] sm:text-sm">{contract.contract_version}</span>
                   </div>
                 </div>
               )}
               {contract.contract_hash && (
-                <div className="flex items-start gap-2">
-                  <Hash className="w-4 h-4 text-gold-medium mt-0.5 flex-shrink-0" />
-                  <div className="flex-1 min-w-0">
-                    <span className="text-gray-400">Contract Hash:</span>
-                    <span className="text-white ml-2 font-mono text-xs break-all">{contract.contract_hash.substring(0, 32)}...</span>
-                  </div>
-                </div>
-              )}
-              {(contract.geolocation_country || contract.geolocation_city) && (
-                <div className="flex items-start gap-2">
-                  <MapPin className="w-4 h-4 text-gold-medium mt-0.5 flex-shrink-0" />
-                  <div>
-                    <span className="text-gray-400">Location:</span>
-                    <span className="text-white ml-2">
-                      {[contract.geolocation_city, contract.geolocation_country].filter(Boolean).join(', ') || 'N/A'}
+                <div className="flex items-center gap-2.5 overflow-hidden">
+                  <div className="w-1.5 h-1.5 rounded-full bg-gold-medium/40 shrink-0" />
+                  <div className="flex items-baseline gap-2 overflow-hidden">
+                    <span className="text-[9px] sm:text-xs text-gray-500 font-bold uppercase tracking-widest whitespace-nowrap">Hash</span>
+                    <span className="text-gray-400 font-mono text-[9px] sm:text-xs truncate opacity-70 italic">
+                      {contract.contract_hash.substring(0, 16)}...
                     </span>
                   </div>
                 </div>
               )}
-              {contract.signature_name && (
-                <div className="flex items-start gap-2">
-                  <User className="w-4 h-4 text-gold-medium mt-0.5 flex-shrink-0" />
-                  <div>
-                    <span className="text-gray-400">Digital Signature:</span>
-                    <span className="text-white ml-2">{contract.signature_name}</span>
+              {contract.ip_address && (
+                <div className="flex items-center gap-2.5">
+                  <Globe className="w-3 h-3 text-gold-medium/60 shrink-0" />
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-[9px] sm:text-xs text-gray-500 font-bold uppercase tracking-widest whitespace-nowrap">IP Address</span>
+                    <span className="text-white font-black font-mono text-[10px] sm:text-sm">{contract.ip_address}</span>
                   </div>
                 </div>
               )}
-              {contract.ip_address && (
-                <div className="flex items-start gap-2">
-                  <Globe className="w-4 h-4 text-gold-medium mt-0.5 flex-shrink-0" />
-                  <div>
-                    <span className="text-gray-400">IP Address:</span>
-                    <span className="text-white ml-2 font-mono text-xs">{contract.ip_address}</span>
+              {contract.signature_name && (
+                <div className="flex items-center gap-2.5">
+                  <div className="w-1.5 h-1.5 rounded-full bg-gold-medium/40" />
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-[9px] sm:text-xs text-gray-500 font-bold uppercase tracking-widest whitespace-nowrap">Signature</span>
+                    <span className="text-white font-black text-[10px] sm:text-sm truncate">{contract.signature_name}</span>
                   </div>
                 </div>
               )}
             </div>
           </div>
         )}
-        <div className="flex flex-wrap gap-2 items-center">
-          {/* Action buttons for pending contracts (including null status for old contracts) */}
+
+        <div className="flex flex-col gap-2">
+          {/* Main Actions Row */}
+          <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-2">
+            {contract.contract_pdf_url && (
+              <>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => handleViewContract(contract)}
+                  className="bg-gold-medium/5 hover:bg-gold-medium/20 text-gold-light border border-gold-medium/10 h-9 sm:h-10 text-[10px] sm:text-sm font-black uppercase tracking-widest transition-all"
+                >
+                  <Eye className="w-3.5 h-3.5 mr-2 shrink-0" />
+                  View
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => handleDownloadContract(contract)}
+                  className="bg-white/5 hover:bg-white/10 text-white border border-white/5 h-9 sm:h-10 text-[10px] sm:text-sm font-black uppercase tracking-widest transition-all"
+                >
+                  <Download className="w-3.5 h-3.5 mr-2 shrink-0" />
+                  PDF
+                </Button>
+              </>
+            )}
+            
+            {contract.application?.cv_file_path && (
+              <>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => handleViewCv(contract)}
+                  className="bg-white/5 hover:bg-white/10 text-white border border-white/5 h-9 sm:h-10 text-[10px] sm:text-sm font-black uppercase tracking-widest transition-all"
+                >
+                  <Eye className="w-3.5 h-3.5 mr-2 shrink-0" />
+                  CV
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => handleDownloadCv(contract)}
+                  className="bg-white/5 hover:bg-white/10 text-white border border-white/5 h-9 sm:h-10 text-[10px] sm:text-sm font-black uppercase tracking-widest transition-all"
+                >
+                  <Download className="w-3.5 h-3.5 mr-2 shrink-0" />
+                  CV
+                </Button>
+              </>
+            )}
+          </div>
+
+          {/* Admin Verification Actions */}
           {(contract.verification_status === 'pending' || contract.verification_status === null) && (
-            <>
+            <div className="grid grid-cols-2 gap-2 mt-1 sm:mt-0">
               <Button
-                variant="outline"
+                variant="ghost"
                 size="sm"
                 onClick={() => handleApproveContract(contract)}
                 disabled={isProcessing}
-                className="flex items-center gap-2 border-green-500/50 bg-green-900/20 text-green-300 hover:bg-green-800/30 hover:text-green-200"
+                className="bg-green-600/10 hover:bg-green-600/20 text-green-400 border border-green-500/20 h-9 sm:h-10 text-[10px] sm:text-sm font-black uppercase tracking-widest transition-all"
               >
-                <Check className="w-4 h-4" />
+                <Check className="w-3.5 h-3.5 mr-2 shrink-0" />
                 Approve
               </Button>
               <Button
-                variant="outline"
+                variant="ghost"
                 size="sm"
                 onClick={() => handleRejectContract(contract)}
                 disabled={isProcessing}
-                className="flex items-center gap-2 border-red-500/50 bg-red-900/20 text-red-300 hover:bg-red-800/30 hover:text-red-200"
+                className="bg-red-600/10 hover:bg-red-600/20 text-red-400 border border-red-500/20 h-9 sm:h-10 text-[10px] sm:text-sm font-black uppercase tracking-widest transition-all"
               >
-                <X className="w-4 h-4" />
+                <X className="w-3.5 h-3.5 mr-2 shrink-0" />
                 Reject
               </Button>
-            </>
-          )}
-          {contract.contract_pdf_url && (
-            <>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => handleViewContract(contract)}
-                className="flex-1 sm:flex-none flex items-center justify-center gap-2 border-gold-medium/50 bg-black/50 text-white hover:bg-gold-medium/30 hover:text-gold-light text-xs sm:text-sm"
-              >
-                <Eye className="w-3 h-3 sm:w-4 sm:h-4" />
-                <span className="hidden sm:inline">View Contract</span>
-                <span className="sm:hidden">View</span>
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => handleDownloadContract(contract)}
-                className="flex-1 sm:flex-none flex items-center justify-center gap-2 border-gold-medium/50 bg-black/50 text-white hover:bg-gold-medium/30 hover:text-gold-light text-xs sm:text-sm"
-              >
-                <Download className="w-3 h-3 sm:w-4 sm:h-4" />
-                <span className="hidden sm:inline">Download Contract</span>
-                <span className="sm:hidden">Download</span>
-              </Button>
-            </>
-          )}
-          {contract.application?.cv_file_path && (
-            <>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => handleViewCv(contract)}
-                className="flex-1 sm:flex-none flex items-center justify-center gap-2 border-gold-medium/50 bg-black/50 text-white hover:bg-gold-medium/30 hover:text-gold-light text-xs sm:text-sm"
-              >
-                <Eye className="w-3 h-3 sm:w-4 sm:h-4" />
-                <span className="hidden sm:inline">View CV</span>
-                <span className="sm:hidden">View CV</span>
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => handleDownloadCv(contract)}
-                className="flex-1 sm:flex-none flex items-center justify-center gap-2 border-gold-medium/50 bg-black/50 text-white hover:bg-gold-medium/30 hover:text-gold-light text-xs sm:text-sm"
-              >
-                <FileDown className="w-3 h-3 sm:w-4 sm:h-4" />
-                <span className="hidden sm:inline">Download CV</span>
-                <span className="sm:hidden">Download</span>
-              </Button>
-            </>
+            </div>
           )}
         </div>
       </CardContent>
@@ -599,33 +602,52 @@ export function ContractsPage() {
   }
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8">
-      <div className="mb-4 sm:mb-6">
-        <h1 className="text-2xl sm:text-3xl font-bold migma-gold-text mb-2">Accepted Contracts</h1>
-        <p className="text-sm sm:text-base text-gray-400">View and manage all accepted partner contracts</p>
+    <div className="p-2 sm:p-6 lg:p-8 space-y-4 sm:space-y-6">
+      <div className="mb-2 sm:mb-6">
+        <div className="flex items-center gap-2 mb-1">
+          <div className="p-2 bg-gold-medium/10 rounded-lg border border-gold-medium/20 md:hidden">
+            <FileText className="w-5 h-5 text-gold-light" />
+          </div>
+          <h1 className="text-xl sm:text-3xl font-black uppercase tracking-tighter migma-gold-text">Accepted Contracts</h1>
+        </div>
+        <p className="text-[10px] sm:text-base text-gray-500 font-bold uppercase tracking-widest opacity-70">Manage all partner agreements</p>
 
-        {/* Statistics */}
+        {/* Statistics - Compact Grid for Mobile */}
         {stats && (
-          <div className="mt-3 sm:mt-4 flex flex-wrap gap-3 sm:gap-4 text-xs sm:text-sm">
-            <span className="text-gray-400">Total: <span className="text-white font-semibold">{stats.total}</span></span>
-            <span className="text-gray-400">Pending: <span className="text-yellow-300 font-semibold">{stats.pending}</span></span>
-            <span className="text-gray-400">Approved: <span className="text-green-300 font-semibold">{stats.approved}</span></span>
-            <span className="text-gray-400">Rejected: <span className="text-red-300 font-semibold">{stats.rejected}</span></span>
+          <div className="mt-4 grid grid-cols-2 md:flex md:flex-wrap gap-2 md:gap-4">
+            <div className="bg-black/40 border border-white/5 p-2 rounded-xl flex items-center justify-between group hover:border-gold-medium/30 transition-all">
+              <span className="text-[10px] text-gray-500 font-black uppercase tracking-widest leading-none">Total</span>
+              <span className="text-white font-black text-sm leading-none">{stats.total}</span>
+            </div>
+            <div className="bg-black/40 border border-white/5 p-2 rounded-xl flex items-center justify-between group hover:border-yellow-500/30 transition-all">
+              <span className="text-[10px] text-gray-500 font-black uppercase tracking-widest leading-none">Pending</span>
+              <span className="text-yellow-400 font-black text-sm leading-none">{stats.pending}</span>
+            </div>
+            <div className="bg-black/40 border border-white/5 p-2 rounded-xl flex items-center justify-between group hover:border-green-500/30 transition-all">
+              <span className="text-[10px] text-gray-500 font-black uppercase tracking-widest leading-none">Approved</span>
+              <span className="text-green-400 font-black text-sm leading-none">{stats.approved}</span>
+            </div>
+            <div className="bg-black/40 border border-white/5 p-2 rounded-xl flex items-center justify-between group hover:border-red-500/30 transition-all">
+              <span className="text-[10px] text-gray-500 font-black uppercase tracking-widest leading-none">Rejected</span>
+              <span className="text-red-400 font-black text-sm leading-none">{stats.rejected}</span>
+            </div>
           </div>
         )}
 
-        {/* Pending Contracts Alert */}
+        {/* Pending Contracts Alert - More compact */}
         {stats && stats.pending > 0 && (
-          <Card className="bg-gradient-to-br from-yellow-500/20 via-yellow-500/10 to-yellow-500/20 border-2 border-yellow-500/50 mt-3 sm:mt-4">
-            <CardContent className="p-3 sm:p-4">
-              <div className="flex items-center gap-2 sm:gap-3">
-                <AlertCircle className="w-5 h-5 sm:w-6 sm:h-6 text-yellow-400 shrink-0" />
+          <Card className="bg-gradient-to-r from-yellow-500/10 via-yellow-500/5 to-yellow-500/10 border border-yellow-500/30 mt-3 sm:mt-4 overflow-hidden shadow-lg shadow-yellow-900/10">
+            <CardContent className="p-3">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-yellow-500/20 rounded-lg animate-pulse">
+                  <AlertCircle className="w-5 h-5 text-yellow-400 shrink-0" />
+                </div>
                 <div>
-                  <h3 className="text-base sm:text-lg font-bold text-yellow-300">
-                    {stats.pending} {stats.pending === 1 ? 'Contract' : 'Contracts'} Pending Verification
+                  <h3 className="text-sm font-black uppercase tracking-widest text-yellow-300 leading-none">
+                    Review Required
                   </h3>
-                  <p className="text-xs sm:text-sm text-yellow-200/80">
-                    There {stats.pending === 1 ? 'is' : 'are'} {stats.pending} contract{stats.pending === 1 ? '' : 's'} waiting for review
+                  <p className="text-[10px] text-yellow-200/60 font-medium uppercase mt-1 leading-none">
+                    {stats.pending} {stats.pending === 1 ? 'Contract' : 'Contracts'} waiting for verification
                   </p>
                 </div>
               </div>
@@ -634,33 +656,35 @@ export function ContractsPage() {
         )}
       </div>
 
-      {/* Tabs for filtering */}
+      {/* Tabs for filtering - Optimized for Mobile spacing */}
       <Tabs value={statusFilter} onValueChange={(value) => handleStatusFilterChange(value as 'all' | 'pending' | 'approved' | 'rejected')} className="mb-6">
-        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 bg-black/50 border border-gold-medium/30 text-xs sm:text-sm">
+        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 bg-black/50 border border-gold-medium/20 h-auto p-1 gap-1">
           <TabsTrigger
             value="all"
-            className="data-[state=active]:bg-gold-medium data-[state=active]:text-black data-[state=inactive]:text-gray-400 data-[state=inactive]:hover:text-gold-light border-r border-gold-medium/30"
+            className="data-[state=active]:bg-gold-medium data-[state=active]:text-black text-gray-500 data-[state=inactive]:hover:text-gold-light h-9 sm:h-10 font-black uppercase tracking-widest text-[10px] rounded-lg transition-all"
           >
             All
           </TabsTrigger>
           <TabsTrigger
             value="pending"
-            className="data-[state=active]:bg-gold-medium data-[state=active]:text-black data-[state=inactive]:text-gray-400 data-[state=inactive]:hover:text-gold-light border-r border-gold-medium/30"
+            className="data-[state=active]:bg-gold-medium data-[state=active]:text-black text-gray-500 data-[state=inactive]:hover:text-gold-light h-9 sm:h-10 font-black uppercase tracking-widest text-[10px] rounded-lg transition-all flex items-center justify-center gap-2"
           >
             Pending
             {stats && stats.pending > 0 && (
-              <Badge className="ml-2 bg-yellow-600 text-white">{stats.pending}</Badge>
+              <Badge className="bg-yellow-600/20 text-yellow-400 border border-yellow-500/30 font-black text-[8px] h-4.5 px-1.5 shadow-none">
+                {stats.pending}
+              </Badge>
             )}
           </TabsTrigger>
           <TabsTrigger
             value="approved"
-            className="data-[state=active]:bg-gold-medium data-[state=active]:text-black data-[state=inactive]:text-gray-400 data-[state=inactive]:hover:text-gold-light border-r border-gold-medium/30"
+            className="data-[state=active]:bg-gold-medium data-[state=active]:text-black text-gray-500 data-[state=inactive]:hover:text-gold-light h-9 sm:h-10 font-black uppercase tracking-widest text-[10px] rounded-lg transition-all"
           >
             Approved
           </TabsTrigger>
           <TabsTrigger
             value="rejected"
-            className="data-[state=active]:bg-gold-medium data-[state=active]:text-black data-[state=inactive]:text-gray-400 data-[state=inactive]:hover:text-gold-light"
+            className="data-[state=active]:bg-gold-medium data-[state=active]:text-black text-gray-500 data-[state=inactive]:hover:text-gold-light h-9 sm:h-10 font-black uppercase tracking-widest text-[10px] rounded-lg transition-all"
           >
             Rejected
           </TabsTrigger>

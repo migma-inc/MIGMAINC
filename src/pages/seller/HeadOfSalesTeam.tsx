@@ -8,6 +8,9 @@ import { supabase } from '@/lib/supabase';
 import { formatCurrency } from '@/lib/utils';
 import { useDashboardCache } from '@/contexts/DashboardCacheContext';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { AdminSellerAnalytics } from '@/pages/admin/AdminSellerAnalytics';
+import { BarChart3 } from 'lucide-react';
 
 interface TeamMember {
     id: string;
@@ -24,6 +27,8 @@ export function HeadOfSalesTeam() {
     const { cache, setCacheValue } = useDashboardCache();
     const [members, setMembers] = useState<TeamMember[]>(cache.team || []);
     const [loading, setLoading] = useState(!cache.team);
+    const [selectedSellerId, setSelectedSellerId] = useState<string | null>(null);
+    const [isAnalyticsModalOpen, setIsAnalyticsModalOpen] = useState(false);
 
     useEffect(() => {
         async function loadTeamData() {
@@ -98,9 +103,9 @@ export function HeadOfSalesTeam() {
                 <div>
                     <h1 className="text-3xl font-bold text-white tracking-tight flex items-center gap-3">
                         <Users className="w-8 h-8 text-gold-medium" />
-                        Minha Equipe
+                        My Team
                     </h1>
-                    <p className="text-gray-400 mt-1">Acompanhe o desempenho individual dos seus vendedores.</p>
+                    <p className="text-gray-400 mt-1">Monitor the individual performance of your sellers.</p>
                 </div>
             </div>
 
@@ -141,9 +146,9 @@ export function HeadOfSalesTeam() {
                     ) : members.length === 0 ? (
                         <div className="text-center py-20 px-8">
                             <Users className="w-12 h-12 text-gray-700 mx-auto mb-4" />
-                            <h3 className="text-xl font-bold text-white mb-2">Nenhum vendedor encontrado na equipe</h3>
+                            <h3 className="text-xl font-bold text-white mb-2">No sellers found in the team</h3>
                             <p className="text-gray-400 max-w-md mx-auto">
-                                Sua equipe parece estar vazia no momento. Entre em contato com o administrador para vincular novos vendedores ao seu time.
+                                Your team appears to be empty right now. Contact the administrator to link new sellers to your team.
                             </p>
                         </div>
                     ) : (
@@ -151,19 +156,25 @@ export function HeadOfSalesTeam() {
                             <table className="w-full text-left">
                                 <thead>
                                     <tr className="border-b border-gold-medium/20 bg-gold-medium/5">
-                                        <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-wider">Vendedor</th>
+                                        <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-wider">Seller</th>
                                         <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-wider text-center">Status</th>
-                                        <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-wider text-center">Faturamento (USD)</th>
-                                        <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-wider text-center">Pedidos</th>
-                                        <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-wider text-right">Ações</th>
+                                        <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-wider text-center">Revenue (USD)</th>
+                                        <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-wider text-center">Orders</th>
+                                        <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-wider text-right">Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-white/5">
                                     {members.map((member) => (
                                         <tr key={member.id} className="hover:bg-white/5 transition-colors group">
                                             <td className="px-6 py-4">
-                                                <div>
-                                                    <p className="font-bold text-white group-hover:text-gold-light transition-colors">{member.full_name}</p>
+                                                <div 
+                                                    className="cursor-pointer group/name"
+                                                    onClick={() => {
+                                                        setSelectedSellerId(member.seller_id_public);
+                                                        setIsAnalyticsModalOpen(true);
+                                                    }}
+                                                >
+                                                    <p className="font-bold text-white group-hover/name:text-gold-light transition-colors">{member.full_name}</p>
                                                     <p className="text-xs text-gray-500">{member.email}</p>
                                                 </div>
                                             </td>
@@ -173,7 +184,7 @@ export function HeadOfSalesTeam() {
                                                     ? 'bg-green-500/10 text-green-500 border-green-500/20' 
                                                     : 'bg-red-500/10 text-red-500 border-red-500/20'
                                                 }`}>
-                                                    {member.status === 'active' ? 'Ativo' : 'Inativo'}
+                                                    {member.status === 'active' ? 'Active' : 'Inactive'}
                                                 </span>
                                             </td>
                                             <td className="px-6 py-4 text-center">
@@ -192,19 +203,34 @@ export function HeadOfSalesTeam() {
                                                     </span>
                                                 </div>
                                             </td>
-                                            <td className="px-6 py-4 text-right">
+                                            <td className="px-6 py-4 text-right flex items-center justify-end gap-2">
                                                 <Button 
                                                     variant="outline" 
                                                     size="sm"
-                                                    className="border-gold-medium/20 bg-black/40 text-gold-light hover:bg-gold-medium/10 hover:border-gold-medium"
+                                                    className="border-gold-medium/20 bg-black/40 text-gold-light hover:bg-gold-medium/10 hover:border-gold-medium h-8"
+                                                    onClick={() => {
+                                                        setSelectedSellerId(member.seller_id_public);
+                                                        setIsAnalyticsModalOpen(true);
+                                                    }}
+                                                    title="View Analytics"
+                                                >
+                                                    <BarChart3 className="w-4 h-4 mr-0 sm:mr-2" />
+                                                    <span className="hidden sm:inline">Analytics</span>
+                                                </Button>
+
+                                                <Button 
+                                                    variant="outline" 
+                                                    size="sm"
+                                                    className="border-blue-500/20 bg-black/40 text-blue-400 hover:bg-blue-500/10 hover:border-blue-500 h-8"
                                                     onClick={() => {
                                                         const url = new URL(window.location.origin + '/seller/dashboard/links');
                                                         url.searchParams.set('sellerId', member.id);
                                                         window.location.href = url.toString();
                                                     }}
+                                                    title="Generate Link"
                                                 >
-                                                    <LinkIcon className="w-4 h-4 mr-2" />
-                                                    Gerar Link
+                                                    <LinkIcon className="w-4 h-4 mr-0 sm:mr-2" />
+                                                    <span className="hidden sm:inline">Generate Link</span>
                                                 </Button>
                                             </td>
                                         </tr>
@@ -216,6 +242,20 @@ export function HeadOfSalesTeam() {
                 </CardContent>
             </Card>
 
+            <Dialog open={isAnalyticsModalOpen} onOpenChange={setIsAnalyticsModalOpen}>
+                <DialogContent className="max-w-[95vw] w-full max-h-[90vh] overflow-y-auto custom-scrollbar bg-black border-gold-medium/30 p-0 sm:p-2">
+                    <DialogHeader className="p-4 sm:p-6 pb-0">
+                        <DialogTitle className="text-xl sm:text-2xl font-bold migma-gold-text">
+                            Seller Analytics
+                        </DialogTitle>
+                    </DialogHeader>
+                    <div className="p-2 sm:p-4">
+                        {selectedSellerId && (
+                            <AdminSellerAnalytics sellerId={selectedSellerId} isModal={true} />
+                        )}
+                    </div>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }

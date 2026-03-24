@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { CreditCard, QrCode, Landmark, Check } from 'lucide-react';
+import { CreditCard, QrCode, Landmark, Check, AlertCircle } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 export type PaymentMethod = 'card' | 'pix' | 'ted';
 
@@ -22,6 +23,7 @@ export const SplitPaymentSelector: React.FC<SplitPaymentSelectorProps> = ({
     onSplitChange,
     disabled = false,
 }) => {
+    const { t } = useTranslation();
     const [useSplit, setUseSplit] = useState(false);
     const [part1Amount, setPart1Amount] = useState('');
     const [part1Method, setPart1Method] = useState<PaymentMethod>('card');
@@ -82,12 +84,12 @@ export const SplitPaymentSelector: React.FC<SplitPaymentSelectorProps> = ({
             type="button"
             onClick={onClick}
             disabled={disabled}
-            className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-2 rounded-lg border text-xs font-bold transition-all ${selected
-                ? 'bg-blue-600 border-blue-600 text-white shadow-md shadow-blue-500/20'
-                : 'bg-white border-gray-200 text-gray-600 hover:border-blue-300 hover:bg-blue-50/50'
-                } disabled:opacity-50`}
+            className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-md border text-xs font-semibold transition-all ${selected
+                ? 'bg-gold-medium border-gold-medium text-black'
+                : 'bg-black/20 border-white/10 text-white/60 hover:border-gold-medium/40 hover:bg-gold-medium/5'
+                } disabled:opacity-50 uppercase`}
         >
-            <Icon className={`w-4 h-4 ${selected ? 'text-white' : 'text-gray-400'}`} />
+            <Icon className={`w-4 h-4 ${selected ? 'text-black' : 'text-gold-medium/60'}`} />
             {label}
         </button>
     );
@@ -101,60 +103,64 @@ export const SplitPaymentSelector: React.FC<SplitPaymentSelectorProps> = ({
                 type="button"
                 onClick={toggleSplit}
                 disabled={disabled}
-                className={`w-full px-4 py-4 rounded-xl border-2 transition-all duration-200 flex items-center justify-between ${useSplit
-                    ? 'bg-blue-50/50 border-blue-500 ring-4 ring-blue-500/10'
-                    : 'bg-zinc-900/40 border-gold-medium/20 hover:border-gold-medium/40'
+                className={`w-full px-4 py-3 rounded-lg border transition-all flex items-center justify-between ${useSplit
+                    ? 'bg-gold-medium/10 border-gold-medium'
+                    : 'bg-zinc-900/40 border-white/10 hover:border-gold-medium/40'
                     } disabled:opacity-50`}
             >
                 <div className="flex items-center gap-3">
-                    <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all ${useSplit ? 'bg-blue-600 border-blue-600 scale-110 shadow-lg shadow-blue-500/40' : 'border-gold-medium/30'
+                    <div className={`w-5 h-5 rounded border flex items-center justify-center transition-all ${useSplit 
+                        ? 'bg-gold-medium border-gold-medium' 
+                        : 'border-white/20 bg-black/40'
                         }`}>
-                        {useSplit && <Check className="w-4 h-4 text-white" strokeWidth={4} />}
+                        {useSplit && <Check className="w-3.5 h-3.5 text-black" strokeWidth={3} />}
                     </div>
-                    <span className={`font-bold text-base ${useSplit ? 'text-blue-700' : 'text-gold-light'}`}>
-                        Split payment into 2 parts
+                    <span className={`font-semibold text-sm ${useSplit ? 'text-white' : 'text-white/70'}`}>
+                        {t('checkout.split.title', 'Dividir em 2 pagamentos')}
                     </span>
                 </div>
-                {useSplit ? (
-                    <span className="text-[10px] bg-blue-600 text-white px-2 py-0.5 rounded font-black uppercase tracking-tighter">Active</span>
-                ) : (
-                    <span className="text-[10px] text-gold-medium/60 font-medium font-mono uppercase tracking-widest">New Option</span>
+                {useSplit && (
+                    <span className="text-[10px] bg-gold-medium text-black px-2 py-0.5 rounded font-bold uppercase">
+                        {t('checkout.split.active', 'ATIVO')}
+                    </span>
                 )}
             </button>
 
             {/* Configuration Card */}
             {useSplit && (
-                <div className="bg-white rounded-xl border border-gray-200 shadow-xl overflow-hidden animate-in fade-in slide-in-from-top-2 duration-300">
+                <div className="bg-zinc-900/80 backdrop-blur-md rounded-xl border border-gold-medium/20 shadow-2xl overflow-hidden animate-in fade-in slide-in-from-top-4 duration-500">
                     <div className="p-5 space-y-6">
 
                         {/* Header: Total info */}
-                        <div className="flex items-center justify-between border-b border-gray-100 pb-4">
-                            <span className="text-gray-500 text-xs font-medium uppercase tracking-wider">Total Value</span>
-                            <span className="text-xl font-black text-gray-900">US$ {validTotal.toFixed(2)}</span>
+                        <div className="flex items-center justify-between border-b border-white/10 pb-4">
+                            <span className="text-white/40 text-[10px] font-bold uppercase tracking-wider">{t('checkout.split.total_value', 'VALOR TOTAL')}</span>
+                            <span className="text-xl font-bold text-white">US$ {validTotal.toFixed(2)}</span>
                         </div>
 
                         {/* PART 1 */}
                         <div className="space-y-4">
                             <div className="flex items-center gap-2">
-                                <span className="w-5 h-5 bg-blue-600 text-white text-[10px] font-black rounded flex items-center justify-center">1</span>
-                                <label className="text-sm font-black text-gray-800 uppercase tracking-tight">First Payment (Immediate)</label>
+                                <span className="w-5 h-5 bg-gold-medium text-black text-[10px] font-black rounded flex items-center justify-center shadow-lg shadow-gold-medium/20">1</span>
+                                <label className="text-[11px] font-black text-gold-light uppercase tracking-wide">
+                                    {t('checkout.split.part1_label', 'Primeiro Pagamento (Imediato)')}
+                                </label>
                             </div>
 
                             <div className="relative">
-                                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 font-bold">$</span>
+                                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-white/40 font-semibold text-lg">$</span>
                                 <input
                                     type="number"
                                     value={part1Amount}
                                     onChange={(e) => setPart1Amount(e.target.value)}
                                     placeholder="0.00"
                                     disabled={disabled}
-                                    className="w-full pl-8 pr-4 py-4 border-2 border-gray-100 rounded-xl bg-gray-50/50 text-gray-900 font-black text-xl focus:outline-none focus:border-blue-500 focus:bg-white transition-all"
+                                    className="w-full pl-9 pr-4 py-3 border border-white/10 rounded-lg bg-black/40 text-white font-bold text-xl focus:outline-none focus:border-gold-medium focus:bg-black/60 transition-all placeholder:text-zinc-800"
                                 />
                             </div>
 
                             <div className="flex gap-2">
                                 <MethodButton
-                                    label="Card" icon={CreditCard}
+                                    label={t('checkout.split.card', 'CARTÃO')} icon={CreditCard}
                                     selected={part1Method === 'card'} onClick={() => setPart1Method('card')}
                                 />
                                 <MethodButton
@@ -168,29 +174,31 @@ export const SplitPaymentSelector: React.FC<SplitPaymentSelectorProps> = ({
                             </div>
                         </div>
 
-                        <div className="relative h-px bg-gray-100 flex items-center justify-center">
-                            <div className="absolute bg-white px-2 py-1 rounded-full border border-gray-100 shadow-sm">
-                                <div className="w-1 h-1 bg-gray-300 rounded-full" />
+                        <div className="relative h-px bg-white/5 flex items-center justify-center">
+                            <div className="absolute bg-zinc-900 border border-white/5 p-1 rounded-full">
+                                <div className="w-1.5 h-1.5 bg-gold-medium/40 rounded-full" />
                             </div>
                         </div>
 
                         {/* PART 2 */}
                         <div className="space-y-4">
                             <div className="flex items-center gap-2">
-                                <span className="w-5 h-5 bg-gray-400 text-white text-[10px] font-black rounded flex items-center justify-center">2</span>
-                                <label className="text-sm font-black text-gray-800 uppercase tracking-tight">Second Payment (Pending)</label>
+                                <span className="w-5 h-5 bg-zinc-800 text-gold-medium/60 border border-gold-medium/10 text-[10px] font-black rounded flex items-center justify-center">2</span>
+                                <label className="text-[11px] font-black text-gold-light/60 uppercase tracking-wide">
+                                    {t('checkout.split.part2_label', 'Segundo Pagamento (Pendente)')}
+                                </label>
                             </div>
 
                             <div className="relative">
-                                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 font-bold">$</span>
-                                <div className="w-full pl-8 pr-4 py-4 border-2 border-gray-50 bg-gray-50/30 rounded-xl text-gray-500 font-black text-xl italic">
+                                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-white/20 font-semibold text-lg">$</span>
+                                <div className="w-full pl-9 pr-4 py-3 border border-white/5 bg-black/20 rounded-lg text-white/40 font-bold text-xl transition-opacity">
                                     {part2Value.toFixed(2)}
                                 </div>
                             </div>
 
-                            <div className="flex gap-2">
+                            <div className="flex gap-2 opacity-80">
                                 <MethodButton
-                                    label="Card" icon={CreditCard}
+                                    label={t('checkout.split.card', 'CARTÃO')} icon={CreditCard}
                                     selected={part2Method === 'card'} onClick={() => setPart2Method('card')}
                                 />
                                 <MethodButton
@@ -205,13 +213,13 @@ export const SplitPaymentSelector: React.FC<SplitPaymentSelectorProps> = ({
                         </div>
 
                         {/* Footer Notice */}
-                        <div className="bg-blue-50 rounded-lg p-3 flex gap-3">
-                            <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center shrink-0">
-                                <span className="text-blue-600 animate-pulse text-xs font-bold">!</span>
+                        <div className="bg-gold-medium/5 border border-gold-medium/20 rounded-lg p-4 flex gap-4 mt-2">
+                            <div className="w-8 h-8 rounded-full bg-gold-medium/10 flex items-center justify-center shrink-0 border border-gold-medium/20">
+                                <AlertCircle className="w-4 h-4 text-gold-medium" />
                             </div>
-                            <p className="text-[11px] text-blue-800 leading-tight font-medium">
-                                <strong>Important:</strong> You'll finalize the details for each part on the Parcelow secure page.
-                                The second part will be sent to your email after Part 1 is confirmed.
+                            <p className="text-[10px] text-gold-light/80 leading-relaxed font-bold tracking-tight">
+                                <strong className="text-gold-light uppercase tracking-wider block mb-0.5">{t('checkout.split.important', 'Importante')}:</strong>
+                                {t('checkout.split.footer_notice', 'Você finalizará os detalhes de cada parte na página segura da Parcelow. O link para a segunda parte será enviado para o seu e-mail após a confirmação da primeira.')}
                             </p>
                         </div>
                     </div>
