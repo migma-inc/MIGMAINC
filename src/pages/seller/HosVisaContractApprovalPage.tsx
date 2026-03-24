@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
-import { cn, isTestEnvironment } from '@/lib/utils';
+import { cn } from '@/lib/utils';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -109,7 +109,12 @@ export function HosVisaContractApprovalPage() {
                 return acc;
             }, {} as Record<string, string>);
 
+            // 1.5 Incluir os vendedores liderados + Ele Próprio (O próprio gerente)
             const sellerPublicIds = teamMembers.map(m => m.seller_id_public);
+            if (seller.seller_id_public) {
+                sellerPublicIds.push(seller.seller_id_public);
+                sellerMap[seller.seller_id_public] = seller.full_name || 'Own Sale (You)';
+            }
 
             // 2. Buscar pedidos vinculados a esses vendedores
             let query = supabase
@@ -119,10 +124,10 @@ export function HosVisaContractApprovalPage() {
                 .or('contract_pdf_url.not.is.null,annex_pdf_url.not.is.null,upsell_contract_pdf_url.not.is.null,upsell_annex_pdf_url.not.is.null')
                 .order('created_at', { ascending: false });
 
-            // Filtro de teste se não estiver em localhost
-            if (!isTestEnvironment()) {
-                query = query.eq('is_test', false);
-            }
+            // Removido o filtro de ambiente de teste para permitir validações em homologação/prod
+            // if (!isTestEnvironment()) {
+            //     query = query.eq('is_test', false);
+            // }
 
             const { data, error } = await query;
 
@@ -413,20 +418,20 @@ export function HosVisaContractApprovalPage() {
                 <div>
                     <h1 className="text-3xl font-bold text-white tracking-tight flex items-center gap-3">
                         <FileCheck className="w-8 h-8 text-gold-medium" />
-                        Aprovação de Contratos (Equipe)
+                        Contract Approval (Team)
                     </h1>
                     <p className="text-gray-400 mt-1">
-                        Revise e aprove os contratos assinados pelos clientes dos seus vendedores.
+                        Review and approve the contracts signed by your sellers' clients.
                     </p>
                 </div>
             </div>
 
             <Tabs value={statusFilter} onValueChange={(v) => setStatusFilter(v as any)} className="w-full">
                 <TabsList className="bg-black/50 border border-gold-medium/30">
-                    <TabsTrigger value="pending" className="data-[state=active]:bg-gold-medium data-[state=active]:text-black">Pendentes</TabsTrigger>
-                    <TabsTrigger value="approved" className="data-[state=active]:bg-gold-medium data-[state=active]:text-black">Aprovados</TabsTrigger>
-                    <TabsTrigger value="rejected" className="data-[state=active]:bg-gold-medium data-[state=active]:text-black">Rejeitados</TabsTrigger>
-                    <TabsTrigger value="all" className="data-[state=active]:bg-gold-medium data-[state=active]:text-black">Todos</TabsTrigger>
+                    <TabsTrigger value="pending" className="data-[state=active]:bg-gold-medium data-[state=active]:text-black">Pending</TabsTrigger>
+                    <TabsTrigger value="approved" className="data-[state=active]:bg-gold-medium data-[state=active]:text-black">Approved</TabsTrigger>
+                    <TabsTrigger value="rejected" className="data-[state=active]:bg-gold-medium data-[state=active]:text-black">Rejected</TabsTrigger>
+                    <TabsTrigger value="all" className="data-[state=active]:bg-gold-medium data-[state=active]:text-black">All</TabsTrigger>
                 </TabsList>
 
                 <div className="mt-6 space-y-6">
@@ -435,10 +440,10 @@ export function HosVisaContractApprovalPage() {
                     ) : filteredOrders.length === 0 ? (
                         <Card className="bg-black/40 border-gold-medium/20 py-12 text-center">
                             <p className="text-gray-500">
-                                {statusFilter === 'pending' ? 'Nenhum contrato pendente de aprovação.' : 
-                                 statusFilter === 'approved' ? 'Nenhum contrato aprovado encontrado.' :
-                                 statusFilter === 'rejected' ? 'Nenhum contrato rejeitado encontrado.' :
-                                 'Nenhum contrato encontrado.'}
+                                {statusFilter === 'pending' ? 'No contracts pending approval.' : 
+                                 statusFilter === 'approved' ? 'No approved contracts found.' :
+                                 statusFilter === 'rejected' ? 'No rejected contracts found.' :
+                                 'No contracts found.'}
                             </p>
                         </Card>
                     ) : (
@@ -455,7 +460,7 @@ export function HosVisaContractApprovalPage() {
                                             <div className="flex items-center gap-3 mt-1">
                                                 <p className="text-sm text-gray-400">{getProductName(order.product_slug)}</p>
                                                 <span className="text-gray-600">•</span>
-                                                <p className="text-sm text-purple-300 font-medium">Vendedor: {order.seller_name}</p>
+                                                <p className="text-sm text-purple-300 font-medium">Seller: {order.seller_name}</p>
                                             </div>
                                         </div>
                                         <div className="flex flex-col items-end gap-2 text-right">
@@ -473,7 +478,7 @@ export function HosVisaContractApprovalPage() {
                                     <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
                                         {/* Fotos de Identidade */}
                                         <div className="lg:col-span-1 border-r border-gold-medium/10 pr-6">
-                                            <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-widest mb-4">Identificação</h4>
+                                            <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-widest mb-4">Identification</h4>
                                             <div className="grid grid-cols-2 gap-2">
                                                 {order.service_request_id && idFiles[order.service_request_id] ? (
                                                     idFiles[order.service_request_id].map(file => (
@@ -497,19 +502,19 @@ export function HosVisaContractApprovalPage() {
                                                         </div>
                                                     ))
                                                 ) : (
-                                                    <p className="text-xs text-gray-500 italic">Sem fotos enviadas.</p>
+                                                    <p className="text-xs text-gray-500 italic">No photos sent.</p>
                                                 )}
                                             </div>
                                         </div>
 
                                         {/* Ações de Documentos */}
                                         <div className="lg:col-span-3">
-                                            <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-widest mb-4">Documentos</h4>
+                                            <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-widest mb-4">Documents</h4>
                                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                                 {/* Contrato Principal */}
                                                 {order.product_slug !== 'consultation-common' && (
                                                     <DocumentActionBlock
-                                                        title="Contrato Principal"
+                                                        title="Main Contract"
                                                         pdfUrl={order.contract_pdf_url}
                                                         status={order.contract_approval_status}
                                                         orderId={order.id}
@@ -520,7 +525,7 @@ export function HosVisaContractApprovalPage() {
 
                                                 {/* Anexo I */}
                                                 <DocumentActionBlock
-                                                    title="Anexo I"
+                                                    title="Annex I"
                                                     pdfUrl={order.annex_pdf_url}
                                                     status={order.annex_approval_status}
                                                     orderId={order.id}
@@ -530,7 +535,7 @@ export function HosVisaContractApprovalPage() {
 
                                                 {/* Contrato Upsell */}
                                                 <DocumentActionBlock
-                                                    title={`Contrato (${order.upsell_product_slug || 'Upsell'})`}
+                                                    title={`Contract (${order.upsell_product_slug || 'Upsell'})`}
                                                     pdfUrl={order.upsell_contract_pdf_url || null}
                                                     status={order.upsell_contract_approval_status || null}
                                                     orderId={order.id}
@@ -540,7 +545,7 @@ export function HosVisaContractApprovalPage() {
 
                                                 {/* Anexo Upsell */}
                                                 <DocumentActionBlock
-                                                    title={`Anexo I (${order.upsell_product_slug || 'Upsell'})`}
+                                                    title={`Annex I (${order.upsell_product_slug || 'Upsell'})`}
                                                     pdfUrl={order.upsell_annex_pdf_url || null}
                                                     status={order.upsell_annex_approval_status || null}
                                                     orderId={order.id}
@@ -565,16 +570,16 @@ export function HosVisaContractApprovalPage() {
                             <div className="bg-green-500/20 p-2 rounded-full">
                                 <Check className="w-6 h-6 text-green-400" />
                             </div>
-                            <DialogTitle className="text-xl font-bold">Aprovar Documento</DialogTitle>
+                            <DialogTitle className="text-xl font-bold">Approve Document</DialogTitle>
                         </div>
                         <DialogDescription className="text-gray-300 text-base leading-relaxed">
-                            Confirme que o documento está devidamente assinado. O cliente será notificado da aprovação.
+                            Confirm that the document is properly signed. The client will be notified of the approval.
                         </DialogDescription>
                     </DialogHeader>
                     <DialogFooter className="mt-4 gap-2">
-                        <Button variant="ghost" onClick={() => setShowApproveConfirm(false)} disabled={isProcessing}>Cancelar</Button>
+                        <Button variant="ghost" onClick={() => setShowApproveConfirm(false)} disabled={isProcessing}>Cancel</Button>
                         <Button onClick={confirmApprove} className="bg-green-600 hover:bg-green-700 text-white font-bold px-6" disabled={isProcessing}>
-                            {isProcessing ? 'Processando...' : 'Confirmar Aprovação'}
+                            {isProcessing ? 'Processing...' : 'Confirm Approval'}
                         </Button>
                     </DialogFooter>
                 </DialogContent>
@@ -587,24 +592,24 @@ export function HosVisaContractApprovalPage() {
                             <div className="bg-red-500/20 p-2 rounded-full">
                                 <X className="w-6 h-6 text-red-400" />
                             </div>
-                            <DialogTitle className="text-xl font-bold">Rejeitar Documento</DialogTitle>
+                            <DialogTitle className="text-xl font-bold">Reject Document</DialogTitle>
                         </div>
                         <DialogDescription className="text-gray-300 text-base">
-                            O cliente receberá um e-mail com o motivo e instruções para reenviar.
+                            The client will receive an email with the reason and instructions to resubmit.
                         </DialogDescription>
                     </DialogHeader>
                     <div className="my-4">
                         <Textarea
                             value={rejectionReason}
                             onChange={(e) => setRejectionReason(e.target.value)}
-                            placeholder="Motivo da rejeição (será enviado ao cliente)..."
+                            placeholder="Reason for rejection (will be sent to the client)..."
                             className="bg-white/5 border-white/10 text-white min-h-[100px]"
                         />
                     </div>
                     <DialogFooter className="gap-2">
-                        <Button variant="ghost" onClick={() => setShowRejectPrompt(false)} disabled={isProcessing}>Cancelar</Button>
+                        <Button variant="ghost" onClick={() => setShowRejectPrompt(false)} disabled={isProcessing}>Cancel</Button>
                         <Button onClick={confirmReject} className="bg-red-600 hover:bg-red-700 text-white font-bold px-6" disabled={isProcessing || !rejectionReason.trim()}>
-                            {isProcessing ? 'Processando...' : 'Confirmar Rejeição'}
+                            {isProcessing ? 'Processing...' : 'Confirm Rejection'}
                         </Button>
                     </DialogFooter>
                 </DialogContent>

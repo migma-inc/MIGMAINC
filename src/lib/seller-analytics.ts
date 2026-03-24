@@ -80,6 +80,41 @@ export interface AnalyticsData {
   trends: TrendsData;
 }
 
+export interface TeamMemberPerformance {
+  sellerId: string;
+  name: string;
+  sales: number;
+  revenue: number;
+  percentage: number;
+}
+
+export interface TeamMonthlyData {
+  month: string;
+  sales: number;
+  revenue: number;
+  sellers: { [sellerName: string]: number }; // Para gráfico empilhado
+  sellerRevenues: { [sellerName: string]: number }; // Para gráfico de receita mensal agrupada
+}
+
+export interface WeeklyMetric {
+  weekLabel: string;
+  sales: number;
+  revenue: number;
+  sellers: { [sellerName: string]: number };
+}
+
+export interface TeamYearlyAnalytics {
+  monthlyData: TeamMonthlyData[];
+  sellerPerformance: TeamMemberPerformance[];
+  productDistribution: ProductMetric[];
+  totalSales: number;
+  totalRevenue: number;
+  avgSalesPerMonth: number;
+  weeklyData: { [monthIdx: number]: WeeklyMetric[] };
+  monthlyRankings: { [monthIdx: number]: TeamMemberPerformance[] };
+}
+
+
 /**
  * Calcula a data de início e fim de um período baseado em uma opção pré-definida
  * @param period - Opção de período pré-definido ou objeto com datas customizadas
@@ -1125,3 +1160,246 @@ export async function getCommissionByProduct(
   }
 }
 
+/**
+ * Busca dados analíticos para um time inteiro em um ano específico
+ */
+export async function getTeamYearlyAnalytics(
+  teamId: string,
+  year: number,
+  productSlug: string = 'all'
+): Promise<TeamYearlyAnalytics> {
+  try {
+    const startDate = new Date(year, 0, 1);
+    const endDate = new Date(year, 11, 31, 23, 59, 59, 999);
+
+    let query = supabase
+      .from('visa_orders')
+      .select('*')
+      .eq('team_id', teamId)
+      .eq('payment_status', 'completed')
+      .gte('created_at', startDate.toISOString())
+      .lte('created_at', endDate.toISOString());
+
+    if (productSlug !== 'all') {
+      if (productSlug === 'student') {
+        query = query.like('product_slug', 'initial-%').or('product_slug.like.cos-%').or('product_slug.like.transfer-%');
+      } else if (productSlug === 'tourist') {
+        query = query.in('product_slug', ['b1-premium', 'b1-revolution', 'canada-tourist-premium']);
+      } else {
+        query = query.eq('product_slug', productSlug);
+      }
+    }
+
+    const { data: orders, error } = await query;
+
+    if (error) throw error;
+    
+    // 0. Buscar TODOS os membros do time (ativos ou não) para o ranking fixo
+    const { data: teamMembers } = await supabase
+      .from('sellers')
+      .select('seller_id_public, full_name, team_id')
+      .eq('team_id', teamId);
+
+    const teamSellersMap = new Map((teamMembers || []).map(s => [s.seller_id_public, s.full_name]));
+
+    // 1. Buscar nomes dos vendedores que fizeram vendas mas podem não estar no time atual (vendas históricas)
+    const sellerPublicIds = [...new Set((orders || []).map(o => o.seller_id).filter(Boolean))];
+    const missingSellerIds = sellerPublicIds.filter(id => !teamSellersMap.has(id));
+    
+    if (missingSellerIds.length > 0) {
+      const { data: extraSellers } = await supabase
+        .from('sellers')
+        .select('seller_id_public, full_name')
+        .in('seller_id_public', missingSellerIds);
+        
+      (extraSellers || []).forEach(s => teamSellersMap.set(s.seller_id_public, s.full_name));
+    }
+
+    // Buscar nomes dos produtos para a distribuição
+    const productSlugsArr = [...new Set((orders || []).map(o => o.product_slug).filter(Boolean))] as string[];
+    const productMap = new Map<string, string>();
+    if (productSlugsArr.length > 0) {
+      const { data: products } = await supabase
+        .from('visa_products')
+        .select('slug, name')
+        .in('slug', productSlugsArr);
+      (products || []).forEach(p => productMap.set(p.slug, p.name));
+    }
+
+    // 2. Processar Dados Mensais (Gráficos 1 e 2)
+    const monthlyMap = new Map<number, TeamMonthlyData>();
+    for (let i = 0; i < 12; i++) {
+      const monthLabel = new Date(year, i, 1).toLocaleDateString('en-US', { month: 'short' });
+      monthlyMap.set(i, {
+        month: monthLabel.charAt(0).toUpperCase() + monthLabel.slice(1),
+        sales: 0,
+        revenue: 0,
+        sellers: {},
+        sellerRevenues: {}
+      });
+    }
+
+    // Inicializar vendedores nos meses para o gráfico empilhado (opcional, para garantir ordenação)
+    monthlyMap.forEach(m => {
+      teamSellersMap.forEach((name) => {
+        m.sellers[name] = 0;
+        m.sellerRevenues[name] = 0;
+      });
+    });
+
+    // Estruturas para novos dados (semanais e rankings mensais)
+    const weeklyDataMap: { [monthIdx: number]: WeeklyMetric[] } = {};
+    const monthlySellerStats = new Map<number, Map<string, { sales: number, revenue: number }>>();
+
+    for (let i = 0; i < 12; i++) {
+        weeklyDataMap[i] = [
+            { weekLabel: 'W1', sales: 0, revenue: 0, sellers: {} },
+            { weekLabel: 'W2', sales: 0, revenue: 0, sellers: {} },
+            { weekLabel: 'W3', sales: 0, revenue: 0, sellers: {} },
+            { weekLabel: 'W4', sales: 0, revenue: 0, sellers: {} },
+            { weekLabel: 'W5', sales: 0, revenue: 0, sellers: {} },
+        ];
+        weeklyDataMap[i].forEach(w => {
+            teamSellersMap.forEach((name) => {
+                w.sellers[name] = 0;
+            });
+        });
+
+        monthlySellerStats.set(i, new Map());
+        // Inicializar vendedores no ranking mensal com 0
+        teamSellersMap.forEach((_, sid) => {
+            monthlySellerStats.get(i)!.set(sid, { sales: 0, revenue: 0 });
+        });
+    }
+
+    (orders || []).forEach(order => {
+      const date = new Date(order.created_at);
+      const monthIdx = date.getMonth();
+      const day = date.getDate();
+      const monthData = monthlyMap.get(monthIdx)!;
+      const sid = order.seller_id || 'unknown';
+      const sellerName = teamSellersMap.get(sid) || sid || 'Unknown';
+      const netAmount = calculateNetAmount(order);
+      const slug = order.product_slug || '';
+
+      // Regra de Contratos: I-20 e Scholarship não contam como "venda de contrato"
+      const isContract = !slug.includes('i20') && !slug.includes('scholarship');
+      const salesAdd = isContract ? 1 : 0;
+
+      // Dados Mensais Básicos
+      monthData.sales += salesAdd;
+      monthData.revenue += netAmount;
+      if (salesAdd > 0) {
+        monthData.sellers[sellerName] = (monthData.sellers[sellerName] || 0) + 1;
+      }
+      monthData.sellerRevenues[sellerName] = (monthData.sellerRevenues[sellerName] || 0) + netAmount;
+
+      // Dados Semanais
+      let weekIdx = 0;
+      if (day <= 7) weekIdx = 0;
+      else if (day <= 14) weekIdx = 1;
+      else if (day <= 21) weekIdx = 2;
+      else if (day <= 28) weekIdx = 3;
+      else weekIdx = 4;
+      
+      weeklyDataMap[monthIdx][weekIdx].sales += salesAdd;
+      weeklyDataMap[monthIdx][weekIdx].revenue += netAmount;
+      weeklyDataMap[monthIdx][weekIdx].sellers[sellerName] += netAmount;
+
+      // Stats Mensais por Vendedor (para ranking mensal)
+      const mStats = monthlySellerStats.get(monthIdx)!;
+      const currentSM = mStats.get(sid) || { sales: 0, revenue: 0 };
+      currentSM.sales += salesAdd;
+      currentSM.revenue += netAmount;
+      mStats.set(sid, currentSM);
+    });
+
+    // Converter stats mensais em rankings
+    const monthlyRankings: { [monthIdx: number]: TeamMemberPerformance[] } = {};
+    monthlySellerStats.forEach((mStats, monthIdx) => {
+        // Agora só consideramos para a % as vendas válidas (contracts)
+        const monthTotalSales = Array.from(mStats.values()).reduce((sum, s) => sum + s.sales, 0);
+        monthlyRankings[monthIdx] = Array.from(mStats.entries()).map(([sid, stats]) => ({
+            sellerId: sid,
+            name: teamSellersMap.get(sid) || sid,
+            sales: stats.sales,
+            revenue: stats.revenue,
+            percentage: monthTotalSales > 0 ? (stats.sales / monthTotalSales) * 100 : 0
+        })).sort((a, b) => b.sales - a.sales);
+    });
+
+    const monthlyData = Array.from(monthlyMap.values());
+    const totalSales = (orders || []).reduce((sum, o) => {
+        const s = o.product_slug || '';
+        return sum + (!s.includes('i20') && !s.includes('scholarship') ? 1 : 0);
+    }, 0);
+    
+    const currentMonth = new Date().getMonth() + 1; // 1 to 12
+    const avgSalesPerMonth = totalSales / currentMonth;
+
+    // 3. Processar Performance por Vendedor (Gráfico Rank Anual)
+    const sellerStats = new Map<string, { sales: number, revenue: number }>();
+    teamSellersMap.forEach((_, sid) => {
+        sellerStats.set(sid, { sales: 0, revenue: 0 });
+    });
+
+    (orders || []).forEach(order => {
+      const sid = order.seller_id || 'unknown';
+      const current = sellerStats.get(sid) || { sales: 0, revenue: 0 };
+      const slug = order.product_slug || '';
+      const isContract = !slug.includes('i20') && !slug.includes('scholarship');
+
+      current.sales += isContract ? 1 : 0;
+      current.revenue += calculateNetAmount(order);
+      sellerStats.set(sid, current);
+    });
+
+    const sellerPerformance: TeamMemberPerformance[] = Array.from(sellerStats.entries()).map(([sid, stats]) => ({
+      sellerId: sid,
+      name: teamSellersMap.get(sid) || sid,
+      sales: stats.sales,
+      revenue: stats.revenue,
+      percentage: totalSales > 0 ? (stats.sales / totalSales) * 100 : 0
+    })).sort((a, b) => b.sales - a.sales);
+
+    // 4. Distribuição por Produto (Gráfico 4)
+    const productStatsMap = new Map<string, { sales: number, revenue: number }>();
+
+    (orders || []).forEach(order => {
+        const slug = order.product_slug;
+        if (!slug) return;
+        
+        const productName = productMap.get(slug) || slug;
+        const current = productStatsMap.get(productName) || { sales: 0, revenue: 0 };
+        const isContract = !slug.includes('i20') && !slug.includes('scholarship');
+        current.sales += isContract ? 1 : 0;
+        current.revenue += calculateNetAmount(order);
+        productStatsMap.set(productName, current);
+    });
+
+    const productDistribution: ProductMetric[] = Array.from(productStatsMap.entries())
+        .filter(([_, stats]) => stats.sales > 0 || stats.revenue > 0)
+        .map(([name, stats]) => ({
+            productSlug: name,
+            productName: name, 
+            sales: stats.sales,
+            revenue: stats.revenue,
+            avgRevenue: stats.sales > 0 ? stats.revenue / stats.sales : 0,
+            percentage: totalSales > 0 ? (stats.sales / totalSales) * 100 : 0
+        })).sort((a, b) => b.sales - a.sales);
+
+    return {
+      totalSales,
+      totalRevenue: (orders || []).reduce((sum, o) => sum + calculateNetAmount(o), 0),
+      avgSalesPerMonth,
+      monthlyData,
+      sellerPerformance,
+      productDistribution,
+      weeklyData: weeklyDataMap,
+      monthlyRankings
+    };
+  } catch (error) {
+    console.error('[Analytics] Error in getTeamYearlyAnalytics:', error);
+    throw error;
+  }
+}

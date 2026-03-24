@@ -31,30 +31,30 @@ export function CommissionConversionCard({
   };
 
   return (
-    <Card className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30">
-      <CardContent className="p-4 sm:p-6">
-        <div className="flex items-center justify-between">
-          <div className="flex-1">
-            <p className="text-xs sm:text-sm text-gray-400 mb-1">Commission Rate</p>
-            <div className="flex items-center gap-2">
-              <p className="text-xl sm:text-2xl font-bold text-gold-light">
+    <Card className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30 shadow-lg shadow-black/20 overflow-hidden">
+      <CardContent className="p-3 sm:p-5 lg:p-6">
+        <div className="flex items-center justify-between gap-2.5">
+          <div className="flex-1 min-w-0 text-gray-400">
+            <p className="text-[9px] sm:text-sm font-black uppercase tracking-widest mb-1 truncate">Comissão</p>
+            <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+              <p className="text-base sm:text-2xl font-bold text-gold-light tracking-tight">
                 {currentRate.toFixed(2)}%
               </p>
               {previousRate !== undefined && (
-                <div className={`flex items-center gap-1 ${getTrendColor()}`}>
-                  {getTrendIcon()}
-                  <span className="text-xs font-medium">
+                <div className={`flex items-center gap-0.5 ${getTrendColor()}`}>
+                  <span className="scale-75">{getTrendIcon()}</span>
+                  <span className="text-[9px] sm:text-xs font-black">
                     {rateChange > 0 ? '+' : ''}{rateChange.toFixed(2)}%
                   </span>
                 </div>
               )}
             </div>
-            <p className="text-xs text-gray-500 mt-2">
-              ${currentCommissions.toFixed(2)} of ${currentRevenue.toFixed(2)} revenue
+            <p className="text-[8px] sm:text-xs font-medium mt-1 truncate opacity-60">
+              ${currentCommissions.toFixed(2)} / ${currentRevenue.toFixed(2)}
             </p>
           </div>
-          <div className="w-12 h-12 bg-gold-medium/20 rounded-full flex items-center justify-center shrink-0">
-            <TrendingUp className="w-6 h-6 text-gold-light" />
+          <div className="w-8 h-8 sm:w-12 sm:h-12 bg-gold-medium/20 rounded-lg flex items-center justify-center shrink-0 border border-gold-medium/20 shadow-inner">
+            <TrendingUp className="w-4 h-4 sm:w-6 sm:h-6 text-gold-light opacity-80" />
           </div>
         </div>
       </CardContent>

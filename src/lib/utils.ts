@@ -82,3 +82,67 @@ export function isTestEnvironment(): boolean {
     hostname.includes('vercel.app') && hostname.includes('preview')
   );
 }
+
+/**
+ * Generate a random UUID.
+ * Uses crypto.randomUUID() if available (secure contexts), 
+ * otherwise falls back to a custom implementation.
+ * Secure contexts (HTTPS/localhost) are required for crypto.randomUUID().
+ */
+export function generateUUID(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  
+  console.warn('[UUID] crypto.randomUUID is not available (likely non-secure context). Using fallback implementation.');
+  
+  // Fallback implementation for non-secure contexts (HTTP over IP)
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === 'x' ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+}
+
+/**
+ * Copy text to clipboard.
+ * Uses navigator.clipboard.writeText if available (secure contexts),
+ * otherwise falls back to document.execCommand('copy') with a hidden textarea.
+ */
+export async function copyToClipboard(text: string): Promise<boolean> {
+  // Try modern Clipboard API
+  if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch (err) {
+      console.warn('[Clipboard] navigator.clipboard.writeText failed, trying fallback:', err);
+    }
+  }
+
+  // Fallback to execCommand('copy')
+  try {
+    const textArea = document.createElement("textarea");
+    textArea.value = text;
+    
+    // Ensure the textarea is not visible
+    textArea.style.position = "fixed";
+    textArea.style.left = "-999999px";
+    textArea.style.top = "-999999px";
+    document.body.appendChild(textArea);
+    
+    textArea.focus();
+    textArea.select();
+    
+    const successful = document.execCommand('copy');
+    document.body.removeChild(textArea);
+    
+    if (successful) {
+      return true;
+    }
+  } catch (err) {
+    console.error('[Clipboard] Fallback copy failed:', err);
+  }
+
+  return false;
+}

@@ -277,16 +277,15 @@ export function ApplicationsList({
               </div>
             )}
 
-            <div className="flex flex-wrap gap-2">
-              <Link to={`/dashboard/applications/${application.id}`} className="flex-1 sm:flex-none">
+            <div className="flex flex-col sm:flex-row flex-wrap gap-2 sm:gap-3">
+              <Link to={`/dashboard/applications/${application.id}`} className="w-full sm:w-auto">
                 <Button
                   variant="outline"
                   size="sm"
                   className="w-full sm:w-auto flex items-center justify-center gap-2 border-gold-medium/50 bg-black/50 text-white hover:bg-gold-medium/30 hover:text-gold-light text-xs sm:text-sm"
                 >
                   <Eye className="w-3 h-3 sm:w-4 sm:h-4" />
-                  <span className="hidden sm:inline">View Details</span>
-                  <span className="sm:hidden">View</span>
+                  <span>View Details</span>
                 </Button>
               </Link>
 
@@ -296,18 +295,18 @@ export function ApplicationsList({
                   size="sm"
                   onClick={() => handleViewCV(application)}
                   disabled={loadingCV === application.id}
-                  className="flex-1 sm:flex-none flex items-center justify-center gap-2 border-gold-medium/50 bg-black/50 text-gold-light hover:bg-gold-medium/30 hover:text-gold-light text-xs sm:text-sm"
+                  className="w-full sm:w-auto flex items-center justify-center gap-2 border-gold-medium/50 bg-black/50 text-gold-light hover:bg-gold-medium/30 hover:text-gold-light text-xs sm:text-sm"
                 >
                   {loadingCV === application.id ? (
                     <Loader2 className="w-3 h-3 sm:w-4 sm:h-4 animate-spin" />
                   ) : (
                     <Download className="w-3 h-3 sm:w-4 sm:h-4" />
                   )}
-                  <span>CV</span>
+                  <span>View CV</span>
                 </Button>
               )}
               {application.status === 'pending' && (
-                <>
+                <div className="flex flex-row gap-2 w-full sm:w-auto">
                   {onApprove && (
                     <Button
                       variant="default"
@@ -315,7 +314,7 @@ export function ApplicationsList({
                       onClick={() => onApprove(application)}
                       className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 text-white text-xs sm:text-sm"
                     >
-                      <CheckCircle className="w-3 h-3 sm:w-4 sm:h-4" />
+                      <CheckCircle className="w-4 h-4" />
                       Approve
                     </Button>
                   )}
@@ -326,58 +325,60 @@ export function ApplicationsList({
                       onClick={() => onReject(application)}
                       className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-red-600 hover:bg-red-700 text-white text-xs sm:text-sm"
                     >
-                      <XCircle className="w-3 h-3 sm:w-4 sm:h-4" />
+                      <XCircle className="w-4 h-4" />
                       Reject
                     </Button>
                   )}
-                </>
+                </div>
               )}
               {application.status === 'approved_for_meeting' && (
-                <>
+                <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
                   {onEditMeeting && application.meeting_date && (
                     <Button
                       variant="outline"
                       size="sm"
                       onClick={() => onEditMeeting(application)}
-                      className="flex items-center gap-2 border-yellow-500/50 bg-yellow-900/20 text-yellow-300 hover:bg-yellow-800/30 hover:text-yellow-200"
+                      className="w-full sm:w-auto flex items-center justify-center gap-2 border-yellow-500/50 bg-yellow-900/20 text-yellow-300 hover:bg-yellow-800/30 hover:text-yellow-200 text-xs sm:text-sm"
                     >
                       <Pencil className="w-4 h-4" />
                       Edit Meeting
                     </Button>
                   )}
-                  {onApprove && (
-                    <Button
-                      variant="default"
-                      size="sm"
-                      onClick={() => onApprove(application)}
-                      className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white"
-                    >
-                      <CheckCircle className="w-4 h-4" />
-                      Approve After Meeting
-                    </Button>
-                  )}
-                  {onReject && (
-                    <Button
-                      variant="destructive"
-                      size="sm"
-                      onClick={() => onReject(application)}
-                      className="flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white"
-                    >
-                      <XCircle className="w-4 h-4" />
-                      Reject After Meeting
-                    </Button>
-                  )}
-                </>
+                  <div className="flex flex-row gap-2 w-full sm:w-auto">
+                    {onApprove && (
+                      <Button
+                        variant="default"
+                        size="sm"
+                        onClick={() => onApprove(application)}
+                        className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 text-white text-xs sm:text-sm"
+                      >
+                        <CheckCircle className="w-4 h-4" />
+                        Approve After
+                      </Button>
+                    )}
+                    {onReject && (
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        onClick={() => onReject(application)}
+                        className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-red-600 hover:bg-red-700 text-white text-xs sm:text-sm"
+                      >
+                        <XCircle className="w-4 h-4" />
+                        Reject After
+                      </Button>
+                    )}
+                  </div>
+                </div>
               )}
               {application.status === 'approved_for_contract' && onResendEmail && (
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={() => onResendEmail(application)}
-                  className="flex items-center gap-2 border-blue-500/50 bg-blue-900/20 text-blue-300 hover:bg-blue-800/30 hover:text-blue-200"
+                  className="w-full sm:w-auto flex items-center justify-center gap-2 border-blue-500/50 bg-blue-900/20 text-blue-300 hover:bg-blue-800/30 hover:text-blue-200 text-xs sm:text-sm"
                 >
                   <Mail className="w-4 h-4" />
-                  Resend Contract Email
+                  Resend Contract
                 </Button>
               )}
             </div>

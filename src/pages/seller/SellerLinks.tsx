@@ -11,6 +11,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { getSortedCountries, getPhoneCodeFromCountry } from '@/lib/visa-checkout-constants';
 import { getProductsWithContracts } from '@/lib/contract-templates';
+import { generateUUID, copyToClipboard } from '@/lib/utils';
 
 interface SellerInfo {
   id: string;
@@ -1404,7 +1405,7 @@ export function SellerLinks() {
                       />
                       <Button
                         onClick={() => {
-                          navigator.clipboard.writeText(generatedPrefillLink);
+                          copyToClipboard(generatedPrefillLink);
                           setCopiedLink(generatedPrefillLink);
                           copyTimeoutRef.current = setTimeout(() => {
                             setCopiedLink(null);
@@ -1455,7 +1456,7 @@ export function SellerLinks() {
 
                       // Generate token and create prefill record
                       try {
-                        const token = crypto.randomUUID();
+                        const token = generateUUID();
                         const expiresAt = new Date();
                         expiresAt.setDate(expiresAt.getDate() + 30); // 30 days validity
 
@@ -1499,7 +1500,7 @@ export function SellerLinks() {
                         setGeneratedPrefillLink(link);
 
                         // Auto-copy to clipboard
-                        navigator.clipboard.writeText(link);
+                        copyToClipboard(link);
                         setCopiedLink(link);
                         if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current);
                         copyTimeoutRef.current = setTimeout(() => {
@@ -1704,7 +1705,7 @@ export function SellerLinks() {
                                         <Button
                                           onClick={async () => {
                                             try {
-                                              const token = crypto.randomUUID();
+                                              const token = generateUUID();
                                               const expiresAt = new Date();
                                               expiresAt.setDate(expiresAt.getDate() + 30);
 
@@ -1731,7 +1732,7 @@ export function SellerLinks() {
                                               });
 
                                               // Copy to clipboard automatically
-                                              navigator.clipboard.writeText(link);
+                                              copyToClipboard(link);
                                               setCopiedLink(link);
                                               setTimeout(() => setCopiedLink(null), 3000);
 
@@ -1751,7 +1752,7 @@ export function SellerLinks() {
                                         <Button
                                           onClick={async () => {
                                             try {
-                                              const token = crypto.randomUUID();
+                                              const token = generateUUID();
                                               const expiresAt = new Date();
                                               expiresAt.setDate(expiresAt.getDate() + 30);
 
@@ -1778,7 +1779,7 @@ export function SellerLinks() {
                                               });
 
                                               // Copy to clipboard automatically
-                                              navigator.clipboard.writeText(link);
+                                              copyToClipboard(link);
                                               setCopiedLink(link);
                                               setTimeout(() => setCopiedLink(null), 3000);
 
@@ -1807,7 +1808,7 @@ export function SellerLinks() {
                                           <div className="flex gap-2">
                                             <Button
                                               onClick={() => {
-                                                navigator.clipboard.writeText(productGeneratedLinks[product.slug]);
+                                                copyToClipboard(productGeneratedLinks[product.slug]);
                                                 setCopiedLink(productGeneratedLinks[product.slug]);
                                                 setTimeout(() => setCopiedLink(null), 3000);
                                               }}
@@ -1924,7 +1925,7 @@ export function SellerLinks() {
                                   <Button
                                     onClick={async () => {
                                       try {
-                                        const token = crypto.randomUUID();
+                                        const token = generateUUID();
                                         const expiresAt = new Date();
                                         expiresAt.setDate(expiresAt.getDate() + 30);
 
@@ -1951,7 +1952,7 @@ export function SellerLinks() {
                                         });
 
                                         // Copy to clipboard automatically
-                                        navigator.clipboard.writeText(link);
+                                        copyToClipboard(link);
                                         setCopiedLink(link);
                                         setTimeout(() => setCopiedLink(null), 3000);
 
@@ -1971,7 +1972,7 @@ export function SellerLinks() {
                                   <Button
                                     onClick={async () => {
                                       try {
-                                        const token = crypto.randomUUID();
+                                        const token = generateUUID();
                                         const expiresAt = new Date();
                                         expiresAt.setDate(expiresAt.getDate() + 30);
 
@@ -1998,7 +1999,7 @@ export function SellerLinks() {
                                         });
 
                                         // Copy to clipboard automatically
-                                        navigator.clipboard.writeText(link);
+                                        copyToClipboard(link);
                                         setCopiedLink(link);
                                         setTimeout(() => setCopiedLink(null), 3000);
 
@@ -2027,7 +2028,7 @@ export function SellerLinks() {
                                     <div className="flex gap-2">
                                       <Button
                                         onClick={() => {
-                                          navigator.clipboard.writeText(productGeneratedLinks[product.slug]);
+                                          copyToClipboard(productGeneratedLinks[product.slug]);
                                           setCopiedLink(productGeneratedLinks[product.slug]);
                                           setTimeout(() => setCopiedLink(null), 3000);
                                         }}

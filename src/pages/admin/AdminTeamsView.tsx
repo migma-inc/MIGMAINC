@@ -27,6 +27,7 @@ interface TeamMember {
     email: string;
     revenue: number;
     commission: number;
+    is_former?: boolean;
 }
 
 // Tabela de comissão progressiva
@@ -90,72 +91,98 @@ export function AdminTeamsView({ selectedMonth }: AdminTeamsViewProps) {
             const endDate = new Date(year, month, 1).toISOString();
 
             // 4. Fetch orders
-            const { data: orders, error: ordersError } = await supabase
+            let ordersQuery = supabase
                 .from('visa_orders')
-                .select('seller_id, base_price_usd, extra_units, extra_unit_price_usd, upsell_price_usd, discount_amount')
-                .eq('payment_status', 'completed')
-                .eq('is_test', false) // assuming we only want real orders for analytics
+                .select('seller_id, team_id, base_price_usd, extra_units, extra_unit_price_usd, upsell_price_usd, discount_amount')
+                .eq('payment_status', 'completed');
+
+            if (!isTestEnvironment()) {
+                ordersQuery = ordersQuery.eq('is_test', false);
+            }
+
+            const { data: orders, error: ordersError } = await ordersQuery
                 .gte('created_at', startDate)
                 .lt('created_at', endDate);
 
+
             if (ordersError) throw ordersError;
 
-            // 5. Calculate Revenue per seller
+            // 5. Calculate Revenue per seller and per team
             const revenueBySeller: Record<string, number> = {};
-            for (const order of orders || []) {
-                const sid = order.seller_id;
-                if (!sid) continue; // should use seller_id_public? No, orders usually use public_id.
-                // Let's find the seller UUID from public_id if needed, but usually visa_orders has seller_id as public_id.
-            }
-
-            // Note: In this project, visa_orders.seller_id is often the public ID (e.g. '551c44a8').
-            // Let's map sellers.seller_id_public to sellers.id
+            const revenueByTeam: Record<string, number> = {};
+            
             const publicToUuid: Record<string, string> = {};
-            // We need public_id in the select above
             const { data: sellersWithPublic } = await supabase.from('sellers').select('id, seller_id_public');
             sellersWithPublic?.forEach(s => {
                 publicToUuid[s.seller_id_public] = s.id;
             });
 
             for (const order of orders || []) {
-                const uuid = publicToUuid[order.seller_id!];
-                if (!uuid) continue;
                 const price = (Number(order.base_price_usd || 0) + 
                               (Number(order.extra_units || 0) * Number(order.extra_unit_price_usd || 0)) + 
                                Number(order.upsell_price_usd || 0) - 
                                Number(order.discount_amount || 0));
-                revenueBySeller[uuid] = (revenueBySeller[uuid] || 0) + price;
+                
+                // Aggregate by seller
+                const sellerUuid = publicToUuid[order.seller_id!];
+                if (sellerUuid) {
+                    revenueBySeller[sellerUuid] = (revenueBySeller[sellerUuid] || 0) + price;
+                }
+
+                // Aggregate by team (The Key Fix)
+                if (order.team_id) {
+                    revenueByTeam[order.team_id] = (revenueByTeam[order.team_id] || 0) + price;
+                }
             }
 
             // 6. Group by Teams
             const performanceData: TeamWithPerformance[] = (teamsData || []).map(t => {
-                const members = (sellersData || [])
-                    .filter(s => s.team_id === t.id && s.role === 'seller')
-                    .map(s => {
-                        const rev = revenueBySeller[s.id] || 0;
-                        return {
-                            id: s.id,
-                            full_name: s.full_name,
-                            email: s.email,
-                            revenue: rev,
-                            commission: calculateSellerCommission(rev)
-                        };
-                    })
-                    .sort((a,b) => b.revenue - a.revenue);
+                // Get current members
+                const currentMembers = (sellersData || []).filter(s => s.team_id === t.id && s.role === 'seller');
+                
+                // Get historical sellers from orders for this team
+                const historicalSellerIds = new Set<string>();
+                for (const order of orders || []) {
+                    if (order.team_id === t.id && order.seller_id) {
+                        const sellerUuid = publicToUuid[order.seller_id];
+                        if (sellerUuid) historicalSellerIds.add(sellerUuid);
+                    }
+                }
+
+                // Union of current members and historical sellers
+                const allMemberIds = new Set([...currentMembers.map(m => m.id), ...Array.from(historicalSellerIds)]);
+
+                const members = Array.from(allMemberIds).map(id => {
+                    const seller = sellersData?.find(s => s.id === id);
+                    const rev = revenueBySeller[id] || 0;
+                    
+                    return {
+                        id,
+                        full_name: seller?.full_name || 'Vendedor Removido',
+                        email: seller?.email || 'N/A',
+                        revenue: rev,
+                        commission: calculateSellerCommission(rev),
+                        is_former: seller?.team_id !== t.id
+                    };
+                })
+                .filter(m => m.revenue > 0 || !m.is_former) // Show if they have revenue OR are current members
+                .sort((a,b) => b.revenue - a.revenue);
 
                 const hos = (sellersData || []).find(s => s.team_id === t.id && s.role === 'head_of_sales');
-                const totalRevenue = members.reduce((sum, m) => sum + m.revenue, 0);
+                const totalRevenue = revenueByTeam[t.id] || 0;
 
                 return {
                     id: t.id,
                     name: t.name,
                     head_of_sales: hos ? { id: hos.id, full_name: hos.full_name, email: hos.email } : null,
-                    members,
+                    members: members as any[],
                     total_revenue: totalRevenue,
                     commission_hos: calculateHoSCommission(totalRevenue),
                     is_test: t.is_test
                 };
             });
+
+
 
             // Sort teams by total revenue
             performanceData.sort((a,b) => b.total_revenue - a.total_revenue);
@@ -243,8 +270,15 @@ export function AdminTeamsView({ selectedMonth }: AdminTeamsViewProps) {
                                     {team.members.map((member, idx) => (
                                         <tr key={member.id} className="border-b border-white/5 hover:bg-white/5 transition-colors">
                                             <td className="px-5 py-3 w-10">{getRankIcon(idx + 1)}</td>
-                                            <td className="px-5 py-3">
-                                                <p className="font-medium text-white">{member.full_name}</p>
+                                            <td className="px-5 py-3 text-sm">
+                                                <div className="flex items-center gap-2">
+                                                    <p className="font-medium text-white">{member.full_name}</p>
+                                                    {member.is_former && (
+                                                        <Badge variant="outline" className="text-[10px] text-orange-400 border-orange-500/30 px-1 py-0 h-4 uppercase font-bold">
+                                                            Fora do Time
+                                                        </Badge>
+                                                    )}
+                                                </div>
                                                 <p className="text-[10px] text-gray-500">{member.email}</p>
                                             </td>
                                             <td className="px-5 py-3 text-right">

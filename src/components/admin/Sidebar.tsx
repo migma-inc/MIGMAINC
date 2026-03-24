@@ -261,8 +261,8 @@ export function Sidebar({ className, isMobileOpen = false, onMobileClose }: Side
   ];
 
   const sidebarContent = (
-    <div className="p-4 flex-1 flex flex-col">
-      <div className="flex items-center justify-between mb-8">
+    <div className="flex-1 flex flex-col h-full overflow-hidden">
+      <div className="p-4 pb-0 flex items-center justify-between mb-6 shrink-0">
         <div className="flex items-center gap-2">
           <LayoutDashboard className="w-6 h-6 text-gold-medium" />
           <h2 className="text-lg font-bold migma-gold-text">Admin Panel</h2>
@@ -279,7 +279,7 @@ export function Sidebar({ className, isMobileOpen = false, onMobileClose }: Side
         )}
       </div>
 
-      <nav className="space-y-1 flex-1 overflow-y-auto pr-1 custom-scrollbar">
+      <nav className="flex-1 overflow-y-auto px-4 pb-8 space-y-1 custom-scrollbar min-h-0">
         {menuItems.slice(0, 7).map((item) => {
           const Icon = item.icon;
           const isActive = item.exact

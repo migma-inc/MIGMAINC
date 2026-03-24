@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { supabase } from '@/lib/supabase';
-import { cn } from '@/lib/utils';
+import { cn, copyToClipboard } from '@/lib/utils';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -224,7 +224,7 @@ export const ScholarshipRecurringDetail = () => {
         const baseUrl = window.location.origin;
         const paymentLink = `${baseUrl}/checkout/visa/scholarship-maintenance-fee?prefill=${scheduleId}`;
 
-        navigator.clipboard.writeText(paymentLink);
+        copyToClipboard(paymentLink);
         setNotification({ message: 'Payment link copied to clipboard!', type: 'success' });
     };
 
@@ -293,18 +293,18 @@ export const ScholarshipRecurringDetail = () => {
     return (
         <div className="p-6 max-w-7xl mx-auto space-y-6">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                <div className="flex items-center gap-4">
+                <div className="flex items-center gap-4 w-full sm:w-auto">
                     <Button
                         variant="outline"
                         size="icon"
                         onClick={() => navigate('/dashboard/scholarship-recurring')}
-                        className="border-gray-700 bg-transparent hover:bg-white/10 text-white"
+                        className="border-gray-700 bg-transparent hover:bg-white/10 text-white flex-shrink-0"
                     >
                         <ArrowLeft className="w-4 h-4" />
                     </Button>
-                    <div>
-                        <h1 className="text-2xl font-bold text-white uppercase tracking-tight">Scholarship: {program.client.full_name}</h1>
-                        <p className="text-gray-400 text-sm">Monthly Scholarship Maintenance Plan</p>
+                    <div className="min-w-0">
+                        <h1 className="text-xl sm:text-2xl font-bold text-white uppercase tracking-tight truncate">Scholarship: {program.client.full_name}</h1>
+                        <p className="text-gray-400 text-xs sm:text-sm">Monthly Scholarship Maintenance Plan</p>
                     </div>
                 </div>
 
@@ -316,21 +316,21 @@ export const ScholarshipRecurringDetail = () => {
                             animate={{ opacity: 1, y: 0, x: 0 }}
                             exit={{ opacity: 0, scale: 0.95 }}
                             className={cn(
-                                "fixed top-6 right-6 z-[100] flex items-center gap-3 px-4 py-3 rounded-lg border shadow-lg backdrop-blur-md transition-all duration-300",
+                                "fixed top-4 right-4 left-4 sm:left-auto sm:top-6 sm:right-6 z-[100] flex items-center gap-3 px-4 py-3 rounded-lg border shadow-lg backdrop-blur-md transition-all duration-300",
                                 notification.type === 'success'
                                     ? "bg-green-500/10 border-green-500/50 text-green-400"
                                     : "bg-red-500/10 border-red-500/50 text-red-400"
                             )}
                         >
                             {notification.type === 'success' ? (
-                                <CheckCircle2 className="w-5 h-5" />
+                                <CheckCircle2 className="w-5 h-5 flex-shrink-0" />
                             ) : (
-                                <AlertCircle className="w-5 h-5" />
+                                <AlertCircle className="w-5 h-5 flex-shrink-0" />
                             )}
-                            <span className="font-medium text-sm">{notification.message}</span>
+                            <span className="font-medium text-sm flex-1">{notification.message}</span>
                             <button
                                 onClick={() => setNotification(null)}
-                                className="ml-2 hover:opacity-70 transition-opacity"
+                                className="hover:opacity-70 transition-opacity"
                             >
                                 ×
                             </button>
@@ -338,14 +338,14 @@ export const ScholarshipRecurringDetail = () => {
                     )}
                 </AnimatePresence>
 
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-end">
                     {getStatusBadge(program.control.program_status)}
 
                     <Dialog open={isStatusDialogOpen} onOpenChange={setIsStatusDialogOpen}>
                         <DialogTrigger asChild>
-                            <Button variant="outline" className="border-gray-700 gap-2">
+                            <Button variant="outline" className="border-gray-700 gap-2 text-xs sm:text-sm">
                                 <Power className="w-4 h-4" />
-                                {program.control.program_status === 'active' ? 'Suspend Program' : 'Activate Program'}
+                                {program.control.program_status === 'active' ? 'Suspend' : 'Activate'}
                             </Button>
                         </DialogTrigger>
                         <DialogContent className="bg-zinc-900 border-gray-800 text-white">
@@ -455,7 +455,8 @@ export const ScholarshipRecurringDetail = () => {
                         <TabsContent value="schedule">
                             <Card className="bg-zinc-900 border-gray-800 h-full">
                                 <CardContent className="p-0">
-                                    <div className="overflow-x-auto">
+                                    {/* Desktop Table View */}
+                                    <div className="hidden md:block overflow-x-auto">
                                         <table className="w-full">
                                             <thead>
                                                 <tr className="text-left text-gray-500 text-xs uppercase border-b border-gray-800">
@@ -550,6 +551,69 @@ export const ScholarshipRecurringDetail = () => {
                                             </tbody>
                                         </table>
                                     </div>
+
+                                    {/* Mobile Card List View */}
+                                    <div className="md:hidden p-4 space-y-4">
+                                        {program.installments.map((inst) => (
+                                            <div key={inst.id} className="bg-zinc-800/50 border border-gray-800 rounded-lg p-4 space-y-3">
+                                                <div className="flex justify-between items-center">
+                                                    <span className="text-gray-500 text-xs font-bold uppercase tracking-wider">Installment #{inst.installment_number}</span>
+                                                    {getStatusBadge(inst.status)}
+                                                </div>
+                                                <div className="grid grid-cols-2 gap-4">
+                                                    <div>
+                                                        <p className="text-[10px] text-gray-500 uppercase font-bold">Due Date</p>
+                                                        <p className="text-sm text-white font-medium">{new Date(inst.due_date).toLocaleDateString()}</p>
+                                                    </div>
+                                                    <div>
+                                                        <p className="text-[10px] text-gray-500 uppercase font-bold">Amount</p>
+                                                        <p className="text-sm text-white font-bold">${Number(inst.amount_usd).toFixed(2)}</p>
+                                                    </div>
+                                                </div>
+                                                {inst.paid_at && (
+                                                    <div className="pt-2 border-t border-gray-800 flex items-center gap-2">
+                                                        <CheckCircle2 className="w-4 h-4 text-green-500" />
+                                                        <span className="text-xs text-gray-400 font-medium">Paid on {new Date(inst.paid_at).toLocaleDateString()}</span>
+                                                    </div>
+                                                )}
+                                                <div className="flex justify-end gap-2 pt-3 border-t border-gray-800">
+                                                    {inst.status !== 'paid' && (
+                                                        <>
+                                                            <Button
+                                                                size="sm"
+                                                                variant="outline"
+                                                                className="h-8 border-gray-700 text-xs gap-2"
+                                                                onClick={() => {
+                                                                    setSelectedInstallmentId(inst.id);
+                                                                    setIsPaymentDialogOpen(true);
+                                                                }}
+                                                            >
+                                                                <DollarSign className="w-3 h-3" /> Paid
+                                                            </Button>
+                                                            <Button
+                                                                size="sm"
+                                                                variant="outline"
+                                                                className="h-8 border-gray-700 text-xs gap-2"
+                                                                onClick={() => handleCopyLink(inst.id)}
+                                                            >
+                                                                <Copy className="w-3 h-3" /> Link
+                                                            </Button>
+                                                        </>
+                                                    )}
+                                                    {inst.payment_id && (
+                                                        <Button
+                                                            size="sm"
+                                                            variant="outline"
+                                                            className="h-8 border-gray-700 text-xs gap-2"
+                                                            onClick={() => navigate(`/dashboard/visa-orders/${inst.payment_id}`)}
+                                                        >
+                                                            <ExternalLink className="w-3 h-3" /> View
+                                                        </Button>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
                                 </CardContent>
                             </Card>
                         </TabsContent>
@@ -557,7 +621,8 @@ export const ScholarshipRecurringDetail = () => {
                         <TabsContent value="emails">
                             <Card className="bg-zinc-900 border-gray-800 h-full">
                                 <CardContent className="p-0">
-                                    <div className="overflow-x-auto">
+                                    {/* Desktop Table View */}
+                                    <div className="hidden md:block overflow-x-auto">
                                         <table className="w-full">
                                             <thead>
                                                 <tr className="text-left text-gray-500 text-xs uppercase border-b border-gray-800">
@@ -603,6 +668,35 @@ export const ScholarshipRecurringDetail = () => {
                                             </tbody>
                                         </table>
                                     </div>
+
+                                    {/* Mobile View */}
+                                    <div className="md:hidden p-4 space-y-4">
+                                        {emailLogs.length === 0 ? (
+                                            <p className="text-center py-8 text-gray-500 text-sm">No emails recorded.</p>
+                                        ) : (
+                                            emailLogs.map((log) => (
+                                                <div key={log.id} className="bg-zinc-800/50 border border-gray-800 rounded-lg p-4 space-y-3">
+                                                    <div className="flex justify-between items-start">
+                                                        <Badge variant="outline" className="capitalize text-[10px] text-gold-light border-gold-medium/50 bg-gold-medium/10">
+                                                            {log.email_type.replace('_', ' ')}
+                                                        </Badge>
+                                                        <span className="text-[10px] text-gray-500 font-medium">
+                                                            {new Date(log.sent_at).toLocaleDateString()}
+                                                        </span>
+                                                    </div>
+                                                    <p className="text-sm text-white font-medium truncate">{log.recipient_email}</p>
+                                                    <div className="flex justify-between items-center pt-2 border-t border-gray-800">
+                                                        <span className="text-xs text-gray-500">
+                                                            Installment {log.installment_number ? `#${log.installment_number}` : '-'}
+                                                        </span>
+                                                        <div className="flex items-center gap-1 text-green-400 text-xs font-bold">
+                                                            <CheckCircle2 className="w-3 h-3" /> Sent
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            ))
+                                        )}
+                                    </div>
                                 </CardContent>
                             </Card>
                         </TabsContent>
@@ -639,6 +733,6 @@ export const ScholarshipRecurringDetail = () => {
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
-        </div >
+        </div>
     );
 };

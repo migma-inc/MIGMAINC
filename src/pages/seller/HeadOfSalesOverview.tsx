@@ -30,91 +30,113 @@ export function HeadOfSalesOverview() {
             }
 
             try {
-                // 1. Obter membros da equipe pelo team_id
-                const { data: teamMembers } = await supabase
+                // 1. Obter membros ATUAIS da equipe
+                const { data: currentMembers } = await supabase
                     .from('sellers')
-                    .select('id, full_name, seller_id_public')
+                    .select('id, full_name, seller_id_public, team_id')
                     .eq('team_id', seller.team_id);
 
-                setTeamSize(teamMembers?.length || 0);
+                // 2. Obter TODOS os vendedores (para mapear nomes de ex-membros)
+                const { data: allSellers } = await supabase
+                    .from('sellers')
+                    .select('seller_id_public, full_name, team_id');
 
-                if (teamMembers && teamMembers.length > 0) {
-                    const sellerIds = teamMembers.map(m => m.seller_id_public);
+                const sellerMap = allSellers?.reduce((acc, s) => {
+                    acc[s.seller_id_public] = {
+                        name: s.full_name,
+                        is_current: s.team_id === seller.team_id
+                    };
+                    return acc;
+                }, {} as Record<string, { name: string, is_current: boolean }>);
 
-                    // 2. Buscar vendas concluídas
-                    const { data: teamOrders } = await supabase
-                        .from('visa_orders')
-                        .select('base_price_usd, extra_units, extra_unit_price_usd, discount_amount, upsell_price_usd, seller_id, client_name, product_slug, created_at, payment_status')
-                        .in('seller_id', sellerIds)
-                        .eq('payment_status', 'completed');
+                setTeamSize(currentMembers?.length || 0);
 
-                    // 3. Calcular faturamento e contagem
-                    const totalOrders = teamOrders?.length || 0;
-                    setOrdersCount(totalOrders);
+                // 3. Buscar TODAS as vendas do TIME (por team_id)
+                const { data: teamOrders } = await supabase
+                    .from('visa_orders')
+                    .select('base_price_usd, extra_units, extra_unit_price_usd, discount_amount, upsell_price_usd, seller_id, client_name, product_slug, created_at, payment_status')
+                    .eq('team_id', seller.team_id)
+                    .eq('payment_status', 'completed');
 
-                    const totalRevenue = teamOrders?.reduce((acc, order) => {
+                const totalOrders = teamOrders?.length || 0;
+                setOrdersCount(totalOrders);
+
+                const totalRevenue = teamOrders?.reduce((acc, order) => {
+                    const base = Number(order.base_price_usd) || 0;
+                    const extras = (Number(order.extra_units) || 0) * (Number(order.extra_unit_price_usd) || 0);
+                    const upsell = Number(order.upsell_price_usd) || 0;
+                    const discount = Number(order.discount_amount) || 0;
+                    return acc + (base + extras + upsell - discount);
+                }, 0) || 0;
+                setTeamSales(totalRevenue);
+
+                // 4. Calcular Conversão (Orders / Leads)
+                // Buscamos os seller_ids históricos (quem já vendeu pelo time) + membros atuais
+                const historicalSellerIds = Array.from(new Set([
+                    ...(currentMembers?.map(m => m.seller_id_public) || []),
+                    ...(teamOrders?.map(o => o.seller_id) || [])
+                ]));
+
+                const { count: leadsCount } = await supabase
+                    .from('service_requests')
+                    .select('*', { count: 'exact', head: true })
+                    .in('seller_id', historicalSellerIds);
+                
+                if (leadsCount && leadsCount > 0) {
+                    setConversionRate((totalOrders / leadsCount) * 100);
+                }
+
+                // 5. Ranking de Vendedores (inclui ex-membros que tiveram vendas para este time)
+                const uniqueSellerIdsInOrders = Array.from(new Set(teamOrders?.map(o => o.seller_id) || []));
+                
+                const sellersRanking = uniqueSellerIdsInOrders.map(sid => {
+                    const detail = sellerMap?.[sid];
+                    const memberOrders = teamOrders?.filter(o => o.seller_id === sid) || [];
+                    const revenue = memberOrders.reduce((acc, order) => {
                         const base = Number(order.base_price_usd) || 0;
                         const extras = (Number(order.extra_units) || 0) * (Number(order.extra_unit_price_usd) || 0);
                         const upsell = Number(order.upsell_price_usd) || 0;
                         const discount = Number(order.discount_amount) || 0;
                         return acc + (base + extras + upsell - discount);
-                    }, 0) || 0;
-                    setTeamSales(totalRevenue);
+                    }, 0);
+                    return {
+                        name: detail?.name || sid,
+                        revenue,
+                        orderCount: memberOrders.length,
+                        is_former: !detail?.is_current
+                    };
+                })
+                .sort((a, b) => b.revenue - a.revenue)
+                .slice(0, 5);
+                setTopSellers(sellersRanking);
 
-                    // 4. Calcular Conversão (Orders / Leads)
-                    const { count: leadsCount } = await supabase
-                        .from('service_requests')
-                        .select('*', { count: 'exact', head: true })
-                        .in('seller_id', sellerIds);
-                    
-                    if (leadsCount && leadsCount > 0) {
-                        setConversionRate((totalOrders / leadsCount) * 100);
-                    }
-
-                    // 5. Ranking de Vendedores
-                    const sellersRanking = teamMembers.map(member => {
-                        const memberOrders = teamOrders?.filter(o => o.seller_id === member.seller_id_public) || [];
-                        const revenue = memberOrders.reduce((acc, order) => {
-                            const base = Number(order.base_price_usd) || 0;
-                            const extras = (Number(order.extra_units) || 0) * (Number(order.extra_unit_price_usd) || 0);
-                            const upsell = Number(order.upsell_price_usd) || 0;
-                            const discount = Number(order.discount_amount) || 0;
-                            return acc + (base + extras + upsell - discount);
-                        }, 0);
+                // 6. Pedidos Recentes
+                const recent = teamOrders
+                    ?.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+                    .slice(0, 5)
+                    .map(order => {
+                        const detail = sellerMap?.[order.seller_id];
                         return {
-                            name: member.full_name,
-                            revenue,
-                            orderCount: memberOrders.length
-                        };
-                    })
-                    .sort((a, b) => b.revenue - a.revenue)
-                    .slice(0, 5);
-                    setTopSellers(sellersRanking);
-
-                    // 6. Pedidos Recentes
-                    const recent = teamOrders
-                        ?.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-                        .slice(0, 5)
-                        .map(order => ({
                             ...order,
-                            seller_name: teamMembers.find(m => m.seller_id_public === order.seller_id)?.full_name || 'Desconhecido',
+                            seller_name: detail?.name || order.seller_id,
+                            is_former: !detail?.is_current,
                             net_value: Number(order.base_price_usd || 0) + 
                                        (Number(order.extra_units || 0) * Number(order.extra_unit_price_usd || 0)) + 
                                        Number(order.upsell_price_usd || 0) - 
                                        Number(order.discount_amount || 0)
-                        }));
-                    setRecentOrders(recent || []);
-
-                    // Update Cache
-                    setCacheValue('overview', {
-                        teamSize: teamMembers?.length || 0,
-                        teamSales: totalRevenue,
-                        ordersCount: totalOrders,
-                        conversionRate: leadsCount && leadsCount > 0 ? (totalOrders / leadsCount) * 100 : 0,
-                        topSellers: sellersRanking,
-                        recentOrders: recent || []
+                        };
                     });
-                }
+                setRecentOrders(recent || []);
+
+                // Update Cache
+                setCacheValue('overview', {
+                    teamSize: currentMembers?.length || 0,
+                    teamSales: totalRevenue,
+                    ordersCount: totalOrders,
+                    conversionRate: leadsCount && leadsCount > 0 ? (totalOrders / leadsCount) * 100 : 0,
+                    topSellers: sellersRanking,
+                    recentOrders: recent || []
+                });
             } catch (error) {
                 console.error('Error loading team stats:', error);
             } finally {
@@ -131,8 +153,8 @@ export function HeadOfSalesOverview() {
         <div className="max-w-7xl mx-auto space-y-8">
             <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="text-3xl font-bold text-white tracking-tight">Gestão de Equipe</h1>
-                    <p className="text-gray-400 mt-1">Bem-vindo(a), {seller.full_name}. Acompanhe os resultados da sua equipe em tempo real.</p>
+                    <h1 className="text-3xl font-bold text-white tracking-tight">Team Management</h1>
+                    <p className="text-gray-400 mt-1">Welcome, {seller.full_name}. Monitor your team's real-time results.</p>
                 </div>
             </div>
 
@@ -140,53 +162,53 @@ export function HeadOfSalesOverview() {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
                 <Card className="bg-black/40 border-gold-medium/20 backdrop-blur-md transition-all hover:bg-black/60 hover:border-gold-medium/40">
                     <CardHeader className="flex flex-row items-center justify-between pb-2">
-                        <CardTitle className="text-sm font-medium text-gray-400">Faturamento Real</CardTitle>
+                        <CardTitle className="text-sm font-medium text-gray-400">Net Revenue</CardTitle>
                         <DollarSign className="w-4 h-4 text-green-400" />
                     </CardHeader>
                     <CardContent>
                         <div className="text-2xl font-bold text-green-400">
                             {loading && !cache.overview ? <Skeleton className="h-8 w-32" /> : formatCurrency(teamSales)}
                         </div>
-                        <p className="text-xs text-gray-500 mt-1">Líquido (sem taxas)</p>
+                        <p className="text-xs text-gray-500 mt-1">Net (no fees)</p>
                     </CardContent>
                 </Card>
 
                 <Card className="bg-black/40 border-gold-medium/20 backdrop-blur-md transition-all hover:bg-black/60 hover:border-gold-medium/40">
                     <CardHeader className="flex flex-row items-center justify-between pb-2">
-                        <CardTitle className="text-sm font-medium text-gray-400">Total de Pedidos</CardTitle>
+                        <CardTitle className="text-sm font-medium text-gray-400">Total Orders</CardTitle>
                         <ShieldCheck className="w-4 h-4 text-blue-400" />
                     </CardHeader>
                     <CardContent>
                         <div className="text-2xl font-bold text-blue-400">
                             {loading && !cache.overview ? <Skeleton className="h-8 w-12" /> : ordersCount}
                         </div>
-                        <p className="text-xs text-gray-500 mt-1">Vendas concluídas</p>
+                        <p className="text-xs text-gray-500 mt-1">Completed sales</p>
                     </CardContent>
                 </Card>
 
                 <Card className="bg-black/40 border-gold-medium/20 backdrop-blur-md transition-all hover:bg-black/60 hover:border-gold-medium/40">
                     <CardHeader className="flex flex-row items-center justify-between pb-2">
-                        <CardTitle className="text-sm font-medium text-gray-400">Conversão Média</CardTitle>
+                        <CardTitle className="text-sm font-medium text-gray-400">Average Conversion</CardTitle>
                         <TrendingUp className="w-4 h-4 text-purple-400" />
                     </CardHeader>
                     <CardContent>
                         <div className="text-2xl font-bold text-purple-400">
                             {loading && !cache.overview ? <Skeleton className="h-8 w-16" /> : `${conversionRate.toFixed(1)}%`}
                         </div>
-                        <p className="text-xs text-gray-500 mt-1">Funnel de vendas</p>
+                        <p className="text-xs text-gray-500 mt-1">Sales funnel</p>
                     </CardContent>
                 </Card>
 
                 <Card className="bg-black/40 border-gold-medium/20 backdrop-blur-md transition-all hover:bg-black/60 hover:border-gold-medium/40">
                     <CardHeader className="flex flex-row items-center justify-between pb-2">
-                        <CardTitle className="text-sm font-medium text-gray-400">Tamanho da Equipe</CardTitle>
+                        <CardTitle className="text-sm font-medium text-gray-400">Team Size</CardTitle>
                         <Users className="w-4 h-4 text-gold-medium" />
                     </CardHeader>
                     <CardContent>
                         <div className="text-2xl font-bold text-gold-light">
                             {loading && !cache.overview ? <Skeleton className="h-8 w-12" /> : teamSize}
                         </div>
-                        <p className="text-xs text-gray-500 mt-1">Vendedores vinculados</p>
+                        <p className="text-xs text-gray-500 mt-1">Linked sellers</p>
                     </CardContent>
                 </Card>
             </div>
@@ -198,7 +220,7 @@ export function HeadOfSalesOverview() {
                     <CardHeader className="border-b border-gold-medium/10">
                         <CardTitle className="text-lg font-bold text-white flex items-center gap-2">
                             <Award className="w-5 h-5 text-gold-medium" />
-                            Melhores Vendedores (Top 5)
+                            Top Sellers (Top 5)
                         </CardTitle>
                     </CardHeader>
                     <CardContent className="p-0">
@@ -227,20 +249,27 @@ export function HeadOfSalesOverview() {
                                                 {idx + 1}
                                             </div>
                                             <div>
-                                                <div className="font-bold text-white">{seller.name}</div>
-                                                <div className="text-xs text-gray-500">{seller.orderCount} pedidos</div>
+                                                <div className="flex items-center">
+                                                    <span className="text-gray-300 font-medium">{seller.name}</span>
+                                                    {seller.is_former && (
+                                                        <span className="ml-2 text-[10px] text-red-400 font-bold uppercase tracking-tighter">
+                                                            Former Member
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                <div className="text-xs text-gray-500">{seller.orderCount} orders</div>
                                             </div>
                                         </div>
                                         <div className="text-right">
                                             <div className="font-bold text-gold-light">{formatCurrency(seller.revenue)}</div>
                                             <div className="text-[10px] text-green-500/80 flex items-center justify-end gap-1">
-                                                <ArrowUpRight className="w-3 h-3" /> Faturamento Real
+                                                <ArrowUpRight className="w-3 h-3" /> Net Revenue
                                             </div>
                                         </div>
                                     </div>
                                 ))
                             ) : (
-                                <div className="p-8 text-center text-gray-500">Nenhum dado de venda disponível</div>
+                                <div className="p-8 text-center text-gray-500">No sales data available</div>
                             )}
                         </div>
                     </CardContent>
@@ -251,7 +280,7 @@ export function HeadOfSalesOverview() {
                     <CardHeader className="border-b border-gold-medium/10">
                         <CardTitle className="text-lg font-bold text-white flex items-center gap-2">
                             <ShieldCheck className="w-5 h-5 text-blue-400" />
-                            Pedidos Recentes do Time
+                            Recent Team Orders
                         </CardTitle>
                     </CardHeader>
                     <CardContent className="p-0">
@@ -259,10 +288,10 @@ export function HeadOfSalesOverview() {
                             <table className="w-full text-left text-sm">
                                 <thead className="text-xs text-gray-500 uppercase bg-black/40">
                                     <tr>
-                                        <th className="px-4 py-3">Vendedor</th>
-                                        <th className="px-4 py-3">Produto</th>
-                                        <th className="px-4 py-3">Valor</th>
-                                        <th className="px-4 py-3">Data</th>
+                                        <th className="px-4 py-3">Seller</th>
+                                        <th className="px-4 py-3">Product</th>
+                                        <th className="px-4 py-3">Value</th>
+                                        <th className="px-4 py-3">Date</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-gold-medium/10">
@@ -279,7 +308,14 @@ export function HeadOfSalesOverview() {
                                         recentOrders.map((order, idx) => (
                                             <tr key={idx} className="hover:bg-white/5 transition-colors">
                                                 <td className="px-4 py-3">
-                                                    <div className="font-medium text-white">{order.seller_name}</div>
+                                                    <div className="flex flex-col">
+                                                        <p className="text-sm font-medium text-white">{order.seller_name}</p>
+                                                        {order.is_former && (
+                                                            <span className="text-[10px] text-red-400 font-bold uppercase tracking-tighter">
+                                                                Former Member
+                                                            </span>
+                                                        )}
+                                                    </div>
                                                     <div className="text-[10px] text-gray-500">{order.client_name}</div>
                                                 </td>
                                                 <td className="px-4 py-3 text-gray-400">{order.product_slug}</td>
@@ -291,7 +327,7 @@ export function HeadOfSalesOverview() {
                                         ))
                                     ) : (
                                         <tr>
-                                            <td colSpan={4} className="p-8 text-center text-gray-500">Aguardando primeiras vendas...</td>
+                                            <td colSpan={4} className="p-8 text-center text-gray-500">Waiting for first sales...</td>
                                         </tr>
                                     )}
                                 </tbody>

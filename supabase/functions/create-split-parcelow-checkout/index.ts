@@ -32,13 +32,18 @@ Deno.serve(async (req: Request) => {
         console.log("[Split Checkout] 📋 Iniciando criação de split payment...");
 
         // Initialize Supabase client
-        const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-        const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+        const supabaseUrl = Deno.env.get("SUPABASE_URL");
+        const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+
+        if (!supabaseUrl || !supabaseServiceKey) {
+            throw new Error("Missing Supabase environment variables (URL or SERVICE_ROLE_KEY)");
+        }
+
         const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
         // Parse request body
-        const body: SplitCheckoutRequest = await req.json();
-        const { order_id, part1_amount, part1_method, part2_amount, part2_method } = body;
+        const body: any = await req.json();
+        const { order_id, part1_amount, part1_method, part2_amount, part2_method, parcelow_environment } = body;
 
         console.log("[Split Checkout] 📦 Request:", {
             order_id,
@@ -141,13 +146,24 @@ Deno.serve(async (req: Request) => {
                 split_payment_id: splitPayment.id,
                 split_part_number: 1,
                 // Passamos o método de pagamento específico desta parte
-                payment_method_override: part1_method
+                payment_method_override: part1_method,
+                parcelow_environment: parcelow_environment
             }
         });
 
         if (part1Error) {
             console.error(`[Split Checkout] ❌ Erro Part 1:`, part1Error);
-            throw new Error(`Erro ao criar checkout Part 1: ${part1Error.message}`);
+            let detailedMsg = part1Error.message;
+            try {
+                const errBody = await part1Error.context.json();
+                console.error(`[Split Checkout] ❌ Detalhes do Erro Part 1 (Body):`, errBody);
+                if (errBody.error || errBody.message) {
+                    detailedMsg = `${part1Error.message} - ${errBody.error || errBody.message}`;
+                }
+            } catch (e) {
+                console.error(`[Split Checkout] ⚠️ Não foi possível ler o body do erro do checkout.`);
+            }
+            throw new Error(`Erro ao criar checkout Part 1: ${detailedMsg}`);
         }
 
         console.log(`[Split Checkout] ✅ Part 1 criada:`, part1Data.checkout_url);
@@ -166,7 +182,8 @@ Deno.serve(async (req: Request) => {
                 split_payment_id: splitPayment.id,
                 split_part_number: 2,
                 // Passamos o método de pagamento específico desta parte
-                payment_method_override: part2_method
+                payment_method_override: part2_method,
+                parcelow_environment: parcelow_environment
             }
         });
 

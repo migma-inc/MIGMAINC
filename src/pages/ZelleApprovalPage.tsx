@@ -542,13 +542,29 @@ export const ZelleApprovalPage = () => {
         }
       }
 
-      // Trigger operations via workers
+      // Trigger operations via workers (Non-blocking / Fire and forget)
       try {
-        await supabase.functions.invoke('send-zelle-webhook', {
+        supabase.functions.invoke('send-zelle-webhook', {
           body: { order_id: order.id },
-        });
+        }).catch(e => console.error('Webhook error:', e));
+
+        // 🔥 Gerar todos os PDFs em BACKGROUND para não travar a tela
+        console.log('[Zelle Approval] 📄 Disparando geração de PDFs no backend...');
+        
+        supabase.functions.invoke('generate-visa-contract-pdf', {
+          body: { order_id: order.id }
+        }).catch(e => console.error('Contract PDF error:', e));
+
+        supabase.functions.invoke('generate-annex-pdf', {
+          body: { order_id: order.id }
+        }).catch(e => console.error('Annex PDF error:', e));
+
+        supabase.functions.invoke('generate-invoice-pdf', {
+          body: { order_id: order.id }
+        }).catch(e => console.error('Invoice PDF error:', e));
+
       } catch (webhookError) {
-        console.error('Error sending webhook after Zelle approval:', webhookError);
+        console.error('Error triggering backend PDF tasks:', webhookError);
       }
 
       // Check if this is an EB-3 installment payment
@@ -844,13 +860,29 @@ export const ZelleApprovalPage = () => {
 
       console.log(`✅ [DEBUG] Migma payment verification - ID: ${id}, New Status: ${verifyData?.status}`);
 
-      // 6. Trigger non-critical operations
+      // 6. Trigger non-critical operations and PDF generation in BACKGROUND
       try {
-        await supabase.functions.invoke('send-zelle-webhook', {
+        supabase.functions.invoke('send-zelle-webhook', {
           body: { order_id: orderId }
-        });
+        }).catch(e => console.error('Webhook error:', e));
+
+        // 🔥 Disparar a geração de todos PDFs no fundo sem aguardar (Fire and forget)
+        console.log('[Migma Approval] 📄 Disparando geração de PDFs no backend...');
+        
+        supabase.functions.invoke('generate-visa-contract-pdf', {
+          body: { order_id: orderId }
+        }).catch(e => console.error('Contract PDF error:', e));
+
+        supabase.functions.invoke('generate-annex-pdf', {
+          body: { order_id: orderId }
+        }).catch(e => console.error('Annex PDF error:', e));
+
+        supabase.functions.invoke('generate-invoice-pdf', {
+          body: { order_id: orderId }
+        }).catch(e => console.error('Invoice PDF error:', e));
+
       } catch (webhookError) {
-        console.error('❌ [DEBUG] Error triggering webhook worker:', webhookError);
+        console.error('❌ [DEBUG] Error triggering backend PDF tasks:', webhookError);
       }
 
       setAlertData({

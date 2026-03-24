@@ -101,8 +101,8 @@ export function HeadOfSalesTotalSales() {
         <div className="max-w-7xl mx-auto space-y-6">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
-                    <h1 className="text-3xl font-bold text-white tracking-tight">Vendas Totais do Time</h1>
-                    <p className="text-gray-400 mt-1">Visão consolidada de todas as vendas realizadas pelo seu time.</p>
+                    <h1 className="text-3xl font-bold text-white tracking-tight">Team Total Sales</h1>
+                    <p className="text-gray-400 mt-1">Consolidated view of all sales made by your team.</p>
                 </div>
 
                 <div className="flex items-center gap-2 bg-black/40 p-1 rounded-lg border border-gold-medium/20">
@@ -111,32 +111,32 @@ export function HeadOfSalesTotalSales() {
                         size="sm" 
                         onClick={() => setPeriod('all')}
                         className={period === 'all' ? 'bg-gold-medium text-black' : 'text-gray-400'}
-                    >Tudo</Button>
+                    >All</Button>
                     <Button 
                         variant={period === 'month' ? 'default' : 'ghost'} 
                         size="sm" 
                         onClick={() => setPeriod('month')}
                         className={period === 'month' ? 'bg-gold-medium text-black' : 'text-gray-400'}
-                    >Mês</Button>
+                    >Month</Button>
                     <Button 
                         variant={period === 'week' ? 'default' : 'ghost'} 
                         size="sm" 
                         onClick={() => setPeriod('week')}
                         className={period === 'week' ? 'bg-gold-medium text-black' : 'text-gray-400'}
-                    >Semana</Button>
+                    >Week</Button>
                     <Button 
                         variant={period === 'day' ? 'default' : 'ghost'} 
                         size="sm" 
                         onClick={() => setPeriod('day')}
                         className={period === 'day' ? 'bg-gold-medium text-black' : 'text-gray-400'}
-                    >Hoje</Button>
+                    >Today</Button>
                 </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <Card className="bg-black/40 border-gold-medium/20 backdrop-blur-md">
                     <CardHeader className="flex flex-row items-center justify-between pb-2">
-                        <CardTitle className="text-sm font-medium text-gray-400">Volume Bruto do Período</CardTitle>
+                        <CardTitle className="text-sm font-medium text-gray-400">Gross Volume (Period)</CardTitle>
                         <BarChart3 className="w-4 h-4 text-gold-medium" />
                     </CardHeader>
                     <CardContent>
@@ -148,7 +148,7 @@ export function HeadOfSalesTotalSales() {
 
                 <Card className="bg-black/40 border-gold-medium/20 backdrop-blur-md">
                     <CardHeader className="flex flex-row items-center justify-between pb-2">
-                        <CardTitle className="text-sm font-medium text-gray-400">Total de Unidades</CardTitle>
+                        <CardTitle className="text-sm font-medium text-gray-400">Total Units</CardTitle>
                         <Layers className="w-4 h-4 text-blue-400" />
                     </CardHeader>
                     <CardContent>
@@ -160,7 +160,7 @@ export function HeadOfSalesTotalSales() {
 
                 <Card className="bg-black/40 border-gold-medium/20 backdrop-blur-md">
                     <CardHeader className="flex flex-row items-center justify-between pb-2">
-                        <CardTitle className="text-sm font-medium text-gray-400">Ticket Médio</CardTitle>
+                        <CardTitle className="text-sm font-medium text-gray-400">Average Ticket</CardTitle>
                         <TrendingUp className="w-4 h-4 text-green-400" />
                     </CardHeader>
                     <CardContent>
@@ -176,7 +176,7 @@ export function HeadOfSalesTotalSales() {
                     <CardHeader className="border-b border-gold-medium/10">
                         <CardTitle className="text-lg font-bold text-white flex items-center gap-2">
                             <Briefcase className="w-5 h-5 text-gold-medium" />
-                            Vendas por Produto
+                            Sales by Product
                         </CardTitle>
                     </CardHeader>
                     <CardContent className="pt-6">
@@ -195,7 +195,7 @@ export function HeadOfSalesTotalSales() {
                                     </div>
                                 ))
                             ) : Object.entries(productStats).length === 0 ? (
-                                <div className="text-center py-8 text-gray-500 italic">Nenhuma venda encontrada na equipe para este período.</div>
+                                <div className="text-center py-8 text-gray-500 italic">No sales found in the team for this period.</div>
                             ) : (
                                 Object.entries(productStats)
                                     .sort(([, a]: any, [, b]: any) => b.revenue - a.revenue)
@@ -217,12 +217,12 @@ export function HeadOfSalesTotalSales() {
                                                     </h3>
                                                     <div className="flex items-center gap-2 mt-1">
                                                         <div className="px-1.5 py-0.5 rounded bg-gold-medium/20 text-[10px] font-bold text-gold-light border border-gold-medium/20">
-                                                            {stats.count} {stats.count === 1 ? 'Venda' : 'Vendas'}
+                                                            {stats.count} {stats.count === 1 ? 'Sale' : 'Sales'}
                                                         </div>
                                                     </div>
                                                 </div>
                                                 <div className="text-right shrink-0">
-                                                    <div className="text-[10px] text-gray-500 uppercase font-bold tracking-tighter mb-0.5">Faturamento</div>
+                                                    <div className="text-[10px] text-gray-500 uppercase font-bold tracking-tighter mb-0.5">Revenue</div>
                                                     <div className="text-lg font-bold text-gold-light tabular-nums leading-none">
                                                         {formatCurrency(stats.revenue)}
                                                     </div>
@@ -243,16 +243,16 @@ export function HeadOfSalesTotalSales() {
 
                 <Card className="bg-black/40 border-gold-medium/20 overflow-hidden">
                     <CardHeader>
-                        <CardTitle className="text-lg font-bold text-white">Últimos Pedidos no Período</CardTitle>
+                        <CardTitle className="text-lg font-bold text-white">Latest Orders in Period</CardTitle>
                     </CardHeader>
                     <CardContent className="p-0">
                         <div className="overflow-x-auto">
                             <table className="w-full text-left text-sm">
                                 <thead className="bg-black/60 text-gray-400 text-xs uppercase">
                                     <tr>
-                                        <th className="px-4 py-3">Vendedor</th>
-                                        <th className="px-4 py-3">Produto</th>
-                                        <th className="px-4 py-3 text-right">Valor</th>
+                                        <th className="px-4 py-3">Seller</th>
+                                        <th className="px-4 py-3">Product</th>
+                                        <th className="px-4 py-3 text-right">Value</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-gold-medium/10">

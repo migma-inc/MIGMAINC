@@ -79,7 +79,7 @@ class ParcelowClient {
 
     if (isStringId) {
       // Try to parse hex string as number first
-      const hexAsNumber = parseInt(this.clientId, 16);
+      const hexAsNumber = parseInt(this.clientId as string, 16);
       const canParseAsHex = !isNaN(hexAsNumber) && hexAsNumber > 0;
 
       console.log(`[Parcelow OAuth] Attempting to parse hex as number: ${hexAsNumber}`);
