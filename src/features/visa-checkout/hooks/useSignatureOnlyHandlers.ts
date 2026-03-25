@@ -74,11 +74,15 @@ export const useSignatureOnlyHandlers = (
             }
 
             // 3. Create Order with 'manual' status
+            // Geramos o UUID no cliente para evitar a necessidade de SELECT após o insert
+            // (clientes anônimos não têm política SELECT em visa_orders)
+            const orderId = crypto.randomUUID();
             const orderNumber = `ORD-MAN-${new Date().toISOString().split('T')[0].replace(/-/g, '')}-${Math.floor(Math.random() * 10000).toString().padStart(4, '0')}`;
 
-            const { data: order, error: orderError } = await supabase
+            const { error: orderError } = await supabase
                 .from('visa_orders')
                 .insert({
+                    id: orderId,
                     order_number: orderNumber,
                     product_slug: productSlug,
                     seller_id: sellerId || null,
@@ -109,11 +113,10 @@ export const useSignatureOnlyHandlers = (
                         submitted_at: new Date().toISOString(),
                         ip_address: await getClientIP()
                     }
-                })
-                .select()
-                .single();
+                });
 
             if (orderError) throw orderError;
+            const order = { id: orderId };
 
             // 4. Trigger PDF generation (Contract, Annex, Invoice) and wait for them
             console.log('Generating documents...');
