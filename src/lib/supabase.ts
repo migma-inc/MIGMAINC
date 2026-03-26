@@ -18,12 +18,6 @@ if (!supabaseAnonKey.startsWith('eyJ')) {
   console.error('Current key starts with:', supabaseAnonKey.substring(0, 10));
 }
 
-// Log de debug (apenas primeiros caracteres por segurança)
-console.log('[SUPABASE INIT] Client initialized:', {
-  url: supabaseUrl ? '✓ Configured' : '✗ Missing',
-  anonKey: supabaseAnonKey ? `✓ Configured (starts with: ${supabaseAnonKey.substring(0, 20)}...)` : '✗ Missing',
-});
-
 // Criar uma única instância do cliente Supabase
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {

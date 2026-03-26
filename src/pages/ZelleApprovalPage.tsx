@@ -231,7 +231,6 @@ export const ZelleApprovalPage = () => {
 
       // --- UNIFICATION & DEDUPLICATION ---
       const unifiedMap = new Map<string, any>();
-      console.log('🔍 [DEBUG] Starting unification. Orders:', ordersData?.length || 0, 'Migma:', enrichedMigma.length);
 
       // A. Process Visa Orders
       (ordersData || []).forEach(order => {
@@ -254,8 +253,6 @@ export const ZelleApprovalPage = () => {
           status: order.payment_status
         });
       });
-
-      console.log(`🔍 [DEBUG] Map populated with ${unifiedMap.size} unique orders.`);
 
       // B. Merge Migma Payments (Linking receipts to orders)
       enrichedMigma.forEach(migma => {
@@ -295,15 +292,12 @@ export const ZelleApprovalPage = () => {
         }
 
         if (match) {
-          console.log(`🔗 [DEBUG] Linking Migma ${migma.id} to Order ${match.order_number}`);
           match.migma_id = migma.id;
           if (!match.proof_url) match.proof_url = migma.image_url;
 
 
         } else {
           // Não encontrou pedido correspondente -> Adicionar como item independente (Órfão)
-          console.log(`⚠️ [DEBUG] Migma ${migma.id} is orphan. Adding as standalone entry.`);
-
           const identifiedBundle = migma.metadata?.upsell_product_slug
             ? migma.metadata.upsell_product_slug.replace(/-/g, ' ')
             : null;
@@ -337,7 +331,6 @@ export const ZelleApprovalPage = () => {
       });
 
       setUnifiedApprovals(finalPending);
-      console.log('🔍 [DEBUG] Unified Approvals count (Filtered):', finalPending.length);
 
       // --- HISTORY UI PREP ---
       const enrichedHistOrders = histOrdersPayments.map(o => ({
@@ -431,7 +424,6 @@ export const ZelleApprovalPage = () => {
 
       // VITAL: Update Migma Payment if linked (Unification)
       if (item.migma_id) {
-        console.log(`🔗 [DEBUG] Approving linked Migma Payment: ${item.migma_id}`);
         const { error: rpcError } = await supabase
           .rpc('approve_migma_zelle_payment', {
             p_payment_id: item.migma_id,
@@ -439,15 +431,12 @@ export const ZelleApprovalPage = () => {
           });
 
         if (rpcError) {
-          console.error('❌ [DEBUG] Failed to approve linked Migma payment:', rpcError);
           // Don't throw here to avoid rolling back the order approval, but alert user
           setAlertData({
             title: 'Warning',
             message: 'Order approved, but Migma status update failed. Please check logs.',
             variant: 'error',
           });
-        } else {
-          console.log('✅ [DEBUG] Linked Migma Payment approved via RPC');
         }
       }
 
@@ -673,7 +662,6 @@ export const ZelleApprovalPage = () => {
           .neq('id', selectedItem.id); // Don't touch the one we just processed via Edge Function
 
         if (cleanupError) console.error('Error cleaning up duplicate rejections:', cleanupError);
-        else console.log('✅ [DEBUG] Cleaned up duplicate pending payments for rejected item');
       }
 
       setAlertData({
@@ -703,7 +691,6 @@ export const ZelleApprovalPage = () => {
     setProcessingAction('approve');
 
     try {
-      console.log('🔍 [DEBUG] Starting approval flow for migma payment:', id);
       // 1. Get payment data
       const { data: payment, error: pError } = await supabase
         .from('migma_payments')
@@ -762,7 +749,6 @@ export const ZelleApprovalPage = () => {
       if (existingOrders && existingOrders.length > 0) {
         orderId = existingOrders[0].id;
         orderNumber = existingOrders[0].order_number;
-        console.log('🔍 [DEBUG] Using existing pending Zelle order:', orderNumber);
 
         await supabase
           .from('visa_orders')
@@ -787,12 +773,10 @@ export const ZelleApprovalPage = () => {
 
         if (serviceRequests && serviceRequests.length > 0) {
           serviceRequestId = serviceRequests[0].id;
-          console.log('✅ [DEBUG] Linked to existing service request:', serviceRequestId);
         }
 
         // Create new order
         orderNumber = `ORD-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${Math.floor(1000 + Math.random() * 9000)}`;
-        console.log('🔍 [DEBUG] Creating new order:', orderNumber);
 
         const { data: newOrder, error: orderCreateError } = await supabase
           .from('visa_orders')
@@ -1166,7 +1150,12 @@ export const ZelleApprovalPage = () => {
                         </div>
                         <div>
                           <p className="text-[10px] font-bold text-blue-400 uppercase tracking-widest mb-1">AI Receipt Analysis</p>
-                          <p className="text-xs text-gray-400 leading-relaxed font-medium">{item.n8n_response}</p>
+                          {/* Fix: Check if n8n_response is an object before rendering */}
+                          <p className="text-xs text-gray-400 leading-relaxed font-medium">
+                            {typeof item.n8n_response === 'string' 
+                              ? item.n8n_response 
+                              : (item.n8n_response?.response || (item.n8n_response ? JSON.stringify(item.n8n_response) : ''))}
+                          </p>
                         </div>
                       </div>
                     )}

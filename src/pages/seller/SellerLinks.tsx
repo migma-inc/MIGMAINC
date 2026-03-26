@@ -131,9 +131,9 @@ export function SellerLinks() {
 
   // Dropdown state for service groups
   const [expandedServices, setExpandedServices] = useState<{ [key: string]: boolean }>({
-    initial: true,
-    cos: true,
-    transfer: true,
+    initial: false,
+    cos: false,
+    transfer: false,
   });
 
   // Prefill form state

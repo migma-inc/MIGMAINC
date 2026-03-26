@@ -150,7 +150,7 @@ export function Sidebar({ className, isMobileOpen = false, onMobileClose }: Side
 
   const menuItems = [
     {
-      title: 'Applications',
+      title: 'Partner Applications',
       icon: ClipboardList,
       path: '/dashboard',
       exact: true,
@@ -169,7 +169,7 @@ export function Sidebar({ className, isMobileOpen = false, onMobileClose }: Side
       exact: false,
     },
     {
-      title: 'Accepted Contracts',
+      title: 'Partner Contracts',
       icon: FileText,
       path: '/dashboard/contracts',
       exact: false,
@@ -182,18 +182,18 @@ export function Sidebar({ className, isMobileOpen = false, onMobileClose }: Side
       exact: false,
     },
     {
-      title: 'Visa Approvals',
-      icon: FileText,
-      path: '/dashboard/visa-contract-approval',
-      exact: false,
-      badge: counts.visaApprovals
-    },
-    {
       title: 'Zelle Approval',
       icon: DollarSign,
       path: '/dashboard/zelle-approval',
       exact: false,
       badge: counts.zelleApprovals
+    },
+    {
+      title: 'Client Contract Approval',
+      icon: FileText,
+      path: '/dashboard/visa-contract-approval',
+      exact: false,
+      badge: counts.visaApprovals
     },
     // EB-3 Recurring e Scholarship movidos para dropdown
     {
@@ -216,22 +216,15 @@ export function Sidebar({ className, isMobileOpen = false, onMobileClose }: Side
       badge: counts.orphanSales
     },
     {
+      title: 'Sales Links',
+      icon: LinkIcon,
+      path: '/dashboard/links',
+      exact: false,
+    },
+    {
       title: 'Vouchers & Coupons',
       icon: Ticket,
       path: '/dashboard/coupons',
-      exact: false,
-    },
-    // PAYMENT REQUEST - COMENTADO TEMPORARIAMENTE
-    // {
-    //   title: 'Payment Requests',
-    //   icon: Wallet,
-    //   path: '/dashboard/payment-requests',
-    //   exact: false,
-    // },
-    {
-      title: 'Contact Messages',
-      icon: Mail,
-      path: '/dashboard/contact-messages',
       exact: false,
     },
     {
@@ -241,15 +234,15 @@ export function Sidebar({ className, isMobileOpen = false, onMobileClose }: Side
       exact: false,
     },
     {
-      title: 'Sales Links',
-      icon: LinkIcon,
-      path: '/dashboard/links',
-      exact: false,
-    },
-    {
       title: 'Slack Reports',
       icon: Activity,
       path: '/dashboard/slack-reports',
+      exact: false,
+    },
+    {
+      title: 'Contact Messages',
+      icon: Mail,
+      path: '/dashboard/contact-messages',
       exact: false,
     },
     {

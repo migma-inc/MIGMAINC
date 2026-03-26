@@ -50,7 +50,7 @@ export function AdminSyncSales() {
             // 1. Fetch completed orders without seller
             const { data: ordersData, error: ordersError } = await adminSupabase
                 .from('visa_orders')
-                .select('id, order_number, client_name, client_email, total_price_usd, product_slug, created_at, seller_id')
+                .select('id, order_number, client_name, client_email, total_price_usd, product_slug, created_at, seller_id, payment_metadata')
                 .eq('payment_status', 'completed')
                 .or('seller_id.is.null,seller_id.eq.""')
                 .order('created_at', { ascending: false });
@@ -142,21 +142,34 @@ export function AdminSyncSales() {
         try {
             setProcessingId('bulk');
 
-            const { error } = await adminSupabase
-                .from('visa_orders')
-                .update({
-                    seller_id: 'direct_sale',
-                    payment_metadata: {
-                        ignored_sync: true,
-                        ignored_at: new Date().toISOString()
-                    }
-                })
-                .in('id', orderIds);
+            for (const orderId of orderIds) {
+                const order = orders.find(o => o.id === orderId);
+                const { error } = await adminSupabase
+                    .from('visa_orders')
+                    .update({
+                        seller_id: 'direct_sale',
+                        payment_metadata: {
+                            ...(order?.payment_metadata || {}),
+                            ignored_sync: true,
+                            ignored_at: new Date().toISOString()
+                        }
+                    })
+                    .eq('id', orderId);
 
-            if (error) throw error;
+                if (error) throw error;
+            }
 
             setOrders(prev => prev.filter(o => !orderIds.includes(o.id)));
             setSelectedOrderIds([]);
+
+            setAlertConfig({
+                isOpen: true,
+                title: 'Success!',
+                message: orderIds.length > 1 
+                    ? `${orderIds.length} sales marked as direct sale successfully.`
+                    : 'Sale marked as direct sale successfully.',
+                variant: 'success'
+            });
 
         } catch (error) {
             console.error('[AdminSyncSales] Ignore error:', error);

@@ -158,16 +158,18 @@ export function buildN8nPayload(
  */
 export async function sendZellePaymentToN8n(
   payload: N8nWebhookPayload,
-  timeout: number = 30000, // 30 seconds default timeout
-  isTest: boolean = false
+  timeout: number = 30000 // 30 seconds default timeout
 ): Promise<N8nResponse> {
   let webhookUrl = import.meta.env.VITE_N8N_WEBHOOK_URL;
   
   // Magic routing for Test Dev Tool webhook to n8n webhook-test route!
+  // REMOVIDO: O usuário prefere usar a URL de produção mesmo em teste para evitar erros de CORS.
+  /*
   if (isTest && webhookUrl && webhookUrl.includes('/webhook/')) {
       webhookUrl = webhookUrl.replace('/webhook/', '/webhook-test/');
       console.log('🧪 Auto Dev Tool Mode: Routing N8N webhook to test endpoint ->', webhookUrl);
   }
+  */
 
   if (!webhookUrl) {
     console.warn('[Zelle n8n] VITE_N8N_WEBHOOK_URL not configured, skipping n8n validation');
@@ -175,9 +177,8 @@ export async function sendZellePaymentToN8n(
     throw new Error('n8n webhook URL not configured');
   }
 
-  console.log('[Zelle n8n] Using Webhook URL:', webhookUrl); // Log the URL being used
-
   // Validate URL format
+  if (!webhookUrl) throw new Error('n8n webhook URL not configured');
   try {
     new URL(webhookUrl);
   } catch (error) {
@@ -389,9 +390,9 @@ export async function processZellePaymentWithN8n(
   // 4. Send to n8n (with error handling)
   let n8nResponse: N8nResponse;
   try {
-    n8nResponse = await sendZellePaymentToN8n(payload, 30000, options?.isTest);
+    n8nResponse = await sendZellePaymentToN8n(payload, 30000);
   } catch (error) {
-    console.error('[Zelle n8n] CRITICAL ERROR sending to n8n:', error);
+    console.error('[Zelle n8n] Error sending to n8n:', error);
     // Return a default response for error case
     n8nResponse = {
       response: 'Error validating payment - requires manual review',

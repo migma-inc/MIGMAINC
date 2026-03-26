@@ -34,12 +34,6 @@ export async function uploadCV(file: File): Promise<UploadCVResult> {
             };
         }
 
-        console.log('[STORAGE DEBUG] Uploading file via Edge Function:', {
-            fileName: file.name,
-            fileSize: file.size,
-            fileType: file.type,
-        });
-
         // Create FormData to send file to Edge Function
         const formData = new FormData();
         formData.append('file', file);
@@ -62,14 +56,11 @@ export async function uploadCV(file: File): Promise<UploadCVResult> {
         const result = await response.json();
 
         if (!response.ok || !result.success) {
-            console.error('[STORAGE DEBUG] Upload error:', result);
             return {
                 success: false,
                 error: result.error || 'Failed to upload file',
             };
         }
-
-        console.log('[STORAGE DEBUG] File uploaded successfully:', result);
 
         return {
             success: true,
@@ -156,23 +147,15 @@ export async function getSecureUrl(url: string | null): Promise<string | null> {
                 }
             }
         }
-
-        if (!bucket || !path) {
-            console.warn('[STORAGE] Could not identify bucket/path for:', url);
-            return url;
-        }
-
-        console.log(`[STORAGE] Resolving secure URL: bucket=${bucket}, path=${path}`);
+        if (!bucket || !path) return url;
 
         // Verificação final - Se identificamos que é um bucket privado, forçamos a segurança
         if (bucket && (privateBuckets.includes(bucket) || bucket === 'contracts')) {
-            console.log(`[STORAGE] Identified private file: ${bucket}/${path}`);
 
             // 1. Tentar download direto (Blob URL) - Mais robusto para iFrames e visualização interna
             try {
                 const { data, error } = await supabase.storage.from(bucket).download(path || '');
                 if (!error && data) {
-                    console.log(`[STORAGE] Direct download successful for ${bucket}/${path}`);
                     return URL.createObjectURL(data);
                 }
                 if (error) console.warn(`[STORAGE] Download error:`, error);
@@ -182,7 +165,6 @@ export async function getSecureUrl(url: string | null): Promise<string | null> {
 
             // 2. Tentar gerar uma Signed URL (Fallback para visualização externa)
             try {
-                console.log(`[STORAGE] Generating signed URL for ${bucket}/${path}`);
                 const { data: signedData, error: signedError } = await supabase.storage.from(bucket).createSignedUrl(path || '', 3600);
 
                 if (!signedError && signedData?.signedUrl) {
@@ -194,7 +176,6 @@ export async function getSecureUrl(url: string | null): Promise<string | null> {
             }
 
             // 3. Fallback final: Proxy (Edge Function)
-            console.log(`[STORAGE] Falling back to proxy for ${bucket}/${path}`);
             return `${SUPABASE_URL}/functions/v1/document-proxy?bucket=${bucket}&path=${encodeURIComponent(path || '')}`;
         }
 
