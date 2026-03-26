@@ -75,6 +75,27 @@ Deno.serve(async (req) => {
       console.error("[EDGE FUNCTION] Error fetching product:", productError);
     }
 
+    // Check if it's a Scholarship or I-20 Control product (No contract needed, only Annex)
+    const isAnnexOnlyProduct = productSlugToUse?.endsWith('-scholarship') || productSlugToUse?.endsWith('-i20-control');
+    if (isAnnexOnlyProduct && !is_upsell) {
+      console.log(`[EDGE FUNCTION] ℹ️ Product ${productSlugToUse} identified as ANNEX-ONLY. Skipping contract generation.`);
+      
+      const clearField = 'contract_pdf_url';
+      await supabase
+        .from('visa_orders')
+        .update({ [clearField]: null })
+        .eq('id', order_id);
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          message: "Scholarship/I-20 products do not require a main contract. Skipping PDF generation.",
+          skipped: true
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     // Fetch contract template for this product
     let contractTemplate: { content: string } | null = null;
 

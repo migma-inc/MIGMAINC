@@ -7,7 +7,8 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { PdfModal } from '@/components/ui/pdf-modal';
-import { FileText, Eye, Download, ChevronDown, EyeOff, Archive, Undo2, Ticket, Search } from 'lucide-react';
+import { FileText, Eye, Download, ChevronDown, EyeOff, Archive, Undo2, Ticket, Search, RefreshCcw } from 'lucide-react';
+import { regenerateVisaDocuments } from '@/lib/visa-utils';
 import {
   Popover,
   PopoverContent,
@@ -118,7 +119,9 @@ const OrderTable = ({
   getProductName,
   isSignatureOnly = false,
   setActiveNote,
-  setShowNoteModal
+  setShowNoteModal,
+  isRegenerating,
+  handleRegenerate
 }: {
   orders: VisaOrder[],
   calculateNetAmountAndFee: any,
@@ -130,7 +133,9 @@ const OrderTable = ({
   getProductName: (slug: string) => string,
   isSignatureOnly?: boolean,
   setActiveNote: (note: string | null) => void,
-  setShowNoteModal: (show: boolean) => void
+  setShowNoteModal: (show: boolean) => void,
+  isRegenerating: string | null,
+  handleRegenerate: (orderId: string) => Promise<void>
 }) => (
   <>
     {/* Desktop Table */}
@@ -318,9 +323,27 @@ const OrderTable = ({
                       </Button>
                     )}
                     {!order.annex_pdf_url && !order.contract_pdf_url && !(order.payment_metadata as any)?.invoice_pdf_url && (
-                      <span className="text-amber-500/70 text-[10px] font-medium italic">
-                        {order.payment_method === 'manual' ? 'Awaiting Approval' : 'Generating...'}
-                      </span>
+                      <div className="flex flex-col gap-2">
+                        <span className="text-amber-500/70 text-[10px] font-medium italic">
+                          {order.payment_method === 'manual' ? 'Awaiting Approval' : 'Generating...'}
+                        </span>
+                        {(order.payment_status === 'completed' || order.payment_status === 'paid') && order.payment_method !== 'manual' && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleRegenerate(order.id)}
+                            disabled={isRegenerating === order.id}
+                            className="h-7 border-gold-medium/30 bg-gold-medium/10 text-gold-light hover:bg-gold-medium/20 text-[10px] px-2 py-0"
+                          >
+                            {isRegenerating === order.id ? (
+                              <RefreshCcw className="w-3 h-3 mr-1 animate-spin" />
+                            ) : (
+                              <RefreshCcw className="w-3 h-3 mr-1" />
+                            )}
+                            Retry Generation
+                          </Button>
+                        )}
+                      </div>
                     )}
                   </div>
                 </td>
@@ -498,6 +521,25 @@ const OrderTable = ({
                     )}
                   </div>
                 )}
+                {!order.annex_pdf_url && !order.contract_pdf_url && !(order.payment_metadata as any)?.invoice_pdf_url && (
+                  <div className="flex items-center justify-between p-2 bg-amber-500/5 rounded border border-amber-500/20">
+                    <span className="text-amber-500/70 text-[10px] font-medium italic">
+                      {order.payment_method === 'manual' ? 'Awaiting Approval' : 'Documents Generation Pending...'}
+                    </span>
+                    {(order.payment_status === 'completed' || order.payment_status === 'paid') && order.payment_method !== 'manual' && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleRegenerate(order.id)}
+                        disabled={isRegenerating === order.id}
+                        className="h-7 border-gold-medium/30 bg-gold-medium/10 text-gold-light text-[10px]"
+                      >
+                        {isRegenerating === order.id ? <RefreshCcw className="animate-spin w-3 h-3 mr-1" /> : <RefreshCcw className="w-3 h-3 mr-1" />}
+                        Retry
+                      </Button>
+                    )}
+                  </div>
+                )}
                 <Link to={`/dashboard/visa-orders/${order.id}`} className="w-full">
                   <Button
                     variant="outline"
@@ -540,6 +582,47 @@ export const VisaOrdersPage = () => {
   const [products, setProducts] = useState<any[]>([]);
   const [showNoteModal, setShowNoteModal] = useState(false);
   const [activeNote, setActiveNote] = useState<string | null>(null);
+  const [isRegenerating, setIsRegenerating] = useState<string | null>(null);
+  const [showAlert, setShowAlert] = useState(false);
+  const [alertData, setAlertData] = useState<{ title: string; message: string; variant: 'success' | 'error' | 'warning' | 'info' } | null>(null);
+
+  const handleRegenerate = async (orderId: string) => {
+    if (isRegenerating) return;
+    setIsRegenerating(orderId);
+    try {
+      const result = await regenerateVisaDocuments(orderId);
+      if (result.success) {
+        setAlertData({
+          title: 'Regeneration Started',
+          message: 'Document generation has been requested. It may take a few moments to appear.',
+          variant: 'success'
+        });
+        
+        // Refresh orders after a short delay
+        setTimeout(async () => {
+          const { data } = await supabase.from('visa_orders').select('*').eq('id', orderId).single();
+          if (data) {
+            setOrders(prev => prev.map(o => o.id === orderId ? data : o));
+          }
+        }, 3000);
+      } else {
+        setAlertData({
+          title: 'Error',
+          message: result.error || 'Failed to regenerate documents',
+          variant: 'error'
+        });
+      }
+    } catch (err: any) {
+      setAlertData({
+        title: 'Error',
+        message: err.message || 'An unexpected error occurred',
+        variant: 'error'
+      });
+    } finally {
+      setIsRegenerating(null);
+      setShowAlert(true);
+    }
+  };
 
   useEffect(() => {
     const loadData = async () => {
@@ -869,6 +952,8 @@ export const VisaOrdersPage = () => {
                     toggleHideOrder={toggleHideOrder}
                     setActiveNote={setActiveNote}
                     setShowNoteModal={setShowNoteModal}
+                    isRegenerating={isRegenerating}
+                    handleRegenerate={handleRegenerate}
                   />
                 )}
               </CardContent>
@@ -903,6 +988,8 @@ export const VisaOrdersPage = () => {
                     setActiveNote={setActiveNote}
                     setShowNoteModal={setShowNoteModal}
                     isSignatureOnly={true}
+                    isRegenerating={isRegenerating}
+                    handleRegenerate={handleRegenerate}
                   />
                 )}
               </CardContent>
@@ -927,6 +1014,14 @@ export const VisaOrdersPage = () => {
         title="Internal Admin Note"
         message={activeNote || ''}
         variant="info"
+      />
+
+      <AlertModal
+        isOpen={showAlert}
+        onClose={() => setShowAlert(false)}
+        title={alertData?.title || ''}
+        message={alertData?.message || ''}
+        variant={alertData?.variant || 'info'}
       />
     </div>
   );

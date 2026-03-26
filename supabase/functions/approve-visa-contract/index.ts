@@ -212,7 +212,8 @@ async function sendClientWebhook(order: any, supabase: any, isUpsell: boolean = 
   const isTestUser =
     (order.client_name && (
       order.client_name.toLowerCase().includes("paulo victor") ||
-      order.client_name.toLowerCase().includes("paulo víctor")
+      order.client_name.toLowerCase().includes("paulo víctor") ||
+      order.client_name.toLowerCase().includes("john doe dev")
     )) ||
     (order.client_email && (
       order.client_email.includes("@uorak") ||
@@ -435,10 +436,19 @@ Deno.serve(async (req) => {
       }
     })();
 
-    // 4. Trigger n8n Webhook IF it's a contract approval (Main or Upsell)
-    if (approvalType === 'contract' || approvalType === 'upsell_contract') {
+    // 4. Trigger n8n Webhook
+    // Trigger IF:
+    // a) It's a main contract or upsell contract approval (normal flow)
+    // b) It's an annex approval AND the product is scholarship/i20-control (annex-only products)
+    const isAnnexOnlyProduct = order.product_slug?.endsWith('-scholarship') || order.product_slug?.endsWith('-i20-control');
+    const shouldTriggerWebhook = 
+        approvalType === 'contract' || 
+        approvalType === 'upsell_contract' ||
+        (approvalType === 'annex' && isAnnexOnlyProduct);
+
+    if (shouldTriggerWebhook) {
       const isUpsell = approvalType === 'upsell_contract';
-      console.log(`[EDGE FUNCTION] Triggering n8n webhook for order: ${order.order_number} (Type: ${approvalType}, Method: ${order.payment_method})`);
+      console.log(`[EDGE FUNCTION] Triggering n8n webhook for order: ${order.order_number} (Type: ${approvalType}, Product: ${order.product_slug})`);
       const orderWithApproval = { ...order, ...updateData };
       // Fire and forget (don't block the response)
       sendClientWebhook(orderWithApproval, supabase, isUpsell).catch(err =>

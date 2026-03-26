@@ -6,8 +6,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { PdfModal } from '@/components/ui/pdf-modal';
 import { ImageModal } from '@/components/ui/image-modal';
-import { ArrowLeft, FileText, CheckCircle2, XCircle, Shield, CheckCircle, X, Eye, Loader2, AlertCircle, Users, Package } from 'lucide-react';
+import { ArrowLeft, FileText, CheckCircle2, XCircle, Shield, CheckCircle, X, Eye, Loader2, AlertCircle, Users, Package, RefreshCcw } from 'lucide-react';
 import { approveVisaContract, rejectVisaContract } from '@/lib/visa-contracts';
+import { regenerateVisaDocuments } from '@/lib/visa-utils';
 import { getSecureUrl } from '@/lib/storage';
 import { PromptModal } from '@/components/ui/prompt-modal';
 import { AlertModal } from '@/components/ui/alert-modal';
@@ -116,8 +117,43 @@ export const VisaOrderDetailPage = () => {
   const [processingAction, setProcessingAction] = useState<string | null>(null);
   const [generatingSchedule, setGeneratingSchedule] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [isRegenerating, setIsRegenerating] = useState(false);
   const [showAlert, setShowAlert] = useState(false);
   const [alertData, setAlertData] = useState<{ title: string; message: string; variant: 'success' | 'error' | 'warning' | 'info' } | null>(null);
+
+  const handleRegenerate = async () => {
+    if (!order || isRegenerating) return;
+    setIsRegenerating(true);
+    try {
+      const result = await regenerateVisaDocuments(order.id);
+      if (result.success) {
+        setAlertData({
+          title: 'Regeneration Started',
+          message: 'Document generation has been requested. It may take a few moments to appear.',
+          variant: 'success'
+        });
+        
+        // Refresh order data
+        const { data } = await supabase.from('visa_orders').select('*').eq('id', order.id).single();
+        if (data) setOrder(data);
+      } else {
+        setAlertData({
+          title: 'Error',
+          message: result.error || 'Failed to regenerate documents',
+          variant: 'error'
+        });
+      }
+    } catch (err: any) {
+      setAlertData({
+        title: 'Error',
+        message: err.message || 'An unexpected error occurred',
+        variant: 'error'
+      });
+    } finally {
+      setIsRegenerating(false);
+      setShowAlert(true);
+    }
+  };
 
   useEffect(() => {
     const loadData = async () => {
@@ -591,6 +627,120 @@ export const VisaOrderDetailPage = () => {
                   </div>
                 </div>
               </div>
+            </Card>
+
+            {/* Generated Documents Section */}
+            <Card className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30 col-span-1 md:col-span-2">
+              <CardHeader className="flex flex-row items-center justify-between">
+                <CardTitle className="text-white flex items-center gap-2">
+                  <FileText className="w-5 h-5 text-gold-light" />
+                  Generated Documents
+                </CardTitle>
+                {(order.payment_status === 'paid' || order.payment_status === 'completed') && order.payment_method !== 'manual' && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleRegenerate}
+                    disabled={isRegenerating}
+                    className="border-gold-medium/30 bg-gold-medium/10 text-gold-light hover:bg-gold-medium/20 text-xs"
+                  >
+                    <RefreshCcw className={`w-3 h-3 mr-2 ${isRegenerating ? 'animate-spin' : ''}`} />
+                    {isRegenerating ? 'Regenerating...' : 'Regenerate All'}
+                  </Button>
+                )}
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {/* Annex I */}
+                  <div className="p-4 bg-black/20 rounded-lg border border-white/5 flex flex-col items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-gold-medium/10 flex items-center justify-center">
+                      <FileText className="w-5 h-5 text-gold-light" />
+                    </div>
+                    <div className="text-center">
+                      <p className="text-sm font-semibold text-white">Annex I</p>
+                      <p className="text-[10px] text-gray-500 mt-1 uppercase tracking-wider">Service Components</p>
+                    </div>
+                    {order.annex_pdf_url ? (
+                      <Button
+                        variant="link"
+                        onClick={() => {
+                          setSelectedPdfUrl(order.annex_pdf_url);
+                          setSelectedPdfTitle(`Annex I - ${order.client_name}`);
+                          setShowPdfModal(true);
+                        }}
+                        className="text-gold-light text-xs hover:text-gold-medium"
+                      >
+                        <Eye className="w-3 h-3 mr-1" /> View Document
+                      </Button>
+                    ) : (
+                      <span className="text-[10px] text-amber-500/50 italic">Not generated yet</span>
+                    )}
+                  </div>
+
+                  {/* Contract */}
+                  <div className="p-4 bg-black/20 rounded-lg border border-white/5 flex flex-col items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-gold-medium/10 flex items-center justify-center">
+                      <FileText className="w-5 h-5 text-gold-light" />
+                    </div>
+                    <div className="text-center">
+                      <p className="text-sm font-semibold text-white">Contract</p>
+                      <p className="text-[10px] text-gray-500 mt-1 uppercase tracking-wider">Legal Terms</p>
+                    </div>
+                    {order.contract_pdf_url ? (
+                      <Button
+                        variant="link"
+                        onClick={() => {
+                          setSelectedPdfUrl(order.contract_pdf_url);
+                          setSelectedPdfTitle(`Contract - ${order.client_name}`);
+                          setShowPdfModal(true);
+                        }}
+                        className="text-gold-light text-xs hover:text-gold-medium"
+                      >
+                        <Eye className="w-3 h-3 mr-1" /> View Document
+                      </Button>
+                    ) : (
+                      <span className="text-[10px] text-amber-500/50 italic">Not generated yet</span>
+                    )}
+                  </div>
+
+                  {/* Invoice */}
+                  <div className="p-4 bg-black/20 rounded-lg border border-white/5 flex flex-col items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-gold-medium/10 flex items-center justify-center">
+                      <FileText className="w-5 h-5 text-gold-light" />
+                    </div>
+                    <div className="text-center">
+                      <p className="text-sm font-semibold text-white">Invoice</p>
+                      <p className="text-[10px] text-gray-400 mt-1 uppercase tracking-wider">Financial Record</p>
+                    </div>
+                    {order.payment_metadata?.invoice_pdf_url ? (
+                      <Button
+                        variant="link"
+                        onClick={() => {
+                          setSelectedPdfUrl(order.payment_metadata.invoice_pdf_url);
+                          setSelectedPdfTitle(`Invoice - ${order.client_name}`);
+                          setShowPdfModal(true);
+                        }}
+                        className="text-gold-light text-xs hover:text-gold-medium"
+                      >
+                        <Eye className="w-3 h-3 mr-1" /> View Document
+                      </Button>
+                    ) : (
+                      <span className="text-[10px] text-amber-500/50 italic">Not generated yet</span>
+                    )}
+                  </div>
+                </div>
+
+                {(!order.annex_pdf_url || !order.contract_pdf_url || !order.payment_metadata?.invoice_pdf_url) && 
+                  (order.payment_status === 'paid' || order.payment_status === 'completed') && (
+                  <div className="mt-4 p-3 bg-amber-500/5 border border-amber-500/20 rounded flex items-center gap-3">
+                    <AlertCircle className="w-5 h-5 text-amber-500 shrink-0" />
+                    <p className="text-[11px] text-amber-200/80 leading-relaxed">
+                      Oops! It seems some documents are missing. This usually happens due to connection timeouts during payment processing. 
+                      Click the <strong className="text-amber-500">"Regenerate All"</strong> button above to trigger manual document creation.
+                    </p>
+                  </div>
+                )}
+              </CardContent>
             </Card>
           </div>
 
