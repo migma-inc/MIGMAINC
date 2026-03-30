@@ -418,23 +418,20 @@ Deno.serve(async (req) => {
     console.log(`[EDGE FUNCTION] ${approvalType} approved successfully in DB`);
 
     // 3. Send Admin Notification Email with PDF Attachments
-    // Run this in background to avoid blocking the response
-    (async () => {
-      try {
-        // Fetch fresh order data to ensure we have the latest PDF paths
-        const { data: freshOrder } = await supabase
-          .from('visa_orders')
-          .select('*')
-          .eq('id', order_id)
-          .single();
+    try {
+      // Fetch fresh order data to ensure we have the latest PDF paths
+      const { data: freshOrder } = await supabase
+        .from('visa_orders')
+        .select('*')
+        .eq('id', order_id)
+        .single();
 
-        if (freshOrder) {
-          await sendVisaAdminNotification(freshOrder, supabase);
-        }
-      } catch (err) {
-        console.error("[Admin Notification] Background execution error:", err);
+      if (freshOrder) {
+        await sendVisaAdminNotification(freshOrder, supabase);
       }
-    })();
+    } catch (err) {
+      console.error("[Admin Notification] Execution error:", err);
+    }
 
     // 4. Trigger n8n Webhook
     // Trigger IF:
@@ -450,10 +447,13 @@ Deno.serve(async (req) => {
       const isUpsell = approvalType === 'upsell_contract';
       console.log(`[EDGE FUNCTION] Triggering n8n webhook for order: ${order.order_number} (Type: ${approvalType}, Product: ${order.product_slug})`);
       const orderWithApproval = { ...order, ...updateData };
-      // Fire and forget (don't block the response)
-      sendClientWebhook(orderWithApproval, supabase, isUpsell).catch(err =>
-        console.error("[EDGE FUNCTION] Non-critical webhook error:", err)
-      );
+      
+      // Critical: Use await to ensure webhook finishes before the function returns
+      try {
+        await sendClientWebhook(orderWithApproval, supabase, isUpsell);
+      } catch (err) {
+        console.error("[EDGE FUNCTION] Non-critical webhook error:", err);
+      }
     }
 
     // 5. Manage View Token and Send Email
