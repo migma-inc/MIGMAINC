@@ -128,6 +128,7 @@ function App() {
         <Route path="/seller/orders/:orderId" element={<SellerRoute><SellerOrderDetail /></SellerRoute>} />
 
         <Route path="/global-partner/thank-you" element={<ThankYou />} />
+        <Route path="/global-partner/success" element={<ThankYou />} />
         <Route path="/partner-terms" element={<PartnerTerms />} />
         <Route path="/partner-terms/success" element={<PartnerTermsSuccess />} />
         <Route path="/view-contract" element={<ViewSignedContract />} />
