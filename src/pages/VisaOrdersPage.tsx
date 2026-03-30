@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 import { supabase } from '@/lib/supabase';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -121,7 +122,8 @@ const OrderTable = ({
   setActiveNote,
   setShowNoteModal,
   isRegenerating,
-  handleRegenerate
+  handleRegenerate,
+  sellersMap
 }: {
   orders: VisaOrder[],
   calculateNetAmountAndFee: any,
@@ -135,7 +137,8 @@ const OrderTable = ({
   setActiveNote: (note: string | null) => void,
   setShowNoteModal: (show: boolean) => void,
   isRegenerating: string | null,
-  handleRegenerate: (orderId: string) => Promise<void>
+  handleRegenerate: (orderId: string) => Promise<void>,
+  sellersMap: Record<string, string>
 }) => (
   <>
     {/* Desktop Table */}
@@ -201,7 +204,7 @@ const OrderTable = ({
                     )}
                   </div>
                 </td>
-                <td className="py-3 px-4 text-sm text-gray-400">{order.seller_id || '-'}</td>
+                <td className="py-3 px-4 text-sm text-gray-400">{(order.seller_id && sellersMap[order.seller_id]) || order.seller_id || '-'}</td>
                 <td className={`py-3 px-4 text-sm font-bold ${isSignatureOnly ? 'text-blue-400' : 'text-gold-light'}`}>
                   <div>${totalPrice.toFixed(2)}</div>
                   {!isSignatureOnly && (
@@ -572,19 +575,26 @@ const OrderTable = ({
 );
 
 export const VisaOrdersPage = () => {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [orders, setOrders] = useState<VisaOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [showHidden, setShowHidden] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
+  const [searchTerm, setSearchTerm] = useState(searchParams.get('search') || '');
   const [isUpdating, setIsUpdating] = useState<string | null>(null);
   const [selectedPdfUrl, setSelectedPdfUrl] = useState<string | null>(null);
   const [selectedPdfTitle, setSelectedPdfTitle] = useState<string>('Contract PDF');
   const [products, setProducts] = useState<any[]>([]);
+  const [sellersMap, setSellersMap] = useState<Record<string, string>>({});
+  const [availableSellers, setAvailableSellers] = useState<{ id: string, name: string }[]>([]);
   const [showNoteModal, setShowNoteModal] = useState(false);
   const [activeNote, setActiveNote] = useState<string | null>(null);
   const [isRegenerating, setIsRegenerating] = useState<string | null>(null);
   const [showAlert, setShowAlert] = useState(false);
   const [alertData, setAlertData] = useState<{ title: string; message: string; variant: 'success' | 'error' | 'warning' | 'info' } | null>(null);
+
+  const statusFilter = searchParams.get('status') || 'all';
+  const sellerFilter = searchParams.get('seller') || 'all';
+  const methodFilter = searchParams.get('method') || 'all';
 
   const handleRegenerate = async (orderId: string) => {
     if (isRegenerating) return;
@@ -651,6 +661,19 @@ export const VisaOrdersPage = () => {
           .select('slug, name');
 
         setProducts(productsData || []);
+
+        // Load Sellers for identification and filter
+        const { data: sellersData } = await supabase
+          .from('sellers')
+          .select('seller_id_public, full_name');
+        
+        if (sellersData) {
+          const sMap: Record<string, string> = {};
+          sellersData.forEach(s => {
+            sMap[s.seller_id_public] = s.full_name;
+          });
+          setSellersMap(sMap);
+        }
       } catch (err) {
         console.error('Error loading data:', err);
       } finally {
@@ -660,6 +683,33 @@ export const VisaOrdersPage = () => {
 
     loadData();
   }, []);
+
+  // Effect to update available sellers list based on current orders
+  useEffect(() => {
+    if (orders.length > 0 && Object.keys(sellersMap).length > 0) {
+      const uniqueSellerIds = Array.from(new Set(orders.map(o => o.seller_id).filter(id => id)));
+      const sellersList = uniqueSellerIds.map(id => ({
+        id: id as string,
+        name: sellersMap[id as string] || id as string
+      })).sort((a, b) => a.name.localeCompare(b.name));
+      
+      setAvailableSellers(sellersList);
+    }
+  }, [orders, sellersMap]);
+
+  // Effect to sync search term with URL
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      const newParams = new URLSearchParams(searchParams);
+      if (searchTerm) {
+        newParams.set('search', searchTerm);
+      } else {
+        newParams.delete('search');
+      }
+      setSearchParams(newParams, { replace: true });
+    }, 500);
+    return () => clearTimeout(timeoutId);
+  }, [searchTerm]);
 
   // Helper to get product name
   const getProductName = (slug: string) => {
@@ -711,7 +761,8 @@ export const VisaOrdersPage = () => {
       const matchesSearch =
         order.client_name?.toLowerCase().includes(search) ||
         order.client_email?.toLowerCase().includes(search) ||
-        order.order_number?.toLowerCase().includes(search);
+        order.order_number?.toLowerCase().includes(search) ||
+        getProductName(order.product_slug)?.toLowerCase().includes(search);
 
       if (!matchesSearch) return false;
     }
@@ -723,6 +774,33 @@ export const VisaOrdersPage = () => {
 
     // Filtra para remover cancelados e failed da visualização padrão
     const isCancelledOrFailed = order.payment_status === 'cancelled' || order.payment_status === 'failed';
+
+    // Status Filter
+    if (statusFilter !== 'all') {
+      if (statusFilter === 'completed') {
+        const isCompleted = order.payment_status === 'completed' || order.payment_status === 'paid';
+        if (!isCompleted) return false;
+      } else if (statusFilter === 'pending') {
+        if (order.payment_status !== 'pending') return false;
+      }
+    }
+
+    // Seller Filter
+    if (sellerFilter !== 'all') {
+      if (order.seller_id !== sellerFilter) return false;
+    }
+
+    // Payment Method Filter
+    if (methodFilter !== 'all') {
+      const currentMethod = order.payment_method?.toLowerCase() || '';
+      if (methodFilter === 'parcelow') {
+        if (!currentMethod.includes('parcelow')) return false;
+      } else if (methodFilter === 'stripe') {
+        if (!currentMethod.includes('stripe')) return false;
+      } else if (currentMethod !== methodFilter) {
+        return false;
+      }
+    }
 
     if (showHidden) return true;
     return !order.is_hidden && !isPendingParcelow && !isCancelledOrFailed;
@@ -857,6 +935,50 @@ export const VisaOrdersPage = () => {
               />
             </div>
 
+            <div className="w-full md:w-64">
+              <Select 
+                value={sellerFilter} 
+                onValueChange={(val) => {
+                  const newParams = new URLSearchParams(searchParams);
+                  if (val === 'all') newParams.delete('seller');
+                  else newParams.set('seller', val);
+                  setSearchParams(newParams);
+                }}
+              >
+                <SelectTrigger className="bg-black/50 border-gold-medium/30 text-white">
+                  <SelectValue placeholder="Filtrar por Vendedor" />
+                </SelectTrigger>
+                <SelectContent className="bg-zinc-950 border-zinc-800 text-white">
+                  <SelectItem value="all">Todos os Vendedores</SelectItem>
+                  {availableSellers.map(seller => (
+                    <SelectItem key={seller.id} value={seller.id}>{seller.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="w-full md:w-48">
+              <Select 
+                value={methodFilter} 
+                onValueChange={(val) => {
+                  const newParams = new URLSearchParams(searchParams);
+                  if (val === 'all') newParams.delete('method');
+                  else newParams.set('method', val);
+                  setSearchParams(newParams);
+                }}
+              >
+                <SelectTrigger className="bg-black/50 border-gold-medium/30 text-white">
+                  <SelectValue placeholder="Método" />
+                </SelectTrigger>
+                <SelectContent className="bg-zinc-950 border-zinc-800 text-white">
+                  <SelectItem value="all">Todos Métodos</SelectItem>
+                  <SelectItem value="parcelow">Parcelow</SelectItem>
+                  <SelectItem value="stripe">Stripe</SelectItem>
+                  <SelectItem value="zelle">Zelle</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
             <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
               {isLocal && (
                 <Button
@@ -924,6 +1046,43 @@ export const VisaOrdersPage = () => {
             >
               Manual / Signature Only ({signatureOrders.length})
             </TabsTrigger>
+
+            <div className="flex items-center gap-2 ml-auto px-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  const newParams = new URLSearchParams(searchParams);
+                  if (statusFilter === 'completed') newParams.delete('status');
+                  else newParams.set('status', 'completed');
+                  setSearchParams(newParams);
+                }}
+                className={`h-9 border-gold-medium/30 text-xs font-bold uppercase tracking-wider transition-all ${
+                  statusFilter === 'completed' 
+                    ? 'bg-gold-medium text-black border-gold-medium shadow-[0_0_10px_rgba(212,175,55,0.3)]' 
+                    : 'bg-black/50 text-gold-light hover:bg-gold-medium/20'
+                }`}
+              >
+                Completed
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  const newParams = new URLSearchParams(searchParams);
+                  if (statusFilter === 'pending') newParams.delete('status');
+                  else newParams.set('status', 'pending');
+                  setSearchParams(newParams);
+                }}
+                className={`h-9 border-gold-medium/30 text-xs font-bold uppercase tracking-wider transition-all ${
+                  statusFilter === 'pending' 
+                    ? 'bg-gold-medium text-black border-gold-medium shadow-[0_0_10px_rgba(212,175,55,0.3)]' 
+                    : 'bg-black/50 text-gold-light hover:bg-gold-medium/20'
+                }`}
+              >
+                Pending
+              </Button>
+            </div>
           </TabsList>
 
           <TabsContent value="real">
@@ -954,6 +1113,7 @@ export const VisaOrdersPage = () => {
                     setShowNoteModal={setShowNoteModal}
                     isRegenerating={isRegenerating}
                     handleRegenerate={handleRegenerate}
+                    sellersMap={sellersMap}
                   />
                 )}
               </CardContent>
@@ -990,6 +1150,7 @@ export const VisaOrdersPage = () => {
                     isSignatureOnly={true}
                     isRegenerating={isRegenerating}
                     handleRegenerate={handleRegenerate}
+                    sellersMap={sellersMap}
                   />
                 )}
               </CardContent>
