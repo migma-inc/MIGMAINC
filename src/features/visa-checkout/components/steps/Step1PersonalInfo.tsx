@@ -10,6 +10,7 @@ import { validateStep1, type Step1FormData } from '@/lib/visa-checkout-validatio
 import { saveStep1Data } from '@/lib/visa-checkout-service';
 import { DRAFT_STORAGE_KEY, getPhoneCodeFromCountry } from '@/lib/visa-checkout-constants';
 import { useParams, useSearchParams } from 'react-router-dom';
+import { supabase } from '@/lib/supabase';
 
 // Granular Components
 import { QuantitySelector } from './step1/QuantitySelector';
@@ -27,6 +28,7 @@ export const Step1PersonalInfo: React.FC<Step1Props> = ({ product, state, action
     const { productSlug } = useParams<{ productSlug: string }>();
     const [searchParams] = useSearchParams();
     const sellerId = searchParams.get('seller') || '';
+    const prefillToken = searchParams.get('prefill');
 
     const {
         clientName, clientEmail, clientWhatsApp, clientCountry, clientNationality,
@@ -103,6 +105,21 @@ export const Step1PersonalInfo: React.FC<Step1Props> = ({ product, state, action
         if (!result.success) {
             setError(result.error || t('checkout.error_save_info', 'Failed to save information'));
             return;
+        }
+
+        // Update token client_data with the client's email and name so the
+        // admin tracking page can identify who opened a quick (empty) link
+        if (prefillToken && clientEmail) {
+            supabase
+                .from('checkout_prefill_tokens')
+                .update({
+                    client_data: {
+                        clientName: clientName,
+                        clientEmail: clientEmail,
+                    },
+                })
+                .eq('token', prefillToken)
+                .then(() => {});
         }
 
         // Se for consulta comum, pular Step 2 (Documentos)
