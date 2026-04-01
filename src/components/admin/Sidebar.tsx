@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
-import { FileText, ClipboardList, LayoutDashboard, Phone, ShoppingCart, DollarSign, UserCircle2, Mail, FileCode, Calendar, X, Activity, Ticket, LinkIcon, ChevronDown, ChevronRight, GraduationCap, UserPlus, Crown } from 'lucide-react';
+import { FileText, ClipboardList, LayoutDashboard, Phone, ShoppingCart, DollarSign, UserCircle2, Mail, FileCode, Calendar, X, Activity, Ticket, LinkIcon, ChevronDown, ChevronRight, GraduationCap, UserPlus, Crown, Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useState, useEffect } from 'react';
 
@@ -13,6 +13,10 @@ export function Sidebar({ className, isMobileOpen = false, onMobileClose }: Side
   const location = useLocation();
   const [isRecurrenceOpen, setIsRecurrenceOpen] = useState(
     location.pathname.includes('eb3-recurring') || location.pathname.includes('scholarship-recurring')
+  );
+
+  const [isLinksOpen, setIsLinksOpen] = useState(
+    location.pathname.includes('/dashboard/links') || location.pathname.includes('/dashboard/create-service')
   );
 
   const [counts, setCounts] = useState<{
@@ -216,12 +220,6 @@ export function Sidebar({ className, isMobileOpen = false, onMobileClose }: Side
       badge: counts.orphanSales
     },
     {
-      title: 'Sales Links',
-      icon: LinkIcon,
-      path: '/dashboard/links',
-      exact: false,
-    },
-    {
       title: 'Vouchers & Coupons',
       icon: Ticket,
       path: '/dashboard/coupons',
@@ -357,7 +355,95 @@ export function Sidebar({ className, isMobileOpen = false, onMobileClose }: Side
           )}
         </div>
 
-        {menuItems.slice(7).map((item) => {
+        {menuItems.slice(7, 10).map((item) => {
+          const Icon = item.icon;
+          const isActive = item.exact
+            ? location.pathname === item.path
+            : location.pathname.startsWith(item.path);
+
+          return (
+            <Link
+              key={item.path}
+              to={item.path}
+              onClick={onMobileClose}
+              className={cn(
+                'flex items-center justify-between px-4 py-3 rounded-lg transition-colors group',
+                isActive
+                  ? 'bg-gold-medium/20 text-gold-light font-medium border border-gold-medium/50'
+                  : 'text-gray-400 hover:bg-gold-medium/10 hover:text-gold-light'
+              )}
+            >
+              <div className="flex items-center gap-3">
+                <Icon className="w-5 h-5" />
+                <span>{(item as any).title}</span>
+              </div>
+              {(item as any).badge > 0 && (
+                <span className={cn(
+                  "px-2 py-0.5 rounded-full text-[10px] font-bold min-w-[1.25rem] text-center",
+                  isActive ? "bg-gold-medium text-black" : "bg-gold-medium/20 text-gold-light group-hover:bg-gold-medium group-hover:text-black"
+                )}>
+                  {(item as any).badge}
+                </span>
+              )}
+            </Link>
+          );
+        })}
+
+        {/* Dropdown: Sales Links (Generate & Create) */}
+        <div className="space-y-1">
+          <button
+            onClick={() => setIsLinksOpen(!isLinksOpen)}
+            className={cn(
+              'w-full flex items-center justify-between px-4 py-3 rounded-lg transition-colors group border border-transparent',
+              (location.pathname.includes('/dashboard/links') || location.pathname.includes('/dashboard/create-link'))
+                ? 'bg-gold-medium/5 text-gold-light font-medium'
+                : 'text-gray-400 hover:bg-gold-medium/10 hover:text-gold-light'
+            )}
+          >
+            <div className="flex items-center gap-3">
+              <LinkIcon className="w-5 h-5" />
+              <span>Sales Links</span>
+            </div>
+            {isLinksOpen ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+          </button>
+
+          {isLinksOpen && (
+            <div className="pl-6 space-y-1 mt-1">
+              <Link
+                to="/dashboard/links"
+                onClick={onMobileClose}
+                className={cn(
+                  'flex items-center gap-3 px-4 py-2 rounded-lg text-sm transition-colors',
+                  location.pathname === '/dashboard/links'
+                    ? 'text-gold-light font-medium'
+                    : 'text-gray-500 hover:text-gold-light'
+                )}
+              >
+                <div className="w-4 h-4 flex items-center justify-center">
+                  <Activity className="w-3.5 h-3.5" />
+                </div>
+                <span>Generate Links</span>
+              </Link>
+              <Link
+                to="/dashboard/create-service"
+                onClick={onMobileClose}
+                className={cn(
+                  'flex items-center gap-3 px-4 py-2 rounded-lg text-sm transition-colors',
+                  location.pathname === '/dashboard/create-service'
+                    ? 'text-gold-light font-medium'
+                    : 'text-gray-500 hover:text-gold-light'
+                )}
+              >
+                <div className="w-4 h-4 flex items-center justify-center">
+                  <Plus className="w-3.5 h-3.5" />
+                </div>
+                <span>Create Service Link</span>
+              </Link>
+            </div>
+          )}
+        </div>
+
+        {menuItems.slice(10).map((item) => {
           const Icon = item.icon;
           const isActive = item.exact
             ? location.pathname === item.path
