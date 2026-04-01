@@ -53,7 +53,7 @@ export function RevenueChart({ data, comparisonData, showComparison = false }: R
 
     // Preparar dados
     const chartData = data.map((point) => ({
-      date: new Date(point.date).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }),
+      date: new Date(point.date + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }),
       revenue: point.revenue,
       previousRevenue: comparisonData?.find(c => c.date === point.date)?.revenue || 0,
     }));

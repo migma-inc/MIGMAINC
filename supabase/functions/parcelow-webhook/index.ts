@@ -128,6 +128,7 @@ async function processSplitPaymentWebhook(
       .from("visa_orders")
       .update({
         payment_status: 'completed',
+        paid_at: new Date().toISOString(),
         payment_method: 'parcelow',
         parcelow_status: 'Paid (Split)',
         payment_metadata: {
@@ -519,6 +520,7 @@ async function processParcelowWebhookEvent(event: ParcelowWebhookEvent, supabase
     for (const orderItem of orders) {
       await supabase.from("visa_orders").update({
         payment_status: "completed",
+        paid_at: new Date().toISOString(),
         payment_method: "parcelow",
         payment_metadata: {
           ...(orderItem.payment_metadata || {}),

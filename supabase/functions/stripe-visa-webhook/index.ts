@@ -76,6 +76,7 @@ async function processSuccessfulSession(session: Stripe.Checkout.Session, supaba
       .from("visa_orders")
       .update({
         payment_status: "completed",
+        paid_at: new Date().toISOString(),
         stripe_payment_intent_id: session.payment_intent as string || null,
         payment_method: paymentMethod === "pix" ? "stripe_pix" : "stripe_card",
         payment_metadata: {

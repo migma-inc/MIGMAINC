@@ -75,9 +75,10 @@ export function calculateNetAmount(order: any): number {
 
   // Fallback legacy logic if no 'fee_amount' in metadata
 
-  // Fallback for Parcelow (5% markup in total_price_usd)
+  // Fallback for Parcelow: total_price_usd is already the net amount the company receives
+  // (Parcelow charges its fee on top of the base price to the client)
   if (paymentMethod === 'parcelow') {
-    return totalPrice / 1.05;
+    return totalPrice;
   }
 
   // Fallback for Stripe (approx 3.5% fee subtracted from total_price_usd)
