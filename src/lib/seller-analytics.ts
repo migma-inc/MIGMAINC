@@ -288,8 +288,11 @@ export async function getSellerChartData(
       query = query.eq('seller_id', sellerId);
     }
 
+    // Expand range 60 days back to capture orders created before but paid within the period
+    const expandedStart = new Date(period.start.getTime() - 60 * 24 * 60 * 60 * 1000);
+
     const { data: orders, error } = await query
-      .gte('created_at', period.start.toISOString())
+      .gte('created_at', expandedStart.toISOString())
       .lte('created_at', period.end.toISOString())
       .order('created_at', { ascending: true });
 
@@ -302,24 +305,19 @@ export async function getSellerChartData(
       return [];
     }
 
-    // Agrupar por período conforme granularidade
     const grouped = new Map<string, ChartDataPoint>();
 
-    // Para consistência, precisamos ordenar todos os pedidos para usar isFirstPayment
-    // Mas aqui estamos filtrando por data range, então isFirstPayment deve receber
-    // o contexto global ou assumir que o range é suficiente?
-    // A função isFirstPayment precisa ver o histórico.
-    // Solução ideal: Buscar contratos vendidos usando a mesma lógica do calculateStats
-
-    // Ordenar para processamento do isFirstPayment (calculo local no range)
-    // Nota: isFirstPayment pode ser impreciso se o range for curto e o pedido anterior estiver fora
-    // Mas para visualização de gráfico, é o melhor que podemos fazer sem buscar ALL orders
     const sortedOrders = [...orders].sort((a, b) =>
-      new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+      new Date(a.paid_at ?? a.created_at).getTime() - new Date(b.paid_at ?? b.created_at).getTime()
     );
 
     orders.forEach((order) => {
-      const orderDate = new Date(order.created_at);
+      // Use paid_at (actual payment date) if available, fall back to created_at
+      const orderDate = new Date(order.paid_at ?? order.created_at);
+
+      // Filter: only include orders whose effective date falls within the requested period
+      if (orderDate < period.start || orderDate > period.end) return;
+
       let key: string;
 
       if (granularity === 'day') {
@@ -383,8 +381,11 @@ export async function getProductMetrics(
       query = query.eq('seller_id', sellerId);
     }
 
-    const { data: orders, error } = await query
-      .gte('created_at', period.start.toISOString())
+    // Expand range 60 days back to capture orders created before but paid within the period
+    const expandedStart = new Date(period.start.getTime() - 60 * 24 * 60 * 60 * 1000);
+
+    const { data: rawOrders, error } = await query
+      .gte('created_at', expandedStart.toISOString())
       .lte('created_at', period.end.toISOString());
 
     if (error) {
@@ -392,9 +393,17 @@ export async function getProductMetrics(
       return [];
     }
 
-    if (!orders || orders.length === 0) {
+    if (!rawOrders || rawOrders.length === 0) {
       return [];
     }
+
+    // Filter by effective date (paid_at if available, otherwise created_at)
+    const orders = rawOrders.filter((order) => {
+      const effectiveDate = new Date(order.paid_at ?? order.created_at);
+      return effectiveDate >= period.start && effectiveDate <= period.end;
+    });
+
+    if (orders.length === 0) return [];
 
     // Buscar nomes dos produtos
     const productSlugs = [...new Set(orders.map(o => o.product_slug).filter(Boolean))];
@@ -465,9 +474,15 @@ export async function getPeriodComparison(
       currentQuery = currentQuery.eq('seller_id', sellerId);
     }
 
-    const { data: currentOrders } = await currentQuery
-      .gte('created_at', currentPeriod.start.toISOString())
+    const currentExpandedStart = new Date(currentPeriod.start.getTime() - 60 * 24 * 60 * 60 * 1000);
+    const { data: rawCurrentOrders } = await currentQuery
+      .gte('created_at', currentExpandedStart.toISOString())
       .lte('created_at', currentPeriod.end.toISOString());
+
+    const currentOrders = (rawCurrentOrders || []).filter((o) => {
+      const d = new Date(o.paid_at ?? o.created_at);
+      return d >= currentPeriod.start && d <= currentPeriod.end;
+    });
 
     // Buscar dados do período anterior
     let prevQuery = supabase
@@ -478,12 +493,18 @@ export async function getPeriodComparison(
       prevQuery = prevQuery.eq('seller_id', sellerId);
     }
 
-    const { data: previousOrders } = await prevQuery
-      .gte('created_at', previousPeriod.start.toISOString())
+    const prevExpandedStart = new Date(previousPeriod.start.getTime() - 60 * 24 * 60 * 60 * 1000);
+    const { data: rawPreviousOrders } = await prevQuery
+      .gte('created_at', prevExpandedStart.toISOString())
       .lte('created_at', previousPeriod.end.toISOString());
 
-    const currentStats = calculateStats(currentOrders || []);
-    const previousStats = calculateStats(previousOrders || []);
+    const previousOrders = (rawPreviousOrders || []).filter((o) => {
+      const d = new Date(o.paid_at ?? o.created_at);
+      return d >= previousPeriod.start && d <= previousPeriod.end;
+    });
+
+    const currentStats = calculateStats(currentOrders);
+    const previousStats = calculateStats(previousOrders);
 
     // Get commission summaries for both periods
     const [currentCommissionSummary, previousCommissionSummary] = await Promise.all([
@@ -541,7 +562,7 @@ export async function getTrends(
 
     let query = supabase
       .from('visa_orders')
-      .select('created_at, total_price_usd, payment_status, payment_metadata');
+      .select('created_at, paid_at, total_price_usd, payment_status, payment_metadata');
 
     if (sellerId) {
       query = query.eq('seller_id', sellerId);
@@ -560,11 +581,11 @@ export async function getTrends(
       };
     }
 
-    // Agrupar receita por mês
+    // Agrupar receita por mês usando paid_at (data efetiva de pagamento)
     const monthlyRevenue = new Map<string, number>();
     orders.forEach((order) => {
       if (order.payment_status === 'completed' || order.payment_status === 'paid') {
-        const date = new Date(order.created_at);
+        const date = new Date(order.paid_at ?? order.created_at);
         const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
         // Calculate revenue using net amount (total_price_usd - fee_amount)
         const revenue = calculateNetAmount(order);
@@ -645,11 +666,17 @@ export async function getAnalyticsData(
     query = query.eq('seller_id', sellerId);
   }
 
-  const { data: orders } = await query
-    .gte('created_at', period.start.toISOString())
+  const analyticsExpandedStart = new Date(period.start.getTime() - 60 * 24 * 60 * 60 * 1000);
+  const { data: rawAnalyticsOrders } = await query
+    .gte('created_at', analyticsExpandedStart.toISOString())
     .lte('created_at', period.end.toISOString());
 
-  const summary = calculateStats(orders || []);
+  const orders = (rawAnalyticsOrders || []).filter((o) => {
+    const d = new Date(o.paid_at ?? o.created_at);
+    return d >= period.start && d <= period.end;
+  });
+
+  const summary = calculateStats(orders);
 
   const periodType = typeof periodOption === 'string' ? periodOption : 'custom';
 

@@ -401,6 +401,7 @@ export const ZelleApprovalPage = () => {
         .from('visa_orders')
         .update({
           payment_status: 'completed',
+          paid_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         })
         .eq('id', order.id);

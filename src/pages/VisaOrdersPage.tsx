@@ -39,6 +39,7 @@ interface VisaOrder {
   contract_pdf_url: string | null;
   annex_pdf_url: string | null;
   created_at: string;
+  paid_at?: string | null;
   is_hidden?: boolean;
   parcelow_status?: string;
   coupon_code?: string | null;
@@ -166,7 +167,7 @@ const OrderTable = ({
                 <td className="py-3 px-4">
                   <p className="text-sm text-white font-mono">{order.order_number}</p>
                   <p className="text-[10px] text-gray-400 mt-0.5">
-                    {new Date(order.created_at).toLocaleDateString()}
+                    {new Date(order.paid_at ?? order.created_at).toLocaleDateString()}
                   </p>
                 </td>
                 <td className="py-3 px-4">
@@ -454,7 +455,7 @@ const OrderTable = ({
                 </div>
                 <div>
                   <p className="text-gray-400">Date</p>
-                  <p className="text-white">{new Date(order.created_at).toLocaleDateString()}</p>
+                  <p className="text-white">{new Date(order.paid_at ?? order.created_at).toLocaleDateString()}</p>
                 </div>
               </div>
 
