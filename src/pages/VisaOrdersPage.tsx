@@ -580,7 +580,7 @@ export const VisaOrdersPage = () => {
   const [orders, setOrders] = useState<VisaOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [showHidden, setShowHidden] = useState(false);
-  const [searchTerm, setSearchTerm] = useState(searchParams.get('search') || '');
+  const [searchTerm, setSearchTerm] = useState('');
   const [isUpdating, setIsUpdating] = useState<string | null>(null);
   const [selectedPdfUrl, setSelectedPdfUrl] = useState<string | null>(null);
   const [selectedPdfTitle, setSelectedPdfTitle] = useState<string>('Contract PDF');
@@ -698,19 +698,6 @@ export const VisaOrdersPage = () => {
     }
   }, [orders, sellersMap]);
 
-  // Effect to sync search term with URL
-  useEffect(() => {
-    const timeoutId = setTimeout(() => {
-      const newParams = new URLSearchParams(searchParams);
-      if (searchTerm) {
-        newParams.set('search', searchTerm);
-      } else {
-        newParams.delete('search');
-      }
-      setSearchParams(newParams, { replace: true });
-    }, 500);
-    return () => clearTimeout(timeoutId);
-  }, [searchTerm]);
 
   // Helper to get product name
   const getProductName = (slug: string) => {
