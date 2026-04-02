@@ -29,6 +29,16 @@ export const usePrefillData = (
                     if (!error && data && data.product_slug === productSlug) {
                         if (new Date(data.expires_at) >= new Date()) {
                             if (data.seller_id) setSellerId(data.seller_id);
+
+                            // Mark token as opened (used_at) if not already set
+                            if (!data.used_at) {
+                                supabase
+                                    .from('checkout_prefill_tokens')
+                                    .update({ used_at: new Date().toISOString() })
+                                    .eq('token', prefillToken)
+                                    .then(() => {});
+                            }
+
                             const clientData = data.client_data;
                             if (clientData.clientName) actions.setClientName(clientData.clientName);
                             if (clientData.clientEmail) actions.setClientEmail(clientData.clientEmail);

@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/popover";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Pagination } from "@/components/ui/pagination";
 import { AlertModal } from '@/components/ui/alert-modal';
 
 const isLocal = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
@@ -593,9 +594,12 @@ export const VisaOrdersPage = () => {
   const [showAlert, setShowAlert] = useState(false);
   const [alertData, setAlertData] = useState<{ title: string; message: string; variant: 'success' | 'error' | 'warning' | 'info' } | null>(null);
 
+  const itemsPerPage = 30;
   const statusFilter = searchParams.get('status') || 'all';
   const sellerFilter = searchParams.get('seller') || 'all';
   const methodFilter = searchParams.get('method') || 'all';
+  const currentPage = parseInt(searchParams.get('page') || '1', 10);
+  const [totalCount, setTotalCount] = useState(0);
 
   const handleRegenerate = async (orderId: string) => {
     if (isRegenerating) return;
@@ -608,7 +612,7 @@ export const VisaOrdersPage = () => {
           message: 'Document generation has been requested. It may take a few moments to appear.',
           variant: 'success'
         });
-        
+
         // Refresh orders after a short delay
         setTimeout(async () => {
           const { data } = await supabase.from('visa_orders').select('*').eq('id', orderId).single();
@@ -639,41 +643,70 @@ export const VisaOrdersPage = () => {
     const loadData = async () => {
       try {
         setLoading(true);
-        // Load Orders
-        let ordersQuery = supabase
+        // Build base query
+        let query = supabase
           .from('visa_orders')
-          .select('*')
-          .order('created_at', { ascending: false })
-          .limit(100);
+          .select('*', { count: 'exact' });
 
-        // In production, hide test orders from the dashboard
+        // Apply filters
         if (!isLocal) {
-          ordersQuery = ordersQuery.eq('is_test', false);
+          query = query.eq('is_test', false);
         }
 
-        const { data: ordersData, error: ordersError } = await ordersQuery;
+        if (statusFilter !== 'all') {
+          if (statusFilter === 'completed') {
+            query = query.in('payment_status', ['completed', 'paid']);
+          } else if (statusFilter === 'pending') {
+            query = query.eq('payment_status', 'pending');
+          }
+        }
 
-        if (ordersError) throw ordersError;
-        setOrders(ordersData || []);
+        if (sellerFilter !== 'all') {
+          query = query.eq('seller_id', sellerFilter);
+        }
 
-        // Load Products for names
-        const { data: productsData } = await supabase
-          .from('visa_products')
-          .select('slug, name');
+        if (methodFilter !== 'all') {
+          query = query.ilike('payment_method', `%${methodFilter}%`);
+        }
 
-        setProducts(productsData || []);
+        if (searchTerm) {
+          const search = searchTerm.toLowerCase();
+          query = query.or(`client_name.ilike.%${search}%,client_email.ilike.%${search}%,order_number.ilike.%${search}%,product_slug.ilike.%${search}%`);
+        }
 
-        // Load Sellers for identification and filter
-        const { data: sellersData } = await supabase
-          .from('sellers')
-          .select('seller_id_public, full_name');
-        
-        if (sellersData) {
-          const sMap: Record<string, string> = {};
-          sellersData.forEach(s => {
-            sMap[s.seller_id_public] = s.full_name;
-          });
-          setSellersMap(sMap);
+        // Add sorting and pagination
+        const from = (currentPage - 1) * itemsPerPage;
+        const to = from + itemsPerPage - 1;
+
+        const { data, error, count } = await query
+          .order('created_at', { ascending: false })
+          .range(from, to);
+
+        if (error) throw error;
+        setOrders(data || []);
+        setTotalCount(count || 0);
+
+        // Load Products naming (cache manually for later)
+        if (products.length === 0) {
+          const { data: productsData } = await supabase
+            .from('visa_products')
+            .select('slug, name');
+          setProducts(productsData || []);
+        }
+
+        // Load Sellers for identification (cache manually for later)
+        if (Object.keys(sellersMap).length === 0) {
+          const { data: sellersData } = await supabase
+            .from('sellers')
+            .select('seller_id_public, full_name');
+
+          if (sellersData) {
+            const sMap: Record<string, string> = {};
+            sellersData.forEach(s => {
+              sMap[s.seller_id_public] = s.full_name;
+            });
+            setSellersMap(sMap);
+          }
         }
       } catch (err) {
         console.error('Error loading data:', err);
@@ -683,7 +716,7 @@ export const VisaOrdersPage = () => {
     };
 
     loadData();
-  }, []);
+  }, [statusFilter, sellerFilter, methodFilter, searchTerm, currentPage]);
 
   // Effect to update available sellers list based on current orders
   useEffect(() => {
@@ -693,11 +726,28 @@ export const VisaOrdersPage = () => {
         id: id as string,
         name: sellersMap[id as string] || id as string
       })).sort((a, b) => a.name.localeCompare(b.name));
-      
+
       setAvailableSellers(sellersList);
     }
   }, [orders, sellersMap]);
 
+  // Effect to sync search term with URL and reset page
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      const newParams = new URLSearchParams(searchParams);
+      if (searchTerm) {
+        newParams.set('search', searchTerm);
+      } else {
+        newParams.delete('search');
+      }
+      // Se mudar a busca, sempre volta pra página 1
+      if (currentPage !== 1 && searchTerm !== (searchParams.get('search') || '')) {
+        newParams.set('page', '1');
+      }
+      setSearchParams(newParams, { replace: true });
+    }, 500);
+    return () => clearTimeout(timeoutId);
+  }, [searchTerm]);
 
   // Helper to get product name
   const getProductName = (slug: string) => {
@@ -743,18 +793,6 @@ export const VisaOrdersPage = () => {
   };
 
   const visibleOrders = orders.filter(order => {
-    // Search filter
-    if (searchTerm) {
-      const search = searchTerm.toLowerCase();
-      const matchesSearch =
-        order.client_name?.toLowerCase().includes(search) ||
-        order.client_email?.toLowerCase().includes(search) ||
-        order.order_number?.toLowerCase().includes(search) ||
-        getProductName(order.product_slug)?.toLowerCase().includes(search);
-
-      if (!matchesSearch) return false;
-    }
-
     // Definimos como "abandonado" ou "em espera" pedidos Parcelow que não foram concluídos
     const isPendingParcelow = order.payment_method === 'parcelow' &&
       order.payment_status === 'pending' &&
@@ -762,33 +800,6 @@ export const VisaOrdersPage = () => {
 
     // Filtra para remover cancelados e failed da visualização padrão
     const isCancelledOrFailed = order.payment_status === 'cancelled' || order.payment_status === 'failed';
-
-    // Status Filter
-    if (statusFilter !== 'all') {
-      if (statusFilter === 'completed') {
-        const isCompleted = order.payment_status === 'completed' || order.payment_status === 'paid';
-        if (!isCompleted) return false;
-      } else if (statusFilter === 'pending') {
-        if (order.payment_status !== 'pending') return false;
-      }
-    }
-
-    // Seller Filter
-    if (sellerFilter !== 'all') {
-      if (order.seller_id !== sellerFilter) return false;
-    }
-
-    // Payment Method Filter
-    if (methodFilter !== 'all') {
-      const currentMethod = order.payment_method?.toLowerCase() || '';
-      if (methodFilter === 'parcelow') {
-        if (!currentMethod.includes('parcelow')) return false;
-      } else if (methodFilter === 'stripe') {
-        if (!currentMethod.includes('stripe')) return false;
-      } else if (currentMethod !== methodFilter) {
-        return false;
-      }
-    }
 
     if (showHidden) return true;
     return !order.is_hidden && !isPendingParcelow && !isCancelledOrFailed;
@@ -924,12 +935,13 @@ export const VisaOrdersPage = () => {
             </div>
 
             <div className="w-full md:w-64">
-              <Select 
-                value={sellerFilter} 
+              <Select
+                value={sellerFilter}
                 onValueChange={(val) => {
                   const newParams = new URLSearchParams(searchParams);
                   if (val === 'all') newParams.delete('seller');
                   else newParams.set('seller', val);
+                  newParams.set('page', '1'); // Reset to page 1
                   setSearchParams(newParams);
                 }}
               >
@@ -946,12 +958,13 @@ export const VisaOrdersPage = () => {
             </div>
 
             <div className="w-full md:w-48">
-              <Select 
-                value={methodFilter} 
+              <Select
+                value={methodFilter}
                 onValueChange={(val) => {
                   const newParams = new URLSearchParams(searchParams);
                   if (val === 'all') newParams.delete('method');
                   else newParams.set('method', val);
+                  newParams.set('page', '1'); // Reset to page 1
                   setSearchParams(newParams);
                 }}
               >
@@ -1043,13 +1056,13 @@ export const VisaOrdersPage = () => {
                   const newParams = new URLSearchParams(searchParams);
                   if (statusFilter === 'completed') newParams.delete('status');
                   else newParams.set('status', 'completed');
+                  newParams.set('page', '1'); // Reset to page 1
                   setSearchParams(newParams);
                 }}
-                className={`h-9 border-gold-medium/30 text-xs font-bold uppercase tracking-wider transition-all ${
-                  statusFilter === 'completed' 
-                    ? 'bg-gold-medium text-black border-gold-medium shadow-[0_0_10px_rgba(212,175,55,0.3)]' 
+                className={`h-9 border-gold-medium/30 text-xs font-bold uppercase tracking-wider transition-all ${statusFilter === 'completed'
+                    ? 'bg-gold-medium text-black border-gold-medium shadow-[0_0_10px_rgba(212,175,55,0.3)]'
                     : 'bg-black/50 text-gold-light hover:bg-gold-medium/20'
-                }`}
+                  }`}
               >
                 Completed
               </Button>
@@ -1060,13 +1073,13 @@ export const VisaOrdersPage = () => {
                   const newParams = new URLSearchParams(searchParams);
                   if (statusFilter === 'pending') newParams.delete('status');
                   else newParams.set('status', 'pending');
+                  newParams.set('page', '1'); // Reset to page 1
                   setSearchParams(newParams);
                 }}
-                className={`h-9 border-gold-medium/30 text-xs font-bold uppercase tracking-wider transition-all ${
-                  statusFilter === 'pending' 
-                    ? 'bg-gold-medium text-black border-gold-medium shadow-[0_0_10px_rgba(212,175,55,0.3)]' 
+                className={`h-9 border-gold-medium/30 text-xs font-bold uppercase tracking-wider transition-all ${statusFilter === 'pending'
+                    ? 'bg-gold-medium text-black border-gold-medium shadow-[0_0_10px_rgba(212,175,55,0.3)]'
                     : 'bg-black/50 text-gold-light hover:bg-gold-medium/20'
-                }`}
+                  }`}
               >
                 Pending
               </Button>
@@ -1145,6 +1158,21 @@ export const VisaOrdersPage = () => {
             </Card>
           </TabsContent>
         </Tabs>
+
+        {/* Pagination */}
+        {totalCount > itemsPerPage && (
+          <Pagination
+            currentPage={currentPage}
+            totalPages={Math.ceil(totalCount / itemsPerPage)}
+            onPageChange={(page) => {
+              const newParams = new URLSearchParams(searchParams);
+              newParams.set('page', page.toString());
+              setSearchParams(newParams);
+            }}
+            itemsPerPage={itemsPerPage}
+            totalItems={totalCount}
+          />
+        )}
       </div>
 
       {/* PDF Modal */}

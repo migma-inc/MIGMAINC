@@ -73,6 +73,8 @@ import { EB3RecurringDetail } from './pages/admin/EB3RecurringDetail';
 import { ScholarshipRecurringManagement } from './pages/admin/ScholarshipRecurringManagement';
 import { ScholarshipRecurringDetail } from './pages/admin/ScholarshipRecurringDetail';
 import { AdminSyncSales } from './pages/admin/AdminSyncSales';
+import { CreateServiceLink } from './pages/admin/CreateServiceLink';
+import { AdminTracking } from './pages/admin/AdminTracking';
 import { EB3InstallmentCheckout } from './pages/EB3InstallmentCheckout';
 import { NotFound } from './pages/NotFound';
 
@@ -165,6 +167,8 @@ function App() {
           <Route path="profile" element={<AdminProfile />} />
           <Route path="send-existing-contracts" element={<SendExistingContracts />} />
           <Route path="links" element={<SellerLinks />} />
+          <Route path="create-service" element={<CreateServiceLink />} />
+          <Route path="tracking" element={<AdminTracking />} />
           <Route path="coupons" element={<CouponManagement />} />
           <Route path="sync-sales" element={<AdminRoute><AdminSyncSales /></AdminRoute>} />
         </Route>

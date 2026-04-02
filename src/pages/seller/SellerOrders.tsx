@@ -94,7 +94,7 @@ const calculateNetAmountAndFee = (order: Order) => {
   };
 };
 
-const ITEMS_PER_PAGE = 10;
+const ITEMS_PER_PAGE = 30;
 
 // Internal component for the order list to avoid duplication
 const OrderTableSection = ({
@@ -407,6 +407,7 @@ export function SellerOrders() {
   // Handle status filter change
   const handleStatusFilterChange = (value: string) => {
     setStatusFilter(value);
+    setCurrentPage(1);
 
     // Update URL params
     const newParams = new URLSearchParams(searchParams);
@@ -426,10 +427,9 @@ export function SellerOrders() {
     filteredOrders.filter(o => o.payment_method === 'manual'),
     [filteredOrders]);
 
-  // Reset to page 1 when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [productFilter, searchQuery, filteredOrders.length]);
+  }, [productFilter, statusFilter, searchQuery]);
 
   const hasActiveFilters = productFilter !== 'all' || statusFilter !== 'all' || searchQuery.trim() !== '';
 
@@ -492,7 +492,10 @@ export function SellerOrders() {
                 </SelectContent>
               </Select>
 
-              <Select value={productFilter} onValueChange={setProductFilter}>
+               <Select value={productFilter} onValueChange={(val) => {
+                setProductFilter(val);
+                setCurrentPage(1);
+              }}>
                 <SelectTrigger className="h-9 w-full sm:w-48 bg-zinc-900/50 border-zinc-800 text-white focus:border-gold-medium focus:ring-gold-medium/20">
                   <SelectValue placeholder="All Products" />
                 </SelectTrigger>
@@ -520,7 +523,11 @@ export function SellerOrders() {
         </CardHeader>
 
         <CardContent className="p-0">
-          <Tabs defaultValue="real" className="w-full">
+          <Tabs 
+            defaultValue="real" 
+            className="w-full"
+            onValueChange={() => setCurrentPage(1)}
+          >
             <div className="px-6 border-b border-zinc-900 bg-zinc-950/30">
               <TabsList className="bg-transparent h-12 gap-6 border-none p-0">
                 <TabsTrigger

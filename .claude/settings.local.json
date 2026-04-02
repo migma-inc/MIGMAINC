@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__supabase__list_projects",
+      "mcp__supabase__execute_sql",
+      "Bash(xargs grep:*)",
+      "Bash(grep -E \"\\\\.\\(ts|tsx|css|scss|json\\)$\")"
+    ]
+  }
+}
