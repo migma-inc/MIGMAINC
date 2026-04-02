@@ -807,31 +807,80 @@ export const SellerDashboard = () => {
                 });
 
                 // Sort products within each group
-                 const sortProducts = (products: VisaProduct[]) => {
-                   const order = [
-                     // Priority for "Other"/General services
-                     'rfe-defense',
-                     'scholarship-maintenance-fee',
-                     'b1-premium',
-                     'b1-revolution',
-                     'e2-l1-visa',
-                     'o1-visa',
-                     // Standard process order
-                     'selection-process', 
-                     'scholarship', 
-                     'i20-control'
-                   ];
-                   return products.sort((a, b) => {
-                     const aIndex = order.findIndex(o => a.slug.includes(o));
-                     const bIndex = order.findIndex(o => b.slug.includes(o));
-                     return (aIndex === -1 ? 999 : aIndex) - (bIndex === -1 ? 999 : bIndex);
-                   });
-                 };
+                const sortProducts = (groupProducts: VisaProduct[], groupKey: string) => {
+                  // Specific sorting logic for EB-2
+                  // Goal (EB-2):
+                  // 1) Full Process Payment
+                  // 2) Initial Payment (1 step)
+                  // 3) I-140 (2 step)
+                  // 4) I-485 (3 step) / Consular
+                  // 5) Monthly Installment (Annex) / Installment plan entry
+                  if (groupKey === 'eb2') {
+                    const score = (p: VisaProduct) => {
+                      const text = `${p.slug} ${p.name}`.toLowerCase();
+
+                      const isEb2FullProcess =
+                        (text.includes('eb-2') || text.includes('eb2')) &&
+                        (text.includes('full process payment') || text.includes('full process') || text.includes('total-process'));
+                      if (isEb2FullProcess) return 0;
+
+                      const isEb2InitialStep1 =
+                        (text.includes('initial payment') || text.includes('entrada')) &&
+                        (text.includes('1 step') || text.includes('1-step') || text.includes('one step') || text.includes('one-step'));
+                      if (isEb2InitialStep1) return 1;
+
+                      const isEb2I140Step2 =
+                        (text.includes('i-140') || text.includes('i140')) &&
+                        (text.includes('2 step') || text.includes('2-step') || text.includes('step 2') || text.includes('etapa 2'));
+                      if (isEb2I140Step2) return 2;
+                      if (text.includes('i-140') || text.includes('i140')) return 3;
+
+                      const isI485OrConsular =
+                        text.includes('i-485') ||
+                        text.includes('i485') ||
+                        text.includes('consular') ||
+                        text.includes('processo consular');
+                      if (isI485OrConsular) return 4;
+
+                      const isMonthlyInstallmentAnnex =
+                        text.includes('monthly installment') &&
+                        (text.includes('annex') || text.includes('anexo'));
+                      if (isMonthlyInstallmentAnnex) return 5;
+
+                      return 999;
+                    };
+
+                    return groupProducts.sort((a, b) => {
+                      const diff = score(a) - score(b);
+                      if (diff !== 0) return diff;
+                      return (a.name || a.slug).localeCompare((b.name || b.slug), undefined, { sensitivity: 'base' });
+                    });
+                  }
+
+                  const order = [
+                    // Priority for "Other"/General services
+                    'rfe-defense',
+                    'scholarship-maintenance-fee',
+                    'b1-premium',
+                    'b1-revolution',
+                    'e2-l1-visa',
+                    'o1-visa',
+                    // Standard process order
+                    'selection-process',
+                    'scholarship',
+                    'i20-control'
+                  ];
+                  return groupProducts.sort((a, b) => {
+                    const aIndex = order.findIndex(o => a.slug.includes(o));
+                    const bIndex = order.findIndex(o => b.slug.includes(o));
+                    return (aIndex === -1 ? 999 : aIndex) - (bIndex === -1 ? 999 : bIndex);
+                  });
+                };
 
                 return Object.entries(serviceGroups).map(([key, group]) => {
                   if (group.products.length === 0) return null;
 
-                  const sortedProducts = sortProducts(group.products);
+                  const sortedProducts = sortProducts(group.products, key);
                   const paymentLabels = ['Selection Process', 'Scholarship', 'I-20 Control'];
                   const isServiceGroup = ['initial', 'cos', 'transfer', 'eb2', 'eb3'].includes(key);
                   const isExpanded = expandedServices[key] ?? false;
@@ -892,7 +941,10 @@ export const SellerDashboard = () => {
                                     </div>
                                     <p className="text-xs text-gray-400 mt-1">
                                       Base: ${parseFloat(product.base_price_usd).toFixed(2)}
-                                      {product.allow_extra_units && (
+                                      {product.allow_extra_units && !(() => {
+                                        const t = `${product.slug} ${product.name}`.toLowerCase();
+                                        return t.includes('monthly installment') && (t.includes('annex') || t.includes('anexo'));
+                                      })() && (
                                         <> • Per dependent: ${parseFloat(product.extra_unit_price).toFixed(2)}</>
                                       )}
                                     </p>

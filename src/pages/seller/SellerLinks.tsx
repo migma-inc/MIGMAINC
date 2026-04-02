@@ -1579,6 +1579,33 @@ export function SellerLinks() {
                       });
                     }
 
+                    // Specific sorting logic for EB-2
+                    // Goal (EB-2):
+                    // 1) Full Process Payment
+                    // 2) Initial Payment (1 step)
+                    // 3) I-140 (2 step)
+                    // 4) I-485 (3 step) / Consular
+                    // 5) Monthly Installment (Annex) / Installment plan entry
+                    if (groupKey === 'eb2') {
+                      const score = (p: VisaProduct) => {
+                        if (p.slug === 'eb2-niw-initial-payment') return 0;
+                        if (p.slug === 'eb2-i140-step') return 1;
+                        if (p.slug === 'eb2-i485-step') return 2;
+                        if (p.slug === 'eb2-annex-installment') return 3;
+                        if (p.slug === 'eb2-visa') return 4;
+
+                        return 999;
+                      };
+
+                      return products
+                        .sort((a, b) => {
+                          const diff = score(a) - score(b);
+                          if (diff !== 0) return diff;
+                          // Tie-breaker: keep deterministic ordering
+                          return (a.name || a.slug).localeCompare((b.name || b.slug), undefined, { sensitivity: 'base' });
+                        });
+                    }
+
                     const order = [
                       // Priority for "Other"/General services
                       'rfe-defense',
@@ -1870,7 +1897,11 @@ export function SellerLinks() {
                           const isCopied = copiedLink === productGeneratedLinks[product.slug];
                           const basePrice = parseFloat(product.base_price_usd || '0');
                           const extraPrice = parseFloat(product.extra_unit_price || '0');
-                          const hasExtraUnits = extraPrice > 0;
+                          const monthlyInstallmentAnnex = (() => {
+                            const t = `${product.slug} ${product.name}`.toLowerCase();
+                            return t.includes('monthly installment') && (t.includes('annex') || t.includes('anexo'));
+                          })();
+                          const hasExtraUnits = !monthlyInstallmentAnnex && extraPrice > 0;
                           const isUnitsOnly = product.calculation_type === 'units_only';
 
                           return (
