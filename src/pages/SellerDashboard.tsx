@@ -881,6 +881,16 @@ export const SellerDashboard = () => {
                   if (group.products.length === 0) return null;
 
                   const sortedProducts = sortProducts(group.products, key);
+                  const isFullProcessPayment = (product: VisaProduct) => {
+                    const text = `${product.slug} ${product.name}`.toLowerCase();
+                    return (
+                      text.includes('total-process') ||
+                      text.includes('full process payment') ||
+                      text.includes('full process') ||
+                      product.slug === 'eb3-visa'
+                    );
+                  };
+                  const totalStepPayments = sortedProducts.filter((p) => !isFullProcessPayment(p)).length;
                   const paymentLabels = ['Selection Process', 'Scholarship', 'I-20 Control'];
                   const isServiceGroup = ['initial', 'cos', 'transfer', 'eb2', 'eb3'].includes(key);
                   const isExpanded = expandedServices[key] ?? false;
@@ -903,11 +913,7 @@ export const SellerDashboard = () => {
                             <div className="text-left">
                               <h3 className="text-lg font-bold text-gold-light">{group.name}</h3>
                               <p className="text-xs text-gray-400 mt-1">
-                                {(key === 'initial' || key === 'cos' || key === 'transfer') 
-                                  ? "3 Step Payments or Full Process Payment" 
-                                  : key === 'eb3'
-                                  ? "5 Step Payments or Full Process Payment"
-                                  : `${sortedProducts.length} sequential payments`}
+                                {`${totalStepPayments} Step Payments or Full Process Payment`}
                               </p>
                             </div>
                           </div>
@@ -919,11 +925,13 @@ export const SellerDashboard = () => {
                             {sortedProducts.map((product, index) => {
                               const link = `${window.location.origin}/checkout/visa/${product.slug}?seller=${seller.seller_id_public}`;
                               const isCopied = copiedLink === link;
-                              const paymentNumber = index + 1;
+                              const isTotalProcess = isFullProcessPayment(product);
+                              const paymentNumber = isTotalProcess
+                                ? 0
+                                : sortedProducts.slice(0, index + 1).filter((p) => !isFullProcessPayment(p)).length;
                               const paymentLabel = key === 'eb2' || key === 'eb3' || key === 'other'
                                 ? product.name
                                 : (paymentLabels[index] || `Payment ${paymentNumber}`);
-                              const isTotalProcess = product.slug.includes('total-process') || product.slug.includes('Full Process Payment') || product.slug === 'eb3-visa';
 
                               return (
                                 <div
@@ -934,7 +942,7 @@ export const SellerDashboard = () => {
                                     <div className="flex items-center gap-2">
                                       {!isTotalProcess && (
                                         <span className="text-xs font-semibold text-gold-light bg-gold-medium/20 px-2 py-1 rounded">
-                                          {paymentNumber}/{sortedProducts.length}
+                                          {paymentNumber}/{totalStepPayments}
                                         </span>
                                       )}
                                       <p className="text-white font-medium">{paymentLabel}</p>

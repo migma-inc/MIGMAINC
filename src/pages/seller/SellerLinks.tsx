@@ -1636,9 +1636,16 @@ export function SellerLinks() {
                     if (group.products.length === 0) return null;
 
                     const sortedProducts = sortProducts(group.products, key);
-                    const totalProductsInGroup = sortedProducts.length;
-                    const hasTotalProcessProduct = sortedProducts.some((p: VisaProduct) => p.slug.includes('total-process') || p.slug.includes('Full Process Payment'));
-                    const stepDenominator = hasTotalProcessProduct ? totalProductsInGroup - 1 : totalProductsInGroup;
+                    const isFullProcessPayment = (product: VisaProduct) => {
+                      const text = `${product.slug} ${product.name}`.toLowerCase();
+                      return (
+                        text.includes('total-process') ||
+                        text.includes('full process payment') ||
+                        text.includes('full process') ||
+                        product.slug === 'eb3-visa'
+                      );
+                    };
+                    const stepDenominator = sortedProducts.filter((p) => !isFullProcessPayment(p)).length;
 
                     const isServiceGroup = ['initial', 'cos', 'transfer', 'eb2', 'eb3'].includes(key);
                     const isExpanded = expandedServices[key] ?? false;
@@ -1661,11 +1668,7 @@ export function SellerLinks() {
                               <div className="text-left">
                                 <h3 className="text-lg font-bold text-gold-light">{group.name}</h3>
                                 <p className="text-xs text-gray-400 mt-1">
-                                  {(key === 'initial' || key === 'cos' || key === 'transfer') 
-                                    ? "3 Step Payments or Full Process Payment" 
-                                    : key === 'eb3'
-                                    ? "5 Step Payments or Full Process Payment"
-                                    : `${sortedProducts.length} sequential payments`}
+                                  {`${stepDenominator} Step Payments or Full Process Payment`}
                                 </p>
                               </div>
                             </div>
@@ -1676,15 +1679,17 @@ export function SellerLinks() {
                             <div className="border-t border-gold-medium/20 bg-black/30 p-4 space-y-3">
                               {sortedProducts.map((product, index) => {
                                 const isCopied = copiedLink === productGeneratedLinks[product.slug];
-                                const paymentNumber = index + 1;
+                                const isTotalProcess = isFullProcessPayment(product);
+                                const paymentNumber = isTotalProcess
+                                  ? 0
+                                  : sortedProducts.slice(0, index + 1).filter((p) => !isFullProcessPayment(p)).length;
                                 // Use mapped label for Initial/COS/Transfer, but actual names for EB-3 and others
-                                const paymentLabel = (key === 'eb2' || key === 'eb3' || key === 'other' || product.slug.includes('Full Process Payment') || product.slug.includes('total-process'))
+                                const paymentLabel = (key === 'eb2' || key === 'eb3' || key === 'other' || isTotalProcess)
                                   ? product.name
                                   : (paymentLabels[index] || `Payment ${paymentNumber}`);
                                 const basePrice = parseFloat(product.base_price_usd || '0');
                                 const extraPrice = parseFloat(product.extra_unit_price || '0');
                                 const hasExtraUnits = product.allow_extra_units && extraPrice > 0;
-                                const isTotalProcess = product.slug.includes('total-process') || product.slug.includes('Full Process Payment') || product.slug === 'eb3-visa';
 
 
                                 return (
