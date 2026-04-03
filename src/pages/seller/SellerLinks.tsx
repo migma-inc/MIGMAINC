@@ -1631,6 +1631,13 @@ export function SellerLinks() {
                   };
 
                   const paymentLabels = ['Selection Process', 'Scholarship', 'I-20 Control'];
+                  const getDisplayProductName = (product: VisaProduct, groupKey: string) => {
+                    if (groupKey === 'eb2') {
+                      return product.name.replace(/\s*\([^()]*\)\s*$/u, '').trim();
+                    }
+
+                    return product.name;
+                  };
 
                   return Object.entries(serviceGroups).map(([key, group]) => {
                     if (group.products.length === 0) return null;
@@ -1685,7 +1692,7 @@ export function SellerLinks() {
                                   : sortedProducts.slice(0, index + 1).filter((p) => !isFullProcessPayment(p)).length;
                                 // Use mapped label for Initial/COS/Transfer, but actual names for EB-3 and others
                                 const paymentLabel = (key === 'eb2' || key === 'eb3' || key === 'other' || isTotalProcess)
-                                  ? product.name
+                                  ? getDisplayProductName(product, key)
                                   : (paymentLabels[index] || `Payment ${paymentNumber}`);
                                 const basePrice = parseFloat(product.base_price_usd || '0');
                                 const extraPrice = parseFloat(product.extra_unit_price || '0');
