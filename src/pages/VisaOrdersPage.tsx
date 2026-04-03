@@ -47,6 +47,8 @@ interface VisaOrder {
   extra_units?: number;
 }
 
+type ExportFilterType = 'all' | 'completed' | 'pending' | 'real';
+
 // Helper function to calculate net amount and fee
 // Helper function to calculate net amount and fee
 const calculateNetAmountAndFee = (order: VisaOrder) => {
@@ -108,6 +110,18 @@ const calculateNetAmountAndFee = (order: VisaOrder) => {
     feeAmount: feeAmount,
     totalPrice: totalPrice
   };
+};
+
+const isPendingParcelowOrder = (order: VisaOrder) =>
+  order.payment_method === 'parcelow' &&
+  order.payment_status === 'pending' &&
+  (order.parcelow_status === 'Open' || order.parcelow_status === 'Waiting Payment');
+
+const shouldDisplayOrder = (order: VisaOrder, showHidden: boolean) => {
+  const isCancelledOrFailed = order.payment_status === 'cancelled' || order.payment_status === 'failed';
+
+  if (showHidden) return true;
+  return !order.is_hidden && !isPendingParcelowOrder(order) && !isCancelledOrFailed;
 };
 
 // Internal component for the order list to avoid duplication between tabs
@@ -581,7 +595,10 @@ export const VisaOrdersPage = () => {
   const [orders, setOrders] = useState<VisaOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [showHidden, setShowHidden] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
+  const [activeTab, setActiveTab] = useState<'real' | 'signatures'>('real');
+  const [searchTerm, setSearchTerm] = useState(() => searchParams.get('search') || '');
+  const [draftSearchTerm, setDraftSearchTerm] = useState(() => searchParams.get('search') || '');
+  const [appliedSearchTerm, setAppliedSearchTerm] = useState(() => searchParams.get('search') || '');
   const [isUpdating, setIsUpdating] = useState<string | null>(null);
   const [selectedPdfUrl, setSelectedPdfUrl] = useState<string | null>(null);
   const [selectedPdfTitle, setSelectedPdfTitle] = useState<string>('Contract PDF');
@@ -600,6 +617,59 @@ export const VisaOrdersPage = () => {
   const methodFilter = searchParams.get('method') || 'all';
   const currentPage = parseInt(searchParams.get('page') || '1', 10);
   const [totalCount, setTotalCount] = useState(0);
+
+  const buildOrdersQuery = ({
+    search,
+    exportFilterType = 'all',
+    tab = activeTab,
+  }: {
+    search: string;
+    exportFilterType?: ExportFilterType;
+    tab?: 'real' | 'signatures';
+  }) => {
+    let query = supabase
+      .from('visa_orders')
+      .select('*');
+
+    if (!isLocal) {
+      query = query.eq('is_test', false);
+    }
+
+    if (statusFilter !== 'all') {
+      if (statusFilter === 'completed') {
+        query = query.in('payment_status', ['completed', 'paid']);
+      } else if (statusFilter === 'pending') {
+        query = query.eq('payment_status', 'pending');
+      }
+    }
+
+    if (sellerFilter !== 'all') {
+      query = query.eq('seller_id', sellerFilter);
+    }
+
+    if (methodFilter !== 'all') {
+      query = query.ilike('payment_method', `%${methodFilter}%`);
+    }
+
+    if (tab === 'signatures') {
+      query = query.eq('payment_method', 'manual');
+    } else {
+      query = query.neq('payment_method', 'manual');
+    }
+
+    const normalizedSearch = search.trim().toLowerCase();
+    if (normalizedSearch) {
+      query = query.or(`client_name.ilike.%${normalizedSearch}%,client_email.ilike.%${normalizedSearch}%,order_number.ilike.%${normalizedSearch}%,product_slug.ilike.%${normalizedSearch}%`);
+    }
+
+    if (exportFilterType === 'completed') {
+      query = query.in('payment_status', ['completed', 'paid']);
+    } else if (exportFilterType === 'pending') {
+      query = query.eq('payment_status', 'pending');
+    }
+
+    return query;
+  };
 
   const handleRegenerate = async (orderId: string) => {
     if (isRegenerating) return;
@@ -643,48 +713,37 @@ export const VisaOrdersPage = () => {
     const loadData = async () => {
       try {
         setLoading(true);
-        // Build base query
-        let query = supabase
-          .from('visa_orders')
-          .select('*', { count: 'exact' });
+        const batchSize = 1000;
+        const allFilteredOrders: VisaOrder[] = [];
+        let from = 0;
 
-        // Apply filters
-        if (!isLocal) {
-          query = query.eq('is_test', false);
-        }
+        while (true) {
+          const { data, error } = await buildOrdersQuery({
+            search: appliedSearchTerm,
+            tab: activeTab,
+          })
+            .order('created_at', { ascending: false })
+            .range(from, from + batchSize - 1);
 
-        if (statusFilter !== 'all') {
-          if (statusFilter === 'completed') {
-            query = query.in('payment_status', ['completed', 'paid']);
-          } else if (statusFilter === 'pending') {
-            query = query.eq('payment_status', 'pending');
+          if (error) throw error;
+
+          const currentBatch = data || [];
+          allFilteredOrders.push(...currentBatch);
+
+          if (currentBatch.length < batchSize) {
+            break;
           }
+
+          from += batchSize;
         }
 
-        if (sellerFilter !== 'all') {
-          query = query.eq('seller_id', sellerFilter);
-        }
+        const visibleFilteredOrders = allFilteredOrders.filter(order => shouldDisplayOrder(order, showHidden));
+        const totalVisibleOrders = visibleFilteredOrders.length;
+        const currentPageSafe = Math.max(currentPage, 1);
+        const startIndex = (currentPageSafe - 1) * itemsPerPage;
 
-        if (methodFilter !== 'all') {
-          query = query.ilike('payment_method', `%${methodFilter}%`);
-        }
-
-        if (searchTerm) {
-          const search = searchTerm.toLowerCase();
-          query = query.or(`client_name.ilike.%${search}%,client_email.ilike.%${search}%,order_number.ilike.%${search}%,product_slug.ilike.%${search}%`);
-        }
-
-        // Add sorting and pagination
-        const from = (currentPage - 1) * itemsPerPage;
-        const to = from + itemsPerPage - 1;
-
-        const { data, error, count } = await query
-          .order('created_at', { ascending: false })
-          .range(from, to);
-
-        if (error) throw error;
-        setOrders(data || []);
-        setTotalCount(count || 0);
+        setTotalCount(totalVisibleOrders);
+        setOrders(visibleFilteredOrders.slice(startIndex, startIndex + itemsPerPage));
 
         // Load Products naming (cache manually for later)
         if (products.length === 0) {
@@ -716,23 +775,55 @@ export const VisaOrdersPage = () => {
     };
 
     loadData();
-  }, [statusFilter, sellerFilter, methodFilter, searchTerm, currentPage]);
+  }, [statusFilter, sellerFilter, methodFilter, appliedSearchTerm, currentPage, activeTab, showHidden]);
 
-  // Effect to update available sellers list based on current orders
   useEffect(() => {
-    if (orders.length > 0 && Object.keys(sellersMap).length > 0) {
-      const uniqueSellerIds = Array.from(new Set(orders.map(o => o.seller_id).filter(id => id)));
-      const sellersList = uniqueSellerIds.map(id => ({
-        id: id as string,
-        name: sellersMap[id as string] || id as string
-      })).sort((a, b) => a.name.localeCompare(b.name));
+    const totalPages = Math.max(1, Math.ceil(totalCount / itemsPerPage));
+    if (currentPage > totalPages) {
+      const newParams = new URLSearchParams(searchParams);
+      newParams.set('page', totalPages.toString());
+      setSearchParams(newParams, { replace: true });
+    }
+  }, [currentPage, totalCount, itemsPerPage, searchParams, setSearchParams]);
+
+  // Keep seller filter independent from the current search results.
+  useEffect(() => {
+    if (Object.keys(sellersMap).length > 0) {
+      const sellersList = Object.entries(sellersMap)
+        .map(([id, name]) => ({
+          id,
+          name: name || id
+        }))
+        .sort((a, b) => a.name.localeCompare(b.name));
       
       setAvailableSellers(sellersList);
     }
-  }, [orders, sellersMap]);
+  }, [sellersMap]);
+
+  const applySearch = () => {
+    const normalizedSearch = draftSearchTerm.trim();
+    setSearchTerm(normalizedSearch);
+    setAppliedSearchTerm(normalizedSearch);
+
+    const newParams = new URLSearchParams(searchParams);
+    if (normalizedSearch) {
+      newParams.set('search', normalizedSearch);
+    } else {
+      newParams.delete('search');
+    }
+    newParams.set('page', '1');
+    setSearchParams(newParams, { replace: true });
+  };
+
+  const clearSearchState = () => {
+    setDraftSearchTerm('');
+    setSearchTerm('');
+    setAppliedSearchTerm('');
+  };
 
   // Effect to sync search term with URL and reset page
   useEffect(() => {
+    return;
     const timeoutId = setTimeout(() => {
       const newParams = new URLSearchParams(searchParams);
       if (searchTerm) {
@@ -755,17 +846,34 @@ export const VisaOrdersPage = () => {
   };
 
   // Function updated to accept filter type
-  const handleExportExcel = async (filterType: 'all' | 'completed' | 'pending' | 'real' = 'all') => {
+  const handleExportExcel = async (filterType: ExportFilterType = 'all') => {
     try {
-      let filteredOrders = orders;
+      const batchSize = 1000;
+      const allFilteredOrders: VisaOrder[] = [];
+      let from = 0;
 
-      if (filterType === 'completed') {
-        filteredOrders = orders.filter(order => order.payment_status === 'completed' || order.payment_status === 'paid');
-      } else if (filterType === 'pending') {
-        filteredOrders = orders.filter(order => order.payment_status === 'pending');
-      } else if (filterType === 'real') {
-        filteredOrders = orders.filter(order => !order.is_hidden);
+      while (true) {
+        const { data, error } = await buildOrdersQuery({
+          search: appliedSearchTerm,
+          exportFilterType: filterType,
+          tab: activeTab,
+        })
+          .order('created_at', { ascending: false })
+          .range(from, from + batchSize - 1);
+
+        if (error) throw error;
+
+        const currentBatch = data || [];
+        allFilteredOrders.push(...currentBatch);
+
+        if (currentBatch.length < batchSize) {
+          break;
+        }
+
+        from += batchSize;
       }
+
+      const filteredOrders = allFilteredOrders.filter(order => shouldDisplayOrder(order, showHidden));
 
       const { exportVisaOrdersToExcel } = await import('@/lib/visaOrdersExport');
       await exportVisaOrdersToExcel(filteredOrders);
@@ -792,7 +900,7 @@ export const VisaOrdersPage = () => {
     }
   };
 
-  const visibleOrders = orders.filter(order => {
+  const displayOrders = orders.filter(order => {
     // Definimos como "abandonado" ou "em espera" pedidos Parcelow que não foram concluídos
     const isPendingParcelow = order.payment_method === 'parcelow' &&
       order.payment_status === 'pending' &&
@@ -805,8 +913,8 @@ export const VisaOrdersPage = () => {
     return !order.is_hidden && !isPendingParcelow && !isCancelledOrFailed;
   });
 
-  const realOrders = visibleOrders.filter(order => order.payment_method !== 'manual');
-  const signatureOrders = visibleOrders.filter(order => order.payment_method === 'manual');
+  const realOrders = activeTab === 'real' ? displayOrders : [];
+  const signatureOrders = activeTab === 'signatures' ? displayOrders : [];
 
   const getStatusBadge = (order: VisaOrder) => {
     const status = order.payment_status;
@@ -924,21 +1032,39 @@ export const VisaOrdersPage = () => {
           <h1 className="text-2xl sm:text-3xl font-bold migma-gold-text">Visa Orders</h1>
 
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
-            <div className="relative w-full md:w-96">
+            <div className="flex w-full md:w-96 gap-2">
+              <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
               <Input
-                placeholder="Buscar por nome, email ou pedido..."
+                placeholder="Search by name, email, or order..."
                 className="pl-10 bg-black/50 border-gold-medium/30 text-white placeholder:text-gray-500"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+                value={draftSearchTerm}
+                onChange={(e) => setDraftSearchTerm(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    applySearch();
+                  }
+                }}
               />
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={applySearch}
+                className="border-gold-medium/30 bg-black/50 text-gold-light hover:bg-gold-medium/20"
+              >
+                Search
+              </Button>
             </div>
 
             <div className="w-full md:w-64">
               <Select 
                 value={sellerFilter} 
                 onValueChange={(val) => {
+                  clearSearchState();
                   const newParams = new URLSearchParams(searchParams);
+                  newParams.delete('search');
                   if (val === 'all') newParams.delete('seller');
                   else newParams.set('seller', val);
                   newParams.set('page', '1'); // Reset to page 1
@@ -946,10 +1072,10 @@ export const VisaOrdersPage = () => {
                 }}
               >
                 <SelectTrigger className="bg-black/50 border-gold-medium/30 text-white">
-                  <SelectValue placeholder="Filtrar por Vendedor" />
+                  <SelectValue placeholder="Filter by Seller" />
                 </SelectTrigger>
                 <SelectContent className="bg-zinc-950 border-zinc-800 text-white">
-                  <SelectItem value="all">Todos os Vendedores</SelectItem>
+                  <SelectItem value="all">All Sellers</SelectItem>
                   {availableSellers.map(seller => (
                     <SelectItem key={seller.id} value={seller.id}>{seller.name}</SelectItem>
                   ))}
@@ -961,7 +1087,9 @@ export const VisaOrdersPage = () => {
               <Select 
                 value={methodFilter} 
                 onValueChange={(val) => {
+                  clearSearchState();
                   const newParams = new URLSearchParams(searchParams);
+                  newParams.delete('search');
                   if (val === 'all') newParams.delete('method');
                   else newParams.set('method', val);
                   newParams.set('page', '1'); // Reset to page 1
@@ -969,10 +1097,10 @@ export const VisaOrdersPage = () => {
                 }}
               >
                 <SelectTrigger className="bg-black/50 border-gold-medium/30 text-white">
-                  <SelectValue placeholder="Método" />
+                  <SelectValue placeholder="Method" />
                 </SelectTrigger>
                 <SelectContent className="bg-zinc-950 border-zinc-800 text-white">
-                  <SelectItem value="all">Todos Métodos</SelectItem>
+                  <SelectItem value="all">All Methods</SelectItem>
                   <SelectItem value="parcelow">Parcelow</SelectItem>
                   <SelectItem value="stripe">Stripe</SelectItem>
                   <SelectItem value="zelle">Zelle</SelectItem>
@@ -989,7 +1117,7 @@ export const VisaOrdersPage = () => {
                   className={`border-gold-medium/30 bg-black/50 text-gold-light hover:bg-gold-medium/20 text-xs md:text-sm ${showHidden ? 'bg-gold-medium/40' : ''}`}
                 >
                   {showHidden ? <Eye className="w-4 h-4 mr-2" /> : <EyeOff className="w-4 h-4 mr-2" />}
-                  {showHidden ? 'Ver Apenas Reais' : 'Ver Todos'}
+                  {showHidden ? 'Show Real Only' : 'Show All'}
                 </Button>
               )}
 
@@ -1033,7 +1161,20 @@ export const VisaOrdersPage = () => {
           </div>
         </div>
 
-        <Tabs defaultValue="real" className="space-y-6">
+        <Tabs
+          value={activeTab}
+          onValueChange={(value) => {
+            const nextTab = value as 'real' | 'signatures';
+            setActiveTab(nextTab);
+            clearSearchState();
+
+            const newParams = new URLSearchParams(searchParams);
+            newParams.delete('search');
+            newParams.set('page', '1');
+            setSearchParams(newParams, { replace: true });
+          }}
+          className="space-y-6"
+        >
           <TabsList className="bg-black/50 border border-gold-medium/30 p-1 h-auto flex-wrap">
             <TabsTrigger
               value="real"
@@ -1053,7 +1194,9 @@ export const VisaOrdersPage = () => {
                 variant="outline"
                 size="sm"
                 onClick={() => {
+                  clearSearchState();
                   const newParams = new URLSearchParams(searchParams);
+                  newParams.delete('search');
                   if (statusFilter === 'completed') newParams.delete('status');
                   else newParams.set('status', 'completed');
                   newParams.set('page', '1'); // Reset to page 1
@@ -1071,7 +1214,9 @@ export const VisaOrdersPage = () => {
                 variant="outline"
                 size="sm"
                 onClick={() => {
+                  clearSearchState();
                   const newParams = new URLSearchParams(searchParams);
+                  newParams.delete('search');
                   if (statusFilter === 'pending') newParams.delete('status');
                   else newParams.set('status', 'pending');
                   newParams.set('page', '1'); // Reset to page 1
