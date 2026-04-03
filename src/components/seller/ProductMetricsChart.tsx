@@ -20,12 +20,12 @@ export function ProductMetricsChart({ data }: ProductMetricsChartProps) {
             <div className="p-2 bg-gold-medium/20 rounded-lg">
               <Package className="w-5 h-5 text-gold-light" />
             </div>
-            Produtos
+            Products
           </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="h-[250px] sm:h-[300px] flex items-center justify-center text-gray-400">
-            <p>Nenhum dado disponível</p>
+            <p>No data available</p>
           </div>
         </CardContent>
       </Card>
@@ -42,10 +42,10 @@ export function ProductMetricsChart({ data }: ProductMetricsChartProps) {
             <div className="p-1.5 sm:p-2 bg-gold-medium/20 rounded-lg">
               <Package className="w-4 h-4 sm:w-5 sm:h-5 text-gold-light" />
             </div>
-            Top Produtos
+            Top Products
           </CardTitle>
           <div className="text-left sm:text-right">
-            <p className="text-xs text-gray-400">Total Receita</p>
+            <p className="text-xs text-gray-400">Total Revenue</p>
             <p className="text-gold-light font-bold text-base sm:text-lg">
               ${totalRevenue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </p>
@@ -55,7 +55,7 @@ export function ProductMetricsChart({ data }: ProductMetricsChartProps) {
       <CardContent>
         {sortedData.length === 0 ? (
           <div className="h-[250px] sm:h-[300px] flex items-center justify-center text-gray-400">
-            <p>Nenhum produto encontrado</p>
+            <p>No products found</p>
           </div>
         ) : (
           <div className="space-y-2">
@@ -85,23 +85,23 @@ export function ProductMetricsChart({ data }: ProductMetricsChartProps) {
                     </div>
                     <div className="ml-8 sm:ml-10 grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 text-xs">
                       <div>
-                        <p className="text-gray-400 mb-1">Vendas</p>
+                        <p className="text-gray-400 mb-1">Sales</p>
                         <p className="text-white font-medium">{product.sales}</p>
                       </div>
                       <div>
-                        <p className="text-gray-400 mb-1">Receita</p>
+                        <p className="text-gray-400 mb-1">Revenue</p>
                         <p className="text-gold-light font-bold">
                           ${product.revenue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </p>
                       </div>
                       <div>
-                        <p className="text-gray-400 mb-1">Média</p>
+                        <p className="text-gray-400 mb-1">Avg</p>
                         <p className="text-white font-medium">
                           ${product.avgRevenue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </p>
                       </div>
                       <div>
-                        <p className="text-gray-400 mb-1">% do Total</p>
+                        <p className="text-gray-400 mb-1">% of Total</p>
                         <div className="flex items-center gap-1">
                           <TrendingUp className="w-3 h-3 text-gold-light" />
                           <p className="text-gold-light font-bold">{product.percentage.toFixed(1)}%</p>
