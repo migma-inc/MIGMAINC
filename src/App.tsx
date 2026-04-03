@@ -72,6 +72,8 @@ import { EB3RecurringManagement } from './pages/admin/EB3RecurringManagement';
 import { EB3RecurringDetail } from './pages/admin/EB3RecurringDetail';
 import { ScholarshipRecurringManagement } from './pages/admin/ScholarshipRecurringManagement';
 import { ScholarshipRecurringDetail } from './pages/admin/ScholarshipRecurringDetail';
+import { EB2RecurringManagement } from './pages/admin/EB2RecurringManagement';
+import { EB2RecurringDetail } from './pages/admin/EB2RecurringDetail';
 import { AdminSyncSales } from './pages/admin/AdminSyncSales';
 import { CreateServiceLink } from './pages/admin/CreateServiceLink';
 import { AdminTracking } from './pages/admin/AdminTracking';
@@ -162,6 +164,8 @@ function App() {
           <Route path="slack-reports" element={<SlackReportsPage />} />
           <Route path="eb3-recurring" element={<EB3RecurringManagement />} />
           <Route path="eb3-recurring/:id" element={<EB3RecurringDetail />} />
+          <Route path="eb2-recurring" element={<EB2RecurringManagement />} />
+          <Route path="eb2-recurring/:id" element={<EB2RecurringDetail />} />
           <Route path="scholarship-recurring" element={<ScholarshipRecurringManagement />} />
           <Route path="scholarship-recurring/:id" element={<ScholarshipRecurringDetail />} />
           <Route path="profile" element={<AdminProfile />} />

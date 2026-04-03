@@ -122,6 +122,10 @@ export interface VisaCheckoutState {
     customAmount: number | null;
     eb3LateFee: number;
 
+    // EB-2 Installment
+    eb2ScheduleId: string | null;
+    eb2LateFee: number;
+
     // Scholarship Maintenance Fee
     scholarshipScheduleId: string | null;
     scholarshipLateFee: number;
@@ -203,6 +207,10 @@ export interface VisaCheckoutActions {
     setEb3ScheduleId: (val: string | null) => void;
     setCustomAmount: (val: number | null) => void;
     setEb3LateFee: (val: number) => void;
+
+    // EB-2 Installment
+    setEb2ScheduleId: (val: string | null) => void;
+    setEb2LateFee: (val: number) => void;
 
     // Scholarship Maintenance Fee
     setScholarshipScheduleId: (val: string | null) => void;
