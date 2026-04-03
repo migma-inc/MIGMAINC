@@ -1,5 +1,6 @@
 import * as React from "react";
 import { format } from "date-fns";
+import { enUS } from "date-fns/locale/en-US";
 import { ptBR } from "date-fns/locale/pt-BR";
 import { Calendar as CalendarIcon, X } from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
@@ -14,37 +15,52 @@ interface DateRangePickerProps {
   dateRange: { start: string; end: string };
   onDateRangeChange: (range: { start: string; end: string }) => void;
   className?: string;
+  locale?: 'pt' | 'en';
 }
 
-export function DateRangePicker({ 
-  dateRange, 
-  onDateRangeChange, 
-  className 
+export function DateRangePicker({
+  dateRange,
+  onDateRangeChange,
+  className,
+  locale = 'pt',
 }: DateRangePickerProps) {
   const [isOpen, setIsOpen] = React.useState(false);
   const [tempStartDate, setTempStartDate] = React.useState<string>('');
   const [tempEndDate, setTempEndDate] = React.useState<string>('');
   const [selectedDate, setSelectedDate] = React.useState<Date | null>(null);
-  
-  // Função helper para converter string YYYY-MM-DD para Date no timezone local
-  // Evita problemas de timezone ao criar datas
+
+  const dateLocale = locale === 'en' ? enUS : ptBR;
+  const labels = locale === 'en'
+    ? {
+        selectPeriod: 'Select period',
+        startDate: 'Start Date:',
+        endDate: 'End Date:',
+        clear: 'Clear',
+        cancel: 'Cancel',
+        apply: 'Apply',
+      }
+    : {
+        selectPeriod: 'Selecione o per�odo',
+        startDate: 'Data Inicial:',
+        endDate: 'Data Final:',
+        clear: 'Limpar',
+        cancel: 'Cancelar',
+        apply: 'Aplicar',
+      };
+
   const parseDateString = React.useCallback((dateString: string): Date => {
     const [year, month, day] = dateString.split('-').map(Number);
-    // Criar data no timezone local (mês é 0-indexed, então month - 1)
     return new Date(year, month - 1, day, 0, 0, 0, 0);
   }, []);
 
-  // Sincronizar estados temporários quando o popover abre
   React.useEffect(() => {
     if (isOpen) {
-      // Quando abre, sempre começar sem datas (zerado)
       setTempStartDate('');
       setTempEndDate('');
       setSelectedDate(null);
     }
   }, [isOpen]);
 
-  // Converter strings para DateRange para o calendário mostrar o range
   const calendarRange: DateRange | undefined = React.useMemo(() => {
     if (tempStartDate && tempEndDate) {
       return {
@@ -67,7 +83,6 @@ export function DateRangePicker({
     return undefined;
   }, [tempStartDate, tempEndDate, selectedDate, parseDateString]);
 
-  // Handler para quando seleciona um range no calendário
   const handleCalendarRangeSelect = (range: DateRange | undefined) => {
     if (!range) {
       setTempStartDate('');
@@ -77,27 +92,24 @@ export function DateRangePicker({
     }
 
     if (range.from) {
-      const startString = format(range.from, "yyyy-MM-dd");
+      const startString = format(range.from, 'yyyy-MM-dd');
       setTempStartDate(startString);
       setSelectedDate(range.from);
     }
 
     if (range.to) {
-      const endString = format(range.to, "yyyy-MM-dd");
+      const endString = format(range.to, 'yyyy-MM-dd');
       setTempEndDate(endString);
     } else if (range.from && !range.to) {
-      // Apenas data inicial selecionada, limpar final
       setTempEndDate('');
     }
   };
 
-  // Handler para aplicar o período customizado
   const handleApply = () => {
     if (!tempStartDate || !tempEndDate) {
-      return; // Não aplicar se não tiver ambas as datas
+      return;
     }
 
-    // Validar que data inicial não é posterior à final (usando parseDateString para evitar timezone)
     const startDate = parseDateString(tempStartDate);
     const endDate = parseDateString(tempEndDate);
     if (startDate > endDate) {
@@ -111,30 +123,25 @@ export function DateRangePicker({
     setIsOpen(false);
   };
 
-  // Handler para limpar datas
   const handleClear = () => {
     setTempStartDate('');
     setTempEndDate('');
     setSelectedDate(null);
   };
 
-  // Handler para cancelar
   const handleCancel = () => {
     setIsOpen(false);
   };
 
-  // Formatar texto do botão
   const displayText = React.useMemo(() => {
     if (!dateRange.start || !dateRange.end) {
-      return "Selecione o período";
+      return labels.selectPeriod;
     }
-    // Usar parseDateString para evitar problemas de timezone
     const startDate = parseDateString(dateRange.start);
     const endDate = parseDateString(dateRange.end);
-    return `${format(startDate, "dd/MM/yyyy", { locale: ptBR })} - ${format(endDate, "dd/MM/yyyy", { locale: ptBR })}`;
-  }, [dateRange, parseDateString]);
+    return `${format(startDate, 'dd/MM/yyyy', { locale: dateLocale })} - ${format(endDate, 'dd/MM/yyyy', { locale: dateLocale })}`;
+  }, [dateLocale, dateRange, labels.selectPeriod, parseDateString]);
 
-  // Verificar se pode aplicar (tem ambas as datas)
   const canApply = React.useMemo(() => {
     if (!tempStartDate || !tempEndDate) return false;
     const startDate = parseDateString(tempStartDate);
@@ -157,22 +164,19 @@ export function DateRangePicker({
           {displayText}
         </Button>
       </PopoverTrigger>
-      <PopoverContent 
-        className="w-auto p-0 bg-black border-gold-medium/50" 
+      <PopoverContent
+        className="w-auto p-0 bg-black border-gold-medium/50"
         align="start"
         onInteractOutside={(e) => {
-          // Prevenir fechamento ao clicar fora
           e.preventDefault();
         }}
         onEscapeKeyDown={(e) => {
-          // Prevenir fechamento com ESC
           e.preventDefault();
         }}
       >
         <div className="p-4">
-          {/* Header com botão de fechar */}
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-white font-semibold text-sm">Selecione o período</h3>
+            <h3 className="text-white font-semibold text-sm">{labels.selectPeriod}</h3>
             <Button
               variant="ghost"
               size="icon"
@@ -183,13 +187,13 @@ export function DateRangePicker({
             </Button>
           </div>
 
-          {/* Calendário */}
           <div className="mb-4">
             <Calendar
               mode="range"
               selected={calendarRange}
               onSelect={handleCalendarRangeSelect}
               disabled={(date) => date > new Date()}
+              locale={dateLocale}
               className="bg-black text-white"
               classNames={{
                 months: "flex flex-col sm:flex-row gap-4 p-2",
@@ -217,11 +221,10 @@ export function DateRangePicker({
             />
           </div>
 
-          {/* Campos de data customizados */}
           <div className="space-y-3 mb-4">
             <div className="space-y-2">
               <Label htmlFor="start-date" className="text-white text-xs">
-                Data Inicial:
+                {labels.startDate}
               </Label>
               <Input
                 id="start-date"
@@ -230,7 +233,6 @@ export function DateRangePicker({
                 onChange={(e) => {
                   setTempStartDate(e.target.value);
                   if (e.target.value) {
-                    // Usar parseDateString para evitar problemas de timezone
                     setSelectedDate(parseDateString(e.target.value));
                   }
                 }}
@@ -240,7 +242,7 @@ export function DateRangePicker({
             </div>
             <div className="space-y-2">
               <Label htmlFor="end-date" className="text-white text-xs">
-                Data Final:
+                {labels.endDate}
               </Label>
               <Input
                 id="end-date"
@@ -249,7 +251,6 @@ export function DateRangePicker({
                 onChange={(e) => {
                   setTempEndDate(e.target.value);
                   if (e.target.value) {
-                    // Usar parseDateString para evitar problemas de timezone
                     setSelectedDate(parseDateString(e.target.value));
                   }
                 }}
@@ -260,7 +261,6 @@ export function DateRangePicker({
             </div>
           </div>
 
-          {/* Botões de ação */}
           <div className="flex items-center justify-between gap-2 pt-3 border-t border-gold-medium/20">
             <Button
               variant="ghost"
@@ -268,7 +268,7 @@ export function DateRangePicker({
               onClick={handleClear}
               className="text-gray-400 hover:text-white hover:bg-gold-medium/20 text-xs"
             >
-              Limpar
+              {labels.clear}
             </Button>
             <div className="flex gap-2">
               <Button
@@ -277,7 +277,7 @@ export function DateRangePicker({
                 onClick={handleCancel}
                 className="bg-black/50 border-gold-medium/50 text-white hover:bg-black/70 text-xs"
               >
-                Cancelar
+                {labels.cancel}
               </Button>
               <Button
                 size="sm"
@@ -285,7 +285,7 @@ export function DateRangePicker({
                 disabled={!canApply}
                 className="bg-gold-medium text-black hover:bg-gold-light disabled:opacity-50 disabled:cursor-not-allowed text-xs font-semibold"
               >
-                Aplicar
+                {labels.apply}
               </Button>
             </div>
           </div>

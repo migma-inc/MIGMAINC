@@ -33,17 +33,17 @@ interface PeriodFilterProps {
 
 const LABELS = {
   pt: {
-    period: 'Período:',
+    period: 'Per?odo:',
     allTime: 'Acumulado',
-    thisMonth: 'Este mês',
-    lastMonth: 'Mês passado',
-    last7Days: 'Últimos 7 dias',
-    last30Days: 'Últimos 30 dias',
-    last3Months: 'Últimos 3 meses',
-    last6Months: 'Últimos 6 meses',
-    lastYear: 'Último ano',
-    customPeriod: 'Período customizado',
-    selectPeriod: 'Selecione o período:',
+    thisMonth: 'Este m?s',
+    lastMonth: 'M?s passado',
+    last7Days: '?ltimos 7 dias',
+    last30Days: '?ltimos 30 dias',
+    last3Months: '?ltimos 3 meses',
+    last6Months: '?ltimos 6 meses',
+    lastYear: '?ltimo ano',
+    customPeriod: 'Per?odo customizado',
+    selectPeriod: 'Selecione o per?odo:',
   },
   en: {
     period: 'Period:',
@@ -131,6 +131,7 @@ export function PeriodFilter({
           </Label>
           <DateRangePicker
             dateRange={localCustomRange}
+            locale={locale}
             onDateRangeChange={(range) => {
               setLocalCustomRange(range);
               if (onCustomDateRangeChange) {
