@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useSearchParams, Link } from 'react-router-dom';
+import { useSearchParams, Link, useNavigate } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -10,6 +10,7 @@ import { LanguageSelector } from '@/components/LanguageSelector';
 export const CheckoutSuccess = () => {
   const { t } = useTranslation();
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const sessionId = searchParams.get('session_id');
   const orderId = searchParams.get('order_id');
   const method = searchParams.get('method');
@@ -17,7 +18,7 @@ export const CheckoutSuccess = () => {
   const [order, setOrder] = useState<any>(null);
   const [splitPayment, setSplitPayment] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [redirectCountdown, setRedirectCountdown] = useState(5);
+  const [redirectCountdown, setRedirectCountdown] = useState(10);
   const [isRedirecting, setIsRedirecting] = useState(false);
 
   useEffect(() => {
@@ -106,15 +107,15 @@ export const CheckoutSuccess = () => {
         const timer = setTimeout(() => setRedirectCountdown(prev => prev - 1), 1000);
         return () => clearTimeout(timer);
       } else {
-        handleRedirectToPart2();
+        handleRedirectToSplitFlow();
       }
     }
   }, [splitPayment, redirectCountdown, isRedirecting]);
 
-  const handleRedirectToPart2 = () => {
-    if (splitPayment?.part2_parcelow_checkout_url) {
+  const handleRedirectToSplitFlow = () => {
+    if (splitPayment?.id) {
       setIsRedirecting(true);
-      window.location.href = splitPayment.part2_parcelow_checkout_url;
+      navigate(`/checkout/split-payment/redirect?split_payment_id=${splitPayment.id}`);
     }
   };
 
@@ -175,11 +176,11 @@ export const CheckoutSuccess = () => {
                 <span className="font-bold">{t('checkout.redirecting_to_part_2_in', { count: redirectCountdown, defaultValue: `Redirecting to Part 2 in ${redirectCountdown}s...` })}</span>
               </div>
               <Button
-                onClick={handleRedirectToPart2}
+                onClick={handleRedirectToSplitFlow}
                 disabled={isRedirecting}
                 className="bg-blue-600 hover:bg-blue-700 text-white"
               >
-                {isRedirecting ? t('checkout.redirecting', 'Redirecting...') : t('checkout.pay_part_2_now', 'Pay Part 2 Now')}
+                {isRedirecting ? t('checkout.redirecting', 'Redirecting...') : t('checkout.continue_payment_flow', 'Continue Payment Flow')}
               </Button>
             </div>
           )}

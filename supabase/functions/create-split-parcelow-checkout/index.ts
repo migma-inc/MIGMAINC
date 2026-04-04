@@ -43,7 +43,7 @@ Deno.serve(async (req: Request) => {
 
         // Parse request body
         const body: any = await req.json();
-        const { order_id, part1_amount, part1_method, part2_amount, part2_method, parcelow_environment } = body;
+        const { order_id, part1_amount, part1_method, part2_amount, part2_method, parcelow_environment, app_url } = body;
 
         console.log("[Split Checkout] 📦 Request:", {
             order_id,
@@ -147,7 +147,8 @@ Deno.serve(async (req: Request) => {
                 split_part_number: 1,
                 // Passamos o método de pagamento específico desta parte
                 payment_method_override: part1_method,
-                parcelow_environment: parcelow_environment
+                parcelow_environment: parcelow_environment,
+                app_url,
             }
         });
 
@@ -164,6 +165,11 @@ Deno.serve(async (req: Request) => {
                 console.error(`[Split Checkout] ⚠️ Não foi possível ler o body do erro do checkout.`);
             }
             throw new Error(`Erro ao criar checkout Part 1: ${detailedMsg}`);
+        }
+
+        if (!part1Data?.order_id || !part1Data?.checkout_url) {
+            console.error("[Split Checkout] Invalid Part 1 response:", part1Data);
+            throw new Error("Checkout Part 1 retornou sem order_id ou checkout_url");
         }
 
         console.log(`[Split Checkout] ✅ Part 1 criada:`, part1Data.checkout_url);
@@ -183,7 +189,8 @@ Deno.serve(async (req: Request) => {
                 split_part_number: 2,
                 // Passamos o método de pagamento específico desta parte
                 payment_method_override: part2_method,
-                parcelow_environment: parcelow_environment
+                parcelow_environment: parcelow_environment,
+                app_url,
             }
         });
 
@@ -192,11 +199,16 @@ Deno.serve(async (req: Request) => {
             throw new Error(`Erro ao criar checkout Part 2: ${part2Error.message}`);
         }
 
+        if (!part2Data?.order_id || !part2Data?.checkout_url) {
+            console.error("[Split Checkout] Invalid Part 2 response:", part2Data);
+            throw new Error("Checkout Part 2 retornou sem order_id ou checkout_url");
+        }
+
         console.log("[Split Checkout] ✅ Checkout Part 2 criado:", part2Data.checkout_url);
 
         // 7. Atualizar split_payment com os IDs e URLs dos checkouts Parcelow
         console.log("[Split Checkout] 💾 Salvando IDs e URLs dos checkouts...");
-        const { error: updateSplitError } = await supabase
+        const { data: persistedSplitPayment, error: updateSplitError } = await supabase
             .from('split_payments')
             .update({
                 part1_parcelow_order_id: part1Data.order_id?.toString(),
@@ -207,12 +219,32 @@ Deno.serve(async (req: Request) => {
                 part2_parcelow_checkout_url: part2Data.checkout_url,
                 part2_parcelow_status: part2Data.status || 'Open',
                 part2_payment_status: 'pending',
-                overall_status: 'pending_part1'
+                overall_status: 'pending'
             })
-            .eq('id', splitPayment.id);
+            .eq('id', splitPayment.id)
+            .select(`
+                id,
+                overall_status,
+                part1_parcelow_order_id,
+                part1_parcelow_checkout_url,
+                part2_parcelow_order_id,
+                part2_parcelow_checkout_url
+            `)
+            .single();
 
         if (updateSplitError) {
-            console.error("[Split Checkout] ⚠️ Erro ao atualizar split payment:", updateSplitError);
+            console.error("[Split Checkout] Failed to persist split payment checkout data:", updateSplitError);
+            throw new Error(`Erro ao persistir dados do split payment: ${updateSplitError.message}`);
+        }
+
+        if (
+            !persistedSplitPayment?.part1_parcelow_order_id ||
+            !persistedSplitPayment?.part1_parcelow_checkout_url ||
+            !persistedSplitPayment?.part2_parcelow_order_id ||
+            !persistedSplitPayment?.part2_parcelow_checkout_url
+        ) {
+            console.error("[Split Checkout] Persisted split payment is missing checkout data:", persistedSplitPayment);
+            throw new Error("Split payment foi criado, mas os dados dos checkouts não foram persistidos corretamente");
         }
 
         // 8. Retornar resposta de sucesso
