@@ -104,6 +104,9 @@ Deno.serve(async (req: Request) => {
                 part2_amount_usd: part2_amount,
                 part2_payment_method: part2_method,
                 overall_status: 'pending', // Reset status as we are regenerating checkouts
+                part2_checkout_email_sent_at: null,
+                part2_checkout_email_reminder_sent_at: null,
+                part2_checkout_email_send_count: 0,
             }, {
                 onConflict: 'order_id',
                 ignoreDuplicates: false // We want to update the data if it exists
@@ -219,7 +222,10 @@ Deno.serve(async (req: Request) => {
                 part2_parcelow_checkout_url: part2Data.checkout_url,
                 part2_parcelow_status: part2Data.status || 'Open',
                 part2_payment_status: 'pending',
-                overall_status: 'pending'
+                overall_status: 'pending',
+                part2_checkout_email_sent_at: null,
+                part2_checkout_email_reminder_sent_at: null,
+                part2_checkout_email_send_count: 0
             })
             .eq('id', splitPayment.id)
             .select(`

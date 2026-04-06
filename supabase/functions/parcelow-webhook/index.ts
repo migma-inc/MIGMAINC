@@ -429,6 +429,29 @@ async function processSplitPaymentWebhook(
 
     console.log("[Split Webhook] ✅ Fluxo de split payment totalmente concluído!");
   } else {
+    if (isPart1) {
+      try {
+        console.log("[Split Webhook] Sending part 2 checkout email after part 1 confirmation...");
+        const { data: emailResult, error: emailError } = await supabase.functions.invoke(
+          "send-split-part2-payment-email",
+          {
+            body: {
+              split_payment_id: splitPayment.id,
+              email_type: "initial",
+            },
+          }
+        );
+
+        if (emailError) {
+          console.error("[Split Webhook] Error invoking split part 2 email:", emailError);
+        } else {
+          console.log("[Split Webhook] Part 2 checkout email result:", emailResult);
+        }
+      } catch (emailInvokeError) {
+        console.error("[Split Webhook] Unexpected error sending split part 2 email:", emailInvokeError);
+      }
+    }
+
     console.log(`[Split Webhook] ⏳ Aguardando pagamento da Part ${isPart1 ? 2 : 1}...`);
     console.log("[Split Webhook] ℹ️ Contratos NÃO serão gerados até que ambas as partes sejam pagas");
   }
