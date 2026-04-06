@@ -453,6 +453,7 @@ export const usePaymentHandlers = (
                         part1_method: state.splitPaymentConfig.part1_method,
                         part2_amount: state.splitPaymentConfig.part2_amount,
                         part2_method: state.splitPaymentConfig.part2_method,
+                        app_url: window.location.origin,
                     }
                 });
 
@@ -469,6 +470,10 @@ export const usePaymentHandlers = (
                 }
 
                 console.log('[Parcelow Split] ✅ Split checkout criado:', splitCheckoutData);
+
+                if (splitCheckoutData?.split_payment_id) {
+                    sessionStorage.setItem('last_split_payment_id', splitCheckoutData.split_payment_id);
+                }
 
                 // Redirecionar para Part 1
                 const part1CheckoutUrl = splitCheckoutData?.part1_checkout_url;

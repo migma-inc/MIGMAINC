@@ -3,6 +3,7 @@ import { isParcelowMethod } from '../../types/form.types';
 import { useTranslation } from 'react-i18next';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { ArrowUpRight } from 'lucide-react';
 
 // Step 3 Sub-components
 import { ContractTermsSection } from './step3/ContractTermsSection';
@@ -27,9 +28,10 @@ interface Step3Props {
     onPrev: () => void;
     productSlug?: string;
     totalAmount: number;
+    onScrollToCheckout?: () => void;
 }
 
-export const Step3Payment: React.FC<Step3Props> = ({ state, actions, handlers, onPrev, productSlug, totalAmount }) => {
+export const Step3Payment: React.FC<Step3Props> = ({ state, actions, handlers, onPrev, productSlug, totalAmount, onScrollToCheckout }) => {
     const {
         termsAccepted, dataAuthorization, contractTemplate, chargebackAnnexTemplate, upsellContractTemplate, paymentMethod,
         zelleReceipt, signatureImageDataUrl, signatureConfirmed /*, selectedUpsell */
@@ -299,8 +301,8 @@ export const Step3Payment: React.FC<Step3Props> = ({ state, actions, handlers, o
                     )}
                 </div>
 
-                {/* Desktop - Back button only */}
-                <div className="hidden lg:flex pt-4">
+                {/* Desktop - Back button + scroll anchor */}
+                <div className="hidden lg:flex pt-4 items-center justify-between gap-4">
                     <button
                         onClick={onPrev}
                         className="inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium text-gold-light border border-gold-medium/50 bg-black/50 rounded-md hover:bg-gold-medium/30 hover:text-gold-light transition-colors"
@@ -310,6 +312,17 @@ export const Step3Payment: React.FC<Step3Props> = ({ state, actions, handlers, o
                         </svg>
                         {t('checkout.back', 'Back')}
                     </button>
+
+                    {paymentMethod && onScrollToCheckout && (
+                        <button
+                            type="button"
+                            onClick={onScrollToCheckout}
+                            className="inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold text-gold-light border border-gold-medium/40 bg-gold-medium/10 rounded-md hover:bg-gold-medium/20 hover:border-gold-medium transition-colors"
+                        >
+                            <span>{t('checkout.go_to_payment_anchor', 'Go to payment')}</span>
+                            <ArrowUpRight className="w-4 h-4" />
+                        </button>
+                    )}
                 </div>
             </CardContent>
         </Card >

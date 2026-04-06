@@ -23,7 +23,7 @@ import { VisaCheckoutPage as VisaCheckout, VisaSignatureCheckoutPage as VisaSign
 import { CheckoutSuccess } from './pages/CheckoutSuccess';
 import { CheckoutCancel } from './pages/CheckoutCancel';
 import { ZellePaymentProcessing } from './pages/ZellePaymentProcessing';
-import { SplitPaymentRedirect } from './pages/SplitPaymentRedirect';
+import { SplitPaymentRedirectSuccessStyle } from './pages/SplitPaymentRedirectSuccessStyle';
 import { VisaServiceTerms } from './pages/VisaServiceTerms';
 import { SellerLogin } from './pages/SellerLogin';
 import { ForgotPassword } from './pages/ForgotPassword';
@@ -72,6 +72,8 @@ import { EB3RecurringManagement } from './pages/admin/EB3RecurringManagement';
 import { EB3RecurringDetail } from './pages/admin/EB3RecurringDetail';
 import { ScholarshipRecurringManagement } from './pages/admin/ScholarshipRecurringManagement';
 import { ScholarshipRecurringDetail } from './pages/admin/ScholarshipRecurringDetail';
+import { EB2RecurringManagement } from './pages/admin/EB2RecurringManagement';
+import { EB2RecurringDetail } from './pages/admin/EB2RecurringDetail';
 import { AdminSyncSales } from './pages/admin/AdminSyncSales';
 import { CreateServiceLink } from './pages/admin/CreateServiceLink';
 import { AdminTracking } from './pages/admin/AdminTracking';
@@ -102,7 +104,7 @@ function App() {
         <Route path="/checkout/success" element={<CheckoutSuccess />} />
         <Route path="/checkout/cancel" element={<CheckoutCancel />} />
         <Route path="/checkout/zelle/processing" element={<ZellePaymentProcessing />} />
-        <Route path="/checkout/split-payment/redirect" element={<SplitPaymentRedirect />} />
+        <Route path="/checkout/split-payment/redirect" element={<SplitPaymentRedirectSuccessStyle />} />
 
         {/* Generic Password Recovery Routes */}
         <Route path="/forgot-password" element={<ForgotPassword />} />
@@ -162,6 +164,8 @@ function App() {
           <Route path="slack-reports" element={<SlackReportsPage />} />
           <Route path="eb3-recurring" element={<EB3RecurringManagement />} />
           <Route path="eb3-recurring/:id" element={<EB3RecurringDetail />} />
+          <Route path="eb2-recurring" element={<EB2RecurringManagement />} />
+          <Route path="eb2-recurring/:id" element={<EB2RecurringDetail />} />
           <Route path="scholarship-recurring" element={<ScholarshipRecurringManagement />} />
           <Route path="scholarship-recurring/:id" element={<ScholarshipRecurringDetail />} />
           <Route path="profile" element={<AdminProfile />} />

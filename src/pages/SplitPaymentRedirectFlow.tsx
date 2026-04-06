@@ -1,12 +1,10 @@
-export { SplitPaymentRedirectFlow as SplitPaymentRedirect } from './SplitPaymentRedirectFlow';
-/*
 import { useEffect, useState } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import { Card, CardContent } from '@/components/ui/card';
-import { CheckCircle2, Loader2, AlertCircle, RefreshCw } from 'lucide-react';
+import { CheckCircle2, Loader2, AlertCircle } from 'lucide-react';
 
-export const SplitPaymentRedirect = () => {
+export const SplitPaymentRedirectFlow = () => {
     const [searchParams] = useSearchParams();
     const navigate = useNavigate();
 
@@ -18,7 +16,10 @@ export const SplitPaymentRedirect = () => {
     const [isPolling, setIsPolling] = useState(false);
     const [pollAttempt, setPollAttempt] = useState(0);
 
-    const splitPaymentId = searchParams.get('split_payment_id');
+    const splitPaymentIdFromQuery = searchParams.get('split_payment_id');
+    const storedSplitPaymentId = typeof window !== 'undefined' ? sessionStorage.getItem('last_split_payment_id') : null;
+    const isUuid = (value: string | null) => !!value && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+    const splitPaymentId = isUuid(splitPaymentIdFromQuery) ? splitPaymentIdFromQuery : storedSplitPaymentId;
     const isSplitReturn = searchParams.get('split_return') === '1';
     const returnedPart = searchParams.get('part');
 
@@ -29,14 +30,28 @@ export const SplitPaymentRedirect = () => {
             return;
         }
 
-        fetchSplitPaymentStatus();
-    }, [splitPaymentId]);
+        void fetchSplitPaymentStatus();
+    }, [splitPaymentId, isSplitReturn, returnedPart]);
+
+    useEffect(() => {
+        if (!isPolling || !splitPaymentId) return;
+
+        if (pollAttempt >= 10) {
+            setIsPolling(false);
+            setError('Ainda estamos aguardando a confirmação do pagamento. Tente verificar novamente em alguns segundos.');
+            return;
+        }
+
+        const timer = setTimeout(() => {
+            setPollAttempt((prev) => prev + 1);
+            void fetchSplitPaymentStatus();
+        }, 2000);
+
+        return () => clearTimeout(timer);
+    }, [isPolling, pollAttempt, splitPaymentId]);
 
     const fetchSplitPaymentStatus = async () => {
         try {
-            console.log('[Split Redirect] 🔍 Buscando status do split payment...');
-
-            // Buscar split payment
             const { data: split, error: splitError } = await supabase
                 .from('split_payments')
                 .select('*')
@@ -47,47 +62,64 @@ export const SplitPaymentRedirect = () => {
                 throw new Error('Split payment não encontrado');
             }
 
-            console.log('[Split Redirect] ✅ Split payment encontrado:', split);
+            sessionStorage.setItem('last_split_payment_id', split.id);
             setSplitPayment(split);
-
-            // Verificar status
-            if (split.overall_status === 'fully_completed') {
-                console.log('[Split Redirect] 🎉 Pagamento completo! Redirecionando para sucesso...');
-                setTimeout(() => {
-                    navigate(`/checkout/success?order_id=${split.order_id}&method=parcelow_split`);
-                }, 2000);
-                setLoading(false);
-                return;
-            }
-
-            // Se Part 1 ainda não foi paga, redirecionar para Part 1
-            if (split.part1_payment_status !== 'completed') {
-                console.log('[Split Redirect] ⏳ Part 1 ainda não foi paga, redirecionando...');
-                setNextCheckoutUrl(split.part1_parcelow_checkout_url);
-                setLoading(false);
-                startCountdown(split.part1_parcelow_checkout_url);
-                return;
-            }
-
-            // Se Part 1 paga mas Part 2 não, redirecionar para Part 2
-            if (split.part1_payment_status === 'completed' && split.part2_payment_status !== 'completed') {
-                console.log('[Split Redirect] ✅ Part 1 paga! Redirecionando para Part 2...');
-                setNextCheckoutUrl(split.part2_parcelow_checkout_url);
-                setLoading(false);
-                startCountdown(split.part2_parcelow_checkout_url);
-                return;
-            }
-
-            setLoading(false);
+            setError(null);
+            handleSplitState(split);
         } catch (err: any) {
-            console.error('[Split Redirect] ❌ Erro:', err);
             setError(err.message || 'Erro ao buscar status do pagamento');
             setLoading(false);
         }
     };
 
-    const startCountdown = (url: string) => {
-        let count = 3;
+    const handleSplitState = (split: any) => {
+        if (split.overall_status === 'fully_completed') {
+            setIsPolling(false);
+            setLoading(false);
+            setTimeout(() => {
+                navigate(`/checkout/success?order_id=${split.order_id}&method=parcelow_split`);
+            }, 2000);
+            return;
+        }
+
+        if (isSplitReturn && returnedPart === '1' && split.part1_payment_status !== 'completed') {
+            setLoading(false);
+            setIsPolling(true);
+            return;
+        }
+
+        if (isSplitReturn && returnedPart === '2' && split.part2_payment_status !== 'completed') {
+            setLoading(false);
+            setIsPolling(true);
+            return;
+        }
+
+        if (split.part1_payment_status === 'completed' && split.part2_payment_status !== 'completed') {
+            setIsPolling(false);
+            setLoading(false);
+            startCountdown(split.part2_parcelow_checkout_url, 10);
+            return;
+        }
+
+        if (split.part1_payment_status !== 'completed') {
+            setIsPolling(false);
+            setLoading(false);
+            startCountdown(split.part1_parcelow_checkout_url, 3);
+            return;
+        }
+
+        setIsPolling(false);
+        setLoading(false);
+    };
+
+    const startCountdown = (url: string, initialCount: number) => {
+        if (!url) {
+            setError('URL do próximo pagamento não encontrada');
+            return;
+        }
+
+        setNextCheckoutUrl(url);
+        let count = initialCount;
         setCountdown(count);
 
         const interval = setInterval(() => {
@@ -96,11 +128,13 @@ export const SplitPaymentRedirect = () => {
 
             if (count === 0) {
                 clearInterval(interval);
-                console.log('[Split Redirect] 🚀 Redirecionando para:', url);
                 window.location.href = url;
             }
         }, 1000);
     };
+
+    const isPart1Completed = splitPayment?.part1_payment_status === 'completed';
+    const isPart2Pending = splitPayment?.part2_payment_status !== 'completed';
 
     if (loading) {
         return (
@@ -130,50 +164,53 @@ export const SplitPaymentRedirect = () => {
                             Erro ao Processar Pagamento
                         </h2>
                         <p className="text-gold-light/70">{error}</p>
-                        <button
-                            onClick={() => navigate('/')}
-                            className="mt-4 px-6 py-3 bg-gold-medium text-black font-bold rounded-lg hover:bg-gold-light transition-colors"
-                        >
-                            Voltar para Início
-                        </button>
+                        <div className="flex flex-col gap-3 mt-4">
+                            <button
+                                onClick={() => {
+                                    setError(null);
+                                    setPollAttempt(0);
+                                    setLoading(true);
+                                    void fetchSplitPaymentStatus();
+                                }}
+                                className="px-6 py-3 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-500 transition-colors"
+                            >
+                                Verificar Novamente
+                            </button>
+                            <button
+                                onClick={() => navigate('/')}
+                                className="px-6 py-3 bg-gold-medium text-black font-bold rounded-lg hover:bg-gold-light transition-colors"
+                            >
+                                Voltar para Início
+                            </button>
+                        </div>
                     </CardContent>
                 </Card>
             </div>
         );
     }
 
-    const isPart1Completed = splitPayment?.part1_payment_status === 'completed';
-    const isPart2Pending = splitPayment?.part2_payment_status !== 'completed';
-
     return (
         <div className="min-h-screen bg-gradient-to-br from-black via-gray-900 to-black flex items-center justify-center p-4">
             <Card className="bg-black/40 border-gold-medium/30 max-w-md w-full">
                 <CardContent className="p-8 text-center space-y-6">
-                    {/* Success Icon */}
                     <div className="relative">
                         <div className="absolute inset-0 bg-gold-medium/20 blur-3xl rounded-full"></div>
                         <CheckCircle2 className="h-20 w-20 text-gold-medium mx-auto relative animate-pulse" />
                     </div>
 
-                    {/* Title */}
                     <div className="space-y-2">
                         <h2 className="text-3xl font-bold text-gold-light">
-                            {isPart1Completed && isPart2Pending ? (
-                                '✅ Primeira Parte Paga!'
-                            ) : (
-                                'Processando Pagamento...'
-                            )}
+                            {isPolling ? 'Confirmando Pagamento...' : isPart1Completed && isPart2Pending ? 'Primeira Parte Paga!' : 'Processando Pagamento...'}
                         </h2>
                         <p className="text-gold-light/70 text-lg">
-                            {isPart1Completed && isPart2Pending ? (
-                                'Agora vamos para a segunda parte do pagamento'
-                            ) : (
-                                'Aguarde enquanto processamos seu pagamento'
-                            )}
+                            {isPolling
+                                ? 'Aguarde enquanto confirmamos seu pagamento para seguir com a próxima etapa.'
+                                : isPart1Completed && isPart2Pending
+                                    ? 'Agora vamos para a segunda parte do pagamento'
+                                    : 'Aguarde enquanto processamos seu pagamento'}
                         </p>
                     </div>
 
-                    {/* Payment Summary */}
                     {splitPayment && (
                         <div className="bg-gold-medium/10 border border-gold-medium/30 rounded-lg p-4 space-y-3">
                             <div className="flex justify-between items-center">
@@ -213,8 +250,13 @@ export const SplitPaymentRedirect = () => {
                         </div>
                     )}
 
-                    {/* Countdown */}
-                    {nextCheckoutUrl && (
+                    {isPolling && (
+                        <p className="text-gold-light/70 text-sm">
+                            Confirmando o retorno da Parcelow. Tentativa {pollAttempt + 1} de 10.
+                        </p>
+                    )}
+
+                    {nextCheckoutUrl && !isPolling && (
                         <div className="space-y-4">
                             <div className="text-center">
                                 <p className="text-gold-light/70 mb-2">
@@ -234,7 +276,6 @@ export const SplitPaymentRedirect = () => {
                         </div>
                     )}
 
-                    {/* Info */}
                     <p className="text-gold-light/50 text-sm">
                         Você será redirecionado automaticamente para completar o pagamento.
                     </p>
@@ -243,4 +284,3 @@ export const SplitPaymentRedirect = () => {
         </div>
     );
 };
-*/

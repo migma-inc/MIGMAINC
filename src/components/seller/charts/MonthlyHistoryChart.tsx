@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import * as am5 from '@amcharts/amcharts5';
 import * as am5xy from '@amcharts/amcharts5/xy';
 import am5themes_Animated from '@amcharts/amcharts5/themes/Animated';
+import { formatPlainNumber } from './chartFormatters';
 
 interface MonthlyHistoryChartProps {
     data: { month: string; sales: number }[];
@@ -39,42 +40,50 @@ export function MonthlyHistoryChart({ data, avg, title }: MonthlyHistoryChartPro
             })
         );
 
-        // Eixos
         const xRenderer = am5xy.AxisRendererX.new(root, { minGridDistance: 30 });
+        xRenderer.grid.template.setAll({
+            visible: true,
+            strokeOpacity: 0.15,
+            strokeDasharray: [3, 3],
+            location: 0.5,
+        });
         const xAxis = chart.xAxes.push(
             am5xy.CategoryAxis.new(root, {
                 categoryField: 'month',
-                renderer: xRenderer
+                renderer: xRenderer,
             })
         );
         xAxis.data.setAll(chartData);
 
         const yAxisRenderer = am5xy.AxisRendererY.new(root, {});
         yAxisRenderer.labels.template.set('visible', false);
-        
-        const yAxis = chart.yAxes.push(am5xy.ValueAxis.new(root, {
-            renderer: yAxisRenderer,
-            extraMax: 0.15 // Dá espaço extra no topo para o label não ser cortado
-        }));
 
-        // Série de Barras (Sales)
-        const series = chart.series.push(am5xy.ColumnSeries.new(root, {
-            name: 'Sales',
-            xAxis: xAxis,
-            yAxis: yAxis,
-            valueYField: 'sales',
-            categoryXField: 'month',
-            tooltip: (am5 as any).Tooltip.new(root, {
-                getFillFromSprite: false,
-                labelText: '{categoryX}: [bold]{valueY}[/] sales'
+        const yAxis = chart.yAxes.push(
+            am5xy.ValueAxis.new(root, {
+                renderer: yAxisRenderer,
+                extraMax: 0.15,
             })
-        }));
+        );
+
+        const series = chart.series.push(
+            am5xy.ColumnSeries.new(root, {
+                name: 'Sales',
+                xAxis,
+                yAxis,
+                valueYField: 'sales',
+                categoryXField: 'month',
+                tooltip: (am5 as any).Tooltip.new(root, {
+                    getFillFromSprite: false,
+                    labelText: '{categoryX}: [bold]{valueY}[/] sales',
+                }),
+            })
+        );
 
         series.get('tooltip')?.get('background')?.setAll({
             fill: am5.color('#000000'),
             fillOpacity: 0.9,
             stroke: am5.color('#CE9F48'),
-            strokeWidth: 1
+            strokeWidth: 1,
         });
 
         series.columns.template.setAll({
@@ -86,7 +95,6 @@ export function MonthlyHistoryChart({ data, avg, title }: MonthlyHistoryChartPro
             maxWidth: 40,
         });
 
-        // Adicionar labels no topo das barras
         series.bullets.push(() => {
             const label = am5.Label.new(root, {
                 text: '{valueY}',
@@ -96,10 +104,9 @@ export function MonthlyHistoryChart({ data, avg, title }: MonthlyHistoryChartPro
                 populateText: true,
                 fontSize: 12,
                 fontWeight: 'bold',
-                paddingBottom: 5
+                paddingBottom: 5,
             });
 
-            // Adaptador para esconder labels quando o valor for 0
             label.adapters.add('forceHidden', (hidden: any, target: any) => {
                 const dataItem = target.dataItem;
                 if (dataItem && dataItem.get('valueY') === 0) {
@@ -110,29 +117,37 @@ export function MonthlyHistoryChart({ data, avg, title }: MonthlyHistoryChartPro
 
             return am5.Bullet.new(root, {
                 locationY: 1,
-                sprite: label
+                sprite: label,
             });
         });
 
         series.data.setAll(chartData);
 
-        // Linha de Média Ocultada a pedido do usuário
-        /*
         if (avg > 0) {
             const rangeDataItem = yAxis.makeDataItem({
                 value: avg,
-                endValue: avg
+                endValue: avg,
             });
 
             const range = yAxis.createAxisRange(rangeDataItem);
             range.get('grid')?.setAll({
-                stroke: am5.color('#ff9800'),
+                stroke: am5.color('#CE9F48'),
                 strokeOpacity: 1,
                 strokeWidth: 2,
+                strokeDasharray: [6, 4],
+                interactive: true,
+                tooltipText: `Average: ${formatPlainNumber(avg, 1)}`,
+            });
+
+            range.get('grid')?.get('tooltip')?.get('background')?.setAll({
+                fill: am5.color('#000000'),
+                fillOpacity: 0.9,
+                stroke: am5.color('#CE9F48'),
+                strokeWidth: 1,
             });
 
             range.get('label')?.setAll({
-                text: `MÉDIA: ${avg.toFixed(1)}`,
+                text: `AVG ${formatPlainNumber(avg, 1)}`,
                 inside: true,
                 paddingLeft: 10,
                 paddingRight: 10,
@@ -144,11 +159,10 @@ export function MonthlyHistoryChart({ data, avg, title }: MonthlyHistoryChartPro
                 background: (am5 as any).Rectangle.new(root, {
                     fill: am5.color('#CE9F48'),
                     fillOpacity: 0.8,
-                    cornerRadius: 4
+                    cornerRadius: 4,
                 }),
             });
         }
-        */
 
         chart.appear(1000, 100);
 

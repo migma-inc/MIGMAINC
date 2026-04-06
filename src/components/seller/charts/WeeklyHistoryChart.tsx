@@ -38,38 +38,52 @@ export function WeeklyHistoryChart({ data, title }: WeeklyHistoryChartProps) {
             })
         );
 
-        // Eixos
         const xRenderer = am5xy.AxisRendererX.new(root, { minGridDistance: 30 });
+        xRenderer.grid.template.setAll({
+            visible: true,
+            strokeOpacity: 0.15,
+            strokeDasharray: [3, 3],
+            location: 0.5,
+        });
         const xAxis = chart.xAxes.push(
             am5xy.CategoryAxis.new(root, {
                 categoryField: 'weekLabel',
-                renderer: xRenderer
+                renderer: xRenderer,
             })
         );
         xAxis.data.setAll(data);
 
-        const yAxis = chart.yAxes.push(am5xy.ValueAxis.new(root, {
-            renderer: am5xy.AxisRendererY.new(root, {})
-        }));
-
-        // Série de Barras (Vendas/Valor)
-        const series = chart.series.push(am5xy.ColumnSeries.new(root, {
-            name: 'Net Revenue',
-            xAxis: xAxis,
-            yAxis: yAxis,
-            valueYField: 'revenue',
-            categoryXField: 'weekLabel',
-            tooltip: (am5 as any).Tooltip.new(root, {
-                getFillFromSprite: false,
-                labelText: '{categoryX}: [bold]${valueY}[/]'
+        const yAxisRenderer = am5xy.AxisRendererY.new(root, {});
+        yAxisRenderer.labels.template.setAll({
+            fill: am5.color('#9ca3af'),
+            fontSize: 10,
+        });
+        const yAxis = chart.yAxes.push(
+            am5xy.ValueAxis.new(root, {
+                renderer: yAxisRenderer,
+                numberFormat: '#,###.##',
             })
-        }));
+        );
+
+        const series = chart.series.push(
+            am5xy.ColumnSeries.new(root, {
+                name: 'Net Revenue',
+                xAxis,
+                yAxis,
+                valueYField: 'revenue',
+                categoryXField: 'weekLabel',
+                tooltip: (am5 as any).Tooltip.new(root, {
+                    getFillFromSprite: false,
+                    labelText: '{categoryX}: [bold]{valueY.formatNumber("#,###.##")}[/]',
+                }),
+            })
+        );
 
         series.get('tooltip')?.get('background')?.setAll({
             fill: am5.color('#000000'),
             fillOpacity: 0.9,
             stroke: am5.color('#CE9F48'),
-            strokeWidth: 1
+            strokeWidth: 1,
         });
 
         series.columns.template.setAll({
@@ -77,19 +91,18 @@ export function WeeklyHistoryChart({ data, title }: WeeklyHistoryChartProps) {
             cornerRadiusTL: 6,
             cornerRadiusTR: 6,
             width: am5.percent(60),
-            fill: am5.color('#4A90E2') // Azul conforme imagem do Excel
+            fill: am5.color('#4A90E2'),
         });
 
-        // Adicionar labels no topo das barras
         series.bullets.push(() => {
             const label = am5.Label.new(root, {
-                text: '[bold]${valueY}[/]',
+                text: '[bold]{valueY.formatNumber("#,###.##")}[/]',
                 fill: am5.color('#ffffff'),
                 centerY: am5.p100,
                 centerX: am5.p50,
                 populateText: true,
                 fontSize: 12,
-                paddingBottom: 5
+                paddingBottom: 5,
             });
 
             label.adapters.add('forceHidden', (hidden: any, target: any) => {
@@ -102,7 +115,7 @@ export function WeeklyHistoryChart({ data, title }: WeeklyHistoryChartProps) {
 
             return am5.Bullet.new(root, {
                 locationY: 1,
-                sprite: label
+                sprite: label,
             });
         });
 

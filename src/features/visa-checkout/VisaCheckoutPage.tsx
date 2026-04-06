@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useSearchParams, Link } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import { isParcelowMethod } from './types/form.types';
@@ -37,6 +37,7 @@ export const VisaCheckoutPage: React.FC = () => {
 
     const [product, setProduct] = useState<VisaProduct | null>(null);
     const [loading, setLoading] = useState(true);
+    const checkoutButtonRef = useRef<HTMLDivElement | null>(null);
 
     // 1. Inicializar estado central
     const { state, actions } = useVisaCheckoutForm();
@@ -123,9 +124,13 @@ export const VisaCheckoutPage: React.FC = () => {
         loadProduct();
     }, [productSlug, effectiveSellerId]);
 
-    // Calcular passo exibido para o StepIndicator se for consulta comum
-    const displayStep = (productSlug === 'consultation-common' && state.currentStep === 3) ? 2 : state.currentStep;
-    const totalStepsCount = productSlug === 'consultation-common' ? 2 : 3;
+    // Calcular passo exibido para o StepIndicator
+    // Pulamos o Passo 2 (Documentos) para consultas comuns e para TODAS as parcelas recorrentes (EB-3, EB-2, Scholarship, Billing Tokens)
+    const isInstallment = !!state.eb3ScheduleId || !!state.eb2ScheduleId || !!state.scholarshipScheduleId || !!state.billingInstallmentId;
+    const isSpecialFlow = productSlug === 'consultation-common' || isInstallment;
+    
+    const displayStep = (isSpecialFlow && state.currentStep === 3) ? 2 : state.currentStep;
+    const totalStepsCount = isSpecialFlow ? 2 : 3;
 
     // Auto-scroll on step change
     useEffect(() => {
@@ -140,6 +145,13 @@ export const VisaCheckoutPage: React.FC = () => {
             window.scrollTo({ top: 0, behavior: 'smooth' });
         }
     }, [state.error]);
+
+    const scrollToCheckout = () => {
+        checkoutButtonRef.current?.scrollIntoView({
+            behavior: 'smooth',
+            block: 'center',
+        });
+    };
 
     if (loading || isLoadingPrefill) {
         return (
@@ -208,14 +220,18 @@ export const VisaCheckoutPage: React.FC = () => {
 
                 <div className="grid grid-cols-1 lg:grid-cols-5 gap-8 items-start">
                     <main className="lg:col-span-3 space-y-6">
-                        {((state.currentStep === 1 || state.currentStep === 2) && state.eb3ScheduleId) && (
+                        {((state.currentStep === 1 || state.currentStep === 2) && (state.eb3ScheduleId || state.eb2ScheduleId || state.scholarshipScheduleId)) && (
                             <div className="bg-zinc-900/50 border border-gold-medium/20 rounded-xl p-6 space-y-4 animate-in fade-in slide-in-from-top-4 duration-500">
                                 <div className="flex justify-between items-start">
                                     <div>
-                                        <h2 className="text-gold-light font-bold text-lg">EB-3 Installment Details</h2>
+                                        <h2 className="text-gold-light font-bold text-lg">
+                                            {state.eb2ScheduleId ? 'EB-2 Installment Details' : 
+                                             state.scholarshipScheduleId ? 'Scholarship Maintenance Details' : 
+                                             'EB-3 Installment Details'}
+                                        </h2>
                                         <p className="text-gray-400 text-sm">Maintenance Plan - Installment Payment</p>
                                     </div>
-                                    {state.eb3LateFee > 0 && (
+                                    {(state.eb3LateFee > 0 || state.eb2LateFee > 0 || state.scholarshipLateFee > 0) && (
                                         <span className="bg-red-500/20 text-red-400 text-xs font-bold px-2 py-1 rounded border border-red-500/30">
                                             OVERDUE
                                         </span>
@@ -224,12 +240,12 @@ export const VisaCheckoutPage: React.FC = () => {
                                 <div className="pt-2 space-y-3 border-t border-white/5">
                                     <div className="flex justify-between items-center text-sm">
                                         <span className="text-gray-400">Installment Amount:</span>
-                                        <span className="text-white">US$ {(state.customAmount! - state.eb3LateFee).toFixed(2)}</span>
+                                        <span className="text-white">US$ {(state.customAmount! - (state.eb3LateFee + state.eb2LateFee + state.scholarshipLateFee)).toFixed(2)}</span>
                                     </div>
-                                    {state.eb3LateFee > 0 && (
+                                    {(state.eb3LateFee > 0 || state.eb2LateFee > 0 || state.scholarshipLateFee > 0) && (
                                         <div className="flex justify-between items-center text-sm">
                                             <span className="text-red-400">Late Fee:</span>
-                                            <span className="text-red-400 font-bold">+ US$ {state.eb3LateFee.toFixed(2)}</span>
+                                            <span className="text-red-400 font-bold">+ US$ {(state.eb3LateFee + state.eb2LateFee + state.scholarshipLateFee).toFixed(2)}</span>
                                         </div>
                                     )}
                                     <div className="flex justify-between items-center pt-2 border-t border-white/5 text-lg font-bold">
@@ -240,7 +256,7 @@ export const VisaCheckoutPage: React.FC = () => {
                             </div>
                         )}
 
-                        {((state.currentStep === 1 || state.currentStep === 2) && !state.eb3ScheduleId) && (
+                        {((state.currentStep === 1 || state.currentStep === 2) && !state.eb3ScheduleId && !state.eb2ScheduleId && !state.scholarshipScheduleId) && (
                             <div className="bg-zinc-900/50 border border-gold-medium/20 rounded-xl p-6 space-y-4 animate-in fade-in slide-in-from-top-4 duration-500">
                                 <h2 className="text-gold-light font-bold text-lg">{t('checkout.product_details', 'Product Details')}</h2>
                                 <div>
@@ -281,6 +297,7 @@ export const VisaCheckoutPage: React.FC = () => {
                                     onPrev={handlePrev}
                                     productSlug={productSlug}
                                     totalAmount={totalWithFees}
+                                    onScrollToCheckout={scrollToCheckout}
                                 />
                             </div>
                         )}
@@ -293,6 +310,7 @@ export const VisaCheckoutPage: React.FC = () => {
                                 extraUnits={state.extraUnits}
                                 totalWithFees={totalWithFees}
                                 paymentMethod={state.paymentMethod}
+                                splitPaymentConfig={state.splitPaymentConfig}
                                 showPaymentButton={true}
                                 isSubmitting={state.submitting}
                                 isPaymentReady={
@@ -338,6 +356,7 @@ export const VisaCheckoutPage: React.FC = () => {
                                 upsellPrice={upsellPrice}
                                 discountAmount={discountAmount}
                                 appliedCouponCode={state.appliedCoupon?.code}
+                                checkoutButtonRef={checkoutButtonRef}
                             />
                         </aside>
                     )}

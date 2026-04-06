@@ -7,6 +7,7 @@ interface ComparisonCardProps {
   previousValue: number;
   formatValue?: (value: number) => string;
   icon?: React.ReactNode;
+  className?: string;
 }
 
 export function ComparisonCard({ 
@@ -14,7 +15,8 @@ export function ComparisonCard({
   currentValue, 
   previousValue, 
   formatValue = (v) => v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
-  icon 
+  icon,
+  className = '',
 }: ComparisonCardProps) {
   const change = previousValue === 0 
     ? (currentValue > 0 ? 100 : 0)
@@ -30,7 +32,7 @@ export function ComparisonCard({
   const borderColor = isPositive ? 'border-green-500/30' : isNegative ? 'border-red-500/30' : 'border-gray-500/30';
 
   return (
-    <Card className={`bg-gradient-to-br ${bgColor} via-gold-medium/5 to-gold-dark/10 border ${borderColor} shadow-lg shadow-black/20 overflow-hidden`}>
+    <Card className={`bg-gradient-to-br ${bgColor} via-gold-medium/5 to-gold-dark/10 border ${borderColor} shadow-lg shadow-black/20 overflow-hidden ${className}`}>
       <CardContent className="p-3 sm:p-5 lg:p-6">
         <div className="flex items-center justify-between">
           <div className="flex-1 min-w-0">

@@ -17,8 +17,8 @@ export type PeriodOption =
   | 'custom';
 
 export interface CustomDateRange {
-  start: string; // ISO date string (YYYY-MM-DD)
-  end: string;   // ISO date string (YYYY-MM-DD)
+  start: string;
+  end: string;
 }
 
 interface PeriodFilterProps {
@@ -28,7 +28,37 @@ interface PeriodFilterProps {
   className?: string;
   customDateRange?: CustomDateRange;
   onCustomDateRangeChange?: (range: CustomDateRange) => void;
+  locale?: 'pt' | 'en';
 }
+
+const LABELS = {
+  pt: {
+    period: 'Per?odo:',
+    allTime: 'Acumulado',
+    thisMonth: 'Este m?s',
+    lastMonth: 'M?s passado',
+    last7Days: '?ltimos 7 dias',
+    last30Days: '?ltimos 30 dias',
+    last3Months: '?ltimos 3 meses',
+    last6Months: '?ltimos 6 meses',
+    lastYear: '?ltimo ano',
+    customPeriod: 'Per?odo customizado',
+    selectPeriod: 'Selecione o per?odo:',
+  },
+  en: {
+    period: 'Period:',
+    allTime: 'All Time',
+    thisMonth: 'This Month',
+    lastMonth: 'Last Month',
+    last7Days: 'Last 7 Days',
+    last30Days: 'Last 30 Days',
+    last3Months: 'Last 3 Months',
+    last6Months: 'Last 6 Months',
+    lastYear: 'Last Year',
+    customPeriod: 'Custom Period',
+    selectPeriod: 'Select period:',
+  },
+} as const;
 
 export function PeriodFilter({
   value,
@@ -36,35 +66,38 @@ export function PeriodFilter({
   showLabel = true,
   className,
   customDateRange,
-  onCustomDateRangeChange
+  onCustomDateRangeChange,
+  locale = 'pt',
 }: PeriodFilterProps) {
   const [localCustomRange, setLocalCustomRange] = useState<CustomDateRange>(() => {
     if (customDateRange) {
       return customDateRange;
     }
-    // Default: últimos 30 dias
+
     const end = new Date();
     const start = new Date();
     start.setDate(start.getDate() - 30);
+
     return {
       start: start.toISOString().split('T')[0],
       end: end.toISOString().split('T')[0],
     };
   });
 
-  // Sincronizar com prop externa quando mudar
   useEffect(() => {
     if (customDateRange) {
       setLocalCustomRange(customDateRange);
     }
   }, [customDateRange]);
 
+  const labels = LABELS[locale];
+
   return (
     <div className={`flex flex-col gap-3 ${className || ''}`}>
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3">
         {showLabel && (
           <Label htmlFor="period-filter" className="text-white text-xs sm:text-sm whitespace-nowrap">
-            Período:
+            {labels.period}
           </Label>
         )}
         <Select
@@ -78,27 +111,27 @@ export function PeriodFilter({
             <SelectValue />
           </SelectTrigger>
           <SelectContent className="bg-zinc-950 border-zinc-800 text-white">
-            <SelectItem value="all_time" className="font-semibold text-gold-medium">Acumulado</SelectItem>
-            <SelectItem value="thismonth">Este mês</SelectItem>
-            <SelectItem value="lastmonth">Mês passado</SelectItem>
-            <SelectItem value="last7days">Últimos 7 dias</SelectItem>
-            <SelectItem value="last30days">Últimos 30 dias</SelectItem>
-            <SelectItem value="last3months">Últimos 3 meses</SelectItem>
-            <SelectItem value="last6months">Últimos 6 meses</SelectItem>
-            <SelectItem value="lastyear">Último ano</SelectItem>
-            <SelectItem value="custom" className="border-t border-zinc-800 mt-1 pt-1">Período customizado</SelectItem>
+            <SelectItem value="all_time" className="font-semibold text-gold-medium">{labels.allTime}</SelectItem>
+            <SelectItem value="thismonth">{labels.thisMonth}</SelectItem>
+            <SelectItem value="lastmonth">{labels.lastMonth}</SelectItem>
+            <SelectItem value="last7days">{labels.last7Days}</SelectItem>
+            <SelectItem value="last30days">{labels.last30Days}</SelectItem>
+            <SelectItem value="last3months">{labels.last3Months}</SelectItem>
+            <SelectItem value="last6months">{labels.last6Months}</SelectItem>
+            <SelectItem value="lastyear">{labels.lastYear}</SelectItem>
+            <SelectItem value="custom" className="border-t border-zinc-800 mt-1 pt-1">{labels.customPeriod}</SelectItem>
           </SelectContent>
         </Select>
       </div>
 
-      {/* Calendário de seleção de período customizado */}
       {value === 'custom' && (
         <div className="p-3 bg-black/20 rounded-lg border border-gold-medium/20">
           <Label className="text-white text-xs sm:text-sm mb-2 block">
-            Selecione o período:
+            {labels.selectPeriod}
           </Label>
           <DateRangePicker
             dateRange={localCustomRange}
+            locale={locale}
             onDateRangeChange={(range) => {
               setLocalCustomRange(range);
               if (onCustomDateRangeChange) {
@@ -111,4 +144,3 @@ export function PeriodFilter({
     </div>
   );
 }
-
