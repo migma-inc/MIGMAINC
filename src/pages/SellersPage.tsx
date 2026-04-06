@@ -572,6 +572,7 @@ export const SellersPage = () => {
                   customDateRange={customDateRange}
                   onCustomDateRangeChange={setCustomDateRange}
                   showLabel={true}
+                  locale="en"
                 />
               </div>
 
@@ -580,7 +581,7 @@ export const SellersPage = () => {
               <div className="flex items-center justify-between gap-2 px-1 sm:px-0">
                 <div className="flex items-center gap-1.5">
                   <Label htmlFor="granularity" className="text-gray-500 text-[9px] uppercase font-black tracking-widest whitespace-nowrap">
-                    Agrupar:
+                    Group by:
                   </Label>
                   <Select
                     value={granularity}
@@ -593,9 +594,9 @@ export const SellersPage = () => {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent className="bg-zinc-900 border-gold-medium/30 text-white">
-                      <SelectItem value="day">Diário</SelectItem>
-                      <SelectItem value="week">Semanal</SelectItem>
-                      <SelectItem value="month">Mensal</SelectItem>
+                      <SelectItem value="day">Daily</SelectItem>
+                      <SelectItem value="week">Weekly</SelectItem>
+                      <SelectItem value="month">Monthly</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -609,7 +610,7 @@ export const SellersPage = () => {
                       className="h-3 w-3 border-gold-medium/30 data-[state=checked]:bg-gold-medium data-[state=checked]:text-black"
                     />
                     <Label htmlFor="comparison" className="text-gray-500 text-[9px] uppercase font-black tracking-widest cursor-pointer whitespace-nowrap">
-                      Comparar
+                      Compare
                     </Label>
                   </div>
                 </div>
@@ -656,7 +657,7 @@ export const SellersPage = () => {
                   variant="purple"
                 />
                 <HorizontalStatBar
-                  title="Comissão (%)"
+                  title="Commission Rate"
                   value={`${(globalAnalyticsData.commissionSummary?.commissionRate || 0).toFixed(2)}%`}
                   icon={TrendingUp}
                   variant="blue"
@@ -967,7 +968,7 @@ export const SellersPage = () => {
                         <div className="flex items-center justify-between gap-1.5 mb-1">
                           <div className="flex items-center gap-1.5 text-gray-500">
                             <Coins className="w-3 h-3 text-purple-300" />
-                            <span className="text-[9px] sm:text-sm font-black uppercase tracking-widest">Comissão</span>
+                            <span className="text-[9px] sm:text-sm font-black uppercase tracking-widest">Commission</span>
                           </div>
                           {enableComparison && stats.previousTotalCommissions > 0 && (
                             <div className={`flex items-center gap-0.5 text-[8px] font-black ${stats.totalCommissions >= stats.previousTotalCommissions ? 'text-purple-300' : 'text-red-400'}`}>
@@ -1141,11 +1142,11 @@ export const SellersPage = () => {
 
                                   <div className="py-2 border-y border-white/5 flex items-center justify-between gap-4">
                                     <div className="min-w-0 flex-1">
-                                      <p className="text-[8px] text-gray-500 uppercase font-black mb-0.5 opacity-60">Produto</p>
+                                      <p className="text-[8px] text-gray-500 uppercase font-black mb-0.5 opacity-60">Product</p>
                                       <p className="text-white text-[10px] font-medium truncate leading-tight uppercase">{getProductName(order.product_slug)}</p>
                                     </div>
                                     <div className="text-right shrink-0">
-                                      <p className="text-[8px] text-gray-500 uppercase font-black mb-0.5 opacity-60">Líquido</p>
+                                      <p className="text-[8px] text-gray-500 uppercase font-black mb-0.5 opacity-60">Net</p>
                                       <p className="text-gold-light text-[11px] font-black leading-tight">{formatCurrency(netAmount)}</p>
                                     </div>
                                   </div>
@@ -1162,7 +1163,7 @@ export const SellersPage = () => {
                                         className="h-7 border-gold-medium/30 bg-black/50 text-gold-light hover:bg-gold-medium text-[9px] font-black uppercase tracking-widest px-2.5"
                                       >
                                         <Eye className="w-3 h-3 mr-1" />
-                                        Detalhes
+                                        View
                                       </Button>
                                     </Link>
                                   </div>

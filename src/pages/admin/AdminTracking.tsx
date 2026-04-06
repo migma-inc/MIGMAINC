@@ -2,16 +2,23 @@ import { useState, useEffect } from 'react';
 import {
   Activity,
   Search,
-  Clock,
   AlertCircle,
-  CheckCircle2,
-  Circle,
 } from 'lucide-react';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
+import { 
+  Calendar,
+  DollarSign,
+  TrendingUp,
+  Users,
+  Loader2, 
+  ChevronLeft,
+  ChevronRight
+} from 'lucide-react';
 
 interface TrackingStep {
   label: string;
@@ -19,6 +26,16 @@ interface TrackingStep {
   status: 'paid' | 'pending';
   paid_at: string | null;
 }
+
+/*
+- [x] Add `CustomSwitch` component and pagination states to `AdminTracking.tsx`
+- [x] Implement 4 colorful gradient stats cards
+- [x] Implement pill-style filter buttons
+- [x] Replace grid/card view with a Unified Table View (Desktop & Mobile-optimized)
+- [x] Implement pagination logic (15 items per page)
+- [x] Add pagination controls (Prev/Next/Dots)
+- [x] Final UI polish and verification
+*/
 
 interface TrackingJourney {
   client_email: string;
@@ -75,7 +92,15 @@ export function AdminTracking() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [journeys, setJourneys] = useState<TrackingJourney[]>([]);
-  const [stats, setStats] = useState({ total: 0, incomplete: 0, complete: 0 });
+  const [stats, setStats] = useState({ 
+    total: 0, 
+    incomplete: 0, 
+    complete: 0,
+    paid_today: 0 
+  });
+  const [filterStatus, setFilterStatus] = useState<string>('all');
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 15;
 
   useEffect(() => {
     async function load() {
@@ -180,6 +205,13 @@ export function AdminTracking() {
           return new Date(b.last_activity).getTime() - new Date(a.last_activity).getTime();
         });
 
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        const paidTodayItems = result.filter(j => 
+          j.steps.some(s => s.status === 'paid' && s.paid_at && new Date(s.paid_at) >= today)
+        ).length;
+
         const complete = result.filter(j => j.paid_count === j.total_steps).length;
 
         setJourneys(result);
@@ -187,6 +219,7 @@ export function AdminTracking() {
           total: result.length,
           incomplete: result.length - complete,
           complete,
+          paid_today: paidTodayItems
         });
       } catch (err) {
         console.error('[Tracking] Unexpected error:', err);
@@ -198,170 +231,239 @@ export function AdminTracking() {
     load();
   }, []);
 
-  const filtered = journeys.filter(j =>
-    j.client_email.toLowerCase().includes(search.toLowerCase()) ||
-    j.client_name.toLowerCase().includes(search.toLowerCase()) ||
-    j.seller_name.toLowerCase().includes(search.toLowerCase())
-  );
+  // Final filtering logic
+  const filteredData = journeys.filter(j => {
+    const matchesSearch = j.client_email.toLowerCase().includes(search.toLowerCase()) ||
+                         j.client_name.toLowerCase().includes(search.toLowerCase()) ||
+                         j.seller_name.toLowerCase().includes(search.toLowerCase());
+    if (!matchesSearch) return false;
+
+    if (filterStatus === 'all') return true;
+    if (filterStatus === 'on-track') return j.paid_count > 0 && j.paid_count < j.total_steps;
+    if (filterStatus === 'abandoned') return j.paid_count === 0;
+    if (filterStatus === 'completed') return j.paid_count === j.total_steps;
+    return true;
+  });
+
+  const totalPages = Math.ceil(filteredData.length / pageSize);
+  const currentData = filteredData.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+
+  const getStatusBadge = (journey: TrackingJourney) => {
+    if (journey.paid_count === journey.total_steps) {
+        return { label: 'Completed', className: 'bg-green-500/20 text-green-400 border-green-500/50' };
+    }
+    if (journey.paid_count === 0) {
+        return { label: 'Abandoned', className: 'bg-red-500/20 text-red-400 border-red-500/50' };
+    }
+    return { label: 'On Track', className: 'bg-blue-500/20 text-blue-400 border-blue-500/50' };
+  };
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 space-y-6">
+    <div className="p-6 max-w-7xl mx-auto space-y-6">
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-black text-white tracking-tight flex items-center gap-3">
+          <h1 className="text-2xl sm:text-3xl font-bold text-white mb-2 uppercase tracking-tight flex items-center gap-3">
             <Activity className="w-8 h-8 text-gold-medium" />
-            PAYMENT JOURNEY TRACKING
+            Payment Journey Tracking
           </h1>
-          <p className="text-gray-400 mt-1 font-medium italic">
-            Monitor which clients have pending steps in their journey.
-          </p>
+          <p className="text-gray-400 text-sm sm:text-base">Monitor checkout progress and service lifecycle across all programs.</p>
         </div>
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
-          <Input
-            placeholder="Search client or seller..."
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            className="bg-black/40 border-white/10 pl-10 w-full md:w-[300px] text-white"
-          />
+        <div className="flex flex-col sm:flex-row items-center gap-3 w-full sm:w-auto">
+          <div className="relative w-full sm:w-[300px]">
+             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+             <Input 
+                placeholder="Search lead or seller..." 
+                value={search}
+                onChange={e => { setSearch(e.target.value); setCurrentPage(1); }}
+                className="bg-black/40 border-white/10 pl-10 w-full text-white"
+             />
+          </div>
+          <Button
+            onClick={() => window.location.reload()}
+            variant="outline"
+            className="gap-2 w-full sm:w-auto border-gray-700 bg-transparent hover:bg-white/10 text-white"
+          >
+            <Loader2 className="w-4 h-4" /> Refresh List
+          </Button>
         </div>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      {/* Stats Cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         {[
-          { label: 'Total Journeys',    value: stats.total,      color: 'text-gold-light',  Icon: Activity },
-          { label: 'Pending Steps',     value: stats.incomplete, color: 'text-red-400',     Icon: AlertCircle },
-          { label: 'Fully Complete',    value: stats.complete,   color: 'text-green-400',   Icon: CheckCircle2 },
-        ].map(({ label, value, color, Icon }) => (
-          <div key={label} className="bg-black/40 border border-white/5 p-6 rounded-2xl flex items-center justify-between group hover:border-gold-medium/20 transition-all">
-            <div>
-              <p className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1">{label}</p>
-              <h3 className={cn('text-3xl font-black', color)}>{value}</h3>
-            </div>
-            <div className="p-4 bg-white/5 rounded-2xl group-hover:scale-110 transition-all">
-              <Icon className={cn('w-6 h-6', color)} />
-            </div>
-          </div>
+          { label: 'Active Leads', value: stats.total, color: 'border-blue-500/30 from-blue-500/10 to-blue-600/5', icon: Users, iconColor: 'text-blue-400' },
+          { label: 'Abandoned 24h', value: stats.incomplete, color: 'border-red-500/30 from-red-500/10 to-red-600/5', icon: TrendingUp, iconColor: 'text-red-400' },
+          { label: 'Paid Today', value: stats.paid_today, color: 'border-green-500/30 from-green-500/10 to-green-600/5', icon: DollarSign, iconColor: 'text-green-400' },
+          { label: 'Conversions', value: stats.complete, color: 'border-gold-medium/30 from-gold-light/10 to-gold-dark/5', icon: Calendar, iconColor: 'text-gold-light' },
+        ].map((stat, i) => (
+          <Card key={i} className={cn("bg-gradient-to-br border", stat.color)}>
+             <CardHeader className="pb-1.5 p-3 sm:p-6 sm:pb-2">
+                <CardTitle className="text-[10px] sm:text-sm font-medium text-gray-400 flex items-center gap-1.5">
+                   <stat.icon className={cn("w-3.5 h-3.5 sm:w-4 h-4", stat.iconColor)} />
+                   {stat.label}
+                </CardTitle>
+             </CardHeader>
+             <CardContent className="p-3 sm:p-6 pt-0 sm:pt-0">
+                <div className="text-xl sm:text-3xl font-bold text-white">{stat.value}</div>
+             </CardContent>
+          </Card>
         ))}
       </div>
 
-      {/* Journey List */}
-      <div className="space-y-4">
-        {loading ? (
-          <div className="text-center py-20 text-gray-500 font-bold animate-pulse">
-            Loading journey data...
-          </div>
-        ) : filtered.length === 0 ? (
-          <div className="text-center py-20 bg-black/20 rounded-2xl border border-dashed border-white/10 text-gray-600">
-            No journeys found.
-          </div>
-        ) : (
-          filtered.map((journey, idx) => {
-            const isComplete = journey.paid_count === journey.total_steps;
-            const progress = (journey.paid_count / journey.total_steps) * 100;
-
-            return (
-              <Card key={idx} className="bg-black/40 border-white/5 hover:border-gold-medium/20 transition-all overflow-hidden">
-                <CardContent className="p-0">
-                  <div className="flex flex-col lg:flex-row">
-
-                    {/* Client Info */}
-                    <div className="p-6 lg:w-[28%] border-b lg:border-b-0 lg:border-r border-white/5 bg-white/[0.01]">
-                      <div className="flex items-start justify-between">
-                        <div className="space-y-1">
-                          <Badge className={cn(
-                            'border-none text-[9px] font-black uppercase mb-2',
-                            isComplete ? 'bg-green-500/20 text-green-400' : 'bg-gold-medium text-black'
-                          )}>
-                            {journey.journey_name}
-                          </Badge>
-                          <h4 className="text-lg font-black text-white leading-tight uppercase truncate max-w-[200px]">
-                            {journey.client_name}
-                          </h4>
-                          <p className="text-xs text-gray-500 font-mono italic">{journey.client_email}</p>
-                        </div>
-                        <div className="w-10 h-10 rounded-full bg-gold-medium/10 flex items-center justify-center text-gold-medium font-black border border-gold-medium/20 shrink-0">
-                          {journey.client_name[0]?.toUpperCase()}
-                        </div>
-                      </div>
-
-                      <div className="mt-6 pt-6 border-t border-white/5 flex items-center justify-between text-[9px] font-bold text-gray-500 uppercase tracking-widest">
-                        <div className="flex flex-col">
-                          <span>Seller</span>
-                          <span className="text-white mt-1">{journey.seller_name}</span>
-                        </div>
-                        <div className="flex flex-col text-right">
-                          <span>Last Payment</span>
-                          <div className="flex items-center gap-1.5 text-gray-400 mt-1">
-                            <Clock className="w-3 h-3" />
-                            <span>{new Date(journey.last_activity).toLocaleDateString()}</span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Steps Progress */}
-                    <div className="p-6 lg:flex-1 flex flex-col justify-center bg-black/20">
-                      <div className="flex items-center justify-between mb-8">
-                        <h5 className="text-[10px] font-black text-gray-500 uppercase tracking-[0.3em]">
-                          Journey Progress
-                        </h5>
-                        <div className="flex items-center gap-2">
-                          <div className="h-1.5 w-24 bg-white/5 rounded-full overflow-hidden">
-                            <div
-                              className={cn('h-full transition-all', isComplete ? 'bg-green-500' : 'bg-gold-medium')}
-                              style={{ width: `${progress}%` }}
-                            />
-                          </div>
-                          <span className={cn('text-[10px] font-black', isComplete ? 'text-green-400' : 'text-gold-medium')}>
-                            {journey.paid_count}/{journey.total_steps} PAID
-                          </span>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center justify-between relative px-4">
-                        <div className="absolute top-5 left-0 w-full h-[1px] bg-white/5 z-0" />
-
-                        {journey.steps.map((step, i) => (
-                          <div key={i} className="relative z-10 flex flex-col items-center gap-3">
-                            <div className={cn(
-                              'w-10 h-10 rounded-full flex items-center justify-center transition-all border-2',
-                              step.status === 'paid'
-                                ? 'bg-green-500/20 border-green-500 text-green-500 shadow-[0_0_15px_rgba(34,197,94,0.2)]'
-                                : 'bg-zinc-900 border-white/10 text-gray-600'
-                            )}>
-                              {step.status === 'paid'
-                                ? <CheckCircle2 className="w-5 h-5" />
-                                : <Circle className="w-4 h-4" />
-                              }
-                            </div>
-                            <div className="flex flex-col items-center gap-0.5">
-                              <span className={cn(
-                                'text-[8px] font-black uppercase tracking-widest text-center',
-                                step.status === 'paid' ? 'text-green-500' : 'text-gray-600'
-                              )}>
-                                {step.label}
-                              </span>
-                              {step.paid_at && (
-                                <span className="text-[8px] text-gray-600 font-mono">
-                                  {new Date(step.paid_at).toLocaleDateString()}
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          })
-        )}
+      {/* Filters (Pills) */}
+      <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
+        {[
+          { id: 'all', label: 'All' },
+          { id: 'on-track', label: 'On Track' },
+          { id: 'abandoned', label: 'Abandoned' },
+          { id: 'completed', label: 'Completed' },
+        ].map(filter => (
+          <Button
+            key={filter.id}
+            variant={filterStatus === filter.id ? 'default' : 'outline'}
+            onClick={() => { setFilterStatus(filter.id); setCurrentPage(1); }}
+            className={cn(
+              "text-xs sm:text-sm whitespace-nowrap px-6 rounded-full h-9",
+              filterStatus === filter.id 
+                ? "bg-gold-medium hover:bg-gold-dark text-black border-none" 
+                : "border-white/10 bg-black/40 text-gray-400 hover:bg-white/5"
+            )}
+          >
+            {filter.label}
+          </Button>
+        ))}
       </div>
+
+      {/* Main Table View */}
+      <Card className="bg-gradient-to-br from-gold-light/5 via-transparent to-gold-dark/5 border border-white/5">
+        <CardContent className="p-0">
+          {loading ? (
+            <div className="flex justify-center items-center py-20">
+               <Loader2 className="w-10 h-10 animate-spin text-gold-medium" />
+            </div>
+          ) : currentData.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-20 text-gray-500">
+               <AlertCircle className="w-12 h-12 mb-4 opacity-20" />
+               <p className="text-lg font-medium">No leads found in this category.</p>
+            </div>
+          ) : (
+            <>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left">
+                  <thead>
+                    <tr className="border-b border-white/5 text-[11px] font-black uppercase text-gray-500 tracking-[0.2em]">
+                      <th className="px-6 py-4">Client</th>
+                      <th className="px-6 py-4">Journey</th>
+                      <th className="px-6 py-4">Progress</th>
+                      <th className="px-6 py-4">Last Payment</th>
+                      <th className="px-6 py-4">Seller</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-white/5">
+                    {currentData.map((journey, i) => {
+                      const status = getStatusBadge(journey);
+                      const progress = (journey.paid_count / journey.total_steps) * 100;
+                      
+                      return (
+                        <tr key={i} className="group hover:bg-white/[0.02] transition-colors">
+                          <td className="px-6 py-5">
+                            <div className="flex flex-col">
+                              <span className="text-white font-bold uppercase text-sm tracking-tight">{journey.client_name}</span>
+                              <span className="text-[10px] text-gray-500 font-mono italic">{journey.client_email}</span>
+                            </div>
+                          </td>
+                          <td className="px-6 py-5">
+                             <div className="flex flex-col gap-1.5">
+                               <Badge className={cn("w-fit text-[9px] font-black uppercase rounded-sm border-none", status.className)}>
+                                 {status.label}
+                               </Badge>
+                               <span className="text-[10px] text-gray-400 font-medium uppercase tracking-tighter">{journey.journey_name}</span>
+                             </div>
+                          </td>
+                          <td className="px-6 py-5">
+                            <div className="flex flex-col gap-1.5 min-w-[120px]">
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs text-white font-black">{journey.paid_count}/{journey.total_steps}</span>
+                                <span className="text-[9px] text-gray-600 uppercase font-bold tracking-tighter">steps</span>
+                              </div>
+                              <div className="w-full bg-white/5 h-1 rounded-full overflow-hidden">
+                                <div 
+                                  className={cn("h-full transition-all duration-500", progress === 100 ? "bg-green-500" : "bg-gold-medium")} 
+                                  style={{ width: `${progress}%` }} 
+                                />
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-6 py-5 text-gray-400 text-xs font-mono">
+                            {new Date(journey.last_activity).toLocaleDateString()}
+                          </td>
+                          <td className="px-6 py-5 text-gray-400 text-xs uppercase font-bold tracking-tighter">
+                            {journey.seller_name}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Pagination Controls */}
+              <div className="p-4 border-t border-white/5 flex items-center justify-between">
+                <p className="text-[10px] uppercase font-black text-gray-600 tracking-widest">
+                  Showing {((currentPage - 1) * pageSize) + 1} to {Math.min(currentPage * pageSize, filteredData.length)} of {filteredData.length} leads
+                </p>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                    disabled={currentPage === 1}
+                    className="h-8 w-8 border-white/10 bg-black/40 text-gray-400 hover:bg-white/5 disabled:opacity-30"
+                  >
+                    <ChevronLeft className="w-4 h-4" />
+                  </Button>
+                  
+                  {Array.from({ length: totalPages }).map((_, i) => {
+                     const page = i + 1;
+                     // Only show neighbors of current page
+                     if (page === 1 || page === totalPages || (page >= currentPage - 1 && page <= currentPage + 1)) {
+                        return (
+                          <Button
+                            key={page}
+                            onClick={() => setCurrentPage(page)}
+                            className={cn(
+                              "h-8 w-8 text-[11px] font-black rounded-lg",
+                              currentPage === page 
+                               ? "bg-gold-medium text-black border-none" 
+                               : "bg-transparent text-gray-500 border border-white/5 hover:border-white/10 hover:text-white"
+                            )}
+                          >
+                            {page}
+                          </Button>
+                        );
+                     }
+                     if (page === currentPage - 2 || page === currentPage + 2) {
+                        return <span key={page} className="text-gray-700 font-bold p-1">...</span>;
+                     }
+                     return null;
+                  })}
+
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                    disabled={currentPage === totalPages}
+                    className="h-8 w-8 border-white/10 bg-black/40 text-gray-400 hover:bg-white/5 disabled:opacity-30"
+                  >
+                    <ChevronRight className="w-4 h-4" />
+                  </Button>
+                </div>
+              </div>
+            </>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

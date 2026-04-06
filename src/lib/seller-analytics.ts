@@ -114,6 +114,87 @@ export interface TeamYearlyAnalytics {
   monthlyRankings: { [monthIdx: number]: TeamMemberPerformance[] };
 }
 
+async function getCommissionNetAmountMap(orderIds: string[]): Promise<Map<string, number>> {
+  const validOrderIds = [...new Set(orderIds.filter(Boolean))];
+
+  if (validOrderIds.length === 0) {
+    return new Map();
+  }
+
+  const { data, error } = await supabase
+    .from('seller_commissions')
+    .select('order_id, net_amount_usd')
+    .in('order_id', validOrderIds);
+
+  if (error) {
+    console.error('[Analytics] Error fetching commission net amounts:', error);
+    return new Map();
+  }
+
+  return new Map(
+    (data || []).map((commission) => [
+      commission.order_id,
+      parseFloat(commission.net_amount_usd || '0'),
+    ])
+  );
+}
+
+function getOrderRevenueAmount(
+  order: any,
+  commissionNetAmountMap?: Map<string, number>
+): number {
+  const commissionBackedAmount = commissionNetAmountMap?.get(order.id);
+
+  if (typeof commissionBackedAmount === 'number' && !Number.isNaN(commissionBackedAmount)) {
+    return commissionBackedAmount;
+  }
+
+  return calculateNetAmount(order);
+}
+
+async function getOrderMetadataMap(
+  orderIds: string[]
+): Promise<Map<string, { created_at: string; paid_at: string | null; product_slug?: string | null }>> {
+  const validOrderIds = [...new Set(orderIds.filter(Boolean))];
+
+  if (validOrderIds.length === 0) {
+    return new Map();
+  }
+
+  const { data, error } = await supabase
+    .from('visa_orders')
+    .select('id, created_at, paid_at, product_slug')
+    .in('id', validOrderIds);
+
+  if (error) {
+    console.error('[Analytics] Error fetching order metadata:', error);
+    return new Map();
+  }
+
+  return new Map(
+    (data || []).map((order) => [
+      order.id,
+      {
+        created_at: order.created_at,
+        paid_at: order.paid_at,
+        product_slug: order.product_slug,
+      },
+    ])
+  );
+}
+
+function getOrderEffectiveDate(order: { created_at: string; paid_at?: string | null }): Date {
+  return new Date(order.paid_at ?? order.created_at);
+}
+
+function isOrderWithinPeriod(
+  order: { created_at: string; paid_at?: string | null },
+  period: { start: Date; end: Date }
+): boolean {
+  const effectiveDate = getOrderEffectiveDate(order);
+  return effectiveDate >= period.start && effectiveDate <= period.end;
+}
+
 
 /**
  * Calcula a data de início e fim de um período baseado em uma opção pré-definida
@@ -305,6 +386,10 @@ export async function getSellerChartData(
       return [];
     }
 
+    const commissionNetAmountMap = await getCommissionNetAmountMap(
+      orders.map((order) => order.id)
+    );
+
     const grouped = new Map<string, ChartDataPoint>();
 
     const sortedOrders = [...orders].sort((a, b) =>
@@ -339,8 +424,7 @@ export async function getSellerChartData(
       };
 
       const isCompleted = order.payment_status === 'completed' || order.payment_status === 'paid';
-      // Calculate revenue using net amount (total_price_usd - fee_amount)
-      const revenue = isCompleted ? calculateNetAmount(order) : 0;
+      const revenue = isCompleted ? getOrderRevenueAmount(order, commissionNetAmountMap) : 0;
 
       // FIX: Use isFirstPayment logic to count contracts consistent with summary
       // Only count as contract if completed AND is first payment
@@ -405,6 +489,10 @@ export async function getProductMetrics(
 
     if (orders.length === 0) return [];
 
+    const commissionNetAmountMap = await getCommissionNetAmountMap(
+      orders.map((order) => order.id)
+    );
+
     // Buscar nomes dos produtos
     const productSlugs = [...new Set(orders.map(o => o.product_slug).filter(Boolean))];
     const { data: products } = await supabase
@@ -424,8 +512,7 @@ export async function getProductMetrics(
       const existing = productStats.get(slug) || { sales: 0, revenue: 0 };
 
       const isCompleted = order.payment_status === 'completed' || order.payment_status === 'paid';
-      // Calculate revenue using net amount (total_price_usd - fee_amount)
-      const revenue = calculateNetAmount(order);
+      const revenue = getOrderRevenueAmount(order, commissionNetAmountMap);
 
       if (isCompleted) {
         existing.sales += 1;
@@ -503,8 +590,13 @@ export async function getPeriodComparison(
       return d >= previousPeriod.start && d <= previousPeriod.end;
     });
 
-    const currentStats = calculateStats(currentOrders);
-    const previousStats = calculateStats(previousOrders);
+    const [currentCommissionNetAmountMap, previousCommissionNetAmountMap] = await Promise.all([
+      getCommissionNetAmountMap(currentOrders.map((order) => order.id)),
+      getCommissionNetAmountMap(previousOrders.map((order) => order.id)),
+    ]);
+
+    const currentStats = calculateStats(currentOrders, currentCommissionNetAmountMap);
+    const previousStats = calculateStats(previousOrders, previousCommissionNetAmountMap);
 
     // Get commission summaries for both periods
     const [currentCommissionSummary, previousCommissionSummary] = await Promise.all([
@@ -562,7 +654,7 @@ export async function getTrends(
 
     let query = supabase
       .from('visa_orders')
-      .select('created_at, paid_at, total_price_usd, payment_status, payment_metadata');
+      .select('id, created_at, paid_at, total_price_usd, payment_status, payment_metadata');
 
     if (sellerId) {
       query = query.eq('seller_id', sellerId);
@@ -581,14 +673,17 @@ export async function getTrends(
       };
     }
 
+    const commissionNetAmountMap = await getCommissionNetAmountMap(
+      orders.map((order) => order.id)
+    );
+
     // Agrupar receita por mês usando paid_at (data efetiva de pagamento)
     const monthlyRevenue = new Map<string, number>();
     orders.forEach((order) => {
       if (order.payment_status === 'completed' || order.payment_status === 'paid') {
         const date = new Date(order.paid_at ?? order.created_at);
         const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-        // Calculate revenue using net amount (total_price_usd - fee_amount)
-        const revenue = calculateNetAmount(order);
+        const revenue = getOrderRevenueAmount(order, commissionNetAmountMap);
         monthlyRevenue.set(monthKey, (monthlyRevenue.get(monthKey) || 0) + revenue);
       }
     });
@@ -676,7 +771,11 @@ export async function getAnalyticsData(
     return d >= period.start && d <= period.end;
   });
 
-  const summary = calculateStats(orders);
+  const commissionNetAmountMap = await getCommissionNetAmountMap(
+    orders.map((order) => order.id)
+  );
+
+  const summary = calculateStats(orders, commissionNetAmountMap);
 
   const periodType = typeof periodOption === 'string' ? periodOption : 'custom';
 
@@ -869,7 +968,10 @@ function isFirstPayment(order: any, allOrders: any[]): boolean {
   return !hasPreviousOrder;
 }
 
-function calculateStats(orders: any[]): {
+function calculateStats(
+  orders: any[],
+  commissionNetAmountMap?: Map<string, number>
+): {
   totalRevenue: number;
   totalSales: number;
   soldContracts: number;
@@ -884,7 +986,7 @@ function calculateStats(orders: any[]): {
 
   // Calculate revenue using net amount (total_price_usd - fee_amount)
   const revenue = completed.reduce(
-    (sum, o) => sum + calculateNetAmount(o),
+    (sum, o) => sum + getOrderRevenueAmount(o, commissionNetAmountMap),
     0
   );
 
@@ -936,10 +1038,7 @@ export async function getCommissionChartData(
       query = query.eq('seller_id', sellerId);
     }
 
-    const { data: commissions, error } = await query
-      .gte('created_at', period.start.toISOString())
-      .lte('created_at', period.end.toISOString())
-      .order('created_at', { ascending: true });
+    const { data: commissions, error } = await query.order('created_at', { ascending: true });
 
     if (error) {
       console.error('[Analytics] Error fetching commissions:', error);
@@ -950,11 +1049,20 @@ export async function getCommissionChartData(
       return [];
     }
 
+    const orderMetadataMap = await getOrderMetadataMap(
+      commissions.map((commission) => commission.order_id)
+    );
+
     // Group by period according to granularity
     const grouped = new Map<string, ChartDataPoint>();
 
     commissions.forEach((commission) => {
-      const commissionDate = new Date(commission.created_at);
+      const orderMetadata = orderMetadataMap.get(commission.order_id);
+      if (!orderMetadata || !isOrderWithinPeriod(orderMetadata, period)) {
+        return;
+      }
+
+      const commissionDate = getOrderEffectiveDate(orderMetadata);
       let key: string;
 
       if (granularity === 'day') {
@@ -999,15 +1107,13 @@ export async function getCommissionSummary(
   try {
     let commQuery = supabase
       .from('seller_commissions')
-      .select('commission_amount_usd, withdrawn_amount, available_for_withdrawal_at');
+      .select('order_id, commission_amount_usd, withdrawn_amount, available_for_withdrawal_at, net_amount_usd');
 
     if (sellerId) {
       commQuery = commQuery.eq('seller_id', sellerId);
     }
 
-    const { data: commissions, error } = await commQuery
-      .gte('created_at', period.start.toISOString())
-      .lte('created_at', period.end.toISOString());
+    const { data: commissions, error } = await commQuery;
 
     if (error) {
       console.error('[Analytics] Error fetching commissions for summary:', error);
@@ -1030,13 +1136,32 @@ export async function getCommissionSummary(
       };
     }
 
+    const orderMetadataMap = await getOrderMetadataMap(
+      commissions.map((commission: any) => commission.order_id).filter(Boolean)
+    );
+
+    const filteredCommissions = commissions.filter((commission: any) => {
+      const orderMetadata = orderMetadataMap.get(commission.order_id);
+      return orderMetadata ? isOrderWithinPeriod(orderMetadata, period) : true;
+    });
+
+    if (filteredCommissions.length === 0) {
+      return {
+        totalCommissions: 0,
+        availableCommissions: 0,
+        pendingCommissions: 0,
+        paidCommissions: 0,
+        commissionRate: 0,
+      };
+    }
+
     // Calculate totals
     let totalCommissions = 0;
     let availableCommissions = 0;
     let pendingCommissions = 0;
     let paidCommissions = 0;
 
-    commissions.forEach((c) => {
+    filteredCommissions.forEach((c) => {
       const total = parseFloat(c.commission_amount_usd || '0');
       const withdrawn = parseFloat(c.withdrawn_amount || '0');
       const remaining = total - withdrawn;
@@ -1056,23 +1181,10 @@ export async function getCommissionSummary(
       }
     });
 
-    // Get orders to calculate average commission rate
-    let ordersQuery = supabase
-      .from('visa_orders')
-      .select('total_price_usd, payment_status, payment_metadata');
-
-    if (sellerId) {
-      ordersQuery = ordersQuery.eq('seller_id', sellerId);
-    }
-
-    const { data: orders } = await ordersQuery
-      .gte('created_at', period.start.toISOString())
-      .lte('created_at', period.end.toISOString());
-
-    // Calculate revenue using net amount (total_price_usd - fee_amount)
-    const totalRevenue = (orders || [])
-      .filter(o => o.payment_status === 'completed' || o.payment_status === 'paid')
-      .reduce((sum, o) => sum + calculateNetAmount(o), 0);
+    const totalRevenue = filteredCommissions.reduce(
+      (sum, c) => sum + parseFloat(c.net_amount_usd || '0'),
+      0
+    );
 
     const commissionRate = totalRevenue > 0 ? (totalCommissions / totalRevenue) * 100 : 0;
 
@@ -1111,9 +1223,7 @@ export async function getCommissionByProduct(
       query = query.eq('seller_id', sellerId);
     }
 
-    const { data: commissions, error } = await query
-      .gte('created_at', period.start.toISOString())
-      .lte('created_at', period.end.toISOString());
+    const { data: commissions, error } = await query;
 
     if (error) {
       console.error('[Analytics] Error fetching commissions for products:', error);
@@ -1124,8 +1234,21 @@ export async function getCommissionByProduct(
       return [];
     }
 
+    const orderMetadataMap = await getOrderMetadataMap(
+      commissions.map((commission) => commission.order_id)
+    );
+
+    const filteredCommissions = commissions.filter((commission) => {
+      const orderMetadata = orderMetadataMap.get(commission.order_id);
+      return orderMetadata ? isOrderWithinPeriod(orderMetadata, period) : true;
+    });
+
+    if (filteredCommissions.length === 0) {
+      return [];
+    }
+
     // Get order IDs
-    const orderIds = commissions.map(c => c.order_id);
+    const orderIds = filteredCommissions.map(c => c.order_id);
 
     // Get orders with product info
     const { data: orders } = await supabase
@@ -1154,7 +1277,7 @@ export async function getCommissionByProduct(
     // Group commissions by product
     const productStats = new Map<string, { commissions: number; sales: number }>();
 
-    commissions.forEach((commission) => {
+    filteredCommissions.forEach((commission) => {
       const orderId = commission.order_id;
       const productSlug = orderMap.get(orderId) || 'unknown';
       const existing = productStats.get(productSlug) || { commissions: 0, sales: 0 };

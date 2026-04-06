@@ -4,6 +4,7 @@ import { supabase } from '@/lib/supabase';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { cn } from '@/lib/utils';
 import { PdfModal } from '@/components/ui/pdf-modal';
 import { ImageModal } from '@/components/ui/image-modal';
 import { ArrowLeft, FileText, CheckCircle2, XCircle, Shield, CheckCircle, X, Eye, Loader2, AlertCircle, Users, Package, RefreshCcw } from 'lucide-react';
@@ -59,6 +60,8 @@ interface Order {
   upsell_price_usd: string | null;
   upsell_contract_pdf_url: string | null;
   upsell_annex_pdf_url: string | null;
+  service_requests?: { client_id: string } | null;
+  client_id?: string; // Standardized for our logic
 }
 
 interface Schedule {
@@ -105,6 +108,7 @@ export const VisaOrderDetailPage = () => {
   const [termsAcceptance, setTermsAcceptance] = useState<TermsAcceptance | null>(null);
   const [identityFiles, setIdentityFiles] = useState<IdentityFile[]>([]);
   const [products, setProducts] = useState<any[]>([]);
+  const [eb2Program, setEb2Program] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [showPdfModal, setShowPdfModal] = useState(false);
   const [selectedPdfUrl, setSelectedPdfUrl] = useState<string | null>(null);
@@ -116,6 +120,7 @@ export const VisaOrderDetailPage = () => {
   const [rejectingContractType, setRejectingContractType] = useState<'annex' | 'contract'>('contract');
   const [processingAction, setProcessingAction] = useState<string | null>(null);
   const [generatingSchedule, setGeneratingSchedule] = useState(false);
+  const [generatingEb2Schedule, setGeneratingEb2Schedule] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [isRegenerating, setIsRegenerating] = useState(false);
   const [showAlert, setShowAlert] = useState(false);
@@ -165,15 +170,20 @@ export const VisaOrderDetailPage = () => {
         }
 
         // Load order
-        const { data: orderData, error: orderError } = await supabase
+        const { data: orderRaw, error: orderError } = await supabase
           .from('visa_orders')
-          .select('*')
+          .select('*, service_requests(client_id)')
           .eq('id', id)
           .single();
-        if (orderError || !orderData) {
+        if (orderError || !orderRaw) {
           console.error('Order not found:', orderError);
           return;
         }
+
+        const orderData = { 
+          ...orderRaw, 
+          client_id: (orderRaw.service_requests as any)?.client_id 
+        };
 
         setOrder(orderData);
 
@@ -233,6 +243,20 @@ export const VisaOrderDetailPage = () => {
             scheduleData.installments.sort((a: any, b: any) => a.installment_number - b.installment_number);
           }
           setSchedule(scheduleData);
+        }
+
+        // Load EB-2 recurrence if it exists
+        const { data: eb2Data } = await supabase
+          .from('eb2_recurrence_control')
+          .select('*, installments:eb2_recurrence_schedules(*)')
+          .eq('client_id', orderData.client_id)
+          .maybeSingle();
+
+        if (eb2Data) {
+          if (eb2Data.installments) {
+            eb2Data.installments.sort((a: any, b: any) => a.installment_number - b.installment_number);
+          }
+          setEb2Program(eb2Data);
         }
       } catch (err) {
         console.error('Error loading data:', err);
@@ -375,7 +399,10 @@ export const VisaOrderDetailPage = () => {
     setGeneratingSchedule(true);
     try {
       const { error } = await supabase.functions.invoke('setup-recurring-billing', {
-        body: { order_id: id }
+        body: { 
+          order_id: id,
+          client_id: order.client_id 
+        }
       });
 
       if (error) throw error;
@@ -410,6 +437,52 @@ export const VisaOrderDetailPage = () => {
       setShowAlert(true);
     } finally {
       setGeneratingSchedule(false);
+    }
+  };
+
+  const handleGenerateEb2Schedule = async () => {
+    if (!id || !order) return;
+    setGeneratingEb2Schedule(true);
+    try {
+      const { error } = await supabase.functions.invoke('setup-eb2-recurring-billing', {
+        body: { 
+          order_id: id,
+          client_id: order.client_id
+        }
+      });
+
+      if (error) throw error;
+
+      setAlertData({
+        title: 'Success',
+        message: 'EB-2 Recurring plan (20 installments) generated successfully!',
+        variant: 'success'
+      });
+      setShowAlert(true);
+
+      // Reload EB-2 data
+      const { data: eb2Data } = await supabase
+        .from('eb2_recurrence_control')
+        .select('*, installments:eb2_recurrence_schedules(*)')
+        .eq('client_id', order.client_id)
+        .maybeSingle();
+
+      if (eb2Data) {
+        if (eb2Data.installments) {
+          eb2Data.installments.sort((a: any, b: any) => a.installment_number - b.installment_number);
+        }
+        setEb2Program(eb2Data);
+      }
+    } catch (err: any) {
+      console.error('Error generating EB-2 schedule:', err);
+      setAlertData({
+        title: 'Error',
+        message: 'Failed to generate EB-2 plan: ' + (err.message || 'Unknown error'),
+        variant: 'error'
+      });
+      setShowAlert(true);
+    } finally {
+      setGeneratingEb2Schedule(false);
     }
   };
 
@@ -472,7 +545,7 @@ export const VisaOrderDetailPage = () => {
         </div>
 
         <div className="space-y-6">
-          {/* Action Card: Generate Schedule */}
+          {/* Action Card: Generate EB-3 Schedule */}
           {!schedule && getProductName(order?.product_slug || '') === 'INITIAL Application - Full Process Payment' && order?.payment_status === 'paid' && (
             <Card className="bg-gold-medium/10 border border-gold-medium/50 overflow-hidden">
               <CardContent className="p-6">
@@ -483,7 +556,7 @@ export const VisaOrderDetailPage = () => {
                     </div>
                     <div>
                       <h3 className="text-gold-light font-bold flex items-center gap-2">
-                        Recurring Billing Not Found
+                        EB-3 Recurring Billing Not Found
                       </h3>
                       <p className="text-gray-400 text-sm max-w-md">This EB-3 order does not have a recurring schedule yet. You can manually generate it here.</p>
                     </div>
@@ -494,7 +567,36 @@ export const VisaOrderDetailPage = () => {
                     className="bg-gold-medium hover:bg-gold-dark text-black font-bold whitespace-nowrap"
                   >
                     {generatingSchedule ? <Loader2 className="animate-spin w-4 h-4 mr-2" /> : <FileText className="w-4 h-4 mr-2" />}
-                    Generate Schedule
+                    Generate EB-3 Schedule
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Action Card: Generate EB-2 Schedule */}
+          {!eb2Program && order?.product_slug === 'eb2-visa' && order?.payment_status === 'paid' && (
+            <Card className="bg-blue-500/10 border border-blue-500/50 overflow-hidden">
+              <CardContent className="p-6">
+                <div className="flex flex-col md:flex-row justify-between items-center gap-4">
+                  <div className="flex items-start gap-4">
+                    <div className="bg-blue-500/20 p-3 rounded-full hidden sm:block">
+                      <AlertCircle className="w-6 h-6 text-blue-400" />
+                    </div>
+                    <div>
+                      <h3 className="text-blue-400 font-bold flex items-center gap-2">
+                        EB-2 Recurring Plan Not Found
+                      </h3>
+                      <p className="text-gray-400 text-sm max-w-md">This EB-2 order is eligible for the 20-installment maintenance plan ($999/mo). Activate it now.</p>
+                    </div>
+                  </div>
+                  <Button
+                    onClick={handleGenerateEb2Schedule}
+                    disabled={generatingEb2Schedule}
+                    className="bg-blue-600 hover:bg-blue-700 text-white font-bold whitespace-nowrap"
+                  >
+                    {generatingEb2Schedule ? <Loader2 className="animate-spin w-4 h-4 mr-2" /> : <RefreshCcw className="w-4 h-4 mr-2" />}
+                    Activate EB-2 Plan (20x)
                   </Button>
                 </div>
               </CardContent>
@@ -1170,6 +1272,63 @@ export const VisaOrderDetailPage = () => {
                       )}
                     </>
                   )}
+                </CardContent>
+              </Card>
+            )}
+
+            {/* EB-2 Plan Status Display */}
+            {eb2Program && (
+              <Card className="bg-gradient-to-br from-blue-500/10 via-blue-800/5 to-blue-900/10 border border-blue-500/30">
+                <CardHeader className="flex flex-row items-center justify-between">
+                  <CardTitle className="text-white flex items-center gap-2">
+                    <RefreshCcw className="w-5 h-5 text-blue-400" />
+                    EB-2 Recurring Maintenance
+                  </CardTitle>
+                  <Link to={`/dashboard/eb2-recurring/${eb2Program.client_id}`}>
+                    <Button variant="outline" size="sm" className="border-blue-500/30 bg-blue-500/10 text-blue-300 hover:bg-blue-500/20 text-xs">
+                      View Full Schedule
+                    </Button>
+                  </Link>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                    <div className="p-3 bg-black/40 rounded border border-blue-500/20">
+                      <p className="text-gray-500 text-[10px] uppercase tracking-wider mb-1">Status</p>
+                      <Badge className={cn(
+                        "font-bold uppercase",
+                        eb2Program.program_status === 'active' ? "bg-green-500/20 text-green-300 border-green-500/50" : "bg-red-500/20 text-red-300 border-red-500/50"
+                      )}>
+                        {eb2Program.program_status}
+                      </Badge>
+                    </div>
+                    <div className="p-3 bg-black/40 rounded border border-blue-500/20">
+                      <p className="text-gray-500 text-[10px] uppercase tracking-wider mb-1">Progress</p>
+                      <p className="text-white font-bold">{eb2Program.installments_paid} / {eb2Program.total_installments} Paid</p>
+                    </div>
+                    <div className="p-3 bg-black/40 rounded border border-blue-500/20">
+                      <p className="text-gray-500 text-[10px] uppercase tracking-wider mb-1">Price/Mo</p>
+                      <p className="text-blue-300 font-bold">$999.00</p>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <p className="text-xs text-gray-400 font-medium">Recent Installments:</p>
+                    <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                      {eb2Program.installments?.slice(0, 5).map((inst: any) => (
+                        <div key={inst.id} className="p-2 bg-black/20 rounded border border-white/5 text-center">
+                          <p className="text-[10px] text-gray-500 mb-1">#{inst.installment_number}</p>
+                          <Badge className={cn(
+                            "text-[9px] px-1 py-0",
+                            inst.status === 'paid' ? "bg-green-500/20 text-green-400" : 
+                            inst.status === 'overdue' ? "bg-red-500/20 text-red-400" :
+                            "bg-gray-500/20 text-gray-400"
+                          )}>
+                            {inst.status}
+                          </Badge>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                 </CardContent>
               </Card>
             )}

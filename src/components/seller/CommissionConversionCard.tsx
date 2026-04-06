@@ -6,6 +6,8 @@ interface CommissionConversionCardProps {
   previousRate?: number;
   currentRevenue: number;
   currentCommissions: number;
+  title?: string;
+  className?: string;
 }
 
 export function CommissionConversionCard({
@@ -13,6 +15,8 @@ export function CommissionConversionCard({
   previousRate,
   currentRevenue,
   currentCommissions,
+  title = 'Commission Rate',
+  className = '',
 }: CommissionConversionCardProps) {
   const rateChange = previousRate !== undefined
     ? currentRate - previousRate
@@ -31,11 +35,11 @@ export function CommissionConversionCard({
   };
 
   return (
-    <Card className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30 shadow-lg shadow-black/20 overflow-hidden">
+    <Card className={`bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30 shadow-lg shadow-black/20 overflow-hidden ${className}`}>
       <CardContent className="p-3 sm:p-5 lg:p-6">
         <div className="flex items-center justify-between gap-2.5">
           <div className="flex-1 min-w-0 text-gray-400">
-            <p className="text-[9px] sm:text-sm font-black uppercase tracking-widest mb-1 truncate">Comissão</p>
+            <p className="text-[9px] sm:text-sm font-black uppercase tracking-widest mb-1 truncate">{title}</p>
             <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
               <p className="text-base sm:text-2xl font-bold text-gold-light tracking-tight">
                 {currentRate.toFixed(2)}%

@@ -122,8 +122,9 @@ export const Step1PersonalInfo: React.FC<Step1Props> = ({ product, state, action
                 .then(() => {});
         }
 
-        // Se for consulta comum, pular Step 2 (Documentos)
-        if (productSlug === 'consultation-common') {
+        // Se for consulta comum ou parcelas recorrentes, pular Step 2 (Documentos)
+        const isInstallment = !!state.eb3ScheduleId || !!state.eb2ScheduleId || !!state.scholarshipScheduleId || !!state.billingInstallmentId;
+        if (productSlug === 'consultation-common' || isInstallment) {
             setCurrentStep(3);
         } else {
             setCurrentStep(2);

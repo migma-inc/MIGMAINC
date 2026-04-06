@@ -374,19 +374,21 @@ Deno.serve(async (req: Request) => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Get site URL
-    const siteUrl = Deno.env.get("SITE_URL") || req.headers.get("origin") || "http://localhost:5173";
-
     // Parse request body
     console.log("[Parcelow Checkout] 📋 Step 3: Parsing request body...");
     const body = await req.json();
     const { order_id, upsell_order_id, action = 'create', currency = "USD", amount_usd } = body;
 
+    // Split flow calls this function server-to-server, so req.origin is usually absent.
+    // Prefer the browser-provided app_url to preserve localhost redirects in dev.
+    const siteUrl = body.app_url || req.headers.get("origin") || Deno.env.get("SITE_URL") || "http://localhost:5173";
+
     console.log("[Parcelow Checkout] 🔍 Request body parsed:", {
       order_id,
       upsell_order_id,
       has_upsell: !!upsell_order_id,
-      action
+      action,
+      siteUrl
     });
 
     // Handle Simulation Action - NO DB REQUIRED
@@ -748,11 +750,21 @@ Deno.serve(async (req: Request) => {
     }));
 
 
-    // Prepare redirect URLs
-    const redirectUrls = {
-      success: `${siteUrl}/checkout/success?order_id=${order.id}`,
-      failed: `${siteUrl}/checkout/cancel?order_id=${order.id}`,
-    };
+    const splitPaymentId = body.split_payment_id;
+    const isSplitPart = !!body.is_split_part && !!splitPaymentId;
+    const splitPartNumber = body.split_part_number || 1;
+
+    // Split parts must come back through the dedicated redirect route so the
+    // app can wait for webhook confirmation before pushing the next checkout.
+    const redirectUrls = isSplitPart
+      ? {
+        success: `${siteUrl}/checkout/split-payment/redirect?split_payment_id=${splitPaymentId}&split_return=1&part=${splitPartNumber}`,
+        failed: `${siteUrl}/checkout/cancel?order_id=${order.id}&split_payment_id=${splitPaymentId}&part=${splitPartNumber}`,
+      }
+      : {
+        success: `${siteUrl}/checkout/success?order_id=${order.id}`,
+        failed: `${siteUrl}/checkout/cancel?order_id=${order.id}`,
+      };
 
     // Create order
     console.log("[Parcelow Checkout] 📋 Step 6: Creating Parcelow order...");

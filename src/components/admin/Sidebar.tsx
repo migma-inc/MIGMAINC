@@ -51,7 +51,7 @@ function SidebarItem({ icon: Icon, label, to, count, onClick }: SidebarItemProps
 export function Sidebar({ className, isMobileOpen = false, onMobileClose }: SidebarProps) {
   const location = useLocation();
   const [isRecurrenceOpen, setIsRecurrenceOpen] = useState(
-    location.pathname.includes('eb3-recurring') || location.pathname.includes('scholarship-recurring')
+    location.pathname.includes('eb3-recurring') || location.pathname.includes('eb2-recurring') || location.pathname.includes('scholarship-recurring')
   );
 
   const [isLinksOpen, setIsLinksOpen] = useState(
@@ -206,7 +206,7 @@ export function Sidebar({ className, isMobileOpen = false, onMobileClose }: Side
             onClick={() => setIsRecurrenceOpen(!isRecurrenceOpen)}
             className={cn(
               'w-full flex items-center justify-between px-4 py-3 rounded-lg transition-colors group border border-transparent',
-              (location.pathname.includes('eb3-recurring') || location.pathname.includes('scholarship-recurring'))
+              (location.pathname.includes('eb3-recurring') || location.pathname.includes('eb2-recurring') || location.pathname.includes('scholarship-recurring'))
                 ? 'bg-gold-medium/5 text-gold-light font-medium'
                 : 'text-gray-400 hover:bg-gold-medium/10 hover:text-gold-light'
             )}
@@ -232,6 +232,19 @@ export function Sidebar({ className, isMobileOpen = false, onMobileClose }: Side
               >
                 <Calendar className="w-4 h-4" />
                 <span>EB-3 Recurring</span>
+              </Link>
+              <Link
+                to="/dashboard/eb2-recurring"
+                onClick={onMobileClose}
+                className={cn(
+                  'flex items-center gap-3 px-4 py-2 rounded-lg text-sm transition-colors',
+                  location.pathname.includes('eb2-recurring')
+                    ? 'text-gold-light font-medium'
+                    : 'text-gray-500 hover:text-gold-light'
+                )}
+              >
+                <Calendar className="w-4 h-4" />
+                <span>EB-2 Recurring</span>
               </Link>
               <Link
                 to="/dashboard/scholarship-recurring"

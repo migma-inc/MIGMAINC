@@ -114,6 +114,10 @@ export const useVisaCheckoutForm = () => {
     const [customAmount, setCustomAmount] = useState<number | null>(null);
     const [eb3LateFee, setEb3LateFee] = useState<number>(0);
 
+    // EB-2 Installment
+    const [eb2ScheduleId, setEb2ScheduleId] = useState<string | null>(null);
+    const [eb2LateFee, setEb2LateFee] = useState<number>(0);
+
     // Scholarship Maintenance Fee
     const [scholarshipScheduleId, setScholarshipScheduleId] = useState<string | null>(null);
     const [scholarshipLateFee, setScholarshipLateFee] = useState<number>(0);
@@ -179,6 +183,8 @@ export const useVisaCheckoutForm = () => {
         eb3ScheduleId,
         customAmount,
         eb3LateFee,
+        eb2ScheduleId,
+        eb2LateFee,
         scholarshipScheduleId,
         scholarshipLateFee,
         payerInfo,
@@ -243,6 +249,8 @@ export const useVisaCheckoutForm = () => {
         setEb3ScheduleId,
         setCustomAmount,
         setEb3LateFee,
+        setEb2ScheduleId,
+        setEb2LateFee,
         setScholarshipScheduleId,
         setScholarshipLateFee,
         setPayerInfo,

@@ -49,7 +49,7 @@ export function ContractsChart({ data }: ContractsChartProps) {
 
     // Preparar dados
     const chartData = data.map((point) => ({
-      date: new Date(point.date).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }),
+      date: new Date(point.date).toLocaleDateString('en-US', { day: '2-digit', month: 'short' }),
       contracts: point.contracts,
     }));
 
@@ -93,7 +93,7 @@ export function ContractsChart({ data }: ContractsChartProps) {
     // Gráfico de Colunas
     const series = chart.series.push(
       am5xy.ColumnSeries.new(root, {
-        name: 'Contratos',
+        name: 'Contracts',
         xAxis: xAxis,
         yAxis: yAxis,
         valueYField: 'contracts',
@@ -115,7 +115,7 @@ export function ContractsChart({ data }: ContractsChartProps) {
       strokeWidth: 2,
       cornerRadiusTL: 6,
       cornerRadiusTR: 6,
-      tooltipText: '{categoryX}: {valueY} contratos',
+      tooltipText: '{categoryX}: {valueY} contracts',
     });
 
     // Labels no topo das barras
@@ -155,12 +155,12 @@ export function ContractsChart({ data }: ContractsChartProps) {
             <div className="p-2 bg-gold-medium/20 rounded-lg">
               <FileText className="w-5 h-5 text-gold-light" />
             </div>
-            Contratos
+            Contracts
           </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="h-[250px] sm:h-[280px] flex items-center justify-center text-gray-400">
-            <p>Nenhum dado disponível</p>
+            <p>No data available</p>
           </div>
         </CardContent>
       </Card>
@@ -177,7 +177,7 @@ export function ContractsChart({ data }: ContractsChartProps) {
             <div className="p-2 bg-gold-medium/20 rounded-lg">
               <FileText className="w-5 h-5 text-gold-light" />
             </div>
-            Contratos
+            Contracts
           </CardTitle>
           <div className="text-right">
             <p className="text-xs text-gray-400">Total</p>

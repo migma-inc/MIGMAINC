@@ -53,7 +53,7 @@ export function RevenueChart({ data, comparisonData, showComparison = false }: R
 
     // Preparar dados
     const chartData = data.map((point) => ({
-      date: new Date(point.date + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }),
+      date: new Date(point.date + 'T12:00:00').toLocaleDateString('en-US', { day: '2-digit', month: 'short' }),
       revenue: point.revenue,
       previousRevenue: comparisonData?.find(c => c.date === point.date)?.revenue || 0,
     }));
@@ -98,7 +98,7 @@ export function RevenueChart({ data, comparisonData, showComparison = false }: R
     // Gráfico de Colunas Empilhadas - Comparação Visual Clara
     const currentSeries = chart.series.push(
       am5xy.ColumnSeries.new(root, {
-        name: 'Receita Atual',
+        name: 'Current Period',
         xAxis: xAxis,
         yAxis: yAxis,
         valueYField: 'revenue',
@@ -120,7 +120,7 @@ export function RevenueChart({ data, comparisonData, showComparison = false }: R
       strokeWidth: 2,
       cornerRadiusTL: 6,
       cornerRadiusTR: 6,
-      tooltipText: 'Período Atual: ${valueY}',
+      tooltipText: 'Current Period: ${valueY}',
     });
 
     // Labels no topo das barras
@@ -145,7 +145,7 @@ export function RevenueChart({ data, comparisonData, showComparison = false }: R
     if (showComparison && comparisonData && chartData.some(d => d.previousRevenue > 0)) {
       const previousSeries = chart.series.push(
         am5xy.ColumnSeries.new(root, {
-          name: 'Período Anterior',
+          name: 'Previous Period',
           xAxis: xAxis,
           yAxis: yAxis,
           valueYField: 'previousRevenue',
@@ -167,7 +167,7 @@ export function RevenueChart({ data, comparisonData, showComparison = false }: R
         strokeWidth: 2,
         cornerRadiusTL: 6,
         cornerRadiusTR: 6,
-        tooltipText: 'Período Anterior: ${valueY}',
+        tooltipText: 'Previous Period: ${valueY}',
       });
 
       previousSeries.data.setAll(chartData);
@@ -206,12 +206,12 @@ export function RevenueChart({ data, comparisonData, showComparison = false }: R
             <div className="p-2 bg-gold-medium/20 rounded-lg">
               <DollarSign className="w-5 h-5 text-gold-light" />
             </div>
-            Receita
+            Revenue
           </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="h-[250px] sm:h-[280px] flex items-center justify-center text-gray-400">
-            <p>Nenhum dado disponível</p>
+            <p>No data available</p>
           </div>
         </CardContent>
       </Card>
@@ -228,7 +228,7 @@ export function RevenueChart({ data, comparisonData, showComparison = false }: R
             <div className="p-2 bg-gold-medium/20 rounded-lg">
               <DollarSign className="w-5 h-5 text-gold-light" />
             </div>
-            Receita
+            Revenue
           </CardTitle>
           <div className="text-right">
             <p className="text-xs text-gray-400">Total</p>

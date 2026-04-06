@@ -20,7 +20,7 @@ export function ExportButton({ data, periodLabel }: ExportButtonProps) {
       await exportSellerAnalytics(data, periodLabel);
     } catch (error) {
       console.error('[ExportButton] Error exporting:', error);
-      alert('Erro ao exportar dados. Por favor, tente novamente.');
+      alert('Error exporting data. Please try again.');
     } finally {
       setIsExporting(false);
     }
@@ -37,14 +37,14 @@ export function ExportButton({ data, periodLabel }: ExportButtonProps) {
       {isExporting ? (
         <>
           <Loader2 className="w-3 h-3 sm:w-4 sm:h-4 mr-2 animate-spin" />
-          <span className="hidden sm:inline">Exportando...</span>
-          <span className="sm:hidden">Exportando</span>
+          <span className="hidden sm:inline">Exporting...</span>
+          <span className="sm:hidden">Exporting</span>
         </>
       ) : (
         <>
           <Download className="w-3 h-3 sm:w-4 sm:h-4 mr-2" />
-          <span className="hidden sm:inline">Exportar Excel</span>
-          <span className="sm:hidden">Exportar</span>
+          <span className="hidden sm:inline">Export Excel</span>
+          <span className="sm:hidden">Export</span>
         </>
       )}
     </Button>
