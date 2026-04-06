@@ -758,7 +758,7 @@ export const VisaOrdersPage = () => {
           message: 'Document generation has been requested. It may take a few moments to appear.',
           variant: 'success'
         });
-        
+
         // Refresh orders after a short delay
         setTimeout(async () => {
           const { data } = await supabase
@@ -838,7 +838,7 @@ export const VisaOrdersPage = () => {
           const { data: sellersData } = await supabase
             .from('sellers')
             .select('seller_id_public, full_name');
-          
+
           if (sellersData) {
             const sMap: Record<string, string> = {};
             sellersData.forEach(s => {
@@ -1139,8 +1139,8 @@ export const VisaOrdersPage = () => {
             </div>
 
             <div className="w-full md:w-64">
-              <Select 
-                value={sellerFilter} 
+              <Select
+                value={sellerFilter}
                 onValueChange={(val) => {
                   clearSearchState();
                   const newParams = new URLSearchParams(searchParams);
@@ -1164,8 +1164,8 @@ export const VisaOrdersPage = () => {
             </div>
 
             <div className="w-full md:w-48">
-              <Select 
-                value={methodFilter} 
+              <Select
+                value={methodFilter}
                 onValueChange={(val) => {
                   clearSearchState();
                   const newParams = new URLSearchParams(searchParams);
@@ -1282,11 +1282,10 @@ export const VisaOrdersPage = () => {
                   newParams.set('page', '1'); // Reset to page 1
                   setSearchParams(newParams);
                 }}
-                className={`h-9 border-gold-medium/30 text-xs font-bold uppercase tracking-wider transition-all ${
-                  statusFilter === 'completed' 
-                    ? 'bg-gold-medium text-black border-gold-medium shadow-[0_0_10px_rgba(212,175,55,0.3)]' 
+                className={`h-9 border-gold-medium/30 text-xs font-bold uppercase tracking-wider transition-all ${statusFilter === 'completed'
+                    ? 'bg-gold-medium text-black border-gold-medium shadow-[0_0_10px_rgba(212,175,55,0.3)]'
                     : 'bg-black/50 text-gold-light hover:bg-gold-medium/20'
-                }`}
+                  }`}
               >
                 Completed
               </Button>
@@ -1302,11 +1301,10 @@ export const VisaOrdersPage = () => {
                   newParams.set('page', '1'); // Reset to page 1
                   setSearchParams(newParams);
                 }}
-                className={`h-9 border-gold-medium/30 text-xs font-bold uppercase tracking-wider transition-all ${
-                  statusFilter === 'pending' 
-                    ? 'bg-gold-medium text-black border-gold-medium shadow-[0_0_10px_rgba(212,175,55,0.3)]' 
+                className={`h-9 border-gold-medium/30 text-xs font-bold uppercase tracking-wider transition-all ${statusFilter === 'pending'
+                    ? 'bg-gold-medium text-black border-gold-medium shadow-[0_0_10px_rgba(212,175,55,0.3)]'
                     : 'bg-black/50 text-gold-light hover:bg-gold-medium/20'
-                }`}
+                  }`}
               >
                 Pending
               </Button>

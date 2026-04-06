@@ -288,10 +288,12 @@ export function DashboardContent() {
 
   const loadPendingContractApprovals = async () => {
     try {
-      const { data, error } = await supabase
+      const isLocal = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+      const contractQuery = supabase
         .from('visa_orders')
         .select('id, payment_method, payment_status, parcelow_status, is_hidden, contract_pdf_url, annex_pdf_url, contract_approval_status, annex_approval_status')
         .or('contract_approval_status.eq.pending,annex_approval_status.eq.pending');
+      const { data, error } = await (isLocal ? contractQuery : contractQuery.eq('is_test', false));
 
       if (!error && data) {
         const realPendingCount = data.filter(order => {

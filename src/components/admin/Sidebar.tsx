@@ -92,10 +92,12 @@ export function Sidebar({ className, isMobileOpen = false, onMobileClose }: Side
         .not('accepted_at', 'is', null);
 
       // 3. Visa Approvals Count
-      const { data: visaData } = await supabase
+      const isLocal = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+      const visaQuery = supabase
         .from('visa_orders')
         .select('payment_method, payment_status, parcelow_status, is_hidden, contract_pdf_url, annex_pdf_url, contract_approval_status, annex_approval_status')
         .or('contract_approval_status.eq.pending,annex_approval_status.eq.pending');
+      const { data: visaData } = await (isLocal ? visaQuery : visaQuery.eq('is_test', false));
 
       const visaApprovalsCount = (visaData || []).filter(order => {
         if (order.is_hidden || order.payment_status === 'cancelled') return false;
