@@ -45,9 +45,28 @@ interface VisaOrder {
   parcelow_status?: string;
   coupon_code?: string | null;
   extra_units?: number;
+  is_split_payment?: boolean;
+  split_payment_id?: string | null;
+  split_payment?: {
+    id: string;
+    split_count: number | null;
+    overall_status: string | null;
+    part1_payment_status: string | null;
+    part2_payment_status: string | null;
+  } | null;
 }
 
 type ExportFilterType = 'all' | 'completed' | 'pending' | 'real';
+const VISA_ORDERS_SELECT = `
+  *,
+  split_payment:split_payments!visa_orders_split_payment_id_fkey(
+    id,
+    split_count,
+    overall_status,
+    part1_payment_status,
+    part2_payment_status
+  )
+`;
 
 // Helper function to calculate net amount and fee
 // Helper function to calculate net amount and fee
@@ -124,11 +143,37 @@ const shouldDisplayOrder = (order: VisaOrder, showHidden: boolean) => {
   return !order.is_hidden && !isPendingParcelowOrder(order) && !isCancelledOrFailed;
 };
 
+const getSplitPaymentPartsPaid = (order: VisaOrder) => {
+  const splitPayment = order.split_payment;
+  if (!order.is_split_payment || !splitPayment) return 0;
+
+  return [splitPayment.part1_payment_status, splitPayment.part2_payment_status].filter(
+    (status) => status === 'completed'
+  ).length;
+};
+
+const getSplitPaymentProgressData = (order: VisaOrder) => {
+  const splitPayment = order.split_payment;
+  if (!order.is_split_payment || !splitPayment) return null;
+
+  const paidParts = getSplitPaymentPartsPaid(order);
+  const splitCount = splitPayment.split_count ?? 2;
+  const isComplete =
+    splitPayment.overall_status === 'fully_completed' ||
+    (splitPayment.part1_payment_status === 'completed' && splitPayment.part2_payment_status === 'completed');
+
+  return {
+    fraction: `${paidParts}/${splitCount}`,
+    isComplete,
+  };
+};
+
 // Internal component for the order list to avoid duplication between tabs
 const OrderTable = ({
   orders,
   calculateNetAmountAndFee,
   getStatusBadge,
+  getSplitPaymentProgressData,
   setSelectedPdfUrl,
   setSelectedPdfTitle,
   isUpdating,
@@ -144,6 +189,7 @@ const OrderTable = ({
   orders: VisaOrder[],
   calculateNetAmountAndFee: any,
   getStatusBadge: any,
+  getSplitPaymentProgressData: (order: VisaOrder) => { fraction: string; isComplete: boolean } | null,
   setSelectedPdfUrl: any,
   setSelectedPdfTitle: any,
   isUpdating: string | null,
@@ -177,6 +223,7 @@ const OrderTable = ({
         <tbody>
           {orders.map((order) => {
             const { netAmount, feeAmount, totalPrice } = calculateNetAmountAndFee(order);
+            const splitProgress = getSplitPaymentProgressData(order);
             return (
               <tr key={order.id} className="border-b border-gold-medium/10 hover:bg-white/5">
                 <td className="py-3 px-4">
@@ -261,7 +308,21 @@ const OrderTable = ({
                   </Badge>
                 </td>
                 <td className="py-3 px-4">
-                  {getStatusBadge(order)}
+                  <div className="flex flex-col gap-1">
+                    {getStatusBadge(order)}
+                    {splitProgress && (
+                      <div className="flex items-center gap-1.5">
+                        <span className="inline-flex min-w-[34px] items-center justify-center rounded-md border border-gold-medium/30 bg-gold-medium/12 px-2 py-0.5 text-[11px] font-extrabold leading-none tracking-tight text-gold-light">
+                          {splitProgress.fraction}
+                        </span>
+                        {splitProgress.isComplete && (
+                          <span className="text-[11px] font-semibold text-gold-light whitespace-nowrap">
+                            Complete
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </td>
 
                 <td className="py-3 px-4">
@@ -401,6 +462,7 @@ const OrderTable = ({
     <div className="md:hidden space-y-4">
       {orders.map((order) => {
         const { netAmount, feeAmount, totalPrice } = calculateNetAmountAndFee(order);
+        const splitProgress = getSplitPaymentProgressData(order);
 
         return (
           <Card key={order.id} className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30">
@@ -412,7 +474,21 @@ const OrderTable = ({
                   <p className="text-xs text-gray-400 truncate">{order.client_email}</p>
                 </div>
                 <div className="ml-2">
-                  {getStatusBadge(order)}
+                  <div className="flex flex-col items-end gap-1">
+                    {getStatusBadge(order)}
+                    {splitProgress && (
+                      <div className="flex items-center gap-1.5">
+                        <span className="inline-flex min-w-[34px] items-center justify-center rounded-md border border-gold-medium/30 bg-gold-medium/12 px-2 py-0.5 text-[11px] font-extrabold leading-none tracking-tight text-gold-light">
+                          {splitProgress.fraction}
+                        </span>
+                        {splitProgress.isComplete && (
+                          <span className="text-[11px] font-semibold text-gold-light whitespace-nowrap">
+                            Complete
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
 
@@ -629,7 +705,7 @@ export const VisaOrdersPage = () => {
   }) => {
     let query = supabase
       .from('visa_orders')
-      .select('*');
+      .select(VISA_ORDERS_SELECT);
 
     if (!isLocal) {
       query = query.eq('is_test', false);
@@ -685,7 +761,11 @@ export const VisaOrdersPage = () => {
         
         // Refresh orders after a short delay
         setTimeout(async () => {
-          const { data } = await supabase.from('visa_orders').select('*').eq('id', orderId).single();
+          const { data } = await supabase
+            .from('visa_orders')
+            .select(VISA_ORDERS_SELECT)
+            .eq('id', orderId)
+            .single();
           if (data) {
             setOrders(prev => prev.map(o => o.id === orderId ? data : o));
           }
@@ -1251,8 +1331,9 @@ export const VisaOrdersPage = () => {
                   <OrderTable
                     orders={realOrders}
                     calculateNetAmountAndFee={calculateNetAmountAndFee}
-                    getStatusBadge={getStatusBadge}
-                    setSelectedPdfUrl={setSelectedPdfUrl}
+            getStatusBadge={getStatusBadge}
+            getSplitPaymentProgressData={getSplitPaymentProgressData}
+            setSelectedPdfUrl={setSelectedPdfUrl}
                     setSelectedPdfTitle={setSelectedPdfTitle}
                     getProductName={getProductName}
                     isUpdating={isUpdating}
@@ -1287,8 +1368,9 @@ export const VisaOrdersPage = () => {
                   <OrderTable
                     orders={signatureOrders}
                     calculateNetAmountAndFee={calculateNetAmountAndFee}
-                    getStatusBadge={getStatusBadge}
-                    setSelectedPdfUrl={setSelectedPdfUrl}
+            getStatusBadge={getStatusBadge}
+            getSplitPaymentProgressData={getSplitPaymentProgressData}
+            setSelectedPdfUrl={setSelectedPdfUrl}
                     setSelectedPdfTitle={setSelectedPdfTitle}
                     isUpdating={isUpdating}
                     toggleHideOrder={toggleHideOrder}
