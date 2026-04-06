@@ -4,6 +4,7 @@ import * as am5 from '@amcharts/amcharts5';
 import * as am5percent from '@amcharts/amcharts5/percent';
 import am5themes_Animated from '@amcharts/amcharts5/themes/Animated';
 import type { ProductMetric } from '@/lib/seller-analytics';
+import { shortenServiceLabel } from './chartFormatters';
 
 interface SubProductPieChartProps {
     data: ProductMetric[];
@@ -15,8 +16,7 @@ export function SubProductPieChart({ data, filterType, title }: SubProductPieCha
     const chartRef = useRef<HTMLDivElement>(null);
     const rootRef = useRef<am5.Root | null>(null);
 
-    // Filtrar e agrupar dados baseados no tipo
-    const summarizedData: { productName: string, sales: number }[] = [];
+    const summarizedData: { productName: string; sales: number }[] = [];
 
     if (filterType === 'student') {
         let initialSales = 0;
@@ -37,24 +37,25 @@ export function SubProductPieChart({ data, filterType, title }: SubProductPieCha
         data.forEach(item => {
             const slug = item.productSlug.toLowerCase();
             if (slug.includes('b1') || slug.includes('turista americano') || slug.includes('tourist-us')) {
-                summarizedData.push({ productName: item.productName, sales: item.sales });
+                summarizedData.push({ productName: shortenServiceLabel(item.productName), sales: item.sales });
             }
         });
     } else if (filterType === 'tourist-ca') {
         data.forEach(item => {
             const slug = item.productSlug.toLowerCase();
             if (slug.includes('canada')) {
-                summarizedData.push({ productName: item.productName, sales: item.sales });
+                summarizedData.push({ productName: shortenServiceLabel(item.productName), sales: item.sales });
             }
         });
     }
-    
-    const hasData = summarizedData.some(item => item.sales > 0);
 
-    // Dados para o gráfico (se vazio, usa placeholder)
-    const chartData = hasData 
-        ? summarizedData.filter(d => d.sales > 0) 
-        : [{ productName: 'No sales in period', sales: 1, isPlaceholder: true }];
+    const hasData = summarizedData.some(item => item.sales > 0);
+    const chartData = hasData
+        ? summarizedData.filter(d => d.sales > 0).map(item => ({
+            ...item,
+            displayName: shortenServiceLabel(item.productName),
+        }))
+        : [{ productName: 'No sales in period', displayName: 'No sales in period', sales: 1, isPlaceholder: true }];
 
     useEffect(() => {
         if (!chartRef.current) return;
@@ -70,7 +71,7 @@ export function SubProductPieChart({ data, filterType, title }: SubProductPieCha
 
         const chart = root.container.children.push(
             am5percent.PieChart.new(root, {
-                layout: root.verticalLayout
+                layout: root.verticalLayout,
             })
         );
 
@@ -78,59 +79,57 @@ export function SubProductPieChart({ data, filterType, title }: SubProductPieCha
             am5percent.PieSeries.new(root, {
                 name: 'Sales',
                 valueField: 'sales',
-                categoryField: 'productName',
+                categoryField: 'displayName',
                 alignLabels: false,
                 stroke: am5.color('#000000'),
-                strokeWidth: 2
+                strokeWidth: 2,
             })
         );
 
-        // Paleta Dourada Migma ou Cinza para Placeholder
         if (!hasData) {
             series.get('colors')?.set('colors', [am5.color('#333333')]);
         } else {
             series.get('colors')?.set('colors', [
-                am5.color('#CE9F48'), // Migma Gold
-                am5.color('#8B6B32'), // Bronze
-                am5.color('#F3E196'), // Pale Gold
-                am5.color('#A67C00'), // Darker Gold
-                am5.color('#B69146')  // Gold 2
+                am5.color('#CE9F48'),
+                am5.color('#8B6B32'),
+                am5.color('#F3E196'),
+                am5.color('#A67C00'),
+                am5.color('#B69146'),
             ]);
         }
 
         series.labels.template.setAll({
-            text: hasData ? '{valuePercentTotal.formatNumber("0.0")}%' : '',
+            text: hasData ? '{valuePercentTotal.formatNumber("0.0")}% ' : '',
             textType: 'circular',
             inside: true,
             fill: am5.color('#ffffff'),
             fontSize: 10,
-            fontWeight: 'bold'
+            fontWeight: 'bold',
         });
 
         series.slices.template.setAll({
             tooltipText: hasData ? '{category}: [bold]{value}[/] ({valuePercentTotal.formatNumber("0.0")}%)' : '',
-            cornerRadius: 6
+            cornerRadius: 6,
         });
 
         series.data.setAll(chartData);
 
-        // Adicionar Legenda
         const legend = chart.children.push(am5.Legend.new(root, {
             centerX: am5.p50,
             x: am5.p50,
             marginTop: 10,
             marginBottom: 0,
         }));
-        
+
         if (hasData) {
             legend.data.setAll(series.dataItems);
         }
-        
+
         legend.labels.template.setAll({
             fill: am5.color('#ffffff'),
             fontSize: 10,
             maxWidth: 150,
-            oversizedBehavior: 'truncate'
+            oversizedBehavior: 'truncate',
         });
 
         chart.appear(1000, 100);
@@ -138,7 +137,7 @@ export function SubProductPieChart({ data, filterType, title }: SubProductPieCha
         return () => {
             if (rootRef.current) rootRef.current.dispose();
         };
-    }, [data, filterType]);
+    }, [chartData, data, filterType, hasData]);
 
     return (
         <Card className="bg-black/40 border-gold-medium/20 h-[500px] relative overflow-hidden">
