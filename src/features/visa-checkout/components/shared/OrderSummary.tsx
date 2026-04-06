@@ -4,12 +4,14 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { CreditCard, DollarSign, Lock, CheckCircle } from 'lucide-react';
 import { isParcelowMethod } from '../../types/form.types';
+import type { SplitPaymentConfig } from '../steps/step3/SplitPaymentSelector';
 
 interface OrderSummaryProps {
     product: VisaProduct;
     extraUnits: number | null;
     totalWithFees: number;
     paymentMethod: string;
+    splitPaymentConfig?: SplitPaymentConfig | null;
     showPaymentButton?: boolean;
     isPaymentReady?: boolean;
     isSubmitting?: boolean;
@@ -19,6 +21,7 @@ interface OrderSummaryProps {
     upsellPrice?: number;
     discountAmount?: number;
     appliedCouponCode?: string | null;
+    checkoutButtonRef?: React.RefObject<HTMLDivElement | null>;
 }
 
 export const OrderSummary: React.FC<OrderSummaryProps> = ({
@@ -26,6 +29,7 @@ export const OrderSummary: React.FC<OrderSummaryProps> = ({
     extraUnits,
     totalWithFees,
     paymentMethod,
+    splitPaymentConfig,
     showPaymentButton,
     isPaymentReady,
     isSubmitting,
@@ -33,11 +37,13 @@ export const OrderSummary: React.FC<OrderSummaryProps> = ({
     selectedUpsell = 'none',
     upsellPrice = 0,
     discountAmount = 0,
-    appliedCouponCode
+    appliedCouponCode,
+    checkoutButtonRef
 }) => {
     const { t } = useTranslation();
     const basePrice = parseFloat(product.base_price_usd);
     const extraUnitPrice = parseFloat(product.extra_unit_price);
+    const splitEnabled = Boolean(splitPaymentConfig?.enabled && isParcelowMethod(paymentMethod as any));
 
     console.log('[OrderSummary] Render:', { paymentMethod, isPaymentReady, isSubmitting });
 
@@ -94,6 +100,33 @@ export const OrderSummary: React.FC<OrderSummaryProps> = ({
                                 US$ {totalWithFees.toFixed(2)}
                             </span>
                         </div>
+                        {splitEnabled && splitPaymentConfig && (
+                            <div className="mt-3 rounded-lg border border-gold-medium/30 bg-gold-medium/10 p-3 space-y-2 animate-in fade-in slide-in-from-top-2">
+                                <div className="flex items-center justify-between gap-3 text-xs sm:text-sm">
+                                    <span className="text-gold-light font-semibold">
+                                        {t('checkout.split.total_label', 'Split total')}
+                                    </span>
+                                    <span className="text-white font-bold">
+                                        US$ {totalWithFees.toFixed(2)}
+                                    </span>
+                                </div>
+                                <div className="flex items-center justify-between gap-3 text-xs sm:text-sm">
+                                    <span className="text-gold-light font-semibold">
+                                        {t('checkout.split.first_part_label', 'First payment now')}
+                                    </span>
+                                    <span className="text-white font-bold">
+                                        US$ {splitPaymentConfig.part1_amount.toFixed(2)}
+                                    </span>
+                                </div>
+                                <p className="text-[10px] sm:text-xs text-gray-300 leading-relaxed">
+                                    {t(
+                                        'checkout.split.first_part_method',
+                                        'Selected method for the first payment: {{method}}',
+                                        { method: splitPaymentConfig.part1_method.toUpperCase() }
+                                    )}
+                                </p>
+                            </div>
+                        )}
                         {isParcelowMethod(paymentMethod as any) && (
                             <div className="bg-gold-dark/10 border border-gold-medium/30 rounded-md p-2 mt-2">
                                 <p className="text-[10px] sm:text-xs text-gray-300 leading-relaxed">
@@ -118,7 +151,7 @@ export const OrderSummary: React.FC<OrderSummaryProps> = ({
                 </div>
 
                 {showPaymentButton && onPay && (
-                    <div className="pt-4 animate-in fade-in slide-in-from-bottom-2 hidden lg:block">
+                    <div ref={checkoutButtonRef} className="pt-4 animate-in fade-in slide-in-from-bottom-2 hidden lg:block">
                         <Button
                             onClick={onPay}
                             disabled={!isPaymentReady || isSubmitting}

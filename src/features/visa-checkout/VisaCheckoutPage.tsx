@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useSearchParams, Link } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import { isParcelowMethod } from './types/form.types';
@@ -37,6 +37,7 @@ export const VisaCheckoutPage: React.FC = () => {
 
     const [product, setProduct] = useState<VisaProduct | null>(null);
     const [loading, setLoading] = useState(true);
+    const checkoutButtonRef = useRef<HTMLDivElement | null>(null);
 
     // 1. Inicializar estado central
     const { state, actions } = useVisaCheckoutForm();
@@ -144,6 +145,13 @@ export const VisaCheckoutPage: React.FC = () => {
             window.scrollTo({ top: 0, behavior: 'smooth' });
         }
     }, [state.error]);
+
+    const scrollToCheckout = () => {
+        checkoutButtonRef.current?.scrollIntoView({
+            behavior: 'smooth',
+            block: 'center',
+        });
+    };
 
     if (loading || isLoadingPrefill) {
         return (
@@ -289,6 +297,7 @@ export const VisaCheckoutPage: React.FC = () => {
                                     onPrev={handlePrev}
                                     productSlug={productSlug}
                                     totalAmount={totalWithFees}
+                                    onScrollToCheckout={scrollToCheckout}
                                 />
                             </div>
                         )}
@@ -301,6 +310,7 @@ export const VisaCheckoutPage: React.FC = () => {
                                 extraUnits={state.extraUnits}
                                 totalWithFees={totalWithFees}
                                 paymentMethod={state.paymentMethod}
+                                splitPaymentConfig={state.splitPaymentConfig}
                                 showPaymentButton={true}
                                 isSubmitting={state.submitting}
                                 isPaymentReady={
@@ -346,6 +356,7 @@ export const VisaCheckoutPage: React.FC = () => {
                                 upsellPrice={upsellPrice}
                                 discountAmount={discountAmount}
                                 appliedCouponCode={state.appliedCoupon?.code}
+                                checkoutButtonRef={checkoutButtonRef}
                             />
                         </aside>
                     )}
