@@ -4,12 +4,12 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { ConfirmModal } from '@/components/ui/confirm-modal';
 import { 
   Plus, 
   LinkIcon, 
   Search, 
   Edit, 
-  Trash2, 
   Power, 
   DollarSign, 
   Users, 
@@ -54,6 +54,9 @@ export function CreateServiceLink() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [copiedSlug, setCopiedSlug] = useState<string | null>(null);
+  const [productToToggleStatus, setProductToToggleStatus] = useState<VisaProduct | null>(null);
+  const [showStatusConfirm, setShowStatusConfirm] = useState(false);
+  const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
 
   const [formData, setFormData] = useState({
     name: '',
@@ -90,6 +93,44 @@ export function CreateServiceLink() {
 
     loadData();
   }, []);
+
+  const handleStatusClick = (product: VisaProduct) => {
+    setProductToToggleStatus(product);
+    setShowStatusConfirm(true);
+  };
+
+  const confirmStatusChange = async () => {
+    if (!productToToggleStatus) return;
+
+    const nextStatus = !productToToggleStatus.is_active;
+
+    setIsUpdatingStatus(true);
+    try {
+      const { error } = await supabase
+        .from('visa_products')
+        .update({ is_active: nextStatus })
+        .eq('id', productToToggleStatus.id);
+
+      if (error) {
+        console.error('Error updating service link status:', error);
+        return;
+      }
+
+      setProducts(current =>
+        current.map(product =>
+          product.id === productToToggleStatus.id
+            ? { ...product, is_active: nextStatus }
+            : product
+        )
+      );
+      setShowStatusConfirm(false);
+      setProductToToggleStatus(null);
+    } catch (err) {
+      console.error('Error updating service link status:', err);
+    } finally {
+      setIsUpdatingStatus(false);
+    }
+  };
 
   const handleCopyLink = (slug: string) => {
     const link = `${window.location.origin}/checkout/visa/${slug}`;
@@ -292,7 +333,7 @@ export function CreateServiceLink() {
                 ) : filteredProducts.length === 0 ? (
                   <tr>
                     <td colSpan={5} className="px-6 py-24 text-center">
-                      <p className="text-gray-500 italic font-medium uppercase tracking-widest text-xs">No active configurations matching your search</p>
+                      <p className="text-gray-500 italic font-medium uppercase tracking-widest text-xs">No configurations matching your search</p>
                     </td>
                   </tr>
                 ) : (
@@ -347,9 +388,14 @@ export function CreateServiceLink() {
                           <Button
                             variant="ghost"
                             size="sm"
-                            className="h-11 w-11 p-0 text-red-500 hover:bg-red-500/10 border border-red-500/10 transition-transform active:scale-95"
+                            onClick={() => handleStatusClick(p)}
+                            className={`h-11 w-11 p-0 border transition-transform active:scale-95 ${
+                              p.is_active
+                                ? 'text-red-500 hover:bg-red-500/10 border-red-500/10'
+                                : 'text-green-400 hover:bg-green-500/10 border-green-500/10'
+                            }`}
                           >
-                            <Trash2 className="w-4 h-4" />
+                            <Power className="w-4 h-4" />
                           </Button>
                         </div>
                       </td>
@@ -368,6 +414,28 @@ export function CreateServiceLink() {
             <p className="text-[9px] font-black uppercase tracking-[0.4em]">Migma Operational Systems v5.0.2</p>
          <div className="h-px w-20 bg-gray-600/30"></div>
       </div>
+
+      <ConfirmModal
+        isOpen={showStatusConfirm}
+        onClose={() => {
+          if (isUpdatingStatus) return;
+          setShowStatusConfirm(false);
+          setProductToToggleStatus(null);
+        }}
+        onConfirm={confirmStatusChange}
+        title={productToToggleStatus?.is_active ? 'Confirm Inactivation' : 'Confirm Activation'}
+        message={
+          productToToggleStatus
+            ? productToToggleStatus.is_active
+              ? `Are you sure you want to inactivate "${productToToggleStatus.name}"? This service link will remain saved, but its public checkout link will stop working.`
+              : `Are you sure you want to activate "${productToToggleStatus.name}"? Its public checkout link will become available again.`
+            : ''
+        }
+        confirmText={productToToggleStatus?.is_active ? 'Inactivate' : 'Activate'}
+        cancelText="Cancel"
+        variant={productToToggleStatus?.is_active ? 'danger' : 'default'}
+        isLoading={isUpdatingStatus}
+      />
     </div>
   );
 }
