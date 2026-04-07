@@ -5,7 +5,7 @@ interface VisaProduct {
   allow_extra_units: boolean;
 }
 
-type PaymentMethod = '' | 'card' | 'pix' | 'zelle' | 'wise' | 'parcelow_card' | 'parcelow_pix' | 'parcelow_ted';
+type PaymentMethod = '' | 'card' | 'pix' | 'square_card' | 'zelle' | 'wise' | 'parcelow_card' | 'parcelow_pix' | 'parcelow_ted';
 
 // Stripe fee constants (matching backend)
 const CARD_FEE_PERCENTAGE = 0.039; // 3.9%
@@ -77,7 +77,7 @@ export function calculateTotalWithFees(
   }
 
   // 2. Handle Stripe Card
-  if (paymentMethod === 'card') {
+  if (paymentMethod === 'card' || paymentMethod === 'square_card') {
     return baseTotal + (baseTotal * CARD_FEE_PERCENTAGE) + CARD_FEE_FIXED;
   }
 

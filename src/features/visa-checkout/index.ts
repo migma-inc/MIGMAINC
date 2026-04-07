@@ -20,6 +20,7 @@ export { useParcelowCheckout } from './hooks/useParcelowCheckout';
 
 // Services
 export { ParcelowService } from './services/payment/parcelowService';
+export { SquareService } from './services/payment/squareService';
 export { StripeService } from './services/payment/stripeService';
 export { WiseService } from './services/payment/wiseService';
 export { ZelleService } from './services/payment/zelleService';
@@ -34,6 +35,12 @@ export type {
     ParcelowCheckoutResponse,
     ParcelowOrder,
 } from './types/parcelow.types';
+
+// Types - Stripe
+export type {
+    SquareCheckoutRequest,
+    SquareCheckoutResponse,
+} from './types/square.types';
 
 // Types - Stripe
 export type {

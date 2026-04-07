@@ -410,6 +410,12 @@ Deno.serve(async (req) => {
                 `Include the invoice number ${order.order_number} in the payment reference.`,
                 'Please contact support for payment details.'
             ];
+        } else if (order.payment_method === 'square_card') {
+            instructionLines = [
+                'Payment Method: Square Card',
+                `Include the invoice number ${order.order_number} in the payment reference.`,
+                'Please contact support for payment details.'
+            ];
         } else {
             instructionLines = [
                 `Include the invoice number ${order.order_number} in the payment reference.`,

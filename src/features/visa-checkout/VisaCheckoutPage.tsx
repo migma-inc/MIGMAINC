@@ -318,7 +318,7 @@ export const VisaCheckoutPage: React.FC = () => {
                                     state.termsAccepted &&
                                     state.dataAuthorization &&
                                     (state.paymentMethod !== 'zelle' || !!state.zelleReceipt) &&
-                                    (state.paymentMethod === 'card' ? (
+                                    ((state.paymentMethod === 'card' || state.paymentMethod === 'square_card') ? (
                                         !!state.creditCardName // Stripe Card exige pelo menos o nome para a assinatura/contrato
                                     ) : (
                                         (state.paymentMethod !== 'parcelow_card' || (
@@ -348,6 +348,8 @@ export const VisaCheckoutPage: React.FC = () => {
                                         paymentHandlers.handleZellePayment();
                                     } else if (isParcelowMethod(state.paymentMethod)) {
                                         paymentHandlers.handleParcelowPayment?.();
+                                    } else if (state.paymentMethod === 'square_card') {
+                                        paymentHandlers.handleSquareCheckout();
                                     } else {
                                         paymentHandlers.handleStripeCheckout(state.paymentMethod as 'card' | 'pix');
                                     }

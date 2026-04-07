@@ -174,7 +174,11 @@ const OrderTableSection = ({
                   </td>
                   <td className="py-3 px-4">
                     <Badge variant="outline" className="text-[10px] border-zinc-800 text-zinc-300 bg-zinc-900/50 uppercase font-medium">
-                      {order.payment_method === 'stripe' ? 'Credit Card' : order.payment_method}
+                      {order.payment_method === 'stripe'
+                        ? 'Credit Card'
+                        : order.payment_method === 'square_card'
+                          ? 'Square Card'
+                          : order.payment_method}
                     </Badge>
                   </td>
                   <td className={`py-3 px-4 text-sm font-bold ${isSignatureOnly ? 'text-blue-400' : 'text-gold-light'}`}>

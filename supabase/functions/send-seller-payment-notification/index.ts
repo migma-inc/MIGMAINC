@@ -78,6 +78,7 @@ Deno.serve(async (req) => {
             if (paymentMethod === "parcelow") return "International Split Payment";
             if (paymentMethod === "stripe_pix" || paymentMethod === "pix") return "PIX";
             if (paymentMethod === "stripe_card" || paymentMethod === "card") return "Credit/Debit Card";
+            if (paymentMethod === "square_card") return "Square Card";
             if (paymentMethod === "zelle") return "Zelle";
             return paymentMethod || "Confirmed Method";
         })();

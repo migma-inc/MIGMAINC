@@ -123,7 +123,11 @@ Deno.serve(async (req) => {
         const currencySymbol = orderCurrency === "BRL" ? "R$" : "US$";
 
         // Format payment method
-        const paymentMethodDisplay = paymentMethod === "parcelow" ? "Parcelow" : paymentMethod;
+        const paymentMethodDisplay = paymentMethod === "parcelow"
+            ? "Parcelow"
+            : paymentMethod === "square_card"
+                ? "Square Card"
+                : paymentMethod;
 
         // Build email HTML template
         const buildEmailHtml = (adminName: string) => `

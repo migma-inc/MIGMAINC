@@ -86,6 +86,10 @@ export function calculateNetAmount(order: any): number {
     return totalPrice * 0.965;
   }
 
+  if (paymentMethod?.startsWith('square')) {
+    return totalPrice * 0.965;
+  }
+
   // Zelle or other methods without fees: return total_price
   return Math.max(totalPrice, 0);
 }

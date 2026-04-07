@@ -304,7 +304,11 @@ const OrderTable = ({
                       : isSignatureOnly ? 'text-blue-400' : 'text-gold-light'
                       }`}
                   >
-                    {order.payment_method === 'manual' ? 'Manual by Seller' : order.payment_method}
+                    {order.payment_method === 'manual'
+                      ? 'Manual by Seller'
+                      : order.payment_method === 'square_card'
+                        ? 'Square Card'
+                        : order.payment_method}
                   </Badge>
                 </td>
                 <td className="py-3 px-4">
@@ -531,7 +535,11 @@ const OrderTable = ({
                       : 'text-gold-light'
                       }`}
                   >
-                    {order.payment_method === 'manual' ? 'Manual by Seller' : order.payment_method}
+                    {order.payment_method === 'manual'
+                      ? 'Manual by Seller'
+                      : order.payment_method === 'square_card'
+                        ? 'Square Card'
+                        : order.payment_method}
                   </Badge>
                 </div>
                 {!isSignatureOnly && (
@@ -1183,6 +1191,7 @@ export const VisaOrdersPage = () => {
                   <SelectItem value="all">All Methods</SelectItem>
                   <SelectItem value="parcelow">Parcelow</SelectItem>
                   <SelectItem value="stripe">Stripe</SelectItem>
+                  <SelectItem value="square">Square</SelectItem>
                   <SelectItem value="zelle">Zelle</SelectItem>
                 </SelectContent>
               </Select>

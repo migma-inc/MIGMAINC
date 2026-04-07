@@ -89,6 +89,7 @@ Deno.serve(async (req: Request) => {
       switch (paymentMethod) {
         case "stripe_card":
         case "card": return "Credit/Debit Card";
+        case "square_card": return "Square Card";
         case "stripe_pix":
         case "pix": return "PIX";
         case "zelle": return "Zelle";
