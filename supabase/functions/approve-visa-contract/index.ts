@@ -4,6 +4,7 @@
 
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
+import { appendServiceRequestEvent } from "../shared/service-request-operational.ts";
 
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
 const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -205,8 +206,54 @@ async function sendVisaAdminNotification(order: any, supabase: any) {
   }
 }
 
+function isWebhookApprovalSatisfied(order: any, approvalType: string, isAnnexOnlyProduct: boolean): boolean {
+  if (approvalType === 'contract') {
+    return order.contract_approval_status === 'approved';
+  }
+
+  if (approvalType === 'upsell_contract') {
+    return order.upsell_contract_approval_status === 'approved';
+  }
+
+  if (approvalType === 'annex' && isAnnexOnlyProduct) {
+    return order.annex_approval_status === 'approved';
+  }
+
+  return false;
+}
+
+type ClientWebhookPayload = Record<string, string | number | boolean>;
+
+type WebhookPayloadEnvelope = {
+  kind: 'main' | 'dependent';
+  dependentName?: string;
+  body: ClientWebhookPayload;
+};
+
+type WebhookDispatchResult = {
+  sent: boolean;
+  webhookUrls: string[];
+  payloadCount: number;
+  reason: string | null;
+  payloadPreview: WebhookPayloadEnvelope[];
+  responses: Array<{
+    webhookUrl: string;
+    kind: 'main' | 'dependent';
+    dependentName?: string;
+    status: number;
+    ok: boolean;
+    bodyPreview: string | null;
+  }>;
+};
+
+function previewResponseBody(responseText: string): string | null {
+  if (!responseText) return null;
+  return responseText.length > 500 ? `${responseText.slice(0, 500)}...` : responseText;
+}
+
 async function sendClientWebhook(order: any, supabase: any, isUpsell: boolean = false) {
-  const prodUrl = Deno.env.get('CLIENT_WEBHOOK_URL');
+  const approveUrl = Deno.env.get('CLIENT_WEBHOOK_URL_APPROVE');
+  const legacyUrl = Deno.env.get('CLIENT_WEBHOOK_URL');
   const testUrl = "https://nwh.suaiden.com/webhook/45665dbc-8751-41ff-afb8-6d17dd61d204";
 
   const isTestUser =
@@ -221,17 +268,44 @@ async function sendClientWebhook(order: any, supabase: any, isUpsell: boolean = 
       order.client_email.toLowerCase() === "victuribdev@gmail.com"
     ));
 
-  // Define which URL to use
-  let webhookUrl = prodUrl;
+  const webhookUrls = isTestUser
+    ? Array.from(new Set([testUrl, approveUrl, legacyUrl].filter((value): value is string => Boolean(value))))
+    : Array.from(new Set([legacyUrl].filter((value): value is string => Boolean(value))));
 
   if (isTestUser) {
     console.log(`[Webhook Client] 🧪 TEST USER DETECTED: Routing to test n8n...`);
-    webhookUrl = testUrl;
   }
 
-  if (!webhookUrl) {
+  if (webhookUrls.length === 0) {
     console.error('[Webhook Client] Webhook URL not set');
-    return;
+    return {
+      sent: false,
+      webhookUrls: [],
+      payloadCount: 0,
+      reason: 'webhook_url_not_set',
+      payloadPreview: [],
+      responses: [],
+    };
+  }
+
+  const invalidWebhookUrl = webhookUrls.find((url) => {
+    try {
+      new URL(url);
+      return false;
+    } catch (_error) {
+      return true;
+    }
+  });
+  if (invalidWebhookUrl) {
+    console.error('[Webhook Client] Invalid webhook URL');
+    return {
+      sent: false,
+      webhookUrls,
+      payloadCount: 0,
+      reason: 'invalid_webhook_url',
+      payloadPreview: [],
+      responses: [],
+    };
   }
 
   try {
@@ -277,7 +351,9 @@ async function sendClientWebhook(order: any, supabase: any, isUpsell: boolean = 
       }
     }
 
-    const payload: any = {
+    const mainPayload: ClientWebhookPayload = {
+      order_id: order.id,
+      service_request_id: order.service_request_id || '',
       servico: serviceName,
       plano_servico: productSlug,
       nome_completo_cliente_principal: order.client_name,
@@ -289,21 +365,21 @@ async function sendClientWebhook(order: any, supabase: any, isUpsell: boolean = 
     };
 
     // Only include is_upsell if it's true
-    if (isUpsell) payload.is_upsell = true;
+    if (isUpsell) mainPayload.is_upsell = true;
 
-    console.log(`[Webhook Client] Sending ${isUpsell ? 'UPSELL' : 'MAIN'} payload to n8n:`, JSON.stringify(payload));
+    const payloads: WebhookPayloadEnvelope[] = [
+      {
+        kind: 'main',
+        body: mainPayload,
+      },
+    ];
 
-    await fetch(webhookUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
-
-    // Send dependents separately if any
     if (Array.isArray(order.dependent_names) && order.dependent_names.length > 0) {
       for (const depName of order.dependent_names) {
         if (!depName) continue;
-        const depPayload: any = {
+        const depPayload: ClientWebhookPayload = {
+          order_id: order.id,
+          service_request_id: order.service_request_id || '',
           tipo: "dependente",
           nome_completo_cliente_principal: order.client_name,
           nome_completo_dependente: depName,
@@ -317,17 +393,54 @@ async function sendClientWebhook(order: any, supabase: any, isUpsell: boolean = 
 
         if (isUpsell) depPayload.is_upsell = true;
 
-        console.log(`[Webhook Client] Sending dependent payload (${depName}) to n8n:`, JSON.stringify(depPayload));
-        await fetch(webhookUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(depPayload),
+        payloads.push({
+          kind: 'dependent',
+          dependentName: depName,
+          body: depPayload,
         });
       }
     }
+
+    const responses: WebhookDispatchResult["responses"] = [];
+
+    for (const webhookUrl of webhookUrls) {
+      for (const payload of payloads) {
+        console.log(`[Webhook Client] Sending ${payload.kind.toUpperCase()} payload to n8n (${webhookUrl}):`, JSON.stringify(payload.body));
+
+        const response = await fetch(webhookUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload.body),
+        });
+
+        const responseText = await response.text();
+        responses.push({
+          webhookUrl,
+          kind: payload.kind,
+          dependentName: payload.dependentName,
+          status: response.status,
+          ok: response.ok,
+          bodyPreview: previewResponseBody(responseText),
+        });
+
+        if (!response.ok) {
+          throw new Error(`n8n webhook failed for ${payload.kind} at ${webhookUrl}: ${response.status} ${response.statusText} - ${previewResponseBody(responseText) || 'empty response'}`);
+        }
+      }
+    }
+
     console.log('[Webhook Client] All webhooks sent successfully');
+    return {
+      sent: true,
+      webhookUrls,
+      payloadCount: payloads.length,
+      reason: null,
+      payloadPreview: payloads,
+      responses,
+    };
   } catch (error) {
     console.error('[Webhook Client] Error sending webhook:', error);
+    throw error;
   }
 }
 
@@ -433,15 +546,22 @@ Deno.serve(async (req) => {
     console.log(`[EDGE FUNCTION] ${approvalType} approved successfully in DB`);
 
     scheduleBackgroundTask((async () => {
-      // 3. Send Admin Notification Email with PDF Attachments
+      let freshOrder: any = null;
+
       try {
-        // Fetch fresh order data to ensure we have the latest PDF paths
-        const { data: freshOrder } = await supabase
+        const { data } = await supabase
           .from('visa_orders')
           .select('*')
           .eq('id', order_id)
           .single();
 
+        freshOrder = data;
+      } catch (err) {
+        console.error("[EDGE FUNCTION] Error refetching order after approval:", err);
+      }
+
+      // 3. Send Admin Notification Email with PDF Attachments
+      try {
         if (freshOrder) {
           await sendVisaAdminNotification(freshOrder, supabase);
         }
@@ -461,13 +581,108 @@ Deno.serve(async (req) => {
 
       if (shouldTriggerWebhook) {
         const isUpsell = approvalType === 'upsell_contract';
-        console.log(`[EDGE FUNCTION] Triggering n8n webhook for order: ${order.order_number} (Type: ${approvalType}, Product: ${order.product_slug})`);
-        const orderWithApproval = { ...order, ...updateData };
+        const orderForWebhook = freshOrder || { ...order, ...updateData };
+        const approvalSatisfied = isWebhookApprovalSatisfied(orderForWebhook, approvalType, isAnnexOnlyProduct);
+        const approvalEventKey = `order:${orderForWebhook.id}:approval:${approvalType}`;
+
+        if (!approvalSatisfied) {
+          console.warn(`[EDGE FUNCTION] Skipping n8n webhook because approval is not fully persisted for order ${order.order_number} (${approvalType})`);
+          if (orderForWebhook.service_request_id) {
+            await appendServiceRequestEvent(
+              supabase,
+              orderForWebhook.service_request_id,
+              'n8n_webhook_skipped',
+              'system',
+              {
+                reason: 'approval_not_persisted',
+                approval_type: approvalType,
+                order_id: orderForWebhook.id,
+                order_number: orderForWebhook.order_number,
+              },
+              { eventKey: approvalEventKey },
+            );
+          }
+        } else {
+          console.log(`[EDGE FUNCTION] Triggering n8n webhook for order: ${orderForWebhook.order_number} (Type: ${approvalType}, Product: ${orderForWebhook.product_slug})`);
+
+          if (orderForWebhook.service_request_id) {
+            await appendServiceRequestEvent(
+              supabase,
+              orderForWebhook.service_request_id,
+              'n8n_webhook_dispatch_requested',
+              'system',
+              {
+                approval_type: approvalType,
+                order_id: orderForWebhook.id,
+                order_number: orderForWebhook.order_number,
+                is_upsell: isUpsell,
+              },
+              { eventKey: approvalEventKey },
+            );
+          }
         
-        try {
-          await sendClientWebhook(orderWithApproval, supabase, isUpsell);
-        } catch (err) {
-          console.error("[EDGE FUNCTION] Non-critical webhook error:", err);
+          try {
+            const dispatchResult = await sendClientWebhook(orderForWebhook, supabase, isUpsell);
+
+            if (!dispatchResult.sent) {
+              if (orderForWebhook.service_request_id) {
+                await appendServiceRequestEvent(
+                  supabase,
+                  orderForWebhook.service_request_id,
+                  'n8n_webhook_skipped',
+                  'system',
+                  {
+                    reason: dispatchResult.reason || 'dispatch_not_sent',
+                    approval_type: approvalType,
+                    order_id: orderForWebhook.id,
+                    order_number: orderForWebhook.order_number,
+                    webhook_urls: dispatchResult.webhookUrls,
+                  },
+                  { eventKey: approvalEventKey },
+                );
+              }
+
+              return;
+            }
+
+            if (orderForWebhook.service_request_id) {
+              await appendServiceRequestEvent(
+                supabase,
+                orderForWebhook.service_request_id,
+                'n8n_webhook_dispatched',
+                'system',
+                {
+                  approval_type: approvalType,
+                  order_id: orderForWebhook.id,
+                  order_number: orderForWebhook.order_number,
+                  is_upsell: isUpsell,
+                  webhook_urls: dispatchResult.webhookUrls,
+                  payload_count: dispatchResult.payloadCount,
+                  payload_preview: dispatchResult.payloadPreview,
+                  delivery_responses: dispatchResult.responses,
+                },
+                { eventKey: approvalEventKey },
+              );
+            }
+          } catch (err) {
+            console.error("[EDGE FUNCTION] Non-critical webhook error:", err);
+
+            if (orderForWebhook.service_request_id) {
+              await appendServiceRequestEvent(
+                supabase,
+                orderForWebhook.service_request_id,
+                'n8n_webhook_failed',
+                'system',
+                {
+                  approval_type: approvalType,
+                  order_id: orderForWebhook.id,
+                  order_number: orderForWebhook.order_number,
+                  error: err instanceof Error ? err.message : String(err),
+                },
+                { eventKey: approvalEventKey },
+              );
+            }
+          }
         }
       }
 

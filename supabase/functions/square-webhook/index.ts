@@ -1,5 +1,9 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
+import {
+  appendServiceRequestEvent,
+  ensureOperationalCaseInitialized,
+} from "../shared/service-request-operational.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -315,6 +319,33 @@ async function processCompletedPayment(payment: any, supabase: any, environment:
       .from("service_requests")
       .update({ status: "paid", updated_at: paidAt })
       .eq("id", mainOrder.service_request_id);
+
+    await ensureOperationalCaseInitialized(
+      supabase,
+      mainOrder.service_request_id,
+      "gateway",
+      {
+        provider: "square",
+        payment_id: payment.id,
+        square_order_id: payment.order_id,
+        order_id: mainOrder.id,
+      },
+    );
+
+    await appendServiceRequestEvent(
+      supabase,
+      mainOrder.service_request_id,
+      "payment_confirmed",
+      "gateway",
+      {
+        provider: "square",
+        order_id: mainOrder.id,
+        order_number: mainOrder.order_number,
+        square_payment_id: payment.id,
+        square_order_id: payment.order_id,
+        amount_money: payment.amount_money || null,
+      },
+    );
   }
 
   if (mainOrder.seller_id) {

@@ -1,5 +1,9 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
+import {
+  appendServiceRequestEvent,
+  ensureOperationalCaseInitialized,
+} from "../shared/service-request-operational.ts";
 
 // Types
 interface Order {
@@ -232,6 +236,32 @@ Deno.serve(async (req: Request) => {
     // Wait for all critical operations to complete
     await Promise.allSettled(criticalOperations);
     console.log("[Zelle Webhook] Operações críticas concluídas");
+
+    if (order.service_request_id) {
+      await ensureOperationalCaseInitialized(
+        supabase,
+        order.service_request_id,
+        "gateway",
+        {
+          provider: "zelle",
+          order_id: order.id,
+          order_number: order.order_number,
+        },
+      );
+
+      await appendServiceRequestEvent(
+        supabase,
+        order.service_request_id,
+        "payment_confirmed",
+        "gateway",
+        {
+          provider: "zelle",
+          order_id: order.id,
+          order_number: order.order_number,
+          zelle_payment_id: zellePayment?.payment_id || null,
+        },
+      );
+    }
 
     // ============================================
     // NON-CRITICAL OPERATIONS: SEQUENTIAL PIPELINE
