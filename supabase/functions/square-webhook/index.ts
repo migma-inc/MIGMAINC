@@ -112,6 +112,110 @@ function extractPayment(event: any) {
   return possibleObjects.find((candidate) => candidate && candidate.id && candidate.status && candidate.order_id) || null;
 }
 
+async function runRecurringPostPayment(mainOrder: any, supabase: any) {
+  if (mainOrder.product_slug === "eb3-installment-catalog") {
+    try {
+      const { data: clientData } = await supabase
+        .from("clients")
+        .select("id")
+        .eq("email", mainOrder.client_email)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      const clientId = clientData?.id;
+      if (clientId) {
+        const { data: existingRecurrence } = await supabase
+          .from("eb3_recurrence_control")
+          .select("id")
+          .eq("client_id", clientId)
+          .maybeSingle();
+
+        if (!existingRecurrence) {
+          const { error } = await supabase.rpc("activate_eb3_recurrence", {
+            p_client_id: clientId,
+            p_activation_order_id: mainOrder.id,
+            p_seller_id: mainOrder.seller_id || null,
+            p_seller_commission_percent: mainOrder.seller_commission_percent || null,
+          });
+
+          if (error) {
+            console.error("[Square Webhook] Error activating EB-3 recurrence:", error);
+          }
+        }
+      }
+    } catch (error) {
+      console.error("[Square Webhook] Exception activating EB-3 recurrence:", error);
+    }
+  }
+
+  if (mainOrder.product_slug === "scholarship-maintenance-fee") {
+    try {
+      const { data: clientData } = await supabase
+        .from("clients")
+        .select("id")
+        .eq("email", mainOrder.client_email)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      const clientId = clientData?.id;
+      if (clientId) {
+        const { data: existingRecurrence } = await supabase
+          .from("scholarship_recurrence_control")
+          .select("id")
+          .eq("client_id", clientId)
+          .maybeSingle();
+
+        if (!existingRecurrence) {
+          const { error } = await supabase.rpc("activate_scholarship_recurrence", {
+            p_client_id: clientId,
+            p_activation_order_id: mainOrder.id,
+            p_seller_id: mainOrder.seller_id || null,
+            p_seller_commission_percent: mainOrder.seller_commission_percent || null,
+          });
+
+          if (error) {
+            console.error("[Square Webhook] Error activating scholarship recurrence:", error);
+          }
+        }
+      }
+    } catch (error) {
+      console.error("[Square Webhook] Exception activating scholarship recurrence:", error);
+    }
+  }
+
+  if (mainOrder.payment_metadata?.eb3_schedule_id) {
+    try {
+      const { error } = await supabase.rpc("mark_eb3_installment_paid", {
+        p_schedule_id: mainOrder.payment_metadata.eb3_schedule_id,
+        p_payment_id: mainOrder.id,
+      });
+
+      if (error) {
+        console.error("[Square Webhook] Error marking EB-3 installment as paid:", error);
+      }
+    } catch (error) {
+      console.error("[Square Webhook] Exception marking EB-3 installment as paid:", error);
+    }
+  }
+
+  if (mainOrder.payment_metadata?.scholarship_schedule_id) {
+    try {
+      const { error } = await supabase.rpc("mark_scholarship_installment_paid", {
+        p_schedule_id: mainOrder.payment_metadata.scholarship_schedule_id,
+        p_payment_id: mainOrder.id,
+      });
+
+      if (error) {
+        console.error("[Square Webhook] Error marking scholarship installment as paid:", error);
+      }
+    } catch (error) {
+      console.error("[Square Webhook] Exception marking scholarship installment as paid:", error);
+    }
+  }
+}
+
 async function processCompletedPayment(payment: any, supabase: any, environment: "production" | "test") {
   const { data: orders, error: orderError } = await supabase
     .from("visa_orders")
@@ -130,6 +234,10 @@ async function processCompletedPayment(payment: any, supabase: any, environment:
   }
 
   const feeAmount = parseFloat(mainOrder.payment_metadata?.fee_amount || "0");
+  const paidAt = new Date().toISOString();
+  const amountPaidUsd = typeof payment?.amount_money?.amount === "number"
+    ? payment.amount_money.amount / 100
+    : orders.reduce((sum: number, order: any) => sum + parseFloat(order.total_price_usd || 0), 0);
 
   for (const orderItem of orders) {
     const nextMetadata = {
@@ -139,7 +247,10 @@ async function processCompletedPayment(payment: any, supabase: any, environment:
       square_order_id: payment.order_id,
       square_status: payment.status,
       square_receipt_url: payment.receipt_url || null,
-      completed_at: new Date().toISOString(),
+      square_location_id: payment.location_id || null,
+      square_source_type: payment.source_type || null,
+      total_usd: amountPaidUsd,
+      completed_at: paidAt,
       fee_amount: orderItem.id === mainOrder.id ? feeAmount : 0,
     };
 
@@ -147,7 +258,7 @@ async function processCompletedPayment(payment: any, supabase: any, environment:
       .from("visa_orders")
       .update({
         payment_status: "completed",
-        paid_at: new Date().toISOString(),
+        paid_at: paidAt,
         payment_method: "square_card",
         payment_metadata: nextMetadata,
       })
@@ -155,13 +266,28 @@ async function processCompletedPayment(payment: any, supabase: any, environment:
   }
 
   if (mainOrder.service_request_id) {
-    const { data: paymentRecord } = await supabase
+    const paymentRecordId = mainOrder.payment_metadata?.payment_id || null;
+    let paymentRecord = null;
+
+    if (paymentRecordId) {
+      const { data } = await supabase
+        .from("payments")
+        .select("id, raw_webhook_log")
+        .eq("id", paymentRecordId)
+        .maybeSingle();
+      paymentRecord = data;
+    }
+
+    if (!paymentRecord) {
+      const { data } = await supabase
       .from("payments")
       .select("id, raw_webhook_log")
       .eq("service_request_id", mainOrder.service_request_id)
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle();
+      paymentRecord = data;
+    }
 
     if (paymentRecord?.id) {
       await supabase
@@ -169,15 +295,17 @@ async function processCompletedPayment(payment: any, supabase: any, environment:
         .update({
           status: "paid",
           external_payment_id: payment.id,
-          updated_at: new Date().toISOString(),
+          updated_at: paidAt,
           raw_webhook_log: {
             ...(paymentRecord.raw_webhook_log || {}),
             provider: "square",
             payment_id: payment.id,
             payment_status: payment.status,
             square_order_id: payment.order_id,
+            square_receipt_url: payment.receipt_url || null,
+            amount_money: payment.amount_money || null,
             environment,
-            received_at: new Date().toISOString(),
+            received_at: paidAt,
           },
         })
         .eq("id", paymentRecord.id);
@@ -185,7 +313,7 @@ async function processCompletedPayment(payment: any, supabase: any, environment:
 
     await supabase
       .from("service_requests")
-      .update({ status: "paid", updated_at: new Date().toISOString() })
+      .update({ status: "paid", updated_at: paidAt })
       .eq("id", mainOrder.service_request_id);
   }
 
@@ -212,6 +340,8 @@ async function processCompletedPayment(payment: any, supabase: any, environment:
   if (isTestUser) {
     await supabase.from("visa_orders").update({ is_test: true }).in("id", orders.map((order: any) => order.id));
   }
+
+  await runRecurringPostPayment(mainOrder, supabase);
 
   for (const orderForPdf of orders) {
     if (orderForPdf.product_slug !== "consultation-common") {
@@ -348,6 +478,7 @@ Deno.serve(async (req: Request) => {
         .eq("payment_metadata->>square_order_id", payment.order_id);
 
       if (orders?.length) {
+        const failedAt = new Date().toISOString();
         for (const order of orders) {
           await supabase
             .from("visa_orders")
@@ -359,10 +490,32 @@ Deno.serve(async (req: Request) => {
                 square_payment_id: payment.id,
                 square_order_id: payment.order_id,
                 square_status: payment.status,
-                failed_at: new Date().toISOString(),
+                failed_at: failedAt,
               },
             })
             .eq("id", order.id);
+        }
+
+        const mainOrder = orders.find((order: any) => !order.payment_metadata?.is_upsell) || orders[0];
+        const paymentRecordId = mainOrder?.payment_metadata?.payment_id || null;
+        const nextStatus = payment.status === "CANCELED" ? "cancelled" : "failed";
+
+        if (paymentRecordId) {
+          await supabase
+            .from("payments")
+            .update({
+              status: nextStatus,
+              updated_at: failedAt,
+              raw_webhook_log: {
+                provider: "square",
+                payment_id: payment.id,
+                payment_status: payment.status,
+                square_order_id: payment.order_id,
+                environment: webhookEnv.environment,
+                received_at: failedAt,
+              },
+            })
+            .eq("id", paymentRecordId);
         }
       }
     }
