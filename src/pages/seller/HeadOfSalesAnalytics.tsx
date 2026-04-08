@@ -36,6 +36,7 @@ export function HeadOfSalesAnalytics() {
     const [selectedYear, setSelectedYear] = useState('2026');
     const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
     const [selectedService, setSelectedService] = useState('all');
+    const [distributionPeriod, setDistributionPeriod] = useState('annual');
     const [products, setProducts] = useState<{slug: string, name: string}[]>([]);
     const [activeTab, setActiveTab] = useState(() => {
         return localStorage.getItem('migma_hos_analytics_tab') || 'contratos';
@@ -63,6 +64,13 @@ export function HeadOfSalesAnalytics() {
     const selectedServiceName = selectedService === 'all' ? null : (products.find(p => p.slug === selectedService)?.name ?? selectedService);
     const serviceFilterSuffix = selectedServiceName ? ` — ${selectedServiceName}` : '';
     const monthFilterSuffix = ` — ${selectedMonthLabel}`;
+    const distributionMonth = distributionPeriod === 'annual' ? null : parseInt(distributionPeriod, 10);
+    const distributionLabel = distributionMonth === null ? 'Annual' : months[distributionMonth].label;
+    const distributionData = distributionMonth === null
+        ? (data?.productDistribution || [])
+        : (data?.productDistributionByMonth?.[distributionMonth] || []);
+    const distributionTotalSales = distributionData.reduce((sum, item) => sum + item.sales, 0);
+    const distributionPeriodSuffix = ` — ${distributionLabel}`;
 
     useEffect(() => {
         async function loadActiveProducts() {
@@ -361,28 +369,59 @@ export function HeadOfSalesAnalytics() {
                     />
 
                     {/* Linha 4: Distribuição e Histórico Geral */}
-                    <ServiceRankChart 
-                        data={data?.productDistribution || []} 
-                        total={data?.totalSales || 0}
-                        title={`Services Distribution${serviceFilterSuffix} — Total: ${data?.totalSales || 0}`}
-                    />
+                    <div className="md:col-span-2 space-y-6">
+                        <Card className="bg-black/40 border-gold-medium/20 overflow-hidden">
+                            <CardHeader className="py-3 bg-gold-medium/5 border-b border-gold-medium/10">
+                                <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                                    <div className="flex items-center gap-2">
+                                        <Filter className="w-4 h-4 text-gold-medium" />
+                                        <CardTitle className="text-xs font-bold text-white uppercase tracking-wider">
+                                            Service Sales Distribution
+                                        </CardTitle>
+                                    </div>
 
-                    {/* Linha 5: Detalhe de Produtos */}
-                    <SubProductPieChart 
-                        data={data?.productDistribution || []}
-                        filterType="student"
-                        title={`U.S. Student Visas${serviceFilterSuffix}`}
-                    />
-                    <SubProductPieChart 
-                        data={data?.productDistribution || []}
-                        filterType="tourist-us"
-                        title={`U.S. Tourist Visas${serviceFilterSuffix}`}
-                    />
-                    <SubProductPieChart 
-                        data={data?.productDistribution || []}
-                        filterType="tourist-ca"
-                        title={`Canadian Tourist Visas${serviceFilterSuffix}`}
-                    />
+                                    <div className="flex items-center gap-2">
+                                        <Calendar className="w-4 h-4 text-gold-medium" />
+                                        <Select value={distributionPeriod} onValueChange={setDistributionPeriod}>
+                                            <SelectTrigger className="w-[180px] bg-black/60 border-gold-medium/30 text-white">
+                                                <SelectValue placeholder="Distribution Period" />
+                                            </SelectTrigger>
+                                            <SelectContent className="bg-[#0a0a0a] border-gold-medium/30 text-white">
+                                                <SelectItem value="annual">Annual</SelectItem>
+                                                {months.map(m => (
+                                                    <SelectItem key={m.value} value={m.value.toString()}>{m.label}</SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                </div>
+                            </CardHeader>
+                        </Card>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 auto-rows-min">
+                            <ServiceRankChart 
+                                data={distributionData}
+                                total={distributionTotalSales}
+                                title={`Services Distribution${distributionPeriodSuffix}${serviceFilterSuffix} — Total: ${distributionTotalSales}`}
+                            />
+
+                            <SubProductPieChart 
+                                data={distributionData}
+                                filterType="student"
+                                title={`U.S. Student Visas${distributionPeriodSuffix}${serviceFilterSuffix}`}
+                            />
+                            <SubProductPieChart 
+                                data={distributionData}
+                                filterType="tourist-us"
+                                title={`U.S. Tourist Visas${distributionPeriodSuffix}${serviceFilterSuffix}`}
+                            />
+                            <SubProductPieChart 
+                                data={distributionData}
+                                filterType="tourist-ca"
+                                title={`Canadian Tourist Visas${distributionPeriodSuffix}${serviceFilterSuffix}`}
+                            />
+                        </div>
+                    </div>
                         </div>
                     </TabsContent>
 

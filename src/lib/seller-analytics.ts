@@ -107,6 +107,7 @@ export interface TeamYearlyAnalytics {
   monthlyData: TeamMonthlyData[];
   sellerPerformance: TeamMemberPerformance[];
   productDistribution: ProductMetric[];
+  productDistributionByMonth: { [monthIdx: number]: ProductMetric[] };
   totalSales: number;
   totalRevenue: number;
   avgSalesPerMonth: number;
@@ -1514,29 +1515,58 @@ export async function getTeamYearlyAnalytics(
 
     // 4. Distribuição por Produto (Gráfico 4)
     const productStatsMap = new Map<string, { sales: number, revenue: number }>();
+    const productStatsByMonth = new Map<number, Map<string, { sales: number, revenue: number }>>();
+
+    for (let i = 0; i < 12; i++) {
+        productStatsByMonth.set(i, new Map());
+    }
 
     (orders || []).forEach(order => {
         const slug = order.product_slug;
         if (!slug) return;
         
-        const productName = productMap.get(slug) || slug;
-        const current = productStatsMap.get(productName) || { sales: 0, revenue: 0 };
+        const monthIdx = new Date(order.created_at).getMonth();
+        const current = productStatsMap.get(slug) || { sales: 0, revenue: 0 };
         const isContract = !slug.includes('i20') && !slug.includes('scholarship');
+        const revenue = calculateNetAmount(order);
         current.sales += isContract ? 1 : 0;
-        current.revenue += calculateNetAmount(order);
-        productStatsMap.set(productName, current);
+        current.revenue += revenue;
+        productStatsMap.set(slug, current);
+
+        const monthlyStats = productStatsByMonth.get(monthIdx)!;
+        const currentMonthStats = monthlyStats.get(slug) || { sales: 0, revenue: 0 };
+        currentMonthStats.sales += isContract ? 1 : 0;
+        currentMonthStats.revenue += revenue;
+        monthlyStats.set(slug, currentMonthStats);
     });
 
     const productDistribution: ProductMetric[] = Array.from(productStatsMap.entries())
         .filter(([_, stats]) => stats.sales > 0 || stats.revenue > 0)
-        .map(([name, stats]) => ({
-            productSlug: name,
-            productName: name, 
+        .map(([slug, stats]) => ({
+            productSlug: slug,
+            productName: productMap.get(slug) || slug,
             sales: stats.sales,
             revenue: stats.revenue,
             avgRevenue: stats.sales > 0 ? stats.revenue / stats.sales : 0,
             percentage: totalSales > 0 ? (stats.sales / totalSales) * 100 : 0
         })).sort((a, b) => b.sales - a.sales);
+
+    const productDistributionByMonth: { [monthIdx: number]: ProductMetric[] } = {};
+    productStatsByMonth.forEach((monthStats, monthIdx) => {
+        const monthTotalSales = Array.from(monthStats.values()).reduce((sum, stats) => sum + stats.sales, 0);
+
+        productDistributionByMonth[monthIdx] = Array.from(monthStats.entries())
+            .filter(([_, stats]) => stats.sales > 0 || stats.revenue > 0)
+            .map(([slug, stats]) => ({
+                productSlug: slug,
+                productName: productMap.get(slug) || slug,
+                sales: stats.sales,
+                revenue: stats.revenue,
+                avgRevenue: stats.sales > 0 ? stats.revenue / stats.sales : 0,
+                percentage: monthTotalSales > 0 ? (stats.sales / monthTotalSales) * 100 : 0
+            }))
+            .sort((a, b) => b.sales - a.sales);
+    });
 
     return {
       totalSales,
@@ -1545,6 +1575,7 @@ export async function getTeamYearlyAnalytics(
       monthlyData,
       sellerPerformance,
       productDistribution,
+      productDistributionByMonth,
       weeklyData: weeklyDataMap,
       monthlyRankings
     };

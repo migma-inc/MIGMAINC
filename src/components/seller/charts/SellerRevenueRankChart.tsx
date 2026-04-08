@@ -163,7 +163,7 @@ export function SellerRevenueRankChart({ data, total, title, year = new Date().g
                     {title}
                 </CardTitle>
                 <Badge variant="outline" className="bg-gold-medium/10 text-gold-light border-gold-medium/30 tracking-wider">
-                    Total Arrecadado {year}: ${total.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    Total Revenue {year}: ${total.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </Badge>
             </CardHeader>
             <CardContent className="p-4 pt-6 h-[420px]">
