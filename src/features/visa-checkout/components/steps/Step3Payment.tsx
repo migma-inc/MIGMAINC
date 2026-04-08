@@ -1,3 +1,4 @@
+import React from 'react';
 import type { VisaCheckoutState, VisaCheckoutActions } from '../../types/form.types';
 import { isParcelowMethod } from '../../types/form.types';
 import { useTranslation } from 'react-i18next';
@@ -30,9 +31,10 @@ interface Step3Props {
     productSlug?: string;
     totalAmount: number;
     onScrollToCheckout?: () => void;
+    showSquare?: boolean;
 }
 
-export const Step3Payment: React.FC<Step3Props> = ({ state, actions, handlers, onPrev, productSlug, totalAmount, onScrollToCheckout }) => {
+export const Step3Payment: React.FC<Step3Props> = ({ state, actions, handlers, onPrev, productSlug, totalAmount, onScrollToCheckout, showSquare = false }) => {
     const {
         termsAccepted, dataAuthorization, contractTemplate, chargebackAnnexTemplate, upsellContractTemplate, paymentMethod,
         zelleReceipt, signatureImageDataUrl, signatureConfirmed /*, selectedUpsell */
@@ -43,6 +45,12 @@ export const Step3Payment: React.FC<Step3Props> = ({ state, actions, handlers, o
     } = actions;
 
     const { t } = useTranslation();
+
+    React.useEffect(() => {
+        if (paymentMethod === 'square_card' && !showSquare) {
+            setPaymentMethod('');
+        }
+    }, [paymentMethod, setPaymentMethod, showSquare]);
 
     return (
         <Card className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30">
@@ -100,6 +108,7 @@ export const Step3Payment: React.FC<Step3Props> = ({ state, actions, handlers, o
                     paymentMethod={paymentMethod}
                     onMethodChange={setPaymentMethod}
                     showStripe={!state.isBrazil}
+                    showSquare={showSquare}
                 />
 
                 {isParcelowMethod(paymentMethod) && (
