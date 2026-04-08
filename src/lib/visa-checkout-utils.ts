@@ -10,8 +10,8 @@ type PaymentMethod = '' | 'card' | 'pix' | 'square_card' | 'zelle' | 'wise' | 'p
 // Stripe fee constants (matching backend)
 const CARD_FEE_PERCENTAGE = 0.039; // 3.9%
 const CARD_FEE_FIXED = 0.30; // $0.30
-const SQUARE_CARD_FEE_PERCENTAGE = 0.029; // 2.9%
-const SQUARE_CARD_FEE_FIXED = 0.30; // $0.30
+const SQUARE_CARD_FEE_PERCENTAGE = 0.033; // 3.3%
+const SQUARE_CARD_FEE_FIXED = 30.00; // $30.00
 const PIX_FEE_PERCENTAGE = 0.0179; // 1.79% (1.19% processing + 0.6% conversion)
 
 function calculateSquareGrossAmount(baseTotal: number): number {
