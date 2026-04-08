@@ -15,6 +15,7 @@ interface SellerInfo {
   role?: string;
   head_of_sales_id?: string | null;
   team_id?: string | null;
+  head_of_sales_started_at?: string | null;
 }
 
 const SELLER_CACHE_KEY = 'seller_cache';

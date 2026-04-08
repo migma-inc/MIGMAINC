@@ -23,6 +23,13 @@ export function PromoteHosModal({ isOpen, onClose, onSuccess }: PromoteHosModalP
     const [sellers, setSellers] = useState<Seller[]>([]);
     const [loading, setLoading] = useState(false);
     const [promoting, setPromoting] = useState<string | null>(null);
+    const [headOfSalesStartedAt, setHeadOfSalesStartedAt] = useState('');
+
+    const getTodayInputValue = () => {
+        const now = new Date();
+        const local = new Date(now.getTime() - now.getTimezoneOffset() * 60000);
+        return local.toISOString().slice(0, 10);
+    };
 
     // Load sellers that are NOT heads of sales and NOT test sellers
     const searchSellers = async (term: string) => {
@@ -56,6 +63,7 @@ export function PromoteHosModal({ isOpen, onClose, onSuccess }: PromoteHosModalP
 
     useEffect(() => {
         if (isOpen) {
+            setHeadOfSalesStartedAt(getTodayInputValue());
             searchSellers(search);
         }
     }, [isOpen]);
@@ -86,6 +94,9 @@ export function PromoteHosModal({ isOpen, onClose, onSuccess }: PromoteHosModalP
                     seller_id_public: seller.seller_id_public,
                     role: 'head_of_sales',
                     head_of_sales_id: null,
+                    head_of_sales_started_at: headOfSalesStartedAt
+                        ? new Date(`${headOfSalesStartedAt}T00:00:00.000Z`).toISOString()
+                        : null,
                 },
             });
 
@@ -130,6 +141,18 @@ export function PromoteHosModal({ isOpen, onClose, onSuccess }: PromoteHosModalP
                         Search for a seller to promote them to the role of **Head of Sales**. 
                         They will be able to manage their own team and view their sellers' metrics.
                     </p>
+
+                    <div className="space-y-2">
+                        <label className="text-xs font-bold uppercase tracking-wider text-gray-500">
+                            Start Date For Team Performance
+                        </label>
+                        <input
+                            type="date"
+                            value={headOfSalesStartedAt}
+                            onChange={(e) => setHeadOfSalesStartedAt(e.target.value)}
+                            className="w-full px-4 py-3 bg-black border border-white/10 rounded-xl text-white focus:outline-none focus:border-gold-medium transition-colors"
+                        />
+                    </div>
 
                     {/* Search Input */}
                     <div className="relative">
@@ -192,7 +215,7 @@ export function PromoteHosModal({ isOpen, onClose, onSuccess }: PromoteHosModalP
                                     </div>
                                     <Button
                                         size="sm"
-                                        disabled={!!promoting}
+                                        disabled={!!promoting || !headOfSalesStartedAt}
                                         onClick={() => handlePromote(seller)}
                                         className="bg-gold-medium hover:bg-gold-dark text-black font-bold h-9 px-4 rounded-lg shadow-lg group-hover:scale-105 transition-transform"
                                     >

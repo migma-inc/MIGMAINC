@@ -25,6 +25,7 @@ interface Seller {
     status: string;
     role: string;
     head_of_sales_id: string | null;
+    head_of_sales_started_at: string | null;
     team_id: string | null;
     is_test: boolean;
 }
@@ -48,6 +49,8 @@ export function HeadOfSalesManagement() {
     const [isPromoteModalOpen, setIsPromoteModalOpen] = useState(false);
     const [selectedTeam, setSelectedTeam] = useState<{ id: string, name: string } | null>(null);
     const [teamMetrics, setTeamMetrics] = useState<Record<string, { netRevenue: number, totalOrders: number, totalOverrides: number }>>({});
+    const [startDateEditor, setStartDateEditor] = useState<{ sellerId: string; name: string; value: string } | null>(null);
+    const [savingStartDate, setSavingStartDate] = useState(false);
 
 
     // Action Modal State para Delete Team, Demote HoS e Erros
@@ -78,7 +81,7 @@ export function HeadOfSalesManagement() {
             // 1. Fetch Sellers
             let sellersQuery = supabase
                 .from('sellers')
-                .select('id, full_name, email, seller_id_public, status, role, head_of_sales_id, team_id, is_test');
+                .select('id, full_name, email, seller_id_public, status, role, head_of_sales_id, head_of_sales_started_at, team_id, is_test');
 
             if (!isTestEnvironment()) {
                 sellersQuery = sellersQuery.eq('is_test', false);
@@ -121,18 +124,25 @@ export function HeadOfSalesManagement() {
             const metrics: Record<string, { netRevenue: number, totalOrders: number, totalOverrides: number }> = {};
             
             for (const team of teamsList) {
+                const hos = sellersList.find(s => s.team_id === team.id && s.role === 'head_of_sales');
+
                 // 1. Fetch orders by team_id
                 let ordersQuery = supabase
                     .from('visa_orders')
-                    .select('id, base_price_usd, extra_units, extra_unit_price_usd, upsell_price_usd, discount_amount')
+                    .select('id, base_price_usd, extra_units, extra_unit_price_usd, upsell_price_usd, discount_amount, created_at, paid_at')
                     .eq('team_id', team.id)
-                    .eq('payment_status', 'completed');
+                    .in('payment_status', ['completed', 'paid']);
 
                 if (!isTestEnvironment()) {
                     ordersQuery = ordersQuery.eq('is_test', false);
                 }
 
-                const { data: teamOrders } = await ordersQuery;
+                const { data: fetchedTeamOrders } = await ordersQuery;
+                const teamOrders = (fetchedTeamOrders || []).filter(order => {
+                    if (!hos?.head_of_sales_started_at) return true;
+                    const effectiveDate = new Date(order.paid_at ?? order.created_at);
+                    return effectiveDate >= new Date(hos.head_of_sales_started_at);
+                });
 
                 const netRevenue = teamOrders?.reduce((acc, order) => {
                     return acc + (Number(order.base_price_usd || 0) + 
@@ -142,7 +152,6 @@ export function HeadOfSalesManagement() {
                 }, 0) || 0;
 
                 let totalOverrides = 0;
-                const hos = sellersList.find(s => s.team_id === team.id && s.role === 'head_of_sales');
                 
                 if (hos && teamOrders && teamOrders.length > 0) {
                     const orderIds = teamOrders.map(o => o.id);
@@ -218,7 +227,7 @@ export function HeadOfSalesManagement() {
         setSaving(hosId);
         try {
             await supabase.from('sellers').update({ head_of_sales_id: null }).eq('head_of_sales_id', hosId);
-            const { error } = await supabase.from('sellers').update({ role: 'seller', team_id: null }).eq('id', hosId);
+            const { error } = await supabase.from('sellers').update({ role: 'seller', team_id: null, head_of_sales_started_at: null }).eq('id', hosId);
             if (error) throw error;
             await loadData();
         } catch (err) {
@@ -240,6 +249,59 @@ export function HeadOfSalesManagement() {
         if (!search) return true;
         return t.name.toLowerCase().includes(search.toLowerCase());
     });
+
+    const formatDateForInput = (value: string | null) => {
+        if (!value) {
+            const now = new Date();
+            const local = new Date(now.getTime() - now.getTimezoneOffset() * 60000);
+            return local.toISOString().slice(0, 10);
+        }
+
+        const date = new Date(value);
+        return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}-${String(date.getUTCDate()).padStart(2, '0')}`;
+    };
+
+    const formatStartDate = (value: string | null) => {
+        if (!value) return 'Not configured';
+
+        return new Intl.DateTimeFormat('en-US', {
+            month: 'short',
+            day: '2-digit',
+            year: 'numeric',
+            timeZone: 'UTC',
+        }).format(new Date(value));
+    };
+
+    const openStartDateEditor = (seller: Seller) => {
+        setStartDateEditor({
+            sellerId: seller.id,
+            name: seller.full_name,
+            value: formatDateForInput(seller.head_of_sales_started_at),
+        });
+    };
+
+    const saveStartDate = async () => {
+        if (!startDateEditor?.value) return;
+
+        setSavingStartDate(true);
+        try {
+            const { error } = await supabase
+                .from('sellers')
+                .update({
+                    head_of_sales_started_at: new Date(`${startDateEditor.value}T00:00:00.000Z`).toISOString(),
+                })
+                .eq('id', startDateEditor.sellerId);
+
+            if (error) throw error;
+
+            setStartDateEditor(null);
+            await loadData();
+        } catch (err) {
+            console.error('[HeadOfSalesManagement] Error saving HoS start date:', err);
+        } finally {
+            setSavingStartDate(false);
+        }
+    };
 
     const sellersWithoutTeam = sellers.filter(s => !s.team_id);
     const hosWithoutTeam = sellers.filter(s => !s.team_id && s.role === 'head_of_sales');
@@ -405,6 +467,7 @@ export function HeadOfSalesManagement() {
                                                                         {teamHos.full_name}
                                                                     </p>
                                                                     <p className="text-[10px] text-gray-500">{teamHos.email}</p>
+                                                                    <p className="text-[10px] text-gold-light">Start: {formatStartDate(teamHos.head_of_sales_started_at)}</p>
                                                                 </div>
                                                             ) : (
                                                                 <span className="text-gray-600 text-xs italic">No leader</span>
@@ -443,6 +506,14 @@ export function HeadOfSalesManagement() {
                                                                                 Analytics
                                                                             </Button>
                                                                         </Link>
+                                                                        <Button
+                                                                            size="sm"
+                                                                            variant="outline"
+                                                                            onClick={() => openStartDateEditor(teamHos)}
+                                                                            className="h-8 text-[10px] border-gold-medium/40 bg-black text-gold-medium hover:bg-gold-medium hover:text-black transition-all font-semibold"
+                                                                        >
+                                                                            Start Date
+                                                                        </Button>
                                                                         <Button
                                                                             size="sm"
                                                                             variant="outline"
@@ -518,6 +589,7 @@ export function HeadOfSalesManagement() {
                                                                  <div className="min-w-0">
                                                                      <p className="text-sm font-medium text-purple-300 truncate">{teamHos.full_name}</p>
                                                                      <p className="text-[10px] text-gray-500 truncate">{teamHos.email}</p>
+                                                                     <p className="text-[10px] text-gold-light truncate">Start: {formatStartDate(teamHos.head_of_sales_started_at)}</p>
                                                                  </div>
                                                              ) : (
                                                                  <p className="text-sm text-gray-600 italic">No leader</p>
@@ -544,6 +616,13 @@ export function HeadOfSalesManagement() {
                                                                          <BarChart3 className="w-3 h-3 mr-1" /> Analytics
                                                                      </Button>
                                                                  </Link>
+                                                                 <Button
+                                                                     variant="outline"
+                                                                     onClick={() => openStartDateEditor(teamHos)}
+                                                                     className="w-full h-9 text-[10px] border-gold-medium/40 bg-black text-gold-medium"
+                                                                 >
+                                                                     Start Date
+                                                                 </Button>
                                                                  <Button 
                                                                      variant="outline" 
                                                                      disabled={saving === teamHos.id}
@@ -700,6 +779,33 @@ export function HeadOfSalesManagement() {
                 onClose={() => setIsPromoteModalOpen(false)}
                 onSuccess={loadData}
             />
+
+            <Dialog open={!!startDateEditor} onOpenChange={(open) => !open && setStartDateEditor(null)}>
+                <DialogContent className="bg-zinc-900 border-white/10 text-white">
+                    <DialogHeader>
+                        <DialogTitle>Edit HoS Start Date</DialogTitle>
+                        <DialogDescription className="text-gray-400">
+                            {startDateEditor?.name}: team analytics will consider sales from this date forward.
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <input
+                        type="date"
+                        value={startDateEditor?.value || ''}
+                        onChange={(e) => setStartDateEditor((current) => current ? { ...current, value: e.target.value } : current)}
+                        className="w-full px-4 py-3 bg-black border border-white/10 rounded-xl text-white focus:outline-none focus:border-gold-medium transition-colors"
+                    />
+
+                    <DialogFooter>
+                        <Button variant="ghost" onClick={() => setStartDateEditor(null)} className="text-gray-400 hover:text-white">
+                            Cancel
+                        </Button>
+                        <Button onClick={saveStartDate} disabled={!startDateEditor?.value || savingStartDate} className="bg-gold-medium hover:bg-gold-dark text-black font-bold">
+                            {savingStartDate ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Save'}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
 
             {/* Action Confirmation Modal */}
             <Dialog open={actionModal.isOpen} onOpenChange={(open) => !open && setActionModal(prev => ({ ...prev, isOpen: false }))}>

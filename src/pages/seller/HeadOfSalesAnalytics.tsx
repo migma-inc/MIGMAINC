@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { BarChart3, TrendingUp, Calendar, Filter, ShoppingCart, Award, DollarSign } from 'lucide-react';
 import type { SellerInfo } from '@/types/seller';
-import { getTeamYearlyAnalytics, type TeamYearlyAnalytics } from '@/lib/seller-analytics';
+import { getHeadOfSalesAnalyticsStartDate, getOrderEffectiveDate, getTeamYearlyAnalytics, type TeamYearlyAnalytics } from '@/lib/seller-analytics';
 import { formatCurrency } from '@/lib/utils';
 import { Skeleton } from '@/components/ui/skeleton';
 import { supabase } from '@/lib/supabase';
@@ -76,19 +76,26 @@ export function HeadOfSalesAnalytics() {
         async function loadActiveProducts() {
             if (!seller.team_id) return;
             
-            const startYear = `${selectedYear}-01-01T00:00:00Z`;
-            const endYear = `${selectedYear}-12-31T23:59:59Z`;
+            const analyticsStart = getHeadOfSalesAnalyticsStartDate(parseInt(selectedYear), seller.head_of_sales_started_at);
+            const expandedStart = new Date(analyticsStart.getTime() - 60 * 24 * 60 * 60 * 1000).toISOString();
+            const endYear = new Date(Date.UTC(parseInt(selectedYear), 11, 31, 23, 59, 59, 999));
 
             // Buscar slugs únicos que tiveram vendas completadas no ano/time
             const { data: soldSlugs } = await supabase
                 .from('visa_orders')
-                .select('product_slug')
+                .select('product_slug, created_at, paid_at, payment_status')
                 .eq('team_id', seller.team_id)
-                .eq('payment_status', 'completed')
-                .gte('created_at', startYear)
-                .lte('created_at', endYear);
+                .in('payment_status', ['completed', 'paid'])
+                .gte('created_at', expandedStart)
+                .lte('created_at', endYear.toISOString());
 
-            const activeSlugs = [...new Set((soldSlugs || []).map(s => s.product_slug).filter(Boolean))];
+            const activeSlugs = [...new Set((soldSlugs || [])
+                .filter(order => {
+                    const effectiveDate = getOrderEffectiveDate(order);
+                    return effectiveDate >= analyticsStart && effectiveDate <= endYear;
+                })
+                .map(s => s.product_slug)
+                .filter(Boolean))];
 
             if (activeSlugs.length === 0) {
                 setProducts([]);
@@ -104,7 +111,7 @@ export function HeadOfSalesAnalytics() {
             if (prods) setProducts(prods);
         }
         loadActiveProducts();
-    }, [seller.team_id, selectedYear]);
+    }, [seller.team_id, seller.head_of_sales_started_at, selectedYear]);
 
     useEffect(() => {
         if (selectedService === 'all') return;
@@ -123,7 +130,8 @@ export function HeadOfSalesAnalytics() {
                 const analytics = await getTeamYearlyAnalytics(
                     seller.team_id, 
                     parseInt(selectedYear), 
-                    selectedService
+                    selectedService,
+                    seller.head_of_sales_started_at
                 );
                 setData(analytics);
             } catch (err) {
@@ -133,7 +141,16 @@ export function HeadOfSalesAnalytics() {
             }
         }
         loadData();
-    }, [seller.team_id, selectedYear, selectedService]);
+    }, [seller.team_id, seller.head_of_sales_started_at, selectedYear, selectedService]);
+
+    const startDateLabel = seller.head_of_sales_started_at
+        ? new Intl.DateTimeFormat('en-US', {
+            month: 'short',
+            day: '2-digit',
+            year: 'numeric',
+            timeZone: 'UTC',
+        }).format(new Date(seller.head_of_sales_started_at))
+        : null;
 
     return (
         <div className="max-w-7xl mx-auto space-y-6 pb-12">
@@ -144,6 +161,11 @@ export function HeadOfSalesAnalytics() {
                         Team Analytics
                     </h1>
                     <p className="text-zinc-500 mt-1">Strategic overview of performance and sales distribution</p>
+                    {startDateLabel && (
+                        <p className="text-xs text-gold-light mt-2">
+                            Team performance is considering sales from {startDateLabel}.
+                        </p>
+                    )}
                 </div>
             </div>
 

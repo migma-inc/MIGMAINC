@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Users, BarChart3, TrendingUp, DollarSign, Wallet } from 'lucide-react';
 import { PeriodFilter, type PeriodOption, type CustomDateRange } from '@/components/seller/PeriodFilter';
 import type { SellerInfo } from '@/types/seller';
+import { getOrderEffectiveDate } from '@/lib/seller-analytics';
 
 export function AdminHoSAnalytics() {
     const { hosId } = useParams<{ hosId: string }>();
@@ -41,7 +42,7 @@ export function AdminHoSAnalytics() {
                         .from('visa_orders')
                         .select('*')
                         .eq('team_id', hosData.team_id)
-                        .eq('payment_status', 'completed');
+                        .in('payment_status', ['completed', 'paid']);
                     
                     const ordersList = teamOrders || [];
                     setOrders(ordersList);
@@ -124,15 +125,16 @@ export function AdminHoSAnalytics() {
             start.setHours(0, 0, 0, 0);
         }
 
+        const hosStartDate = hos?.head_of_sales_started_at ? new Date(hos.head_of_sales_started_at) : null;
+        const effectiveStart = hosStartDate && hosStartDate > start ? hosStartDate : start;
+
         const filteredOrders = orders.filter(order => {
-            const date = new Date(order.created_at);
-            return date >= start && date <= end;
+            const date = getOrderEffectiveDate(order);
+            return date >= effectiveStart && date <= end;
         });
 
-        const filteredCommissions = commissions.filter(comm => {
-            const date = new Date(comm.created_at);
-            return date >= start && date <= end;
-        });
+        const filteredOrderIds = new Set(filteredOrders.map(order => order.id));
+        const filteredCommissions = commissions.filter(comm => filteredOrderIds.has(comm.order_id));
 
         return { filteredOrders, filteredCommissions };
     };

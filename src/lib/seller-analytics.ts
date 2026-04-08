@@ -115,6 +115,28 @@ export interface TeamYearlyAnalytics {
   monthlyRankings: { [monthIdx: number]: TeamMemberPerformance[] };
 }
 
+export function getHeadOfSalesAnalyticsStartDate(
+  year: number,
+  headOfSalesStartedAt?: string | null
+): Date {
+  const yearStart = new Date(Date.UTC(year, 0, 1, 0, 0, 0, 0));
+
+  if (!headOfSalesStartedAt) {
+    return yearStart;
+  }
+
+  const parsed = new Date(headOfSalesStartedAt);
+  if (Number.isNaN(parsed.getTime())) {
+    return yearStart;
+  }
+
+  const normalizedStart = new Date(
+    Date.UTC(parsed.getUTCFullYear(), parsed.getUTCMonth(), parsed.getUTCDate(), 0, 0, 0, 0)
+  );
+
+  return normalizedStart > yearStart ? normalizedStart : yearStart;
+}
+
 async function getCommissionNetAmountMap(orderIds: string[]): Promise<Map<string, number>> {
   const validOrderIds = [...new Set(orderIds.filter(Boolean))];
 
@@ -184,7 +206,7 @@ async function getOrderMetadataMap(
   );
 }
 
-function getOrderEffectiveDate(order: { created_at: string; paid_at?: string | null }): Date {
+export function getOrderEffectiveDate(order: { created_at: string; paid_at?: string | null }): Date {
   return new Date(order.paid_at ?? order.created_at);
 }
 
@@ -1317,18 +1339,20 @@ export async function getCommissionByProduct(
 export async function getTeamYearlyAnalytics(
   teamId: string,
   year: number,
-  productSlug: string = 'all'
+  productSlug: string = 'all',
+  headOfSalesStartedAt?: string | null
 ): Promise<TeamYearlyAnalytics> {
   try {
-    const startDate = new Date(year, 0, 1);
-    const endDate = new Date(year, 11, 31, 23, 59, 59, 999);
+    const startDate = getHeadOfSalesAnalyticsStartDate(year, headOfSalesStartedAt);
+    const endDate = new Date(Date.UTC(year, 11, 31, 23, 59, 59, 999));
+    const expandedStart = new Date(startDate.getTime() - 60 * 24 * 60 * 60 * 1000);
 
     let query = supabase
       .from('visa_orders')
       .select('*')
       .eq('team_id', teamId)
-      .eq('payment_status', 'completed')
-      .gte('created_at', startDate.toISOString())
+      .in('payment_status', ['completed', 'paid'])
+      .gte('created_at', expandedStart.toISOString())
       .lte('created_at', endDate.toISOString());
 
     if (productSlug !== 'all') {
@@ -1341,9 +1365,13 @@ export async function getTeamYearlyAnalytics(
       }
     }
 
-    const { data: orders, error } = await query;
+    const { data: fetchedOrders, error } = await query;
 
     if (error) throw error;
+    const orders = (fetchedOrders || []).filter((order) => {
+      const effectiveDate = getOrderEffectiveDate(order);
+      return effectiveDate >= startDate && effectiveDate <= endDate;
+    });
     
     // 0. Buscar TODOS os membros do time (ativos ou não) para o ranking fixo
     const { data: teamMembers } = await supabase
@@ -1354,7 +1382,7 @@ export async function getTeamYearlyAnalytics(
     const teamSellersMap = new Map((teamMembers || []).map(s => [s.seller_id_public, s.full_name]));
 
     // 1. Buscar nomes dos vendedores que fizeram vendas mas podem não estar no time atual (vendas históricas)
-    const sellerPublicIds = [...new Set((orders || []).map(o => o.seller_id).filter(Boolean))];
+    const sellerPublicIds = [...new Set(orders.map(o => o.seller_id).filter(Boolean))];
     const missingSellerIds = sellerPublicIds.filter(id => !teamSellersMap.has(id));
     
     if (missingSellerIds.length > 0) {
@@ -1367,7 +1395,7 @@ export async function getTeamYearlyAnalytics(
     }
 
     // Buscar nomes dos produtos para a distribuição
-    const productSlugsArr = [...new Set((orders || []).map(o => o.product_slug).filter(Boolean))] as string[];
+    const productSlugsArr = [...new Set(orders.map(o => o.product_slug).filter(Boolean))] as string[];
     const productMap = new Map<string, string>();
     if (productSlugsArr.length > 0) {
       const { data: products } = await supabase
@@ -1423,10 +1451,10 @@ export async function getTeamYearlyAnalytics(
         });
     }
 
-    (orders || []).forEach(order => {
-      const date = new Date(order.created_at);
-      const monthIdx = date.getMonth();
-      const day = date.getDate();
+    orders.forEach(order => {
+      const date = getOrderEffectiveDate(order);
+      const monthIdx = date.getUTCMonth();
+      const day = date.getUTCDate();
       const monthData = monthlyMap.get(monthIdx)!;
       const sid = order.seller_id || 'unknown';
       const sellerName = teamSellersMap.get(sid) || sid || 'Unknown';
@@ -1480,13 +1508,15 @@ export async function getTeamYearlyAnalytics(
     });
 
     const monthlyData = Array.from(monthlyMap.values());
-    const totalSales = (orders || []).reduce((sum, o) => {
+    const totalSales = orders.reduce((sum, o) => {
         const s = o.product_slug || '';
         return sum + (!s.includes('i20') && !s.includes('scholarship') ? 1 : 0);
     }, 0);
-    
-    const currentMonth = new Date().getMonth() + 1; // 1 to 12
-    const avgSalesPerMonth = totalSales / currentMonth;
+
+    const now = new Date();
+    const activeEndMonth = year === now.getUTCFullYear() ? now.getUTCMonth() : 11;
+    const activeMonthCount = startDate > endDate ? 0 : Math.max(1, activeEndMonth - startDate.getUTCMonth() + 1);
+    const avgSalesPerMonth = activeMonthCount > 0 ? totalSales / activeMonthCount : 0;
 
     // 3. Processar Performance por Vendedor (Gráfico Rank Anual)
     const sellerStats = new Map<string, { sales: number, revenue: number }>();
@@ -1494,7 +1524,7 @@ export async function getTeamYearlyAnalytics(
         sellerStats.set(sid, { sales: 0, revenue: 0 });
     });
 
-    (orders || []).forEach(order => {
+    orders.forEach(order => {
       const sid = order.seller_id || 'unknown';
       const current = sellerStats.get(sid) || { sales: 0, revenue: 0 };
       const slug = order.product_slug || '';
@@ -1521,11 +1551,11 @@ export async function getTeamYearlyAnalytics(
         productStatsByMonth.set(i, new Map());
     }
 
-    (orders || []).forEach(order => {
+    orders.forEach(order => {
         const slug = order.product_slug;
         if (!slug) return;
-        
-        const monthIdx = new Date(order.created_at).getMonth();
+
+        const monthIdx = getOrderEffectiveDate(order).getUTCMonth();
         const current = productStatsMap.get(slug) || { sales: 0, revenue: 0 };
         const isContract = !slug.includes('i20') && !slug.includes('scholarship');
         const revenue = calculateNetAmount(order);
@@ -1570,7 +1600,7 @@ export async function getTeamYearlyAnalytics(
 
     return {
       totalSales,
-      totalRevenue: (orders || []).reduce((sum, o) => sum + calculateNetAmount(o), 0),
+      totalRevenue: orders.reduce((sum, o) => sum + calculateNetAmount(o), 0),
       avgSalesPerMonth,
       monthlyData,
       sellerPerformance,
