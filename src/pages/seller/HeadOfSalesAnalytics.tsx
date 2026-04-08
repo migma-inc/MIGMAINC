@@ -58,6 +58,12 @@ export function HeadOfSalesAnalytics() {
 
     const years = ['2026'];
 
+    // Títulos dinâmicos baseados nos filtros
+    const selectedMonthLabel = months[selectedMonth].label;
+    const selectedServiceName = selectedService === 'all' ? null : (products.find(p => p.slug === selectedService)?.name ?? selectedService);
+    const serviceFilterSuffix = selectedServiceName ? ` — ${selectedServiceName}` : '';
+    const monthFilterSuffix = ` — ${selectedMonthLabel}`;
+
     useEffect(() => {
         async function loadActiveProducts() {
             if (!seller.team_id) return;
@@ -358,24 +364,24 @@ export function HeadOfSalesAnalytics() {
                     <ServiceRankChart 
                         data={data?.productDistribution || []} 
                         total={data?.totalSales || 0}
-                        title={`Services Distribution (Annual) - Total: ${data?.totalSales || 0}`}
+                        title={`Services Distribution${serviceFilterSuffix} — Total: ${data?.totalSales || 0}`}
                     />
 
                     {/* Linha 5: Detalhe de Produtos */}
                     <SubProductPieChart 
                         data={data?.productDistribution || []}
                         filterType="student"
-                        title="U.S. Student Visas (Distribution)"
+                        title={`U.S. Student Visas${serviceFilterSuffix}`}
                     />
                     <SubProductPieChart 
                         data={data?.productDistribution || []}
                         filterType="tourist-us"
-                        title="U.S. Tourist Visas (Distribution)"
+                        title={`U.S. Tourist Visas${serviceFilterSuffix}`}
                     />
                     <SubProductPieChart 
                         data={data?.productDistribution || []}
                         filterType="tourist-ca"
-                        title="Canadian Tourist Visas (Distribution)"
+                        title={`Canadian Tourist Visas${serviceFilterSuffix}`}
                     />
                         </div>
                     </TabsContent>
@@ -385,7 +391,7 @@ export function HeadOfSalesAnalytics() {
                         <div className="grid grid-cols-1 xl:grid-cols-2 gap-8 auto-rows-min">
                             <MonthlyRevenueChart 
                                 data={data?.monthlyData || []} 
-                                avg={data?.totalRevenue ? data.totalRevenue / 12 : 0} 
+                                avg={data?.totalRevenue ? (parseInt(selectedYear) === new Date().getFullYear() ? data.totalRevenue / (new Date().getMonth() + 1) : data.totalRevenue / 12) : 0} 
                                 title="Monthly Revenue History"
                                 total={data?.totalRevenue || 0}
                             />
@@ -397,7 +403,7 @@ export function HeadOfSalesAnalytics() {
                                     percentage: data?.totalRevenue ? (p.revenue / data.totalRevenue) * 100 : 0
                                 }))}
                                 total={data?.totalRevenue || 0}
-                                title="Revenue generated per service"
+                                title={`Revenue per service${serviceFilterSuffix}`}
                             />
                         </div>
 
@@ -412,19 +418,19 @@ export function HeadOfSalesAnalytics() {
                                 }))}
                                 total={data?.totalRevenue || 0}
                                 year={selectedYear}
-                                title="Net revenue per seller in the year"
+                                title={`Revenue per seller${serviceFilterSuffix}`}
                             />
                             <WeeklyRevenueBarChart 
                                 data={(data?.weeklyData && data.weeklyData[selectedMonth]) || []}
-                                title={`Net revenue in ${months.find(m => m.value === selectedMonth)?.label} per week`}
+                                title={`Revenue${monthFilterSuffix} per week${serviceFilterSuffix}`}
                             />
                             <MonthlySellerRevenueBarChart 
                                 data={(data?.monthlyRankings && data.monthlyRankings[selectedMonth]) || []}
-                                title={`Net revenue per seller in ${months.find(m => m.value === selectedMonth)?.label}`}
+                                title={`Revenue per seller in ${months.find(m => m.value === selectedMonth)?.label}`}
                             />
                             <WeeklyFilteredSellerRevenueChart 
                                 data={(data?.weeklyData && data.weeklyData[selectedMonth]) || []}
-                                titleBase={`Net revenue per seller in ${months.find(m => m.value === selectedMonth)?.label}`}
+                                titleBase={`Revenue per seller in ${months.find(m => m.value === selectedMonth)?.label}`}
                             />
                         </div>
 
@@ -437,7 +443,7 @@ export function HeadOfSalesAnalytics() {
                                     revenue: s.revenue
                                 }))}
                                 monthsCount={data && data.totalSales > 0 ? new Date().getMonth() + 1 : 12}
-                                title="Monthly history of net revenue per seller"
+                                title="Monthly history of revenue per seller"
                             />
                         </div>
                     </TabsContent>

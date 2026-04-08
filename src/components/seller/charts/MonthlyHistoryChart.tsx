@@ -35,12 +35,16 @@ export function MonthlyHistoryChart({ data, avg, title }: MonthlyHistoryChartPro
                 panY: false,
                 wheelX: 'none',
                 wheelY: 'none',
-                paddingLeft: 0,
-                paddingRight: 10,
+                paddingLeft: 20,
+                paddingRight: 20,
             })
         );
 
-        const xRenderer = am5xy.AxisRendererX.new(root, { minGridDistance: 30 });
+        const xRenderer = am5xy.AxisRendererX.new(root, { minGridDistance: 1 });
+        xRenderer.labels.template.setAll({
+            fontSize: 10,
+            fill: am5.color('#9ca3af')
+        });
         xRenderer.grid.template.setAll({
             visible: true,
             strokeOpacity: 0.15,
@@ -56,12 +60,12 @@ export function MonthlyHistoryChart({ data, avg, title }: MonthlyHistoryChartPro
         xAxis.data.setAll(chartData);
 
         const yAxisRenderer = am5xy.AxisRendererY.new(root, {});
-        yAxisRenderer.labels.template.set('visible', false);
+        yAxisRenderer.labels.template.set('forceHidden', true);
 
         const yAxis = chart.yAxes.push(
             am5xy.ValueAxis.new(root, {
                 renderer: yAxisRenderer,
-                extraMax: 0.15,
+                extraMax: 0.3,
             })
         );
 
@@ -124,6 +128,30 @@ export function MonthlyHistoryChart({ data, avg, title }: MonthlyHistoryChartPro
         series.data.setAll(chartData);
 
         if (avg > 0) {
+            // Linha grossa invisível para aumentar a área de hover
+            const hitRangeDataItem = yAxis.makeDataItem({
+                value: avg,
+                endValue: avg,
+            });
+
+            const hitRange = yAxis.createAxisRange(hitRangeDataItem);
+            hitRange.get('grid')?.setAll({
+                stroke: am5.color('#000000'),
+                strokeOpacity: 0,
+                strokeWidth: 20, // 20px de zona detectável
+                interactive: true,
+                cursorOverStyle: "pointer",
+                tooltipText: `Average: ${formatPlainNumber(avg, 1)}`,
+            });
+
+            hitRange.get('grid')?.get('tooltip')?.get('background')?.setAll({
+                fill: am5.color('#000000'),
+                fillOpacity: 0.9,
+                stroke: am5.color('#CE9F48'),
+                strokeWidth: 1,
+            });
+
+            // Reta visual tracejada fina
             const rangeDataItem = yAxis.makeDataItem({
                 value: avg,
                 endValue: avg,
@@ -135,32 +163,7 @@ export function MonthlyHistoryChart({ data, avg, title }: MonthlyHistoryChartPro
                 strokeOpacity: 1,
                 strokeWidth: 2,
                 strokeDasharray: [6, 4],
-                interactive: true,
-                tooltipText: `Average: ${formatPlainNumber(avg, 1)}`,
-            });
-
-            range.get('grid')?.get('tooltip')?.get('background')?.setAll({
-                fill: am5.color('#000000'),
-                fillOpacity: 0.9,
-                stroke: am5.color('#CE9F48'),
-                strokeWidth: 1,
-            });
-
-            range.get('label')?.setAll({
-                text: `AVG ${formatPlainNumber(avg, 1)}`,
-                inside: true,
-                paddingLeft: 10,
-                paddingRight: 10,
-                paddingTop: 5,
-                paddingBottom: 5,
-                fill: am5.color('#ffffff'),
-                fontSize: 10,
-                fontWeight: 'bold',
-                background: (am5 as any).Rectangle.new(root, {
-                    fill: am5.color('#CE9F48'),
-                    fillOpacity: 0.8,
-                    cornerRadius: 4,
-                }),
+                interactive: false,
             });
         }
 
