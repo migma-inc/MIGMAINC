@@ -19,6 +19,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Pagination } from "@/components/ui/pagination";
 import { AlertModal } from '@/components/ui/alert-modal';
+import { calculateOrderAmounts } from '@/lib/seller-commissions';
 
 const isLocal = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
 
@@ -70,66 +71,7 @@ const VISA_ORDERS_SELECT = `
 
 // Helper function to calculate net amount and fee
 // Helper function to calculate net amount and fee
-const calculateNetAmountAndFee = (order: VisaOrder) => {
-  let dbPrice = parseFloat(order.total_price_usd || '0');
-
-  // Fix for total_price_usd being in cents (Heuristic: > 10000 means likely cents for values > $100)
-  // However, for values < $100 stored as cents (e.g. 2900), this stays 2900 if threshold is 10000.
-  // We'll keep this but improve metadata checks.
-  if (dbPrice > 10000) {
-    dbPrice = dbPrice / 100;
-  }
-
-  const metadata = order.payment_metadata;
-  let feeAmount = 0;
-  let totalPrice = dbPrice;
-  let netAmount = dbPrice;
-
-  // Parcelow Logic: Fees are added ON TOP of the base price
-  // DB Price = Net Amount (Base)
-  // Metadata Total = Gross Amount (Total Paid)
-  if (order.payment_method === 'parcelow') {
-    let paidTotal = dbPrice; // Fallback
-
-    if (metadata?.total_usd) {
-      let val = parseFloat(metadata.total_usd.toString());
-      // Heuristic: If metadata total is > 5x the DB price, it's likely in cents (e.g. 29.00 vs 3387)
-      // This handles both old (cents) and new (decimal) data.
-      if (val > (dbPrice * 5) && val > 100) val = val / 100;
-      if (val > 0) paidTotal = val;
-    } else if (metadata?.final_amount) {
-      let val = parseFloat(metadata.final_amount.toString());
-      if (val > (dbPrice * 5) && val > 100) val = val / 100;
-      if (val > 0) paidTotal = val;
-    }
-
-    totalPrice = paidTotal;
-    netAmount = dbPrice;
-    feeAmount = Math.max(totalPrice - netAmount, 0);
-  }
-  // Stripe Logic (Card/Pix) / Default: Fees are DEDUCTED from the total
-  // DB Price = Gross Amount (Total Paid)
-  // Metadata Fee = Fee Amount
-  // Net Amount = Total - Fee
-  else {
-    totalPrice = dbPrice;
-
-    if (metadata?.fee_amount) {
-      let val = parseFloat(metadata.fee_amount.toString());
-      // If fee is suspiciously high (e.g. > total/2), it might be in cents
-      if (val > (totalPrice / 2) && val > 100) val = val / 100;
-      feeAmount = val;
-    }
-
-    netAmount = totalPrice - feeAmount;
-  }
-
-  return {
-    netAmount: Math.max(netAmount, 0),
-    feeAmount: feeAmount,
-    totalPrice: totalPrice
-  };
-};
+const calculateNetAmountAndFee = (order: VisaOrder) => calculateOrderAmounts(order);
 
 const isPendingParcelowOrder = (order: VisaOrder) =>
   order.payment_method === 'parcelow' &&

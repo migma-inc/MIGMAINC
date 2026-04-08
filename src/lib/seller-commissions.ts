@@ -26,62 +26,31 @@ export type CommissionStats = {
   totalAmount: number;
 };
 
-/**
- * Calculate net amount from order (total_price_usd - fee_amount)
- * Helper function to extract net amount from order data
- */
-export function calculateNetAmount(order: any): number {
-  let totalPrice = parseFloat(order.total_price_usd || '0');
+function parseStoredAmount(value: unknown): number {
+  let amount = parseFloat(String(value || '0'));
 
-  // Fix for total_price being in cents
-  if (totalPrice > 10000) {
-    totalPrice = totalPrice / 100;
+  if (amount > 10000) {
+    amount = amount / 100;
   }
 
-  const metadata = order.payment_metadata as any;
-  const paymentMethod = order.payment_method;
+  return amount;
+}
 
-  // INTELLIGENT FEE CALCULATION
-  if (metadata) {
-    // Try to get the actual amount charged to the client (Gross Payment)
-    let chargedAmount = totalPrice; // Default to totalPrice
+function parseMetadataAmount(value: unknown, referenceAmount: number): number {
+  let amount = parseFloat(String(value || '0'));
 
-    if (metadata.total_usd) {
-      chargedAmount = parseFloat(metadata.total_usd);
-      // Fix for cents
-      if (chargedAmount > 20000) {
-        chargedAmount = chargedAmount / 100;
-      }
-    }
-
-    if (metadata.fee_amount) {
-      let feeAmount = parseFloat(metadata.fee_amount);
-      // Fix for cents
-      if (feeAmount > 10000) feeAmount = feeAmount / 100;
-
-      // Calculate what we actually received
-      const calculatedNet = chargedAmount - feeAmount;
-
-      // If what we received covers the base price (allowing small float diffs), return base price
-      // This covers cases where client paid Surcharge (Base + Fee)
-      if (calculatedNet >= (totalPrice - 0.05)) {
-        return totalPrice;
-      } else {
-        // Otherwise, Fee was likely deducted from Base
-        return Math.max(calculatedNet, 0);
-      }
-    }
+  if (amount > (referenceAmount * 5) && amount > 100) {
+    amount = amount / 100;
   }
 
-  // Fallback legacy logic if no 'fee_amount' in metadata
+  return amount;
+}
 
-  // Fallback for Parcelow: total_price_usd is already the net amount the company receives
-  // (Parcelow charges its fee on top of the base price to the client)
+function getLegacyNetAmount(totalPrice: number, paymentMethod?: string): number {
   if (paymentMethod === 'parcelow') {
     return totalPrice;
   }
 
-  // Fallback for Stripe (approx 3.5% fee subtracted from total_price_usd)
   if (paymentMethod?.startsWith('stripe')) {
     return totalPrice * 0.965;
   }
@@ -90,8 +59,78 @@ export function calculateNetAmount(order: any): number {
     return totalPrice * 0.965;
   }
 
-  // Zelle or other methods without fees: return total_price
   return Math.max(totalPrice, 0);
+}
+
+export function calculateOrderAmounts(order: any): {
+  totalPrice: number;
+  feeAmount: number;
+  netAmount: number;
+} {
+  const dbPrice = parseStoredAmount(order.total_price_usd);
+  const metadata = order.payment_metadata as any;
+  const paymentMethod = order.payment_method;
+
+  let totalPrice = dbPrice;
+  let feeAmount = 0;
+
+  const grossFromMetadata = metadata?.total_usd
+    ? parseMetadataAmount(metadata.total_usd, dbPrice)
+    : metadata?.final_amount
+      ? parseMetadataAmount(metadata.final_amount, dbPrice)
+      : 0;
+
+  if (grossFromMetadata > 0) {
+    totalPrice = grossFromMetadata;
+  }
+
+  if (metadata?.fee_amount) {
+    feeAmount = parseMetadataAmount(metadata.fee_amount, Math.max(totalPrice, dbPrice));
+  }
+
+  if (paymentMethod === 'parcelow') {
+    const netAmount = dbPrice;
+
+    return {
+      totalPrice,
+      feeAmount: Math.max(totalPrice - netAmount, feeAmount, 0),
+      netAmount,
+    };
+  }
+
+  if (feeAmount > 0) {
+    const calculatedNet = Math.max(totalPrice - feeAmount, 0);
+
+    if (grossFromMetadata > 0 && calculatedNet >= (dbPrice - 0.05)) {
+      return {
+        totalPrice,
+        feeAmount,
+        netAmount: dbPrice,
+      };
+    }
+
+    return {
+      totalPrice,
+      feeAmount,
+      netAmount: calculatedNet,
+    };
+  }
+
+  const netAmount = getLegacyNetAmount(dbPrice, paymentMethod);
+
+  return {
+    totalPrice,
+    feeAmount: Math.max(totalPrice - netAmount, 0),
+    netAmount,
+  };
+}
+
+/**
+ * Calculate net amount from order (total_price_usd - fee_amount)
+ * Helper function to extract net amount from order data
+ */
+export function calculateNetAmount(order: any): number {
+  return calculateOrderAmounts(order).netAmount;
 }
 
 /**

@@ -405,8 +405,9 @@ async function processCompletedPayment(payment: any, supabase: any, environment:
   }
 
   try {
-    const totalPaid = orders.reduce((sum: number, order: any) => sum + parseFloat(order.total_price_usd || 0), 0);
-    const netAmount = totalPaid - feeAmount;
+    const totalPaid = parseFloat(String(mainOrder.payment_metadata?.total_usd || 0)) ||
+      orders.reduce((sum: number, order: any) => sum + parseFloat(order.total_price_usd || 0), 0);
+    const netAmount = Math.max(totalPaid - feeAmount, 0);
 
     const commonNotificationData = {
       clientName: mainOrder.client_name,

@@ -6,9 +6,14 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-const CARD_FEE_PERCENTAGE = 0.039;
-const CARD_FEE_FIXED = 0.30;
+const SQUARE_CARD_FEE_PERCENTAGE = 0.029;
+const SQUARE_CARD_FEE_FIXED = 0.30;
 const SQUARE_API_VERSION = Deno.env.get("SQUARE_API_VERSION") || "2026-01-22";
+
+function calculateSquareGrossAmountCents(netAmountUsd: number): number {
+  const netAmountCents = Math.round(netAmountUsd * 100);
+  return Math.round((netAmountCents + Math.round(SQUARE_CARD_FEE_FIXED * 100)) / (1 - SQUARE_CARD_FEE_PERCENTAGE));
+}
 
 function getEnvValue(keys: string[]): string {
   for (const key of keys) {
@@ -212,9 +217,10 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    const finalAmountUsd = Math.round((totalBeforeFees + (totalBeforeFees * CARD_FEE_PERCENTAGE) + CARD_FEE_FIXED) * 100) / 100;
+    const netMainOrderAmountUsd = Math.max(totalBeforeFees - upsellPrice, 0);
+    const amountCents = calculateSquareGrossAmountCents(totalBeforeFees);
+    const finalAmountUsd = amountCents / 100;
     const feeAmount = Math.round((finalAmountUsd - totalBeforeFees) * 100) / 100;
-    const amountCents = Math.round(finalAmountUsd * 100);
 
     if (amountCents < 50) {
       return new Response(
@@ -258,7 +264,7 @@ Deno.serve(async (req: Request) => {
       extra_unit_label: product.extra_unit_label,
       extra_unit_price_usd: extraUnitPrice,
       calculation_type: product.calculation_type,
-      total_price_usd: finalAmountUsd - upsellPrice,
+      total_price_usd: netMainOrderAmountUsd,
       client_name,
       client_email,
       client_whatsapp: client_whatsapp || null,
@@ -282,7 +288,7 @@ Deno.serve(async (req: Request) => {
         base_amount: mainProductPrice.toFixed(2),
         final_amount: finalAmountUsd.toFixed(2),
         fee_amount: feeAmount.toFixed(2),
-        fee_percentage: CARD_FEE_PERCENTAGE.toString(),
+        fee_percentage: SQUARE_CARD_FEE_PERCENTAGE.toString(),
         currency: "USD",
         extra_units: extraUnitsNum,
         calculation_type: product.calculation_type,
