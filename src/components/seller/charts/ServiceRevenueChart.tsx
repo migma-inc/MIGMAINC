@@ -97,14 +97,14 @@ export function ServiceRevenueChart({ data, title }: ServiceRevenueChartProps) {
             height: 16,
             cornerRadiusTR: 8,
             cornerRadiusBR: 8,
-            tooltipText: "{categoryY}: {valueX.formatNumber('$#,###.00')}"
+            tooltipText: "{categoryY}: {valueX.formatNumber('#,###.#a')}"
         });
 
         series.bullets.push(function () {
             return am5.Bullet.new(root, {
                 locationX: 1,
                 sprite: am5.Label.new(root, {
-                    text: hasData ? "{valueX.formatNumber('$#,###.00')}" : "0",
+                    text: hasData ? "{valueX.formatNumber('#,###.#a')}" : "0",
                     fill: am5.color(0xffffff),
                     centerY: am5.p50,
                     centerX: 0,

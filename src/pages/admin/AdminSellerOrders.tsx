@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Eye, Search, ShoppingBag, FileSignature, ArrowLeft, BarChart3, X } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { calculateOrderAmounts } from '@/lib/seller-commissions';
 
 interface SellerInfo {
     id: string;
@@ -36,56 +37,7 @@ interface Order {
 }
 
 // Helper function to calculate net amount and fee
-const calculateNetAmountAndFee = (order: Order) => {
-    let dbPrice = parseFloat(order.total_price_usd || '0');
-
-    // Fix for total_price_usd being in cents (Heuristic: > 10000 means likely cents for values > $100)
-    if (dbPrice > 10000) {
-        dbPrice = dbPrice / 100;
-    }
-
-    const metadata = order.payment_metadata;
-    let feeAmount = 0;
-    let totalPrice = dbPrice;
-    let netAmount = dbPrice;
-
-    // Parcelow Logic: Fees are added ON TOP of the base price
-    if (order.payment_method === 'parcelow') {
-        let paidTotal = dbPrice; // Fallback
-
-        if (metadata?.total_usd) {
-            let val = parseFloat(metadata.total_usd.toString());
-            if (val > (dbPrice * 5) && val > 100) val = val / 100;
-            if (val > 0) paidTotal = val;
-        } else if (metadata?.final_amount) {
-            let val = parseFloat(metadata.final_amount.toString());
-            if (val > (dbPrice * 5) && val > 100) val = val / 100;
-            if (val > 0) paidTotal = val;
-        }
-
-        totalPrice = paidTotal;
-        netAmount = dbPrice;
-        feeAmount = Math.max(totalPrice - netAmount, 0);
-    }
-    // Stripe Logic (Card/Pix) / Default: Fees are DEDUCTED from the total
-    else {
-        totalPrice = dbPrice;
-
-        if (metadata?.fee_amount) {
-            let val = parseFloat(metadata.fee_amount.toString());
-            if (val > (totalPrice / 2) && val > 100) val = val / 100;
-            feeAmount = val;
-        }
-
-        netAmount = totalPrice - feeAmount;
-    }
-
-    return {
-        netAmount: Math.max(netAmount, 0),
-        feeAmount: feeAmount,
-        totalPrice: totalPrice
-    };
-};
+const calculateNetAmountAndFee = (order: Order) => calculateOrderAmounts(order);
 
 const ITEMS_PER_PAGE = 10;
 
@@ -170,7 +122,11 @@ const OrderTableSection = ({
                                     </td>
                                     <td className="py-3 px-4">
                                         <Badge variant="outline" className="text-[10px] border-zinc-800 text-zinc-300 bg-zinc-900/50 uppercase font-medium">
-                                            {order.payment_method === 'stripe' ? 'Credit Card' : order.payment_method}
+                                            {order.payment_method === 'stripe'
+                                                ? 'Credit Card'
+                                                : order.payment_method === 'square_card'
+                                                    ? 'Square Card'
+                                                    : order.payment_method}
                                         </Badge>
                                     </td>
                                     <td className={`py-3 px-4 text-sm font-bold ${isSignatureOnly ? 'text-blue-400' : 'text-gold-light'}`}>

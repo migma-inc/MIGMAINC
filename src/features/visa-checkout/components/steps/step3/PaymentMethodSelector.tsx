@@ -9,12 +9,14 @@ interface PaymentMethodSelectorProps {
     paymentMethod: PaymentMethod;
     onMethodChange: (method: PaymentMethod) => void;
     showStripe?: boolean;
+    showSquare?: boolean;
 }
 
 export const PaymentMethodSelector: React.FC<PaymentMethodSelectorProps> = ({
     paymentMethod,
     onMethodChange,
     showStripe = true,
+    showSquare = false,
 }) => {
     const { t } = useTranslation();
     return (
@@ -25,6 +27,14 @@ export const PaymentMethodSelector: React.FC<PaymentMethodSelectorProps> = ({
                     <SelectValue placeholder={t('checkout.select_payment_method_placeholder', 'Select a payment method')} />
                 </SelectTrigger>
                 <SelectContent className="bg-white border-gray-200 text-black">
+                    {showSquare && (
+                        <SelectItem value="square_card" className="cursor-pointer hover:bg-gray-100 focus:bg-gray-100 focus:text-black">
+                            <div className="flex items-center gap-2">
+                                <CreditCard className="w-4 h-4 text-emerald-700" />
+                                <span>{t('checkout.square_card', 'Square - Card')}</span>
+                            </div>
+                        </SelectItem>
+                    )}
                     <SelectItem value="zelle" className="cursor-pointer hover:bg-gray-100 focus:bg-gray-100 focus:text-black">
                         <div className="flex items-center gap-2">
                             <DollarSign className="w-4 h-4 text-green-600" />

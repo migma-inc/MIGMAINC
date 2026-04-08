@@ -1,5 +1,6 @@
 import ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
+import { calculateOrderAmounts } from './seller-commissions';
 
 // Define the interface locally to match the one in VisaOrdersPage
 // Ideally this should be shared, but for now we duplicate to keep it self-contained or import if available.
@@ -17,53 +18,7 @@ interface VisaOrder {
     created_at: string;
 }
 
-const calculateNetAmountAndFee = (order: VisaOrder) => {
-    let dbPrice = parseFloat(order.total_price_usd || '0');
-
-    // Fix for total_price_usd being in cents
-    if (dbPrice > 10000) {
-        dbPrice = dbPrice / 100;
-    }
-
-    const metadata = order.payment_metadata as any;
-    let feeAmount = 0;
-    let totalPrice = dbPrice;
-    let netAmount = dbPrice;
-
-    if (order.payment_method === 'parcelow') {
-        let paidTotal = dbPrice;
-
-        if (metadata?.total_usd) {
-            let val = parseFloat(metadata.total_usd.toString());
-            // Divide by 100 if significantly larger than base price (heuristic for cents)
-            if (val > (dbPrice * 5) && val > 100) val = val / 100;
-            if (val > 0) paidTotal = val;
-        } else if (metadata?.final_amount) {
-            let val = parseFloat(metadata.final_amount.toString());
-            if (val > (dbPrice * 5) && val > 100) val = val / 100;
-            if (val > 0) paidTotal = val;
-        }
-
-        totalPrice = paidTotal;
-        netAmount = dbPrice;
-        feeAmount = Math.max(totalPrice - netAmount, 0);
-    } else {
-        totalPrice = dbPrice;
-        if (metadata?.fee_amount) {
-            let val = parseFloat(metadata.fee_amount.toString());
-            // Fee is rarely more than the total, divide by 100 if suspiciously high
-            if (val > (totalPrice / 2) && val > 100) val = val / 100;
-            feeAmount = val;
-        }
-        netAmount = totalPrice - feeAmount;
-    }
-
-    return {
-        netAmount: Math.max(netAmount, 0),
-        feeAmount: feeAmount,
-        totalPrice: totalPrice
-    };
-};
+const calculateNetAmountAndFee = (order: VisaOrder) => calculateOrderAmounts(order);
 
 export async function exportVisaOrdersToExcel(orders: VisaOrder[]): Promise<void> {
     const workbook = new ExcelJS.Workbook();

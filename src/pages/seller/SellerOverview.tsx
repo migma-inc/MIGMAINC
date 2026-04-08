@@ -218,7 +218,7 @@ export function SellerOverview() {
           <CardContent className="p-6">
             <div className="flex items-start justify-between">
               <div className="space-y-1">
-                <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">Net Revenue</p>
+                <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">Revenue</p>
                 <p className="text-2xl font-bold text-white">
                   ${stats.totalRevenue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </p>

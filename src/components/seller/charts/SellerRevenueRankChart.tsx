@@ -5,6 +5,7 @@ import * as am5xy from '@amcharts/amcharts5/xy';
 import am5themes_Animated from '@amcharts/amcharts5/themes/Animated';
 
 import { Badge } from '@/components/ui/badge';
+import { formatCompactK } from './chartFormatters';
 
 interface SellerRevenueRankChartProps {
     data: { name: string; revenue: number; percentage: number }[];
@@ -17,12 +18,11 @@ export function SellerRevenueRankChart({ data, total, title, year = new Date().g
     const chartRef = useRef<HTMLDivElement>(null);
     const rootRef = useRef<am5.Root | null>(null);
 
-    const formatMoney = (val: number) => `$${val.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
     const chartData = data
         .filter(d => d.revenue > 0)
         .map(d => ({
             ...d,
-            labelTitle: `${d.name}   [bold]${formatMoney(d.revenue)}[/]`
+            labelTitle: `${d.name}   [bold]${formatCompactK(d.revenue)}[/]`
         }));
 
     useEffect(() => {
@@ -39,7 +39,7 @@ export function SellerRevenueRankChart({ data, total, title, year = new Date().g
         root.interfaceColors.set('grid', am5.color('#333333'));
 
         root.numberFormatter.setAll({
-            numberFormat: "'$'#,###.00",
+            numberFormat: "#,###.#a",
             numericFields: ["valueX", "value"]
         });
 
@@ -163,7 +163,7 @@ export function SellerRevenueRankChart({ data, total, title, year = new Date().g
                     {title}
                 </CardTitle>
                 <Badge variant="outline" className="bg-gold-medium/10 text-gold-light border-gold-medium/30 tracking-wider">
-                    Total Arrecadado {year}: ${total.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    Total Revenue {year}: ${total.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </Badge>
             </CardHeader>
             <CardContent className="p-4 pt-6 h-[420px]">

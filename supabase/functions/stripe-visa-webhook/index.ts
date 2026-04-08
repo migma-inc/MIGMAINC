@@ -1,6 +1,10 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
 import Stripe from "npm:stripe@^17.3.1";
+import {
+  appendServiceRequestEvent,
+  ensureOperationalCaseInitialized,
+} from "../shared/service-request-operational.ts";
 
 // Get all available webhook secrets (inline)
 function getAllWebhookSecrets(): Array<{ env: 'production' | 'staging' | 'test'; secret: string }> {
@@ -119,6 +123,31 @@ async function processSuccessfulSession(session: Stripe.Checkout.Session, supaba
       .from("service_requests")
       .update({ status: "paid", updated_at: new Date().toISOString() })
       .eq("id", mainOrder.service_request_id);
+
+    await ensureOperationalCaseInitialized(
+      supabase,
+      mainOrder.service_request_id,
+      "gateway",
+      {
+        provider: "stripe",
+        session_id: session.id,
+        order_id: mainOrder.id,
+      },
+    );
+
+    await appendServiceRequestEvent(
+      supabase,
+      mainOrder.service_request_id,
+      "payment_confirmed",
+      "gateway",
+      {
+        provider: "stripe",
+        order_id: mainOrder.id,
+        order_number: mainOrder.order_number,
+        stripe_session_id: session.id,
+        stripe_payment_intent_id: session.payment_intent as string || null,
+      },
+    );
   }
 
   // 3. Track funnel event

@@ -76,7 +76,7 @@ export function WeeklyRevenueBarChart({ data, title }: WeeklyRevenueBarChartProp
 
         const series = chart.series.push(
             am5xy.ColumnSeries.new(root, {
-                name: 'Net Revenue',
+                name: 'Revenue',
                 xAxis,
                 yAxis,
                 valueYField: 'revenue',

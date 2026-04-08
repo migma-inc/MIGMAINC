@@ -4,6 +4,7 @@
 
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
+import { appendServiceRequestEvent } from "../shared/service-request-operational.ts";
 
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
 const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -205,8 +206,54 @@ async function sendVisaAdminNotification(order: any, supabase: any) {
   }
 }
 
+function isWebhookApprovalSatisfied(order: any, approvalType: string, isAnnexOnlyProduct: boolean): boolean {
+  if (approvalType === 'contract') {
+    return order.contract_approval_status === 'approved';
+  }
+
+  if (approvalType === 'upsell_contract') {
+    return order.upsell_contract_approval_status === 'approved';
+  }
+
+  if (approvalType === 'annex' && isAnnexOnlyProduct) {
+    return order.annex_approval_status === 'approved';
+  }
+
+  return false;
+}
+
+type ClientWebhookPayload = Record<string, string | number | boolean>;
+
+type WebhookPayloadEnvelope = {
+  kind: 'main' | 'dependent';
+  dependentName?: string;
+  body: ClientWebhookPayload;
+};
+
+type WebhookDispatchResult = {
+  sent: boolean;
+  webhookUrls: string[];
+  payloadCount: number;
+  reason: string | null;
+  payloadPreview: WebhookPayloadEnvelope[];
+  responses: Array<{
+    webhookUrl: string;
+    kind: 'main' | 'dependent';
+    dependentName?: string;
+    status: number;
+    ok: boolean;
+    bodyPreview: string | null;
+  }>;
+};
+
+function previewResponseBody(responseText: string): string | null {
+  if (!responseText) return null;
+  return responseText.length > 500 ? `${responseText.slice(0, 500)}...` : responseText;
+}
+
 async function sendClientWebhook(order: any, supabase: any, isUpsell: boolean = false) {
-  const prodUrl = Deno.env.get('CLIENT_WEBHOOK_URL');
+  const approveUrl = Deno.env.get('CLIENT_WEBHOOK_URL_APPROVE');
+  const legacyUrl = Deno.env.get('CLIENT_WEBHOOK_URL');
   const testUrl = "https://nwh.suaiden.com/webhook/45665dbc-8751-41ff-afb8-6d17dd61d204";
 
   const isTestUser =
@@ -221,17 +268,44 @@ async function sendClientWebhook(order: any, supabase: any, isUpsell: boolean = 
       order.client_email.toLowerCase() === "victuribdev@gmail.com"
     ));
 
-  // Define which URL to use
-  let webhookUrl = prodUrl;
+  const webhookUrls = isTestUser
+    ? Array.from(new Set([testUrl, approveUrl, legacyUrl].filter((value): value is string => Boolean(value))))
+    : Array.from(new Set([legacyUrl].filter((value): value is string => Boolean(value))));
 
   if (isTestUser) {
     console.log(`[Webhook Client] 🧪 TEST USER DETECTED: Routing to test n8n...`);
-    webhookUrl = testUrl;
   }
 
-  if (!webhookUrl) {
+  if (webhookUrls.length === 0) {
     console.error('[Webhook Client] Webhook URL not set');
-    return;
+    return {
+      sent: false,
+      webhookUrls: [],
+      payloadCount: 0,
+      reason: 'webhook_url_not_set',
+      payloadPreview: [],
+      responses: [],
+    };
+  }
+
+  const invalidWebhookUrl = webhookUrls.find((url) => {
+    try {
+      new URL(url);
+      return false;
+    } catch (_error) {
+      return true;
+    }
+  });
+  if (invalidWebhookUrl) {
+    console.error('[Webhook Client] Invalid webhook URL');
+    return {
+      sent: false,
+      webhookUrls,
+      payloadCount: 0,
+      reason: 'invalid_webhook_url',
+      payloadPreview: [],
+      responses: [],
+    };
   }
 
   try {
@@ -277,7 +351,9 @@ async function sendClientWebhook(order: any, supabase: any, isUpsell: boolean = 
       }
     }
 
-    const payload: any = {
+    const mainPayload: ClientWebhookPayload = {
+      order_id: order.id,
+      service_request_id: order.service_request_id || '',
       servico: serviceName,
       plano_servico: productSlug,
       nome_completo_cliente_principal: order.client_name,
@@ -289,21 +365,21 @@ async function sendClientWebhook(order: any, supabase: any, isUpsell: boolean = 
     };
 
     // Only include is_upsell if it's true
-    if (isUpsell) payload.is_upsell = true;
+    if (isUpsell) mainPayload.is_upsell = true;
 
-    console.log(`[Webhook Client] Sending ${isUpsell ? 'UPSELL' : 'MAIN'} payload to n8n:`, JSON.stringify(payload));
+    const payloads: WebhookPayloadEnvelope[] = [
+      {
+        kind: 'main',
+        body: mainPayload,
+      },
+    ];
 
-    await fetch(webhookUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
-
-    // Send dependents separately if any
     if (Array.isArray(order.dependent_names) && order.dependent_names.length > 0) {
       for (const depName of order.dependent_names) {
         if (!depName) continue;
-        const depPayload: any = {
+        const depPayload: ClientWebhookPayload = {
+          order_id: order.id,
+          service_request_id: order.service_request_id || '',
           tipo: "dependente",
           nome_completo_cliente_principal: order.client_name,
           nome_completo_dependente: depName,
@@ -317,18 +393,70 @@ async function sendClientWebhook(order: any, supabase: any, isUpsell: boolean = 
 
         if (isUpsell) depPayload.is_upsell = true;
 
-        console.log(`[Webhook Client] Sending dependent payload (${depName}) to n8n:`, JSON.stringify(depPayload));
-        await fetch(webhookUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(depPayload),
+        payloads.push({
+          kind: 'dependent',
+          dependentName: depName,
+          body: depPayload,
         });
       }
     }
+
+    const responses: WebhookDispatchResult["responses"] = [];
+
+    for (const webhookUrl of webhookUrls) {
+      for (const payload of payloads) {
+        console.log(`[Webhook Client] Sending ${payload.kind.toUpperCase()} payload to n8n (${webhookUrl}):`, JSON.stringify(payload.body));
+
+        const response = await fetch(webhookUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload.body),
+        });
+
+        const responseText = await response.text();
+        responses.push({
+          webhookUrl,
+          kind: payload.kind,
+          dependentName: payload.dependentName,
+          status: response.status,
+          ok: response.ok,
+          bodyPreview: previewResponseBody(responseText),
+        });
+
+        if (!response.ok) {
+          throw new Error(`n8n webhook failed for ${payload.kind} at ${webhookUrl}: ${response.status} ${response.statusText} - ${previewResponseBody(responseText) || 'empty response'}`);
+        }
+      }
+    }
+
     console.log('[Webhook Client] All webhooks sent successfully');
+    return {
+      sent: true,
+      webhookUrls,
+      payloadCount: payloads.length,
+      reason: null,
+      payloadPreview: payloads,
+      responses,
+    };
   } catch (error) {
     console.error('[Webhook Client] Error sending webhook:', error);
+    throw error;
   }
+}
+
+function scheduleBackgroundTask(task: Promise<unknown>) {
+  const edgeRuntime = (globalThis as typeof globalThis & {
+    EdgeRuntime?: { waitUntil?: (promise: Promise<unknown>) => void };
+  }).EdgeRuntime;
+
+  if (edgeRuntime?.waitUntil) {
+    edgeRuntime.waitUntil(task);
+    return;
+  }
+
+  void task.catch((error) => {
+    console.error("[EDGE FUNCTION] Background task failed:", error);
+  });
 }
 
 Deno.serve(async (req) => {
@@ -417,101 +545,203 @@ Deno.serve(async (req) => {
 
     console.log(`[EDGE FUNCTION] ${approvalType} approved successfully in DB`);
 
-    // 3. Send Admin Notification Email with PDF Attachments
-    try {
-      // Fetch fresh order data to ensure we have the latest PDF paths
-      const { data: freshOrder } = await supabase
-        .from('visa_orders')
-        .select('*')
-        .eq('id', order_id)
-        .single();
+    scheduleBackgroundTask((async () => {
+      let freshOrder: any = null;
 
-      if (freshOrder) {
-        await sendVisaAdminNotification(freshOrder, supabase);
-      }
-    } catch (err) {
-      console.error("[Admin Notification] Execution error:", err);
-    }
-
-    // 4. Trigger n8n Webhook
-    // Trigger IF:
-    // a) It's a main contract or upsell contract approval (normal flow)
-    // b) It's an annex approval AND the product is scholarship/i20-control (annex-only products)
-    const isAnnexOnlyProduct = order.product_slug?.endsWith('-scholarship') || order.product_slug?.endsWith('-i20-control');
-    const shouldTriggerWebhook = 
-        approvalType === 'contract' || 
-        approvalType === 'upsell_contract' ||
-        (approvalType === 'annex' && isAnnexOnlyProduct);
-
-    if (shouldTriggerWebhook) {
-      const isUpsell = approvalType === 'upsell_contract';
-      console.log(`[EDGE FUNCTION] Triggering n8n webhook for order: ${order.order_number} (Type: ${approvalType}, Product: ${order.product_slug})`);
-      const orderWithApproval = { ...order, ...updateData };
-      
-      // Critical: Use await to ensure webhook finishes before the function returns
       try {
-        await sendClientWebhook(orderWithApproval, supabase, isUpsell);
+        const { data } = await supabase
+          .from('visa_orders')
+          .select('*')
+          .eq('id', order_id)
+          .single();
+
+        freshOrder = data;
       } catch (err) {
-        console.error("[EDGE FUNCTION] Non-critical webhook error:", err);
+        console.error("[EDGE FUNCTION] Error refetching order after approval:", err);
       }
-    }
 
-    // 5. Manage View Token and Send Email
-    try {
-      // Check if view token already exists
-      const { data: existingToken } = await supabase
-        .from('visa_contract_view_tokens')
-        .select('id, token, expires_at')
-        .eq('order_id', order_id)
-        .single();
+      // 3. Send Admin Notification Email with PDF Attachments
+      try {
+        if (freshOrder) {
+          await sendVisaAdminNotification(freshOrder, supabase);
+        }
+      } catch (err) {
+        console.error("[Admin Notification] Execution error:", err);
+      }
 
-      let viewToken: string | null = null;
+      // 4. Trigger n8n Webhook
+      // Trigger IF:
+      // a) It's a main contract or upsell contract approval (normal flow)
+      // b) It's an annex approval AND the product is scholarship/i20-control (annex-only products)
+      const isAnnexOnlyProduct = order.product_slug?.endsWith('-scholarship') || order.product_slug?.endsWith('-i20-control');
+      const shouldTriggerWebhook = 
+          approvalType === 'contract' || 
+          approvalType === 'upsell_contract' ||
+          (approvalType === 'annex' && isAnnexOnlyProduct);
 
-      if (existingToken) {
-        if (existingToken.expires_at === null) {
-          viewToken = existingToken.token;
+      if (shouldTriggerWebhook) {
+        const isUpsell = approvalType === 'upsell_contract';
+        const orderForWebhook = freshOrder || { ...order, ...updateData };
+        const approvalSatisfied = isWebhookApprovalSatisfied(orderForWebhook, approvalType, isAnnexOnlyProduct);
+        const approvalEventKey = `order:${orderForWebhook.id}:approval:${approvalType}`;
+
+        if (!approvalSatisfied) {
+          console.warn(`[EDGE FUNCTION] Skipping n8n webhook because approval is not fully persisted for order ${order.order_number} (${approvalType})`);
+          if (orderForWebhook.service_request_id) {
+            await appendServiceRequestEvent(
+              supabase,
+              orderForWebhook.service_request_id,
+              'n8n_webhook_skipped',
+              'system',
+              {
+                reason: 'approval_not_persisted',
+                approval_type: approvalType,
+                order_id: orderForWebhook.id,
+                order_number: orderForWebhook.order_number,
+              },
+              { eventKey: approvalEventKey },
+            );
+          }
         } else {
-          const expiresAt = new Date(existingToken.expires_at);
-          const now = new Date();
-          if (now < expiresAt) {
-            viewToken = existingToken.token;
-          } else {
-            await supabase.from('visa_contract_view_tokens').delete().eq('id', existingToken.id);
+          console.log(`[EDGE FUNCTION] Triggering n8n webhook for order: ${orderForWebhook.order_number} (Type: ${approvalType}, Product: ${orderForWebhook.product_slug})`);
+
+          if (orderForWebhook.service_request_id) {
+            await appendServiceRequestEvent(
+              supabase,
+              orderForWebhook.service_request_id,
+              'n8n_webhook_dispatch_requested',
+              'system',
+              {
+                approval_type: approvalType,
+                order_id: orderForWebhook.id,
+                order_number: orderForWebhook.order_number,
+                is_upsell: isUpsell,
+              },
+              { eventKey: approvalEventKey },
+            );
+          }
+        
+          try {
+            const dispatchResult = await sendClientWebhook(orderForWebhook, supabase, isUpsell);
+
+            if (!dispatchResult.sent) {
+              if (orderForWebhook.service_request_id) {
+                await appendServiceRequestEvent(
+                  supabase,
+                  orderForWebhook.service_request_id,
+                  'n8n_webhook_skipped',
+                  'system',
+                  {
+                    reason: dispatchResult.reason || 'dispatch_not_sent',
+                    approval_type: approvalType,
+                    order_id: orderForWebhook.id,
+                    order_number: orderForWebhook.order_number,
+                    webhook_urls: dispatchResult.webhookUrls,
+                  },
+                  { eventKey: approvalEventKey },
+                );
+              }
+
+              return;
+            }
+
+            if (orderForWebhook.service_request_id) {
+              await appendServiceRequestEvent(
+                supabase,
+                orderForWebhook.service_request_id,
+                'n8n_webhook_dispatched',
+                'system',
+                {
+                  approval_type: approvalType,
+                  order_id: orderForWebhook.id,
+                  order_number: orderForWebhook.order_number,
+                  is_upsell: isUpsell,
+                  webhook_urls: dispatchResult.webhookUrls,
+                  payload_count: dispatchResult.payloadCount,
+                  payload_preview: dispatchResult.payloadPreview,
+                  delivery_responses: dispatchResult.responses,
+                },
+                { eventKey: approvalEventKey },
+              );
+            }
+          } catch (err) {
+            console.error("[EDGE FUNCTION] Non-critical webhook error:", err);
+
+            if (orderForWebhook.service_request_id) {
+              await appendServiceRequestEvent(
+                supabase,
+                orderForWebhook.service_request_id,
+                'n8n_webhook_failed',
+                'system',
+                {
+                  approval_type: approvalType,
+                  order_id: orderForWebhook.id,
+                  order_number: orderForWebhook.order_number,
+                  error: err instanceof Error ? err.message : String(err),
+                },
+                { eventKey: approvalEventKey },
+              );
+            }
           }
         }
       }
 
-      if (!viewToken) {
-        const token = `visa_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`;
-        const { error: tokenError } = await supabase
+      // 5. Manage View Token and Send Email
+      try {
+        // Check if view token already exists
+        const { data: existingToken } = await supabase
           .from('visa_contract_view_tokens')
-          .insert({
-            order_id: order_id,
-            token: token,
-            expires_at: null,
-          });
+          .select('id, token, expires_at')
+          .eq('order_id', order_id)
+          .single();
 
-        if (!tokenError) {
-          viewToken = token;
-        }
-      }
+        let viewToken: string | null = null;
 
-      if (viewToken && order.client_email) {
-        const appUrl = "https://migmainc.com";
-        const viewUrl = `${appUrl}/view-visa-contract?token=${viewToken}`;
-
-        let documentName = 'Document';
-        if (approvalType === 'annex') {
-          documentName = 'ANNEX I (Statement of Responsibility)';
-        } else if (approvalType === 'contract') {
-          documentName = 'Main Service Contract';
-        } else if (approvalType === 'upsell_contract') {
-          documentName = `Premium Service Contract (${order.upsell_product_slug || 'Upsell'})`;
-        } else if (approvalType === 'upsell_annex') {
-          documentName = `Premium ANNEX I (${order.upsell_product_slug || 'Upsell'})`;
+        if (existingToken) {
+          if (existingToken.expires_at === null) {
+            viewToken = existingToken.token;
+          } else {
+            const expiresAt = new Date(existingToken.expires_at);
+            const now = new Date();
+            if (now < expiresAt) {
+              viewToken = existingToken.token;
+            } else {
+              await supabase.from('visa_contract_view_tokens').delete().eq('id', existingToken.id);
+            }
+          }
         }
 
-        const emailHtml = `
+        if (!viewToken) {
+          const token = `visa_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`;
+          const { error: tokenError } = await supabase
+            .from('visa_contract_view_tokens')
+            .insert({
+              order_id: order_id,
+              token: token,
+              expires_at: null,
+            });
+
+          if (!tokenError) {
+            viewToken = token;
+          }
+        }
+
+        if (viewToken && order.client_email) {
+          const appUrl = "https://migmainc.com";
+          const viewUrl = `${appUrl}/view-visa-contract?token=${viewToken}`;
+
+          let documentName = 'Document';
+          if (approvalType === 'annex') {
+            documentName = 'ANNEX I (Statement of Responsibility)';
+          } else if (approvalType === 'contract') {
+            documentName = 'Main Service Contract';
+          } else if (approvalType === 'upsell_contract') {
+            documentName = `Premium Service Contract (${order.upsell_product_slug || 'Upsell'})`;
+          } else if (approvalType === 'upsell_annex') {
+            documentName = `Premium ANNEX I (${order.upsell_product_slug || 'Upsell'})`;
+          }
+
+          const emailHtml = `
           <!DOCTYPE html>
           <html>
           <head>
@@ -592,22 +822,23 @@ Deno.serve(async (req) => {
           </html>
         `;
 
-        await supabase.functions.invoke('send-email', {
-          body: {
-            to: order.client_email,
-            subject: `Document Approved: ${documentName} - Order #${order.order_number}`,
-            html: emailHtml,
-          },
-        });
+          await supabase.functions.invoke('send-email', {
+            body: {
+              to: order.client_email,
+              subject: `Document Approved: ${documentName} - Order #${order.order_number}`,
+              html: emailHtml,
+            },
+          });
+        }
+      } catch (tokenEmailError) {
+        console.error("[EDGE FUNCTION] Error with token/email (non-critical):", tokenEmailError);
       }
-    } catch (tokenEmailError) {
-      console.error("[EDGE FUNCTION] Error with token/email (non-critical):", tokenEmailError);
-    }
+    })());
 
     return new Response(
       JSON.stringify({
         success: true,
-        message: "Contract approved and notification sent",
+        message: "Contract approved successfully",
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );

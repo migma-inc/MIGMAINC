@@ -1,3 +1,4 @@
+import React from 'react';
 import type { VisaCheckoutState, VisaCheckoutActions } from '../../types/form.types';
 import { isParcelowMethod } from '../../types/form.types';
 import { useTranslation } from 'react-i18next';
@@ -22,6 +23,7 @@ interface Step3Props {
     actions: VisaCheckoutActions;
     handlers: {
         handleStripeCheckout: (method: 'card' | 'pix') => Promise<void>;
+        handleSquareCheckout: () => Promise<void>;
         handleZellePayment: () => Promise<void>;
         handleParcelowPayment: () => Promise<void>;
     };
@@ -29,9 +31,10 @@ interface Step3Props {
     productSlug?: string;
     totalAmount: number;
     onScrollToCheckout?: () => void;
+    showSquare?: boolean;
 }
 
-export const Step3Payment: React.FC<Step3Props> = ({ state, actions, handlers, onPrev, productSlug, totalAmount, onScrollToCheckout }) => {
+export const Step3Payment: React.FC<Step3Props> = ({ state, actions, handlers, onPrev, productSlug, totalAmount, onScrollToCheckout, showSquare = false }) => {
     const {
         termsAccepted, dataAuthorization, contractTemplate, chargebackAnnexTemplate, upsellContractTemplate, paymentMethod,
         zelleReceipt, signatureImageDataUrl, signatureConfirmed /*, selectedUpsell */
@@ -42,6 +45,12 @@ export const Step3Payment: React.FC<Step3Props> = ({ state, actions, handlers, o
     } = actions;
 
     const { t } = useTranslation();
+
+    React.useEffect(() => {
+        if (paymentMethod === 'square_card' && !showSquare) {
+            setPaymentMethod('');
+        }
+    }, [paymentMethod, setPaymentMethod, showSquare]);
 
     return (
         <Card className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30">
@@ -99,6 +108,7 @@ export const Step3Payment: React.FC<Step3Props> = ({ state, actions, handlers, o
                     paymentMethod={paymentMethod}
                     onMethodChange={setPaymentMethod}
                     showStripe={!state.isBrazil}
+                    showSquare={showSquare}
                 />
 
                 {isParcelowMethod(paymentMethod) && (
@@ -112,15 +122,15 @@ export const Step3Payment: React.FC<Step3Props> = ({ state, actions, handlers, o
                 )}
 
                 {/* Caso Stripe: Apenas Nome no Cartão */}
-                {paymentMethod === 'card' && (
+                {(paymentMethod === 'card' || paymentMethod === 'square_card') && (
                     <div className="space-y-4 pt-2 animate-in fade-in slide-in-from-top-2">
                         <div className="bg-zinc-900/40 border border-white/10 rounded-xl p-5 space-y-4 shadow-lg">
                             <div className="flex flex-col space-y-1">
-                                <label htmlFor="cardNameInputStripe" className="text-sm font-bold text-gold-light uppercase tracking-wide">
+                                <label htmlFor="cardNameInputProcessor" className="text-sm font-bold text-gold-light uppercase tracking-wide">
                                     {t('checkout.name_on_card', 'Name on Card')} *
                                 </label>
                                 <Input
-                                    id="cardNameInputStripe"
+                                    id="cardNameInputProcessor"
                                     value={state.creditCardName || ''}
                                     onChange={(e) => actions.setCreditCardName(e.target.value.toUpperCase())}
                                     placeholder=""
@@ -232,6 +242,8 @@ export const Step3Payment: React.FC<Step3Props> = ({ state, actions, handlers, o
                                     handlers.handleParcelowPayment();
                                 } else if (paymentMethod === 'card') {
                                     handlers.handleStripeCheckout('card');
+                                } else if (paymentMethod === 'square_card') {
+                                    handlers.handleSquareCheckout();
                                 } else if (paymentMethod === 'zelle' && zelleReceipt) {
                                     handlers.handleZellePayment();
                                 }
@@ -255,7 +267,7 @@ export const Step3Payment: React.FC<Step3Props> = ({ state, actions, handlers, o
                                         !state.creditCardName
                                     )
                                 )) ||
-                                (paymentMethod === 'card' && !state.creditCardName) ||
+                                ((paymentMethod === 'card' || paymentMethod === 'square_card') && !state.creditCardName) ||
                                 ((paymentMethod === 'parcelow_pix' || paymentMethod === 'parcelow_ted') && (
                                     !state.cpf || state.cpf.replace(/\D/g, '').length < 11
                                 ))
@@ -293,7 +305,7 @@ export const Step3Payment: React.FC<Step3Props> = ({ state, actions, handlers, o
                                             ? t('checkout.pay_with_parcelow', 'Pay with Parcelow')
                                             : paymentMethod === 'card'
                                                 ? t('checkout.pay_with_stripe', 'Pagar com Cartão (Stripe)')
-                                                : t('checkout.confirm_zelle_payment', 'Confirm Zelle Payment')}
+                                                : paymentMethod === 'square_card' ? t('checkout.pay_with_square', 'Pay with Square') : t('checkout.confirm_zelle_payment', 'Confirm Zelle Payment')}
                                     </span>
                                 </div>
                             )}

@@ -42,7 +42,6 @@ export const CheckoutSuccess = () => {
         if (error) {
           console.error('Error loading order:', error);
         } else {
-          // Fetch Product Details for receipt
           let productDetails = null;
           if (orderData.product_slug) {
             const { data: pData } = await supabase
@@ -53,7 +52,6 @@ export const CheckoutSuccess = () => {
             productDetails = pData;
           }
 
-          // Fetch Upsell Details for receipt
           let upsellDetails = null;
           if (orderData.upsell_product_slug) {
             const { data: uData } = await supabase
@@ -70,14 +68,12 @@ export const CheckoutSuccess = () => {
             upsell_details: upsellDetails
           });
 
-          // Clear localStorage draft only when payment is confirmed or started
           try {
             localStorage.removeItem('visa_checkout_draft');
           } catch (err) {
             console.warn('Failed to clear draft:', err);
           }
 
-          // Load Split Payment detail if applicable
           if (orderData.is_split_payment && orderData.split_payment_id) {
             const { data: splitData } = await supabase
               .from('split_payments')
@@ -98,7 +94,7 @@ export const CheckoutSuccess = () => {
     };
 
     loadOrder();
-  }, [sessionId, orderId]); // Fix: use orderId from state/scope
+  }, [sessionId, orderId]);
 
   // Lógica de redirecionamento automático para Parte 2
   useEffect(() => {

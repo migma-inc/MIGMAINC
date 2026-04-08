@@ -162,7 +162,7 @@ export function HeadOfSalesOverview() {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
                 <Card className="bg-black/40 border-gold-medium/20 backdrop-blur-md transition-all hover:bg-black/60 hover:border-gold-medium/40">
                     <CardHeader className="flex flex-row items-center justify-between pb-2">
-                        <CardTitle className="text-sm font-medium text-gray-400">Net Revenue</CardTitle>
+                        <CardTitle className="text-sm font-medium text-gray-400">Revenue</CardTitle>
                         <DollarSign className="w-4 h-4 text-green-400" />
                     </CardHeader>
                     <CardContent>
@@ -263,7 +263,7 @@ export function HeadOfSalesOverview() {
                                         <div className="text-right">
                                             <div className="font-bold text-gold-light">{formatCurrency(seller.revenue)}</div>
                                             <div className="text-[10px] text-green-500/80 flex items-center justify-end gap-1">
-                                                <ArrowUpRight className="w-3 h-3" /> Net Revenue
+                                                <ArrowUpRight className="w-3 h-3" /> Revenue
                                             </div>
                                         </div>
                                     </div>

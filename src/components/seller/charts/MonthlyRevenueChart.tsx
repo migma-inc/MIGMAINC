@@ -43,7 +43,7 @@ export function MonthlyRevenueChart({ data, avg, title }: MonthlyRevenueChartPro
 
         const yRenderer = am5xy.AxisRendererY.new(root, {
             inversed: true,
-            minGridDistance: 30,
+            minGridDistance: 1,
             cellStartLocation: 0.2,
             cellEndLocation: 0.8,
         });
@@ -133,6 +133,27 @@ export function MonthlyRevenueChart({ data, avg, title }: MonthlyRevenueChartPro
         });
 
         if (avg > 0) {
+            const hitRangeDataItem = xAxis.makeDataItem({
+                value: avg,
+                endValue: avg,
+            });
+
+            const hitRange = xAxis.createAxisRange(hitRangeDataItem);
+            hitRange.get('grid')?.setAll({
+                stroke: am5.color('#000000'),
+                strokeOpacity: 0,
+                strokeWidth: 20, 
+                interactive: true,
+                cursorOverStyle: "pointer",
+                tooltipText: `Average: ${formatPlainNumber(avg)}`,
+            });
+            hitRange.get('grid')?.get('tooltip')?.get('background')?.setAll({
+                fill: am5.color('#000000'),
+                fillOpacity: 0.9,
+                stroke: am5.color('#CE9F48'),
+                strokeWidth: 1,
+            });
+
             const rangeDataItem = xAxis.makeDataItem({
                 value: avg,
                 endValue: avg,
@@ -144,32 +165,7 @@ export function MonthlyRevenueChart({ data, avg, title }: MonthlyRevenueChartPro
                 strokeOpacity: 1,
                 strokeWidth: 2,
                 strokeDasharray: [6, 4],
-                interactive: true,
-                tooltipText: `Average: ${formatPlainNumber(avg)}`,
-            });
-
-            range.get('grid')?.get('tooltip')?.get('background')?.setAll({
-                fill: am5.color('#000000'),
-                fillOpacity: 0.9,
-                stroke: am5.color('#CE9F48'),
-                strokeWidth: 1,
-            });
-
-            range.get('label')?.setAll({
-                text: `AVG ${formatPlainNumber(avg)}`,
-                fill: am5.color('#ffffff'),
-                fontSize: 10,
-                fontWeight: 'bold',
-                centerY: am5.p100,
-                paddingLeft: 8,
-                paddingRight: 8,
-                paddingTop: 4,
-                paddingBottom: 4,
-                background: (am5 as any).Rectangle.new(root, {
-                    fill: am5.color('#CE9F48'),
-                    fillOpacity: 0.85,
-                    cornerRadius: 4,
-                }),
+                interactive: false,
             });
         }
 

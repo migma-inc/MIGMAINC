@@ -1,10 +1,12 @@
 import { useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import {
+    SquareService,
     StripeService,
     ZelleService
 } from '../index';
 import type {
+    SquareCheckoutRequest,
     StripeCheckoutRequest,
     ZellePaymentRequest,
 } from '../index';
@@ -94,7 +96,7 @@ export const usePaymentHandlers = (
                     return false;
                 }
             }
-        } else if (paymentMethod === 'card') {
+        } else if (paymentMethod === 'card' || paymentMethod === 'square_card') {
             if (!creditCardName) {
                 setError('Please enter the name exactly as it appears on your card');
                 return false;
@@ -229,6 +231,81 @@ export const usePaymentHandlers = (
             setSubmitting(false);
         }
     }, [productSlug, sellerId, totalWithFees, extraUnits, serviceRequestId, clientName, clientEmail, clientWhatsApp, validateStep3, documentFiles, hasExistingContract, existingContractData, dependentNames, clientCountry, clientNationality, clientObservations, exchangeRate, contractTemplate, setSubmitting, setError, state.submitting, state.selectedUpsell, state.upsellContractTemplate, couponCode, discountAmount, billingInstallmentId]);
+
+    const handleSquareCheckout = useCallback(async () => {
+        if (state.submitting) return;
+
+        setSubmitting(true);
+        try {
+            if (!await validateStep3('square_card')) {
+                setSubmitting(false);
+                return;
+            }
+
+            if (sellerId && productSlug) {
+                await trackFormCompleted(sellerId, productSlug, {
+                    extra_units: extraUnits,
+                    payment_method: 'square_card',
+                    service_request_id: serviceRequestId,
+                    client_name: clientName,
+                    client_email: clientEmail,
+                    client_whatsapp: clientWhatsApp,
+                });
+                await trackPaymentStarted(sellerId, productSlug, 'square_card' as any, {
+                    total_amount: totalWithFees,
+                    extra_units: extraUnits,
+                    service_request_id: serviceRequestId,
+                });
+            }
+
+            const documentFrontUrl = (hasExistingContract && existingContractData)
+                ? existingContractData.contract_document_url
+                : documentFiles?.documentFront?.url || '';
+            const selfieUrl = (hasExistingContract && existingContractData)
+                ? existingContractData.contract_selfie_url
+                : documentFiles?.selfie?.url || '';
+
+            let signatureUrl = '';
+            if (signatureImageDataUrl) {
+                const uploadedUrl = await uploadSignature(signatureImageDataUrl, state.clientId);
+                if (uploadedUrl) {
+                    signatureUrl = uploadedUrl;
+                }
+            }
+
+            const request: SquareCheckoutRequest = {
+                product_slug: productSlug!,
+                seller_id: sellerId || null,
+                extra_units: extraUnits,
+                dependent_names: dependentNames,
+                client_name: clientName,
+                client_email: clientEmail,
+                client_whatsapp: clientWhatsApp || null,
+                client_country: clientCountry || null,
+                client_nationality: clientNationality || null,
+                client_observations: clientObservations || null,
+                contract_document_url: documentFrontUrl,
+                contract_selfie_url: selfieUrl,
+                signature_image_url: signatureUrl,
+                service_request_id: serviceRequestId!,
+                ip_address: await getClientIP(),
+                contract_accepted: true,
+                contract_signed_at: new Date().toISOString(),
+                contract_template_id: contractTemplate?.id,
+                upsell_product_slug: state.selectedUpsell === 'none' ? null : (state.selectedUpsell === 'canada-premium' ? 'canada-tourist-premium' : 'canada-tourist-revolution') as any,
+                upsell_contract_template_id: state.upsellContractTemplate?.id,
+                billing_installment_id: billingInstallmentId,
+                coupon_code: couponCode,
+                discount_amount: discountAmount,
+            };
+
+            const response = await SquareService.createCheckout(request);
+            SquareService.redirectToCheckout(response.url);
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'Square payment failed');
+            setSubmitting(false);
+        }
+    }, [productSlug, sellerId, totalWithFees, extraUnits, serviceRequestId, clientName, clientEmail, clientWhatsApp, validateStep3, documentFiles, hasExistingContract, existingContractData, dependentNames, clientCountry, clientNationality, clientObservations, contractTemplate, setSubmitting, setError, state.submitting, state.selectedUpsell, state.upsellContractTemplate, couponCode, discountAmount, billingInstallmentId]);
 
     const handleZellePayment = useCallback(async () => {
         if (state.submitting) return;
@@ -802,6 +879,7 @@ export const usePaymentHandlers = (
 
     return {
         handleStripeCheckout,
+        handleSquareCheckout,
         handleZellePayment,
         handleParcelowPayment
     };
