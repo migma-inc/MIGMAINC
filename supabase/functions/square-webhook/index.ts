@@ -29,6 +29,14 @@ function getSupabaseConfig() {
   return { supabaseUrl, supabaseServiceKey };
 }
 
+function getEnvValue(keys: string[]): string {
+  for (const key of keys) {
+    const value = Deno.env.get(key);
+    if (value) return value;
+  }
+  return "";
+}
+
 function timingSafeEqual(a: string, b: string): boolean {
   const encoder = new TextEncoder();
   const aBytes = encoder.encode(a);
@@ -85,13 +93,13 @@ async function resolveWebhookEnvironment(body: string, receivedSignature: string
   const candidates = [
     {
       environment: "production" as const,
-      signatureKey: Deno.env.get("SQUARE_WEBHOOK_SIGNATURE_KEY_PROD") || "",
-      notificationUrl: Deno.env.get("SQUARE_WEBHOOK_NOTIFICATION_URL_PROD") || defaultNotificationUrl,
+      signatureKey: getEnvValue(["SQUARE_WEBHOOK_SIGNATURE_KEY_PROD", "SQUARE_WEBHOOK_SIGNATURE_KEY"]),
+      notificationUrl: getEnvValue(["SQUARE_WEBHOOK_NOTIFICATION_URL_PROD", "SQUARE_WEBHOOK_NOTIFICATION_URL"]) || defaultNotificationUrl,
     },
     {
       environment: "test" as const,
-      signatureKey: Deno.env.get("SQUARE_WEBHOOK_SIGNATURE_KEY_TEST") || "",
-      notificationUrl: Deno.env.get("SQUARE_WEBHOOK_NOTIFICATION_URL_TEST") || defaultNotificationUrl,
+      signatureKey: getEnvValue(["SQUARE_WEBHOOK_SIGNATURE_KEY_TEST"]),
+      notificationUrl: getEnvValue(["SQUARE_WEBHOOK_NOTIFICATION_URL_TEST"]) || defaultNotificationUrl,
     },
   ].filter((candidate) => candidate.signatureKey);
 

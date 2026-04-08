@@ -91,10 +91,10 @@ async function getSquareConfig(req: Request) {
   const suffix = envInfo.isProduction ? "PROD" : "TEST";
   const accessToken = suffix === "TEST"
     ? getEnvValue([`SQUARE_ACCESS_TOKEN_${suffix}`, "Sandbox Access token"])
-    : getEnvValue([`SQUARE_ACCESS_TOKEN_${suffix}`]);
+    : getEnvValue([`SQUARE_ACCESS_TOKEN_${suffix}`, "SQUARE_ACCESS_TOKEN"]);
   const applicationId = suffix === "TEST"
     ? getEnvValue([`SQUARE_APPLICATION_ID_${suffix}`, "Sandbox Application ID"])
-    : getEnvValue([`SQUARE_APPLICATION_ID_${suffix}`]);
+    : getEnvValue([`SQUARE_APPLICATION_ID_${suffix}`, "SQUARE_APPLICATION_ID"]);
   const baseUrl = envInfo.isProduction ? "https://connect.squareup.com" : "https://connect.squareupsandbox.com";
 
   if (!accessToken) {
@@ -103,7 +103,7 @@ async function getSquareConfig(req: Request) {
 
   const configuredLocationId = suffix === "TEST"
     ? getEnvValue([`SQUARE_LOCATION_ID_${suffix}`])
-    : getEnvValue([`SQUARE_LOCATION_ID_${suffix}`]);
+    : getEnvValue([`SQUARE_LOCATION_ID_${suffix}`, "SQUARE_LOCATION_ID"]);
   const locationId = configuredLocationId || await resolveSquareLocationId(accessToken, baseUrl);
 
   return {
