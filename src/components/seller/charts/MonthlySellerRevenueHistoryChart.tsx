@@ -4,13 +4,17 @@ import * as am5 from '@amcharts/amcharts5';
 import * as am5xy from '@amcharts/amcharts5/xy';
 import am5themes_Animated from '@amcharts/amcharts5/themes/Animated';
 import type { TeamMonthlyData } from '@/lib/seller-analytics';
-import { formatCompactK } from './chartFormatters';
 
 interface MonthlySellerRevenueHistoryChartProps {
     data: TeamMonthlyData[];
     sellerStats: { name: string; revenue: number }[];
     title: string;
     monthsCount: number;
+}
+
+function formatChartCompactK(value: number) {
+    if (!value) return '0';
+    return `${(value / 1000).toFixed(1).replace(/\.0$/, '')}k`;
 }
 
 export function MonthlySellerRevenueHistoryChart({ data, sellerStats, title, monthsCount }: MonthlySellerRevenueHistoryChartProps) {
@@ -37,6 +41,7 @@ export function MonthlySellerRevenueHistoryChart({ data, sellerStats, title, mon
                 wheelX: 'panX',
                 wheelY: 'zoomX',
                 paddingLeft: 0,
+                paddingTop: 24,
                 paddingRight: 40,
                 layout: root.verticalLayout
             })
@@ -59,7 +64,7 @@ export function MonthlySellerRevenueHistoryChart({ data, sellerStats, title, mon
             allSellers.forEach(seller => {
                 const rev = (item.sellerRevenues || {})[seller] || 0;
                 mapped[seller] = rev;
-                mapped[`${seller}_fmt`] = formatCompactK(rev);
+                mapped[`${seller}_fmt`] = formatChartCompactK(rev);
             });
             return mapped;
         });
@@ -134,14 +139,16 @@ export function MonthlySellerRevenueHistoryChart({ data, sellerStats, title, mon
                 cornerRadiusTL: 2,
                 cornerRadiusTR: 2
             });
+            columnSeries.set('maskBullets', false);
 
             columnSeries.bullets.push(() => {
                 const label = am5.Label.new(root, {
                     text: `{${seller}_fmt}`,
-                    fill: am5.color('#ffffff'),
+                    fill: color,
                     centerY: am5.p50,
                     centerX: am5.p50,
                     rotation: -90,
+                    dy: -22,
                     populateText: true,
                     fontSize: 9,
                     fontWeight: 'bold',
@@ -156,7 +163,7 @@ export function MonthlySellerRevenueHistoryChart({ data, sellerStats, title, mon
                 });
 
                 return am5.Bullet.new(root, {
-                    locationY: 0.5,
+                    locationY: 1,
                     sprite: label
                 });
             });
