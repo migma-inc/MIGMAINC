@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { BarChart3, TrendingUp, Calendar, Filter, ShoppingCart, Award, DollarSign } from 'lucide-react';
 import type { SellerInfo } from '@/types/seller';
-import { getTeamYearlyAnalytics, type TeamYearlyAnalytics } from '@/lib/seller-analytics';
+import { getHeadOfSalesAnalyticsStartDate, getOrderEffectiveDate, getTeamYearlyAnalytics, type TeamYearlyAnalytics } from '@/lib/seller-analytics';
 import { formatCurrency } from '@/lib/utils';
 import { Skeleton } from '@/components/ui/skeleton';
 import { supabase } from '@/lib/supabase';
@@ -36,6 +36,7 @@ export function HeadOfSalesAnalytics() {
     const [selectedYear, setSelectedYear] = useState('2026');
     const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
     const [selectedService, setSelectedService] = useState('all');
+    const [distributionPeriod, setDistributionPeriod] = useState('annual');
     const [products, setProducts] = useState<{slug: string, name: string}[]>([]);
     const [activeTab, setActiveTab] = useState(() => {
         return localStorage.getItem('migma_hos_analytics_tab') || 'contratos';
@@ -58,23 +59,43 @@ export function HeadOfSalesAnalytics() {
 
     const years = ['2026'];
 
+    // Títulos dinâmicos baseados nos filtros
+    const selectedMonthLabel = months[selectedMonth].label;
+    const selectedServiceName = selectedService === 'all' ? null : (products.find(p => p.slug === selectedService)?.name ?? selectedService);
+    const serviceFilterSuffix = selectedServiceName ? ` — ${selectedServiceName}` : '';
+    const monthFilterSuffix = ` — ${selectedMonthLabel}`;
+    const distributionMonth = distributionPeriod === 'annual' ? null : parseInt(distributionPeriod, 10);
+    const distributionLabel = distributionMonth === null ? 'Annual' : months[distributionMonth].label;
+    const distributionData = distributionMonth === null
+        ? (data?.productDistribution || [])
+        : (data?.productDistributionByMonth?.[distributionMonth] || []);
+    const distributionTotalSales = distributionData.reduce((sum, item) => sum + item.sales, 0);
+    const distributionPeriodSuffix = ` — ${distributionLabel}`;
+
     useEffect(() => {
         async function loadActiveProducts() {
             if (!seller.team_id) return;
             
-            const startYear = `${selectedYear}-01-01T00:00:00Z`;
-            const endYear = `${selectedYear}-12-31T23:59:59Z`;
+            const analyticsStart = getHeadOfSalesAnalyticsStartDate(parseInt(selectedYear), seller.head_of_sales_started_at);
+            const expandedStart = new Date(analyticsStart.getTime() - 60 * 24 * 60 * 60 * 1000).toISOString();
+            const endYear = new Date(Date.UTC(parseInt(selectedYear), 11, 31, 23, 59, 59, 999));
 
             // Buscar slugs únicos que tiveram vendas completadas no ano/time
             const { data: soldSlugs } = await supabase
                 .from('visa_orders')
-                .select('product_slug')
+                .select('product_slug, created_at, paid_at, payment_status')
                 .eq('team_id', seller.team_id)
-                .eq('payment_status', 'completed')
-                .gte('created_at', startYear)
-                .lte('created_at', endYear);
+                .in('payment_status', ['completed', 'paid'])
+                .gte('created_at', expandedStart)
+                .lte('created_at', endYear.toISOString());
 
-            const activeSlugs = [...new Set((soldSlugs || []).map(s => s.product_slug).filter(Boolean))];
+            const activeSlugs = [...new Set((soldSlugs || [])
+                .filter(order => {
+                    const effectiveDate = getOrderEffectiveDate(order);
+                    return effectiveDate >= analyticsStart && effectiveDate <= endYear;
+                })
+                .map(s => s.product_slug)
+                .filter(Boolean))];
 
             if (activeSlugs.length === 0) {
                 setProducts([]);
@@ -90,7 +111,7 @@ export function HeadOfSalesAnalytics() {
             if (prods) setProducts(prods);
         }
         loadActiveProducts();
-    }, [seller.team_id, selectedYear]);
+    }, [seller.team_id, seller.head_of_sales_started_at, selectedYear]);
 
     useEffect(() => {
         if (selectedService === 'all') return;
@@ -109,7 +130,8 @@ export function HeadOfSalesAnalytics() {
                 const analytics = await getTeamYearlyAnalytics(
                     seller.team_id, 
                     parseInt(selectedYear), 
-                    selectedService
+                    selectedService,
+                    seller.head_of_sales_started_at
                 );
                 setData(analytics);
             } catch (err) {
@@ -119,7 +141,16 @@ export function HeadOfSalesAnalytics() {
             }
         }
         loadData();
-    }, [seller.team_id, selectedYear, selectedService]);
+    }, [seller.team_id, seller.head_of_sales_started_at, selectedYear, selectedService]);
+
+    const startDateLabel = seller.head_of_sales_started_at
+        ? new Intl.DateTimeFormat('en-US', {
+            month: 'short',
+            day: '2-digit',
+            year: 'numeric',
+            timeZone: 'UTC',
+        }).format(new Date(seller.head_of_sales_started_at))
+        : null;
 
     return (
         <div className="max-w-7xl mx-auto space-y-6 pb-12">
@@ -130,6 +161,11 @@ export function HeadOfSalesAnalytics() {
                         Team Analytics
                     </h1>
                     <p className="text-zinc-500 mt-1">Strategic overview of performance and sales distribution</p>
+                    {startDateLabel && (
+                        <p className="text-xs text-gold-light mt-2">
+                            Team performance is considering sales from {startDateLabel}.
+                        </p>
+                    )}
                 </div>
             </div>
 
@@ -355,28 +391,59 @@ export function HeadOfSalesAnalytics() {
                     />
 
                     {/* Linha 4: Distribuição e Histórico Geral */}
-                    <ServiceRankChart 
-                        data={data?.productDistribution || []} 
-                        total={data?.totalSales || 0}
-                        title={`Services Distribution (Annual) - Total: ${data?.totalSales || 0}`}
-                    />
+                    <div className="md:col-span-2 space-y-6">
+                        <Card className="bg-black/40 border-gold-medium/20 overflow-hidden">
+                            <CardHeader className="py-3 bg-gold-medium/5 border-b border-gold-medium/10">
+                                <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                                    <div className="flex items-center gap-2">
+                                        <Filter className="w-4 h-4 text-gold-medium" />
+                                        <CardTitle className="text-xs font-bold text-white uppercase tracking-wider">
+                                            Service Sales Distribution
+                                        </CardTitle>
+                                    </div>
 
-                    {/* Linha 5: Detalhe de Produtos */}
-                    <SubProductPieChart 
-                        data={data?.productDistribution || []}
-                        filterType="student"
-                        title="U.S. Student Visas (Distribution)"
-                    />
-                    <SubProductPieChart 
-                        data={data?.productDistribution || []}
-                        filterType="tourist-us"
-                        title="U.S. Tourist Visas (Distribution)"
-                    />
-                    <SubProductPieChart 
-                        data={data?.productDistribution || []}
-                        filterType="tourist-ca"
-                        title="Canadian Tourist Visas (Distribution)"
-                    />
+                                    <div className="flex items-center gap-2">
+                                        <Calendar className="w-4 h-4 text-gold-medium" />
+                                        <Select value={distributionPeriod} onValueChange={setDistributionPeriod}>
+                                            <SelectTrigger className="w-[180px] bg-black/60 border-gold-medium/30 text-white">
+                                                <SelectValue placeholder="Distribution Period" />
+                                            </SelectTrigger>
+                                            <SelectContent className="bg-[#0a0a0a] border-gold-medium/30 text-white">
+                                                <SelectItem value="annual">Annual</SelectItem>
+                                                {months.map(m => (
+                                                    <SelectItem key={m.value} value={m.value.toString()}>{m.label}</SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                </div>
+                            </CardHeader>
+                        </Card>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 auto-rows-min">
+                            <ServiceRankChart 
+                                data={distributionData}
+                                total={distributionTotalSales}
+                                title={`Services Distribution${distributionPeriodSuffix}${serviceFilterSuffix} — Total: ${distributionTotalSales}`}
+                            />
+
+                            <SubProductPieChart 
+                                data={distributionData}
+                                filterType="student"
+                                title={`U.S. Student Visas${distributionPeriodSuffix}${serviceFilterSuffix}`}
+                            />
+                            <SubProductPieChart 
+                                data={distributionData}
+                                filterType="tourist-us"
+                                title={`U.S. Tourist Visas${distributionPeriodSuffix}${serviceFilterSuffix}`}
+                            />
+                            <SubProductPieChart 
+                                data={distributionData}
+                                filterType="tourist-ca"
+                                title={`Canadian Tourist Visas${distributionPeriodSuffix}${serviceFilterSuffix}`}
+                            />
+                        </div>
+                    </div>
                         </div>
                     </TabsContent>
 
@@ -385,7 +452,7 @@ export function HeadOfSalesAnalytics() {
                         <div className="grid grid-cols-1 xl:grid-cols-2 gap-8 auto-rows-min">
                             <MonthlyRevenueChart 
                                 data={data?.monthlyData || []} 
-                                avg={data?.totalRevenue ? data.totalRevenue / 12 : 0} 
+                                avg={data?.totalRevenue ? (parseInt(selectedYear) === new Date().getFullYear() ? data.totalRevenue / (new Date().getMonth() + 1) : data.totalRevenue / 12) : 0} 
                                 title="Monthly Revenue History"
                                 total={data?.totalRevenue || 0}
                             />
@@ -397,7 +464,7 @@ export function HeadOfSalesAnalytics() {
                                     percentage: data?.totalRevenue ? (p.revenue / data.totalRevenue) * 100 : 0
                                 }))}
                                 total={data?.totalRevenue || 0}
-                                title="Revenue generated per service"
+                                title={`Revenue per service${serviceFilterSuffix}`}
                             />
                         </div>
 
@@ -412,19 +479,19 @@ export function HeadOfSalesAnalytics() {
                                 }))}
                                 total={data?.totalRevenue || 0}
                                 year={selectedYear}
-                                title="Net revenue per seller in the year"
+                                title={`Revenue per seller${serviceFilterSuffix}`}
                             />
                             <WeeklyRevenueBarChart 
                                 data={(data?.weeklyData && data.weeklyData[selectedMonth]) || []}
-                                title={`Net revenue in ${months.find(m => m.value === selectedMonth)?.label} per week`}
+                                title={`Revenue${monthFilterSuffix} per week${serviceFilterSuffix}`}
                             />
                             <MonthlySellerRevenueBarChart 
                                 data={(data?.monthlyRankings && data.monthlyRankings[selectedMonth]) || []}
-                                title={`Net revenue per seller in ${months.find(m => m.value === selectedMonth)?.label}`}
+                                title={`Revenue per seller in ${months.find(m => m.value === selectedMonth)?.label}`}
                             />
                             <WeeklyFilteredSellerRevenueChart 
                                 data={(data?.weeklyData && data.weeklyData[selectedMonth]) || []}
-                                titleBase={`Net revenue per seller in ${months.find(m => m.value === selectedMonth)?.label}`}
+                                titleBase={`Revenue per seller in ${months.find(m => m.value === selectedMonth)?.label}`}
                             />
                         </div>
 
@@ -437,7 +504,7 @@ export function HeadOfSalesAnalytics() {
                                     revenue: s.revenue
                                 }))}
                                 monthsCount={data && data.totalSales > 0 ? new Date().getMonth() + 1 : 12}
-                                title="Monthly history of net revenue per seller"
+                                title="Monthly history of revenue per seller"
                             />
                         </div>
                     </TabsContent>

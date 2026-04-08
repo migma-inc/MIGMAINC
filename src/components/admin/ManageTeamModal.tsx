@@ -34,12 +34,21 @@ export function ManageTeamModal({ isOpen, onClose, onSuccess, team }: ManageTeam
     const [teamName, setTeamName] = useState(team.name);
     const [savingName, setSavingName] = useState(false);
     const [promotionError, setPromotionError] = useState<string | null>(null);
+    const [promotionCandidate, setPromotionCandidate] = useState<Seller | null>(null);
+    const [promotionStartDate, setPromotionStartDate] = useState('');
+
+    const getTodayInputValue = () => {
+        const now = new Date();
+        const local = new Date(now.getTime() - now.getTimezoneOffset() * 60000);
+        return local.toISOString().slice(0, 10);
+    };
 
     useEffect(() => {
         if (isOpen) {
             loadData();
             setTeamName(team.name);
             setIsEditingName(false);
+            setPromotionStartDate(getTodayInputValue());
         }
     }, [isOpen, team.id]);
 
@@ -123,17 +132,25 @@ export function ManageTeamModal({ isOpen, onClose, onSuccess, team }: ManageTeam
         }
     };
 
-    const promoteToHos = async (seller: Seller) => {
+    const openPromoteToHos = (seller: Seller) => {
+        const existingHos = teamMembers.find(m => m.role === 'head_of_sales');
+        if (existingHos) {
+            setPromotionError(`There is already a Head of Sales (${existingHos.full_name}) in this team. Remove or demote them first.`);
+            return;
+        }
+
+        setPromotionError(null);
+        setPromotionCandidate(seller);
+        setPromotionStartDate(getTodayInputValue());
+    };
+
+    const promoteToHos = async () => {
+        if (!promotionCandidate || !promotionStartDate) return;
+
+        const seller = promotionCandidate;
         setActionLoading(seller.id);
         setPromotionError(null);
         try {
-            // Check if there's already a HoS in this team
-            const existingHos = teamMembers.find(m => m.role === 'head_of_sales');
-            if (existingHos) {
-                setPromotionError(`There is already a Head of Sales (${existingHos.full_name}) in this team. Remove or demote them first.`);
-                return;
-            }
-
             const { error } = await supabase.functions.invoke('admin-update-seller', {
                 body: {
                     seller_id: seller.id,
@@ -142,11 +159,13 @@ export function ManageTeamModal({ isOpen, onClose, onSuccess, team }: ManageTeam
                     phone: '-',
                     seller_id_public: seller.seller_id_public,
                     role: 'head_of_sales',
-                    team_id: team.id
+                    team_id: team.id,
+                    head_of_sales_started_at: new Date(`${promotionStartDate}T00:00:00.000Z`).toISOString(),
                 },
             });
 
             if (error) throw error;
+            setPromotionCandidate(null);
             await loadData();
         } catch (err) {
             console.error('[ManageTeamModal] Error promoting:', err);
@@ -268,7 +287,7 @@ export function ManageTeamModal({ isOpen, onClose, onSuccess, team }: ManageTeam
                                                 <Button
                                                     size="sm"
                                                     variant="ghost"
-                                                    onClick={() => promoteToHos(member)}
+                                                    onClick={() => openPromoteToHos(member)}
                                                     disabled={!!actionLoading}
                                                     className="text-gold-medium hover:text-gold-light hover:bg-gold-medium/10 text-[10px] h-7 px-2"
                                                 >
@@ -345,6 +364,50 @@ export function ManageTeamModal({ isOpen, onClose, onSuccess, team }: ManageTeam
                     </Button>
                 </div>
             </div>
+
+            {promotionCandidate && (
+                <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/70 p-4">
+                    <div className="w-full max-w-md rounded-2xl border border-white/10 bg-zinc-900 shadow-2xl">
+                        <div className="flex items-center justify-between border-b border-white/5 px-6 py-4">
+                            <div>
+                                <h3 className="text-base font-bold text-white">Set HoS Start Date</h3>
+                                <p className="text-xs text-gray-500 mt-1">{promotionCandidate.full_name}</p>
+                            </div>
+                            <button
+                                onClick={() => setPromotionCandidate(null)}
+                                className="p-2 hover:bg-white/10 rounded-full text-gray-400 hover:text-white transition-colors"
+                            >
+                                <X className="w-4 h-4" />
+                            </button>
+                        </div>
+
+                        <div className="px-6 py-5 space-y-4">
+                            <p className="text-sm text-gray-400">
+                                Team performance should only consider sales from this date forward.
+                            </p>
+                            <input
+                                type="date"
+                                value={promotionStartDate}
+                                onChange={(e) => setPromotionStartDate(e.target.value)}
+                                className="w-full px-4 py-3 bg-black border border-white/10 rounded-xl text-white focus:outline-none focus:border-gold-medium transition-colors"
+                            />
+                        </div>
+
+                        <div className="flex justify-end gap-3 border-t border-white/5 px-6 py-4 bg-white/5">
+                            <Button variant="ghost" onClick={() => setPromotionCandidate(null)} className="text-gray-400 hover:text-white">
+                                Cancel
+                            </Button>
+                            <Button
+                                onClick={promoteToHos}
+                                disabled={!promotionStartDate || !!actionLoading}
+                                className="bg-gold-medium hover:bg-gold-light text-black font-bold"
+                            >
+                                {actionLoading === promotionCandidate.id ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Promote'}
+                            </Button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

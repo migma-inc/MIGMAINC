@@ -28,7 +28,7 @@ export function WeeklySellerRevenueChart({ data, title }: WeeklySellerRevenueCha
         root.interfaceColors.set('grid', am5.color('#333333'));
 
         root.numberFormatter.setAll({
-            numberFormat: "'$'#,###.00",
+            numberFormat: "#,###.#a",
             numericFields: ["valueY", "value"]
         });
 

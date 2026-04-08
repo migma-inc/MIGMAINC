@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { adminSupabase } from '@/lib/auth';
-import { calculateNetAmount } from '@/lib/seller-commissions';
+import { calculateNetAmount, calculateOrderAmounts } from '@/lib/seller-commissions';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { formatCurrency } from '@/lib/utils';
@@ -24,14 +24,12 @@ import { ExportButton } from '@/components/seller/ExportButton';
 
 // Helper function to calculate net amount and fee
 const calculateNetAmountAndFee = (order: Order) => {
-  const netAmount = calculateNetAmount(order);
-  const totalPrice = parseFloat(order.total_price_usd || '0');
-  // Fee is the difference between total price and net amount (what was deducted)
-  const feeAmount = Math.max(totalPrice - netAmount, 0);
+  const { netAmount, feeAmount, totalPrice } = calculateOrderAmounts(order);
 
   return {
     netAmount,
-    feeAmount
+    feeAmount,
+    totalPrice
   };
 };
 

@@ -12,16 +12,14 @@ interface MonthlySellerRevenueHistoryChartProps {
     monthsCount: number;
 }
 
+function formatChartCompactK(value: number) {
+    if (!value) return '0';
+    return `${(value / 1000).toFixed(1).replace(/\.0$/, '')}k`;
+}
+
 export function MonthlySellerRevenueHistoryChart({ data, sellerStats, title, monthsCount }: MonthlySellerRevenueHistoryChartProps) {
     const chartRef = useRef<HTMLDivElement>(null);
     const rootRef = useRef<am5.Root | null>(null);
-
-    const formatMoneyCompact = (val: number) => {
-        if (val >= 1000) {
-            return `$${(val / 1000).toFixed(1)}k`;
-        }
-        return `$${val.toFixed(0)}`;
-    };
 
     useEffect(() => {
         if (!chartRef.current || !data || data.length === 0) return;
@@ -38,15 +36,18 @@ export function MonthlySellerRevenueHistoryChart({ data, sellerStats, title, mon
 
         const chart = root.container.children.push(
             am5xy.XYChart.new(root, {
-                panX: false,
+                panX: true,
                 panY: false,
-                wheelX: 'none',
-                wheelY: 'none',
+                wheelX: 'panX',
+                wheelY: 'zoomX',
                 paddingLeft: 0,
+                paddingTop: 24,
                 paddingRight: 40,
                 layout: root.verticalLayout
             })
         );
+
+        // Sem barra de rolagem (Swipe Only)
 
         // Extrair todos os nomes de vendedores únicos que tiveram > 0 receita no ano
         const allSellersSet = new Set<string>();
@@ -63,14 +64,18 @@ export function MonthlySellerRevenueHistoryChart({ data, sellerStats, title, mon
             allSellers.forEach(seller => {
                 const rev = (item.sellerRevenues || {})[seller] || 0;
                 mapped[seller] = rev;
-                mapped[`${seller}_fmt`] = formatMoneyCompact(rev);
+                mapped[`${seller}_fmt`] = formatChartCompactK(rev);
             });
             return mapped;
         });
 
         // Eixos
         const xRenderer = am5xy.AxisRendererX.new(root, { 
-            minGridDistance: 30
+            minGridDistance: 1
+        });
+        xRenderer.labels.template.setAll({
+            fontSize: 10,
+            fill: am5.color('#9ca3af')
         });
         
         const xAxis = chart.xAxes.push(
@@ -115,7 +120,7 @@ export function MonthlySellerRevenueHistoryChart({ data, sellerStats, title, mon
                 valueYField: seller,
                 categoryXField: 'month',
                 tooltip: (am5 as any).Tooltip.new(root, {
-                    labelText: '{name}: [bold]{valueY.formatNumber("$#,###.00")}[/]',
+                    labelText: '{name}: [bold]{' + seller + '_fmt}[/]',
                     getFillFromSprite: false
                 })
             }));
@@ -134,17 +139,19 @@ export function MonthlySellerRevenueHistoryChart({ data, sellerStats, title, mon
                 cornerRadiusTL: 2,
                 cornerRadiusTR: 2
             });
+            columnSeries.set('maskBullets', false);
 
             columnSeries.bullets.push(() => {
                 const label = am5.Label.new(root, {
                     text: `{${seller}_fmt}`,
                     fill: color,
-                    centerY: am5.p100,
+                    centerY: am5.p50,
                     centerX: am5.p50,
+                    rotation: -90,
+                    dy: -22,
                     populateText: true,
-                    fontSize: 10,
+                    fontSize: 9,
                     fontWeight: 'bold',
-                    dy: -5
                 });
 
                 label.adapters.add('forceHidden', (hidden: any, target: any) => {
@@ -195,9 +202,6 @@ export function MonthlySellerRevenueHistoryChart({ data, sellerStats, title, mon
                 <CardTitle className="text-sm font-bold text-center text-white uppercase tracking-wider">
                     {title}
                 </CardTitle>
-                <div className="text-xs text-white/50 italic mt-1">
-                    *valores formatados em milhar (k) acima de 1k
-                </div>
             </CardHeader>
             <CardContent className="p-4 pt-4 h-[440px]">
                 <div ref={chartRef} className="w-full h-full"></div>

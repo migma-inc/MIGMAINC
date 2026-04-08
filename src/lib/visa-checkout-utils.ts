@@ -5,12 +5,20 @@ interface VisaProduct {
   allow_extra_units: boolean;
 }
 
-type PaymentMethod = '' | 'card' | 'pix' | 'zelle' | 'wise' | 'parcelow_card' | 'parcelow_pix' | 'parcelow_ted';
+type PaymentMethod = '' | 'card' | 'pix' | 'square_card' | 'zelle' | 'wise' | 'parcelow_card' | 'parcelow_pix' | 'parcelow_ted';
 
 // Stripe fee constants (matching backend)
 const CARD_FEE_PERCENTAGE = 0.039; // 3.9%
 const CARD_FEE_FIXED = 0.30; // $0.30
+const SQUARE_CARD_FEE_PERCENTAGE = 0.029; // 2.9%
+const SQUARE_CARD_FEE_FIXED = 0.30; // $0.30
 const PIX_FEE_PERCENTAGE = 0.0179; // 1.79% (1.19% processing + 0.6% conversion)
+
+function calculateSquareGrossAmount(baseTotal: number): number {
+  const netAmountCents = Math.round(baseTotal * 100);
+  const fixedFeeCents = Math.round(SQUARE_CARD_FEE_FIXED * 100);
+  return Math.round((netAmountCents + fixedFeeCents) / (1 - SQUARE_CARD_FEE_PERCENTAGE)) / 100;
+}
 
 /**
  * Obtém o IP do cliente usando um serviço externo
@@ -77,6 +85,10 @@ export function calculateTotalWithFees(
   }
 
   // 2. Handle Stripe Card
+  if (paymentMethod === 'square_card') {
+    return calculateSquareGrossAmount(baseTotal);
+  }
+
   if (paymentMethod === 'card') {
     return baseTotal + (baseTotal * CARD_FEE_PERCENTAGE) + CARD_FEE_FIXED;
   }

@@ -69,6 +69,12 @@ export const PaymentMethodSelector: React.FC<PaymentMethodSelectorProps> = ({
                             </div>
                         </SelectItem>
                     )}
+                    <SelectItem value="square_card" className="cursor-pointer hover:bg-gray-100 focus:bg-gray-100 focus:text-black">
+                        <div className="flex items-center gap-2">
+                            <CreditCard className="w-4 h-4 text-emerald-700" />
+                            <span>{t('checkout.square_card', 'Square - Card')}</span>
+                        </div>
+                    </SelectItem>
                 </SelectContent>
             </Select>
         </div>

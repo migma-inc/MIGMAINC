@@ -68,6 +68,13 @@ interface IdentityFile {
     file_path: string;
 }
 
+const APPROVAL_STATUS_COLUMN = {
+    contract: 'contract_approval_status',
+    annex: 'annex_approval_status',
+    upsell_contract: 'upsell_contract_approval_status',
+    upsell_annex: 'upsell_annex_approval_status',
+} as const;
+
 export function HosVisaContractApprovalPage() {
     const { seller } = useOutletContext<{ seller: SellerInfo }>();
     const { cache, setCacheValue } = useDashboardCache();
@@ -87,6 +94,54 @@ export function HosVisaContractApprovalPage() {
     const [showRejectPrompt, setShowRejectPrompt] = useState(false);
     const [pendingItem, setPendingItem] = useState<{ id: string, type: 'contract' | 'annex' | 'upsell_contract' | 'upsell_annex' } | null>(null);
     const [rejectionReason, setRejectionReason] = useState('');
+
+    const applyLocalStatusUpdate = (
+        orderId: string,
+        type: 'contract' | 'annex' | 'upsell_contract' | 'upsell_annex',
+        nextStatus: 'approved' | 'rejected',
+    ) => {
+        setOrders(prev => prev.map(order => {
+            if (order.id !== orderId) return order;
+
+            switch (type) {
+                case 'annex':
+                    return { ...order, annex_approval_status: nextStatus };
+                case 'upsell_contract':
+                    return { ...order, upsell_contract_approval_status: nextStatus };
+                case 'upsell_annex':
+                    return { ...order, upsell_annex_approval_status: nextStatus };
+                default:
+                    return { ...order, contract_approval_status: nextStatus };
+            }
+        }));
+    };
+
+    const waitForPersistedStatus = async (
+        orderId: string,
+        type: 'contract' | 'annex' | 'upsell_contract' | 'upsell_annex',
+        expectedStatus: 'approved' | 'rejected',
+        timeoutMs = 12000,
+    ) => {
+        const statusColumn = APPROVAL_STATUS_COLUMN[type];
+        const startTime = Date.now();
+
+        while (Date.now() - startTime < timeoutMs) {
+            const { data, error } = await supabase
+                .from('visa_orders')
+                .select(statusColumn)
+                .eq('id', orderId)
+                .single();
+
+            const statusValue = (data as Record<string, string | null> | null)?.[statusColumn];
+            if (!error && statusValue === expectedStatus) {
+                return true;
+            }
+
+            await new Promise(resolve => setTimeout(resolve, 800));
+        }
+
+        return false;
+    };
 
     const loadOrders = async () => {
         try {
@@ -224,11 +279,15 @@ export function HosVisaContractApprovalPage() {
         try {
             const user = await getCurrentUser();
             const reviewer = user?.email || user?.id || 'hos';
+            const request = approveVisaContract(pendingItem.id, reviewer, pendingItem.type);
+            const persisted = await waitForPersistedStatus(pendingItem.id, pendingItem.type, 'approved');
+            const result = await request;
 
-            const result = await approveVisaContract(pendingItem.id, reviewer, pendingItem.type);
-            if (result.success) {
-                await loadOrders();
+            if (result.success || persisted) {
+                applyLocalStatusUpdate(pendingItem.id, pendingItem.type, 'approved');
                 setShowApproveConfirm(false);
+                setPendingItem(null);
+                void loadOrders();
             } else {
                 alert('Error: ' + result.error);
             }
@@ -245,11 +304,16 @@ export function HosVisaContractApprovalPage() {
         try {
             const user = await getCurrentUser();
             const reviewer = user?.email || user?.id || 'hos';
+            const request = rejectVisaContract(pendingItem.id, reviewer, rejectionReason, pendingItem.type);
+            const persisted = await waitForPersistedStatus(pendingItem.id, pendingItem.type, 'rejected');
+            const result = await request;
 
-            const result = await rejectVisaContract(pendingItem.id, reviewer, rejectionReason, pendingItem.type);
-            if (result.success) {
-                await loadOrders();
+            if (result.success || persisted) {
+                applyLocalStatusUpdate(pendingItem.id, pendingItem.type, 'rejected');
                 setShowRejectPrompt(false);
+                setPendingItem(null);
+                setRejectionReason('');
+                void loadOrders();
             } else {
                 alert('Error: ' + result.error);
             }

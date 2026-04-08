@@ -84,9 +84,10 @@ Deno.serve(async (req: Request) => {
             });
         }
 
-        const { seller_id, full_name, email, phone, seller_id_public, new_password, role, head_of_sales_id } = await req.json();
+        const payload = await req.json();
+        const { seller_id, full_name, email, phone, seller_id_public, new_password, role, head_of_sales_id, head_of_sales_started_at } = payload;
 
-        console.log('[admin-update-seller] Request:', { seller_id, full_name, email, phone, seller_id_public, role, head_of_sales_id, has_password: !!new_password });
+        console.log('[admin-update-seller] Request:', { seller_id, full_name, email, phone, seller_id_public, role, head_of_sales_id, head_of_sales_started_at, has_password: !!new_password });
 
         if (!seller_id || !full_name || !email || !phone || !seller_id_public) {
             return new Response(JSON.stringify({ error: 'Campos obrigatórios faltando' }), {
@@ -222,16 +223,22 @@ Deno.serve(async (req: Request) => {
         }
 
         // Update sellers table
+        const sellerUpdatePayload: Record<string, unknown> = {
+            full_name,
+            email,
+            phone,
+            seller_id_public,
+            role: role || 'seller',
+            head_of_sales_id: head_of_sales_id === '' ? null : head_of_sales_id,
+        };
+
+        if ('head_of_sales_started_at' in payload) {
+            sellerUpdatePayload.head_of_sales_started_at = head_of_sales_started_at || null;
+        }
+
         const { error: sellersUpdateError } = await supabaseAdmin
             .from('sellers')
-            .update({
-                full_name,
-                email,
-                phone,
-                seller_id_public,
-                role: role || 'seller',
-                head_of_sales_id: head_of_sales_id === '' ? null : head_of_sales_id,
-            })
+            .update(sellerUpdatePayload)
             .eq('id', seller_id);
 
         if (sellersUpdateError) {

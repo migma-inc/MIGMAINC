@@ -565,6 +565,8 @@ Deno.serve(async (req) => {
       let paymentMethodDisplay = '';
       if (order.payment_method === 'stripe_card') {
         paymentMethodDisplay = 'STRIPE CARD';
+      } else if (order.payment_method === 'square_card') {
+        paymentMethodDisplay = 'SQUARE CARD';
       } else if (order.payment_method === 'stripe_pix') {
         paymentMethodDisplay = 'STRIPE PIX';
       } else if (order.payment_method === 'zelle') {

@@ -23,7 +23,8 @@ export interface TokenValidationResult {
 
 /**
  * Approve a visa contract (main contract or ANNEX I)
- * Calls the approve-visa-contract Edge Function
+ * Calls the fast approval Edge Function and lets the heavier notification flow
+ * continue in the background on the backend.
  */
 export async function approveVisaContract(
   orderId: string,
@@ -31,7 +32,7 @@ export async function approveVisaContract(
   contractType: 'annex' | 'contract' | 'upsell_contract' | 'upsell_annex' = 'contract'
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    const { data, error } = await supabase.functions.invoke('approve-visa-contract', {
+    const { data, error } = await supabase.functions.invoke('approve-visa-contract-status', {
       body: {
         order_id: orderId,
         reviewed_by: reviewedBy,
@@ -49,7 +50,6 @@ export async function approveVisaContract(
       return { success: false, error: data.error };
     }
 
-    // NEW: If the contract was approved, and it's a manual order, trigger Invoice generation
     try {
       const { data: orderData } = await supabase
         .from('visa_orders')
@@ -58,8 +58,6 @@ export async function approveVisaContract(
         .single();
 
       if (orderData?.payment_method === 'manual') {
-        console.log('[VISA_CONTRACTS] Manual order detected, triggering Invoice generation...');
-        // We trigger this in the background/parallel to not delay the UI success message
         supabase.functions.invoke('generate-invoice-pdf', {
           body: { order_id: orderId },
         }).catch(err => console.error('[VISA_CONTRACTS] Error triggering invoice:', err));
