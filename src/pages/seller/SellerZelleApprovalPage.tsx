@@ -8,6 +8,7 @@ import { ImageModal } from '@/components/ui/image-modal';
 import { CheckCircle, XCircle, Clock, Eye } from 'lucide-react';
 import { AlertModal } from '@/components/ui/alert-modal';
 import { getSecureUrl } from '@/lib/storage';
+import { getExplicitMigmaUpsell, getOrderAddonLabel, resolveMigmaOrderLink } from '@/lib/migma-zelle-linking';
 
 interface ZelleOrder {
     id: string;
@@ -505,26 +506,66 @@ export const SellerZelleApprovalPage = () => {
             if (!product) throw new Error('Product not found');
 
             let orderId = '';
-            // Check for bundle in metadata or infer from amount (heuristic fallback)
-            let metaUpsell = payment.metadata?.upsell_product_slug;
-            let metaUpsellPrice = payment.metadata?.upsell_price_usd || 0;
+            const { upsellProductSlug, upsellPriceUsd } = getExplicitMigmaUpsell(payment);
+            const { matchedServiceRequest, sourceOrder, resolution } = await resolveMigmaOrderLink(
+                client.id,
+                product.slug,
+                payment.metadata?.service_request_id || null,
+            );
 
-            const { data: existingOrders } = await supabase
-                .from('visa_orders')
-                .select('id')
-                .ilike('client_email', client.email.trim())
-                .eq('product_slug', product.slug)
-                .eq('payment_status', 'pending')
-                .eq('payment_method', 'zelle')
-                .limit(1);
+            if (resolution === 'ambiguous') {
+                console.warn('[Seller Migma Approval] Multiple service requests found. Creating isolated Zelle order without reusing an existing case.', {
+                    client_id: client.id,
+                    product_slug: product.slug,
+                    payment_id: id,
+                });
+            }
 
-            if (existingOrders && existingOrders.length > 0) {
-                orderId = existingOrders[0].id;
+            const derivedExtraUnits = sourceOrder?.extra_units ?? matchedServiceRequest?.dependents_count ?? 0;
+            const sanitizedExtraUnits = Number(derivedExtraUnits) > 0 ? Number(derivedExtraUnits) : 0;
+            const preservedDependentNames = Array.isArray(sourceOrder?.dependent_names) && sourceOrder.dependent_names.length > 0
+                ? sourceOrder.dependent_names
+                : null;
+            const preservedUpsellSlug = upsellProductSlug ?? sourceOrder?.upsell_product_slug ?? null;
+            const preservedUpsellPrice = preservedUpsellSlug
+                ? (upsellProductSlug ? upsellPriceUsd : Number(sourceOrder?.upsell_price_usd || 0) || null)
+                : null;
+            const preservedPaymentMetadata = {
+                ...(sourceOrder?.payment_metadata || {}),
+                manual_migma_link: true,
+                migma_link_resolution: resolution,
+                has_upsell: !!preservedUpsellSlug,
+                upsell_details: preservedUpsellSlug ? {
+                    slug: preservedUpsellSlug,
+                    total: preservedUpsellPrice || 0,
+                } : null
+            };
+
+            if (sourceOrder?.id && sourceOrder.payment_status === 'pending') {
+                orderId = sourceOrder.id;
                 await supabase.from('visa_orders').update({
+                    seller_id: sourceOrder.seller_id || sellerId || null,
+                    client_name: sourceOrder.client_name || client.full_name,
+                    client_email: sourceOrder.client_email || client.email,
+                    client_whatsapp: sourceOrder.client_whatsapp || client.phone,
+                    client_country: sourceOrder.client_country || client.country,
+                    client_nationality: sourceOrder.client_nationality || client.nationality,
+                    client_observations: sourceOrder.client_observations || null,
+                    service_request_id: matchedServiceRequest?.id || sourceOrder.service_request_id || null,
+                    base_price_usd: sourceOrder.base_price_usd ?? product.base_price_usd,
+                    price_per_dependent_usd: sourceOrder.price_per_dependent_usd ?? product.price_per_dependent_usd ?? product.extra_unit_price ?? 0,
+                    extra_unit_price_usd: sourceOrder.extra_unit_price_usd ?? product.price_per_dependent_usd ?? product.extra_unit_price ?? 0,
+                    extra_unit_label: sourceOrder.extra_unit_label || product.extra_unit_label || 'Additional Dependent',
+                    extra_units: sanitizedExtraUnits,
+                    dependent_names: preservedDependentNames,
+                    payment_method: 'zelle',
                     payment_status: 'completed',
+                    total_price_usd: payment.amount,
                     zelle_proof_url: payment.image_url,
-                    upsell_product_slug: metaUpsell || null,
-                    upsell_price_usd: metaUpsellPrice || null,
+                    zelle_proof_uploaded_at: new Date().toISOString(),
+                    upsell_product_slug: preservedUpsellSlug,
+                    upsell_price_usd: preservedUpsellPrice,
+                    payment_metadata: preservedPaymentMetadata,
                     updated_at: new Date().toISOString()
                 }).eq('id', orderId);
             } else {
@@ -532,23 +573,28 @@ export const SellerZelleApprovalPage = () => {
                 const { data: newOrder } = await supabase.from('visa_orders').insert({
                     order_number: orderNumber,
                     product_slug: product.slug,
+                    seller_id: sourceOrder?.seller_id || sellerId || null,
+                    base_price_usd: sourceOrder?.base_price_usd ?? product.base_price_usd,
+                    price_per_dependent_usd: sourceOrder?.price_per_dependent_usd ?? product.price_per_dependent_usd ?? product.extra_unit_price ?? 0,
+                    extra_unit_price_usd: sourceOrder?.extra_unit_price_usd ?? product.price_per_dependent_usd ?? product.extra_unit_price ?? 0,
+                    extra_unit_label: sourceOrder?.extra_unit_label || product.extra_unit_label || 'Additional Dependent',
+                    extra_units: sanitizedExtraUnits,
+                    dependent_names: preservedDependentNames,
                     total_price_usd: payment.amount,
-                    client_name: client.full_name,
-                    client_email: client.email,
+                    client_name: sourceOrder?.client_name || client.full_name,
+                    client_email: sourceOrder?.client_email || client.email,
+                    client_whatsapp: sourceOrder?.client_whatsapp || client.phone,
+                    client_country: sourceOrder?.client_country || client.country,
+                    client_nationality: sourceOrder?.client_nationality || client.nationality,
+                    client_observations: sourceOrder?.client_observations || null,
                     payment_method: 'zelle',
                     payment_status: 'completed',
                     zelle_proof_url: payment.image_url,
-                    seller_id: sellerId,
-                    upsell_product_slug: metaUpsell || null,
-                    upsell_price_usd: metaUpsellPrice || null,
-                    payment_metadata: {
-                        has_upsell: !!metaUpsell,
-                        manual_migma_link: true,
-                        upsell_details: metaUpsell ? {
-                            slug: metaUpsell,
-                            total: metaUpsellPrice
-                        } : null
-                    }
+                    zelle_proof_uploaded_at: new Date().toISOString(),
+                    service_request_id: matchedServiceRequest?.id || null,
+                    upsell_product_slug: preservedUpsellSlug,
+                    upsell_price_usd: preservedUpsellPrice,
+                    payment_metadata: preservedPaymentMetadata
                 }).select().single();
                 orderId = newOrder?.id || '';
             }
@@ -717,9 +763,9 @@ export const SellerZelleApprovalPage = () => {
                                     <p className="font-bold text-white text-sm truncate">{item.client_name || 'N/A'}</p>
                                     <div className="flex flex-col">
                                         <p className="text-xs text-gray-400 truncate uppercase mt-0.5">{getProductName(item.product_slug || item.fee_type_global)}</p>
-                                        {item.type === 'order' && (item.upsell_product_slug || item.payment_metadata?.upsell_details?.slug) && (
+                                        {item.type === 'order' && getOrderAddonLabel(item) && (
                                             <span className="text-[9px] text-gold-medium/80 font-medium italic">
-                                                + {(item.upsell_product_slug || item.payment_metadata?.upsell_details?.slug).replace(/-/g, ' ')}
+                                                {getOrderAddonLabel(item)}
                                             </span>
                                         )}
                                     </div>
