@@ -362,10 +362,8 @@ Deno.serve(async (req: Request) => {
   try {
     // Detect environment dynamically
     const envInfo = detectEnvironment(req);
-    const parcelowEnvironment = envInfo.environment;
-
     console.log("[Parcelow Checkout] 📋 Step 1: Detecting environment...");
-    console.log("[Parcelow Checkout] Detected environment:", parcelowEnvironment);
+    console.log("[Parcelow Checkout] Detected environment:", envInfo.environment);
     console.log("[Parcelow Checkout] Is Production Domain:", envInfo.isProduction);
 
     // Initialize Supabase client
@@ -378,6 +376,12 @@ Deno.serve(async (req: Request) => {
     console.log("[Parcelow Checkout] 📋 Step 3: Parsing request body...");
     const body = await req.json();
     const { order_id, upsell_order_id, action = 'create', currency = "USD", amount_usd } = body;
+    const parcelowEnvironment =
+      body.parcelow_environment === 'production' || body.parcelow_environment === 'staging'
+        ? body.parcelow_environment
+        : envInfo.environment;
+
+    console.log("[Parcelow Checkout] Using Parcelow environment:", parcelowEnvironment);
 
     // Split flow calls this function server-to-server, so req.origin is usually absent.
     // Prefer the browser-provided app_url to preserve localhost redirects in dev.
