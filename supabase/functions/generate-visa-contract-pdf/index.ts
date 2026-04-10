@@ -710,7 +710,7 @@ Deno.serve(async (req) => {
     }
 
     // Document Back (if exists)
-    const documentBackUrl = identityFiles.document_back || null;
+    const documentBackUrl = identityFiles.document_back || order.contract_document_back_url || null;
     if (documentBackUrl) {
       if (currentY > pageHeight - margin - 60) {
         pdf.addPage();

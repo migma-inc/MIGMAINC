@@ -63,7 +63,7 @@ export async function saveStep1Data(
     const clientPayload = {
       full_name: formData.clientName,
       email: formData.clientEmail,
-      phone: formData.clientWhatsApp,
+      phone: formData.clientWhatsApp ? formData.clientWhatsApp.replace(/\D/g, '') : '',
       date_of_birth: formData.dateOfBirth || null,
       nationality: formData.clientNationality || null,
       document_type: formData.documentType || null,
