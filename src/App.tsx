@@ -1,5 +1,12 @@
 
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { lazy, Suspense } from 'react';
+
+// Student flow (lazy loaded)
+const StudentRegistration = lazy(() => import('./pages/StudentRegistration'));
+const StudentOnboarding = lazy(() => import('./pages/StudentOnboarding/StudentOnboarding'));
+const StudentLogin = lazy(() => import('./pages/StudentLogin'));
+const MigmaCheckout = lazy(() => import('./pages/MigmaCheckout'));
 import { Home } from './pages/Home';
 import { Services } from './pages/Services';
 import { About } from './pages/About';
@@ -26,8 +33,8 @@ import { ZellePaymentProcessing } from './pages/ZellePaymentProcessing';
 import { SplitPaymentRedirectSuccessStyle } from './pages/SplitPaymentRedirectSuccessStyle';
 import { VisaServiceTerms } from './pages/VisaServiceTerms';
 import { SellerLogin } from './pages/SellerLogin';
-import { ForgotPassword } from './pages/ForgotPassword';
-import { ResetPassword } from './pages/ResetPassword';
+import ForgotPassword from './pages/ForgotPassword';
+import ResetPassword from './pages/ResetPassword';
 import { SellerRegister } from './pages/SellerRegister';
 import { SellerDashboardLayout } from './pages/seller/SellerDashboardLayout';
 import { DashboardOverviewRouter } from './pages/seller/DashboardOverviewRouter';
@@ -112,6 +119,7 @@ function App() {
 
         {/* Generic Password Recovery Routes */}
         <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/student/forgot-password" element={<ForgotPassword />} />
         <Route path="/reset-password" element={<ResetPassword />} />
 
         {/* Seller Routes */}
@@ -184,6 +192,22 @@ function App() {
           <Route path="coupons" element={<CouponManagement />} />
           <Route path="sync-sales" element={<AdminRoute><AdminSyncSales /></AdminRoute>} />
         </Route>
+
+        {/* ── Migma Checkout (URL determina serviço) ────────────── */}
+        <Route path="/student/checkout/:service" element={
+          <Suspense fallback={null}><MigmaCheckout /></Suspense>
+        } />
+
+        {/* ── Student Flow ─────────────────────────────────────── */}
+        <Route path="/student/register" element={
+          <Suspense fallback={null}><StudentRegistration /></Suspense>
+        } />
+        <Route path="/student/login" element={
+          <Suspense fallback={null}><StudentLogin /></Suspense>
+        } />
+        <Route path="/student/onboarding" element={
+          <Suspense fallback={null}><StudentOnboarding /></Suspense>
+        } />
 
         {/* Catch-all 404 Route */}
         <Route path="*" element={<NotFound />} />

@@ -1,220 +1,218 @@
-import { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { supabase } from '@/lib/supabase';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { ArrowLeft, Loader2, Lock, Eye, EyeOff, CheckCircle } from 'lucide-react';
+/**
+ * Página de Redefinição de Senha — Migma
+ * Permite ao usuário definir uma nova senha após clicar no link do e-mail.
+ */
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { Lock, AlertCircle, Loader2, Eye, EyeOff, CheckCircle2, ArrowLeft } from 'lucide-react';
+import { supabase } from '../lib/supabase';
 
-export const ResetPassword = () => {
-    const navigate = useNavigate();
-    const [loading, setLoading] = useState(false);
-    const [error, setError] = useState('');
-    const [success, setSuccess] = useState(false);
-    const [showPassword, setShowPassword] = useState(false);
-    const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-    const [formData, setFormData] = useState({
-        password: '',
-        confirmPassword: '',
+const ResetPassword = () => {
+  const navigate = useNavigate();
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [formData, setFormData] = useState({
+    password: '',
+    confirmPassword: '',
+  });
+
+  useEffect(() => {
+    // Verifica se há uma sessão ativa (vinda do link de reset)
+    const checkSession = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        console.warn('[ResetPassword] Nenhuma sessão encontrada. O link pode ter expirado.');
+      }
+    };
+    checkSession();
+  }, []);
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setFormData({
+      ...formData,
+      [e.target.name]: e.target.value,
     });
+    setError(null);
+  };
 
-    useEffect(() => {
-        // Check if we have a valid session from the reset link
-        const checkSession = async () => {
-            const { data: { session } } = await supabase.auth.getSession();
-            console.log('[ResetPassword] Session check:', session ? 'Active' : 'None');
-        };
-        checkSession();
-    }, []);
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
 
-    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        setFormData({
-            ...formData,
-            [e.target.name]: e.target.value,
-        });
-        setError('');
-    };
+    if (formData.password.length < 6) {
+      setError('A senha deve ter pelo menos 6 caracteres.');
+      return;
+    }
 
-    const validatePassword = (password: string): string | null => {
-        if (password.length < 6) {
-            return 'Password must be at least 6 characters long';
-        }
-        return null;
-    };
+    if (formData.password !== formData.confirmPassword) {
+      setError('As senhas não coincidem.');
+      return;
+    }
 
-    const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
-        setError('');
-        setLoading(true);
+    setLoading(true);
 
-        try {
-            // Validate passwords
-            if (!formData.password || !formData.confirmPassword) {
-                setError('Please fill in all fields');
-                setLoading(false);
-                return;
-            }
+    try {
+      const { error: updateError } = await supabase.auth.updateUser({
+        password: formData.password,
+      });
 
-            const passwordError = validatePassword(formData.password);
-            if (passwordError) {
-                setError(passwordError);
-                setLoading(false);
-                return;
-            }
+      if (updateError) throw updateError;
 
-            if (formData.password !== formData.confirmPassword) {
-                setError('Passwords do not match');
-                setLoading(false);
-                return;
-            }
+      setSuccess(true);
+      
+      // Redireciona para o login após 3 segundos
+      setTimeout(() => {
+        navigate('/student/login');
+      }, 3000);
+    } catch (err: any) {
+      console.error('[ResetPassword] Error:', err);
+      setError(err.message || 'Ocorreu um erro ao atualizar sua senha.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
-            console.log('[ResetPassword] Updating password...');
+  return (
+    <div className="min-h-screen bg-black flex items-center justify-center px-4 relative overflow-hidden">
+      {/* Ambient glow */}
+      <div className="absolute inset-0 pointer-events-none">
+        <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[600px] h-[400px] bg-[#C9A84C]/8 rounded-full blur-[120px]" />
+      </div>
 
-            const { error: updateError } = await supabase.auth.updateUser({
-                password: formData.password,
-            });
+      <div className="w-full max-w-md relative z-10">
+        {/* Back button */}
+        {!success && (
+          <button
+            onClick={() => navigate('/student/login')}
+            className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors text-sm mb-8 group"
+          >
+            <ArrowLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" />
+            Voltar ao login
+          </button>
+        )}
 
-            if (updateError) {
-                console.error('[ResetPassword] Update error:', updateError);
-                setError(updateError.message);
-                setLoading(false);
-                return;
-            }
-
-            console.log('[ResetPassword] Password updated successfully');
-            setSuccess(true);
-
-            // Redirect to home after 3 seconds
-            setTimeout(() => {
-                navigate('/');
-            }, 3000);
-        } catch (err) {
-            console.error('[ResetPassword] Unexpected error:', err);
-            setError('An unexpected error occurred. Please try again.');
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    return (
-        <div className="min-h-screen bg-black flex items-center justify-center p-4">
-            <Card className="max-w-md w-full bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30">
-                <CardHeader>
-                    <button
-                        onClick={() => navigate(-1)}
-                        className="inline-flex items-center text-gold-light hover:text-gold-medium transition mb-4"
-                    >
-                        <ArrowLeft className="w-4 h-4 mr-2" />
-                        Back
-                    </button>
-                    <CardTitle className="text-2xl migma-gold-text">Create New Password</CardTitle>
-                    <CardDescription className="text-gray-400">
-                        Enter your new password below
-                    </CardDescription>
-                </CardHeader>
-                <CardContent>
-                    {success ? (
-                        <div className="text-center py-6">
-                            <div className="flex justify-center mb-4">
-                                <div className="bg-green-500/20 p-4 rounded-full">
-                                    <CheckCircle className="w-12 h-12 text-green-400" />
-                                </div>
-                            </div>
-                            <h3 className="text-xl font-semibold text-white mb-2">Password Updated!</h3>
-                            <p className="text-gray-400 mb-6">
-                                Your password has been successfully updated. You will be redirected shortly.
-                            </p>
-                            <div className="flex flex-col gap-3">
-                                <Link to="/seller/login">
-                                    <Button className="w-full bg-gradient-to-b from-gold-light via-gold-medium to-gold-light text-black font-bold hover:from-gold-medium hover:via-gold-light hover:to-gold-medium">
-                                        Go to Seller Login
-                                    </Button>
-                                </Link>
-                                <Link to="/dashboard">
-                                    <Button variant="outline" className="w-full border-gold-medium/50 bg-black/50 text-white hover:bg-black/50 hover:text-white">
-                                        Go to Admin Login
-                                    </Button>
-                                </Link>
-                            </div>
-                        </div>
-                    ) : (
-                        <form onSubmit={handleSubmit} className="space-y-4">
-                            {error && (
-                                <div className="bg-red-500/10 border border-red-500/50 text-red-300 p-3 rounded-md text-sm">
-                                    {error}
-                                </div>
-                            )}
-
-                            <div className="space-y-2">
-                                <Label htmlFor="password" className="text-white">New Password</Label>
-                                <div className="relative">
-                                    <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-                                    <Input
-                                        id="password"
-                                        name="password"
-                                        type={showPassword ? 'text' : 'password'}
-                                        value={formData.password}
-                                        onChange={handleChange}
-                                        className="bg-white text-black pl-10 pr-10"
-                                        placeholder="Enter new password"
-                                        required
-                                        autoComplete="new-password"
-                                    />
-                                    <button
-                                        type="button"
-                                        onClick={() => setShowPassword(!showPassword)}
-                                        className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                                    >
-                                        {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                                    </button>
-                                </div>
-                                <p className="text-xs text-gray-500">Minimum 6 characters</p>
-                            </div>
-
-                            <div className="space-y-2">
-                                <Label htmlFor="confirmPassword" className="text-white">Confirm Password</Label>
-                                <div className="relative">
-                                    <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-                                    <Input
-                                        id="confirmPassword"
-                                        name="confirmPassword"
-                                        type={showConfirmPassword ? 'text' : 'password'}
-                                        value={formData.confirmPassword}
-                                        onChange={handleChange}
-                                        className="bg-white text-black pl-10 pr-10"
-                                        placeholder="Confirm new password"
-                                        required
-                                        autoComplete="new-password"
-                                    />
-                                    <button
-                                        type="button"
-                                        onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                                        className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                                    >
-                                        {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                                    </button>
-                                </div>
-                            </div>
-
-                            <Button
-                                type="submit"
-                                disabled={loading}
-                                className="w-full bg-gradient-to-b from-gold-light via-gold-medium to-gold-light text-black font-bold hover:from-gold-medium hover:via-gold-light hover:to-gold-medium"
-                            >
-                                {loading ? (
-                                    <>
-                                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                                        Updating Password...
-                                    </>
-                                ) : (
-                                    'Update Password'
-                                )}
-                            </Button>
-                        </form>
-                    )}
-                </CardContent>
-            </Card>
+        {/* Logo / Title */}
+        <div className="text-center mb-8">
+          <img
+            src="/logo.png"
+            alt="Migma"
+            className="h-10 mx-auto mb-6 object-contain"
+            onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
+          />
+          <h1 className="text-3xl font-black text-white uppercase tracking-tighter">
+            Nova Senha
+          </h1>
+          <p className="text-gray-400 mt-2 text-sm">
+            Defina sua nova senha de acesso ao portal
+          </p>
         </div>
-    );
+
+        {/* Card */}
+        <div className="bg-[#0d0d0d] border border-white/10 rounded-2xl p-8 shadow-2xl">
+          {success ? (
+            <div className="text-center py-4">
+              <div className="w-16 h-16 bg-emerald-500/10 border border-emerald-500/20 rounded-full flex items-center justify-center mx-auto mb-6">
+                <CheckCircle2 className="w-8 h-8 text-emerald-500" />
+              </div>
+              <h3 className="text-xl font-bold text-white mb-3">Senha Atualizada!</h3>
+              <p className="text-gray-400 text-sm leading-relaxed mb-8">
+                Sua senha foi redefinida com sucesso. Você será redirecionado para o login em instantes.
+              </p>
+              <button
+                onClick={() => navigate('/student/login')}
+                className="w-full bg-[#C9A84C] text-black py-4 rounded-xl font-bold uppercase tracking-widest text-sm hover:bg-[#E5C46A] transition-all"
+              >
+                Entrar agora
+              </button>
+            </div>
+          ) : (
+            <form onSubmit={handleSubmit} className="space-y-5">
+              {/* New Password */}
+              <div>
+                <label htmlFor="password" className="text-sm font-semibold text-gray-300 mb-1.5 block">
+                  Nova Senha
+                </label>
+                <div className="relative">
+                  <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+                  <input
+                    id="password"
+                    name="password"
+                    type={showPassword ? 'text' : 'password'}
+                    value={formData.password}
+                    onChange={handleChange}
+                    placeholder="Mínimo 6 caracteres"
+                    className="w-full pl-10 pr-11 py-3 bg-white/5 border border-white/10 rounded-xl text-white text-sm focus:outline-none focus:border-[#C9A84C]/60 focus:ring-1 focus:ring-[#C9A84C]/30 transition-all"
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300 transition-colors"
+                  >
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+
+              {/* Confirm Password */}
+              <div>
+                <label htmlFor="confirmPassword" className="text-sm font-semibold text-gray-300 mb-1.5 block">
+                  Confirmar Senha
+                </label>
+                <div className="relative">
+                  <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+                  <input
+                    id="confirmPassword"
+                    name="confirmPassword"
+                    type={showConfirmPassword ? 'text' : 'password'}
+                    value={formData.confirmPassword}
+                    onChange={handleChange}
+                    placeholder="Repita a senha"
+                    className="w-full pl-10 pr-11 py-3 bg-white/5 border border-white/10 rounded-xl text-white text-sm focus:outline-none focus:border-[#C9A84C]/60 focus:ring-1 focus:ring-[#C9A84C]/30 transition-all"
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300 transition-colors"
+                  >
+                    {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+
+              {/* Error */}
+              {error && (
+                <div className="flex items-center gap-2 text-red-400 text-sm bg-red-500/10 border border-red-500/20 rounded-xl p-3">
+                  <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                  {error}
+                </div>
+              )}
+
+              {/* Submit */}
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full bg-[#C9A84C] text-black py-4 rounded-xl font-bold uppercase tracking-widest text-sm hover:bg-[#E5C46A] transition-all shadow-lg shadow-[#C9A84C]/20 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              >
+                {loading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Atualizando...
+                  </>
+                ) : (
+                  'Salvar Nova Senha'
+                )}
+              </button>
+            </form>
+          )}
+        </div>
+      </div>
+    </div>
+  );
 };
+
+export default ResetPassword;

@@ -98,7 +98,8 @@ export async function getSecureUrl(url: string | null): Promise<string | null> {
             'contracts',
             'identity-photos',
             'partner-signatures',
-            'cv-files'
+            'cv-files',
+            'migma-student-documents',
         ];
 
         let bucket: string | null = null;
