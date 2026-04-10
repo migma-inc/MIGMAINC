@@ -6,8 +6,8 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-const SQUARE_CARD_FEE_PERCENTAGE = 0.029;
-const SQUARE_CARD_FEE_FIXED = 0.30;
+const SQUARE_CARD_FEE_PERCENTAGE = 0.033;
+const SQUARE_CARD_FEE_FIXED = 30.00;
 const SQUARE_API_VERSION = Deno.env.get("SQUARE_API_VERSION") || "2026-01-22";
 
 function calculateSquareGrossAmountCents(netAmountUsd: number): number {

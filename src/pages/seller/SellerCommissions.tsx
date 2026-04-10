@@ -19,31 +19,15 @@ interface SellerInfo {
 
 export function SellerCommissions() {
   const { seller } = useOutletContext<{ seller: SellerInfo }>();
-  // PAYMENT REQUEST - COMENTADO: Usando apenas commissions por enquanto
   const [activeTab, setActiveTab] = useState<'commissions' | 'payment-request'>('commissions');
   const [commissions, setCommissions] = useState<any[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  // Blacklist of products that should NEVER have commission
-  const isBlacklistedProduct = (slug: string) => {
-    if (!slug) return false;
-    const lowerSlug = slug.toLowerCase();
-    const directBlacklist = ['consultation-brant', 'consultation-common', 'visa-retry-defense', 'rfe-defense'];
-    return directBlacklist.includes(lowerSlug) ||
-      lowerSlug.endsWith('-scholarship') ||
-      lowerSlug.endsWith('-i20-control');
-  };
-
   // Use shared hook for stats
   const { refresh: refreshStats } = useSellerStats(seller?.seller_id_public);
 
-  // Calculate total from the list to ensure it's always in sync with what's visible
-  const totalInList = commissions.reduce((acc, item) => {
-    const isBlacklisted = isBlacklistedProduct(item.visa_orders?.product_slug);
-    if (isBlacklisted) return acc;
-    return acc + (item.commission?.commission_amount_usd || 0);
-  }, 0);
+  const totalInList = commissions.reduce((acc, item) => acc + (item.commission?.commission_amount_usd || 0), 0);
 
   // Auto-refresh stats periodically
   useEffect(() => {
@@ -113,7 +97,7 @@ export function SellerCommissions() {
         // Fetch ALL orders linked to the seller for full synchronization
         const { data: ordersData, error: ordersError } = await supabase
           .from('visa_orders')
-          .select('id, order_number, product_slug, client_name, client_email, total_price_usd, payment_status, created_at')
+          .select('id, order_number, product_slug, client_name, client_email, total_price_usd, payment_status, created_at, paid_at')
           .eq('seller_id', seller.seller_id_public)
           .order('created_at', { ascending: false });
 
@@ -132,10 +116,10 @@ export function SellerCommissions() {
 
           const listData = ordersData.map((order: any) => ({
             id: order.id,
-            created_at: order.created_at,
+            created_at: order.paid_at || order.created_at,
             visa_orders: order,
             commission: commissionsMap.get(order.id) || null
-          }));
+          })).sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
           setCommissions(listData);
           saveToCache(cacheKey, listData);
@@ -257,8 +241,7 @@ export function SellerCommissions() {
                 <div className="space-y-4">
                   {commissions.map((item: any) => {
                     const order = item.visa_orders;
-                    const isBlacklisted = isBlacklistedProduct(order?.product_slug);
-                    const commission = isBlacklisted ? null : item.commission;
+                    const commission = item.commission;
 
                     return (
                       <div
@@ -315,7 +298,7 @@ export function SellerCommissions() {
                           ) : (
                             <div className="text-xs text-gray-500 flex items-center gap-2 py-1 italic">
                               <AlertCircle className="w-3.5 h-3.5 text-zinc-600" />
-                              <span>Sale identified, but does not meet commission criteria (e.g. consultations).</span>
+                              <span>Sale identified, but commission has not been generated yet.</span>
                             </div>
                           )}
                         </div>

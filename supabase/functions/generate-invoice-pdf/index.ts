@@ -391,13 +391,14 @@ Deno.serve(async (req) => {
         pdf.setFont('helvetica', 'normal');
 
         let instructionLines = [];
+        const isParcelowPayment = typeof order.payment_method === 'string' && order.payment_method.startsWith('parcelow');
         if (order.payment_method === 'manual') {
             instructionLines = [
                 'Payment Method: MANUAL BY SELLER',
                 'This payment has been handled and authorized directly through an official agent.',
                 'No further action is required for payment confirmation.'
             ];
-        } else if (order.payment_method === 'parcelow') {
+        } else if (isParcelowPayment) {
             instructionLines = [
                 'Payment Method: Parcelow',
                 `Include the invoice number ${order.order_number} in the payment reference.`,

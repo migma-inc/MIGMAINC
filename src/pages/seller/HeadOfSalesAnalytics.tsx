@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { BarChart3, TrendingUp, Calendar, Filter, ShoppingCart, Award, DollarSign } from 'lucide-react';
 import type { SellerInfo } from '@/types/seller';
-import { getHeadOfSalesAnalyticsStartDate, getOrderEffectiveDate, getTeamYearlyAnalytics, type TeamYearlyAnalytics } from '@/lib/seller-analytics';
+import { getHeadOfSalesAnalyticsStartDate, getOrderEffectiveDate, getTeamYearlyAnalytics, type ProductMetric, type TeamYearlyAnalytics } from '@/lib/seller-analytics';
 import { formatCurrency } from '@/lib/utils';
 import { Skeleton } from '@/components/ui/skeleton';
 import { supabase } from '@/lib/supabase';
@@ -28,6 +28,58 @@ import { MonthlySellerRevenueHistoryChart } from '@/components/seller/charts/Mon
 import { WeeklyRevenueBarChart } from '@/components/seller/charts/WeeklyRevenueBarChart';
 import { MonthlySellerRevenueBarChart } from '@/components/seller/charts/MonthlySellerRevenueBarChart';
 import { WeeklyFilteredSellerRevenueChart } from '@/components/seller/charts/WeeklyFilteredSellerRevenueChart';
+
+const NICHE_APPLICATION_SLUGS = new Set([
+    'initial-selection-process',
+    'initial-scholarship',
+    'INITIAL Application - Full Process Payment',
+    'cos-selection-process',
+    'cos-scholarship',
+    'Change of Status - Full Process Payment',
+    'transfer-selection-process',
+    'transfer-scholarship',
+    'TRANSFER - Full Process Payment',
+]);
+
+function aggregateNicheApplicationMetrics(metrics: ProductMetric[]): ProductMetric[] {
+    const nicheBucket: ProductMetric = {
+        productSlug: 'niche-application',
+        productName: 'Niche Application',
+        sales: 0,
+        revenue: 0,
+        avgRevenue: 0,
+        percentage: 0,
+    };
+    const remaining: ProductMetric[] = [];
+
+    metrics.forEach((metric) => {
+        if (NICHE_APPLICATION_SLUGS.has(metric.productSlug)) {
+            nicheBucket.sales += metric.sales;
+            nicheBucket.revenue += metric.revenue;
+            return;
+        }
+
+        remaining.push(metric);
+    });
+
+    if (nicheBucket.sales === 0 && nicheBucket.revenue === 0) {
+        return metrics;
+    }
+
+    const aggregated = [...remaining, nicheBucket];
+    const totalSales = aggregated.reduce((sum, item) => sum + item.sales, 0);
+
+    return aggregated
+        .map((item) => ({
+            ...item,
+            avgRevenue: item.sales > 0 ? item.revenue / item.sales : 0,
+            percentage: totalSales > 0 ? (item.sales / totalSales) * 100 : 0,
+        }))
+        .sort((a, b) => {
+            if (b.sales !== a.sales) return b.sales - a.sales;
+            return b.revenue - a.revenue;
+        });
+}
 
 export function HeadOfSalesAnalytics() {
     const { seller } = useOutletContext<{ seller: SellerInfo }>();
@@ -66,9 +118,11 @@ export function HeadOfSalesAnalytics() {
     const monthFilterSuffix = ` — ${selectedMonthLabel}`;
     const distributionMonth = distributionPeriod === 'annual' ? null : parseInt(distributionPeriod, 10);
     const distributionLabel = distributionMonth === null ? 'Annual' : months[distributionMonth].label;
-    const distributionData = distributionMonth === null
+    const rawDistributionData = distributionMonth === null
         ? (data?.productDistribution || [])
         : (data?.productDistributionByMonth?.[distributionMonth] || []);
+    const distributionData = aggregateNicheApplicationMetrics(rawDistributionData);
+    const annualDistributionData = aggregateNicheApplicationMetrics(data?.productDistribution || []);
     const distributionTotalSales = distributionData.reduce((sum, item) => sum + item.sales, 0);
     const distributionPeriodSuffix = ` — ${distributionLabel}`;
 
@@ -210,9 +264,9 @@ export function HeadOfSalesAnalytics() {
                                 ) : (
                                     <p 
                                         className="text-xl font-bold text-white leading-tight"
-                                        title={data?.productDistribution[0]?.productName || 'N/A'}
+                                        title={annualDistributionData[0]?.productName || 'N/A'}
                                     >
-                                        {data?.productDistribution[0]?.productName || 'N/A'}
+                                        {annualDistributionData[0]?.productName || 'N/A'}
                                     </p>
                                 )}
                             </div>
@@ -458,7 +512,7 @@ export function HeadOfSalesAnalytics() {
                             />
 
                             <ServiceRevenueChart 
-                                data={(data?.productDistribution || []).map(p => ({
+                                data={annualDistributionData.map(p => ({
                                     productName: p.productName,
                                     revenue: p.revenue,
                                     percentage: data?.totalRevenue ? (p.revenue / data.totalRevenue) * 100 : 0

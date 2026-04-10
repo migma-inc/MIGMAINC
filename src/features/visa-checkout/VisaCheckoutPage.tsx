@@ -81,6 +81,11 @@ export const VisaCheckoutPage: React.FC = () => {
 
     const baseTotal = state.customAmount !== null ? state.customAmount : Math.max(0, initialBaseTotal - discountAmount);
     const totalWithFees = product ? calculateTotalWithFees(baseTotal, state.paymentMethod, state.exchangeRate || undefined) : 0;
+    const isLocalhost = typeof window !== 'undefined' && (
+        window.location.hostname === 'localhost' ||
+        window.location.hostname === '127.0.0.1'
+    );
+    const showSquare = isLocalhost || userLocation.countryCode === 'US';
 
     // Sync discount amount to state
     useEffect(() => {
@@ -298,6 +303,7 @@ export const VisaCheckoutPage: React.FC = () => {
                                     productSlug={productSlug}
                                     totalAmount={totalWithFees}
                                     onScrollToCheckout={scrollToCheckout}
+                                    showSquare={showSquare}
                                 />
                             </div>
                         )}
