@@ -357,3 +357,105 @@ VisaContractApprovalPage (admin)
   → Imagens carregam via getSecureUrl() (signed URL/blob) ← CORRIGIDO
   → PDF disponível para download/aprovação
 ```
+
+---
+
+# Relatório Técnico — 10 de Abril de 2026
+## MigmaCheckout: Integração Parcelow Multi-Modo e Fluxo PRD v7.0
+
+**Projeto:** migma-lp  
+**Engenheiro:** victuribdev + Claude Sonnet 4.6
+
+---
+
+## Resumo das Alterações
+
+Nesta data, implementamos o suporte completo aos métodos de pagamento brasileiros via Parcelow e reestruturamos a lógica de captura de dados conforme o novo **PRD v7.0 da Migma Inc**. O foco principal foi a flexibilidade de pagamentos (Cartão, Pix, TED) e a conformidade legal para pagamentos realizados por terceiros.
+
+---
+
+## Implementações Realizadas
+
+### 1. Checkout Multi-Modo Parcelow
+**Funcionalidade:**  
+Expandimos o seletor de pagamentos para incluir 5 opções organizadas em uma lista vertical premium:
+1. **Stripe – Cartão**: Global redirecionado para Stripe.
+2. **Parcelow – Cartão Brasileiro**: Pagamento parcelado (até 12x) em BRL.
+3. **Parcelow – PIX**: Aprovação instantânea no Brasil.
+4. **Parcelow – TED**: Transferência bancária tradicional.
+5. **Zelle**: Para contas americanas.
+
+**Arquivos alterados:**
+- `src/pages/MigmaCheckout/components/Step1PersonalInfo.tsx` (Lista de métodos e UI)
+- `src/pages/MigmaCheckout/types.ts` (Tipagem de métodos)
+
+---
+
+### 2. Validação de CPF Brasileiro (Checksum)
+**Funcionalidade:**  
+Implementada validação matemática rigorosa para CPFs brasileiros. O sistema agora bloqueia o avanço do checkout se o CPF for inválido ou conter números repetidos (ex: 111.111...), garantindo integridade nos dados enviados para a Parcelow.
+
+---
+
+### 3. Reestruturação do Fluxo (PRD v7.0 — Seções 4.5 e 4.6)
+**Funcionalidade:**  
+Invertemos a lógica de preenchimento para seguir a hierarquia do documento oficial:
+- **Titularidade Primeiro**: O usuário agora informa se o cartão é de uso próprio ou de terceiros ANTES de ver os métodos de pagamento.
+- **Campos Condicionais**: 
+    - *Meu Cartão*: Exibe apenas CPF e Nome no Cartão.
+    - *Cartão de Terceiro*: Exibe Nome, CPF, E-mail e WhatsApp do titular.
+- **Aviso de Billing Address**: Adicionado alerta visual obrigatório para pagamentos de terceiros, informando que o endereço de cobrança deve ser o do titular.
+
+---
+
+### 4. Integração Backend (create-parcelow-checkout)
+**Funcionalidade:**  
+Adicionado o método `parcelowStudentCheckout` ao `matriculaApi.ts`, permitindo o envio de metadados complexos (incluindo PayerInfo de terceiros) para a Edge Function de criação de checkout da Parcelow.
+
+**Arquivos alterados:**
+- `src/lib/matriculaApi.ts`
+- `src/pages/MigmaCheckout/index.tsx` (Orquestração do redirecionamento)
+
+---
+
+## Estado Atual do Sistema
+
+- ✅ **UI**: 100% alinhada com a identidade visual Migma e PRD v7.0.
+- ✅ **Dados**: CPF validado e persistido no perfil do usuário no Supabase.
+- ✅ **Fluxo**: Redirecionamento configurado para Stripe, Zelle (manual) e Parcelow (gateway brasileiro).
+- ✅ **Labels**: Nomenclatura idêntica ao fluxo "Visa Checkout" (Stripe – Cartão, Parcelow – PIX, etc).
+
+---
+
+### [EXTRA] Correções Críticas de Backend e Fluxo (10 de Abril)
+
+**1. Correção do Erro 500 no Parcelow (Race Condition)**
+- **Problema**: O sistema tentava iniciar o checkout na Parcelow antes do banco de dados propagar a criação do aluno e da ordem (`order_id`).
+- **Solução**: Alterado o fluxo para ser estritamente sequencial. Agora, o `handleRegisterUser` aguarda (`await`) a resposta da Edge Function `migma-create-student`, captura o `order_id` real e o envia para o Parcelow.
+
+**2. Enriquecimento de Dados na Criação**
+- **Alteração**: Adicionado o campo `payment_metadata` na interface `CreateStudentPayload`.
+- **Impacto**: O CPF e os dados de terceiros agora são salvos na tabela `visa_orders` no exato momento da criação da ordem, garantindo que o backend do Parcelow encontre os dados prontos no banco.
+
+**3. Refinamento de UI: Seletor de Dependentes**
+- **Alteração**: Implementado placeholder "Selecione a quantidade de dependentes" e renomeada a opção 0 para "0 dependentes" para maior clareza visual e semântica.
+
+**Arquivos alterados:**
+- `src/lib/matriculaApi.ts` (Novas interfaces de payload e response)
+- `src/pages/MigmaCheckout/index.tsx` (Orquestração sequencial de registro e pagamento)
+- `src/pages/MigmaCheckout/components/Step1PersonalInfo.tsx` (Labels de dependentes e layout de pagador)
+
+### [2026-04-10] Estabilização do Checkout Migma e Integração Parcelow (Final)
+
+#### 1. Correções nas Edge Functions
+*   **`migma-create-student` (V34)**: Implementada a criação automática de registro na tabela `visa_orders` durante o cadastro do aluno. Agora a função retorna `order_id` para o frontend.
+*   **`create-parcelow-checkout` (121)**:
+    *   Corrigido TypeError crítico no carregamento de credenciais (`trim()` em valor nulo).
+    *   Sincronizado cálculo de `amount` para utilizar os dados reais da ordem recém-criada.
+    *   Adicionado suporte completo para `payer_info` (titular de terceiros).
+
+#### 2. Fluxo de Dados (Frontend)
+*   **`Step1PersonalInfo.tsx`**: Atualizado callback `onComplete` para incluir o objeto `payerInfo`, garantindo que endereços e documentos de terceiros cheguem ao backend.
+*   **`index.tsx`**: Adicionados logs de diagnóstico `DEBUG PARCELOW PAYLOAD` e corrigida a captação do `orderId` vindo da resposta do registro.
+
+**Status Final**: Erro 500 resolvido. Integração Parcelow (Cartão, PIX e TED) funcional com persistência de ordens.
