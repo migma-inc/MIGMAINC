@@ -1,0 +1,1276 @@
+import { useEffect, useRef, useState } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
+import {
+  Activity,
+  AlertCircle,
+  ArrowLeft,
+  CheckCircle2,
+  Clock3,
+  DollarSign,
+  Image,
+  Loader2,
+  Mail,
+  Phone,
+  RefreshCw,
+  Shield,
+  Tag,
+  User,
+  UserCheck,
+  Workflow,
+} from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { cn } from '@/lib/utils';
+import { getSecureUrl } from '@/lib/storage';
+import { supabase } from '@/lib/supabase';
+import {
+  type CaseDetailPage,
+  type CrmDocument,
+  type CrmEvent,
+  type CrmFollowup,
+  type CrmIdentityFile,
+  type CrmMessage,
+  type CrmStageHistory,
+  type CrmVisaOrder,
+  OPERATIONAL_STAGE_COLORS,
+  OPERATIONAL_STAGE_LABELS,
+  createFollowup,
+  loadDetailPage,
+  resolveFollowup,
+  updateCaseOwner,
+  updateCaseStatus,
+} from '@/lib/onboarding-crm';
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function formatCurrency(value: string | number | null) {
+  if (value === null || value === undefined || value === '') return '—';
+  const n = typeof value === 'string' ? Number(value) : value;
+  if (Number.isNaN(n)) return String(value);
+  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(n);
+}
+
+function toLabel(value: string | null | undefined) {
+  if (!value) return '—';
+  return value.replace(/[_-]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+function fmtDate(iso: string | null | undefined) {
+  if (!iso) return '—';
+  return new Date(iso).toLocaleString('en-US', {
+    month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit',
+  });
+}
+
+function timeAgo(iso: string | null | undefined) {
+  if (!iso) return '—';
+  const diff = Date.now() - new Date(iso).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  return `${Math.floor(hrs / 24)}d ago`;
+}
+
+function paymentBadge(status: string | null) {
+  if (status === 'completed') return 'bg-green-500/20 text-green-300 border-green-500/30';
+  if (status === 'cancelled') return 'bg-white/5 text-gray-500 border-white/10';
+  return 'bg-amber-500/20 text-amber-300 border-amber-500/30';
+}
+
+function contractBadge(status: string | null) {
+  if (status === 'approved') return 'bg-green-500/20 text-green-300 border-green-500/30';
+  if (status === 'rejected') return 'bg-red-500/20 text-red-300 border-red-500/30';
+  if (status === 'pending') return 'bg-amber-500/20 text-amber-300 border-amber-500/30';
+  return 'bg-white/5 text-gray-500 border-white/10';
+}
+
+function stageBadge(stage: string | null) {
+  if (!stage) return 'bg-white/5 text-gray-500 border-white/10';
+  if (stage.includes('awaiting')) return 'bg-amber-500/20 text-amber-300 border-amber-500/30';
+  if (stage === 'document_review') return 'bg-sky-500/20 text-sky-300 border-sky-500/30';
+  if (stage === 'completed') return 'bg-green-500/20 text-green-300 border-green-500/30';
+  if (stage === 'blocked') return 'bg-red-500/20 text-red-300 border-red-500/30';
+  if (stage === 'cancelled') return 'bg-white/5 text-gray-500 border-white/10';
+  return 'bg-blue-500/20 text-blue-300 border-blue-500/30';
+}
+
+// ---------------------------------------------------------------------------
+// Sub-components
+// ---------------------------------------------------------------------------
+
+function InfoRow({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <div className="flex flex-col gap-0.5 py-2 border-b border-white/5 last:border-0">
+      <span className="text-[10px] font-black uppercase tracking-widest text-gray-500">{label}</span>
+      <span className="text-sm text-white">{value || '—'}</span>
+    </div>
+  );
+}
+
+function SectionCard({ title, icon: Icon, children }: { title: string; icon: React.ElementType; children: React.ReactNode }) {
+  return (
+    <Card className="bg-black/30 border border-white/5">
+      <CardHeader className="pb-3">
+        <CardTitle className="text-sm font-black uppercase tracking-widest text-gray-400 flex items-center gap-2">
+          <Icon className="w-4 h-4 text-gold-medium" />
+          {title}
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="pt-0">{children}</CardContent>
+    </Card>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Tabs
+// ---------------------------------------------------------------------------
+
+type Tab = 'overview' | 'orders' | 'documents' | 'timeline' | 'messages' | 'followups';
+
+const TABS: Array<{ id: Tab; label: string }> = [
+  { id: 'overview', label: 'Overview' },
+  { id: 'orders', label: 'Orders' },
+  { id: 'documents', label: 'Documents' },
+  { id: 'timeline', label: 'Timeline' },
+  { id: 'messages', label: 'Messages' },
+  { id: 'followups', label: 'Follow-ups' },
+];
+
+// ---------------------------------------------------------------------------
+// Tab: Overview
+// ---------------------------------------------------------------------------
+
+function OverviewTab({
+  detail,
+  ownerInput,
+  setOwnerInput,
+  mutating,
+  mutationMsg,
+  onAssign,
+  onAssignToMe,
+  onArchive,
+}: {
+  detail: CaseDetailPage;
+  ownerInput: string;
+  setOwnerInput: (v: string) => void;
+  mutating: boolean;
+  mutationMsg: string | null;
+  onAssign: () => void;
+  onAssignToMe: () => void;
+  onArchive: () => void;
+}) {
+  const { profile, primaryRequest, primaryOrder, operationalStage, stageHistory } = detail;
+
+  return (
+    <div className="grid grid-cols-1 xl:grid-cols-3 gap-5">
+      {/* Left (2/3) */}
+      <div className="xl:col-span-2 space-y-5">
+        {/* Client Information */}
+        <SectionCard title="Client Information" icon={User}>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8">
+            <InfoRow label="Full Name" value={profile.full_name} />
+            <InfoRow label="Email" value={<span className="font-mono text-xs">{profile.email}</span>} />
+            <InfoRow label="Phone" value={profile.phone} />
+            <InfoRow label="Dependents" value={profile.num_dependents != null ? String(profile.num_dependents) : '—'} />
+            <InfoRow label="Source" value={toLabel(profile.source)} />
+            <InfoRow label="Service Type" value={toLabel(profile.service_type)} />
+            <InfoRow label="Onboarding Step" value={toLabel(profile.onboarding_current_step)} />
+            <InfoRow label="Email Status" value={toLabel(profile.onboarding_email_status)} />
+            <InfoRow label="Seller ID" value={profile.migma_seller_id ? <span className="font-mono text-xs">{profile.migma_seller_id}</span> : '—'} />
+            <InfoRow label="Agent ID" value={profile.migma_agent_id ? <span className="font-mono text-xs">{profile.migma_agent_id}</span> : '—'} />
+            <InfoRow label="Cross-site" value={profile.matricula_user_id ? <span className="font-mono text-xs">{profile.matricula_user_id}</span> : '—'} />
+            <InfoRow label="Registered" value={fmtDate(profile.created_at)} />
+            <InfoRow label="Total Paid" value={formatCurrency(profile.total_price_usd)} />
+            <InfoRow label="Status" value={toLabel(profile.status)} />
+          </div>
+        </SectionCard>
+
+        {/* Service Request */}
+        {primaryRequest ? (
+          <SectionCard title="Service Information" icon={Workflow}>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8">
+              <InfoRow label="Service ID" value={<span className="font-mono text-xs">{primaryRequest.service_id}</span>} />
+              <InfoRow label="Service Type" value={toLabel(primaryRequest.service_type)} />
+              <InfoRow label="Operational Step" value={toLabel(profile.onboarding_current_step)} />
+              <InfoRow label="Workflow Stage" value={
+                <Badge className={cn('text-[9px] font-black uppercase border rounded-sm', stageBadge(primaryRequest.workflow_stage))}>
+                  {toLabel(primaryRequest.workflow_stage)}
+                </Badge>
+              } />
+              <InfoRow label="Case Status" value={toLabel(primaryRequest.case_status)} />
+              <InfoRow label="Priority" value={toLabel(primaryRequest.priority)} />
+              <InfoRow label="Stage Since" value={fmtDate(primaryRequest.stage_entered_at)} />
+              <InfoRow label="Last Contact" value={fmtDate(primaryRequest.last_client_contact_at)} />
+              <InfoRow label="Opened" value={fmtDate(primaryRequest.created_at)} />
+              <InfoRow label="Last Update" value={fmtDate(primaryRequest.updated_at)} />
+              <InfoRow label="Owner ID" value={
+                primaryRequest.owner_user_id
+                  ? <span className="font-mono text-[11px] text-gray-400">{primaryRequest.owner_user_id}</span>
+                  : <span className="text-gray-600 italic">Unassigned</span>
+              } />
+              <InfoRow label="Email Automation" value={toLabel(profile.onboarding_email_status)} />
+            </div>
+          </SectionCard>
+        ) : (
+          <SectionCard title="Service Information" icon={Workflow}>
+            <p className="text-gray-500 text-sm italic">No service request linked to this profile.</p>
+          </SectionCard>
+        )}
+
+        {/* Case Management */}
+        {primaryRequest && (
+          <SectionCard title="Case Management" icon={Shield}>
+            <div className="space-y-4">
+              <div className="flex flex-col sm:flex-row gap-3">
+                <Input
+                  placeholder="Owner UUID"
+                  value={ownerInput}
+                  onChange={(e) => setOwnerInput(e.target.value)}
+                  className="bg-black/40 border-white/10 text-white font-mono text-xs flex-1"
+                />
+                <Button
+                  onClick={onAssign}
+                  disabled={mutating}
+                  size="sm"
+                  className="bg-gold-medium hover:bg-gold-dark text-black font-black shrink-0"
+                >
+                  {mutating ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Save Owner'}
+                </Button>
+                <Button
+                  onClick={onAssignToMe}
+                  disabled={mutating}
+                  size="sm"
+                  variant="outline"
+                  className="border-white/10 text-white hover:bg-white/5 shrink-0"
+                >
+                  <UserCheck className="w-4 h-4 mr-1.5" />
+                  Assign to Me
+                </Button>
+              </div>
+
+              <div className="flex gap-3 pt-1">
+                <Button
+                  onClick={onArchive}
+                  disabled={mutating}
+                  size="sm"
+                  variant="outline"
+                  className={cn(
+                    'border-white/10 text-sm font-bold',
+                    primaryRequest.case_status === 'cancelled'
+                      ? 'text-green-400 hover:bg-green-500/10'
+                      : 'text-red-400 hover:bg-red-500/10'
+                  )}
+                >
+                  {primaryRequest.case_status === 'cancelled' ? 'Restore Active' : 'Archive Case'}
+                </Button>
+              </div>
+
+              {mutationMsg && (
+                <p className="text-xs text-gold-light mt-1">{mutationMsg}</p>
+              )}
+            </div>
+          </SectionCard>
+        )}
+      </div>
+
+      {/* Right sidebar (1/3) */}
+      <div className="space-y-5">
+        {/* Operational Stage */}
+        <SectionCard title="Operational Stage" icon={Activity}>
+          <div className={cn(
+            'rounded-lg border px-4 py-3 text-center font-black uppercase tracking-widest text-sm',
+            OPERATIONAL_STAGE_COLORS[operationalStage]
+          )}>
+            {OPERATIONAL_STAGE_LABELS[operationalStage]}
+          </div>
+        </SectionCard>
+
+        {/* Payment Status */}
+        {primaryOrder && (
+          <SectionCard title="Latest Order" icon={DollarSign}>
+            <div className="space-y-1.5">
+              <InfoRow label="Order" value={<span className="font-mono text-xs">#{primaryOrder.order_number}</span>} />
+              <InfoRow label="Product" value={toLabel(primaryOrder.product_slug)} />
+              <InfoRow label="Amount" value={formatCurrency(primaryOrder.total_price_usd)} />
+              <InfoRow label="Method" value={toLabel(primaryOrder.payment_method)} />
+              <InfoRow label="Payment" value={
+                <Badge className={cn('text-[9px] font-black uppercase border rounded-sm', paymentBadge(primaryOrder.payment_status))}>
+                  {toLabel(primaryOrder.payment_status)}
+                </Badge>
+              } />
+              <InfoRow label="Contract" value={
+                <Badge className={cn('text-[9px] font-black uppercase border rounded-sm', contractBadge(primaryOrder.contract_approval_status))}>
+                  {toLabel(primaryOrder.contract_approval_status) || 'No contract'}
+                </Badge>
+              } />
+              <InfoRow label="Annex" value={
+                <Badge className={cn('text-[9px] font-black uppercase border rounded-sm', contractBadge(primaryOrder.annex_approval_status))}>
+                  {toLabel(primaryOrder.annex_approval_status) || '—'}
+                </Badge>
+              } />
+              <InfoRow label="Paid At" value={fmtDate(primaryOrder.paid_at ?? (primaryOrder.payment_status === 'completed' ? primaryOrder.created_at : null))} />
+              {primaryOrder.client_country && (
+                <InfoRow label="Country" value={primaryOrder.client_country} />
+              )}
+              {primaryOrder.client_nationality && (
+                <InfoRow label="Nationality" value={primaryOrder.client_nationality} />
+              )}
+            </div>
+          </SectionCard>
+        )}
+
+        {/* Stage History */}
+        {stageHistory.length > 0 && (
+          <SectionCard title="Stage History" icon={Workflow}>
+            <div className="space-y-2">
+              {stageHistory.slice(0, 8).map((h) => (
+                <div key={h.id} className="flex flex-col gap-0.5 border-b border-white/5 pb-2 last:border-0 last:pb-0">
+                  <div className="flex items-center gap-1.5 text-[11px]">
+                    <span className="text-gray-500">{toLabel(h.from_stage) || 'Start'}</span>
+                    <span className="text-gray-600">→</span>
+                    <span className="text-white font-bold">{toLabel(h.to_stage)}</span>
+                  </div>
+                  <span className="text-[10px] text-gray-600">{timeAgo(h.created_at)} · {toLabel(h.trigger_source)}</span>
+                  {h.reason && <span className="text-[10px] text-gray-500 italic">{h.reason}</span>}
+                </div>
+              ))}
+            </div>
+          </SectionCard>
+        )}
+
+        {/* Profile flags */}
+        <SectionCard title="Payment Flags" icon={CheckCircle2}>
+          <div className="space-y-1.5 text-[11px]">
+            {[
+              { label: 'Selection Process Fee', value: profile.has_paid_selection_process_fee },
+              { label: 'Application Fee', value: profile.is_application_fee_paid },
+              { label: 'Scholarship Fee', value: profile.is_scholarship_fee_paid },
+              { label: 'College Enrollment Fee', value: profile.has_paid_college_enrollment_fee },
+              { label: 'I-20 Control Fee', value: profile.has_paid_i20_control_fee },
+              { label: 'Placement Fee', value: profile.is_placement_fee_paid },
+              { label: 'Selection Survey', value: profile.selection_survey_passed },
+              { label: 'Placement Flow', value: profile.placement_fee_flow },
+              { label: 'Onboarding Completed', value: profile.onboarding_completed },
+            ].map(({ label, value }) => (
+              <div key={label} className="flex items-center justify-between py-1 border-b border-white/5 last:border-0">
+                <span className="text-gray-400">{label}</span>
+                {value
+                  ? <CheckCircle2 className="w-3.5 h-3.5 text-green-400" />
+                  : <span className="text-gray-600">—</span>
+                }
+              </div>
+            ))}
+          </div>
+        </SectionCard>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Tab: Orders
+// ---------------------------------------------------------------------------
+
+function OrdersTab({ orders }: { orders: CrmVisaOrder[] }) {
+  if (orders.length === 0) {
+    return <EmptyState icon={DollarSign} message="No orders found for this profile." />;
+  }
+
+  return (
+    <div className="space-y-4">
+      {orders.map((order) => (
+        <Card key={order.id} className="bg-black/30 border border-white/5">
+          <CardContent className="p-5">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+              <div className="flex items-center gap-3">
+                <Tag className="w-4 h-4 text-gold-medium shrink-0" />
+                <div>
+                  <span className="font-mono font-bold text-white text-sm">#{order.order_number}</span>
+                  <span className="text-gray-500 text-xs ml-2">{toLabel(order.product_slug)}</span>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <Badge className={cn('text-[9px] font-black uppercase border rounded-sm', paymentBadge(order.payment_status))}>
+                  {toLabel(order.payment_status)}
+                </Badge>
+                {order.contract_approval_status && (
+                  <Badge className={cn('text-[9px] font-black uppercase border rounded-sm', contractBadge(order.contract_approval_status))}>
+                    Contract: {toLabel(order.contract_approval_status)}
+                  </Badge>
+                )}
+              </div>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-[11px]">
+              <div>
+                <span className="text-gray-500 block uppercase tracking-wider mb-0.5">Amount</span>
+                <span className="text-white font-bold">{formatCurrency(order.total_price_usd)}</span>
+              </div>
+              <div>
+                <span className="text-gray-500 block uppercase tracking-wider mb-0.5">Method</span>
+                <span className="text-white">{toLabel(order.payment_method)}</span>
+              </div>
+              <div>
+                <span className="text-gray-500 block uppercase tracking-wider mb-0.5">Created</span>
+                <span className="text-white">{fmtDate(order.created_at)}</span>
+              </div>
+              <div>
+                <span className="text-gray-500 block uppercase tracking-wider mb-0.5">Paid At</span>
+                <span className="text-white">{fmtDate(order.paid_at ?? (order.payment_status === 'completed' ? order.created_at : null))}</span>
+              </div>
+              {order.annex_approval_status && (
+                <div>
+                  <span className="text-gray-500 block uppercase tracking-wider mb-0.5">Annex</span>
+                  <Badge className={cn('text-[9px] font-black uppercase border rounded-sm', contractBadge(order.annex_approval_status))}>
+                    {toLabel(order.annex_approval_status)}
+                  </Badge>
+                </div>
+              )}
+              {order.client_country && (
+                <div>
+                  <span className="text-gray-500 block uppercase tracking-wider mb-0.5">Country</span>
+                  <span className="text-white">{order.client_country}</span>
+                </div>
+              )}
+              {order.client_nationality && (
+                <div>
+                  <span className="text-gray-500 block uppercase tracking-wider mb-0.5">Nationality</span>
+                  <span className="text-white">{order.client_nationality}</span>
+                </div>
+              )}
+              {order.service_request_id && (
+                <div className="sm:col-span-2">
+                  <span className="text-gray-500 block uppercase tracking-wider mb-0.5">Service Request</span>
+                  <span className="font-mono text-gray-400 text-[10px]">{order.service_request_id}</span>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      ))}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Tab: Documents
+// ---------------------------------------------------------------------------
+
+const FILE_TYPE_LABELS: Record<string, string> = {
+  document_front: 'ID — Front',
+  document_back: 'ID — Back',
+  selfie_doc: 'Selfie with ID',
+};
+
+function statusDocBadge(status: string | null) {
+  if (status === 'approved') return 'bg-green-500/20 text-green-300 border-green-500/30';
+  if (status === 'rejected') return 'bg-red-500/20 text-red-300 border-red-500/30';
+  if (status === 'received') return 'bg-sky-500/20 text-sky-300 border-sky-500/30';
+  return 'bg-white/5 text-gray-400 border-white/10';
+}
+
+type VisaOrderDocument = {
+  id: string;
+  label: string;
+  url: string | null;
+  orderNumber: string | null;
+};
+
+function buildVisaOrderDocuments(orders: CrmVisaOrder[]): VisaOrderDocument[] {
+  const docs: VisaOrderDocument[] = [];
+
+  for (const order of orders) {
+    const orderNumber = order.order_number;
+    const baseId = order.id;
+
+    if (order.contract_document_url) {
+      docs.push({
+        id: `${baseId}-contract-document`,
+        label: 'Contract document',
+        url: order.contract_document_url,
+        orderNumber,
+      });
+    }
+
+    if (order.contract_selfie_url) {
+      docs.push({
+        id: `${baseId}-contract-selfie`,
+        label: 'Contract selfie',
+        url: order.contract_selfie_url,
+        orderNumber,
+      });
+    }
+
+    if (order.signature_image_url) {
+      docs.push({
+        id: `${baseId}-signature`,
+        label: 'Signature image',
+        url: order.signature_image_url,
+        orderNumber,
+      });
+    }
+
+    if (order.contract_pdf_url) {
+      docs.push({
+        id: `${baseId}-contract-pdf`,
+        label: 'Signed contract PDF',
+        url: order.contract_pdf_url,
+        orderNumber,
+      });
+    }
+
+    if (order.annex_pdf_url) {
+      docs.push({
+        id: `${baseId}-annex-pdf`,
+        label: 'Annex PDF',
+        url: order.annex_pdf_url,
+        orderNumber,
+      });
+    }
+  }
+
+  return docs;
+}
+
+function DocumentsTab({
+  files,
+  srDocuments,
+  orderDocuments,
+}: {
+  files: CrmIdentityFile[];
+  srDocuments: CrmDocument[];
+  orderDocuments: VisaOrderDocument[];
+}) {
+  const [resolvedUrls, setResolvedUrls] = useState<Record<string, string>>({});
+  const [loadingUrls, setLoadingUrls] = useState(true);
+
+  useEffect(() => {
+    if (files.length === 0) { setLoadingUrls(false); return; }
+    (async () => {
+      const resolved: Record<string, string> = {};
+      for (const f of files) {
+        const url = await getSecureUrl(f.file_path);
+        if (url) resolved[f.id] = url;
+      }
+      setResolvedUrls(resolved);
+      setLoadingUrls(false);
+    })();
+  }, [files]);
+
+  const hasAnything = files.length > 0 || srDocuments.length > 0 || orderDocuments.length > 0;
+  if (!hasAnything) {
+    return <EmptyState icon={Image} message="No documents found for this case." />;
+  }
+
+  return (
+    <div className="space-y-8">
+      {/* Visa order documents */}
+      {orderDocuments.length > 0 && (
+        <div>
+          <div className="text-xs text-gray-500 uppercase tracking-widest font-bold mb-3">Order Documents</div>
+          <div className="space-y-2">
+            {orderDocuments.map((doc) => (
+              <Card key={doc.id} className="bg-black/30 border border-white/5">
+                <CardContent className="p-4 flex items-center justify-between gap-4">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-xs font-bold text-white">{doc.label}</span>
+                      {doc.orderNumber && (
+                        <span className="text-[9px] text-gray-600 uppercase tracking-wider font-mono">
+                          {doc.orderNumber}
+                        </span>
+                      )}
+                    </div>
+                    {doc.url && (
+                      <p className="text-[10px] font-mono text-gray-500 truncate">{doc.url}</p>
+                    )}
+                  </div>
+                  {doc.url && (
+                    <a
+                      href={doc.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="shrink-0 text-[10px] font-black uppercase tracking-widest text-gold-light hover:text-gold-medium border border-white/10 rounded px-3 py-1.5 hover:bg-white/5 transition-colors"
+                    >
+                      Open
+                    </a>
+                  )}
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Operational documents */}
+      {srDocuments.length > 0 && (
+        <div>
+          <div className="text-xs text-gray-500 uppercase tracking-widest font-bold mb-3">Operational Documents</div>
+          <div className="space-y-2">
+            {srDocuments.map((doc) => (
+              <Card key={doc.id} className="bg-black/30 border border-white/5">
+                <CardContent className="p-4 flex items-center justify-between gap-4">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      {doc.document_status && (
+                        <span className={cn('text-[9px] font-black uppercase border rounded-sm px-2 py-0.5', statusDocBadge(doc.document_status))}>
+                          {doc.document_status}
+                        </span>
+                      )}
+                      <span className="text-xs font-bold text-white">{toLabel(doc.document_type) || 'Document'}</span>
+                      {doc.source && (
+                        <span className="text-[9px] text-gray-600 uppercase tracking-wider">{doc.source.replace(/_/g, ' ')}</span>
+                      )}
+                    </div>
+                    {doc.file_name && (
+                      <p className="text-[10px] font-mono text-gray-500 truncate">{doc.file_name}</p>
+                    )}
+                    {doc.mime_type && (
+                      <p className="text-[10px] text-gray-600">{doc.mime_type}</p>
+                    )}
+                    <p className="text-[10px] text-gray-600 mt-1 uppercase tracking-wider">
+                      Received {timeAgo(doc.received_at ?? doc.created_at)}
+                    </p>
+                  </div>
+                  {doc.storage_url && (
+                    <a
+                      href={doc.storage_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="shrink-0 text-[10px] font-black uppercase tracking-widest text-gold-light hover:text-gold-medium border border-white/10 rounded px-3 py-1.5 hover:bg-white/5 transition-colors"
+                    >
+                      Open
+                    </a>
+                  )}
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Identity files */}
+      {files.length > 0 && (
+        <div>
+          <div className="text-xs text-gray-500 uppercase tracking-widest font-bold mb-3">Identity Files</div>
+          {loadingUrls ? (
+            <div className="flex justify-center py-12">
+              <Loader2 className="w-8 h-8 animate-spin text-gold-medium" />
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5">
+              {files.map((file) => {
+                const url = resolvedUrls[file.id];
+                return (
+                  <Card key={file.id} className="bg-black/30 border border-white/5 overflow-hidden">
+                    <div className="aspect-[4/3] bg-white/5 flex items-center justify-center overflow-hidden">
+                      {url ? (
+                        <img
+                          src={url}
+                          alt={FILE_TYPE_LABELS[file.file_type] ?? file.file_type}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <Image className="w-10 h-10 text-gray-600" />
+                      )}
+                    </div>
+                    <CardContent className="p-3">
+                      <p className="text-xs font-black uppercase tracking-widest text-gray-400">
+                        {FILE_TYPE_LABELS[file.file_type] ?? toLabel(file.file_type)}
+                      </p>
+                      {file.file_name && (
+                        <p className="text-[10px] text-gray-600 font-mono truncate mt-0.5">{file.file_name}</p>
+                      )}
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Tab: Timeline
+// ---------------------------------------------------------------------------
+
+function TimelineTab({ events, stageHistory }: { events: CrmEvent[]; stageHistory: CrmStageHistory[] }) {
+  if (events.length === 0 && stageHistory.length === 0) {
+    return <EmptyState icon={Activity} message="No events recorded for this case." />;
+  }
+
+  // Merge events + stage history into a unified timeline sorted by created_at desc
+  type TimelineEntry =
+    | { kind: 'event'; data: CrmEvent; ts: string }
+    | { kind: 'stage'; data: CrmStageHistory; ts: string };
+
+  const entries: TimelineEntry[] = [
+    ...events.map((e) => ({ kind: 'event' as const, data: e, ts: e.created_at })),
+    ...stageHistory.map((h) => ({ kind: 'stage' as const, data: h, ts: h.created_at })),
+  ].sort((a, b) => new Date(b.ts).getTime() - new Date(a.ts).getTime());
+
+  return (
+    <div className="space-y-2">
+      {entries.map((entry) => (
+        <div
+          key={entry.kind === 'event' ? `e-${entry.data.id}` : `s-${entry.data.id}`}
+          className="flex gap-3 p-3 rounded-lg bg-white/[0.02] border border-white/5 hover:bg-white/[0.04] transition-colors"
+        >
+          <div className="mt-0.5 shrink-0">
+            {entry.kind === 'stage'
+              ? <Workflow className="w-4 h-4 text-gold-medium" />
+              : <Activity className="w-4 h-4 text-sky-400" />
+            }
+          </div>
+          <div className="flex-1 min-w-0">
+            {entry.kind === 'stage' ? (
+              <>
+                <p className="text-sm font-bold text-white">
+                  {toLabel(entry.data.from_stage) || 'Start'} → {toLabel(entry.data.to_stage)}
+                </p>
+                {entry.data.reason && (
+                  <p className="text-xs text-gray-400 mt-0.5">{entry.data.reason}</p>
+                )}
+              </>
+            ) : (
+              <>
+                <p className="text-sm font-bold text-white">{toLabel(entry.data.event_type)}</p>
+                {Object.keys(entry.data.payload_json ?? {}).length > 0 && (
+                  <p className="text-xs text-gray-500 font-mono truncate mt-0.5">
+                    {JSON.stringify(entry.data.payload_json).slice(0, 120)}…
+                  </p>
+                )}
+              </>
+            )}
+            <p className="text-[10px] text-gray-600 mt-1 uppercase tracking-wider">
+              {timeAgo(entry.ts)} · {toLabel(entry.kind === 'event' ? entry.data.event_source : entry.data.trigger_source)}
+            </p>
+          </div>
+          <div className="text-[10px] text-gray-600 shrink-0 text-right">
+            {entry.kind === 'stage'
+              ? <span className="text-[9px] font-black uppercase text-gold-medium/50">stage</span>
+              : <span className="text-[9px] font-black uppercase text-sky-500/50">event</span>
+            }
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Tab: Follow-ups
+// ---------------------------------------------------------------------------
+
+const FOLLOWUP_TYPES = [
+  'document_request',
+  'payment_reminder',
+  'contract_followup',
+  'general_checkin',
+  'sevis_release',
+  'school_update',
+  'other',
+];
+
+function FollowupsTab({
+  followups,
+  serviceRequestId,
+  adminId,
+  onRefresh,
+}: {
+  followups: CrmFollowup[];
+  serviceRequestId: string | null;
+  adminId: string | null;
+  onRefresh: () => void;
+}) {
+  const [creating, setCreating] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [resolving, setResolving] = useState<string | null>(null);
+  const [errMsg, setErrMsg] = useState<string | null>(null);
+  const [form, setForm] = useState({ type: 'general_checkin', notes: '', due_at: '' });
+
+  async function handleCreate() {
+    if (!serviceRequestId) return;
+    setSaving(true);
+    setErrMsg(null);
+    const { error } = await createFollowup({
+      serviceRequestId,
+      followupType: form.type,
+      notes: form.notes,
+      dueAt: form.due_at || null,
+      ownerUserId: adminId,
+    });
+    setSaving(false);
+    if (error) { setErrMsg(error); return; }
+    setCreating(false);
+    setForm({ type: 'general_checkin', notes: '', due_at: '' });
+    onRefresh();
+  }
+
+  async function handleResolve(id: string) {
+    setResolving(id);
+    await resolveFollowup(id);
+    setResolving(null);
+    onRefresh();
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Create button */}
+      {serviceRequestId && (
+        <div className="flex justify-end">
+          <Button
+            size="sm"
+            onClick={() => setCreating((v) => !v)}
+            className="bg-gold-medium hover:bg-gold-dark text-black font-black text-xs"
+          >
+            {creating ? 'Cancel' : '+ New Follow-up'}
+          </Button>
+        </div>
+      )}
+
+      {/* Create form */}
+      {creating && (
+        <Card className="bg-black/40 border border-gold-medium/20">
+          <CardContent className="p-4 space-y-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 block mb-1">Type</label>
+                <select
+                  value={form.type}
+                  onChange={(e) => setForm((f) => ({ ...f, type: e.target.value }))}
+                  className="w-full bg-black/40 border border-white/10 text-white text-xs rounded px-2 py-1.5"
+                >
+                  {FOLLOWUP_TYPES.map((t) => (
+                    <option key={t} value={t}>{toLabel(t)}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 block mb-1">Due Date</label>
+                <input
+                  type="datetime-local"
+                  value={form.due_at}
+                  onChange={(e) => setForm((f) => ({ ...f, due_at: e.target.value }))}
+                  className="w-full bg-black/40 border border-white/10 text-white text-xs rounded px-2 py-1.5"
+                />
+              </div>
+            </div>
+            <div>
+              <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 block mb-1">Notes</label>
+              <textarea
+                value={form.notes}
+                onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
+                rows={3}
+                placeholder="Add context or instructions..."
+                className="w-full bg-black/40 border border-white/10 text-white text-xs rounded px-3 py-2 resize-none"
+              />
+            </div>
+            {errMsg && <p className="text-xs text-red-400">{errMsg}</p>}
+            <div className="flex justify-end">
+              <Button
+                size="sm"
+                onClick={handleCreate}
+                disabled={saving}
+                className="bg-gold-medium hover:bg-gold-dark text-black font-black text-xs"
+              >
+                {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Save Follow-up'}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* List */}
+      {followups.length === 0 && !creating && (
+        <EmptyState icon={Clock3} message="No follow-ups recorded for this case." />
+      )}
+
+      {followups.map((f) => (
+        <Card key={f.id} className="bg-black/30 border border-white/5">
+          <CardContent className="p-4">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-1">
+                  <Badge className={cn(
+                    'text-[9px] font-black uppercase border rounded-sm',
+                    f.status === 'resolved'
+                      ? 'bg-green-500/20 text-green-300 border-green-500/30'
+                      : f.status === 'open'
+                        ? 'bg-amber-500/20 text-amber-300 border-amber-500/30'
+                        : 'bg-white/5 text-gray-500 border-white/10'
+                  )}>
+                    {f.status}
+                  </Badge>
+                  <span className="text-xs font-bold text-white">{toLabel(f.followup_type)}</span>
+                </div>
+                {f.notes && <p className="text-xs text-gray-400 mt-1">{f.notes}</p>}
+                <p className="text-[10px] text-gray-600 mt-1 uppercase tracking-wider">
+                  Created {timeAgo(f.created_at)}
+                  {f.due_at && ` · Due ${fmtDate(f.due_at)}`}
+                  {f.resolved_at && ` · Resolved ${timeAgo(f.resolved_at)}`}
+                </p>
+              </div>
+              {f.status === 'open' && (
+                <Button
+                  size="sm"
+                  disabled={resolving === f.id}
+                  onClick={() => handleResolve(f.id)}
+                  className="shrink-0 text-[10px] font-black uppercase border border-gold-medium/25 bg-black/60 text-gold-light hover:bg-gold-medium/10 hover:border-gold-medium/45 hover:text-gold-light shadow-none"
+                >
+                  {resolving === f.id ? <Loader2 className="w-3 h-3 animate-spin" /> : '✓ Resolve'}
+                </Button>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      ))}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Tab: Messages
+// ---------------------------------------------------------------------------
+
+function MessageBody({ text }: { text: string }) {
+  const [expanded, setExpanded] = useState(false);
+  const isLong = text.length > 600;
+  const preview = isLong && !expanded ? text.slice(0, 600) + '…' : text;
+
+  return (
+    <div className="bg-white/[0.03] border border-white/5 rounded-md text-xs text-gray-300 whitespace-pre-wrap leading-relaxed overflow-hidden">
+      <div className={cn('p-3', !expanded && isLong ? 'max-h-40 overflow-hidden' : '')}>
+        {preview}
+      </div>
+      {isLong && (
+        <button
+          onClick={() => setExpanded((v) => !v)}
+          className="w-full text-[10px] font-black uppercase tracking-widest text-gray-500 hover:text-gray-300 border-t border-white/5 py-1.5 transition-colors"
+        >
+          {expanded ? '▲ Collapse' : '▼ Expand'}
+        </button>
+      )}
+    </div>
+  );
+}
+
+function MessagesTab({ messages }: { messages: CrmMessage[] }) {
+  if (messages.length === 0) {
+    return <EmptyState icon={Mail} message="No messages recorded for this case." />;
+  }
+
+  return (
+    <div className="space-y-3">
+      {messages.map((msg) => {
+        const isInbound = msg.direction === 'inbound';
+        const analysis = (msg.message_metadata as Record<string, unknown> | null)?.analysis as Record<string, unknown> | null;
+
+        return (
+          <Card key={msg.id} className={`bg-black/30 border ${isInbound ? 'border-sky-500/20' : 'border-white/5'}`}>
+            <CardContent className="p-4">
+              <div className="flex items-start justify-between gap-3 mb-3">
+                <div className="flex items-center gap-2">
+                  <span className={`text-[9px] font-black uppercase border rounded-sm px-2 py-0.5 ${
+                    isInbound
+                      ? 'bg-sky-500/20 text-sky-300 border-sky-500/30'
+                      : 'bg-gold-medium/10 text-gold-light border-gold-medium/20'
+                  }`}>
+                    {isInbound ? '← Inbound' : '→ Outbound'}
+                  </span>
+                  {msg.classification && (
+                    <span className="text-[9px] font-black uppercase border rounded-sm px-2 py-0.5 bg-white/5 text-gray-400 border-white/10">
+                      {msg.classification.replace(/_/g, ' ')}
+                    </span>
+                  )}
+                  <span className="text-[9px] text-gray-600 uppercase tracking-wider">{msg.channel}</span>
+                </div>
+                <span className="text-[10px] text-gray-600 shrink-0">{fmtDate(msg.created_at)}</span>
+              </div>
+
+              <div className="space-y-1.5 text-[11px] mb-3">
+                {msg.subject && (
+                  <p className="text-white font-bold text-sm">{msg.subject}</p>
+                )}
+                <div className="flex gap-4 text-gray-500">
+                  {msg.from_address && <span>From: <span className="text-gray-300 font-mono">{msg.from_address}</span></span>}
+                  {msg.to_address && <span>To: <span className="text-gray-300 font-mono">{msg.to_address}</span></span>}
+                </div>
+              </div>
+
+              {msg.body_text && <MessageBody text={msg.body_text} />}
+
+              {analysis && (
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {typeof analysis.hasAttachments === 'boolean' && analysis.hasAttachments && (
+                    <span className="text-[9px] font-black uppercase border rounded-sm px-2 py-0.5 bg-violet-500/10 text-violet-300 border-violet-500/20">
+                      Has Attachments
+                    </span>
+                  )}
+                  {typeof analysis.documentCompleteness === 'string' && (
+                    <span className="text-[9px] font-black uppercase border rounded-sm px-2 py-0.5 bg-white/5 text-gray-400 border-white/10">
+                      Docs: {analysis.documentCompleteness}
+                    </span>
+                  )}
+                  {typeof analysis.sentiment === 'string' && (
+                    <span className="text-[9px] font-black uppercase border rounded-sm px-2 py-0.5 bg-white/5 text-gray-400 border-white/10">
+                      {analysis.sentiment}
+                    </span>
+                  )}
+                  {Array.isArray(analysis.flags) && analysis.flags.length > 0 && (
+                    analysis.flags.map((flag: unknown) => (
+                      <span key={String(flag)} className="text-[9px] font-black uppercase border rounded-sm px-2 py-0.5 bg-amber-500/10 text-amber-300 border-amber-500/20">
+                        {String(flag).replace(/_/g, ' ')}
+                      </span>
+                    ))
+                  )}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        );
+      })}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Empty state
+// ---------------------------------------------------------------------------
+
+function EmptyState({ icon: Icon, message }: { icon: React.ElementType; message: string }) {
+  return (
+    <div className="flex flex-col items-center justify-center py-20 text-gray-600">
+      <Icon className="w-10 h-10 mb-4 opacity-20" />
+      <p className="text-sm">{message}</p>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Main page
+// ---------------------------------------------------------------------------
+
+export function AdminUserDetail() {
+  const { profileId } = useParams<{ profileId: string }>();
+  const navigate = useNavigate();
+
+  const [loading, setLoading] = useState(true);
+  const [detail, setDetail] = useState<CaseDetailPage | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<Tab>('overview');
+
+  // Mutation state
+  const [ownerInput, setOwnerInput] = useState('');
+  const [mutating, setMutating] = useState(false);
+  const [mutationMsg, setMutationMsg] = useState<string | null>(null);
+  const currentAdminId = useRef<string | null>(null);
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => {
+      currentAdminId.current = data?.user?.id ?? null;
+    });
+  }, []);
+
+  const load = async () => {
+    if (!profileId) return;
+    setLoading(true);
+    setError(null);
+    const { data, error: err } = await loadDetailPage(profileId);
+    if (err || !data) {
+      setError(err ?? 'Failed to load profile.');
+    } else {
+      setDetail(data);
+      setOwnerInput(data.primaryRequest?.owner_user_id ?? '');
+    }
+    setLoading(false);
+  };
+
+  useEffect(() => { load(); }, [profileId]);
+
+  // Mutations
+  async function handleAssign() {
+    if (!detail?.primaryRequest) return;
+    setMutating(true);
+    setMutationMsg(null);
+    const { error: err } = await updateCaseOwner(detail.primaryRequest.id, ownerInput.trim() || null);
+    setMutating(false);
+    setMutationMsg(err ? `Error: ${err}` : 'Owner updated.');
+    if (!err) load();
+  }
+
+  async function handleAssignToMe() {
+    if (!currentAdminId.current || !detail?.primaryRequest) return;
+    setOwnerInput(currentAdminId.current);
+    setMutating(true);
+    setMutationMsg(null);
+    const { error: err } = await updateCaseOwner(detail.primaryRequest.id, currentAdminId.current);
+    setMutating(false);
+    setMutationMsg(err ? `Error: ${err}` : 'Assigned to you.');
+    if (!err) load();
+  }
+
+  async function handleArchive() {
+    if (!detail?.primaryRequest) return;
+    const next = detail.primaryRequest.case_status === 'cancelled' ? 'active' : 'cancelled';
+    setMutating(true);
+    setMutationMsg(null);
+    const { error: err } = await updateCaseStatus(detail.primaryRequest.id, next);
+    setMutating(false);
+    setMutationMsg(err ? `Error: ${err}` : next === 'cancelled' ? 'Case archived.' : 'Case restored.');
+    if (!err) load();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Render
+  // ---------------------------------------------------------------------------
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <Loader2 className="w-10 h-10 animate-spin text-gold-medium" />
+      </div>
+    );
+  }
+
+  if (error || !detail) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen gap-4 text-gray-500">
+        <AlertCircle className="w-12 h-12 opacity-30" />
+        <p className="text-lg">{error ?? 'Profile not found.'}</p>
+        <Button variant="outline" onClick={() => navigate('/dashboard/users')} className="border-white/10 text-white">
+          <ArrowLeft className="w-4 h-4 mr-2" />
+          Back to Hub
+        </Button>
+      </div>
+    );
+  }
+
+  const { profile, operationalStage } = detail;
+  const orderDocuments = buildVisaOrderDocuments(detail.visaOrders);
+
+  return (
+    <div className="p-6 max-w-7xl mx-auto space-y-6">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center gap-4 justify-between">
+        <div className="flex items-center gap-4">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => navigate('/dashboard/users')}
+            className="text-gray-400 hover:text-white p-0 h-auto"
+          >
+            <ArrowLeft className="w-5 h-5" />
+          </Button>
+          <div>
+            <h1 className="text-2xl font-bold text-white uppercase tracking-tight">
+              {profile.full_name || profile.email || 'Unknown Client'}
+            </h1>
+            <p className="text-gray-500 text-sm flex items-center gap-2 mt-0.5">
+              <Mail className="w-3.5 h-3.5" />
+              {profile.email}
+              {profile.phone && (
+                <>
+                  <span className="text-gray-700">·</span>
+                  <Phone className="w-3.5 h-3.5" />
+                  {profile.phone}
+                </>
+              )}
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <Badge className={cn('text-[10px] font-black uppercase border rounded-sm px-3 py-1', OPERATIONAL_STAGE_COLORS[operationalStage])}>
+            {OPERATIONAL_STAGE_LABELS[operationalStage]}
+          </Badge>
+          <Button
+            onClick={load}
+            variant="outline"
+            size="sm"
+            className="border-gray-700 bg-transparent hover:bg-white/10 text-white gap-2"
+          >
+            <RefreshCw className="w-4 h-4" />
+            Refresh
+          </Button>
+        </div>
+      </div>
+
+      {/* Tabs */}
+      <div className="flex gap-1 border-b border-white/5 overflow-x-auto scrollbar-hide">
+        {TABS.map((tab) => {
+          const count =
+            tab.id === 'orders' ? detail.visaOrders.length
+            : tab.id === 'documents' ? detail.identityFiles.length + detail.srDocuments.length + orderDocuments.length
+            : tab.id === 'timeline' ? detail.events.length + detail.stageHistory.length
+            : tab.id === 'messages' ? detail.messages.length
+            : tab.id === 'followups' ? detail.followups.length
+            : null;
+
+          return (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={cn(
+                'px-5 py-3 text-sm font-bold whitespace-nowrap border-b-2 transition-colors shrink-0',
+                activeTab === tab.id
+                  ? 'border-gold-medium text-gold-light'
+                  : 'border-transparent text-gray-500 hover:text-gray-300'
+              )}
+            >
+              {tab.label}
+              {count !== null && count > 0 && (
+                <span className="ml-1.5 text-[10px] bg-white/10 text-gray-400 rounded-full px-1.5 py-0.5">
+                  {count}
+                </span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Tab content */}
+      <div>
+        {activeTab === 'overview' && (
+          <OverviewTab
+            detail={detail}
+            ownerInput={ownerInput}
+            setOwnerInput={setOwnerInput}
+            mutating={mutating}
+            mutationMsg={mutationMsg}
+            onAssign={handleAssign}
+            onAssignToMe={handleAssignToMe}
+            onArchive={handleArchive}
+          />
+        )}
+        {activeTab === 'orders' && <OrdersTab orders={detail.visaOrders} />}
+        {activeTab === 'documents' && (
+          <DocumentsTab
+            files={detail.identityFiles}
+            srDocuments={detail.srDocuments}
+            orderDocuments={orderDocuments}
+          />
+        )}
+        {activeTab === 'timeline' && (
+          <TimelineTab events={detail.events} stageHistory={detail.stageHistory} />
+        )}
+        {activeTab === 'messages' && <MessagesTab messages={detail.messages} />}
+        {activeTab === 'followups' && (
+          <FollowupsTab
+            followups={detail.followups}
+            serviceRequestId={detail.primaryRequest?.id ?? null}
+            adminId={currentAdminId.current}
+            onRefresh={load}
+          />
+        )}
+      </div>
+    </div>
+  );
+}

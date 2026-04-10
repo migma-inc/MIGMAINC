@@ -1,11 +1,35 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
+import {
+  appendServiceRequestEvent,
+  ensureOperationalCaseInitialized,
+  syncMigmaUserProfile,
+} from "../shared/service-request-operational.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS, GET",
 };
+
+function getSupabaseConfig() {
+  const supabaseUrl =
+    Deno.env.get("MIGMA_REMOTE_URL") ||
+    Deno.env.get("REMOTE_SUPABASE_URL") ||
+    Deno.env.get("SUPABASE_URL") ||
+    "";
+  const supabaseServiceKey =
+    Deno.env.get("MIGMA_REMOTE_SERVICE_ROLE_KEY") ||
+    Deno.env.get("REMOTE_SUPABASE_SERVICE_ROLE_KEY") ||
+    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ||
+    "";
+
+  if (!supabaseUrl || !supabaseServiceKey) {
+    throw new Error("Missing Supabase runtime configuration");
+  }
+
+  return { supabaseUrl, supabaseServiceKey };
+}
 
 interface ParcelowWebhookEvent {
   event: string;
@@ -148,9 +172,59 @@ async function processSplitPaymentWebhook(
       })
       .eq("id", mainOrder.id);
 
+    if (mainOrder.service_request_id) {
+      await supabase
+        .from("payments")
+        .update({ status: "paid", updated_at: new Date().toISOString() })
+        .eq("service_request_id", mainOrder.service_request_id)
+        .eq("external_payment_id", mainOrder.id);
+
+      await supabase
+        .from("service_requests")
+        .update({ status: "paid", updated_at: new Date().toISOString() })
+        .eq("id", mainOrder.service_request_id);
+
+      await ensureOperationalCaseInitialized(
+        supabase,
+        mainOrder.service_request_id,
+        "gateway",
+        {
+          provider: "parcelow",
+          parcelow_order_id: parcelowOrder.id,
+          order_id: mainOrder.id,
+          split_payment_id: splitPayment.id,
+        },
+      );
+
+      await appendServiceRequestEvent(
+        supabase,
+        mainOrder.service_request_id,
+        "payment_confirmed",
+        "gateway",
+        {
+          provider: "parcelow",
+          order_id: mainOrder.id,
+          order_number: mainOrder.order_number,
+          parcelow_order_id: parcelowOrder.id,
+          split_payment_id: splitPayment.id,
+        },
+      );
+
+      await syncMigmaUserProfile(supabase, {
+        email: mainOrder.client_email,
+        fullName: mainOrder.client_name || null,
+        phone: mainOrder.client_whatsapp || null,
+        productSlug: mainOrder.product_slug || null,
+        paymentMethod: mainOrder.payment_method || null,
+        totalPriceUsd: mainOrder.total_price_usd ?? null,
+      });
+
+    }
+
     // 🔍 Test User Detection
     const isTestUser = mainOrder.client_email?.toLowerCase() === 'victuribdev@gmail.com' ||
       mainOrder.client_email?.toLowerCase() === 'victtinho.ribeiro@gmail.com' ||
+      mainOrder.client_email?.toLowerCase() === 'nemerfrancisco@gmail.com' ||
       mainOrder.client_name?.toLowerCase().includes('paulo victor') ||
       mainOrder.client_name?.toLowerCase().includes('paulo víctor');
 
@@ -576,6 +650,41 @@ async function processParcelowWebhookEvent(event: ParcelowWebhookEvent, supabase
 
       await supabase.from("service_requests").update({ status: "paid", updated_at: new Date().toISOString() })
         .eq("id", mainOrder.service_request_id);
+
+      await ensureOperationalCaseInitialized(
+        supabase,
+        mainOrder.service_request_id,
+        "gateway",
+        {
+          provider: "parcelow",
+          parcelow_order_id: parcelowOrder.id,
+          order_id: mainOrder.id,
+        },
+      );
+
+      await appendServiceRequestEvent(
+        supabase,
+        mainOrder.service_request_id,
+        "payment_confirmed",
+        "gateway",
+        {
+          provider: "parcelow",
+          order_id: mainOrder.id,
+          order_number: mainOrder.order_number,
+          parcelow_order_id: parcelowOrder.id,
+        },
+      );
+
+      // Sync MIGMA CRM profile
+      await syncMigmaUserProfile(supabase, {
+        email: mainOrder.client_email,
+        fullName: mainOrder.client_name || null,
+        phone: mainOrder.client_whatsapp || null,
+        productSlug: mainOrder.product_slug || null,
+        paymentMethod: mainOrder.payment_method || null,
+        totalPriceUsd: mainOrder.total_price_usd ?? null,
+      });
+
     }
 
     if (mainOrder.seller_id) {
@@ -809,7 +918,8 @@ Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
   try {
     const event = await req.json();
-    const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+    const { supabaseUrl, supabaseServiceKey } = getSupabaseConfig();
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
     await processParcelowWebhookEvent(event, supabase);
     return new Response(JSON.stringify({ received: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
   } catch (error: any) {

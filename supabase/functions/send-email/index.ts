@@ -16,7 +16,7 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { to, subject, html, from } = await req.json();
+    const { to, subject, html, from, replyTo, messageId, inReplyTo, references } = await req.json();
 
     // Extract ALL URLs from HTML to check what links are being sent
     const allUrlMatches = [
@@ -137,6 +137,10 @@ Deno.serve(async (req) => {
       to: to,
       subject: subject,
       html: html,
+      replyTo: replyTo || null,
+      messageId: messageId || null,
+      inReplyTo: inReplyTo || null,
+      references: references || null,
     });
 
     if (!emailResult.success) {
@@ -197,6 +201,10 @@ async function sendEmailViaSMTPDirect(config: {
   to: string;
   subject: string;
   html: string;
+  replyTo?: string | null;
+  messageId?: string | null;
+  inReplyTo?: string | null;
+  references?: string | null;
 }): Promise<{ success: boolean; error?: string }> {
   let conn: Deno.Conn | Deno.TlsConn | null = null;
   
@@ -315,12 +323,32 @@ async function sendEmailViaSMTPDirect(config: {
     }
 
     // Construir mensagem completa
-    const message = [
+    const headerLines = [
       `From: ${config.from}`,
       `To: ${config.to}`,
       `Subject: ${config.subject}`,
       `MIME-Version: 1.0`,
       `Content-Type: text/html; charset=UTF-8`,
+    ];
+
+    if (config.replyTo) {
+      headerLines.push(`Reply-To: ${config.replyTo}`);
+    }
+
+    if (config.messageId) {
+      headerLines.push(`Message-ID: ${config.messageId}`);
+    }
+
+    if (config.inReplyTo) {
+      headerLines.push(`In-Reply-To: ${config.inReplyTo}`);
+    }
+
+    if (config.references) {
+      headerLines.push(`References: ${config.references}`);
+    }
+
+    const message = [
+      ...headerLines,
       ``,
       config.html,
       `.`,
