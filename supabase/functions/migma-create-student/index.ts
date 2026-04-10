@@ -23,7 +23,46 @@ Deno.serve(async (req) => {
 
   try {
     const body = await req.json();
-    const { email, full_name, phone, migma_user_id, service_type, country, nationality } = body;
+    const { 
+      email, 
+      full_name, 
+      phone, 
+      migma_user_id, 
+      service_type, 
+      country, 
+      nationality,
+      service_request_id,
+      payment_metadata
+    } = body;
+
+    // 🕊️ REGISTRA INTENÇÃO DE PEDIDO (PARA GERAR ORDER_ID)
+    // Fallback: se a tabela service_requests não tiver o service_request_id (fluxo Migma checkout),
+    // gera um UUID local para não bloquear o fluxo.
+    let orderId: string | null = null;
+    if (service_request_id) {
+      console.log(`[migma-create-student] Gerando intenção de pedido para SR: ${service_request_id}`);
+      const { data: rpcData, error: rpcErr } = await migma.rpc('register_visa_order_intent', {
+        p_service_request_id: service_request_id,
+        p_coupon_code: payment_metadata?.coupon_code || null,
+        p_discount_amount: payment_metadata?.discount_amount || 0,
+        p_client_name: full_name,
+        p_client_email: email,
+        p_product_slug: service_type || 'transfer'
+      });
+
+      if (rpcErr) {
+        // FK violation (service_request_id não existe em service_requests) é esperado no fluxo
+        // Migma checkout — gera UUID de fallback para uso no Parcelow
+        console.warn(`[migma-create-student] register_visa_order_intent falhou (usando fallback UUID):`, rpcErr.code, rpcErr.message);
+        orderId = crypto.randomUUID();
+      } else {
+        orderId = rpcData;
+        console.log(`[migma-create-student] Order ID gerado: ${orderId}`);
+      }
+    } else {
+      // Sem service_request_id (ex: Migma checkout Step 1 inicial) — gera UUID direto
+      orderId = crypto.randomUUID();
+    }
 
     // 🗺️ MAPA DE CONVERSÃO PARA MATRÍCULA USA
     const processMapping: Record<string, string> = {
@@ -47,7 +86,13 @@ Deno.serve(async (req) => {
       migma_agent_id: body.migma_agent_id || null
     });
 
-    if (matriculaUrl && matriculaKey) {
+    // Valida que a URL é utilizável antes de tentar fetch
+    const isValidUrl = (url: string | undefined): url is string => {
+      if (!url) return false;
+      try { new URL(url); return true; } catch { return false; }
+    };
+
+    if (isValidUrl(matriculaUrl) && matriculaKey) {
       const matricula = createClient(matriculaUrl, matriculaKey);
 
       // A. Auth Remoto
@@ -96,7 +141,10 @@ Deno.serve(async (req) => {
       }
     }
 
-    return new Response(JSON.stringify({ success: true }), { headers: { ...CORS, "Content-Type": "application/json" } });
+    return new Response(JSON.stringify({ 
+      success: true, 
+      order_id: orderId 
+    }), { headers: { ...CORS, "Content-Type": "application/json" } });
   } catch (err: any) {
     console.error("[migma-create-student] Erro Fatal:", err);
     return new Response(JSON.stringify({ error: err.message }), { status: 500, headers: { ...CORS, "Content-Type": "application/json" } });

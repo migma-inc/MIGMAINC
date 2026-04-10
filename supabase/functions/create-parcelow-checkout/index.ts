@@ -762,8 +762,8 @@ Deno.serve(async (req: Request) => {
         failed: `${siteUrl}/checkout/cancel?order_id=${order.id}&split_payment_id=${splitPaymentId}&part=${splitPartNumber}`,
       }
       : {
-        success: `${siteUrl}/checkout/success?order_id=${order.id}`,
-        failed: `${siteUrl}/checkout/cancel?order_id=${order.id}`,
+        success: `${siteUrl}/student/checkout/${order.product_slug.includes('cos') ? 'cos' : order.product_slug.includes('transfer') ? 'transfer' : 'initial'}?success=true&order_id=${order.id}`,
+        failed: `${siteUrl}/student/checkout/${order.product_slug.includes('cos') ? 'cos' : order.product_slug.includes('transfer') ? 'transfer' : 'initial'}?failed=true&order_id=${order.id}`,
       };
 
     // Create order
@@ -921,21 +921,30 @@ Deno.serve(async (req: Request) => {
     const finalTotalUsd = normalizedOrder?.total_usd
       || parcelowOrder?.data?.total_usd
       || parcelowOrder?.total_usd
-      || finalOrderAmount; // WCS: assume no fees if API fails to report total
+      || finalOrderAmount;
 
     const finalTotalBrl = normalizedOrder?.total_brl
       || parcelowOrder?.data?.total_brl
       || parcelowOrder?.total_brl;
 
+    // Robust discovery of the checkout URL
+    const finalCheckoutUrl = checkoutUrl 
+      || normalizedOrder?.url_checkout 
+      || normalizedOrder?.checkout_url 
+      || normalizedOrder?.url
+      || parcelowOrder?.data?.url_checkout;
+
     const debugResponse = {
       success: true,
-      order_id: orderId,
-      checkout_url: checkoutUrl,
+      order_id: order.id, // Internal database ID
+      parcelow_order_id: orderId.toString(),
+      checkout_url: finalCheckoutUrl,
+      url: finalCheckoutUrl, // Alias for frontend compatibility
       status: normalizedOrder?.status_text || 'Open',
       total_usd: finalTotalUsd,
       total_brl: finalTotalBrl,
       order_amount: finalOrderAmount,
-      _debug_fallback_used: !normalizedOrder?.total_usd // Flag if we had to use fallbacks
+      _debug_fallback_used: !normalizedOrder?.total_usd
     };
 
     console.log("[Parcelow Checkout] 🟢 FINAL RESPONSE PAYLOAD:", JSON.stringify(debugResponse, null, 2));

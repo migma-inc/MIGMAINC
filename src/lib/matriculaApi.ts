@@ -35,6 +35,14 @@ export interface CreateStudentPayload {
   migma_user_id?: string;
   migma_seller_id?: string;
   migma_agent_id?: string;
+  service_request_id?: string;
+  payment_metadata?: {
+    cpf?: string;
+    coupon_code?: string;
+    discount_amount?: number;
+    payer_info?: any;
+    card_ownership?: string;
+  };
 }
 
 export interface CreateStudentResponse {
@@ -47,6 +55,7 @@ export interface CreateStudentResponse {
   error?: string;
   message?: string;
   source?: string;
+  order_id?: string; // ID da transação (visa_orders)
 }
 
 export type FeeType =
@@ -142,11 +151,36 @@ export interface StudentStripeCheckoutPayload {
   service_type: string;
   service_request_id?: string;
   origin?: string;
+  payment_metadata?: {
+    cpf?: string;
+    payer_info?: any;
+    card_ownership?: string;
+  };
 }
 
 export interface StudentStripeCheckoutResponse {
   url: string;
   session_id: string;
+}
+
+export interface StudentParcelowCheckoutPayload {
+  amount: number;
+  user_id: string;
+  order_id: string; // ID da transação gerado pelo migma-create-student
+  email: string;
+  full_name: string;
+  payment_method: string;
+  service_type: string;
+  service_request_id?: string;
+  origin?: string;
+  cpf?: string;
+  card_ownership?: string;
+  payer_info?: any; // Dados de terceiros (PRD v7.0)
+}
+
+export interface StudentParcelowCheckoutResponse {
+  url: string;
+  order_id: string;
 }
 
 async function invokeFunction<T>(name: string, options: {
@@ -165,7 +199,13 @@ async function invokeFunction<T>(name: string, options: {
     method,
   }).then(res => {
     console.log(`[matriculaApi] [${name}] Resposta recebida em ${Date.now() - start}ms:`, res);
-    return res;
+    
+    if (res.error) {
+      console.error(`[matriculaApi] [${name}] Erro retornado pela função:`, res.error);
+      throw new Error(res.error.message || `Erro na Edge Function ${name}`);
+    }
+    
+    return res.data;
   }).catch(err => {
     console.error(`[matriculaApi] [${name}] Falha na promessa invoke em ${Date.now() - start}ms:`, err);
     throw err;
@@ -178,16 +218,11 @@ async function invokeFunction<T>(name: string, options: {
     }, 30_000)
   );
 
-  const { data, error } = await Promise.race([invokePromise, timeoutPromise]) as Awaited<typeof invokePromise>;
+  // The 'invokePromise' already handles the extraction of 'res.data'
+  // and throws if 'res.error' is present.
+  const result = await Promise.race([invokePromise, timeoutPromise]);
 
-  if (error) {
-    throw Object.assign(
-      new Error((error as any).message || 'Edge Function error'),
-      { status: (error as any).status, data: error }
-    );
-  }
-
-  return data as T;
+  return result as T;
 }
 
 export interface SyncStudentPayload {
@@ -243,6 +278,18 @@ export const matriculaApi = {
 
   createStudent: (payload: CreateStudentPayload) =>
     invokeFunction<CreateStudentResponse>('migma-create-student', {
+      method: 'POST',
+      body: payload,
+    }),
+
+  parcelowStudentCheckout: (payload: StudentParcelowCheckoutPayload) =>
+    invokeFunction<StudentParcelowCheckoutResponse>('create-parcelow-checkout', {
+      method: 'POST',
+      body: payload,
+    }),
+
+  migmaParcelowCheckout: (payload: StudentParcelowCheckoutPayload) =>
+    invokeFunction<StudentParcelowCheckoutResponse>('migma-parcelow-checkout', {
       method: 'POST',
       body: payload,
     }),

@@ -144,11 +144,10 @@ export const ProcessTypeStep: React.FC<StepProps> = ({ onNext }) => {
               <button
                 key={String(val)}
                 onClick={() => setVisaTransferActive(val)}
-                className={`px-5 py-2.5 rounded-xl font-semibold text-sm transition-all ${
-                  visaTransferActive === val
+                className={`px-5 py-2.5 rounded-xl font-semibold text-sm transition-all ${visaTransferActive === val
                     ? 'bg-blue-500 text-white shadow-md'
                     : 'bg-white border border-slate-200 text-slate-700'
-                }`}
+                  }`}
               >
                 {val ? 'Yes, active' : 'No, inactive'}
               </button>

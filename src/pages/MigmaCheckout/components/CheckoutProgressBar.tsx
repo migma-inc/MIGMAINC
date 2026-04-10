@@ -9,9 +9,8 @@ interface Props {
 }
 
 const STEPS = [
-  { num: 1 as CheckoutStep, label: 'Personal Info & Payment' },
+  { num: 1 as CheckoutStep, label: 'Info & Payment' },
   { num: 2 as CheckoutStep, label: 'Documents & Identity' },
-  { num: 3 as CheckoutStep, label: 'Confirmation' },
 ];
 
 export const CheckoutProgressBar: React.FC<Props> = ({ currentStep, step1Completed, step2Completed }) => {

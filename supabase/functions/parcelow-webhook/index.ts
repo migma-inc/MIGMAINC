@@ -500,6 +500,54 @@ async function processParcelowWebhookEvent(event: ParcelowWebhookEvent, supabase
     .eq("parcelow_order_id", parcelowOrder.id.toString());
 
   if (orderError || !orders || orders.length === 0) {
+    // ── MIGMA CHECKOUT: verificar migma_parcelow_pending ──────────────────────
+    console.log("[Parcelow Webhook] Verificando migma_parcelow_pending...");
+    const { data: migmaPending } = await supabase
+      .from("migma_parcelow_pending")
+      .select("*")
+      .eq("parcelow_order_id", parcelowOrder.id.toString())
+      .maybeSingle();
+
+    if (migmaPending) {
+      console.log(`[Parcelow Webhook] Migma pending encontrado: ${migmaPending.id} user=${migmaPending.migma_user_id}`);
+
+      if (eventType === "event_order_paid" && !migmaPending.migma_payment_completed) {
+        console.log("[Parcelow Webhook] Marcando pagamento Migma como concluído...");
+
+        // Atualiza status na tabela
+        await supabase
+          .from("migma_parcelow_pending")
+          .update({ status: "paid", migma_payment_completed: true, updated_at: new Date().toISOString() })
+          .eq("id", migmaPending.id);
+
+        // Chama migma-payment-completed para registrar no Matricula USA
+        const { error: payErr } = await supabase.functions.invoke("migma-payment-completed", {
+          body: {
+            user_id: migmaPending.migma_user_id,
+            fee_type: "selection_process",
+            amount: migmaPending.amount,
+            payment_method: "parcelow",
+            service_type: migmaPending.service_type,
+            parcelow_order_id: parcelowOrder.id.toString(),
+          },
+        });
+
+        if (payErr) {
+          console.error("[Parcelow Webhook] migma-payment-completed falhou:", payErr);
+        } else {
+          console.log("[Parcelow Webhook] ✅ Migma selection_process fee marcado como pago!");
+        }
+      } else if (eventType === "event_order_declined" || eventType === "event_order_canceled" || eventType === "event_order_expired") {
+        await supabase
+          .from("migma_parcelow_pending")
+          .update({ status: "failed", updated_at: new Date().toISOString() })
+          .eq("id", migmaPending.id);
+        console.log(`[Parcelow Webhook] Migma pending marcado como failed (${eventType})`);
+      }
+      return;
+    }
+    // ─────────────────────────────────────────────────────────────────────────
+
     console.warn("[Parcelow Webhook] Order não encontrada em nenhuma das tabelas");
     return;
   }

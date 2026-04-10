@@ -1,8 +1,21 @@
-export type ServiceType = 'transfer' | 'cos' | 'eb2' | 'eb3' | 'initial';
-export type PaymentMethod = 'square' | 'parcelow' | 'pix' | 'zelle' | 'stripe';
+export type PaymentMethod = 'square' | 'parcelow' | 'pix' | 'zelle' | 'stripe' | 'parcelow_card' | 'parcelow_pix' | 'parcelow_ted';
 export type CardOwnership = 'own' | 'third_party';
 export type IPRegion = 'US' | 'BR' | 'OTHER';
-export type CheckoutStep = 1 | 2 | 3;
+
+export interface PayerInfo {
+  name: string;
+  cpf: string;
+  email: string;
+  phone: string;
+  postal_code?: string;
+  address_street?: string;
+  address_number?: string;
+  address_neighborhood?: string;
+  address_city?: string;
+  address_state?: string;
+  address_complement?: string;
+}
+export type CheckoutStep = 1 | 2;
 export type DocType = 'passport' | 'rg' | 'cnh';
 export type CivilStatus = 'single' | 'married' | 'divorced' | 'widowed';
 
@@ -16,14 +29,14 @@ export interface ServiceConfig {
   contractSlug?: string;
 }
 
-/** Step 1 — apenas dados pessoais, termos e assinatura. SEM pagamento. */
+/** Step 1 — dados pessoais, termos, assinatura e pagamento. */
 export interface Step1Data {
   full_name: string;
   email: string;
   phone: string;
   password: string;
   confirm_password: string;
-  num_dependents: number;
+  num_dependents: number | null;
   terms_accepted: boolean;
   data_accepted: boolean;
   signature_data_url: string | null;
@@ -52,6 +65,8 @@ export interface CheckoutState {
   step1Completed: boolean;
   step2Completed: boolean;
   paymentConfirmed: boolean;
+  /** Zelle submitted and pending admin approval — student redirected to onboarding but not yet marked as paid */
+  zelleProcessing: boolean;
   userId: string | null;
   totalPrice: number;
 }

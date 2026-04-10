@@ -43,11 +43,19 @@ Deno.serve(async (req) => {
 
     // 2. Atualizar perfil local
     if (fee_type === "selection_process") {
-      await migma.from("user_profiles").update({
+      console.log(`[migma-payment-completed] 🔄 Tentando atualizar perfil local para user_id: ${user_id}`);
+      
+      const { data: updateData, error: updateError } = await migma.from("user_profiles").update({
         has_paid_selection_process_fee: true,
-        onboarding_current_step: "documents",
+        onboarding_current_step: "selection_survey",
         selection_process_fee_payment_method: payment_method,
-      }).eq("user_id", user_id);
+      }).eq("user_id", user_id).select();
+
+      if (updateError) {
+        console.error(`[migma-payment-completed] ❌ Erro ao atualizar perfil local:`, updateError);
+      } else {
+        console.log(`[migma-payment-completed] ✅ Perfil local atualizado com sucesso:`, JSON.stringify(updateData));
+      }
 
       // 3. LOGICA DE CONTRATO (MIGMA VISA ORDERS)
       try {

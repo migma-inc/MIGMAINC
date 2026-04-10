@@ -145,10 +145,12 @@ export const SERVICE_CONFIGS: Record<ServiceType, ServiceConfig> = {
   },
 };
 
-export function getServiceConfig(slug: string): ServiceConfig | null {
+export function getServiceConfig(slug: string | undefined): ServiceConfig | null {
+  if (!slug) return null;
   return SERVICE_CONFIGS[slug as ServiceType] ?? null;
 }
 
-export function calcTotal(config: ServiceConfig, numDependents: number): number {
-  return config.basePrice + numDependents * config.dependentPrice;
+export function calcTotal(config: ServiceConfig | null, numDependents: number | null): number {
+  if (!config) return 0;
+  return config.basePrice + (numDependents || 0) * config.dependentPrice;
 }

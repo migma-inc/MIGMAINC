@@ -129,6 +129,10 @@ export const useOnboardingProgress = () => {
 
       if (profileError || !freshData) {
         console.warn('[OnboardingHook] Perfil inacessível:', profileError);
+        // Profile doesn't exist in Matricula USA yet (new Migma student) —
+        // force step 1 so the student always starts at selection_fee
+        currentStepRef.current = 'selection_fee';
+        setState(prev => ({ ...prev, currentStep: 'selection_fee', selectionFeePaid: false }));
         if (loading) setLoading(false);
         return;
       }
