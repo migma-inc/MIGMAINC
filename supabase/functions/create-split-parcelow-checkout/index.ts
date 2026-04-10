@@ -22,6 +22,20 @@ interface SplitCheckoutResponse {
     error?: string;
 }
 
+function detectParcelowEnvironment(req: Request, appUrl?: string): 'production' | 'staging' {
+    const referer = req.headers.get("referer") || "";
+    const origin = req.headers.get("origin") || "";
+    const host = req.headers.get("host") || "";
+    const browserOrigin = appUrl || origin || referer || host || "";
+
+    const isProductionDomain =
+        browserOrigin.includes("migma.com") ||
+        browserOrigin.includes("migmainc.com") ||
+        (browserOrigin.includes("vercel.app") && !browserOrigin.includes("preview"));
+
+    return isProductionDomain ? 'production' : 'staging';
+}
+
 Deno.serve(async (req: Request) => {
     // Handle CORS preflight
     if (req.method === "OPTIONS") {
@@ -40,15 +54,27 @@ Deno.serve(async (req: Request) => {
         }
 
         const supabase = createClient(supabaseUrl, supabaseServiceKey);
+        const forwardedOrigin = app_url || req.headers.get("origin") || req.headers.get("referer") || "";
+        const forwardedHeaders = {
+            'Authorization': `Bearer ${supabaseServiceKey}`,
+            'apikey': supabaseServiceKey,
+            ...(forwardedOrigin ? {
+                origin: forwardedOrigin,
+                referer: forwardedOrigin,
+            } : {}),
+        };
 
         // Parse request body
         const body: any = await req.json();
         const { order_id, part1_amount, part1_method, part2_amount, part2_method, parcelow_environment, app_url } = body;
+        const detectedParcelowEnvironment = parcelow_environment || detectParcelowEnvironment(req, app_url);
 
         console.log("[Split Checkout] 📦 Request:", {
             order_id,
             part1: `${part1_method} - $${part1_amount}`,
             part2: `${part2_method} - $${part2_amount}`,
+            parcelow_environment: detectedParcelowEnvironment,
+            app_url: app_url || req.headers.get("origin") || req.headers.get("referer") || "n/a",
         });
 
         // Validar request
@@ -137,10 +163,7 @@ Deno.serve(async (req: Request) => {
         console.log(`[Split Checkout] 🔄 Chamando create-parcelow-checkout para Part 1...`);
         // Usamos headers explícitos para garantir o bypass do JWT se o service_role for usado
         const { data: part1Data, error: part1Error } = await supabase.functions.invoke('create-parcelow-checkout', {
-            headers: {
-                'Authorization': `Bearer ${supabaseServiceKey}`,
-                'apikey': supabaseServiceKey,
-            },
+            headers: forwardedHeaders,
             body: {
                 order_id: order.id,
                 currency: 'USD',
@@ -150,7 +173,7 @@ Deno.serve(async (req: Request) => {
                 split_part_number: 1,
                 // Passamos o método de pagamento específico desta parte
                 payment_method_override: part1_method,
-                parcelow_environment: parcelow_environment,
+                parcelow_environment: detectedParcelowEnvironment,
                 app_url,
             }
         });
@@ -179,10 +202,7 @@ Deno.serve(async (req: Request) => {
 
         console.log(`[Split Checkout] 🔄 Chamando create-parcelow-checkout para Part 2...`);
         const { data: part2Data, error: part2Error } = await supabase.functions.invoke('create-parcelow-checkout', {
-            headers: {
-                'Authorization': `Bearer ${supabaseServiceKey}`,
-                'apikey': supabaseServiceKey,
-            },
+            headers: forwardedHeaders,
             body: {
                 order_id: order.id,
                 currency: 'USD',
@@ -192,7 +212,7 @@ Deno.serve(async (req: Request) => {
                 split_part_number: 2,
                 // Passamos o método de pagamento específico desta parte
                 payment_method_override: part2_method,
-                parcelow_environment: parcelow_environment,
+                parcelow_environment: detectedParcelowEnvironment,
                 app_url,
             }
         });

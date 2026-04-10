@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { CreditCard, QrCode, Landmark, Check, AlertCircle } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { isDevelopmentEnvironment } from '@/lib/env-utils';
 
 export type PaymentMethod = 'card' | 'pix' | 'ted';
 
@@ -96,9 +95,6 @@ export const SplitPaymentSelector: React.FC<SplitPaymentSelectorProps> = ({
     );
 
     if (!validTotal || validTotal <= 0) return null;
-    
-    // Feature Flag: Apenas mostrar Split Payment em ambiente de desenvolvimento/localhost
-    if (!isDevelopmentEnvironment()) return null;
 
     return (
         <div className="space-y-4">
