@@ -47,6 +47,7 @@ interface VisaOrder {
     upsell_annex_pdf_url?: string | null;
     contract_selfie_url: string | null;
     contract_document_url: string | null;
+    contract_document_back_url?: string | null;
     contract_signed_at: string | null;
     contract_approval_status: string | null;
     annex_approval_status: string | null;
@@ -73,6 +74,7 @@ interface IdentityFile {
     service_request_id: string;
     file_type: string;
     file_path: string;
+    file_size?: number | null;
 }
 
 const APPROVAL_STATUS_COLUMN = {
@@ -299,9 +301,12 @@ export function VisaContractApprovalPage() {
     const ImageWithSkeleton = ({ src, alt, className }: { src: string, alt: string, className: string }) => {
         const [isLoaded, setIsLoaded] = useState(false);
         const [resolvedUrl, setResolvedUrl] = useState<string | null>(null);
+        const [hasError, setHasError] = useState(false);
 
         useEffect(() => {
             const resolve = async () => {
+                setHasError(false);
+                setIsLoaded(false);
                 const url = await getSecureUrl(src);
                 setResolvedUrl(url);
             };
@@ -310,6 +315,14 @@ export function VisaContractApprovalPage() {
 
         if (!resolvedUrl) {
             return <Skeleton className={cn("w-full h-full", className)} />;
+        }
+
+        if (hasError) {
+            return (
+                <div className={cn("flex h-full w-full items-center justify-center bg-black/70 p-2 text-center text-[11px] text-red-300", className)}>
+                    Failed to load image
+                </div>
+            );
         }
 
         return (
@@ -325,6 +338,7 @@ export function VisaContractApprovalPage() {
                         isLoaded ? "opacity-100" : "opacity-0"
                     )}
                     onLoad={() => setIsLoaded(true)}
+                    onError={() => setHasError(true)}
                 />
             </div>
         );
@@ -466,6 +480,10 @@ export function VisaContractApprovalPage() {
         // ou se passarmos apenas o path (ele tenta adivinhar).
         // Aqui os arquivos de identidade costumam estar no bucket 'identity-photos'
         return `identity-photos/${file.file_path}`;
+    };
+
+    const isRenderableIdentityFile = (file: IdentityFile) => {
+        return !!file.file_path && (file.file_size == null || file.file_size > 0);
     };
 
     if (loading) {
@@ -617,36 +635,67 @@ export function VisaContractApprovalPage() {
 
                                             <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-widest">Identification</h4>
                                             <div className="flex flex-wrap gap-2">
-                                                {order.service_request_id && idFiles[order.service_request_id] ? (
-                                                    idFiles[order.service_request_id].map(file => (
-                                                        <div
-                                                            key={file.id}
-                                                            onClick={async () => {
-                                                                const secureUrl = await getSecureUrl(getDocumentUrl(file));
-                                                                setSelectedImageUrl(secureUrl);
-                                                                setSelectedImageTitle(`${file.file_type.replace('_', ' ').toUpperCase()} - ${order.client_name}`);
-                                                            }}
-                                                            className="group relative cursor-pointer w-28 h-28 sm:w-32 sm:h-32 rounded-lg overflow-hidden border border-gold-medium/30 bg-black/50 hover:border-gold-medium transition-all hover:scale-105 duration-300 shadow-lg shadow-black/50"
-                                                        >
-                                                            <ImageWithSkeleton
-                                                                src={getDocumentUrl(file)}
-                                                                alt={file.file_type}
-                                                                className="w-full h-full"
-                                                            />
-                                                            <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
-                                                                <ImageIcon className="w-6 h-6 text-white" />
+                                                {(() => {
+                                                    const idFileList = order.service_request_id ? (idFiles[order.service_request_id] || []) : [];
+                                                    const validIdFiles = idFileList.filter(isRenderableIdentityFile);
+                                                    const invalidIdFiles = idFileList.filter(file => !isRenderableIdentityFile(file));
+                                                    const fallbackPhotos: Array<{ url: string; label: string }> = [];
+
+                                                    if (validIdFiles.length === 0) {
+                                                        if (order.contract_document_url) fallbackPhotos.push({ url: order.contract_document_url, label: 'Doc Front' });
+                                                        if (order.contract_document_back_url) fallbackPhotos.push({ url: order.contract_document_back_url, label: 'Doc Back' });
+                                                        if (order.contract_selfie_url) fallbackPhotos.push({ url: order.contract_selfie_url, label: 'Selfie' });
+                                                    }
+
+                                                    if (validIdFiles.length > 0 || invalidIdFiles.length > 0) {
+                                                        return [...validIdFiles, ...invalidIdFiles].map(file => (
+                                                            <div
+                                                                key={file.id}
+                                                                onClick={async () => {
+                                                                    if (!isRenderableIdentityFile(file)) return;
+                                                                    const secureUrl = await getSecureUrl(getDocumentUrl(file));
+                                                                    setSelectedImageUrl(secureUrl);
+                                                                    setSelectedImageTitle(`${file.file_type.replace('_', ' ').toUpperCase()} - ${order.client_name}`);
+                                                                }}
+                                                                className="group relative cursor-pointer w-28 h-28 sm:w-32 sm:h-32 rounded-lg overflow-hidden border border-gold-medium/30 bg-black/50 hover:border-gold-medium transition-all hover:scale-105 duration-300 shadow-lg shadow-black/50"
+                                                            >
+                                                                {isRenderableIdentityFile(file) ? (
+                                                                    <ImageWithSkeleton src={getDocumentUrl(file)} alt={file.file_type} className="w-full h-full" />
+                                                                ) : (
+                                                                    <div className="flex h-full w-full items-center justify-center bg-black/80 p-2 text-center text-[11px] text-red-300">
+                                                                        Invalid file
+                                                                    </div>
+                                                                )}
+                                                                <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                                                                    <ImageIcon className="w-6 h-6 text-white" />
+                                                                </div>
+                                                                <span className="absolute bottom-0 inset-x-0 bg-black/80 text-[10px] text-center text-white py-0.5 capitalize z-10">
+                                                                    {file.file_type === 'document_front' ? 'Doc Front' : file.file_type === 'document_back' ? 'Doc Back' : file.file_type === 'selfie_doc' ? 'Selfie' : file.file_type.replace('_', ' ')}
+                                                                </span>
                                                             </div>
-                                                            <span className="absolute bottom-0 inset-x-0 bg-black/80 text-[10px] text-center text-white py-0.5 capitalize z-10">
-                                                                {file.file_type === 'document_front' ? 'Doc Front' :
-                                                                    file.file_type === 'document_back' ? 'Doc Back' :
-                                                                        file.file_type === 'selfie_doc' ? 'Selfie' :
-                                                                            file.file_type.replace('_', ' ')}
-                                                            </span>
-                                                        </div>
-                                                    ))
-                                                ) : (
-                                                    <p className="text-xs text-gray-500 italic">No photos found.</p>
-                                                )}
+                                                        ));
+                                                    } else if (fallbackPhotos.length > 0) {
+                                                        return fallbackPhotos.map((photo, i) => (
+                                                            <div
+                                                                key={i}
+                                                                onClick={async () => {
+                                                                    const secureUrl = await getSecureUrl(photo.url);
+                                                                    setSelectedImageUrl(secureUrl);
+                                                                    setSelectedImageTitle(`${photo.label} - ${order.client_name}`);
+                                                                }}
+                                                                className="group relative cursor-pointer w-28 h-28 sm:w-32 sm:h-32 rounded-lg overflow-hidden border border-gold-medium/30 bg-black/50 hover:border-gold-medium transition-all hover:scale-105 duration-300 shadow-lg shadow-black/50"
+                                                            >
+                                                                <ImageWithSkeleton src={photo.url} alt={photo.label} className="w-full h-full" />
+                                                                <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                                                                    <ImageIcon className="w-6 h-6 text-white" />
+                                                                </div>
+                                                                <span className="absolute bottom-0 inset-x-0 bg-black/80 text-[10px] text-center text-white py-0.5 capitalize z-10">{photo.label}</span>
+                                                            </div>
+                                                        ));
+                                                    } else {
+                                                        return <p className="text-xs text-gray-500 italic">No photos found.</p>;
+                                                    }
+                                                })()}
                                             </div>
                                         </div>
 
