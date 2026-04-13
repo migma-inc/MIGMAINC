@@ -14,7 +14,8 @@ import {
     Calendar,
     Image as ImageIcon,
     ExternalLink,
-    FileCheck
+    FileCheck,
+    Search
 } from 'lucide-react';
 import { approveVisaContract, rejectVisaContract } from '@/lib/visa-contracts';
 import { getCurrentUser } from '@/lib/auth';
@@ -30,6 +31,7 @@ import {
 } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Input } from '@/components/ui/input';
 import { useOutletContext } from 'react-router-dom';
 import type { SellerInfo } from '@/types/seller';
 import { useDashboardCache } from '@/contexts/DashboardCacheContext';
@@ -84,6 +86,7 @@ export function HosVisaContractApprovalPage() {
     const [products, setProducts] = useState<any[]>([]);
     const [loading, setLoading] = useState(!cache.approvals);
     const [statusFilter, setStatusFilter] = useState<'pending' | 'approved' | 'rejected' | 'all'>('pending');
+    const [searchTerm, setSearchTerm] = useState('');
     const [selectedPdfUrl, setSelectedPdfUrl] = useState<string | null>(null);
     const [selectedPdfTitle, setSelectedPdfTitle] = useState<string>('');
     const [selectedImageUrl, setSelectedImageUrl] = useState<string | null>(null);
@@ -238,6 +241,12 @@ export function HosVisaContractApprovalPage() {
         }
     }, [seller?.id]);
 
+    const getProductName = (slug: string) => {
+        return products.find(p => p.slug === slug)?.name || slug;
+    };
+
+    const normalizedSearch = searchTerm.trim().toLowerCase();
+
     const filteredOrders = orders.filter(order => {
         if (statusFilter === 'all') return true;
 
@@ -257,6 +266,25 @@ export function HosVisaContractApprovalPage() {
             annexStatus === statusFilter ||
             upsellContractStatus === statusFilter ||
             upsellAnnexStatus === statusFilter;
+    }).filter(order => {
+        if (!normalizedSearch) return true;
+
+        const productName = getProductName(order.product_slug);
+        const upsellProductName = order.upsell_product_slug ? getProductName(order.upsell_product_slug) : '';
+
+        const haystack = [
+            order.client_name,
+            order.client_email,
+            order.order_number,
+            order.product_slug,
+            productName,
+            order.upsell_product_slug || '',
+            upsellProductName,
+            order.seller_id,
+            order.seller_name || '',
+        ].join(' ').toLowerCase();
+
+        return haystack.includes(normalizedSearch);
     });
 
     const handleApprove = (id: string, type: 'contract' | 'annex' | 'upsell_contract' | 'upsell_annex') => {
@@ -268,10 +296,6 @@ export function HosVisaContractApprovalPage() {
         setPendingItem({ id, type });
         setRejectionReason('');
         setShowRejectPrompt(true);
-    };
-
-    const getProductName = (slug: string) => {
-        return products.find(p => p.slug === slug)?.name || slug;
     };
 
     const confirmApprove = async () => {
@@ -504,6 +528,15 @@ export function HosVisaContractApprovalPage() {
                     <p className="text-gray-400 mt-1">
                         Review and approve the contracts signed by your sellers' clients.
                     </p>
+                </div>
+                <div className="relative w-full md:w-80">
+                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500" />
+                    <Input
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        placeholder="Search client, email, order, seller..."
+                        className="border-gold-medium/30 bg-black/40 pl-10 text-white placeholder:text-gray-500"
+                    />
                 </div>
             </div>
 
