@@ -47,6 +47,7 @@ interface VisaOrder {
     upsell_annex_pdf_url?: string | null;
     contract_selfie_url: string | null;
     contract_document_url: string | null;
+    contract_document_back_url?: string | null;
     contract_signed_at: string | null;
     contract_approval_status: string | null;
     annex_approval_status: string | null;
