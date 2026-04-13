@@ -38,6 +38,10 @@ export const DocumentUpload = ({ clientId, onComplete, onCancel }: DocumentUploa
 
   // Validate file - images only (no PDF)
   const validateFile = (file: File): string | null => {
+    if (file.size <= 0) {
+      return t('checkout.error_empty_file', 'The selected image is empty. Please choose the file again.');
+    }
+
     // Check file type
     const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png'];
     if (!allowedTypes.includes(file.type)) {
@@ -79,6 +83,10 @@ export const DocumentUpload = ({ clientId, onComplete, onCancel }: DocumentUploa
         quality: 0.8
       });
 
+      if (compressedFile.size <= 0) {
+        throw new Error('Compressed file is empty');
+      }
+
       setter({
         file: compressedFile,
         preview,
@@ -109,13 +117,22 @@ export const DocumentUpload = ({ clientId, onComplete, onCancel }: DocumentUploa
   const uploadFile = async (file: File, folder: string): Promise<string> => {
     const { supabase } = await import('@/lib/supabase');
 
+    if (file.size <= 0) {
+      throw new Error('Cannot upload an empty document');
+    }
+
     const fileExt = file.name.split('.').pop();
     const userFolder = clientId || 'anonymous';
     const fileName = `${userFolder}/${folder}/${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
+    const bytes = new Uint8Array(await file.arrayBuffer());
 
     const { error: uploadError } = await supabase.storage
       .from('visa-documents')
-      .upload(fileName, file);
+      .upload(fileName, bytes, {
+        upsert: true,
+        contentType: file.type || 'image/jpeg',
+        cacheControl: '3600',
+      });
 
     if (uploadError) throw uploadError;
 
