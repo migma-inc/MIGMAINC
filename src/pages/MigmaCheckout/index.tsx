@@ -524,7 +524,7 @@ const MigmaCheckout: React.FC = () => {
       }
 
       setState(prev => ({ ...prev, step2Completed: true }));
-      navigate('/student/onboarding');
+      navigate(`/student/survey/${service ?? 'transfer'}`);
     } catch (err: any) {
       console.error('[Step 2] Error:', err);
       alert('Erro ao salvar documentos.');
@@ -617,7 +617,7 @@ const MigmaCheckout: React.FC = () => {
                   <Step2Documents
                     isCompleted={state.step2Completed}
                     onComplete={handleStep2Complete}
-                    onAdvance={() => navigate('/student/onboarding')}
+                    onAdvance={() => navigate(`/student/survey/${service ?? 'transfer'}`)}
                     onBack={() => setState(prev => ({ ...prev, currentStep: 1 }))}
                   />
                 )}

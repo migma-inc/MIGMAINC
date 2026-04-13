@@ -7,6 +7,7 @@ const StudentRegistration = lazy(() => import('./pages/StudentRegistration'));
 const StudentOnboarding = lazy(() => import('./pages/StudentOnboarding/StudentOnboarding'));
 const StudentLogin = lazy(() => import('./pages/StudentLogin'));
 const MigmaCheckout = lazy(() => import('./pages/MigmaCheckout'));
+const MigmaSurvey = lazy(() => import('./pages/MigmaSurvey'));
 import { Home } from './pages/Home';
 import { Services } from './pages/Services';
 import { About } from './pages/About';
@@ -196,6 +197,11 @@ function App() {
         {/* ── Migma Checkout (URL determina serviço) ────────────── */}
         <Route path="/student/checkout/:service" element={
           <Suspense fallback={null}><MigmaCheckout /></Suspense>
+        } />
+
+        {/* ── Questionário pós-checkout (v7) ───────────────────── */}
+        <Route path="/student/survey/:service" element={
+          <Suspense fallback={null}><MigmaSurvey /></Suspense>
         } />
 
         {/* ── Student Flow ─────────────────────────────────────── */}
