@@ -73,6 +73,7 @@ Deno.serve(async (req) => {
       .insert({
         order_id: order_id,
         token: token,
+        contract_type: contract_type || 'contract',
         expires_at: expiresAt.toISOString(),
         created_by: reviewed_by,
       });

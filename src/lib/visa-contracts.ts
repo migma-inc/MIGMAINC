@@ -8,6 +8,7 @@ export interface ResubmissionToken {
   id: string;
   order_id: string;
   token: string;
+  contract_type?: 'contract' | 'annex' | 'upsell_contract' | 'upsell_annex' | null;
   expires_at: string;
   used_at: string | null;
   created_at: string;
@@ -255,19 +256,9 @@ export async function resubmitContractDocuments(
     const clientIP = await getClientIP();
     const userAgent = getUserAgent();
 
-    // Delete old documents from identity_files
-    const { error: deleteError } = await supabase
-      .from('identity_files')
-      .delete()
-      .eq('service_request_id', serviceRequestId);
-
-    if (deleteError) {
-      console.error('[VISA_CONTRACTS] Error deleting old documents:', deleteError);
-      // Continue anyway - we'll insert new ones
-    }
-
-    // Insert new documents
-    const documentsToInsert = [
+    // Upsert avoids conflicts with the unique constraint on
+    // (service_request_id, file_type), which is the expected behavior for resubmissions.
+    const documentsToUpsert = [
       {
         service_request_id: serviceRequestId,
         file_type: 'document_front',
@@ -297,12 +288,14 @@ export async function resubmitContractDocuments(
       },
     ];
 
-    const { error: insertError } = await supabase
+    const { error: upsertError } = await supabase
       .from('identity_files')
-      .insert(documentsToInsert);
+      .upsert(documentsToUpsert, {
+        onConflict: 'service_request_id,file_type'
+      });
 
-    if (insertError) {
-      console.error('[VISA_CONTRACTS] Error inserting new documents:', insertError);
+    if (upsertError) {
+      console.error('[VISA_CONTRACTS] Error upserting resubmitted documents:', upsertError);
       return {
         success: false,
         error: 'Failed to save documents. Please try again.',
@@ -320,16 +313,33 @@ export async function resubmitContractDocuments(
       // Continue anyway - documents were saved
     }
 
-    // Update order status back to pending
+    const approvalType = validation.token.contract_type || 'contract';
+    const orderUpdateData: Record<string, string | null> = {
+      updated_at: new Date().toISOString(),
+      contract_document_url: documents.documentFront.url,
+      contract_document_back_url: documents.documentBack.url,
+      contract_selfie_url: documents.selfie.url,
+      contract_signed_at: new Date().toISOString(),
+    };
+
+    if (approvalType === 'annex') {
+      orderUpdateData.annex_approval_status = 'pending';
+      orderUpdateData.annex_rejection_reason = null;
+    } else if (approvalType === 'upsell_contract') {
+      orderUpdateData.upsell_contract_approval_status = 'pending';
+      orderUpdateData.upsell_contract_rejection_reason = null;
+    } else if (approvalType === 'upsell_annex') {
+      orderUpdateData.upsell_annex_approval_status = 'pending';
+      orderUpdateData.upsell_annex_rejection_reason = null;
+    } else {
+      orderUpdateData.contract_approval_status = 'pending';
+      orderUpdateData.contract_rejection_reason = null;
+    }
+
+    // Update order status back to pending for the rejected document type
     const { error: orderUpdateError } = await supabase
       .from('visa_orders')
-      .update({
-        contract_approval_status: 'pending',
-        contract_document_url: documents.documentFront.url,
-        contract_selfie_url: documents.selfie.url,
-        contract_signed_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      })
+      .update(orderUpdateData)
       .eq('id', orderId);
 
     if (orderUpdateError) {
