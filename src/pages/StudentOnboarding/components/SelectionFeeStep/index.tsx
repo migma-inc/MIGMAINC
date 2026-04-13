@@ -7,14 +7,27 @@
  */
 import React, { useEffect, useState } from 'react';
 import { CheckCircle, ArrowRight, Clock, Loader2 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { useStudentAuth } from '../../../../contexts/StudentAuthContext';
 import { supabase } from '../../../../lib/supabase';
 import type { StepProps } from '../../types';
 
 export const SelectionFeeStep: React.FC<StepProps> = ({ onNext }) => {
-  const { userProfile, user } = useStudentAuth();
+  const navigate = useNavigate();
+  const { userProfile, user, loading: authLoading } = useStudentAuth();
   const hasPaid = userProfile?.has_paid_selection_process_fee;
+  const isMigma = userProfile?.source === 'migma';
+  const migmaCompleted = !!userProfile?.migma_checkout_completed_at;
   const [zellePending, setZellePending] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    if (authLoading) return; // Espera o perfil carregar
+    
+    if (isMigma && !migmaCompleted) {
+      const service = userProfile?.service_type || 'transfer';
+      navigate(`/student/checkout/${service}`);
+    }
+  }, [isMigma, migmaCompleted, userProfile?.service_type, navigate, authLoading]);
 
   useEffect(() => {
     if (hasPaid || !user?.id) {

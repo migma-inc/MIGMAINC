@@ -22,42 +22,45 @@ Deno.serve(async (req) => {
 
   try {
     const body = await req.json();
-    const { user_id, fee_type, amount, payment_method, receipt_url, service_type, service_request_id } = body;
+    console.log(`[migma-payment-completed] 📥 BODY RECEBIDO:`, JSON.stringify(body));
+    const { user_id, fee_type, amount, payment_method, receipt_url, service_type, service_request_id, finalize_contract_only } = body;
 
-    console.log(`[migma-payment-completed] Confirmação de Pago local: ${fee_type} para ${user_id} (${service_type})`);
+    console.log(`[migma-payment-completed] Processando: ${fee_type} para ${user_id} (Modo: ${finalize_contract_only ? 'Finalizar Contrato' : 'Pagamento Completo'})`);
 
-    // 1. Registro local no Migma
-    const { data: paymentRecord } = await migma
-      .from("individual_fee_payments")
-      .insert({
-        user_id,
-        fee_type,
-        amount,
-        method: payment_method,
-        payment_method,
-        receipt_url,
-        status: (payment_method === "zelle" || payment_method === "manual") ? "pending" : "completed",
-        payment_date: new Date().toISOString(),
-      })
-      .select().single();
+    let paymentRecordId = null;
 
-    // 2. Atualizar perfil local
-    if (fee_type === "selection_process") {
-      console.log(`[migma-payment-completed] 🔄 Tentando atualizar perfil local para user_id: ${user_id}`);
+    if (!finalize_contract_only) {
+      // 1. Registro local no Migma
+      const { data: paymentRecord } = await migma
+        .from("individual_fee_payments")
+        .insert({
+          user_id,
+          fee_type,
+          amount,
+          method: payment_method,
+          payment_method,
+          receipt_url,
+          status: (payment_method === "zelle" || payment_method === "manual") ? "pending" : "completed",
+          payment_date: new Date().toISOString(),
+        })
+        .select().single();
       
-      const { data: updateData, error: updateError } = await migma.from("user_profiles").update({
-        has_paid_selection_process_fee: true,
-        onboarding_current_step: "selection_survey",
-        selection_process_fee_payment_method: payment_method,
-      }).eq("user_id", user_id).select();
+      paymentRecordId = paymentRecord?.id;
 
-      if (updateError) {
-        console.error(`[migma-payment-completed] ❌ Erro ao atualizar perfil local:`, updateError);
-      } else {
-        console.log(`[migma-payment-completed] ✅ Perfil local atualizado com sucesso:`, JSON.stringify(updateData));
+      // 2. Atualizar perfil local
+      if (fee_type === "selection_process") {
+        console.log(`[migma-payment-completed] 🔄 Atualizando perfil local para user_id: ${user_id}`);
+        
+        await migma.from("user_profiles").update({
+          has_paid_selection_process_fee: true,
+          onboarding_current_step: "selection_survey",
+          selection_process_fee_payment_method: payment_method,
+        }).eq("user_id", user_id);
       }
+    }
 
-      // 3. LOGICA DE CONTRATO (MIGMA VISA ORDERS)
+    // 3. LOGICA DE CONTRATO (MIGMA VISA ORDERS)
+    if (fee_type === "selection_process") {
       try {
         console.log(`[migma-payment-completed] Iniciando automação de contrato para ${user_id}...`);
         
@@ -228,8 +231,8 @@ Deno.serve(async (req) => {
         const remoteId = p?.matricula_user_id;
 
         if (remoteId) {
-           console.log(`[migma-payment-completed] Carimbando pagamento remoto para MatriculaID: ${remoteId}`);
-           await fetch(`${matriculaUrl}/rest/v1/user_profiles?user_id=eq.${remoteId}`, {
+           console.log(`[migma-payment-completed] 🌐 Sincronizando com Matricula USA. ID Remoto: ${remoteId}`);
+           const response = await fetch(`${matriculaUrl}/rest/v1/user_profiles?user_id=eq.${remoteId}`, {
             method: "PATCH",
             headers: {
               "apikey": matriculaKey,
@@ -241,11 +244,20 @@ Deno.serve(async (req) => {
               selection_process_paid_at: new Date().toISOString()
             }),
           });
+          
+          if (!response.ok) {
+            const errorText = await response.text();
+            console.error(`[migma-payment-completed] ❌ Falha no PATCH Matricula USA (${response.status}):`, errorText);
+          } else {
+            console.log(`[migma-payment-completed] ✅ Sincronização Matricula USA concluída com sucesso!`);
+          }
+        } else {
+          console.warn(`[migma-payment-completed] ⚠️ Sincronização ignorada: matricula_user_id não encontrado para user ${user_id}`);
         }
       }
     }
 
-    return new Response(JSON.stringify({ success: true, payment_id: paymentRecord?.id }), { headers: { ...CORS, "Content-Type": "application/json" } });
+    return new Response(JSON.stringify({ success: true, payment_id: paymentRecordId }), { headers: { ...CORS, "Content-Type": "application/json" } });
   } catch (err: any) {
     console.error("[migma-payment-completed] Erro:", err);
     return new Response(JSON.stringify({ error: err.message }), { status: 500, headers: { ...CORS, "Content-Type": "application/json" } });

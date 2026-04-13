@@ -31,6 +31,7 @@ interface StudentProfile {
   service_type: string | null;
   num_dependents: number;
   total_price_usd: number | null;
+  migma_checkout_completed_at: string | null;
 }
 
 interface StudentAuthContextType {

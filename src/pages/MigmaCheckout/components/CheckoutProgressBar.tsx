@@ -9,14 +9,16 @@ interface Props {
 }
 
 const STEPS = [
-  { num: 1 as CheckoutStep, label: 'Info & Payment' },
-  { num: 2 as CheckoutStep, label: 'Documents & Identity' },
+  { num: 1 as CheckoutStep, label: 'Info & Pagamento' },
+  { num: 2 as CheckoutStep, label: 'Documentação' },
+  { num: 3 as CheckoutStep, label: 'Resumo' },
 ];
 
 export const CheckoutProgressBar: React.FC<Props> = ({ currentStep, step1Completed, step2Completed }) => {
   const isCompleted = (step: CheckoutStep) => {
     if (step === 1) return step1Completed;
     if (step === 2) return step2Completed;
+    if (step === 3) return currentStep > 3; // O passo 3 só marca como check se passar dele
     return false;
   };
 

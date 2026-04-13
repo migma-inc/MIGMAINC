@@ -74,6 +74,7 @@ export const useOnboardingProgress = () => {
       reinstatementFeePaid: userProfile?.has_paid_reinstatement_package || false,
       universityDocumentsUploaded: false,
       onboardingCompleted: userProfile?.onboarding_completed || false,
+      migmaCheckoutCompleted: !!userProfile?.migma_checkout_completed_at,
       isNewFlowUser: true, // Migma: sempre placement_fee_flow = true
     };
   });
@@ -198,18 +199,36 @@ export const useOnboardingProgress = () => {
       const onboardingCompleted = !!freshProfile.onboarding_completed;
       const isTransferInactive = freshProfile.student_process_type === 'transfer' && freshProfile.visa_transfer_active === false;
 
+      // Migma Logic: Se for Migma, precisa ter concluído o Step 3 para sair do selection_fee
+      const isMigma = freshProfile.source === 'migma';
+      const migmaCheckoutCompleted = !!freshProfile.migma_checkout_completed_at;
+
       // Calcula o step máximo permitido
       let maxAllowedStep: OnboardingStep = 'selection_fee';
-      if (!selectionFeePaid) maxAllowedStep = 'selection_fee';
-      else if (!identityVerified) maxAllowedStep = 'identity_verification';
-      else if (!selectionSurveyPassed) maxAllowedStep = 'selection_survey';
-      else if (!scholarshipsSelected) maxAllowedStep = 'scholarship_selection';
-      else if (!processTypeSelected) maxAllowedStep = 'process_type';
-      else if (!documentsUploaded) maxAllowedStep = 'documents_upload';
-      else if (!applicationFeePaid) maxAllowedStep = 'payment';
-      else if (!placementFeePaid) maxAllowedStep = 'placement_fee'; // Migma: sempre placement
-      else if (isTransferInactive && !reinstatementFeePaid) maxAllowedStep = 'reinstatement_fee';
-      else maxAllowedStep = 'my_applications';
+      
+      if (isMigma && !migmaCheckoutCompleted) {
+        maxAllowedStep = 'selection_fee';
+      } else if (!selectionFeePaid) {
+        maxAllowedStep = 'selection_fee';
+      } else if (!identityVerified) {
+        maxAllowedStep = 'identity_verification';
+      } else if (!selectionSurveyPassed) {
+        maxAllowedStep = 'selection_survey';
+      } else if (!scholarshipsSelected) {
+        maxAllowedStep = 'scholarship_selection';
+      } else if (!processTypeSelected) {
+        maxAllowedStep = 'process_type';
+      } else if (!documentsUploaded) {
+        maxAllowedStep = 'documents_upload';
+      } else if (!applicationFeePaid) {
+        maxAllowedStep = 'payment';
+      } else if (!placementFeePaid) {
+        maxAllowedStep = 'placement_fee';
+      } else if (isTransferInactive && !reinstatementFeePaid) {
+        maxAllowedStep = 'reinstatement_fee';
+      } else {
+        maxAllowedStep = 'my_applications';
+      }
 
       // Decisão final do step
       const uiStep = currentStepRef.current;
@@ -247,6 +266,7 @@ export const useOnboardingProgress = () => {
         reinstatementFeePaid,
         universityDocumentsUploaded: false,
         onboardingCompleted,
+        migmaCheckoutCompleted,
         isNewFlowUser,
       });
 

@@ -15,7 +15,7 @@ export interface PayerInfo {
   address_state?: string;
   address_complement?: string;
 }
-export type CheckoutStep = 1 | 2;
+export type CheckoutStep = 1 | 2 | 3;
 export type DocType = 'passport' | 'rg' | 'cnh';
 export type CivilStatus = 'single' | 'married' | 'divorced' | 'widowed';
 

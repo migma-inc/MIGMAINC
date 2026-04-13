@@ -3,7 +3,6 @@ import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { lazy, Suspense } from 'react';
 
 // Student flow (lazy loaded)
-const StudentRegistration = lazy(() => import('./pages/StudentRegistration'));
 const StudentOnboarding = lazy(() => import('./pages/StudentOnboarding/StudentOnboarding'));
 const StudentLogin = lazy(() => import('./pages/StudentLogin'));
 const MigmaCheckout = lazy(() => import('./pages/MigmaCheckout'));
@@ -191,9 +190,6 @@ function App() {
         } />
 
         {/* ── Student Flow ─────────────────────────────────────── */}
-        <Route path="/student/register" element={
-          <Suspense fallback={null}><StudentRegistration /></Suspense>
-        } />
         <Route path="/student/login" element={
           <Suspense fallback={null}><StudentLogin /></Suspense>
         } />
