@@ -622,9 +622,9 @@ export const VisaOrdersPage = () => {
   const [loading, setLoading] = useState(true);
   const [showHidden, setShowHidden] = useState(false);
   const [activeTab, setActiveTab] = useState<'real' | 'signatures'>('real');
-  const [searchTerm, setSearchTerm] = useState(() => searchParams.get('search') || '');
-  const [draftSearchTerm, setDraftSearchTerm] = useState(() => searchParams.get('search') || '');
-  const [appliedSearchTerm, setAppliedSearchTerm] = useState(() => searchParams.get('search') || '');
+  const initialSearch = searchParams.get('search') || '';
+  const [searchInput, setSearchInput] = useState(initialSearch);
+  const [searchTerm, setSearchTerm] = useState(initialSearch);
   const [isUpdating, setIsUpdating] = useState<string | null>(null);
   const [selectedPdfUrl, setSelectedPdfUrl] = useState<string | null>(null);
   const [selectedPdfTitle, setSelectedPdfTitle] = useState<string>('Contract PDF');
@@ -749,7 +749,7 @@ export const VisaOrdersPage = () => {
 
         while (true) {
           const { data, error } = await buildOrdersQuery({
-            search: appliedSearchTerm,
+            search: searchTerm,
             tab: activeTab,
           })
             .order('created_at', { ascending: false })
@@ -805,7 +805,7 @@ export const VisaOrdersPage = () => {
     };
 
     loadData();
-  }, [statusFilter, sellerFilter, methodFilter, appliedSearchTerm, currentPage, activeTab, showHidden]);
+  }, [statusFilter, sellerFilter, methodFilter, searchTerm, currentPage, activeTab, showHidden]);
 
   useEffect(() => {
     const totalPages = Math.max(1, Math.ceil(totalCount / itemsPerPage));
@@ -830,26 +830,36 @@ export const VisaOrdersPage = () => {
     }
   }, [sellersMap]);
 
-  const applySearch = () => {
-    const normalizedSearch = draftSearchTerm.trim();
-    setSearchTerm(normalizedSearch);
-    setAppliedSearchTerm(normalizedSearch);
-
-    const newParams = new URLSearchParams(searchParams);
-    if (normalizedSearch) {
-      newParams.set('search', normalizedSearch);
-    } else {
-      newParams.delete('search');
-    }
-    newParams.set('page', '1');
-    setSearchParams(newParams, { replace: true });
+  const handleSearchChange = (value: string) => {
+    setSearchInput(value);
   };
 
-  const clearSearchState = () => {
-    setDraftSearchTerm('');
-    setSearchTerm('');
-    setAppliedSearchTerm('');
-  };
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      const normalizedSearch = searchInput.trim();
+      setSearchTerm(normalizedSearch);
+
+      const currentSearchParam = searchParams.get('search') || '';
+      if (normalizedSearch === currentSearchParam) return;
+
+      const newParams = new URLSearchParams(searchParams);
+      if (normalizedSearch) {
+        newParams.set('search', normalizedSearch);
+      } else {
+        newParams.delete('search');
+      }
+      newParams.set('page', '1');
+      setSearchParams(newParams, { replace: true });
+    }, 300);
+
+    return () => clearTimeout(timeoutId);
+  }, [searchInput, searchParams, setSearchParams]);
+
+  useEffect(() => {
+    const urlSearch = searchParams.get('search') || '';
+    setSearchTerm(urlSearch);
+    setSearchInput(urlSearch);
+  }, [searchParams]);
 
   // Effect to sync search term with URL and reset page
   useEffect(() => {
@@ -884,7 +894,7 @@ export const VisaOrdersPage = () => {
 
       while (true) {
         const { data, error } = await buildOrdersQuery({
-          search: appliedSearchTerm,
+          search: searchTerm,
           exportFilterType: filterType,
           tab: activeTab,
         })
@@ -983,7 +993,7 @@ export const VisaOrdersPage = () => {
     }
   };
 
-  if (loading) {
+  if (loading && orders.length === 0) {
     return (
       <div className="p-4 sm:p-6 lg:p-8 space-y-8 animate-in fade-in duration-500">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4 sm:mb-8">
@@ -1062,39 +1072,23 @@ export const VisaOrdersPage = () => {
           <h1 className="text-2xl sm:text-3xl font-bold migma-gold-text">Visa Orders</h1>
 
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
-            <div className="flex w-full md:w-96 gap-2">
-              <div className="relative flex-1">
+            <div className="w-full md:w-96">
+              <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
               <Input
                 placeholder="Search by name, email, or order..."
                 className="pl-10 bg-black/50 border-gold-medium/30 text-white placeholder:text-gray-500"
-                value={draftSearchTerm}
-                onChange={(e) => setDraftSearchTerm(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    applySearch();
-                  }
-                }}
+                value={searchInput}
+                onChange={(e) => handleSearchChange(e.target.value)}
               />
               </div>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={applySearch}
-                className="border-gold-medium/30 bg-black/50 text-gold-light hover:bg-gold-medium/20"
-              >
-                Search
-              </Button>
             </div>
 
             <div className="w-full md:w-64">
               <Select
                 value={sellerFilter}
                 onValueChange={(val) => {
-                  clearSearchState();
                   const newParams = new URLSearchParams(searchParams);
-                  newParams.delete('search');
                   if (val === 'all') newParams.delete('seller');
                   else newParams.set('seller', val);
                   newParams.set('page', '1'); // Reset to page 1
@@ -1117,9 +1111,7 @@ export const VisaOrdersPage = () => {
               <Select
                 value={methodFilter}
                 onValueChange={(val) => {
-                  clearSearchState();
                   const newParams = new URLSearchParams(searchParams);
-                  newParams.delete('search');
                   if (val === 'all') newParams.delete('method');
                   else newParams.set('method', val);
                   newParams.set('page', '1'); // Reset to page 1
@@ -1197,10 +1189,8 @@ export const VisaOrdersPage = () => {
           onValueChange={(value) => {
             const nextTab = value as 'real' | 'signatures';
             setActiveTab(nextTab);
-            clearSearchState();
 
             const newParams = new URLSearchParams(searchParams);
-            newParams.delete('search');
             newParams.set('page', '1');
             setSearchParams(newParams, { replace: true });
           }}
@@ -1225,9 +1215,7 @@ export const VisaOrdersPage = () => {
                 variant="outline"
                 size="sm"
                 onClick={() => {
-                  clearSearchState();
                   const newParams = new URLSearchParams(searchParams);
-                  newParams.delete('search');
                   if (statusFilter === 'completed') newParams.delete('status');
                   else newParams.set('status', 'completed');
                   newParams.set('page', '1'); // Reset to page 1
@@ -1244,9 +1232,7 @@ export const VisaOrdersPage = () => {
                 variant="outline"
                 size="sm"
                 onClick={() => {
-                  clearSearchState();
                   const newParams = new URLSearchParams(searchParams);
-                  newParams.delete('search');
                   if (statusFilter === 'pending') newParams.delete('status');
                   else newParams.set('status', 'pending');
                   newParams.set('page', '1'); // Reset to page 1

@@ -14,7 +14,8 @@ import {
     Calendar,
     Image as ImageIcon,
     ExternalLink,
-    FileCheck
+    FileCheck,
+    Search
 } from 'lucide-react';
 import { approveVisaContract, rejectVisaContract } from '@/lib/visa-contracts';
 import { getCurrentUser } from '@/lib/auth';
@@ -30,6 +31,7 @@ import {
 } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Input } from '@/components/ui/input';
 
 const isLocal = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
 
@@ -91,6 +93,7 @@ export function VisaContractApprovalPage() {
     const [sellers, setSellers] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [statusFilter, setStatusFilter] = useState<'pending' | 'approved' | 'rejected' | 'all'>('pending');
+    const [searchTerm, setSearchTerm] = useState('');
     const [selectedPdfUrl, setSelectedPdfUrl] = useState<string | null>(null);
     const [selectedPdfTitle, setSelectedPdfTitle] = useState<string>('');
     const [selectedImageUrl, setSelectedImageUrl] = useState<string | null>(null);
@@ -237,6 +240,12 @@ export function VisaContractApprovalPage() {
         loadOrders();
     }, []);
 
+    const getProductName = (slug: string) => {
+        return products.find(p => p.slug === slug)?.name || slug;
+    };
+
+    const normalizedSearch = searchTerm.trim().toLowerCase();
+
     const filteredOrders = orders.filter(order => {
         if (statusFilter === 'all') return true;
 
@@ -256,6 +265,26 @@ export function VisaContractApprovalPage() {
             annexStatus === statusFilter ||
             upsellContractStatus === statusFilter ||
             upsellAnnexStatus === statusFilter;
+    }).filter(order => {
+        if (!normalizedSearch) return true;
+
+        const sellerName = sellers.find(s => s.seller_id_public === order.seller_id)?.full_name || '';
+        const productName = getProductName(order.product_slug);
+        const upsellProductName = order.upsell_product_slug ? getProductName(order.upsell_product_slug) : '';
+
+        const haystack = [
+            order.client_name,
+            order.client_email,
+            order.order_number,
+            order.product_slug,
+            productName,
+            order.upsell_product_slug || '',
+            upsellProductName,
+            order.seller_id || '',
+            sellerName,
+        ].join(' ').toLowerCase();
+
+        return haystack.includes(normalizedSearch);
     });
 
     const handleApprove = (id: string, type: 'contract' | 'annex' | 'upsell_contract' | 'upsell_annex') => {
@@ -267,10 +296,6 @@ export function VisaContractApprovalPage() {
         setPendingItem({ id, type });
         setRejectionReason('');
         setShowRejectPrompt(true);
-    };
-
-    const getProductName = (slug: string) => {
-        return products.find(p => p.slug === slug)?.name || slug;
     };
 
     const confirmApprove = async () => {
@@ -552,9 +577,20 @@ export function VisaContractApprovalPage() {
 
     return (
         <div className="p-4 sm:p-6 lg:p-8">
-            <div className="mb-8">
-                <h1 className="text-2xl sm:text-3xl font-bold migma-gold-text mb-2">Visa Contract Approvals</h1>
-                <p className="text-gray-400">Independently review and approve main contracts and service annexes.</p>
+            <div className="mb-8 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+                <div>
+                    <h1 className="text-2xl sm:text-3xl font-bold migma-gold-text mb-2">Visa Contract Approvals</h1>
+                    <p className="text-gray-400">Independently review and approve main contracts and service annexes.</p>
+                </div>
+                <div className="relative w-full lg:max-w-sm">
+                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500" />
+                    <Input
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        placeholder="Buscar cliente, e-mail, pedido, vendedor..."
+                        className="border-gold-medium/30 bg-black/40 pl-10 text-white placeholder:text-gray-500"
+                    />
+                </div>
             </div>
 
             <Tabs value={statusFilter} onValueChange={(v) => setStatusFilter(v as any)} className="mb-6">
