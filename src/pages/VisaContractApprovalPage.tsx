@@ -74,6 +74,7 @@ interface IdentityFile {
     service_request_id: string;
     file_type: string;
     file_path: string;
+    file_size?: number | null;
 }
 
 const APPROVAL_STATUS_COLUMN = {
@@ -300,9 +301,12 @@ export function VisaContractApprovalPage() {
     const ImageWithSkeleton = ({ src, alt, className }: { src: string, alt: string, className: string }) => {
         const [isLoaded, setIsLoaded] = useState(false);
         const [resolvedUrl, setResolvedUrl] = useState<string | null>(null);
+        const [hasError, setHasError] = useState(false);
 
         useEffect(() => {
             const resolve = async () => {
+                setHasError(false);
+                setIsLoaded(false);
                 const url = await getSecureUrl(src);
                 setResolvedUrl(url);
             };
@@ -311,6 +315,14 @@ export function VisaContractApprovalPage() {
 
         if (!resolvedUrl) {
             return <Skeleton className={cn("w-full h-full", className)} />;
+        }
+
+        if (hasError) {
+            return (
+                <div className={cn("flex h-full w-full items-center justify-center bg-black/70 p-2 text-center text-[11px] text-red-300", className)}>
+                    Failed to load image
+                </div>
+            );
         }
 
         return (
@@ -326,6 +338,7 @@ export function VisaContractApprovalPage() {
                         isLoaded ? "opacity-100" : "opacity-0"
                     )}
                     onLoad={() => setIsLoaded(true)}
+                    onError={() => setHasError(true)}
                 />
             </div>
         );
@@ -467,6 +480,10 @@ export function VisaContractApprovalPage() {
         // ou se passarmos apenas o path (ele tenta adivinhar).
         // Aqui os arquivos de identidade costumam estar no bucket 'identity-photos'
         return `identity-photos/${file.file_path}`;
+    };
+
+    const isRenderableIdentityFile = (file: IdentityFile) => {
+        return !!file.file_path && (file.file_size == null || file.file_size > 0);
     };
 
     if (loading) {
@@ -620,26 +637,35 @@ export function VisaContractApprovalPage() {
                                             <div className="flex flex-wrap gap-2">
                                                 {(() => {
                                                     const idFileList = order.service_request_id ? (idFiles[order.service_request_id] || []) : [];
+                                                    const validIdFiles = idFileList.filter(isRenderableIdentityFile);
+                                                    const invalidIdFiles = idFileList.filter(file => !isRenderableIdentityFile(file));
                                                     // Fallback: usar contract_document_url e contract_selfie_url direto do order (MigmaCheckout)
                                                     const fallbackPhotos: Array<{ url: string; label: string }> = [];
-                                                    if (idFileList.length === 0) {
+                                                    if (validIdFiles.length === 0) {
                                                         if (order.contract_document_url) fallbackPhotos.push({ url: order.contract_document_url, label: 'Doc Front' });
                                                         if (order.contract_document_back_url) fallbackPhotos.push({ url: order.contract_document_back_url, label: 'Doc Back' });
                                                         if (order.contract_selfie_url) fallbackPhotos.push({ url: order.contract_selfie_url, label: 'Selfie' });
                                                     }
 
-                                                    if (idFileList.length > 0) {
-                                                        return idFileList.map(file => (
+                                                    if (validIdFiles.length > 0 || invalidIdFiles.length > 0) {
+                                                        return [...validIdFiles, ...invalidIdFiles].map(file => (
                                                             <div
                                                                 key={file.id}
                                                                 onClick={async () => {
+                                                                    if (!isRenderableIdentityFile(file)) return;
                                                                     const secureUrl = await getSecureUrl(getDocumentUrl(file));
                                                                     setSelectedImageUrl(secureUrl);
                                                                     setSelectedImageTitle(`${file.file_type.replace('_', ' ').toUpperCase()} - ${order.client_name}`);
                                                                 }}
                                                                 className="group relative cursor-pointer w-28 h-28 sm:w-32 sm:h-32 rounded-lg overflow-hidden border border-gold-medium/30 bg-black/50 hover:border-gold-medium transition-all hover:scale-105 duration-300 shadow-lg shadow-black/50"
                                                             >
-                                                                <ImageWithSkeleton src={getDocumentUrl(file)} alt={file.file_type} className="w-full h-full" />
+                                                                {isRenderableIdentityFile(file) ? (
+                                                                    <ImageWithSkeleton src={getDocumentUrl(file)} alt={file.file_type} className="w-full h-full" />
+                                                                ) : (
+                                                                    <div className="flex h-full w-full items-center justify-center bg-black/80 p-2 text-center text-[11px] text-red-300">
+                                                                        Invalid file
+                                                                    </div>
+                                                                )}
                                                                 <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
                                                                     <ImageIcon className="w-6 h-6 text-white" />
                                                                 </div>
