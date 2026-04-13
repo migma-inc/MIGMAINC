@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
-import { FileText, ClipboardList, LayoutDashboard, Phone, ShoppingCart, DollarSign, UserCircle2, Mail, FileCode, Calendar, X, Activity, Ticket, LinkIcon, ChevronDown, ChevronRight, GraduationCap, UserPlus, Crown, Plus } from 'lucide-react';
+import { FileText, ClipboardList, LayoutDashboard, Phone, ShoppingCart, DollarSign, UserCircle2, UserRound, Mail, FileCode, Calendar, X, Activity, Ticket, LinkIcon, ChevronDown, ChevronRight, GraduationCap, UserPlus, Crown, Plus, Users } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useState, useEffect } from 'react';
 
@@ -57,6 +57,10 @@ export function Sidebar({ className, isMobileOpen = false, onMobileClose }: Side
   const [isLinksOpen, setIsLinksOpen] = useState(
     location.pathname.includes('/dashboard/links') || location.pathname.includes('/dashboard/create-service') || location.pathname.includes('/dashboard/tracking')
   );
+  const [isCrmOpen, setIsCrmOpen] = useState(
+    location.pathname.includes('/dashboard/users') ||
+    location.pathname.includes('/dashboard/crm')
+  );
 
   const [counts, setCounts] = useState<{
     applications: number;
@@ -65,13 +69,15 @@ export function Sidebar({ className, isMobileOpen = false, onMobileClose }: Side
     zelle: number;
     orphanSales: number;
     tracking: number;
+    users: number;
   }>({
     applications: 0,
     partnerContracts: 0,
     visaApprovals: 0,
     zelle: 0,
     orphanSales: 0,
-    tracking: 0
+    tracking: 0,
+    users: 0
   });
 
   const loadCounts = async () => {
@@ -150,13 +156,19 @@ export function Sidebar({ className, isMobileOpen = false, onMobileClose }: Side
         .eq('payment_status', 'completed')
         .or('seller_id.is.null,seller_id.eq.""');
 
+      const { count: usersCount } = await supabase
+        .from('user_profiles')
+        .select('*', { count: 'exact', head: true })
+        .eq('source', 'migma');
+
       setCounts({
         applications: appCount || 0,
         partnerContracts: partnerCount || 0,
         visaApprovals: visaApprovalsCount,
         zelle: unifiedPendingKeys.size,
         orphanSales: orphanCount || 0,
-        tracking: 0
+        tracking: 0,
+        users: usersCount || 0
       });
     } catch (err) {
       console.error('Error loading sidebar counts:', err);
@@ -198,7 +210,83 @@ export function Sidebar({ className, isMobileOpen = false, onMobileClose }: Side
         
         {/* NEW Tracking item below Zelle */}
         <SidebarItem icon={Activity} label="Payment Tracking" to="/dashboard/tracking" count={counts.tracking} onClick={onMobileClose} />
-        
+
+        <div className="space-y-1">
+          <button
+            onClick={() => setIsCrmOpen(!isCrmOpen)}
+            className={cn(
+              'w-full flex items-center justify-between px-4 py-3 rounded-lg transition-colors group border border-transparent',
+              (location.pathname.includes('/dashboard/users') || location.pathname.includes('/dashboard/crm'))
+                ? 'bg-gold-medium/5 text-gold-light font-medium'
+                : 'text-gray-400 hover:bg-gold-medium/10 hover:text-gold-light'
+            )}
+          >
+            <div className="flex items-center gap-3">
+              <Users className="w-5 h-5" />
+              <span>CRM</span>
+            </div>
+            <div className="flex items-center gap-2">
+              {counts.users > 0 && (
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold min-w-[1.25rem] text-center bg-gold-medium/20 text-gold-light">
+                  {counts.users}
+                </span>
+              )}
+              {isCrmOpen ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+            </div>
+          </button>
+
+          {isCrmOpen && (
+            <div className="pl-6 space-y-1 mt-1">
+              <Link
+                to="/dashboard/users"
+                onClick={onMobileClose}
+                className={cn(
+                  'flex items-center justify-between gap-3 px-4 py-2 rounded-lg text-sm transition-colors',
+                  location.pathname === '/dashboard/users'
+                    ? 'text-gold-light font-medium'
+                    : 'text-gray-500 hover:text-gold-light'
+                )}
+              >
+                <div className="flex items-center gap-3">
+                  <UserRound className="w-4 h-4" />
+                  <span>All</span>
+                </div>
+                {counts.users > 0 && (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold min-w-[1.25rem] text-center bg-gold-medium/20 text-gold-light">
+                    {counts.users}
+                  </span>
+                )}
+              </Link>
+              <Link
+                to="/dashboard/crm/cos"
+                onClick={onMobileClose}
+                className={cn(
+                  'flex items-center gap-3 px-4 py-2 rounded-lg text-sm transition-colors',
+                  location.pathname === '/dashboard/crm/cos'
+                    ? 'text-gold-light font-medium'
+                    : 'text-gray-500 hover:text-gold-light'
+                )}
+              >
+                <UserRound className="w-4 h-4" />
+                <span>COS</span>
+              </Link>
+              <Link
+                to="/dashboard/crm/transfer"
+                onClick={onMobileClose}
+                className={cn(
+                  'flex items-center gap-3 px-4 py-2 rounded-lg text-sm transition-colors',
+                  location.pathname === '/dashboard/crm/transfer'
+                    ? 'text-gold-light font-medium'
+                    : 'text-gray-500 hover:text-gold-light'
+                )}
+              >
+                <UserRound className="w-4 h-4" />
+                <span>Transfer</span>
+              </Link>
+            </div>
+          )}
+        </div>
+
         <SidebarItem icon={FileText} label="Client Contract Approval" to="/dashboard/visa-contract-approval" count={counts.visaApprovals} onClick={onMobileClose} />
 
         <div className="space-y-1">

@@ -6,6 +6,7 @@ import { lazy, Suspense } from 'react';
 const StudentOnboarding = lazy(() => import('./pages/StudentOnboarding/StudentOnboarding'));
 const StudentLogin = lazy(() => import('./pages/StudentLogin'));
 const MigmaCheckout = lazy(() => import('./pages/MigmaCheckout'));
+const MigmaSurvey = lazy(() => import('./pages/MigmaSurvey'));
 import { Home } from './pages/Home';
 import { Services } from './pages/Services';
 import { About } from './pages/About';
@@ -83,6 +84,10 @@ import { EB2RecurringDetail } from './pages/admin/EB2RecurringDetail';
 import { AdminSyncSales } from './pages/admin/AdminSyncSales';
 import { CreateServiceLink } from './pages/admin/CreateServiceLink';
 import { AdminTracking } from './pages/admin/AdminTracking';
+import { AdminUsers } from './pages/admin/AdminUsers';
+import { AdminCrmCos } from './pages/admin/AdminCrmCos';
+import { AdminCrmTransfer } from './pages/admin/AdminCrmTransfer';
+import { AdminUserDetail } from './pages/admin/AdminUserDetail';
 import { EB3InstallmentCheckout } from './pages/EB3InstallmentCheckout';
 import { NotFound } from './pages/NotFound';
 
@@ -179,6 +184,10 @@ function App() {
           <Route path="send-existing-contracts" element={<SendExistingContracts />} />
           <Route path="links" element={<SellerLinks />} />
           <Route path="create-service" element={<CreateServiceLink />} />
+          <Route path="users" element={<AdminUsers />} />
+          <Route path="users/:profileId" element={<AdminUserDetail />} />
+          <Route path="crm/cos" element={<AdminCrmCos />} />
+          <Route path="crm/transfer" element={<AdminCrmTransfer />} />
           <Route path="tracking" element={<AdminTracking />} />
           <Route path="coupons" element={<CouponManagement />} />
           <Route path="sync-sales" element={<AdminRoute><AdminSyncSales /></AdminRoute>} />
@@ -187,6 +196,11 @@ function App() {
         {/* ── Migma Checkout (URL determina serviço) ────────────── */}
         <Route path="/student/checkout/:service" element={
           <Suspense fallback={null}><MigmaCheckout /></Suspense>
+        } />
+
+        {/* ── Questionário pós-checkout (v7) ───────────────────── */}
+        <Route path="/student/survey/:service" element={
+          <Suspense fallback={null}><MigmaSurvey /></Suspense>
         } />
 
         {/* ── Student Flow ─────────────────────────────────────── */}

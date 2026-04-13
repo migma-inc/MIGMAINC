@@ -4,6 +4,7 @@ import Stripe from "npm:stripe@^17.3.1";
 import {
   appendServiceRequestEvent,
   ensureOperationalCaseInitialized,
+  syncMigmaUserProfile,
 } from "../shared/service-request-operational.ts";
 
 // Get all available webhook secrets (inline)
@@ -45,6 +46,25 @@ const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, stripe-signature",
 };
+
+function getSupabaseConfig() {
+  const supabaseUrl =
+    Deno.env.get("MIGMA_REMOTE_URL") ||
+    Deno.env.get("REMOTE_SUPABASE_URL") ||
+    Deno.env.get("SUPABASE_URL") ||
+    "";
+  const supabaseServiceKey =
+    Deno.env.get("MIGMA_REMOTE_SERVICE_ROLE_KEY") ||
+    Deno.env.get("REMOTE_SUPABASE_SERVICE_ROLE_KEY") ||
+    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ||
+    "";
+
+  if (!supabaseUrl || !supabaseServiceKey) {
+    throw new Error("Missing Supabase runtime configuration");
+  }
+
+  return { supabaseUrl, supabaseServiceKey };
+}
 
 /**
  * Unified processing for successful checkout sessions
@@ -148,6 +168,17 @@ async function processSuccessfulSession(session: Stripe.Checkout.Session, supaba
         stripe_payment_intent_id: session.payment_intent as string || null,
       },
     );
+
+    // Sync MIGMA CRM profile
+    await syncMigmaUserProfile(supabase, {
+      email: mainOrder.client_email,
+      fullName: mainOrder.client_name || null,
+      phone: mainOrder.client_whatsapp || null,
+      productSlug: mainOrder.product_slug || null,
+      paymentMethod: mainOrder.payment_method || null,
+      totalPriceUsd: mainOrder.total_price_usd ?? null,
+    });
+
   }
 
   // 3. Track funnel event
@@ -166,6 +197,7 @@ async function processSuccessfulSession(session: Stripe.Checkout.Session, supaba
   // 4. 🔍 Test User Detection
   const isTestUser = mainOrder.client_email?.toLowerCase() === 'victuribdev@gmail.com' ||
     mainOrder.client_email?.toLowerCase() === 'victtinho.ribeiro@gmail.com' ||
+    mainOrder.client_email?.toLowerCase() === 'nemerfrancisco@gmail.com' ||
     mainOrder.client_name?.toLowerCase().includes('paulo victor') ||
     mainOrder.client_name?.toLowerCase().includes('paulo víctor') ||
     mainOrder.client_email?.toLowerCase().includes('@uorak');
@@ -285,8 +317,7 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const { supabaseUrl, supabaseServiceKey } = getSupabaseConfig();
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     const bodyArrayBuffer = await req.arrayBuffer();

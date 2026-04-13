@@ -14,7 +14,8 @@ import {
     Calendar,
     Image as ImageIcon,
     ExternalLink,
-    FileCheck
+    FileCheck,
+    Search
 } from 'lucide-react';
 import { approveVisaContract, rejectVisaContract } from '@/lib/visa-contracts';
 import { getCurrentUser } from '@/lib/auth';
@@ -30,6 +31,7 @@ import {
 } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Input } from '@/components/ui/input';
 
 const isLocal = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
 
@@ -74,6 +76,7 @@ interface IdentityFile {
     service_request_id: string;
     file_type: string;
     file_path: string;
+    file_size?: number | null;
 }
 
 const APPROVAL_STATUS_COLUMN = {
@@ -90,6 +93,7 @@ export function VisaContractApprovalPage() {
     const [sellers, setSellers] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [statusFilter, setStatusFilter] = useState<'pending' | 'approved' | 'rejected' | 'all'>('pending');
+    const [searchTerm, setSearchTerm] = useState('');
     const [selectedPdfUrl, setSelectedPdfUrl] = useState<string | null>(null);
     const [selectedPdfTitle, setSelectedPdfTitle] = useState<string>('');
     const [selectedImageUrl, setSelectedImageUrl] = useState<string | null>(null);
@@ -236,6 +240,12 @@ export function VisaContractApprovalPage() {
         loadOrders();
     }, []);
 
+    const getProductName = (slug: string) => {
+        return products.find(p => p.slug === slug)?.name || slug;
+    };
+
+    const normalizedSearch = searchTerm.trim().toLowerCase();
+
     const filteredOrders = orders.filter(order => {
         if (statusFilter === 'all') return true;
 
@@ -255,6 +265,26 @@ export function VisaContractApprovalPage() {
             annexStatus === statusFilter ||
             upsellContractStatus === statusFilter ||
             upsellAnnexStatus === statusFilter;
+    }).filter(order => {
+        if (!normalizedSearch) return true;
+
+        const sellerName = sellers.find(s => s.seller_id_public === order.seller_id)?.full_name || '';
+        const productName = getProductName(order.product_slug);
+        const upsellProductName = order.upsell_product_slug ? getProductName(order.upsell_product_slug) : '';
+
+        const haystack = [
+            order.client_name,
+            order.client_email,
+            order.order_number,
+            order.product_slug,
+            productName,
+            order.upsell_product_slug || '',
+            upsellProductName,
+            order.seller_id || '',
+            sellerName,
+        ].join(' ').toLowerCase();
+
+        return haystack.includes(normalizedSearch);
     });
 
     const handleApprove = (id: string, type: 'contract' | 'annex' | 'upsell_contract' | 'upsell_annex') => {
@@ -266,10 +296,6 @@ export function VisaContractApprovalPage() {
         setPendingItem({ id, type });
         setRejectionReason('');
         setShowRejectPrompt(true);
-    };
-
-    const getProductName = (slug: string) => {
-        return products.find(p => p.slug === slug)?.name || slug;
     };
 
     const confirmApprove = async () => {
@@ -300,9 +326,12 @@ export function VisaContractApprovalPage() {
     const ImageWithSkeleton = ({ src, alt, className }: { src: string, alt: string, className: string }) => {
         const [isLoaded, setIsLoaded] = useState(false);
         const [resolvedUrl, setResolvedUrl] = useState<string | null>(null);
+        const [hasError, setHasError] = useState(false);
 
         useEffect(() => {
             const resolve = async () => {
+                setHasError(false);
+                setIsLoaded(false);
                 const url = await getSecureUrl(src);
                 setResolvedUrl(url);
             };
@@ -311,6 +340,14 @@ export function VisaContractApprovalPage() {
 
         if (!resolvedUrl) {
             return <Skeleton className={cn("w-full h-full", className)} />;
+        }
+
+        if (hasError) {
+            return (
+                <div className={cn("flex h-full w-full items-center justify-center bg-black/70 p-2 text-center text-[11px] text-red-300", className)}>
+                    Failed to load image
+                </div>
+            );
         }
 
         return (
@@ -326,6 +363,7 @@ export function VisaContractApprovalPage() {
                         isLoaded ? "opacity-100" : "opacity-0"
                     )}
                     onLoad={() => setIsLoaded(true)}
+                    onError={() => setHasError(true)}
                 />
             </div>
         );
@@ -469,6 +507,10 @@ export function VisaContractApprovalPage() {
         return `identity-photos/${file.file_path}`;
     };
 
+    const isRenderableIdentityFile = (file: IdentityFile) => {
+        return !!file.file_path && (file.file_size == null || file.file_size > 0);
+    };
+
     if (loading) {
         return (
             <div className="p-4 sm:p-6 lg:p-8 space-y-8 animate-in fade-in duration-500">
@@ -535,9 +577,20 @@ export function VisaContractApprovalPage() {
 
     return (
         <div className="p-4 sm:p-6 lg:p-8">
-            <div className="mb-8">
-                <h1 className="text-2xl sm:text-3xl font-bold migma-gold-text mb-2">Visa Contract Approvals</h1>
-                <p className="text-gray-400">Independently review and approve main contracts and service annexes.</p>
+            <div className="mb-8 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+                <div>
+                    <h1 className="text-2xl sm:text-3xl font-bold migma-gold-text mb-2">Visa Contract Approvals</h1>
+                    <p className="text-gray-400">Independently review and approve main contracts and service annexes.</p>
+                </div>
+                <div className="relative w-full lg:max-w-sm">
+                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500" />
+                    <Input
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        placeholder="Buscar cliente, e-mail, pedido, vendedor..."
+                        className="border-gold-medium/30 bg-black/40 pl-10 text-white placeholder:text-gray-500"
+                    />
+                </div>
             </div>
 
             <Tabs value={statusFilter} onValueChange={(v) => setStatusFilter(v as any)} className="mb-6">
@@ -620,26 +673,35 @@ export function VisaContractApprovalPage() {
                                             <div className="flex flex-wrap gap-2">
                                                 {(() => {
                                                     const idFileList = order.service_request_id ? (idFiles[order.service_request_id] || []) : [];
+                                                    const validIdFiles = idFileList.filter(isRenderableIdentityFile);
+                                                    const invalidIdFiles = idFileList.filter(file => !isRenderableIdentityFile(file));
                                                     // Fallback: usar contract_document_url e contract_selfie_url direto do order (MigmaCheckout)
                                                     const fallbackPhotos: Array<{ url: string; label: string }> = [];
-                                                    if (idFileList.length === 0) {
+                                                    if (validIdFiles.length === 0) {
                                                         if (order.contract_document_url) fallbackPhotos.push({ url: order.contract_document_url, label: 'Doc Front' });
                                                         if (order.contract_document_back_url) fallbackPhotos.push({ url: order.contract_document_back_url, label: 'Doc Back' });
                                                         if (order.contract_selfie_url) fallbackPhotos.push({ url: order.contract_selfie_url, label: 'Selfie' });
                                                     }
 
-                                                    if (idFileList.length > 0) {
-                                                        return idFileList.map(file => (
+                                                    if (validIdFiles.length > 0 || invalidIdFiles.length > 0) {
+                                                        return [...validIdFiles, ...invalidIdFiles].map(file => (
                                                             <div
                                                                 key={file.id}
                                                                 onClick={async () => {
+                                                                    if (!isRenderableIdentityFile(file)) return;
                                                                     const secureUrl = await getSecureUrl(getDocumentUrl(file));
                                                                     setSelectedImageUrl(secureUrl);
                                                                     setSelectedImageTitle(`${file.file_type.replace('_', ' ').toUpperCase()} - ${order.client_name}`);
                                                                 }}
                                                                 className="group relative cursor-pointer w-28 h-28 sm:w-32 sm:h-32 rounded-lg overflow-hidden border border-gold-medium/30 bg-black/50 hover:border-gold-medium transition-all hover:scale-105 duration-300 shadow-lg shadow-black/50"
                                                             >
-                                                                <ImageWithSkeleton src={getDocumentUrl(file)} alt={file.file_type} className="w-full h-full" />
+                                                                {isRenderableIdentityFile(file) ? (
+                                                                    <ImageWithSkeleton src={getDocumentUrl(file)} alt={file.file_type} className="w-full h-full" />
+                                                                ) : (
+                                                                    <div className="flex h-full w-full items-center justify-center bg-black/80 p-2 text-center text-[11px] text-red-300">
+                                                                        Invalid file
+                                                                    </div>
+                                                                )}
                                                                 <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
                                                                     <ImageIcon className="w-6 h-6 text-white" />
                                                                 </div>

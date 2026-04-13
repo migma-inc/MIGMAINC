@@ -84,7 +84,7 @@ const MigmaCheckout: React.FC = () => {
     if (success === 'true') {
       handleVerifyAndAdvance();
       window.history.replaceState({}, '', window.location.pathname);
-      return; 
+      return;
     }
 
     if (stripeSessionId) {
@@ -102,7 +102,7 @@ const MigmaCheckout: React.FC = () => {
   const handleVerifyAndAdvance = async () => {
     setPaymentLoading(true);
     setProcessMessage('Verificando confirmação do pagamento...');
-    
+
     try {
       // Tentar verificar até 3 vezes com intervalo de 2 segundos (máximo 6 segundos de espera)
       for (let i = 0; i < 3; i++) {
@@ -129,14 +129,14 @@ const MigmaCheckout: React.FC = () => {
             return;
           }
         }
-        
-        console.log(`[MigmaCheckout] ⏳ Aguardando webhook (tentativa ${i+1}/3)...`);
+
+        console.log(`[MigmaCheckout] ⏳ Aguardando webhook (tentativa ${i + 1}/3)...`);
         await new Promise(r => setTimeout(r, 2000));
       }
 
       // Se após 3 tentativas ainda não confirmou, avisa o usuário mas mantém no Step 1
       alert('Seu pagamento está sendo processado. Você poderá continuar para o Passo 2 assim que recebermos a confirmação (isso geralmente leva alguns segundos).');
-      
+
     } catch (err) {
       console.error('Erro ao verificar pagamento:', err);
     } finally {
@@ -148,19 +148,19 @@ const MigmaCheckout: React.FC = () => {
     setProcessing(true);
     setProcessMessage('Finalizando seu processo...');
     setProgress(50);
-    
+
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (session?.user.id) {
         await supabase
           .from('user_profiles')
-          .update({ 
+          .update({
             migma_checkout_completed_at: new Date().toISOString(),
-            onboarding_current_step: 'selection_survey' 
+            onboarding_current_step: 'selection_survey'
           })
           .eq('user_id', session.user.id);
       }
-      
+
       setProgress(100);
       await refreshProfile(); // Importante: Garante que o contexto local seja atualizado antes de navegar
       navigate('/student/onboarding');
@@ -220,7 +220,7 @@ const MigmaCheckout: React.FC = () => {
 
     let draftLoaded = false;
     const draftRaw = localStorage.getItem(getDraftKey(service));
-    
+
     if (draftRaw) {
       try {
         const draft = JSON.parse(draftRaw);
@@ -267,7 +267,7 @@ const MigmaCheckout: React.FC = () => {
           currentStep: state.currentStep
         },
         step1Data,
-        step2Data: null 
+        step2Data: null
       }));
     }
   }, [state.step1Completed, state.step2Completed, state.userId, state.totalPrice, state.matriculaUserId, state.currentStep, step1Data, service]);
@@ -389,10 +389,10 @@ const MigmaCheckout: React.FC = () => {
       const userId = registeredUserId;
       // Para Parcelow precisamos do order_id de forma síncrona — usa o ref
       const orderId = orderIdRef.current;
-      
+
       setProgress(25);
       setProcessMessage('Salvando assinatura digital...');
-      
+
       if (data.signature_data_url && data.signature_data_url.startsWith('data:')) {
         const signatureBase64 = data.signature_data_url.split(',')[1];
         const binaryString = atob(signatureBase64);
@@ -447,9 +447,9 @@ const MigmaCheckout: React.FC = () => {
           user_id: userId,
           order_id: finalOrderId,
           payment_method: payment.method,
-          cpf: (payment.method === 'parcelow_card' && payment.cardOwnership === 'third_party') 
-                 ? payment.payerInfo?.cpf 
-                 : payment.cpf,
+          cpf: (payment.method === 'parcelow_card' && payment.cardOwnership === 'third_party')
+            ? payment.payerInfo?.cpf
+            : payment.cpf,
         });
 
         const parcelowResult = await matriculaApi.migmaParcelowCheckout({
@@ -462,15 +462,15 @@ const MigmaCheckout: React.FC = () => {
           service_type: service ?? 'transfer',
           service_request_id: state.serviceRequestId || undefined,
           origin: window.location.origin,
-          cpf: (payment.method === 'parcelow_card' && payment.cardOwnership === 'third_party') 
-                 ? payment.payerInfo?.cpf 
-                 : payment.cpf,
+          cpf: (payment.method === 'parcelow_card' && payment.cardOwnership === 'third_party')
+            ? payment.payerInfo?.cpf
+            : payment.cpf,
           card_ownership: payment.cardOwnership,
           payer_info: payment.payerInfo
         });
-        
+
         const finalUrl = parcelowResult.checkout_url || parcelowResult.url_checkout || parcelowResult.url;
-        
+
         if (finalUrl) {
           setProcessMessage('Redirecionando para a Parcelow...');
           setProgress(100);
@@ -505,7 +505,7 @@ const MigmaCheckout: React.FC = () => {
               processZellePaymentWithN8n(payment.receipt, total, config?.label || 'Migma Selection Fee', userId)
                 .then(nResult => {
                   supabase.from('migma_checkout_zelle_pending')
-                    .update({ 
+                    .update({
                       n8n_payment_id: nResult.paymentId,
                       image_path: nResult.imagePath,
                       receipt_url: nResult.imageUrl || receiptUrl
@@ -580,7 +580,7 @@ const MigmaCheckout: React.FC = () => {
         const { data: pub } = supabase.storage.from(bucket).getPublicUrl(u.name);
         return { type: u.type, file_url: pub.publicUrl, original_filename: u.file.name, file_size_bytes: u.file.size };
       }));
-      
+
       docsForApi.push(...results);
 
       if (docsForApi.length > 0) {
@@ -599,7 +599,7 @@ const MigmaCheckout: React.FC = () => {
           file_size: doc.file_size_bytes,
         }));
         await supabase.from('identity_files').insert(identityRows);
-        
+
         // 🚀 Marca identidate como verificada (enviada) para o fluxo Migma
         await supabase.from('user_profiles').update({ identity_verified: true }).eq('user_id', effectiveUserId);
       }
@@ -658,13 +658,11 @@ const MigmaCheckout: React.FC = () => {
         {state.currentStep <= 2 && (
           <>
             <section>
-              <div className={`rounded-2xl border-2 overflow-hidden ${
-                state.currentStep === 1 ? 'border-gold-medium/50 shadow-lg shadow-gold-medium/10' : state.step1Completed ? 'border-emerald-500/30' : 'border-white/5'
-              }`}>
+              <div className={`rounded-2xl border-2 overflow-hidden ${state.currentStep === 1 ? 'border-gold-medium/50 shadow-lg shadow-gold-medium/10' : state.step1Completed ? 'border-emerald-500/30' : 'border-white/5'
+                }`}>
                 <div className={`px-6 py-4 flex items-center gap-3 ${state.currentStep === 1 ? 'bg-gold-dark/20' : 'bg-[#111]'}`}>
-                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold border-2 ${
-                    state.step1Completed ? 'bg-emerald-500 border-emerald-500 text-white' : state.currentStep === 1 ? 'bg-gold-medium border-gold-medium text-black' : 'bg-[#111] border-white/20 text-gray-500'
-                  }`}>
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold border-2 ${state.step1Completed ? 'bg-emerald-500 border-emerald-500 text-white' : state.currentStep === 1 ? 'bg-gold-medium border-gold-medium text-black' : 'bg-[#111] border-white/20 text-gray-500'
+                    }`}>
                     {state.step1Completed ? '✓' : '1'}
                   </div>
                   <div>
@@ -706,13 +704,11 @@ const MigmaCheckout: React.FC = () => {
 
             {(state.step1Completed || state.currentStep >= 2) && (
               <section>
-                <div className={`rounded-2xl border-2 overflow-hidden ${
-                  state.currentStep === 2 ? 'border-gold-medium/50 shadow-lg shadow-gold-medium/10' : 'border-white/5'
-                }`}>
+                <div className={`rounded-2xl border-2 overflow-hidden ${state.currentStep === 2 ? 'border-gold-medium/50 shadow-lg shadow-gold-medium/10' : 'border-white/5'
+                  }`}>
                   <div className={`px-6 py-4 flex items-center gap-3 ${state.currentStep === 2 ? 'bg-gold-dark/20' : 'bg-[#111]'}`}>
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold border-2 ${
-                      state.currentStep === 2 ? 'bg-gold-medium border-gold-medium text-black' : 'bg-[#111] border-white/20 text-gray-500'
-                    }`}>2</div>
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold border-2 ${state.currentStep === 2 ? 'bg-gold-medium border-gold-medium text-black' : 'bg-[#111] border-white/20 text-gray-500'
+                      }`}>2</div>
                     <div>
                       <p className={`font-bold text-sm ${state.currentStep === 2 ? 'text-gold-light' : 'text-gray-500'}`}>{t('migma_checkout.index.step2_title', 'Documentação')}</p>
                     </div>
@@ -734,23 +730,23 @@ const MigmaCheckout: React.FC = () => {
         )}
 
         {state.currentStep === 3 && (
-          <Step3Summary 
+          <Step3Summary
             userData={{
               fullName: step1Data?.full_name || '',
               email: step1Data?.email || '',
-              processType: (state.dbServiceType === 'cos' || service === 'cos') ? 'Change of Status' : 
-                          (state.dbServiceType === 'transfer' || service === 'transfer') ? 'Visa Transfer' : 
-                          config?.label || 'F1 Visa',
+              processType: (state.dbServiceType === 'cos' || service === 'cos') ? 'Change of Status' :
+                (state.dbServiceType === 'transfer' || service === 'transfer') ? 'Visa Transfer' :
+                  config?.label || 'F1 Visa',
               totalPrice: state.totalPrice
             }}
             onFinish={handleFinalFinish}
           />
         )}
       </main>
-      <ProcessingModal 
-        isOpen={processing} 
-        progress={progress} 
-        message={processMessage} 
+      <ProcessingModal
+        isOpen={processing}
+        progress={progress}
+        message={processMessage}
       />
     </div>
   );

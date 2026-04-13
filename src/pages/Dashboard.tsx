@@ -180,9 +180,12 @@ function DashboardLayout() {
                   <Menu className="w-5 h-5" />
                 </Button>
                 <div>
-                  <h1 className="text-xl sm:text-2xl font-bold migma-gold-text">MIGMA Admin Dashboard</h1>
+                  <h1 className="text-xl sm:text-2xl font-bold migma-gold-text">
+                    <span className="inline sm:hidden">MIGMA Dash</span>
+                    <span className="hidden sm:inline">MIGMA Admin Dashboard</span>
+                  </h1>
                   {user && (
-                    <p className="text-xs sm:text-sm text-gray-400 truncate max-w-[200px] sm:max-w-none">Logged in as {user.email}</p>
+                    <p className="text-[10px] sm:text-sm text-gray-400 truncate max-w-[150px] sm:max-w-none">Logged in as {user.email}</p>
                   )}
                 </div>
               </div>

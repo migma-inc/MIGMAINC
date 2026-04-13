@@ -189,6 +189,19 @@ export async function saveStep2Data(
     return { success: false, error: 'Please upload all required documents (front, back, and selfie)' };
   }
 
+  const hasEmptyFile = [
+    documentFiles.documentFront.file,
+    documentFiles.documentBack.file,
+    documentFiles.selfie.file,
+  ].some(file => file.size <= 0);
+
+  if (hasEmptyFile) {
+    return {
+      success: false,
+      error: 'One or more uploaded files are empty. Please re-upload the documents before continuing.'
+    };
+  }
+
   try {
     const clientIP = await getClientIP();
     const userAgent = getUserAgent();
