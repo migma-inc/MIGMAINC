@@ -173,7 +173,7 @@ function OverviewTab({
   onAssignToMe: () => void;
   onArchive: () => void;
 }) {
-  const { profile, primaryRequest, primaryOrder, operationalStage, stageHistory } = detail;
+  const { profile, primaryRequest, primaryOrder, operationalStage, stageHistory, userIdentity } = detail;
 
   return (
     <div className="grid grid-cols-1 xl:grid-cols-3 gap-5">
@@ -197,6 +197,31 @@ function OverviewTab({
             <InfoRow label="Total Paid" value={formatCurrency(profile.total_price_usd)} />
             <InfoRow label="Status" value={toLabel(profile.status)} />
           </div>
+        </SectionCard>
+
+        {/* Personal Data — user_identity */}
+        <SectionCard title="Personal Data" icon={MapPin}>
+          {userIdentity ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8">
+              <InfoRow label="Birth Date" value={userIdentity.birth_date ? new Date(userIdentity.birth_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'} />
+              <InfoRow label="Marital Status" value={toLabel(userIdentity.marital_status)} />
+              <InfoRow label="Document Type" value={toLabel(userIdentity.document_type)} />
+              <InfoRow label="Document Number" value={userIdentity.document_number} />
+              <InfoRow label="Nationality" value={userIdentity.nationality} />
+              <InfoRow label="Country" value={userIdentity.country} />
+              <InfoRow label="Address" value={userIdentity.address} />
+              <InfoRow label="City" value={userIdentity.city} />
+              <InfoRow label="State" value={userIdentity.state} />
+              <InfoRow label="Zip Code" value={userIdentity.zip_code} />
+              <InfoRow label="Last Updated" value={fmtDate(userIdentity.updated_at)} />
+            </div>
+          ) : (
+            <p className="text-gray-500 text-sm italic">
+              {profile.identity_verified
+                ? 'Identity verified but data not found.'
+                : 'Student has not completed the personal data step yet.'}
+            </p>
+          )}
         </SectionCard>
 
         {/* Service Request */}
@@ -548,29 +573,36 @@ function buildVisaOrderDocuments(orders: CrmVisaOrder[]): VisaOrderDocument[] {
 function DocumentsTab({
   files,
   srDocuments,
+  studentDocuments,
   orderDocuments,
 }: {
   files: CrmIdentityFile[];
   srDocuments: CrmDocument[];
+  studentDocuments: CaseDetailPage['studentDocuments'];
   orderDocuments: VisaOrderDocument[];
 }) {
   const [resolvedUrls, setResolvedUrls] = useState<Record<string, string>>({});
   const [loadingUrls, setLoadingUrls] = useState(true);
 
   useEffect(() => {
-    if (files.length === 0) { setLoadingUrls(false); return; }
+    if (files.length === 0 && studentDocuments.length === 0) { setLoadingUrls(false); return; }
     (async () => {
       const resolved: Record<string, string> = {};
       for (const f of files) {
         const url = await getSecureUrl(f.file_path);
         if (url) resolved[f.id] = url;
       }
+      for (const doc of studentDocuments) {
+        if (!doc.file_url) continue;
+        const url = await getSecureUrl(doc.file_url);
+        if (url) resolved[doc.id] = url;
+      }
       setResolvedUrls(resolved);
       setLoadingUrls(false);
     })();
-  }, [files]);
+  }, [files, studentDocuments]);
 
-  const hasAnything = files.length > 0 || srDocuments.length > 0 || orderDocuments.length > 0;
+  const hasAnything = files.length > 0 || srDocuments.length > 0 || studentDocuments.length > 0 || orderDocuments.length > 0;
   if (!hasAnything) {
     return <EmptyState icon={Image} message="No documents found for this case." />;
   }
@@ -648,6 +680,45 @@ function DocumentsTab({
                   {doc.storage_url && (
                     <a
                       href={doc.storage_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="shrink-0 text-[10px] font-black uppercase tracking-widest text-gold-light hover:text-gold-medium border border-white/10 rounded px-3 py-1.5 hover:bg-white/5 transition-colors"
+                    >
+                      Open
+                    </a>
+                  )}
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Student onboarding documents */}
+      {studentDocuments.length > 0 && (
+        <div>
+          <div className="text-xs text-gray-500 uppercase tracking-widest font-bold mb-3">Student Onboarding Documents</div>
+          <div className="space-y-2">
+            {studentDocuments.map((doc) => (
+              <Card key={doc.id} className="bg-black/30 border border-white/5">
+                <CardContent className="p-4 flex items-center justify-between gap-4">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-xs font-bold text-white">
+                        {(DOC_TYPE_LABELS[doc.type ?? ''] ?? toLabel(doc.type)) || 'Document'}
+                      </span>
+                      <span className="text-[9px] text-gray-600 uppercase tracking-wider">student onboarding</span>
+                    </div>
+                    {doc.original_filename && (
+                      <p className="text-[10px] font-mono text-gray-500 truncate">{doc.original_filename}</p>
+                    )}
+                    <p className="text-[10px] text-gray-600 mt-1 uppercase tracking-wider">
+                      Uploaded {timeAgo(doc.uploaded_at)}
+                    </p>
+                  </div>
+                  {resolvedUrls[doc.id] && (
+                    <a
+                      href={resolvedUrls[doc.id]}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="shrink-0 text-[10px] font-black uppercase tracking-widest text-gold-light hover:text-gold-medium border border-white/10 rounded px-3 py-1.5 hover:bg-white/5 transition-colors"
@@ -1063,6 +1134,7 @@ const DOC_TYPE_LABELS: Record<string, string> = {
   diploma: 'High School / College Diploma',
   transcript: 'Official Transcript',
   proof_of_funds: 'Proof of Funds',
+  funds_proof: 'Proof of Funds',
   i94: 'I-94',
   visa: 'Current Visa',
   other: 'Other',
@@ -1242,9 +1314,9 @@ function buildJourneyMilestones(
   for (const doc of studentDocuments) {
     milestones.push({
       id: `doc-${doc.id}`,
-      label: DOC_TYPE_LABELS[doc.document_type ?? ''] ?? toLabel(doc.document_type),
-      sublabel: doc.original_name ?? undefined,
-      ts: doc.created_at,
+      label: DOC_TYPE_LABELS[doc.type ?? ''] ?? toLabel(doc.type),
+      sublabel: doc.original_filename ?? undefined,
+      ts: doc.uploaded_at,
       kind: 'document',
     });
   }
@@ -1538,6 +1610,7 @@ export function AdminUserDetail() {
           <DocumentsTab
             files={detail.identityFiles}
             srDocuments={detail.srDocuments}
+            studentDocuments={detail.studentDocuments}
             orderDocuments={orderDocuments}
           />
         )}

@@ -14,7 +14,7 @@ const STEPS: { key: OnboardingStep; label: string }[] = [
 ];
 
 const STEP_ALIAS: Partial<Record<OnboardingStep, OnboardingStep>> = {
-  process_type:      'scholarship_selection',
+  process_type:      'documents_upload',
   reinstatement_fee: 'placement_fee',
   completed:         'my_applications',
 };

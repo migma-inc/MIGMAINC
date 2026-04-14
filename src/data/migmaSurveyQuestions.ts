@@ -34,6 +34,10 @@ export interface SurveyQuestion {
   prefillFrom?: 'full_name' | 'email';
   /** Correct answer value(s) — for Seções D and E (quiz-style) */
   correct?: string;
+  /** Informational description shown below the label */
+  description?: string;
+  /** Critical warning shown highlighted below the input */
+  warning?: string;
 }
 
 export interface SurveySection {

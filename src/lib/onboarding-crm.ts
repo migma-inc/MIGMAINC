@@ -51,6 +51,7 @@ export interface CrmProfile {
   cos_i94_expiry_date: string | null;
   // Survey tracking
   selection_survey_completed_at: string | null;
+  identity_verified: boolean | null;
   updated_at: string | null;
   created_at: string | null;
 }
@@ -331,7 +332,7 @@ export async function loadOnboardingBoard(productLine?: 'cos' | 'transfer'): Pro
       student_process_type, num_dependents, selection_process_fee_payment_method,
       signature_url, migma_seller_id, migma_agent_id, matricula_user_id, onboarding_email_status,
       transfer_deadline_date, cos_i94_expiry_date, selection_survey_completed_at,
-      updated_at, created_at
+      identity_verified, updated_at, created_at
     `)
     .eq('source', 'migma')
     .order('updated_at', { ascending: false });
@@ -461,8 +462,14 @@ export async function loadOnboardingBoard(productLine?: 'cos' | 'transfer'): Pro
         operationalStage: deriveOperationalStage(profile, sr, order),
       };
     })
-    // When filtering by product line, only show profiles that have a matching order
-    .filter((c) => !productLine || c.visaOrder !== null);
+    // When filtering by product line, match against profile service_type or student_process_type
+    // (service_type may be compound like 'cos-selection-process' → normalize prefix)
+    .filter((c) => {
+      if (!productLine) return true;
+      const st = c.profile.service_type ?? '';
+      const pt = c.profile.student_process_type ?? '';
+      return st === productLine || st.startsWith(productLine + '-') || pt === productLine;
+    });
 
   return { cases, error: null };
 }
@@ -733,7 +740,8 @@ export interface CrmDocument {
 
 export interface CrmMessage {
   id: string;
-  service_request_id: string;
+  service_request_id: string | null;
+  profile_id: string | null;
   direction: 'inbound' | 'outbound';
   channel: string;
   provider: string | null;
@@ -773,10 +781,26 @@ export interface CrmSurveyResponse {
 export interface CrmStudentDocument {
   id: string;
   user_id: string | null;
+  type: string | null;
+  file_url: string | null;
+  original_filename: string | null;
+  uploaded_at: string | null;
+}
+
+export interface CrmUserIdentity {
+  id: string;
+  user_id: string | null;
+  birth_date: string | null;
   document_type: string | null;
-  file_path: string | null;
-  original_name: string | null;
-  created_at: string | null;
+  document_number: string | null;
+  address: string | null;
+  city: string | null;
+  state: string | null;
+  zip_code: string | null;
+  country: string | null;
+  nationality: string | null;
+  marital_status: string | null;
+  updated_at: string | null;
 }
 
 export interface CaseDetailPage {
@@ -799,6 +823,8 @@ export interface CaseDetailPage {
   surveyResponses: CrmSurveyResponse[];
   /** Documentos enviados durante o onboarding do estudante */
   studentDocuments: CrmStudentDocument[];
+  /** Dados pessoais preenchidos no step de identidade */
+  userIdentity: CrmUserIdentity | null;
 }
 
 /**
@@ -822,7 +848,7 @@ export async function loadDetailPage(profileId: string): Promise<{
       student_process_type, num_dependents, selection_process_fee_payment_method,
       signature_url, migma_seller_id, migma_agent_id, matricula_user_id, onboarding_email_status,
       transfer_deadline_date, cos_i94_expiry_date, selection_survey_completed_at,
-      updated_at, created_at
+      identity_verified, updated_at, created_at
     `)
     .eq('id', profileId)
     .single();
@@ -880,7 +906,7 @@ export async function loadDetailPage(profileId: string): Promise<{
   const srId = primaryRequest?.id ?? null;
   const srIds = serviceRequests.map((sr) => sr.id);
 
-  const [historyResult, eventsResult, followupsResult, messagesResult, srDocumentsResult, identityResult, surveyResult, studentDocsResult] = await Promise.all([
+  const [historyResult, eventsResult, followupsResult, messagesResult, srDocumentsResult, identityResult, surveyResult, studentDocsResult, userIdentityResult] = await Promise.all([
     srId
       ? supabase
           .from('service_request_stage_history')
@@ -908,11 +934,15 @@ export async function loadDetailPage(profileId: string): Promise<{
           .limit(30)
       : Promise.resolve({ data: [], error: null }),
 
-    srIds.length > 0
+    profile.id
       ? supabase
           .from('service_request_messages')
-          .select('id, service_request_id, direction, channel, provider, from_address, to_address, subject, body_text, classification, thread_id, provider_message_id, received_at, created_at, message_metadata')
-          .in('service_request_id', srIds)
+          .select('id, service_request_id, profile_id, direction, channel, provider, from_address, to_address, subject, body_text, classification, thread_id, provider_message_id, received_at, created_at, message_metadata')
+          .or(
+            srIds.length > 0
+              ? `profile_id.eq.${profile.id},service_request_id.in.(${srIds.join(',')})`
+              : `profile_id.eq.${profile.id}`
+          )
           .order('created_at', { ascending: false })
           .limit(50)
       : Promise.resolve({ data: [], error: null }),
@@ -950,10 +980,19 @@ export async function loadDetailPage(profileId: string): Promise<{
     profile.user_id
       ? supabase
           .from('student_documents')
-          .select('id, user_id, document_type, file_path, original_name, created_at')
+          .select('id, user_id, type, file_url, original_filename, uploaded_at')
           .eq('user_id', profile.user_id)
-          .order('created_at', { ascending: false })
+          .order('uploaded_at', { ascending: false })
       : Promise.resolve({ data: [], error: null }),
+
+    // Dados pessoais do step de identidade
+    profile.user_id
+      ? supabase
+          .from('user_identity')
+          .select('id, user_id, birth_date, document_type, document_number, address, city, state, zip_code, country, nationality, marital_status, updated_at')
+          .eq('user_id', profile.user_id)
+          .maybeSingle()
+      : Promise.resolve({ data: null, error: null }),
   ]);
 
   return {
@@ -972,6 +1011,7 @@ export async function loadDetailPage(profileId: string): Promise<{
       identityFiles: (identityResult.data ?? []) as CrmIdentityFile[],
       surveyResponses: (surveyResult.data ?? []) as CrmSurveyResponse[],
       studentDocuments: (studentDocsResult.data ?? []) as CrmStudentDocument[],
+      userIdentity: (userIdentityResult.data ?? null) as CrmUserIdentity | null,
     },
     error: null,
   };

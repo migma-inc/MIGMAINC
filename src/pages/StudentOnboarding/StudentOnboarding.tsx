@@ -19,9 +19,6 @@ const MigmaSurveyStep = React.lazy(() =>
 const ScholarshipSelectionStep = React.lazy(() =>
   import('./components/ScholarshipSelectionStep').then(m => ({ default: m.ScholarshipSelectionStep }))
 );
-const ProcessTypeStep = React.lazy(() =>
-  import('./components/ProcessTypeStep').then(m => ({ default: m.ProcessTypeStep }))
-);
 const DocumentsUploadStep = React.lazy(() =>
   import('./components/DocumentsUploadStep').then(m => ({ default: m.DocumentsUploadStep }))
 );
@@ -34,6 +31,11 @@ const PlacementFeeStep = React.lazy(() =>
 const WaitingApprovalStep = React.lazy(() =>
   import('./components/WaitingApprovalStep').then(m => ({ default: m.WaitingApprovalStep }))
 );
+
+const normalizeLegacyStep = (step: OnboardingStep | null | undefined): OnboardingStep | null => {
+  if (!step) return null;
+  return step === 'process_type' ? 'documents_upload' : step;
+};
 
 const StepLoader = () => (
   <div className="flex justify-center items-center py-20">
@@ -73,14 +75,14 @@ const StudentOnboarding: React.FC = () => {
 
   const VALID_STEPS: OnboardingStep[] = [
     'selection_fee', 'identity_verification', 'selection_survey',
-    'scholarship_selection', 'process_type', 'documents_upload',
+    'scholarship_selection', 'documents_upload',
     'payment', 'placement_fee', 'my_applications',
   ];
 
   // Sincronizar URL -> State na carga inicial
   useEffect(() => {
     if (loading || !isInitialMount.current) return;
-    const stepParam = searchParams.get('step') as OnboardingStep | null;
+    const stepParam = normalizeLegacyStep(searchParams.get('step') as OnboardingStep | null);
     if (stepParam && VALID_STEPS.includes(stepParam) && stepParam !== state.currentStep) {
       goToStep(stepParam);
     }
@@ -111,7 +113,6 @@ const StudentOnboarding: React.FC = () => {
     'identity_verification',
     'selection_survey',
     'scholarship_selection',
-    'process_type',
     'documents_upload',
     'payment',
     'placement_fee', // Migma: sempre placement_fee_flow = true
@@ -140,7 +141,6 @@ const StudentOnboarding: React.FC = () => {
   if (state.identityVerified) completedSteps.push('identity_verification');
   if (state.selectionSurveyPassed) completedSteps.push('selection_survey');
   if (state.scholarshipsSelected) completedSteps.push('scholarship_selection');
-  if (state.processTypeSelected) completedSteps.push('process_type');
   if (state.documentsUploaded) completedSteps.push('documents_upload');
   if (state.applicationFeePaid) completedSteps.push('payment');
   if (state.placementFeePaid) completedSteps.push('placement_fee');
@@ -193,7 +193,6 @@ const StudentOnboarding: React.FC = () => {
           {state.currentStep === 'identity_verification' && <IdentityVerificationStep {...stepProps} />}
           {state.currentStep === 'selection_survey' && <MigmaSurveyStep {...stepProps} />}
           {state.currentStep === 'scholarship_selection' && <ScholarshipSelectionStep {...stepProps} />}
-          {state.currentStep === 'process_type' && <ProcessTypeStep {...stepProps} />}
           {state.currentStep === 'documents_upload' && <DocumentsUploadStep {...stepProps} />}
           {state.currentStep === 'payment' && <PaymentStep {...stepProps} />}
           {state.currentStep === 'placement_fee' && <PlacementFeeStep {...stepProps} />}

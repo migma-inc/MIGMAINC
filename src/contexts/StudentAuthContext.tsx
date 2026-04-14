@@ -27,6 +27,9 @@ interface StudentProfile {
   onboarding_current_step: string | null;
   has_paid_reinstatement_package: boolean;
   migma_seller_id: string | null;
+  // Deadline fields (Transfer / COS)
+  transfer_deadline_date: string | null;
+  cos_i94_expiry_date: string | null;
   // Campos extras do checkout
   service_type: string | null;
   num_dependents: number;

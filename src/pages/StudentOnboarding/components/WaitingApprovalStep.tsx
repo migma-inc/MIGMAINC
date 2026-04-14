@@ -2,10 +2,10 @@
  * Etapa 10 — my_applications: Tela de aguardando análise (pós-venda).
  * O aluno aguarda enquanto a equipe do Matricula USA processa os documentos.
  */
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import {
   Clock, CheckCircle, Building, GraduationCap, FileText,
-  RefreshCw, AlertCircle,
+  RefreshCw, AlertCircle, Timer,
 } from 'lucide-react';
 import { useStudentAuth } from '../../../contexts/StudentAuthContext';
 import { supabase } from '../../../lib/supabase';
@@ -75,6 +75,48 @@ export const WaitingApprovalStep: React.FC<StepProps> = () => {
 
   const docsStatus = userProfile?.documents_status;
 
+  // ── Deadline countdown ────────────────────────────────────────────────────
+  const deadline = useMemo(() => {
+    const serviceType = userProfile?.service_type ?? userProfile?.student_process_type;
+    if (serviceType === 'transfer' && userProfile?.transfer_deadline_date) {
+      const target = new Date(userProfile.transfer_deadline_date);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      target.setHours(0, 0, 0, 0);
+      const days = Math.ceil((target.getTime() - today.getTime()) / 86_400_000);
+      return {
+        type: 'transfer' as const,
+        label: 'Transfer Deadline',
+        days,
+        date: target.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+        alertThresholds: [30, 15, 7, 1],
+      };
+    }
+    if (serviceType === 'cos' && userProfile?.cos_i94_expiry_date) {
+      const target = new Date(userProfile.cos_i94_expiry_date);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      target.setHours(0, 0, 0, 0);
+      const days = Math.ceil((target.getTime() - today.getTime()) / 86_400_000);
+      return {
+        type: 'cos' as const,
+        label: 'I-94 / Status Expiry',
+        days,
+        date: target.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+        alertThresholds: [60, 30, 15, 7],
+      };
+    }
+    return null;
+  }, [userProfile]);
+
+  const deadlineUrgency = useMemo(() => {
+    if (!deadline) return null;
+    if (deadline.days <= 7) return 'critical';
+    if (deadline.days <= 15) return 'high';
+    if (deadline.days <= (deadline.type === 'cos' ? 60 : 30)) return 'medium';
+    return 'ok';
+  }, [deadline]);
+
   return (
     <div className="space-y-8 pb-12 max-w-4xl mx-auto px-4">
       <div className="space-y-1">
@@ -84,6 +126,84 @@ export const WaitingApprovalStep: React.FC<StepProps> = () => {
           Our team is working on your applications. We'll notify you with updates.
         </p>
       </div>
+
+      {/* Deadline countdown */}
+      {deadline && (
+        <div className={`rounded-2xl p-5 border ${
+          deadlineUrgency === 'critical'
+            ? 'bg-red-500/10 border-red-500/30'
+            : deadlineUrgency === 'high'
+            ? 'bg-amber-500/10 border-amber-500/30'
+            : deadlineUrgency === 'medium'
+            ? 'bg-yellow-500/10 border-yellow-500/30'
+            : 'bg-gold-medium/5 border-gold-medium/20'
+        }`}>
+          <div className="flex items-start gap-4">
+            <div className={`flex-shrink-0 w-12 h-12 rounded-xl flex items-center justify-center ${
+              deadlineUrgency === 'critical' ? 'bg-red-500/20' :
+              deadlineUrgency === 'high'     ? 'bg-amber-500/20' :
+              deadlineUrgency === 'medium'   ? 'bg-yellow-500/20' :
+              'bg-gold-medium/10'
+            }`}>
+              <Timer className={`w-6 h-6 ${
+                deadlineUrgency === 'critical' ? 'text-red-400' :
+                deadlineUrgency === 'high'     ? 'text-amber-400' :
+                deadlineUrgency === 'medium'   ? 'text-yellow-400' :
+                'text-gold-medium'
+              }`} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-xs font-black uppercase tracking-widest text-gray-500">
+                  {deadline.label}
+                </span>
+                {deadlineUrgency === 'critical' && (
+                  <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-red-500/20 text-red-400 border border-red-500/30">
+                    Urgente
+                  </span>
+                )}
+                {deadlineUrgency === 'high' && (
+                  <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/30">
+                    Atenção
+                  </span>
+                )}
+              </div>
+              <div className={`text-4xl font-black mt-1 tabular-nums ${
+                deadlineUrgency === 'critical' ? 'text-red-400' :
+                deadlineUrgency === 'high'     ? 'text-amber-400' :
+                deadlineUrgency === 'medium'   ? 'text-yellow-300' :
+                'text-white'
+              }`}>
+                {deadline.days > 0 ? deadline.days : 0}
+                <span className="text-base font-semibold text-gray-500 ml-1">
+                  {deadline.days === 1 ? 'day left' : 'days left'}
+                </span>
+              </div>
+              <div className="text-sm text-gray-500 mt-0.5">{deadline.date}</div>
+              {deadline.days <= 0 && (
+                <div className="mt-2 text-sm font-semibold text-red-400 flex items-center gap-1.5">
+                  <AlertCircle className="w-4 h-4" />
+                  {deadline.type === 'transfer'
+                    ? 'Transfer deadline has passed. Contact your advisor immediately.'
+                    : 'I-94 / status has expired. Contact your advisor immediately.'}
+                </div>
+              )}
+              {deadline.days > 0 && deadlineUrgency !== 'ok' && (
+                <div className={`mt-2 text-sm font-medium flex items-center gap-1.5 ${
+                  deadlineUrgency === 'critical' ? 'text-red-400' :
+                  deadlineUrgency === 'high'     ? 'text-amber-400' :
+                  'text-yellow-400'
+                }`}>
+                  <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                  {deadline.type === 'transfer'
+                    ? 'Your transfer deadline is approaching. Ensure all documents are submitted.'
+                    : 'Your I-94 / status expiry is approaching. Contact your advisor.'}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Status dos documentos */}
       <div className={`rounded-2xl p-6 border ${

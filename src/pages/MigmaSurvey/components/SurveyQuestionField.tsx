@@ -1,5 +1,5 @@
 import React from 'react';
-import { Check } from 'lucide-react';
+import { Check, AlertTriangle, Info } from 'lucide-react';
 import type { SurveyQuestion } from '../../../data/migmaSurveyQuestions';
 
 interface Props {
@@ -208,14 +208,26 @@ export const SurveyQuestionField: React.FC<Props> = ({ question, value, onChange
   // -------------------------------------------------------------------------
   if (question.type === 'date') {
     return (
-      <div>
+      <div className="space-y-3">
         {baseLabel}
+        {question.description && (
+          <div className="flex gap-2.5 rounded-xl border border-gold-medium/20 bg-gold-medium/5 px-4 py-3">
+            <Info className="w-4 h-4 text-gold-medium flex-shrink-0 mt-0.5" />
+            <p className="text-xs text-gray-400 leading-relaxed">{question.description}</p>
+          </div>
+        )}
         <input
           type="date"
           value={typeof value === 'string' ? value : ''}
           onChange={e => onChange(e.target.value)}
           className="w-full bg-[#0d0d0d] border-2 border-white/10 focus:border-gold-medium text-white rounded-xl px-4 py-3 text-sm outline-none transition-colors [color-scheme:dark]"
         />
+        {question.warning && (
+          <div className="flex gap-2.5 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3">
+            <AlertTriangle className="w-4 h-4 text-red-400 flex-shrink-0 mt-0.5" />
+            <p className="text-xs text-red-300 font-semibold leading-relaxed">{question.warning}</p>
+          </div>
+        )}
       </div>
     );
   }

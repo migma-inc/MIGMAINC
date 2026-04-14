@@ -34,9 +34,10 @@ const DOCUMENT_TYPES = [
 
 interface UploadedDoc {
   id: string;
-  document_type: string;
-  file_path: string;
-  original_name: string;
+  type: string;
+  file_url: string;
+  original_filename: string;
+  uploaded_at?: string | null;
 }
 
 export const DocumentsUploadStep: React.FC<StepProps> = ({ onNext }) => {
@@ -61,7 +62,7 @@ export const DocumentsUploadStep: React.FC<StepProps> = ({ onNext }) => {
     try {
       const { data } = await supabase
         .from('student_documents')
-        .select('id, document_type, file_path, original_name')
+        .select('id, type, file_url, original_filename, uploaded_at')
         .eq('user_id', user.id);
       setUploadedDocs((data as UploadedDoc[]) || []);
     } catch (err) {
@@ -86,20 +87,43 @@ export const DocumentsUploadStep: React.FC<StepProps> = ({ onNext }) => {
       const filePath = `${user.id}/${docType}/${fileName}`;
 
       const { error: uploadError } = await supabase.storage
-        .from('student-documents')
+        .from('migma-student-documents')
         .upload(filePath, file, { upsert: true });
 
       if (uploadError) throw uploadError;
 
-      const { error: dbError } = await supabase
+      const { data: publicUrlData } = supabase.storage
+        .from('migma-student-documents')
+        .getPublicUrl(filePath);
+
+      const payload = {
+        user_id: user.id,
+        type: docType,
+        file_url: publicUrlData.publicUrl,
+        original_filename: file.name,
+        file_size_bytes: file.size,
+        status: 'pending',
+        source: 'migma',
+        uploaded_at: new Date().toISOString(),
+      };
+
+      const { data: existingDoc, error: existingDocError } = await supabase
         .from('student_documents')
-        .upsert({
-          user_id: user.id,
-          document_type: docType,
-          file_path: filePath,
-          original_name: file.name,
-          source: 'migma',
-        }, { onConflict: 'user_id,document_type' });
+        .select('id')
+        .eq('user_id', user.id)
+        .eq('type', docType)
+        .maybeSingle();
+
+      if (existingDocError) throw existingDocError;
+
+      const { error: dbError } = existingDoc?.id
+        ? await supabase
+            .from('student_documents')
+            .update(payload)
+            .eq('id', existingDoc.id)
+        : await supabase
+            .from('student_documents')
+            .insert(payload);
 
       if (dbError) throw dbError;
 
@@ -137,10 +161,10 @@ export const DocumentsUploadStep: React.FC<StepProps> = ({ onNext }) => {
     // Verificar se todos os documentos obrigatórios foram enviados
     const updatedDocs = await supabase
       .from('student_documents')
-      .select('document_type')
+      .select('type')
       .eq('user_id', user!.id);
 
-    const uploadedTypes = (updatedDocs.data || []).map((d: any) => d.document_type);
+    const uploadedTypes = (updatedDocs.data || []).map((d: any) => d.type);
     const requiredTypes = DOCUMENT_TYPES.filter(d => d.required).map(d => d.key);
     const allUploaded = requiredTypes.every(t => uploadedTypes.includes(t));
 
@@ -155,7 +179,7 @@ export const DocumentsUploadStep: React.FC<StepProps> = ({ onNext }) => {
   };
 
   const getDocStatus = (docType: string) => {
-    return uploadedDocs.find(d => d.document_type === docType);
+    return uploadedDocs.find(d => d.type === docType);
   };
 
   const allRequiredUploaded = DOCUMENT_TYPES.filter(d => d.required).every(d => getDocStatus(d.key));
@@ -213,7 +237,7 @@ export const DocumentsUploadStep: React.FC<StepProps> = ({ onNext }) => {
                     {uploaded && (
                       <div className="mt-2 flex items-center gap-1.5 text-sm text-emerald-400 font-medium">
                         <CheckCircle className="w-4 h-4" />
-                        {uploaded.original_name}
+                        {uploaded.original_filename}
                       </div>
                     )}
 
