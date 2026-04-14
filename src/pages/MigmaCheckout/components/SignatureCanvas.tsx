@@ -136,7 +136,10 @@ export const SignatureCanvas: React.FC<Props> = ({ onComplete, onClear }) => {
 
       {status === 'confirming' && (
         <p className="text-gold-medium text-sm font-semibold text-center animate-pulse">
-          {t('signature.captured', { seconds: 2 }, '✓ Assinatura capturada. Confirmando em 2 segundos...')}
+          {t('signature.captured', {
+            seconds: 2,
+            defaultValue: '✓ Assinatura capturada. Confirmando em 2 segundos...',
+          })}
         </p>
       )}
       {status === 'done' && (

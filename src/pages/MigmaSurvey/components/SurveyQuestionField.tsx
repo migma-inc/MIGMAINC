@@ -116,22 +116,38 @@ export const SurveyQuestionField: React.FC<Props> = ({ question, value, onChange
       <div>
         {baseLabel}
         <div className="flex gap-3">
-          {(['Sim', 'Não'] as const).map(opt => (
-            <button
-              key={opt}
-              type="button"
-              onClick={() => onChange(opt)}
-              className={`
-                flex-1 px-4 py-3 rounded-xl border-2 font-semibold text-sm transition-all
-                ${value === opt
-                  ? 'border-gold-medium bg-gold-medium/10 text-gold-light'
-                  : 'border-white/10 bg-[#0d0d0d] text-gray-300 hover:border-white/30 hover:text-white'
-                }
-              `}
-            >
-              {opt}
-            </button>
-          ))}
+          {([
+            { label: 'Sim', emoji: '✓' },
+            { label: 'Não', emoji: '✕' },
+          ] as const).map(({ label, emoji }) => {
+            const isSelected = value === label;
+            const isYes = label === 'Sim';
+            return (
+              <button
+                key={label}
+                type="button"
+                onClick={() => onChange(label)}
+                className={`
+                  flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl border-2 font-bold text-sm transition-all
+                  ${isSelected
+                    ? isYes
+                      ? 'border-emerald-500 bg-emerald-500/10 text-emerald-400'
+                      : 'border-red-500/60 bg-red-500/10 text-red-400'
+                    : 'border-white/10 bg-transparent text-gray-400 hover:border-white/25 hover:text-white'
+                  }
+                `}
+              >
+                <span className={`w-5 h-5 rounded-full border-2 flex items-center justify-center text-[10px] font-black flex-shrink-0 transition-all ${
+                  isSelected
+                    ? isYes ? 'border-emerald-500 bg-emerald-500 text-white' : 'border-red-400 bg-red-400/80 text-white'
+                    : 'border-white/20 text-transparent'
+                }`}>
+                  {emoji}
+                </span>
+                {label}
+              </button>
+            );
+          })}
         </div>
       </div>
     );

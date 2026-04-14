@@ -8,7 +8,7 @@ import {
   AlertCircle, ArrowRight,
 } from 'lucide-react';
 import { useStudentAuth } from '../../../contexts/StudentAuthContext';
-import { matriculaSupabase } from '../../../lib/matriculaSupabase';
+import { supabase } from '../../../lib/supabase';
 import type { StepProps } from '../types';
 
 const DOCUMENT_TYPES = [
@@ -59,7 +59,7 @@ export const DocumentsUploadStep: React.FC<StepProps> = ({ onNext }) => {
   const fetchUploadedDocs = async () => {
     if (!user?.id) return;
     try {
-      const { data } = await matriculaSupabase
+      const { data } = await supabase
         .from('student_documents')
         .select('id, document_type, file_path, original_name')
         .eq('user_id', user.id);
@@ -85,13 +85,13 @@ export const DocumentsUploadStep: React.FC<StepProps> = ({ onNext }) => {
       const fileName = `${docType}_${Date.now()}.${ext}`;
       const filePath = `${user.id}/${docType}/${fileName}`;
 
-      const { error: uploadError } = await matriculaSupabase.storage
+      const { error: uploadError } = await supabase.storage
         .from('student-documents')
         .upload(filePath, file, { upsert: true });
 
       if (uploadError) throw uploadError;
 
-      const { error: dbError } = await matriculaSupabase
+      const { error: dbError } = await supabase
         .from('student_documents')
         .upsert({
           user_id: user.id,
@@ -135,7 +135,7 @@ export const DocumentsUploadStep: React.FC<StepProps> = ({ onNext }) => {
     if (!allSuccess) return;
 
     // Verificar se todos os documentos obrigatórios foram enviados
-    const updatedDocs = await matriculaSupabase
+    const updatedDocs = await supabase
       .from('student_documents')
       .select('document_type')
       .eq('user_id', user!.id);
@@ -145,7 +145,7 @@ export const DocumentsUploadStep: React.FC<StepProps> = ({ onNext }) => {
     const allUploaded = requiredTypes.every(t => uploadedTypes.includes(t));
 
     if (allUploaded) {
-      await matriculaSupabase
+      await supabase
         .from('user_profiles')
         .update({ documents_uploaded: true })
         .eq('user_id', user!.id);
@@ -162,19 +162,18 @@ export const DocumentsUploadStep: React.FC<StepProps> = ({ onNext }) => {
 
   return (
     <div className="space-y-8 pb-12 max-w-4xl mx-auto px-4">
-      <div className="text-center md:text-left space-y-3">
-        <h2 className="text-3xl md:text-5xl font-black text-slate-900 uppercase tracking-tighter">
-          Upload Documents
-        </h2>
-        <p className="text-lg text-slate-600 font-medium">
+      <div className="space-y-1">
+        <p className="text-xs font-black uppercase tracking-widest text-gold-medium">Etapa 6</p>
+        <h2 className="text-2xl font-black text-white uppercase tracking-tight">Upload Documents</h2>
+        <p className="text-sm text-gray-400 font-medium">
           Upload the required documents to proceed with your application.
         </p>
       </div>
 
       {isLocked && (
-        <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 flex items-center gap-3">
-          <CheckCircle className="w-5 h-5 text-emerald-500 flex-shrink-0" />
-          <p className="text-emerald-800 font-medium text-sm">
+        <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-2xl p-4 flex items-center gap-3">
+          <CheckCircle className="w-5 h-5 text-emerald-400 flex-shrink-0" />
+          <p className="text-emerald-400 font-medium text-sm">
             Documents submitted successfully. Our team is reviewing them.
           </p>
         </div>
@@ -182,7 +181,7 @@ export const DocumentsUploadStep: React.FC<StepProps> = ({ onNext }) => {
 
       {loading ? (
         <div className="flex justify-center py-8">
-          <Loader2 className="w-6 h-6 animate-spin text-blue-500" />
+          <Loader2 className="w-6 h-6 animate-spin text-gold-medium" />
         </div>
       ) : (
         <div className="space-y-4">
@@ -192,27 +191,27 @@ export const DocumentsUploadStep: React.FC<StepProps> = ({ onNext }) => {
             const isUploading = uploadingFiles[doc.key];
 
             return (
-              <div key={doc.key} className={`bg-white border-2 rounded-2xl p-5 transition-all ${
-                uploaded ? 'border-emerald-200' : 'border-slate-200'
+              <div key={doc.key} className={`border-2 rounded-2xl p-5 transition-all ${
+                uploaded ? 'border-emerald-500/30 bg-emerald-500/5' : 'border-white/10 bg-white/5'
               }`}>
                 <div className="flex items-start gap-4">
                   <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${
-                    uploaded ? 'bg-emerald-100' : 'bg-slate-100'
+                    uploaded ? 'bg-emerald-500/10' : 'bg-white/10'
                   }`}>
                     {uploaded
-                      ? <CheckCircle className="w-5 h-5 text-emerald-500" />
-                      : <FileText className="w-5 h-5 text-slate-500" />
+                      ? <CheckCircle className="w-5 h-5 text-emerald-400" />
+                      : <FileText className="w-5 h-5 text-gray-400" />
                     }
                   </div>
                   <div className="flex-1">
                     <div className="flex items-center gap-2">
-                      <span className="font-bold text-slate-900">{doc.label}</span>
-                      {doc.required && <span className="text-xs text-red-500 font-medium">Required</span>}
+                      <span className="font-bold text-white">{doc.label}</span>
+                      {doc.required && <span className="text-xs text-red-400 font-medium">Required</span>}
                     </div>
-                    <p className="text-sm text-slate-500 mt-0.5">{doc.description}</p>
+                    <p className="text-sm text-gray-500 mt-0.5">{doc.description}</p>
 
                     {uploaded && (
-                      <div className="mt-2 flex items-center gap-1.5 text-sm text-emerald-600 font-medium">
+                      <div className="mt-2 flex items-center gap-1.5 text-sm text-emerald-400 font-medium">
                         <CheckCircle className="w-4 h-4" />
                         {uploaded.original_name}
                       </div>
@@ -230,18 +229,18 @@ export const DocumentsUploadStep: React.FC<StepProps> = ({ onNext }) => {
                         <button
                           onClick={() => fileInputRefs.current[doc.key]?.click()}
                           disabled={isUploading}
-                          className="flex items-center gap-1.5 text-sm border border-slate-200 rounded-lg px-3 py-1.5 hover:bg-slate-50 transition-colors font-medium"
+                          className="flex items-center gap-1.5 text-sm border border-white/10 bg-white/5 rounded-lg px-3 py-1.5 hover:border-white/20 transition-colors font-medium text-gray-300"
                         >
                           <Upload className="w-4 h-4" />
                           {uploaded ? 'Replace' : 'Select File'}
                         </button>
                         {selectedFile && (
-                          <span className="text-sm text-slate-500 truncate max-w-[200px]">
+                          <span className="text-sm text-gray-500 truncate max-w-[200px]">
                             {selectedFile.name}
                           </span>
                         )}
                         {isUploading && (
-                          <Loader2 className="w-4 h-4 animate-spin text-blue-500" />
+                          <Loader2 className="w-4 h-4 animate-spin text-gold-medium" />
                         )}
                       </div>
                     )}
@@ -254,7 +253,7 @@ export const DocumentsUploadStep: React.FC<StepProps> = ({ onNext }) => {
       )}
 
       {error && (
-        <div className="flex items-center gap-2 text-red-500 text-sm font-medium bg-red-50 border border-red-200 rounded-xl p-3">
+        <div className="flex items-center gap-2 text-red-400 text-sm bg-red-500/10 border border-red-500/20 rounded-lg px-4 py-3">
           <AlertCircle className="w-4 h-4 flex-shrink-0" />
           {error}
         </div>
@@ -263,7 +262,7 @@ export const DocumentsUploadStep: React.FC<StepProps> = ({ onNext }) => {
       {!isLocked && (
         <div className="flex items-center justify-between">
           {allRequiredUploaded && (
-            <div className="flex items-center gap-2 text-sm text-emerald-600 font-medium">
+            <div className="flex items-center gap-2 text-sm text-emerald-400 font-medium">
               <CheckCircle className="w-4 h-4" />
               All required documents uploaded!
             </div>
@@ -271,7 +270,7 @@ export const DocumentsUploadStep: React.FC<StepProps> = ({ onNext }) => {
           <button
             onClick={allRequiredUploaded ? onNext : handleUploadAll}
             disabled={saving || (Object.values(selectedFiles).every(f => !f) && !allRequiredUploaded)}
-            className="ml-auto flex items-center gap-2 bg-blue-600 text-white py-3 px-8 rounded-xl hover:bg-blue-700 transition-all font-bold uppercase tracking-widest shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+            className="ml-auto flex items-center gap-2 bg-gold-medium hover:bg-gold-dark text-black py-3 px-8 rounded-xl transition-colors font-black uppercase tracking-widest disabled:opacity-40 disabled:cursor-not-allowed"
           >
             {saving
               ? <><Loader2 className="w-4 h-4 animate-spin" /> Uploading...</>
@@ -286,7 +285,7 @@ export const DocumentsUploadStep: React.FC<StepProps> = ({ onNext }) => {
       {isLocked && (
         <button
           onClick={onNext}
-          className="flex items-center gap-2 bg-blue-600 text-white py-3 px-8 rounded-xl hover:bg-blue-700 transition-all font-bold uppercase tracking-widest shadow-lg"
+          className="flex items-center gap-2 bg-gold-medium hover:bg-gold-dark text-black py-3 px-8 rounded-xl transition-colors font-black uppercase tracking-widest"
         >
           <ArrowRight className="w-4 h-4" /> Continue
         </button>

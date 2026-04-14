@@ -1,6 +1,7 @@
 export type PaymentMethod = 'square' | 'parcelow' | 'pix' | 'zelle' | 'stripe' | 'parcelow_card' | 'parcelow_pix' | 'parcelow_ted';
 export type CardOwnership = 'own' | 'third_party';
 export type IPRegion = 'US' | 'BR' | 'OTHER';
+export type ServiceType = 'transfer' | 'cos' | 'eb2' | 'eb3' | 'initial';
 
 export interface PayerInfo {
   name: string;
@@ -40,6 +41,7 @@ export interface Step1Data {
   terms_accepted: boolean;
   data_accepted: boolean;
   signature_data_url: string | null;
+  payerInfo?: PayerInfo | null;
 }
 
 /** Step 2 — documentos e dados adicionais do perfil. */

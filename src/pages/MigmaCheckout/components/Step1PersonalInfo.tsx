@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   User, Mail, Lock, Eye, EyeOff, Users, Loader2, ChevronDown, Check,
-  DollarSign, CreditCard, Smartphone, Zap, FileText, Upload, X,
+  DollarSign, CreditCard, Smartphone, Zap, FileText,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { SignaturePadComponent } from '../../../components/ui/signature-pad';
@@ -94,8 +94,6 @@ export const Step1PersonalInfo: React.FC<Props> = ({
   config, initialData, existingUserId, region, onComplete, onRegisterUser,
 }) => {
   const { t } = useTranslation();
-  const receiptInputRef = useRef<HTMLInputElement>(null);
-
   const [form, setForm] = useState<Step1Data>(initialData || {
     full_name: '', email: '', phone: '', password: '', confirm_password: '',
     num_dependents: null, terms_accepted: false, data_accepted: false,
@@ -117,7 +115,7 @@ export const Step1PersonalInfo: React.FC<Props> = ({
   const [method, setMethod] = useState<PaymentMethod>('parcelow_card');
   const [cardOwnership, setCardOwnership] = useState<'own' | 'third_party'>('own');
   const [cpf, setCpf] = useState('');
-  const [payerInfo, setPayerInfo] = useState<Step1Data['payerInfo'] | null>(null); // We'll manage this locally
+  const [payerInfo, setPayerInfo] = useState<Step1Data['payerInfo'] | null>(null);
   const [receipt, setReceipt] = useState<File | null>(null);
 
   const total = calcTotal(config, form.num_dependents);
@@ -399,9 +397,14 @@ export const Step1PersonalInfo: React.FC<Props> = ({
                   </select>
                   <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 pointer-events-none" />
                 </div>
-                {form.num_dependents > 0 && (
+                {(form.num_dependents ?? 0) > 0 && (
                   <p className="text-gold-medium text-xs mt-1">
-                    +${form.num_dependents * config.dependentPrice} {t('migma_checkout.step1.for_dependents', { count: form.num_dependents, label: form.num_dependents > 1 ? t('migma_checkout.step3.dependents_plural') : t('migma_checkout.step3.dependents') })}
+                    +${(form.num_dependents ?? 0) * config.dependentPrice} {t('migma_checkout.step1.for_dependents', {
+                      count: form.num_dependents ?? 0,
+                      label: (form.num_dependents ?? 0) > 1
+                        ? t('migma_checkout.step3.dependents_plural')
+                        : t('migma_checkout.step3.dependents'),
+                    })}
                   </p>
                 )}
                 {errors.num_dependents && <p className="text-red-400 text-xs mt-1 font-bold uppercase tracking-wider">{errors.num_dependents}</p>}
@@ -421,10 +424,10 @@ export const Step1PersonalInfo: React.FC<Props> = ({
                   <span>{t('migma_checkout.step3.process_fee', 'Taxa de Processo de Seleção')}</span>
                   <span className="text-white">${config.basePrice}</span>
                 </div>
-                {form.num_dependents > 0 && (
+                {(form.num_dependents ?? 0) > 0 && (
                   <div className="flex justify-between text-sm text-gray-400">
-                    <span>{form.num_dependents} {form.num_dependents > 1 ? t('migma_checkout.step3.dependents_plural') : t('migma_checkout.step3.dependents')}</span>
-                    <span className="text-gold-medium">+${form.num_dependents * config.dependentPrice}</span>
+                    <span>{form.num_dependents ?? 0} {(form.num_dependents ?? 0) > 1 ? t('migma_checkout.step3.dependents_plural') : t('migma_checkout.step3.dependents')}</span>
+                    <span className="text-gold-medium">+${(form.num_dependents ?? 0) * config.dependentPrice}</span>
                   </div>
                 )}
                 <div className="border-t border-white/10 pt-3 flex justify-between font-black text-white text-xl">
@@ -596,7 +599,7 @@ export const Step1PersonalInfo: React.FC<Props> = ({
                         <input
                           type="text"
                           value={payerInfo?.name || ''}
-                          onChange={e => setPayerInfo(prev => ({ ...prev!, name: e.target.value.toUpperCase(), cpf: prev?.cpf || '', email: prev?.email || '', phone: prev?.phone || '' }))}
+                          onChange={e => setPayerInfo((prev: Step1Data['payerInfo']) => ({ ...prev!, name: e.target.value.toUpperCase(), cpf: prev?.cpf || '', email: prev?.email || '', phone: prev?.phone || '' }))}
                           className={`${INPUT_CLASS} ${errors.payer_name ? 'border-red-500' : ''} h-12 text-xs uppercase`}
                         />
                         {errors.payer_name && <p className="text-red-400 text-[10px] uppercase font-bold">{errors.payer_name}</p>}
@@ -606,7 +609,7 @@ export const Step1PersonalInfo: React.FC<Props> = ({
                         <input
                           type="text"
                           value={payerInfo?.cpf || ''}
-                          onChange={e => setPayerInfo(prev => ({ ...prev!, cpf: e.target.value.replace(/\D/g, '').slice(0, 11), name: prev?.name || '', email: prev?.email || '', phone: prev?.phone || '' }))}
+                          onChange={e => setPayerInfo((prev: Step1Data['payerInfo']) => ({ ...prev!, cpf: e.target.value.replace(/\D/g, '').slice(0, 11), name: prev?.name || '', email: prev?.email || '', phone: prev?.phone || '' }))}
                           className={`${INPUT_CLASS} ${errors.cpf || errors.payer_cpf ? 'border-red-500' : ''} h-12 text-xs`}
                           placeholder="000.000.000-00"
                         />
@@ -620,7 +623,7 @@ export const Step1PersonalInfo: React.FC<Props> = ({
                         <input
                           type="email"
                           value={payerInfo?.email || ''}
-                          onChange={e => setPayerInfo(prev => ({ ...prev!, email: e.target.value, name: prev?.name || '', cpf: prev?.cpf || '', phone: prev?.phone || '' }))}
+                          onChange={e => setPayerInfo((prev: Step1Data['payerInfo']) => ({ ...prev!, email: e.target.value, name: prev?.name || '', cpf: prev?.cpf || '', phone: prev?.phone || '' }))}
                           className={`${INPUT_CLASS} ${errors.payer_email ? 'border-red-500' : ''} h-12 text-xs`}
                         />
                         {errors.payer_email && <p className="text-red-400 text-[10px] uppercase font-bold">{errors.payer_email}</p>}
@@ -630,7 +633,7 @@ export const Step1PersonalInfo: React.FC<Props> = ({
                         <input
                           type="text"
                           value={payerInfo?.phone || ''}
-                          onChange={e => setPayerInfo(prev => ({ ...prev!, phone: e.target.value, name: prev?.name || '', cpf: prev?.cpf || '', email: prev?.email || '' }))}
+                          onChange={e => setPayerInfo((prev: Step1Data['payerInfo']) => ({ ...prev!, phone: e.target.value, name: prev?.name || '', cpf: prev?.cpf || '', email: prev?.email || '' }))}
                           className={`${INPUT_CLASS} ${errors.payer_phone ? 'border-red-500' : ''} h-12 text-xs`}
                         />
                         {errors.payer_phone && <p className="text-red-400 text-[10px] uppercase font-bold">{errors.payer_phone}</p>}

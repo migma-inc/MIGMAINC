@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useStudentAuth } from '../../../contexts/StudentAuthContext';
-import { matriculaSupabase } from '../../../lib/matriculaSupabase';
+import { supabase } from '../../../lib/supabase';
 import { applicationStore, useCartStore } from '../../../stores/applicationStore';
 import type { OnboardingStep, OnboardingState } from '../types';
 
@@ -85,7 +85,7 @@ export const useOnboardingProgress = () => {
     if (!user?.id) return;
     isSavingStepRef.current = true;
     try {
-      const { error } = await matriculaSupabase
+      const { error } = await supabase
         .from('user_profiles')
         .update({ onboarding_current_step: step })
         .eq('user_id', user.id);
@@ -121,7 +121,7 @@ export const useOnboardingProgress = () => {
 
     try {
       // Leitura fresca do banco do Matricula USA
-      let { data: freshData, error: profileError } = await matriculaSupabase
+      let { data: freshData, error: profileError } = await supabase
         .from('user_profiles')
         .select('*')
         .eq('user_id', user.id)
@@ -150,20 +150,10 @@ export const useOnboardingProgress = () => {
       const selectionSurveyPassed = !!freshProfile.selection_survey_passed;
 
       // Verificação de identidade
-      let identityVerified = !!freshProfile.identity_verified;
-      if (!identityVerified) {
-        const { data: photoAcceptance } = await matriculaSupabase
-          .from('comprehensive_term_acceptance')
-          .select('identity_photo_path')
-          .eq('user_id', user.id)
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .maybeSingle();
-        identityVerified = !!photoAcceptance?.identity_photo_path;
-      }
+      const identityVerified = !!freshProfile.identity_verified;
 
       // Candidaturas
-      const { data: appsData } = await matriculaSupabase
+      const { data: appsData } = await supabase
         .from('scholarship_applications')
         .select('id, scholarship_id, student_process_type, is_application_fee_paid')
         .eq('student_id', studentId);

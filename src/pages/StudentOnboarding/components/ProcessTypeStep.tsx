@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { CheckCircle, Loader2, Plane, ArrowRightLeft, FileSpreadsheet, Flag } from 'lucide-react';
 import { useStudentAuth } from '../../../contexts/StudentAuthContext';
-import { matriculaSupabase } from '../../../lib/matriculaSupabase';
+import { supabase } from '../../../lib/supabase';
 import type { StepProps, ProcessType } from '../types';
 
 const PROCESS_TYPES: { type: ProcessType; icon: React.ReactNode; title: string; description: string }[] = [
@@ -65,7 +65,7 @@ export const ProcessTypeStep: React.FC<StepProps> = ({ onNext }) => {
       };
 
       // Atualiza user_profiles no banco do Matricula USA
-      const { error: profileError } = await matriculaSupabase
+      const { error: profileError } = await supabase
         .from('user_profiles')
         .update(updates)
         .eq('id', userProfile.id);
@@ -73,7 +73,7 @@ export const ProcessTypeStep: React.FC<StepProps> = ({ onNext }) => {
       if (profileError) throw profileError;
 
       // Atualiza scholarship_applications também
-      await matriculaSupabase
+      await supabase
         .from('scholarship_applications')
         .update({ student_process_type: selectedType })
         .eq('student_id', userProfile.id);
@@ -89,17 +89,16 @@ export const ProcessTypeStep: React.FC<StepProps> = ({ onNext }) => {
 
   return (
     <div className="space-y-8 pb-12 max-w-4xl mx-auto px-4">
-      <div className="text-center md:text-left space-y-3">
-        <h2 className="text-3xl md:text-5xl font-black text-slate-900 uppercase tracking-tighter">
-          Process Type
-        </h2>
-        <p className="text-lg text-slate-600 font-medium">
+      <div className="space-y-1">
+        <p className="text-xs font-black uppercase tracking-widest text-gold-medium">Etapa 5</p>
+        <h2 className="text-2xl font-black text-white uppercase tracking-tight">Process Type</h2>
+        <p className="text-sm text-gray-400 font-medium">
           Tell us about your current situation so we can guide you correctly.
         </p>
       </div>
 
       {isLocked && (
-        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 text-amber-800 text-sm font-medium">
+        <div className="bg-amber-500/10 border border-amber-500/20 rounded-2xl p-4 text-amber-400 text-sm font-medium">
           Your process type is locked because documents have already been submitted.
         </div>
       )}
@@ -114,21 +113,21 @@ export const ProcessTypeStep: React.FC<StepProps> = ({ onNext }) => {
               className={`
                 relative flex flex-col gap-3 p-6 rounded-2xl border-2 text-left transition-all
                 ${isSelected
-                  ? 'border-blue-500 bg-blue-50 shadow-lg shadow-blue-100'
-                  : 'border-slate-200 bg-white hover:border-slate-300'
+                  ? 'border-gold-medium bg-gold-medium/5'
+                  : 'border-white/10 bg-white/5 hover:border-white/20'
                 }
                 ${isLocked ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}
               `}
             >
-              <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${isSelected ? 'bg-blue-500 text-white' : 'bg-slate-100 text-slate-600'}`}>
+              <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${isSelected ? 'bg-gold-medium text-black' : 'bg-white/10 text-gray-400'}`}>
                 {icon}
               </div>
               <div>
-                <div className="font-bold text-slate-900">{title}</div>
-                <div className="text-sm text-slate-500 mt-1">{description}</div>
+                <div className="font-bold text-white">{title}</div>
+                <div className="text-sm text-gray-500 mt-1">{description}</div>
               </div>
               {isSelected && (
-                <CheckCircle className="absolute top-4 right-4 w-5 h-5 text-blue-500" />
+                <CheckCircle className="absolute top-4 right-4 w-5 h-5 text-gold-medium" />
               )}
             </button>
           );
@@ -137,16 +136,16 @@ export const ProcessTypeStep: React.FC<StepProps> = ({ onNext }) => {
 
       {/* Campo visa_transfer_active para Transfer */}
       {selectedType === 'transfer' && !isLocked && (
-        <div className="bg-slate-50 border border-slate-200 rounded-2xl p-6 space-y-3">
-          <p className="font-semibold text-slate-800">Is your F-1 visa currently active?</p>
+        <div className="bg-white/5 border border-white/10 rounded-2xl p-6 space-y-3">
+          <p className="font-semibold text-white">Is your F-1 visa currently active?</p>
           <div className="flex gap-3">
             {[true, false].map(val => (
               <button
                 key={String(val)}
                 onClick={() => setVisaTransferActive(val)}
                 className={`px-5 py-2.5 rounded-xl font-semibold text-sm transition-all ${visaTransferActive === val
-                    ? 'bg-blue-500 text-white shadow-md'
-                    : 'bg-white border border-slate-200 text-slate-700'
+                    ? 'bg-gold-medium text-black'
+                    : 'bg-white/5 border border-white/10 text-gray-400 hover:border-white/20'
                   }`}
               >
                 {val ? 'Yes, active' : 'No, inactive'}
@@ -157,15 +156,15 @@ export const ProcessTypeStep: React.FC<StepProps> = ({ onNext }) => {
       )}
 
       {error && (
-        <p className="text-red-500 text-sm font-medium">{error}</p>
+        <p className="text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-4 py-3">{error}</p>
       )}
 
       <button
         onClick={handleContinue}
         disabled={!selectedType || saving || isLocked}
-        className="w-full max-w-xs bg-blue-600 text-white py-4 px-8 rounded-xl hover:bg-blue-700 transition-all font-bold uppercase tracking-widest shadow-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+        className="flex items-center gap-2 bg-gold-medium hover:bg-gold-dark text-black py-3 px-8 rounded-xl transition-colors font-black uppercase tracking-widest disabled:opacity-40 disabled:cursor-not-allowed"
       >
-        {saving ? <><Loader2 className="w-4 h-4 animate-spin" /> Saving...</> : 'Continue'}
+        {saving ? <><Loader2 className="w-4 h-4 animate-spin" /> Saving...</> : 'Continue →'}
       </button>
     </div>
   );

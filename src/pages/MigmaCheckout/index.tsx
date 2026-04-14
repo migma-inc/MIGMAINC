@@ -61,7 +61,7 @@ const MigmaCheckout: React.FC = () => {
   });
 
   const [step1Data, setStep1Data] = useState<Step1Data | null>(null);
-  const [step2Data, setStep2Data] = useState<Step2Data | null>(null);
+  const [, setStep2Data] = useState<Step2Data | null>(null);
   const [paymentLoading, setPaymentLoading] = useState(false);
   const [processing, setProcessing] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -93,7 +93,7 @@ const MigmaCheckout: React.FC = () => {
     }
   }, [searchParams]);
 
-  const handlePaymentSuccess = async (orderId: string) => {
+  const handlePaymentSuccess = async (_orderId: string) => {
     setPaymentLoading(true);
     try {
       // Pequeno delay para garantir que o webhook processou (opcional, mas seguro)
@@ -182,7 +182,7 @@ const MigmaCheckout: React.FC = () => {
     }
   }, [state.step1Completed, state.step2Completed, state.userId, state.totalPrice, state.matriculaUserId, state.currentStep, step1Data, service]);
 
-  const handleStripeReturn = async (sessionId: string) => {
+  const handleStripeReturn = async (_sessionId: string) => {
     setPaymentLoading(true);
     try {
       const raw = localStorage.getItem(STRIPE_LS_KEY);
@@ -412,9 +412,9 @@ const MigmaCheckout: React.FC = () => {
                 status: 'pending_verification',
               });
 
-              processZellePaymentWithN8n(payment.receipt, total, config?.label || 'Migma Selection Fee', userId)
-                .then(nResult => {
-                  supabase.from('migma_checkout_zelle_pending')
+              void processZellePaymentWithN8n(payment.receipt, total, config?.label || 'Migma Selection Fee', userId)
+                .then((nResult) => {
+                  void supabase.from('migma_checkout_zelle_pending')
                     .update({ 
                       n8n_payment_id: nResult.paymentId,
                       image_path: nResult.imagePath,
@@ -422,10 +422,11 @@ const MigmaCheckout: React.FC = () => {
                     })
                     .eq('migma_user_id', userId)
                     .eq('status', 'pending_verification')
-                    .then(() => console.log('Zelle updated with n8n info'))
-                    .catch(e => console.error('Error updating zelle with n8n:', e));
-                })
-                .catch(err => console.error('n8n background processing failed:', err));
+                    .then(
+                      () => console.log('Zelle updated with n8n info'),
+                      (e: unknown) => console.error('Error updating zelle with n8n:', e)
+                    );
+                }, (err) => console.error('n8n background processing failed:', err));
             }
           } else if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
             await matriculaApi.paymentCompleted({
@@ -441,9 +442,7 @@ const MigmaCheckout: React.FC = () => {
         }
       };
 
-      if (payment.method !== 'stripe') {
-        processPayment();
-      }
+      void processPayment();
 
       setProgress(100);
       setStep1Data(data);
@@ -524,7 +523,7 @@ const MigmaCheckout: React.FC = () => {
       }
 
       setState(prev => ({ ...prev, step2Completed: true }));
-      navigate(`/student/survey/${service ?? 'transfer'}`);
+      navigate('/student/onboarding');
     } catch (err: any) {
       console.error('[Step 2] Error:', err);
       alert('Erro ao salvar documentos.');
@@ -533,9 +532,17 @@ const MigmaCheckout: React.FC = () => {
     }
   };
 
+  if (!config) {
+    return (
+      <div className="min-h-screen bg-black flex items-center justify-center text-white">
+        Serviço de checkout inválido.
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-black">
-      <CheckoutTopbar serviceLabel={config?.label || ''} />
+      <CheckoutTopbar serviceLabel={config.label} />
       <CheckoutProgressBar
         currentStep={state.currentStep}
         step1Completed={state.step1Completed}
@@ -617,7 +624,7 @@ const MigmaCheckout: React.FC = () => {
                   <Step2Documents
                     isCompleted={state.step2Completed}
                     onComplete={handleStep2Complete}
-                    onAdvance={() => navigate(`/student/survey/${service ?? 'transfer'}`)}
+                    onAdvance={() => navigate('/student/onboarding')}
                     onBack={() => setState(prev => ({ ...prev, currentStep: 1 }))}
                   />
                 )}

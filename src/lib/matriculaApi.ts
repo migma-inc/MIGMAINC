@@ -181,6 +181,10 @@ export interface StudentParcelowCheckoutPayload {
 export interface StudentParcelowCheckoutResponse {
   url: string;
   order_id: string;
+  url_checkout?: string;
+  checkout_url?: string;
+  error?: string;
+  details?: unknown;
 }
 
 async function invokeFunction<T>(name: string, options: {

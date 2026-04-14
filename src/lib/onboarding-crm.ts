@@ -95,11 +95,30 @@ export interface CrmVisaOrder {
   paid_at: string | null;
 }
 
+export interface CrmCheckoutZellePending {
+  id: string;
+  migma_user_id: string | null;
+  migma_user_name: string | null;
+  migma_user_email: string | null;
+  service_request_id: string | null;
+  service_type: string | null;
+  amount: number | null;
+  receipt_url: string | null;
+  status: string | null;
+  n8n_payment_id: string | null;
+  image_path: string | null;
+  admin_notes: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+  approved_at: string | null;
+}
+
 /** The unified CRM case view built from the three source tables. */
 export interface OnboardingCase {
   profile: CrmProfile;
   serviceRequest: CrmServiceRequest | null;
   visaOrder: CrmVisaOrder | null;
+  checkoutZellePending: CrmCheckoutZellePending | null;
   /** Derived operational stage readable by the admin team. */
   operationalStage: OperationalStage;
 }
@@ -240,7 +259,15 @@ export const OPERATIONAL_STAGE_COLORS: Record<OperationalStage, string> = {
 
 export interface OnboardingCrmFilters {
   /** Tab-level filter based on profile data */
-  profileTab: 'all' | 'in_progress' | 'completed' | 'selection_paid' | 'placement';
+  profileTab:
+    | 'all'
+    | 'in_progress'
+    | 'completed'
+    | 'selection_paid'
+    | 'placement'
+    | 'pre_pending'
+    | 'pre_zelle'
+    | 'pre_card';
   /** Ownership presence based on MIGMA profile metadata */
   ownership: 'all' | 'owned' | 'unassigned';
   /** Payment status from visa_orders */
@@ -320,6 +347,7 @@ export async function loadOnboardingBoard(productLine?: 'cos' | 'transfer'): Pro
 
   // 2. Collect emails and resolve client_ids via the clients table
   const emails = profiles.map((p) => p.email).filter((e): e is string => !!e);
+  const userIds = profiles.map((p) => p.user_id).filter((id): id is string => !!id);
 
   // Resolve email → clients.id so we can join service_requests.client_id
   // (service_requests.client_id references clients.id, not auth.users.id)
@@ -339,7 +367,7 @@ export async function loadOnboardingBoard(productLine?: 'cos' | 'transfer'): Pro
 
   const resolvedClientIds = [...clientIdByEmail.values()];
 
-  const [requestsResult, ordersResult] = await Promise.all([
+  const [requestsResult, ordersResult, zellePendingResult] = await Promise.all([
     resolvedClientIds.length > 0
       ? supabase
           .from('service_requests')
@@ -370,10 +398,23 @@ export async function loadOnboardingBoard(productLine?: 'cos' | 'transfer'): Pro
           return q;
         })()
       : Promise.resolve({ data: [], error: null }),
+
+    userIds.length > 0
+      ? supabase
+          .from('migma_checkout_zelle_pending')
+          .select(`
+            id, migma_user_id, migma_user_name, migma_user_email, service_request_id,
+            service_type, amount, receipt_url, status, n8n_payment_id, image_path,
+            admin_notes, created_at, updated_at, approved_at
+          `)
+          .in('migma_user_id', userIds)
+          .order('created_at', { ascending: false })
+      : Promise.resolve({ data: [], error: null }),
   ]);
 
   const allRequests = (requestsResult.data ?? []) as CrmServiceRequest[];
   const allOrders = (ordersResult.data ?? []) as CrmVisaOrder[];
+  const allZellePending = (zellePendingResult.data ?? []) as CrmCheckoutZellePending[];
 
   // 3. Build lookup maps
   // service_requests by client_id (keep only the most recent per client)
@@ -394,6 +435,14 @@ export async function loadOnboardingBoard(productLine?: 'cos' | 'transfer'): Pro
     }
   }
 
+  const zellePendingByUserId = new Map<string, CrmCheckoutZellePending>();
+  for (const payment of allZellePending) {
+    if (!payment.migma_user_id) continue;
+    if (!zellePendingByUserId.has(payment.migma_user_id)) {
+      zellePendingByUserId.set(payment.migma_user_id, payment);
+    }
+  }
+
   // 4. Assemble OnboardingCase per profile
   // Resolve service_request via email → clients.id → service_requests.client_id
   const cases: OnboardingCase[] = profiles
@@ -401,10 +450,14 @@ export async function loadOnboardingBoard(productLine?: 'cos' | 'transfer'): Pro
       const clientId = profile.email ? clientIdByEmail.get(profile.email) ?? null : null;
       const sr = clientId ? srByClientId.get(clientId) ?? null : null;
       const order = profile.email ? orderByEmail.get(profile.email) ?? null : null;
+      const checkoutZellePending = profile.user_id
+        ? zellePendingByUserId.get(profile.user_id) ?? null
+        : null;
       return {
         profile,
         serviceRequest: sr,
         visaOrder: order,
+        checkoutZellePending,
         operationalStage: deriveOperationalStage(profile, sr, order),
       };
     })
@@ -696,6 +749,36 @@ export interface CrmMessage {
   message_metadata: Record<string, unknown> | null;
 }
 
+export interface CrmSurveyResponse {
+  id: string;
+  profile_id: string;
+  service_type: string | null;
+  /** Full answers blob keyed by question ID */
+  answers: Record<string, string | string[]> | null;
+  // Operational fields extracted from answers
+  academic_formation: string | null;
+  interest_areas: string | string[] | null;
+  class_frequency: string | string[] | null;
+  annual_investment: string | string[] | null;
+  preferred_regions: string | string[] | null;
+  english_level: string | null;
+  main_objective: string | null;
+  weekly_availability: string | null;
+  transfer_deadline_date: string | null;
+  cos_i94_expiry_date: string | null;
+  completed_at: string | null;
+  updated_at: string | null;
+}
+
+export interface CrmStudentDocument {
+  id: string;
+  user_id: string | null;
+  document_type: string | null;
+  file_path: string | null;
+  original_name: string | null;
+  created_at: string | null;
+}
+
 export interface CaseDetailPage {
   profile: CrmProfile;
   serviceRequests: CrmServiceRequest[];
@@ -712,6 +795,10 @@ export interface CaseDetailPage {
   messages: CrmMessage[];
   srDocuments: CrmDocument[];
   identityFiles: CrmIdentityFile[];
+  /** Respostas do questionário pós-checkout */
+  surveyResponses: CrmSurveyResponse[];
+  /** Documentos enviados durante o onboarding do estudante */
+  studentDocuments: CrmStudentDocument[];
 }
 
 /**
@@ -793,7 +880,7 @@ export async function loadDetailPage(profileId: string): Promise<{
   const srId = primaryRequest?.id ?? null;
   const srIds = serviceRequests.map((sr) => sr.id);
 
-  const [historyResult, eventsResult, followupsResult, messagesResult, srDocumentsResult, identityResult] = await Promise.all([
+  const [historyResult, eventsResult, followupsResult, messagesResult, srDocumentsResult, identityResult, surveyResult, studentDocsResult] = await Promise.all([
     srId
       ? supabase
           .from('service_request_stage_history')
@@ -844,6 +931,29 @@ export async function loadDetailPage(profileId: string): Promise<{
           .select('id, file_type, file_path, file_name')
           .eq('service_request_id', srId)
       : Promise.resolve({ data: [], error: null }),
+
+    // Respostas do questionário pós-checkout
+    supabase
+      .from('selection_survey_responses')
+      .select(`
+        id, profile_id, service_type, answers,
+        academic_formation, interest_areas, class_frequency,
+        annual_investment, preferred_regions, english_level,
+        main_objective, weekly_availability,
+        transfer_deadline_date, cos_i94_expiry_date,
+        completed_at, updated_at
+      `)
+      .eq('profile_id', profileId)
+      .order('completed_at', { ascending: false }),
+
+    // Documentos enviados durante o onboarding
+    profile.user_id
+      ? supabase
+          .from('student_documents')
+          .select('id, user_id, document_type, file_path, original_name, created_at')
+          .eq('user_id', profile.user_id)
+          .order('created_at', { ascending: false })
+      : Promise.resolve({ data: [], error: null }),
   ]);
 
   return {
@@ -860,6 +970,8 @@ export async function loadDetailPage(profileId: string): Promise<{
       messages: (messagesResult.data ?? []) as CrmMessage[],
       srDocuments: (srDocumentsResult.data ?? []) as CrmDocument[],
       identityFiles: (identityResult.data ?? []) as CrmIdentityFile[],
+      surveyResponses: (surveyResult.data ?? []) as CrmSurveyResponse[],
+      studentDocuments: (studentDocsResult.data ?? []) as CrmStudentDocument[],
     },
     error: null,
   };
