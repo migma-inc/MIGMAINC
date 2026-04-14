@@ -1,6 +1,5 @@
 export type OnboardingStep =
   | 'selection_fee'
-  | 'identity_verification'
   | 'selection_survey'
   | 'scholarship_selection'
   | 'process_type'
@@ -15,7 +14,6 @@ export type OnboardingStep =
 export interface OnboardingState {
   currentStep: OnboardingStep;
   selectionFeePaid: boolean;
-  identityVerified: boolean;
   selectionSurveyPassed: boolean;
   scholarshipsSelected: boolean;
   processTypeSelected: boolean;

@@ -3,9 +3,8 @@ import { CheckCircle } from 'lucide-react';
 import type { OnboardingStep } from '../types';
 
 const STEPS: { key: OnboardingStep; label: string }[] = [
-  { key: 'selection_fee',         label: 'Selection Fee' },
-  { key: 'identity_verification', label: 'Profile' },
-  { key: 'selection_survey',      label: 'Survey' },
+  { key: 'selection_fee',    label: 'Selection Fee' },
+  { key: 'selection_survey', label: 'Survey' },
   { key: 'scholarship_selection', label: 'Scholarship' },
   { key: 'documents_upload',      label: 'Documents' },
   { key: 'payment',               label: 'Application Fee' },

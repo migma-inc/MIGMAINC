@@ -5,14 +5,16 @@ import { applicationStore, useCartStore } from '../../../stores/applicationStore
 import type { OnboardingStep, OnboardingState } from '../types';
 
 const VALID_STEPS: OnboardingStep[] = [
-  'selection_fee', 'identity_verification', 'selection_survey',
+  'selection_fee', 'selection_survey',
   'scholarship_selection', 'documents_upload',
   'payment', 'scholarship_fee', 'placement_fee', 'reinstatement_fee', 'my_applications', 'completed'
 ];
 
-const normalizeLegacyStep = (step: OnboardingStep | null | undefined): OnboardingStep | null => {
+const normalizeLegacyStep = (step: OnboardingStep | string | null | undefined): OnboardingStep | null => {
   if (!step) return null;
-  return step === 'process_type' ? 'documents_upload' : step;
+  if (step === 'process_type') return 'documents_upload';
+  if (step === 'identity_verification') return 'selection_survey';
+  return step as OnboardingStep;
 };
 
 export const useOnboardingProgress = () => {
@@ -22,7 +24,6 @@ export const useOnboardingProgress = () => {
   const stableProfile = useMemo(() => ({
     has_paid_selection_process_fee: userProfile?.has_paid_selection_process_fee,
     selection_survey_passed: userProfile?.selection_survey_passed,
-    identity_verified: userProfile?.identity_verified,
     documents_uploaded: userProfile?.documents_uploaded,
     documents_status: userProfile?.documents_status,
     is_application_fee_paid: userProfile?.is_application_fee_paid,
@@ -39,7 +40,6 @@ export const useOnboardingProgress = () => {
   }), [
     userProfile?.has_paid_selection_process_fee,
     userProfile?.selection_survey_passed,
-    userProfile?.identity_verified,
     userProfile?.documents_uploaded,
     userProfile?.documents_status,
     userProfile?.is_application_fee_paid,
@@ -67,7 +67,6 @@ export const useOnboardingProgress = () => {
     return {
       currentStep: initial,
       selectionFeePaid: userProfile?.has_paid_selection_process_fee || false,
-      identityVerified: userProfile?.identity_verified || false,
       selectionSurveyPassed: userProfile?.selection_survey_passed || false,
       scholarshipsSelected: false,
       processTypeSelected: false,
@@ -155,9 +154,6 @@ export const useOnboardingProgress = () => {
       const selectionFeePaid = !!freshProfile.has_paid_selection_process_fee;
       const selectionSurveyPassed = !!freshProfile.selection_survey_passed;
 
-      // Verificação de identidade
-      const identityVerified = !!freshProfile.identity_verified;
-
       // Candidaturas
       const { data: appsData } = await supabase
         .from('scholarship_applications')
@@ -202,8 +198,6 @@ export const useOnboardingProgress = () => {
         maxAllowedStep = 'selection_fee';
       } else if (!selectionFeePaid) {
         maxAllowedStep = 'selection_fee';
-      } else if (!identityVerified) {
-        maxAllowedStep = 'identity_verification';
       } else if (!selectionSurveyPassed) {
         maxAllowedStep = 'selection_survey';
       } else if (!scholarshipsSelected) {
@@ -244,7 +238,6 @@ export const useOnboardingProgress = () => {
       setState({
         currentStep: chosenStep,
         selectionFeePaid,
-        identityVerified,
         selectionSurveyPassed,
         scholarshipsSelected,
         processTypeSelected,
