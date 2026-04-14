@@ -13,7 +13,10 @@
       "Bash(git checkout:*)",
       "Bash(git add:*)",
       "Bash(git rm:*)",
-      "Bash(rtk git:*)"
+      "Bash(rtk git:*)",
+      "Bash(rtk tsc:*)",
+      "Bash(rtk next:*)",
+      "Bash(npm run:*)"
     ]
   }
 }

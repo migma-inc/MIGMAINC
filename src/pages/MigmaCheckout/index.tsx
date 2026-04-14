@@ -360,7 +360,7 @@ const MigmaCheckout: React.FC = () => {
     }
   }, [state.step1Completed, state.step2Completed, state.userId, state.totalPrice, state.matriculaUserId, state.currentStep, step1Data, service]);
 
-  const handleStripeReturn = async (sessionId: string) => {
+  const handleStripeReturn = async (_sessionId: string) => {
     setPaymentLoading(true);
     try {
       const raw = localStorage.getItem(STRIPE_LS_KEY);
@@ -615,7 +615,7 @@ const MigmaCheckout: React.FC = () => {
                     .eq('migma_user_id', userId)
                     .eq('status', 'pending_verification')
                     .then(() => console.log('Zelle updated with n8n info'))
-                    .catch(e => console.error('Error updating zelle with n8n:', e));
+                    .then(undefined, (e: unknown) => console.error('Error updating zelle with n8n:', e));
                 })
                 .catch(err => console.error('n8n background processing failed:', err));
             }
@@ -633,9 +633,7 @@ const MigmaCheckout: React.FC = () => {
         }
       };
 
-      if (payment.method !== 'stripe') {
-        processPayment();
-      }
+      processPayment();
 
       setProgress(75);
       await new Promise(r => setTimeout(r, 200));
@@ -730,7 +728,7 @@ const MigmaCheckout: React.FC = () => {
         user_id: effectiveUserId,
         fee_type: 'selection_process',
         amount: state.totalPrice,
-        payment_method: realPaymentMethod,
+        payment_method: realPaymentMethod as any,
         service_type: service ?? 'transfer',
         service_request_id: srId,
         finalize_contract_only: true
@@ -780,7 +778,7 @@ const MigmaCheckout: React.FC = () => {
                   </div>
                 </div>
                 <div className="bg-[#0d0d0d] px-6 py-8">
-                  {state.currentStep === 1 && !regionLoading && (
+                  {state.currentStep === 1 && !regionLoading && config && (
                     <Step1PersonalInfo
                       config={config}
                       initialData={step1Data}

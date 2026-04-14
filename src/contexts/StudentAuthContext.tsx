@@ -39,7 +39,7 @@ interface StudentAuthContextType {
   session: Session | null;
   userProfile: StudentProfile | null;
   loading: boolean;
-  signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
+  signIn: (email: string, password: string) => Promise<{ data: { user: User | null } | null; error: Error | null }>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
   updateUserProfile: (updates: Partial<StudentProfile>) => Promise<void>;
@@ -118,8 +118,8 @@ export function StudentAuthProvider({ children }: { children: ReactNode }) {
   }, [fetchProfile]);
 
   const signIn = useCallback(async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    return { error: error as Error | null };
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    return { data: data ? { user: data.user } : null, error: error as Error | null };
   }, []);
 
   const signOut = useCallback(async () => {
