@@ -357,8 +357,8 @@ function KanbanView({
 
     return (
       <div
-        className="flex gap-3 overflow-x-auto pb-4 min-h-[400px] snap-x snap-mandatory scroll-p-3 scroll-smooth touch-pan-x touch-pan-y"
-        style={{ WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none' }}
+        className="kanban-scroll flex gap-3 overflow-x-auto pb-4 min-h-[400px] snap-x snap-mandatory scroll-p-3 scroll-smooth touch-pan-x touch-pan-y"
+        style={{ WebkitOverflowScrolling: 'touch' }}
       >
         {PRE_ONBOARDING_COLUMNS.map((column) => {
           const cards = byStatus.get(column) ?? [];
@@ -417,8 +417,8 @@ function KanbanView({
 
   return (
     <div
-      className="flex gap-3 overflow-x-auto pb-4 min-h-[400px] snap-x snap-mandatory scroll-p-3 scroll-smooth touch-pan-x touch-pan-y"
-      style={{ WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none' }}
+      className="kanban-scroll flex gap-3 overflow-x-auto pb-4 min-h-[400px] snap-x snap-mandatory scroll-p-3 scroll-smooth touch-pan-x touch-pan-y"
+      style={{ WebkitOverflowScrolling: 'touch' }}
     >
       {ONBOARDING_KANBAN_COLUMNS.map((column) => {
         const cards = byStep.get(column) ?? [];

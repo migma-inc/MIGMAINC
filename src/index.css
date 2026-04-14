@@ -25,6 +25,31 @@
   background: rgba(206, 159, 72, 0.5);
 }
 
+/* Kanban board — scrollbar horizontal visível no desktop */
+.kanban-scroll::-webkit-scrollbar {
+  height: 4px;
+}
+
+.kanban-scroll::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 10px;
+}
+
+.kanban-scroll::-webkit-scrollbar-thumb {
+  background: rgba(206, 159, 72, 0.4);
+  border-radius: 10px;
+}
+
+.kanban-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(206, 159, 72, 0.65);
+}
+
+/* Firefox */
+.kanban-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(206, 159, 72, 0.4) transparent;
+}
+
 @layer base {
 
   :root {

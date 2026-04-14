@@ -23,7 +23,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Dialog, DialogContent } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { getSecureUrl } from '@/lib/storage';
@@ -280,8 +280,7 @@ function OverviewTab({
                   onClick={onAssignToMe}
                   disabled={mutating}
                   size="sm"
-                  variant="outline"
-                  className="border-white/10 text-white hover:bg-white/5 shrink-0"
+                  className="bg-white/5 hover:bg-white/10 border border-white/10 text-white font-bold shrink-0"
                 >
                   <UserCheck className="w-4 h-4 mr-1.5" />
                   Assign to Me
@@ -293,12 +292,11 @@ function OverviewTab({
                   onClick={onArchive}
                   disabled={mutating}
                   size="sm"
-                  variant="outline"
                   className={cn(
-                    'border-white/10 text-sm font-bold',
+                    'font-bold border',
                     primaryRequest.case_status === 'cancelled'
-                      ? 'text-green-400 hover:bg-green-500/10'
-                      : 'text-red-400 hover:bg-red-500/10'
+                      ? 'bg-green-500/10 border-green-500/30 text-green-400 hover:bg-green-500/20'
+                      : 'bg-red-500/10 border-red-500/30 text-red-400 hover:bg-red-500/20'
                   )}
                 >
                   {primaryRequest.case_status === 'cancelled' ? 'Restore Active' : 'Archive Case'}
@@ -744,7 +742,13 @@ function DocumentsTab({
 
       {/* Media modal */}
       <Dialog open={!!mediaModal} onOpenChange={(open) => { if (!open) setMediaModal(null); }}>
-        <DialogContent className="max-w-4xl w-full bg-black/95 border border-white/10 p-0 overflow-hidden">
+        <DialogContent
+          className="max-w-4xl w-full bg-black/95 border border-white/10 p-0 overflow-hidden"
+          aria-describedby={undefined}
+        >
+          <DialogTitle className="sr-only">
+            {mediaModal?.label ?? 'Document Preview'}
+          </DialogTitle>
           {mediaModal && (
             <>
               <div className="flex items-center justify-between px-5 py-3 border-b border-white/10">
@@ -1211,22 +1215,22 @@ function SurveyTab({ surveyResponses }: { surveyResponses: CrmSurveyResponse[] }
           {/* Header */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <span className="text-[10px] font-black uppercase border rounded-sm px-2 py-0.5 bg-gold-medium/10 text-gold-light border-gold-medium/20">
+              <span className="text-xs font-black uppercase border rounded-sm px-2.5 py-1 bg-gold-medium/10 text-gold-light border-gold-medium/20">
                 {resp.service_type?.toUpperCase() ?? 'UNKNOWN SERVICE'}
               </span>
               {resp.transfer_deadline_date && (
-                <span className="text-[10px] font-black uppercase border rounded-sm px-2 py-0.5 bg-amber-500/10 text-amber-300 border-amber-500/20">
+                <span className="text-xs font-black uppercase border rounded-sm px-2.5 py-1 bg-amber-500/10 text-amber-300 border-amber-500/20">
                   Transfer Deadline: {new Date(resp.transfer_deadline_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                 </span>
               )}
               {resp.cos_i94_expiry_date && (
-                <span className="text-[10px] font-black uppercase border rounded-sm px-2 py-0.5 bg-red-500/10 text-red-300 border-red-500/20">
+                <span className="text-xs font-black uppercase border rounded-sm px-2.5 py-1 bg-red-500/10 text-red-300 border-red-500/20">
                   I-94 Expiry: {new Date(resp.cos_i94_expiry_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                 </span>
               )}
             </div>
             {resp.completed_at && (
-              <span className="text-[10px] text-gray-600">
+              <span className="text-xs text-gray-500">
                 Completed {fmtDate(resp.completed_at)}
               </span>
             )}
@@ -1241,22 +1245,22 @@ function SurveyTab({ surveyResponses }: { surveyResponses: CrmSurveyResponse[] }
 
             return (
               <Card key={section.key} className="bg-black/30 border border-white/5">
-                <CardHeader className="pb-2 pt-4 px-5">
-                  <CardTitle className="text-xs font-black uppercase tracking-widest text-gold-medium">
+                <CardHeader className="pb-3 pt-5 px-6">
+                  <CardTitle className="text-sm font-black uppercase tracking-widest text-gold-medium">
                     Section {section.key} — {section.title}
                   </CardTitle>
                 </CardHeader>
-                <CardContent className="px-5 pb-4">
-                  <div className="space-y-2">
+                <CardContent className="px-6 pb-5">
+                  <div className="space-y-1">
                     {sectionQuestions.map((q) => {
                       const raw = answers[q.id];
                       if (raw === undefined) return null;
                       return (
-                        <div key={q.id} className="flex items-start justify-between gap-4 py-1.5 border-b border-white/5 last:border-0">
-                          <span className="text-[11px] text-gray-400 leading-snug max-w-[55%]">
+                        <div key={q.id} className="flex items-start justify-between gap-6 py-2.5 border-b border-white/5 last:border-0">
+                          <span className="text-sm text-gray-400 leading-snug max-w-[55%]">
                             {QUESTION_LABEL[q.id] ?? q.id}
                           </span>
-                          <span className="text-[11px] text-white font-medium text-right">
+                          <span className="text-sm text-white font-semibold text-right">
                             {formatAnswerValue(raw as string | string[])}
                           </span>
                         </div>
