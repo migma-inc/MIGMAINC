@@ -9,7 +9,7 @@ import { PhoneInput } from 'react-international-phone';
 import 'react-international-phone/style.css';
 import { TermsModal } from './TermsModal';
 import { ZelleUpload } from '../../../features/visa-checkout/components/steps/step3/ZelleUpload';
-import type { Step1Data, ServiceConfig, PaymentMethod, IPRegion, CardOwnership } from '../types';
+import type { Step1Data, ServiceConfig, PaymentMethod, IPRegion, CardOwnership, PayerInfo } from '../types';
 import { calcTotal } from '../serviceConfigs';
 import { getContractTemplateByProductSlug, getChargebackAnnexTemplate } from '../../../lib/contract-templates';
 
@@ -115,7 +115,7 @@ export const Step1PersonalInfo: React.FC<Props> = ({
   const [method, setMethod] = useState<PaymentMethod>('parcelow_card');
   const [cardOwnership, setCardOwnership] = useState<'own' | 'third_party'>('own');
   const [cpf, setCpf] = useState('');
-  const [payerInfo, setPayerInfo] = useState<Step1Data['payerInfo'] | null>(null);
+  const [payerInfo, setPayerInfo] = useState<PayerInfo | null>(null);
   const [receipt, setReceipt] = useState<File | null>(null);
 
   const total = calcTotal(config, form.num_dependents);
@@ -599,7 +599,7 @@ export const Step1PersonalInfo: React.FC<Props> = ({
                         <input
                           type="text"
                           value={payerInfo?.name || ''}
-                          onChange={e => setPayerInfo((prev: Step1Data['payerInfo']) => ({ ...prev!, name: e.target.value.toUpperCase(), cpf: prev?.cpf || '', email: prev?.email || '', phone: prev?.phone || '' }))}
+                          onChange={e => setPayerInfo((prev: PayerInfo | null) => ({ ...prev!, name: e.target.value.toUpperCase(), cpf: prev?.cpf || '', email: prev?.email || '', phone: prev?.phone || '' }))}
                           className={`${INPUT_CLASS} ${errors.payer_name ? 'border-red-500' : ''} h-12 text-xs uppercase`}
                         />
                         {errors.payer_name && <p className="text-red-400 text-[10px] uppercase font-bold">{errors.payer_name}</p>}
@@ -609,7 +609,7 @@ export const Step1PersonalInfo: React.FC<Props> = ({
                         <input
                           type="text"
                           value={payerInfo?.cpf || ''}
-                          onChange={e => setPayerInfo((prev: Step1Data['payerInfo']) => ({ ...prev!, cpf: e.target.value.replace(/\D/g, '').slice(0, 11), name: prev?.name || '', email: prev?.email || '', phone: prev?.phone || '' }))}
+                          onChange={e => setPayerInfo((prev: PayerInfo | null) => ({ ...prev!, cpf: e.target.value.replace(/\D/g, '').slice(0, 11), name: prev?.name || '', email: prev?.email || '', phone: prev?.phone || '' }))}
                           className={`${INPUT_CLASS} ${errors.cpf || errors.payer_cpf ? 'border-red-500' : ''} h-12 text-xs`}
                           placeholder="000.000.000-00"
                         />
@@ -623,7 +623,7 @@ export const Step1PersonalInfo: React.FC<Props> = ({
                         <input
                           type="email"
                           value={payerInfo?.email || ''}
-                          onChange={e => setPayerInfo((prev: Step1Data['payerInfo']) => ({ ...prev!, email: e.target.value, name: prev?.name || '', cpf: prev?.cpf || '', phone: prev?.phone || '' }))}
+                          onChange={e => setPayerInfo((prev: PayerInfo | null) => ({ ...prev!, email: e.target.value, name: prev?.name || '', cpf: prev?.cpf || '', phone: prev?.phone || '' }))}
                           className={`${INPUT_CLASS} ${errors.payer_email ? 'border-red-500' : ''} h-12 text-xs`}
                         />
                         {errors.payer_email && <p className="text-red-400 text-[10px] uppercase font-bold">{errors.payer_email}</p>}
@@ -633,7 +633,7 @@ export const Step1PersonalInfo: React.FC<Props> = ({
                         <input
                           type="text"
                           value={payerInfo?.phone || ''}
-                          onChange={e => setPayerInfo((prev: Step1Data['payerInfo']) => ({ ...prev!, phone: e.target.value, name: prev?.name || '', cpf: prev?.cpf || '', email: prev?.email || '' }))}
+                          onChange={e => setPayerInfo((prev: PayerInfo | null) => ({ ...prev!, phone: e.target.value, name: prev?.name || '', cpf: prev?.cpf || '', email: prev?.email || '' }))}
                           className={`${INPUT_CLASS} ${errors.payer_phone ? 'border-red-500' : ''} h-12 text-xs`}
                         />
                         {errors.payer_phone && <p className="text-red-400 text-[10px] uppercase font-bold">{errors.payer_phone}</p>}

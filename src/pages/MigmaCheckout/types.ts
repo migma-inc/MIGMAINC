@@ -16,7 +16,7 @@ export interface PayerInfo {
   address_state?: string;
   address_complement?: string;
 }
-export type CheckoutStep = 1 | 2;
+export type CheckoutStep = 1 | 2 | 3;
 export type DocType = 'passport' | 'rg' | 'cnh';
 export type CivilStatus = 'single' | 'married' | 'divorced' | 'widowed';
 
@@ -41,7 +41,7 @@ export interface Step1Data {
   terms_accepted: boolean;
   data_accepted: boolean;
   signature_data_url: string | null;
-  payerInfo?: PayerInfo | null;
+  payment_method?: PaymentMethod;
 }
 
 /** Step 2 — documentos e dados adicionais do perfil. */

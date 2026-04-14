@@ -67,7 +67,7 @@ const StudentOnboarding: React.FC = () => {
   // Redirecionar se não autenticado
   useEffect(() => {
     if (!authLoading && !user) {
-      navigate('/student/register');
+      navigate('/student/login');
     }
   }, [authLoading, user, navigate]);
 
@@ -175,7 +175,7 @@ const StudentOnboarding: React.FC = () => {
           <button
             onClick={() => {
               signOut();
-              navigate('/student/register');
+              navigate('/student/login');
             }}
             className="px-4 py-2 flex items-center gap-2 bg-white/5 border border-white/10 text-gray-400 hover:bg-white/10 hover:text-white rounded-xl transition-all text-sm font-semibold"
           >

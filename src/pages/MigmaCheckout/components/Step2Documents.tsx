@@ -229,7 +229,6 @@ export const Step2Documents: React.FC<Props> = ({ onComplete, onBack, isComplete
           <label className="text-sm font-medium text-gray-300 mb-1.5 block">{t('migma_checkout.step2.doc_number', 'Número do Documento')} *</label>
           <input type="text" value={form.doc_number}
             onChange={e => set('doc_number', e.target.value)}
-            placeholder={t('migma_checkout.step2.doc_number_placeholder', 'Número do documento')}
             className={`${INPUT_CLASS} ${errors.doc_number ? 'border-red-500' : ''}`} />
           {errors.doc_number && <p className="text-red-400 text-xs mt-1">{errors.doc_number}</p>}
         </div>
@@ -239,7 +238,6 @@ export const Step2Documents: React.FC<Props> = ({ onComplete, onBack, isComplete
           <label className="text-sm font-medium text-gray-300 mb-1.5 block">{t('migma_checkout.step2.address', 'Endereço (Rua e Número)')} *</label>
           <input type="text" value={form.address}
             onChange={e => set('address', e.target.value)}
-            placeholder="123 Main St, Apt 4B"
             className={`${INPUT_CLASS} ${errors.address ? 'border-red-500' : ''}`} />
           {errors.address && <p className="text-red-400 text-xs mt-1">{errors.address}</p>}
         </div>
@@ -250,7 +248,6 @@ export const Step2Documents: React.FC<Props> = ({ onComplete, onBack, isComplete
             <label className="text-sm font-medium text-gray-300 mb-1.5 block">{t('migma_checkout.step2.city', 'Cidade')} *</label>
             <input type="text" value={form.city}
               onChange={e => set('city', e.target.value)}
-              placeholder="São Paulo"
               className={`${INPUT_CLASS} ${errors.city ? 'border-red-500' : ''}`} />
             {errors.city && <p className="text-red-400 text-xs mt-1">{errors.city}</p>}
           </div>
@@ -258,7 +255,6 @@ export const Step2Documents: React.FC<Props> = ({ onComplete, onBack, isComplete
             <label className="text-sm font-medium text-gray-300 mb-1.5 block">{t('migma_checkout.step2.state_province', 'Estado / Província')} *</label>
             <input type="text" value={form.state}
               onChange={e => set('state', e.target.value)}
-              placeholder="SP"
               className={`${INPUT_CLASS} ${errors.state ? 'border-red-500' : ''}`} />
             {errors.state && <p className="text-red-400 text-xs mt-1">{errors.state}</p>}
           </div>
@@ -266,7 +262,6 @@ export const Step2Documents: React.FC<Props> = ({ onComplete, onBack, isComplete
             <label className="text-sm font-medium text-gray-300 mb-1.5 block">{t('migma_checkout.step2.postal_code', 'CEP / Código Postal')} *</label>
             <input type="text" value={form.zip_code}
               onChange={e => set('zip_code', e.target.value)}
-              placeholder="01310-100"
               className={`${INPUT_CLASS} ${errors.zip_code ? 'border-red-500' : ''}`} />
             {errors.zip_code && <p className="text-red-400 text-xs mt-1">{errors.zip_code}</p>}
           </div>
@@ -278,7 +273,6 @@ export const Step2Documents: React.FC<Props> = ({ onComplete, onBack, isComplete
             <label className="text-sm font-medium text-gray-300 mb-1.5 block">{t('migma_checkout.step2.country', 'País de Residência')} *</label>
             <input type="text" value={form.country}
               onChange={e => set('country', e.target.value)}
-              placeholder="Brazil"
               className={`${INPUT_CLASS} ${errors.country ? 'border-red-500' : ''}`} />
             {errors.country && <p className="text-red-400 text-xs mt-1">{errors.country}</p>}
           </div>
@@ -286,7 +280,6 @@ export const Step2Documents: React.FC<Props> = ({ onComplete, onBack, isComplete
             <label className="text-sm font-medium text-gray-300 mb-1.5 block">{t('migma_checkout.step2.nationality', 'Nacionalidade')} *</label>
             <input type="text" value={form.nationality}
               onChange={e => set('nationality', e.target.value)}
-              placeholder="Brazilian"
               className={`${INPUT_CLASS} ${errors.nationality ? 'border-red-500' : ''}`} />
             {errors.nationality && <p className="text-red-400 text-xs mt-1">{errors.nationality}</p>}
           </div>
@@ -309,12 +302,11 @@ export const Step2Documents: React.FC<Props> = ({ onComplete, onBack, isComplete
         {/* Observações (opcional) */}
         <div>
           <label className="text-sm font-medium text-gray-300 mb-1.5 block">
-            {t('migma_checkout.step2.additional_notes', 'Observações Adicionais')} <span className="text-gray-500 font-normal">({t('common.optional', 'opcional')})</span>
+            {t('migma_checkout.step2.additional_notes', 'Observações Adicionais (opcional)')}
           </label>
           <textarea
             value={form.notes}
             onChange={e => set('notes', e.target.value)}
-            placeholder={t('migma_checkout.step2.notes_placeholder', 'Qualquer informação adicional relevante para o seu caso...')}
             rows={3}
             className={`${INPUT_CLASS} resize-none`}
           />

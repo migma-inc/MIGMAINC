@@ -27,6 +27,7 @@ export interface OnboardingState {
   reinstatementFeePaid: boolean;
   universityDocumentsUploaded: boolean;
   onboardingCompleted: boolean;
+  migmaCheckoutCompleted: boolean;
   isNewFlowUser: boolean; // sempre true para Migma
 }
 

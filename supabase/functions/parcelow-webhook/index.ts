@@ -575,26 +575,23 @@ async function processParcelowWebhookEvent(event: ParcelowWebhookEvent, supabase
 
   if (orderError || !orders || orders.length === 0) {
     // ── MIGMA CHECKOUT: verificar migma_parcelow_pending ──────────────────────
-    console.log("[Parcelow Webhook] Verificando migma_parcelow_pending...");
-    const { data: migmaPending } = await supabase
+    console.log(`[Parcelow Webhook] 🔍 Buscando na migma_parcelow_pending por ID: ${parcelowOrder.id}`);
+    const { data: migmaPending, error: migmaErr } = await supabase
       .from("migma_parcelow_pending")
       .select("*")
       .eq("parcelow_order_id", parcelowOrder.id.toString())
       .maybeSingle();
 
+    if (migmaErr) {
+      console.error("[Parcelow Webhook] ❌ Erro ao buscar na migma_parcelow_pending:", migmaErr);
+    }
+
     if (migmaPending) {
-      console.log(`[Parcelow Webhook] Migma pending encontrado: ${migmaPending.id} user=${migmaPending.migma_user_id}`);
+      console.log(`[Parcelow Webhook] ✅ Registro Migma encontrado! ID=${migmaPending.id} Usuário=${migmaPending.migma_user_id}`);
 
-      if (eventType === "event_order_paid" && !migmaPending.migma_payment_completed) {
-        console.log("[Parcelow Webhook] Marcando pagamento Migma como concluído...");
-
-        // Atualiza status na tabela
-        await supabase
-          .from("migma_parcelow_pending")
-          .update({ status: "paid", migma_payment_completed: true, updated_at: new Date().toISOString() })
-          .eq("id", migmaPending.id);
-
-        // Chama migma-payment-completed para registrar no Matricula USA
+      if ((eventType === "event_order_paid" || eventType === "event_order_confirmed") && !migmaPending.migma_payment_completed) {
+        // 1. Chama migma-payment-completed primeiro para registrar no Matricula USA
+        console.log(`[Parcelow Webhook] 🚀 Invocando migma-payment-completed para usuário ${migmaPending.migma_user_id} (Evento: ${eventType})`);
         const { error: payErr } = await supabase.functions.invoke("migma-payment-completed", {
           body: {
             user_id: migmaPending.migma_user_id,
@@ -602,16 +599,28 @@ async function processParcelowWebhookEvent(event: ParcelowWebhookEvent, supabase
             amount: migmaPending.amount,
             payment_method: "parcelow",
             service_type: migmaPending.service_type,
+            service_request_id: migmaPending.service_request_id || undefined,
             parcelow_order_id: parcelowOrder.id.toString(),
           },
         });
 
         if (payErr) {
-          console.error("[Parcelow Webhook] migma-payment-completed falhou:", payErr);
+          console.error("[Parcelow Webhook] ❌ migma-payment-completed falhou:", payErr);
         } else {
-          console.log("[Parcelow Webhook] ✅ Migma selection_process fee marcado como pago!");
+          console.log("[Parcelow Webhook] ✅ Migma selection_process fee processado com sucesso!");
+          
+          // 2. SÓ AGORA marca o pagamento como concluído na tabela de controle
+          await supabase
+            .from("migma_parcelow_pending")
+            .update({ 
+              status: "paid", 
+              migma_payment_completed: true, 
+              updated_at: new Date().toISOString() 
+            })
+            .eq("id", migmaPending.id);
         }
-      } else if (eventType === "event_order_declined" || eventType === "event_order_canceled" || eventType === "event_order_expired") {
+      }
+ else if (eventType === "event_order_declined" || eventType === "event_order_canceled" || eventType === "event_order_expired") {
         await supabase
           .from("migma_parcelow_pending")
           .update({ status: "failed", updated_at: new Date().toISOString() })
@@ -733,6 +742,41 @@ async function processParcelowWebhookEvent(event: ParcelowWebhookEvent, supabase
         totalPriceUsd: mainOrder.total_price_usd ?? null,
       });
 
+    }
+
+    // 🎯 Migma: mark selection process fee as paid in user_profiles
+    // (only for orders not found in migma_parcelow_pending — those go through migma-payment-completed)
+    if (mainOrder.product_slug?.includes("selection-process") && mainOrder.client_email) {
+      try {
+        const { data: migmaProfile } = await supabase
+          .from("user_profiles")
+          .select("user_id, has_paid_selection_process_fee")
+          .eq("email", mainOrder.client_email)
+          .maybeSingle();
+
+        if (migmaProfile?.user_id && !migmaProfile.has_paid_selection_process_fee) {
+          const { error: paidErr } = await supabase
+            .from("user_profiles")
+            .update({
+              has_paid_selection_process_fee: true,
+              onboarding_current_step: "selection_survey",
+              selection_process_fee_payment_method: "parcelow",
+            })
+            .eq("user_id", migmaProfile.user_id);
+
+          if (paidErr) {
+            console.error(`[parcelow-webhook] ❌ has_paid_selection_process_fee update falhou: ${paidErr.message}`);
+          } else {
+            console.log(`[parcelow-webhook] ✅ has_paid_selection_process_fee=true para user ${migmaProfile.user_id} (${mainOrder.client_email})`);
+          }
+        } else if (migmaProfile?.has_paid_selection_process_fee) {
+          console.log(`[parcelow-webhook] ℹ️ has_paid_selection_process_fee já era true para ${mainOrder.client_email}`);
+        } else {
+          console.log(`[parcelow-webhook] ℹ️ Nenhum user_profile encontrado para ${mainOrder.client_email} — não é usuário Migma`);
+        }
+      } catch (migmaErr: any) {
+        console.error(`[parcelow-webhook] ❌ Erro ao atualizar perfil Migma: ${migmaErr.message}`);
+      }
     }
 
     if (mainOrder.seller_id) {

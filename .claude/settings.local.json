@@ -5,7 +5,18 @@
       "mcp__supabase__execute_sql",
       "Bash(xargs grep:*)",
       "Bash(grep -E \"\\\\.\\(ts|tsx|css|scss|json\\)$\")",
-      "mcp__supabase__list_tables"
+      "mcp__supabase__list_tables",
+      "Bash(rtk gain:*)",
+      "Bash(C:/Users/victurib/.local/bin/rtk.exe gain:*)",
+      "Bash(C:/Users/victurib/.local/bin/rtk.exe git:*)",
+      "Bash(find:*)",
+      "Bash(git checkout:*)",
+      "Bash(git add:*)",
+      "Bash(git rm:*)",
+      "Bash(rtk git:*)",
+      "Bash(rtk tsc:*)",
+      "Bash(rtk next:*)",
+      "Bash(npm run:*)"
     ]
   }
 }

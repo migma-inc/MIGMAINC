@@ -144,6 +144,16 @@ export const ZelleApprovalPage = () => {
 
       if (migmaError) console.error('Error loading Migma:', migmaError);
 
+      // 3b. Load MigmaCheckout Zelle pending early — needed to deduplicate migma_payments below
+      const { data: migmaZelleDataEarly } = await supabase
+        .from('migma_checkout_zelle_pending')
+        .select('migma_user_email')
+        .eq('status', 'pending_verification');
+
+      const migmaCheckoutEmails = new Set(
+        (migmaZelleDataEarly || []).map((p: any) => p.migma_user_email?.trim().toLowerCase()).filter(Boolean)
+      );
+
       // 4. Load Products for names
       const { data: productsData } = await supabase
         .from('visa_products')
@@ -377,6 +387,9 @@ export const ZelleApprovalPage = () => {
       const finalPending = Array.from(unifiedMap.values()).filter(item => {
         // If it has migma status, check it
         if (item.type === 'migma' && (item.status === 'approved' || item.status === 'rejected')) return false;
+
+        // Deduplicate: skip migma_payments records whose email is already in migma_checkout_zelle_pending
+        if (item.type === 'migma' && item.client_email && migmaCheckoutEmails.has(item.client_email.trim().toLowerCase())) return false;
 
         // If it's an order or unified, check payment_status
         const status = item.original_order?.payment_status || item.status;

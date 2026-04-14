@@ -90,6 +90,7 @@ export interface PaymentCompletedPayload {
   // Migma checkout extras
   service_type?: string;
   service_request_id?: string;
+  finalize_contract_only?: boolean;
 }
 
 export interface PaymentCompletedResponse {
