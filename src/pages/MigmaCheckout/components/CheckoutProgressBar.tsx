@@ -1,5 +1,6 @@
 import React from 'react';
 import { Check } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import type { CheckoutStep } from '../types';
 
 interface Props {
@@ -8,13 +9,14 @@ interface Props {
   step2Completed: boolean;
 }
 
-const STEPS = [
-  { num: 1 as CheckoutStep, label: 'Info & Pagamento' },
-  { num: 2 as CheckoutStep, label: 'Documentação' },
-  { num: 3 as CheckoutStep, label: 'Resumo' },
+const STEPS: { num: CheckoutStep; labelKey: string }[] = [
+  { num: 1, labelKey: 'migma_checkout.progress.step1' },
+  { num: 2, labelKey: 'migma_checkout.progress.step2' },
+  { num: 3, labelKey: 'migma_checkout.progress.step3' },
 ];
 
 export const CheckoutProgressBar: React.FC<Props> = ({ currentStep, step1Completed, step2Completed }) => {
+  const { t } = useTranslation();
   const isCompleted = (step: CheckoutStep) => {
     if (step === 1) return step1Completed;
     if (step === 2) return step2Completed;
@@ -52,7 +54,7 @@ export const CheckoutProgressBar: React.FC<Props> = ({ currentStep, step1Complet
                   <span className={`text-xs font-medium text-center hidden sm:block transition-colors ${
                     active ? 'text-gold-medium' : completed ? 'text-emerald-400' : 'text-gray-500'
                   }`}>
-                    {step.label}
+                    {t(step.labelKey)}
                   </span>
                 </div>
                 {idx < STEPS.length - 1 && <div className="flex-1 hidden" />}

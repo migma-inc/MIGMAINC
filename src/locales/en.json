@@ -12,6 +12,16 @@
         "visa_title": "Visa Checkout",
         "payment_stripe": "Global Credit Card",
         "payment_stripe_sub": "Secure processing via Stripe",
+        "method_stripe_label": "Stripe – Card",
+        "method_stripe_sub": "Global credit card checkout",
+        "method_parcelow_card_label": "Parcelow – Brazilian Card",
+        "method_parcelow_card_sub": "Installment payments in BRL (up to 12x)",
+        "method_parcelow_pix_label": "Parcelow – PIX",
+        "method_parcelow_pix_sub": "Instant approval",
+        "method_parcelow_ted_label": "Parcelow – TED",
+        "method_parcelow_ted_sub": "Bank transfer",
+        "method_zelle_label": "Zelle",
+        "method_zelle_sub": "US Bank Transfer",
         "payment_square": "Square Payment",
         "payment_square_sub": "Secure payment (US Only)",
         "payment_parcelow": "Brazilian Card (Installments)",
@@ -273,7 +283,17 @@
             "error_remove": "Error removing coupon."
         }
     },
+    "common": {
+        "logout": "Sign Out"
+    },
     "migma_checkout": {
+        "back": "Back",
+        "total": "Total",
+        "progress": {
+            "step1": "Info & Payment",
+            "step2": "Documents",
+            "step3": "Summary"
+        },
         "index": {
             "service_not_found": "Service Not Found",
             "invalid_url": "The checkout URL is not valid.",
@@ -288,7 +308,11 @@
             "step1_locked": "Complete personal information in Step 1 to unlock.",
             "step2_locked": "Upload your documents in Step 2 to unlock payment.",
             "step1_completed_msg": "Personal information confirmed — Step 1 completed",
-            "step2_completed_msg": "Documents uploaded — Step 2 completed"
+            "step2_completed_msg": "Documents uploaded — Step 2 completed",
+            "processing": "Processing...",
+            "payment_confirmed": "Payment confirmed",
+            "payment_processing": "Payment processing",
+            "processing_notice": "Confirmation may take up to 48 business hours."
         },
         "step1": {
             "title": "Personal & Contact Information",
@@ -329,7 +353,18 @@
             "loading_contract": "Loading contract...",
             "contract_not_found": "Could not find the contract for this service, please contact support.",
             "contract_error": "Error loading contract.",
-            "error_saving": "Registration failed. Try again."
+            "error_saving": "Registration failed. Try again.",
+            "processing": "Processing...",
+            "pay_now": "Create Account and Pay — ${{total}} →",
+            "pay_stripe": "Create Account and Pay with Stripe →",
+            "pay_zelle": "Create Account and Submit Receipt →",
+            "resign": "Would you like to sign again?",
+            "select_dependents_placeholder": "Select number of dependents",
+            "session_identified": "Session Identified",
+            "session_message": "You already have an active account with the email:",
+            "signature_found": "Digital signature linked to your profile",
+            "validation_dependents": "Please select the number of dependents",
+            "dependents_zero": "dependents"
         },
         "step2": {
             "title": "Additional Profile Data",
@@ -354,7 +389,16 @@
             "saving": "Saving...",
             "back": "Back",
             "upload_save": "Upload and Save Documents →",
-            "error_required_fields": "Please fill all required fields and upload all 3 documents."
+            "error_required_fields": "Please fill all required fields and upload all 3 documents.",
+            "completed_title": "Documentation Accepted!",
+            "completed_message": "Your documents and required information for this step have been processed.",
+            "continue_to_payment": "Proceed to Payment →",
+            "error_file_type": "Only JPG and PNG files are allowed",
+            "error_file_size": "File must be smaller than {{size}}MB",
+            "selfie_hint_box": "Hold the document close to your face. Both your face and the document must be clearly visible.",
+            "validation_doc_front": "Document front is required",
+            "validation_doc_back": "Document back is required",
+            "validation_selfie": "Selfie with document is required"
         },
         "step3": {
             "order_summary": "Order Summary",
@@ -384,7 +428,16 @@
             "next_step_1": "Check your email for confirmation",
             "next_step_2": "Our team will review your documents",
             "next_step_3": "You will be connected with partner universities",
-            "next_step_4": "We will guide you until acceptance"
+            "next_step_4": "We will guide you until acceptance",
+            "title": "Final Review",
+            "finish_button": "Confirm Completion",
+            "payment_method_title": "Payment Information",
+            "select_method_title": "Select Payment Method",
+            "validation_cpf_required": "CPF is required for Parcelow payments",
+            "validation_cpf_invalid": "Invalid CPF. Check the numbers entered",
+            "validation_payer_name": "Payer name is required",
+            "validation_payer_email": "Payer email is required",
+            "validation_payer_phone": "Payer WhatsApp is required"
         }
     }
 }

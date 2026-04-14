@@ -15,46 +15,40 @@ import { getContractTemplateByProductSlug, getChargebackAnnexTemplate } from '..
 
 interface MethodOption {
   id: PaymentMethod;
-  label: string;
-  sublabel: string;
-  icon: React.ReactNode;
+  labelKey: string;
+  sublabelKey: string;
   regions: IPRegion[];
 }
 
 const METHODS: MethodOption[] = [
   {
     id: 'stripe',
-    label: 'Stripe – Cartão',
-    sublabel: 'Global credit card checkout',
-    icon: <CreditCard className="w-5 h-5" />,
+    labelKey: 'checkout.method_stripe_label',
+    sublabelKey: 'checkout.method_stripe_sub',
     regions: ['US', 'BR', 'OTHER'],
   },
   {
     id: 'parcelow_card',
-    label: 'Parcelow – Cartão Brasileiro',
-    sublabel: 'Pagamento parcelado em BRL (até 12x)',
-    icon: <CreditCard className="w-5 h-5" />,
+    labelKey: 'checkout.method_parcelow_card_label',
+    sublabelKey: 'checkout.method_parcelow_card_sub',
     regions: ['BR'],
   },
   {
     id: 'parcelow_pix',
-    label: 'Parcelow – PIX',
-    sublabel: 'Aprovação instantânea',
-    icon: <Zap className="w-5 h-5 text-emerald-500" />,
+    labelKey: 'checkout.method_parcelow_pix_label',
+    sublabelKey: 'checkout.method_parcelow_pix_sub',
     regions: ['BR'],
   },
   {
     id: 'parcelow_ted',
-    label: 'Parcelow – TED',
-    sublabel: 'Transferência bancária',
-    icon: <FileText className="w-5 h-5" />,
+    labelKey: 'checkout.method_parcelow_ted_label',
+    sublabelKey: 'checkout.method_parcelow_ted_sub',
     regions: ['BR', 'OTHER'],
   },
   {
     id: 'zelle',
-    label: 'Zelle',
-    sublabel: 'US Bank Transfer',
-    icon: <Smartphone className="w-5 h-5" />,
+    labelKey: 'checkout.method_zelle_label',
+    sublabelKey: 'checkout.method_zelle_sub',
     regions: ['US', 'BR', 'OTHER'],
   },
 ];
@@ -261,7 +255,7 @@ export const Step1PersonalInfo: React.FC<Props> = ({
     if (saving) return <><Loader2 className="w-4 h-4 animate-spin" /> {t('migma_checkout.step1.processing', 'Processando...')}</>;
     if (method === 'stripe') return t('migma_checkout.step1.pay_stripe', 'Criar Conta e Pagar com Stripe →');
     if (method === 'zelle') return t('migma_checkout.step1.pay_zelle', 'Criar Conta e Enviar Comprovante →');
-    return t('migma_checkout.step1.pay_now', `Criar Conta e Pagar — $${total} →`);
+    return t('migma_checkout.step1.pay_now', { total, defaultValue: `Criar Conta e Pagar — $${total} →` });
   };
 
   return (
@@ -700,7 +694,7 @@ export const Step1PersonalInfo: React.FC<Props> = ({
                   key={m.id}
                   type="button"
                   onClick={() => { setMethod(m.id); setErrors(prev => { const n = { ...prev }; delete n.method; delete n.cpf; return n; }); }}
-                  className={`flex items-center gap-5 p-5 rounded-2xl border-2 text-left transition-all group relative overflow-hidden ${
+                  className={`flex items-center gap-4 p-5 rounded-2xl border-2 text-left transition-all group relative overflow-hidden ${
                     method === m.id
                       ? 'border-gold-medium bg-[#1a1a1a] shadow-[0_10px_30px_rgba(0,0,0,0.5)]'
                       : 'border-white/5 bg-[#0d0d0d] hover:border-white/10 hover:bg-[#111]'
@@ -708,14 +702,9 @@ export const Step1PersonalInfo: React.FC<Props> = ({
                 >
                   {method === m.id && <div className="absolute top-0 left-0 w-1 h-full bg-gold-medium" />}
                   
-                  <div className={`w-12 h-12 rounded-xl flex items-center justify-center transition-all duration-300 ${
-                    method === m.id ? 'bg-gold-medium text-black scale-105 shadow-[0_4px_15px_rgba(212,175,55,0.3)]' : 'bg-white/5 text-gray-500 group-hover:text-gray-400'
-                  }`}>
-                    {m.icon}
-                  </div>
                   <div className="flex-1">
-                    <p className={`font-black text-sm uppercase tracking-wider ${method === m.id ? 'text-gold-light' : 'text-gray-300'}`}>{m.label}</p>
-                    <p className="text-[10px] text-gray-500 font-medium uppercase tracking-tight mt-0.5">{m.sublabel}</p>
+                    <p className={`font-black text-sm uppercase tracking-wider ${method === m.id ? 'text-gold-light' : 'text-gray-300'}`}>{t(m.labelKey)}</p>
+                    <p className="text-[10px] text-gray-500 font-medium uppercase tracking-tight mt-0.5">{t(m.sublabelKey)}</p>
                   </div>
                   <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all ${
                     method === m.id ? 'border-gold-medium' : 'border-white/10'

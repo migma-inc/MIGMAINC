@@ -12,6 +12,16 @@
         "visa_title": "Visa Checkout",
         "payment_stripe": "Cartão de Crédito Global",
         "payment_stripe_sub": "Processamento seguro via Stripe",
+        "method_stripe_label": "Stripe – Cartão",
+        "method_stripe_sub": "Checkout com cartão de crédito global",
+        "method_parcelow_card_label": "Parcelow – Cartão Brasileiro",
+        "method_parcelow_card_sub": "Pagamento parcelado em BRL (até 12x)",
+        "method_parcelow_pix_label": "Parcelow – PIX",
+        "method_parcelow_pix_sub": "Aprovação instantânea",
+        "method_parcelow_ted_label": "Parcelow – TED",
+        "method_parcelow_ted_sub": "Transferência bancária",
+        "method_zelle_label": "Zelle",
+        "method_zelle_sub": "Transferência bancária americana",
         "payment_square": "Square Payment",
         "payment_square_sub": "Pagamento seguro (Somente US)",
         "payment_parcelow": "Cartão Brasileiro (Parcelado)",
@@ -273,7 +283,17 @@
             "error_remove": "Erro ao remover cupom."
         }
     },
+    "common": {
+        "logout": "Sair"
+    },
     "migma_checkout": {
+        "back": "Voltar",
+        "total": "Total",
+        "progress": {
+            "step1": "Info & Pagamento",
+            "step2": "Documentação",
+            "step3": "Resumo"
+        },
         "index": {
             "service_not_found": "Serviço Não Encontrado",
             "invalid_url": "A URL de checkout não é válida.",
@@ -288,7 +308,11 @@
             "step1_locked": "Complete as informações pessoais no Passo 1 para desbloquear.",
             "step2_locked": "Envie seus documentos no Passo 2 para desbloquear o pagamento.",
             "step1_completed_msg": "Informações pessoais confirmadas — Passo 1 concluído",
-            "step2_completed_msg": "Documentos enviados — Passo 2 concluído"
+            "step2_completed_msg": "Documentos enviados — Passo 2 concluído",
+            "processing": "Processando...",
+            "payment_confirmed": "Pagamento confirmado",
+            "payment_processing": "Pagamento em processamento",
+            "processing_notice": "A confirmação pode levar até 48 horas úteis."
         },
         "step1": {
             "title": "Informações Pessoais e de Contato",
@@ -329,7 +353,18 @@
             "loading_contract": "Carregando contrato...",
             "contract_not_found": "Não foi possível encontrar o contrato desse serviço, por favor, entre em contato com o suporte.",
             "contract_error": "Erro ao carregar contrato.",
-            "error_saving": "Falha no registro. Tente novamente."
+            "error_saving": "Falha no registro. Tente novamente.",
+            "processing": "Processando...",
+            "pay_now": "Criar Conta e Pagar — ${{total}} →",
+            "pay_stripe": "Criar Conta e Pagar com Stripe →",
+            "pay_zelle": "Criar Conta e Enviar Comprovante →",
+            "resign": "Deseja assinar novamente?",
+            "select_dependents_placeholder": "Selecione a quantidade de dependentes",
+            "session_identified": "Sessão Identificada",
+            "session_message": "Você já possui uma conta ativa com o e-mail:",
+            "signature_found": "Assinatura digital vinculada ao seu perfil",
+            "validation_dependents": "Selecione a quantidade de dependentes",
+            "dependents_zero": "dependentes"
         },
         "step2": {
             "title": "Dados Adicionais do Perfil",
@@ -354,7 +389,16 @@
             "saving": "Salvando...",
             "back": "Voltar",
             "upload_save": "Carregar e Salvar Documentos →",
-            "error_required_fields": "Por favor, preencha todos os campos obrigatórios e envie os 3 documentos."
+            "error_required_fields": "Por favor, preencha todos os campos obrigatórios e envie os 3 documentos.",
+            "completed_title": "Documentação Aceita!",
+            "completed_message": "Seus documentos e informações obrigatórias para esta etapa já foram processados.",
+            "continue_to_payment": "Avançar para Pagamento →",
+            "error_file_type": "Apenas arquivos JPG e PNG são permitidos",
+            "error_file_size": "O arquivo deve ter menos de {{size}}MB",
+            "selfie_hint_box": "Segure o documento próximo ao seu rosto. Tanto o rosto quanto o documento devem estar claramente visíveis.",
+            "validation_doc_front": "Frente do documento é obrigatória",
+            "validation_doc_back": "Verso do documento é obrigatório",
+            "validation_selfie": "Selfie com documento é obrigatória"
         },
         "step3": {
             "order_summary": "Resumo do Pedido",
@@ -384,7 +428,16 @@
             "next_step_1": "Verifique seu e-mail para confirmação",
             "next_step_2": "Nossa equipe revisará seus documentos",
             "next_step_3": "Você será conectado com universidades parceiras",
-            "next_step_4": "Nós te guiaremos até a aceitação"
+            "next_step_4": "Nós te guiaremos até a aceitação",
+            "title": "Revisão Final",
+            "finish_button": "Confirmar Conclusão",
+            "payment_method_title": "Informações de Pagamento",
+            "select_method_title": "Selecione a Forma de Pagamento",
+            "validation_cpf_required": "O CPF é obrigatório para pagamentos via Parcelow",
+            "validation_cpf_invalid": "CPF inválido. Verifique os números preenchidos",
+            "validation_payer_name": "Nome do titular é obrigatório",
+            "validation_payer_email": "E-mail do titular é obrigatório",
+            "validation_payer_phone": "WhatsApp do titular é obrigatório"
         }
     }
 }

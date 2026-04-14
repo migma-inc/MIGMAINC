@@ -6,6 +6,7 @@
  * Step 2: Documentos -> Onboarding
  */
 import React, { useState, useEffect, useRef } from 'react';
+import { saveSellerRef, getSellerRef, clearSellerRef } from '../../lib/referral-tracking';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { Loader2, Clock, Check } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
@@ -76,6 +77,10 @@ const MigmaCheckout: React.FC = () => {
   const orderIdRef = useRef<string | null>(null);
 
   useEffect(() => {
+    // Persist seller ref to localStorage so it survives auth redirects
+    const refParam = searchParams.get('ref') || searchParams.get('seller_id');
+    if (refParam) saveSellerRef(refParam);
+
     const success = searchParams.get('success');
     const failed = searchParams.get('failed');
     const stripeSessionId = searchParams.get('stripe_session_id');
@@ -217,6 +222,7 @@ const MigmaCheckout: React.FC = () => {
       }
 
       setProgress(100);
+      clearSellerRef();
       await refreshProfile(); // Importante: Garante que o contexto local seja atualizado antes de navegar
       navigate('/student/onboarding');
     } catch (err) {
@@ -428,7 +434,7 @@ const MigmaCheckout: React.FC = () => {
       userId = authData.user.id;
     }
 
-    const sellerId = searchParams.get('ref') || searchParams.get('seller_id');
+    const sellerId = searchParams.get('ref') || searchParams.get('seller_id') || getSellerRef();
     const agentId = searchParams.get('agent') || searchParams.get('agent_id');
 
     const slugMap: Record<string, string> = {
