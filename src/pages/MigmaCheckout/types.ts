@@ -40,6 +40,7 @@ export interface Step1Data {
   terms_accepted: boolean;
   data_accepted: boolean;
   signature_data_url: string | null;
+  payment_method?: PaymentMethod;
 }
 
 /** Step 2 — documentos e dados adicionais do perfil. */

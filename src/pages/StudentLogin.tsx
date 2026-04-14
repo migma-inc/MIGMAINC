@@ -174,16 +174,6 @@ const StudentLogin: React.FC = () => {
             <div className="flex-1 h-px bg-white/5" />
           </div>
 
-          {/* Register CTA */}
-          <p className="text-center text-sm text-gray-500">
-            Ainda não tem conta?{' '}
-            <button
-              onClick={() => navigate('/student/checkout/transfer')}
-              className="text-[#C9A84C] font-semibold hover:text-[#E5C46A] hover:underline transition-colors"
-            >
-              Fazer inscrição
-            </button>
-          </p>
         </div>
 
         {/* Security note */}

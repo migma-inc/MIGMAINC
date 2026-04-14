@@ -8,8 +8,85 @@ const CORS = {
 };
 
 /**
- * migma-payment-completed (V14 - Contract & Order Integration)
+ * migma-payment-completed (V15)
+ *
+ * Modos:
+ *  - Pagamento Completo  : chamado pelo webhook Parcelow/Stripe/Zelle quando pagamento é confirmado
+ *  - finalize_contract_only: chamado pelo frontend após step 2 (upload de documentos)
+ *
+ * Responsabilidades:
+ *  1. Registrar pagamento em individual_fee_payments          (só pagamento completo)
+ *  2. Atualizar user_profiles (paid=true, preço, service_type)  (só pagamento completo)
+ *  3. Garantir client + service_request no CRM
+ *  4. Criar ou atualizar visa_order com documentos e status
+ *  5. Popular identity_files a partir de student_documents     (sempre que SR ID disponível)
+ *  6. Disparar geração dos 3 PDFs
+ *  7. Sincronizar com Matricula USA                           (só pagamento completo)
  */
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+function triggerPdfs(migmaUrl: string, migmaKey: string, orderId: string) {
+  const endpoints = [
+    "generate-visa-contract-pdf",
+    "generate-annex-pdf",
+    "generate-invoice-pdf",
+  ];
+  Promise.allSettled(
+    endpoints.map((fn) =>
+      fetch(`${migmaUrl}/functions/v1/${fn}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${migmaKey}`,
+        },
+        body: JSON.stringify({ order_id: orderId }),
+      })
+    )
+  ).then((results) => {
+    const failed = results.filter((r) => r.status === "rejected").length;
+    console.log(
+      `[PDF] Triggers enviados para ordem ${orderId}. Falhas: ${failed}/3`
+    );
+  });
+}
+
+async function upsertIdentityFiles(
+  migma: ReturnType<typeof createClient>,
+  serviceRequestId: string,
+  docs: Array<{ type: string; file_url: string; original_filename?: string; file_size_bytes?: number }>
+) {
+  const typeMap: Record<string, string> = {
+    passport: "document_front",
+    passport_back: "document_back",
+    selfie_with_doc: "selfie_doc",
+  };
+
+  const rows = docs
+    .filter((d) => typeMap[d.type])
+    .map((d) => ({
+      service_request_id: serviceRequestId,
+      file_type: typeMap[d.type],
+      file_path: d.file_url,
+      file_name: d.original_filename || d.type,
+      file_size: d.file_size_bytes || 0,
+    }));
+
+  if (rows.length === 0) return;
+
+  const { error } = await migma
+    .from("identity_files")
+    .upsert(rows, { onConflict: "service_request_id,file_type" });
+
+  if (error) {
+    console.error(`[identity_files] upsert falhou: ${error.message}`);
+  } else {
+    console.log(`[identity_files] ✅ ${rows.length} doc(s) sincronizados para SR ${serviceRequestId}`);
+  }
+}
+
+// ─── Handler principal ───────────────────────────────────────────────────────
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
 
@@ -22,149 +99,292 @@ Deno.serve(async (req) => {
 
   try {
     const body = await req.json();
-    console.log(`[migma-payment-completed] 📥 BODY RECEBIDO:`, JSON.stringify(body));
-    const { user_id, fee_type, amount, payment_method, receipt_url, service_type, service_request_id, finalize_contract_only } = body;
 
-    console.log(`[migma-payment-completed] Processando: ${fee_type} para ${user_id} (Modo: ${finalize_contract_only ? 'Finalizar Contrato' : 'Pagamento Completo'})`);
+    const {
+      user_id,
+      fee_type,
+      amount,
+      payment_method,
+      receipt_url,
+      service_type,
+      service_request_id,
+      finalize_contract_only,
+    } = body;
 
-    let paymentRecordId = null;
+    // Guardar ID do pagamento para resposta final
+    const amountNum = Number(amount) || 0;
 
+    console.log(
+      `[V15] 📥 user=${user_id} | fee=${fee_type} | amount=${amountNum} | method=${payment_method} | sr=${service_request_id ?? "—"} | finalize_only=${!!finalize_contract_only}`
+    );
+
+    let paymentRecordId: string | null = null;
+
+    // ── BLOCO 1: Registro de pagamento e atualização de perfil ───────────────
     if (!finalize_contract_only) {
-      // 1. Registro local no Migma
-      const { data: paymentRecord } = await migma
+      const { data: paymentRecord, error: payErr } = await migma
         .from("individual_fee_payments")
         .insert({
           user_id,
           fee_type,
-          amount,
+          amount: amountNum,
           method: payment_method,
           payment_method,
           receipt_url,
-          status: (payment_method === "zelle" || payment_method === "manual") ? "pending" : "completed",
+          status:
+            payment_method === "zelle" || payment_method === "manual"
+              ? "pending"
+              : "completed",
           payment_date: new Date().toISOString(),
         })
-        .select().single();
-      
-      paymentRecordId = paymentRecord?.id;
+        .select()
+        .single();
 
-      // 2. Atualizar perfil local
+      if (payErr) {
+        console.error(`[individual_fee_payments] insert falhou: ${payErr.message}`);
+      } else {
+        paymentRecordId = paymentRecord?.id ?? null;
+        console.log(`[individual_fee_payments] ✅ Registro criado: ${paymentRecordId}`);
+      }
+
       if (fee_type === "selection_process") {
-        console.log(`[migma-payment-completed] 🔄 Atualizando perfil local para user_id: ${user_id}`);
-        
-        await migma.from("user_profiles").update({
+        const profileUpdate: Record<string, unknown> = {
           has_paid_selection_process_fee: true,
           onboarding_current_step: "selection_survey",
           selection_process_fee_payment_method: payment_method,
-        }).eq("user_id", user_id);
+        };
+        // Só atualiza preço se veio um valor real (protege contra sobrescrever com 0)
+        if (amountNum > 0) profileUpdate.total_price_usd = amountNum;
+        if (service_type) profileUpdate.service_type = service_type;
+
+        const { error: profErr } = await migma
+          .from("user_profiles")
+          .update(profileUpdate)
+          .eq("user_id", user_id);
+
+        if (profErr) {
+          console.error(`[user_profiles] update falhou: ${profErr.message}`);
+        } else {
+          console.log(
+            `[user_profiles] ✅ paid=true | price=${amountNum > 0 ? amountNum : "preservado"} | service_type=${service_type ?? "preservado"}`
+          );
+        }
+      }
+    } else if (
+      // finalize_only=true: webhook fired before visa_order existed, so paid flag may be false.
+      // If payment_method is an automatic gateway (not manual/zelle), ensure flag is set.
+      fee_type === "selection_process" &&
+      payment_method !== "zelle" &&
+      payment_method !== "manual"
+    ) {
+      const { data: currentProfile } = await migma
+        .from("user_profiles")
+        .select("has_paid_selection_process_fee")
+        .eq("user_id", user_id)
+        .maybeSingle();
+
+      if (!currentProfile?.has_paid_selection_process_fee) {
+        const { error: profErr } = await migma
+          .from("user_profiles")
+          .update({
+            has_paid_selection_process_fee: true,
+            onboarding_current_step: "selection_survey",
+            selection_process_fee_payment_method: payment_method,
+          })
+          .eq("user_id", user_id);
+
+        if (profErr) {
+          console.error(`[user_profiles] finalize_only: update paid flag falhou: ${profErr.message}`);
+        } else {
+          console.log(`[user_profiles] ✅ has_paid_selection_process_fee=true (finalize_only path) para ${user_id}`);
+        }
+      } else {
+        console.log(`[user_profiles] ℹ️ has_paid_selection_process_fee já era true (finalize_only)`);
       }
     }
 
-    // 3. LOGICA DE CONTRATO (MIGMA VISA ORDERS)
+    // ── BLOCO 2: Lógica de contrato (visa_orders + PDFs) ─────────────────────
     if (fee_type === "selection_process") {
       try {
-        console.log(`[migma-payment-completed] Iniciando automação de contrato para ${user_id}...`);
-        
-        // Buscar dados do perfil
-        const { data: profile } = await migma.from("user_profiles")
+        const { data: profile, error: profileErr } = await migma
+          .from("user_profiles")
           .select("full_name, email, phone, country, num_dependents, signature_url, student_process_type")
           .eq("user_id", user_id)
           .single();
 
-        if (profile) {
-          const type = service_type || profile.student_process_type || "transfer"; 
-          const productSlug = `${type}-selection-process`;
-          const orderNumber = `MIGMA-${type.toUpperCase()}-${Date.now().toString().slice(-6)}`;
+        if (profileErr || !profile) {
+          console.error(`[user_profiles] perfil não encontrado para ${user_id}`);
+          throw new Error("Perfil não encontrado");
+        }
 
-          // BLINDAGEM: Buscar preços do produto para evitar erros de constraint
-          const { data: product } = await migma.from("visa_products")
-            .select("base_price_usd, price_per_dependent_usd")
-            .eq("slug", productSlug)
-            .maybeSingle();
+        const type = service_type || profile.student_process_type || "transfer";
+        const productSlug = `${type}-selection-process`;
+        const orderNumber = `MIGMA-${type.toUpperCase()}-${Date.now().toString().slice(-6)}`;
 
-          // 3a. GARANTIR CLIENTE (Vínculo para CRM/ServiceRequests)
-          let clientId = null;
-          console.log(`[migma-payment-completed] Verificando cliente por email: ${profile.email}`);
-          
-          const { data: existingClient, error: clientFetchErr } = await migma.from("clients")
+        // Preço do produto (fallback seguro)
+        const { data: product } = await migma
+          .from("visa_products")
+          .select("base_price_usd, price_per_dependent_usd")
+          .eq("slug", productSlug)
+          .maybeSingle();
+
+        // 2a. Garantir cliente no CRM
+        let clientId: string | null = null;
+        const { data: existingClient } = await migma
+          .from("clients")
+          .select("id")
+          .eq("email", profile.email)
+          .maybeSingle();
+
+        if (existingClient) {
+          clientId = existingClient.id;
+          console.log(`[clients] encontrado: ${clientId}`);
+        } else {
+          const { data: newClient, error: cliErr } = await migma
+            .from("clients")
+            .insert({
+              full_name: profile.full_name,
+              email: profile.email,
+              phone: profile.phone,
+              country: profile.country,
+            })
             .select("id")
-            .eq("email", profile.email)
-            .maybeSingle();
-          
-          if (clientFetchErr) {
-            console.error("[migma-payment-completed] Erro ao buscar cliente:", clientFetchErr);
-          }
+            .single();
 
-          if (existingClient) {
-            clientId = existingClient.id;
-            console.log(`[migma-payment-completed] Cliente encontrado: ${clientId}`);
+          if (cliErr) {
+            console.error(`[clients] insert falhou: ${cliErr.message}`);
           } else {
-            console.log("[migma-payment-completed] Cliente não encontrado. Criando novo...");
-            const { data: newClient, error: clientInsertErr } = await migma.from("clients").insert({
-               full_name: profile.full_name,
-               email: profile.email,
-               phone: profile.phone,
-               country: profile.country
-            }).select("id").single();
-            
-            if (clientInsertErr) {
-              console.error("[migma-payment-completed] Erro crítico ao criar cliente:", clientInsertErr);
-            } else if (newClient) {
-              clientId = newClient.id;
-              console.log(`[migma-payment-completed] Novo cliente criado: ${clientId}`);
-            }
+            clientId = newClient?.id ?? null;
+            console.log(`[clients] ✅ criado: ${clientId}`);
           }
+        }
 
-          // 3b. GARANTIR SERVICE_REQUEST (SOLUÇÃO ERRO 23503)
-          if (service_request_id) {
-            console.log(`[migma-payment-completed] Garantindo existência da service_request: ${service_request_id}`);
-            
-            const srUpsertData = {
-              id: service_request_id,
-              client_id: clientId,
-              service_id: productSlug,
-              service_type: type,
-              owner_user_id: user_id,
-              dependents_count: profile.num_dependents || 0,
-              status: (payment_method === "zelle" || payment_method === "manual") ? "pending_payment" : "paid",
-              workflow_stage: "case_created",
-              payment_method: payment_method
-            };
+        // 2b. Garantir service_request no CRM (necessário antes do FK em identity_files)
+        if (service_request_id) {
+          const { error: srErr } = await migma
+            .from("service_requests")
+            .upsert(
+              {
+                id: service_request_id,
+                client_id: clientId,
+                service_id: productSlug,
+                service_type: type,
+                owner_user_id: user_id,
+                dependents_count: profile.num_dependents || 0,
+                status:
+                  payment_method === "zelle" || payment_method === "manual"
+                    ? "pending_payment"
+                    : "paid",
+                workflow_stage: "case_created",
+                payment_method: payment_method,
+              },
+              { onConflict: "id" }
+            );
 
-            const { error: srErr } = await migma.from("service_requests").upsert(srUpsertData, { onConflict: 'id' });
-
-            if (srErr) {
-              console.error("[migma-payment-completed] FALHA CRÍTICA no upsert service_request:", srErr);
-              // Se falhar o upsert, a inserção da visa_orders abaixo certamente falhará pelo FK.
-              // Logamos os dados para depuração manual se necessário.
-              console.error("[migma-payment-completed] Dados que falharam no upsert:", JSON.stringify(srUpsertData));
-            } else {
-              console.log("[migma-payment-completed] ✅ service_request garantida.");
-            }
+          if (srErr) {
+            console.error(`[service_requests] upsert falhou: ${srErr.message}`);
+          } else {
+            console.log(`[service_requests] ✅ garantida: ${service_request_id}`);
           }
+        }
 
-          // 3c. EVITAR DUPLICIDADE (SOLUÇÃO DE DUPLICADO)
-          const { data: existingOrder } = await migma.from("visa_orders")
+        // 2c. Buscar documentos do aluno
+        const { data: docs } = await migma
+          .from("student_documents")
+          .select("type, file_url, original_filename, file_size_bytes")
+          .eq("user_id", user_id);
+
+        const passportDoc = docs?.find((d) => d.type === "passport")?.file_url ?? null;
+        const passportBackDoc = docs?.find((d) => d.type === "passport_back")?.file_url ?? null;
+        const selfieDoc = docs?.find((d) => d.type === "selfie_with_doc")?.file_url ?? null;
+
+        console.log(
+          `[student_documents] passport=${!!passportDoc} | back=${!!passportBackDoc} | selfie=${!!selfieDoc}`
+        );
+
+        // 2d. Popular identity_files (FK só funciona após service_request garantida)
+        if (service_request_id && docs && docs.length > 0) {
+          await upsertIdentityFiles(migma, service_request_id, docs);
+        }
+
+        // 2e. Verificar se já existe visa_order — prioridade: SR ID > email
+        let existingOrder: { id: string } | null = null;
+
+        if (service_request_id) {
+          const { data } = await migma
+            .from("visa_orders")
             .select("id")
             .eq("service_request_id", service_request_id)
             .maybeSingle();
+          existingOrder = data;
+          if (existingOrder) console.log(`[visa_orders] encontrada por SR ID: ${existingOrder.id}`);
+        }
 
-          if (existingOrder) {
-            console.log(`[migma-payment-completed] Ordem já existe para SR ${service_request_id}: ${existingOrder.id}. Ignorando criação duplicada.`);
-            return new Response(JSON.stringify({ success: true, order_id: existingOrder.id }), { headers: { ...CORS, "Content-Type": "application/json" } });
+        if (!existingOrder && profile.email) {
+          const { data } = await migma
+            .from("visa_orders")
+            .select("id")
+            .eq("client_email", profile.email)
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          existingOrder = data;
+          if (existingOrder) console.log(`[visa_orders] encontrada por email: ${existingOrder.id}`);
+        }
+
+        if (existingOrder) {
+          // ── Atualizar ordem existente ────────────────────────────────────
+          const orderUpdate: Record<string, unknown> = {
+            contract_document_url: passportDoc,
+            contract_document_back_url: passportBackDoc,
+            contract_selfie_url: selfieDoc,
+          };
+
+          if (service_request_id) orderUpdate.service_request_id = service_request_id;
+
+          // Atualiza status e preço apenas em pagamento real (não no finalize_only)
+          if (!finalize_contract_only) {
+            orderUpdate.payment_status =
+              payment_method === "zelle" || payment_method === "manual"
+                ? "manual_pending"
+                : "completed";
+            orderUpdate.paid_at =
+              payment_method === "parcelow" ||
+              payment_method === "parcelow_card" ||
+              payment_method === "parcelow_pix" ||
+              payment_method === "stripe"
+                ? new Date().toISOString()
+                : null;
+            if (amountNum > 0) orderUpdate.total_price_usd = amountNum;
           }
 
-          // 3d. BUSCAR DOCUMENTOS (SOLUÇÃO "NO PHOTOS FOUND")
-          console.log(`[migma-payment-completed] Buscando fotos para o contrato do usuário ${user_id}...`);
-          const { data: docs } = await migma.from("student_documents")
-            .select("type, file_url")
-            .eq("user_id", user_id);
+          const { error: updateErr } = await migma
+            .from("visa_orders")
+            .update(orderUpdate)
+            .eq("id", existingOrder.id);
 
-          const passportDoc = docs?.find(d => d.type === 'passport')?.file_url;
-          const selfieDoc = docs?.find(d => d.type === 'selfie_with_doc')?.file_url;
+          if (updateErr) {
+            console.error(`[visa_orders] update falhou: ${updateErr.message}`);
+          } else {
+            console.log(
+              `[visa_orders] ✅ atualizada: ${existingOrder.id} | docs=${!!passportDoc}/${!!passportBackDoc}/${!!selfieDoc} | finalize_only=${!!finalize_contract_only}`
+            );
+          }
 
-          // 4. Criar auditoria na visa_orders (BRIDGE)
-          console.log("[migma-payment-completed] Criando entrada na visa_orders...");
-          const { data: visaOrder, error: orderErr } = await migma.from("visa_orders").insert({
+          triggerPdfs(migmaUrl, migmaKey, existingOrder.id);
+
+          return new Response(
+            JSON.stringify({ success: true, order_id: existingOrder.id, updated: true }),
+            { headers: { ...CORS, "Content-Type": "application/json" } }
+          );
+        }
+
+        // ── Criar nova visa_order ────────────────────────────────────────────
+        console.log(`[visa_orders] Nenhuma ordem encontrada. Criando nova...`);
+
+        const { data: visaOrder, error: orderErr } = await migma
+          .from("visa_orders")
+          .insert({
             order_number: orderNumber,
             product_slug: productSlug,
             client_name: profile.full_name,
@@ -172,94 +392,87 @@ Deno.serve(async (req) => {
             client_whatsapp: profile.phone,
             client_country: profile.country,
             payment_method: payment_method,
-            payment_status: (payment_method === "zelle" || payment_method === "manual") ? "manual_pending" : "completed",
-            
-            // Valores obrigatórios capturados do produto ou fallback seguro
-            base_price_usd: product?.base_price_usd || 400.00,
-            price_per_dependent_usd: product?.price_per_dependent_usd || 150.00,
-            total_price_usd: amount,
+            payment_status:
+              payment_method === "zelle" || payment_method === "manual"
+                ? "manual_pending"
+                : "completed",
+            base_price_usd: product?.base_price_usd || 400.0,
+            price_per_dependent_usd: product?.price_per_dependent_usd || 150.0,
+            total_price_usd: amountNum,
             number_of_dependents: profile.num_dependents || 0,
-            
             signature_image_url: profile.signature_url,
-            contract_document_url: passportDoc, // Adicionado para "Identification"
-            contract_selfie_url: selfieDoc,    // Adicionado para "Identification"
-            
+            contract_document_url: passportDoc,
+            contract_document_back_url: passportBackDoc,
+            contract_selfie_url: selfieDoc,
             contract_accepted: true,
             contract_signed_at: new Date().toISOString(),
-            service_request_id: service_request_id,
+            service_request_id: service_request_id ?? null,
             contract_approval_status: "pending",
-            annex_approval_status: "pending"
-          }).select().single();
+            annex_approval_status: "pending",
+          })
+          .select()
+          .single();
 
-          if (visaOrder) {
-             console.log(`[migma-payment-completed] ✅ visa_orders criada: ${visaOrder.id}. Disparando 3 PDFs...`);
-             
-             // Disparar geradores de PDF (não aguarda para não travar o timeout do cliente)
-             const pdfRequests = [
-               fetch(`${migmaUrl}/functions/v1/generate-visa-contract-pdf`, {
-                 method: 'POST',
-                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${migmaKey}` },
-                 body: JSON.stringify({ order_id: visaOrder.id })
-               }),
-               fetch(`${migmaUrl}/functions/v1/generate-annex-pdf`, {
-                 method: 'POST',
-                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${migmaKey}` },
-                 body: JSON.stringify({ order_id: visaOrder.id })
-               }),
-               fetch(`${migmaUrl}/functions/v1/generate-invoice-pdf`, {
-                 method: 'POST',
-                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${migmaKey}` },
-                 body: JSON.stringify({ order_id: visaOrder.id })
-               })
-             ];
-             
-             Promise.allSettled(pdfRequests).then((results) => {
-               const failed = results.filter(r => r.status === 'rejected');
-               console.log(`[migma-payment-completed] PDF generation triggers finished. Failed: ${failed.length}`);
-             });
-          } else {
-            console.error("[migma-payment-completed] Erro fatal ao criar visa_orders:", orderErr);
-          }
+        if (orderErr || !visaOrder) {
+          console.error(`[visa_orders] insert falhou: ${orderErr?.message}`);
+        } else {
+          console.log(
+            `[visa_orders] ✅ criada: ${visaOrder.id} | docs=${!!passportDoc}/${!!passportBackDoc}/${!!selfieDoc} | price=${amountNum}`
+          );
+          triggerPdfs(migmaUrl, migmaKey, visaOrder.id);
         }
-      } catch (contractErr) {
-        console.error("[migma-payment-completed] Falha na automação de contrato:", contractErr);
+      } catch (contractErr: any) {
+        console.error(`[contrato] Falha geral: ${contractErr.message}`);
       }
 
-      // 4. Sync para Matricula USA (PATCH DIRETO)
-      if (matriculaUrl && matriculaKey) {
-        const { data: p } = await migma.from("user_profiles").select("matricula_user_id").eq("user_id", user_id).maybeSingle();
+      // ── BLOCO 3: Sync Matricula USA ────────────────────────────────────────
+      if (!finalize_contract_only && matriculaUrl && matriculaKey) {
+        const { data: p } = await migma
+          .from("user_profiles")
+          .select("matricula_user_id")
+          .eq("user_id", user_id)
+          .maybeSingle();
+
         const remoteId = p?.matricula_user_id;
 
         if (remoteId) {
-           console.log(`[migma-payment-completed] 🌐 Sincronizando com Matricula USA. ID Remoto: ${remoteId}`);
-           const response = await fetch(`${matriculaUrl}/rest/v1/user_profiles?user_id=eq.${remoteId}`, {
-            method: "PATCH",
-            headers: {
-              "apikey": matriculaKey,
-              "Authorization": `Bearer ${matriculaKey}`,
-              "Content-Type": "application/json"
-            },
-            body: JSON.stringify({ 
-              has_paid_selection_process_fee: true,
-              selection_process_paid_at: new Date().toISOString()
-            }),
-          });
-          
+          const response = await fetch(
+            `${matriculaUrl}/rest/v1/user_profiles?user_id=eq.${remoteId}`,
+            {
+              method: "PATCH",
+              headers: {
+                apikey: matriculaKey,
+                Authorization: `Bearer ${matriculaKey}`,
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                has_paid_selection_process_fee: true,
+                selection_process_paid_at: new Date().toISOString(),
+              }),
+            }
+          );
+
           if (!response.ok) {
-            const errorText = await response.text();
-            console.error(`[migma-payment-completed] ❌ Falha no PATCH Matricula USA (${response.status}):`, errorText);
+            const txt = await response.text();
+            console.error(`[matricula-usa] PATCH falhou (${response.status}): ${txt}`);
           } else {
-            console.log(`[migma-payment-completed] ✅ Sincronização Matricula USA concluída com sucesso!`);
+            console.log(`[matricula-usa] ✅ sincronizado: remoteId=${remoteId}`);
           }
         } else {
-          console.warn(`[migma-payment-completed] ⚠️ Sincronização ignorada: matricula_user_id não encontrado para user ${user_id}`);
+          console.warn(`[matricula-usa] matricula_user_id não encontrado para user ${user_id}`);
         }
       }
     }
 
-    return new Response(JSON.stringify({ success: true, payment_id: paymentRecordId }), { headers: { ...CORS, "Content-Type": "application/json" } });
+    return new Response(
+      JSON.stringify({ success: true, payment_id: paymentRecordId }),
+      { headers: { ...CORS, "Content-Type": "application/json" } }
+    );
   } catch (err: any) {
-    console.error("[migma-payment-completed] Erro:", err);
-    return new Response(JSON.stringify({ error: err.message }), { status: 500, headers: { ...CORS, "Content-Type": "application/json" } });
+    console.error(`[V15] ❌ Erro crítico: ${err.message}`);
+    return new Response(
+      JSON.stringify({ error: err.message }),
+      { status: 500, headers: { ...CORS, "Content-Type": "application/json" } }
+    );
   }
 });

@@ -39,9 +39,10 @@ export const TermsModal: React.FC<Props> = ({ isOpen, onClose, contractTitle, co
           ref={contentRef}
           className="flex-1 overflow-y-auto px-6 py-5 custom-scrollbar"
         >
-          <pre className="text-gray-300 text-xs leading-relaxed whitespace-pre-wrap font-sans">
-            {contractText}
-          </pre>
+          <div
+            className="text-gray-300 text-sm leading-relaxed prose prose-invert prose-sm max-w-none"
+            dangerouslySetInnerHTML={{ __html: contractText }}
+          />
         </div>
 
         {/* Footer */}

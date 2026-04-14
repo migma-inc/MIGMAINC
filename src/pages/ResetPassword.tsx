@@ -20,14 +20,17 @@ const ResetPassword = () => {
   });
 
   useEffect(() => {
-    // Verifica se há uma sessão ativa (vinda do link de reset)
-    const checkSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        console.warn('[ResetPassword] Nenhuma sessão encontrada. O link pode ter expirado.');
+    // Supabase v2: o token de recovery vem no hash da URL e é processado de forma assíncrona.
+    // onAuthStateChange garante que a sessão esteja disponível antes de permitir o submit.
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'PASSWORD_RECOVERY') {
+        console.log('[ResetPassword] Sessão de recovery estabelecida.');
+      } else if (!session && event !== 'INITIAL_SESSION') {
+        console.warn('[ResetPassword] Sessão inválida ou expirada. Evento:', event);
+        setError('Link de recuperação inválido ou expirado. Solicite um novo link.');
       }
-    };
-    checkSession();
+    });
+    return () => subscription.unsubscribe();
   }, []);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -143,6 +146,7 @@ const ResetPassword = () => {
                     type={showPassword ? 'text' : 'password'}
                     value={formData.password}
                     onChange={handleChange}
+                    autoComplete="new-password"
                     placeholder="Mínimo 6 caracteres"
                     className="w-full pl-10 pr-11 py-3 bg-white/5 border border-white/10 rounded-xl text-white text-sm focus:outline-none focus:border-[#C9A84C]/60 focus:ring-1 focus:ring-[#C9A84C]/30 transition-all"
                     required
@@ -170,6 +174,7 @@ const ResetPassword = () => {
                     type={showConfirmPassword ? 'text' : 'password'}
                     value={formData.confirmPassword}
                     onChange={handleChange}
+                    autoComplete="new-password"
                     placeholder="Repita a senha"
                     className="w-full pl-10 pr-11 py-3 bg-white/5 border border-white/10 rounded-xl text-white text-sm focus:outline-none focus:border-[#C9A84C]/60 focus:ring-1 focus:ring-[#C9A84C]/30 transition-all"
                     required

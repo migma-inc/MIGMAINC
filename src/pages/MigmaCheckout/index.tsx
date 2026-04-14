@@ -99,32 +99,77 @@ const MigmaCheckout: React.FC = () => {
     }
   }, [searchParams]);
 
+  useEffect(() => {
+    // Se estiver no Passo 3 mas o valor estiver zerado, força um refresh para garantir dados corretos
+    if (state.currentStep === 3 && state.totalPrice === 0 && !regionLoading) {
+      refreshProfile();
+    }
+  }, [state.currentStep, state.totalPrice, regionLoading]);
+
   const handleVerifyAndAdvance = async () => {
     setPaymentLoading(true);
     setProcessMessage('Verificando confirmação do pagamento...');
 
+    // Restaurar step1Data e totalPrice do draft salvo antes do redirect Parcelow
+    const draftRaw = localStorage.getItem(getDraftKey(service));
+    if (draftRaw) {
+      try {
+        const draft = JSON.parse(draftRaw);
+        if (draft.step1Data) setStep1Data(draft.step1Data);
+        if (draft.state?.totalPrice) {
+          setState(prev => ({
+            ...prev,
+            totalPrice: draft.state.totalPrice,
+            serviceRequestId: draft.state.serviceRequestId || prev.serviceRequestId,
+          }));
+        }
+      } catch (e) {
+        console.warn('[handleVerifyAndAdvance] Failed to restore draft:', e);
+      }
+    }
+
     try {
-      // Tentar verificar até 3 vezes com intervalo de 2 segundos (máximo 6 segundos de espera)
+      let finalUserId: string | null = null;
+
+      // Tentar verificar até 3 vezes com intervalo de 2 segundos
       for (let i = 0; i < 3; i++) {
         const { data: { session } } = await supabase.auth.getSession();
-        const userId = session?.user.id;
+        finalUserId = session?.user.id || null;
 
-        if (userId) {
+        if (finalUserId) {
           const { data: profile } = await supabase
             .from('user_profiles')
-            .select('has_paid_selection_process_fee')
-            .eq('user_id', userId)
+            .select('has_paid_selection_process_fee, total_price_usd, full_name, email, phone, signature_url')
+            .eq('user_id', finalUserId)
             .maybeSingle();
 
           if (profile?.has_paid_selection_process_fee) {
             console.log('[MigmaCheckout] ✅ Pagamento verificado no banco! Avançando.');
+            // Complementar step1Data com dados do perfil se draft não tinha
+            if (profile.full_name || profile.email) {
+              setStep1Data(prev => prev ? {
+                ...prev,
+                full_name: prev.full_name || profile.full_name || '',
+                email: prev.email || profile.email || '',
+                phone: prev.phone || profile.phone || '',
+              } : {
+                full_name: profile.full_name || '',
+                email: profile.email || '',
+                phone: profile.phone || '',
+                password: '', confirm_password: '', num_dependents: null,
+                terms_accepted: true, data_accepted: true,
+                signature_data_url: profile.signature_url || null,
+              });
+            }
             setState(prev => ({
               ...prev,
-              userId,
+              userId: finalUserId,
               step1Completed: true,
               paymentConfirmed: true,
               currentStep: 2,
+              ...(profile.total_price_usd ? { totalPrice: profile.total_price_usd } : {}),
             }));
+            await refreshProfile();
             setPaymentLoading(false);
             return;
           }
@@ -134,8 +179,18 @@ const MigmaCheckout: React.FC = () => {
         await new Promise(r => setTimeout(r, 2000));
       }
 
-      // Se após 3 tentativas ainda não confirmou, avisa o usuário mas mantém no Step 1
-      alert('Seu pagamento está sendo processado. Você poderá continuar para o Passo 2 assim que recebermos a confirmação (isso geralmente leva alguns segundos).');
+      // Se após 3 tentativas ainda não confirmou no banco, forçamos o avanço
+      // pois o usuário foi redirecionado com success=true do gateway.
+      if (finalUserId) {
+        console.log('[MigmaCheckout] ⏩ Forçando avanço para Step 2 (Webhook em atraso, mas redirecionamento confirmou sucesso).');
+        setState(prev => ({
+          ...prev,
+          userId: finalUserId,
+          step1Completed: true,
+          paymentConfirmed: true,
+          currentStep: 2,
+        }));
+      }
 
     } catch (err) {
       console.error('Erro ao verificar pagamento:', err);
@@ -193,9 +248,38 @@ const MigmaCheckout: React.FC = () => {
       // No fluxo Migma, identity_verified é setado após o Step 2
       if (profile.has_paid_selection_process_fee && profile.identity_verified) {
         console.log('[MigmaCheckout] 🔄 Recuperando sessão: Identificado progresso até o Passo 3.');
+        
+        // 🔍 Tentar recuperar service_request_id e preço da ordem existente
+        const { data: latestOrder } = await supabase
+          .from('visa_orders')
+          .select('service_request_id, total_price_usd')
+          .eq('client_email', profile.email)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        // Fallback em cascata: perfil → visa_orders → individual_fee_payments → 0
+        let resolvedPrice = profile.total_price_usd || latestOrder?.total_price_usd || 0;
+        if (!resolvedPrice) {
+          const { data: feePayment } = await supabase
+            .from('individual_fee_payments')
+            .select('amount')
+            .eq('user_id', session.user.id)
+            .eq('fee_type', 'selection_process')
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          resolvedPrice = feePayment?.amount || 0;
+        }
+
+        const resolvedName = profile.full_name
+          || session.user.user_metadata?.full_name
+          || session.user.user_metadata?.name
+          || '';
+
         setStep1Data({
-          full_name: profile.full_name || '',
-          email: profile.email || '',
+          full_name: resolvedName,
+          email: profile.email || session.user.email || '',
           phone: profile.phone || '',
           password: '',
           confirm_password: '',
@@ -204,11 +288,13 @@ const MigmaCheckout: React.FC = () => {
           data_accepted: true,
           signature_data_url: profile.signature_url || null
         });
+
         setState(prev => ({
           ...prev,
           userId: session.user.id,
-          totalPrice: profile.total_price_usd || 0,
+          totalPrice: resolvedPrice,
           dbServiceType: profile.service_type || null,
+          serviceRequestId: latestOrder?.service_request_id || prev.serviceRequestId,
           step1Completed: true,
           step2Completed: true,
           paymentConfirmed: true,
@@ -231,6 +317,7 @@ const MigmaCheckout: React.FC = () => {
             ...prev,
             ...draft.state,
             userId: session.user.id,
+            serviceRequestId: draft.state.serviceRequestId || state.serviceRequestId,
             currentStep: draft.state.currentStep || 1,
           }));
           draftLoaded = true;
@@ -264,6 +351,7 @@ const MigmaCheckout: React.FC = () => {
           matriculaUserId: state.matriculaUserId,
           step1Completed: state.step1Completed,
           step2Completed: state.step2Completed,
+          serviceRequestId: state.serviceRequestId,
           currentStep: state.currentStep
         },
         step1Data,
@@ -472,6 +560,20 @@ const MigmaCheckout: React.FC = () => {
         const finalUrl = parcelowResult.checkout_url || parcelowResult.url_checkout || parcelowResult.url;
 
         if (finalUrl) {
+          // Salvar draft ANTES do redirect — sem isso totalPrice = 0 ao voltar
+          localStorage.setItem(getDraftKey(service), JSON.stringify({
+            state: {
+              userId,
+              totalPrice: total,
+              matriculaUserId: state.matriculaUserId,
+              step1Completed: true,
+              step2Completed: false,
+              serviceRequestId: state.serviceRequestId,
+              currentStep: 2,
+            },
+            step1Data: data,
+            step2Data: null,
+          }));
           setProcessMessage('Redirecionando para a Parcelow...');
           setProgress(100);
           window.location.href = finalUrl;
@@ -535,8 +637,10 @@ const MigmaCheckout: React.FC = () => {
         processPayment();
       }
 
+      setProgress(75);
+      await new Promise(r => setTimeout(r, 200));
       setProgress(100);
-      setStep1Data(data);
+      setStep1Data({ ...data, payment_method: payment.method });
       setState(prev => ({
         ...prev,
         userId,
@@ -546,13 +650,18 @@ const MigmaCheckout: React.FC = () => {
         paymentConfirmed: false,
         zelleProcessing: payment.method === 'zelle'
       }));
+      // Parcelow e Stripe retornam antes de chegar aqui (window.location.href).
+      // Para Zelle (e outros métodos sem redirect), deixa o modal em 100% por um momento antes de fechar.
+      await new Promise(r => setTimeout(r, 500));
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      setProcessing(false);
 
     } catch (err: any) {
       console.error('[Step1] Error:', err);
       alert(err.message || 'Erro ao processar Passo 1. Tente novamente.');
-      setProcessing(false); // Só fecha se der erro
+      setProcessing(false);
     } finally {
-      // Removido o setProcessing(false) daqui para manter o modal durante o redirecionamento
+      // Modal fechado explicitamente nos paths acima
     }
   };
 
@@ -567,6 +676,8 @@ const MigmaCheckout: React.FC = () => {
       const bucket = 'migma-student-documents';
       const ts = Date.now();
       const docsForApi: any[] = [];
+      // SR ID garantido não-nulo (Postgres não detecta conflito em NULL no upsert)
+      const srId = state.serviceRequestId || crypto.randomUUID();
 
       const uploads = [
         { file: data.doc_front!, type: 'passport', name: `${effectiveUserId}/passport_${ts}.jpg` },
@@ -590,18 +701,13 @@ const MigmaCheckout: React.FC = () => {
           service_request_id: state.serviceRequestId || undefined
         });
 
-        const typeMap: any = { passport: 'document_front', passport_back: 'document_back', selfie_with_doc: 'selfie_doc' };
-        const identityRows = docsForApi.map(doc => ({
-          service_request_id: state.serviceRequestId,
-          file_type: typeMap[doc.type] || doc.type,
-          file_path: doc.file_url,
-          file_name: doc.original_filename,
-          file_size: doc.file_size_bytes,
-        }));
-        await supabase.from('identity_files').insert(identityRows);
+        // identity_files é populado pelo backend (migma-payment-completed) após garantir FK de service_request
 
         // 🚀 Marca identidate como verificada (enviada) para o fluxo Migma
         await supabase.from('user_profiles').update({ identity_verified: true }).eq('user_id', effectiveUserId);
+        
+        // Sincroniza o perfil global antes de avançar para o Passo 3
+        await refreshProfile();
       }
 
       if (step1Data) {
@@ -617,17 +723,21 @@ const MigmaCheckout: React.FC = () => {
       }
 
       // DISPARAR FINALIZAÇÃO DE CONTRATO (BACKEND - SEM AGUARDAR)
+      // Passa o método real do pagamento para que migma-payment-completed saiba se pode
+      // setar has_paid_selection_process_fee (Zelle/manual requer aprovação manual do admin)
+      const realPaymentMethod = step1Data?.payment_method || 'parcelow_card';
       matriculaApi.paymentCompleted({
         user_id: effectiveUserId,
         fee_type: 'selection_process',
         amount: state.totalPrice,
-        payment_method: 'parcelow_card',
+        payment_method: realPaymentMethod,
         service_type: service ?? 'transfer',
-        service_request_id: state.serviceRequestId || undefined,
+        service_request_id: srId,
         finalize_contract_only: true
       }).catch(err => console.error('[Background Contract Sync] Error:', err));
 
       setState(prev => ({ ...prev, step2Completed: true, currentStep: 3 }));
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (err: any) {
       console.error('[Step 2] Error:', err);
       alert('Erro ao salvar documentos.');
@@ -738,6 +848,23 @@ const MigmaCheckout: React.FC = () => {
                 (state.dbServiceType === 'transfer' || service === 'transfer') ? 'Visa Transfer' :
                   config?.label || 'F1 Visa',
               totalPrice: state.totalPrice
+            }}
+            documents={{
+              docFront: step2Data?.doc_front ?? null,
+              docBack: step2Data?.doc_back ?? null,
+              selfie: step2Data?.selfie ?? null,
+            }}
+            personalInfo={{
+              birthDate: step2Data?.birth_date ?? '',
+              docType: step2Data?.doc_type ?? '',
+              docNumber: step2Data?.doc_number ?? '',
+              address: step2Data?.address ?? '',
+              city: step2Data?.city ?? '',
+              state: step2Data?.state ?? '',
+              zipCode: step2Data?.zip_code ?? '',
+              country: step2Data?.country ?? '',
+              nationality: step2Data?.nationality ?? '',
+              civilStatus: step2Data?.civil_status ?? '',
             }}
             onFinish={handleFinalFinish}
           />

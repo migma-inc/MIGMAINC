@@ -39,7 +39,14 @@ Deno.serve(async (req) => {
       uploaded_at: new Date().toISOString(),
     }));
 
-    await migma.from("student_documents").insert(documentsToInsert);
+    const { error: upsertErr } = await migma
+      .from("student_documents")
+      .upsert(documentsToInsert, { onConflict: 'user_id,type', ignoreDuplicates: false });
+
+    if (upsertErr) {
+      console.warn("[migma-save-documents] upsert falhou, tentando insert ignorando duplicados:", upsertErr.message);
+      await migma.from("student_documents").upsert(documentsToInsert, { ignoreDuplicates: true });
+    }
 
     return new Response(JSON.stringify({ success: true, count: documents.length }), { headers: { ...CORS, "Content-Type": "application/json" } });
 

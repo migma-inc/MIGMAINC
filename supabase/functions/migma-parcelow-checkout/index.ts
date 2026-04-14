@@ -145,6 +145,7 @@ Deno.serve(async (req: Request) => {
                 parcelow_checkout_url: checkoutUrl,
                 amount: parseFloat(body.amount),
                 service_type: body.service_type || 'transfer',
+                service_request_id: body.service_request_id || null,
                 status: 'pending',
                 updated_at: new Date().toISOString()
             });

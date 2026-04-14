@@ -599,6 +599,7 @@ async function processParcelowWebhookEvent(event: ParcelowWebhookEvent, supabase
             amount: migmaPending.amount,
             payment_method: "parcelow",
             service_type: migmaPending.service_type,
+            service_request_id: migmaPending.service_request_id || undefined,
             parcelow_order_id: parcelowOrder.id.toString(),
           },
         });
@@ -741,6 +742,41 @@ async function processParcelowWebhookEvent(event: ParcelowWebhookEvent, supabase
         totalPriceUsd: mainOrder.total_price_usd ?? null,
       });
 
+    }
+
+    // 🎯 Migma: mark selection process fee as paid in user_profiles
+    // (only for orders not found in migma_parcelow_pending — those go through migma-payment-completed)
+    if (mainOrder.product_slug?.includes("selection-process") && mainOrder.client_email) {
+      try {
+        const { data: migmaProfile } = await supabase
+          .from("user_profiles")
+          .select("user_id, has_paid_selection_process_fee")
+          .eq("email", mainOrder.client_email)
+          .maybeSingle();
+
+        if (migmaProfile?.user_id && !migmaProfile.has_paid_selection_process_fee) {
+          const { error: paidErr } = await supabase
+            .from("user_profiles")
+            .update({
+              has_paid_selection_process_fee: true,
+              onboarding_current_step: "selection_survey",
+              selection_process_fee_payment_method: "parcelow",
+            })
+            .eq("user_id", migmaProfile.user_id);
+
+          if (paidErr) {
+            console.error(`[parcelow-webhook] ❌ has_paid_selection_process_fee update falhou: ${paidErr.message}`);
+          } else {
+            console.log(`[parcelow-webhook] ✅ has_paid_selection_process_fee=true para user ${migmaProfile.user_id} (${mainOrder.client_email})`);
+          }
+        } else if (migmaProfile?.has_paid_selection_process_fee) {
+          console.log(`[parcelow-webhook] ℹ️ has_paid_selection_process_fee já era true para ${mainOrder.client_email}`);
+        } else {
+          console.log(`[parcelow-webhook] ℹ️ Nenhum user_profile encontrado para ${mainOrder.client_email} — não é usuário Migma`);
+        }
+      } catch (migmaErr: any) {
+        console.error(`[parcelow-webhook] ❌ Erro ao atualizar perfil Migma: ${migmaErr.message}`);
+      }
     }
 
     if (mainOrder.seller_id) {

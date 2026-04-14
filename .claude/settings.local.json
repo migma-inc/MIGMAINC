@@ -8,7 +8,8 @@
       "mcp__supabase__list_tables",
       "Bash(rtk gain:*)",
       "Bash(C:/Users/victurib/.local/bin/rtk.exe gain:*)",
-      "Bash(C:/Users/victurib/.local/bin/rtk.exe git:*)"
+      "Bash(C:/Users/victurib/.local/bin/rtk.exe git:*)",
+      "Bash(find:*)"
     ]
   }
 }
