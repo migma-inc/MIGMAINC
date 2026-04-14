@@ -7,7 +7,7 @@
  */
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ChevronRight, ChevronLeft, Check, Loader2, Trophy } from 'lucide-react';
+import { ChevronRight, ChevronLeft, Check, Loader2 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { CheckoutTopbar } from '../MigmaCheckout/components/CheckoutTopbar';
 import {

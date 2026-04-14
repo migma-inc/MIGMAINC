@@ -13,8 +13,8 @@ const SelectionFeeStep = React.lazy(() =>
 const IdentityVerificationStep = React.lazy(() =>
   import('./components/IdentityVerificationStep').then(m => ({ default: m.IdentityVerificationStep }))
 );
-const SelectionSurveyStep = React.lazy(() =>
-  import('./components/SelectionSurveyStep').then(m => ({ default: m.SelectionSurveyStep }))
+const MigmaSurveyStep = React.lazy(() =>
+  import('./components/MigmaSurveyStep').then(m => ({ default: m.MigmaSurveyStep }))
 );
 const ScholarshipSelectionStep = React.lazy(() =>
   import('./components/ScholarshipSelectionStep').then(m => ({ default: m.ScholarshipSelectionStep }))
@@ -147,8 +147,8 @@ const StudentOnboarding: React.FC = () => {
 
   if (authLoading || loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-blue-50">
-        <Loader2 className="w-10 h-10 animate-spin text-blue-500" />
+      <div className="min-h-screen flex items-center justify-center bg-[#0a0a0a]">
+        <Loader2 className="w-10 h-10 animate-spin text-gold-medium" />
       </div>
     );
   }
@@ -160,7 +160,7 @@ const StudentOnboarding: React.FC = () => {
   const stepProps = { onNext: handleNext, onBack: handleBack, currentStep: state.currentStep };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
+    <div className="min-h-screen bg-[#0a0a0a]">
       <div className="max-w-5xl mx-auto px-4 py-8">
         {/* Logo / header */}
         <div className="mb-8 flex items-center justify-between">
@@ -177,7 +177,7 @@ const StudentOnboarding: React.FC = () => {
               signOut();
               navigate('/student/login');
             }}
-            className="px-4 py-2 flex items-center gap-2 bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-slate-900 rounded-xl transition-all shadow-sm text-sm font-semibold"
+            className="px-4 py-2 flex items-center gap-2 bg-white/5 border border-white/10 text-gray-400 hover:bg-white/10 hover:text-white rounded-xl transition-all text-sm font-semibold"
           >
             <LogOut className="w-4 h-4" />
             <span>{t('admin_header.logout', 'Sair')}</span>
@@ -191,7 +191,7 @@ const StudentOnboarding: React.FC = () => {
         <Suspense fallback={<StepLoader />}>
           {state.currentStep === 'selection_fee' && <SelectionFeeStep {...stepProps} />}
           {state.currentStep === 'identity_verification' && <IdentityVerificationStep {...stepProps} />}
-          {state.currentStep === 'selection_survey' && <SelectionSurveyStep {...stepProps} />}
+          {state.currentStep === 'selection_survey' && <MigmaSurveyStep {...stepProps} />}
           {state.currentStep === 'scholarship_selection' && <ScholarshipSelectionStep {...stepProps} />}
           {state.currentStep === 'process_type' && <ProcessTypeStep {...stepProps} />}
           {state.currentStep === 'documents_upload' && <DocumentsUploadStep {...stepProps} />}

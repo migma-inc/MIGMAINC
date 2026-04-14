@@ -6,7 +6,7 @@
  * API compatível com o uso no useOnboardingProgress.
  */
 
-import { matriculaSupabase } from '../lib/matriculaSupabase';
+import { supabase } from '../lib/supabase';
 
 export interface CartItem {
   scholarship_id: string;
@@ -35,7 +35,7 @@ export const applicationStore = {
   async fetchCart(userId: string): Promise<void> {
     try {
       // Buscar o profile_id primeiro
-      const { data: profile } = await matriculaSupabase
+      const { data: profile } = await supabase
         .from('user_profiles')
         .select('id')
         .eq('user_id', userId)
@@ -47,7 +47,7 @@ export const applicationStore = {
         return;
       }
 
-      const { data: applications } = await matriculaSupabase
+      const { data: applications } = await supabase
         .from('scholarship_applications')
         .select('scholarship_id')
         .eq('student_id', profile.id);

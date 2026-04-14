@@ -160,7 +160,7 @@ function DashboardLayout() {
       />
 
       {/* Main Content Area */}
-      <div className="flex-1 flex flex-col">
+      <div className="flex-1 flex flex-col min-w-0 w-full overflow-hidden">
         {/* Header */}
         <header className="bg-black/95 shadow-sm border-b border-gold-medium/30 relative z-30">
           <div className="px-4 sm:px-6 lg:px-8">

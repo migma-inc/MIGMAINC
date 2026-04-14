@@ -1,15 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  Activity,
   AlertCircle,
   Archive,
-  CheckCircle2,
   ChevronLeft,
   ChevronRight,
-  Clock3,
   Eye,
-  Globe,
   Kanban,
   Loader2,
   RefreshCw,
@@ -28,7 +24,6 @@ import { cn } from '@/lib/utils';
 import {
   type OnboardingCase,
   type OnboardingCrmFilters,
-  type OperationalStage,
   OPERATIONAL_STAGE_COLORS,
   OPERATIONAL_STAGE_LABELS,
   loadOnboardingBoard,
@@ -36,151 +31,51 @@ import {
   persistFilters,
 } from '@/lib/onboarding-crm';
 
-// ---------------------------------------------------------------------------
-// Stage → workflow_stage mapping for drag-and-drop
-// ---------------------------------------------------------------------------
+type CrmView = 'pre_onboarding' | 'onboarding';
+type PreOnboardingTab = 'all' | 'pre_pending' | 'pre_zelle' | 'pre_card';
 
-const KANBAN_COLUMNS: OperationalStage[] = [
-  'payment_pending',
-  'awaiting_payment_confirmation',
-  'contract_pending',
-  'contract_under_review',
-  'contract_rejected',
-  'documents_pending',
-  'documents_under_review',
-  'in_processing',
-  'completed',
-  'blocked',
+const PAGE_SIZE = 15;
+
+const ONBOARDING_STEPS: { key: string; label: string }[] = [
+  { key: 'identity_verification', label: 'Profile' },
+  { key: 'selection_survey', label: 'Survey' },
+  { key: 'scholarship_selection', label: 'Scholarship' },
+  { key: 'documents_upload', label: 'Documents' },
+  { key: 'payment', label: 'Application Fee' },
+  { key: 'placement_fee', label: 'Placement Fee' },
+  { key: 'my_applications', label: 'My Applications' },
 ];
 
-// ---------------------------------------------------------------------------
-// KanbanView
-// ---------------------------------------------------------------------------
+const PRE_ONBOARDING_COLUMNS = ['pending_zelle', 'pending_card', 'confirmed'] as const;
+const ONBOARDING_KANBAN_COLUMNS = [
+  'identity_verification',
+  'selection_survey',
+  'scholarship_selection',
+  'documents_upload',
+  'payment',
+  'placement_fee',
+  'my_applications',
+] as const;
 
-interface KanbanViewProps {
-  cases: OnboardingCase[];
+interface OnboardingCrmBoardProps {
+  productLine?: 'cos' | 'transfer';
+  title: string;
+  description: string;
 }
 
-function KanbanView({ cases }: KanbanViewProps) {
-  const navigate = useNavigate();
-
-  const byStage = useMemo(() => {
-    const map = new Map<OperationalStage, OnboardingCase[]>();
-    for (const stage of KANBAN_COLUMNS) map.set(stage, []);
-    for (const c of cases) {
-      if (KANBAN_COLUMNS.includes(c.operationalStage)) {
-        map.get(c.operationalStage)!.push(c);
-      }
-    }
-    return map;
-  }, [cases]);
-
-  return (
-    <div className="flex gap-3 overflow-x-auto pb-4 min-h-[400px] touch-manipulation" style={{ WebkitOverflowScrolling: 'touch' }}>
-      {KANBAN_COLUMNS.map((stage) => {
-        const cards = byStage.get(stage) ?? [];
-
-        return (
-          <div
-            key={stage}
-            className={cn(
-              'flex-shrink-0 w-56 rounded-lg border flex flex-col transition-colors border-white/5 bg-black/30'
-            )}
-          >
-            {/* Column header */}
-            <div className="px-3 py-2.5 border-b border-white/5 flex items-center justify-between">
-              <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">
-                {OPERATIONAL_STAGE_LABELS[stage]}
-              </span>
-              <span className="text-[10px] font-bold text-gray-600 bg-white/5 px-1.5 py-0.5 rounded-full">
-                {cards.length}
-              </span>
-            </div>
-
-            {/* Cards */}
-            <div className="flex-1 p-2 space-y-2 overflow-y-auto max-h-[600px]">
-              {cards.length === 0 ? (
-                <p className="text-[10px] text-gray-700 text-center py-4 italic">Empty</p>
-              ) : (
-                cards.map((c) => {
-                  const isTransfer = c.visaOrder?.product_slug?.startsWith('transfer-');
-                  const isCos = c.visaOrder?.product_slug?.startsWith('cos-');
-                  const deadlineDays = isTransfer
-                    ? daysUntil(c.profile.transfer_deadline_date)
-                    : isCos
-                      ? daysUntil(c.profile.cos_i94_expiry_date)
-                      : null;
-                  const missingDeadline = (isTransfer || isCos) && deadlineDays === null &&
-                    (isTransfer ? !c.profile.transfer_deadline_date : !c.profile.cos_i94_expiry_date);
-
-                  return (
-                    <div
-                      key={c.profile.id}
-                      onClick={() => navigate(`/dashboard/users/${c.profile.id}`)}
-                      className={cn(
-                        'bg-black/60 border rounded-md p-2.5 space-y-1.5 transition-all cursor-pointer hover:border-white/10',
-                        isCos && deadlineDays !== null && deadlineDays <= 15
-                          ? 'border-red-500/40'
-                          : 'border-white/5'
-                      )}
-                    >
-                      <p className="text-[11px] font-bold text-white uppercase truncate leading-tight">
-                        {c.profile.full_name || c.profile.email || 'Unnamed'}
-                      </p>
-                      {c.visaOrder?.order_number && (
-                        <p className="text-[9px] text-gray-500 font-mono truncate">
-                          {c.visaOrder.order_number}
-                        </p>
-                      )}
-                      <div className="flex items-center gap-1 flex-wrap">
-                        {c.visaOrder?.payment_status && (
-                          <Badge className={cn(
-                            'text-[8px] font-black uppercase border rounded-sm px-1 py-0',
-                            c.visaOrder.payment_status === 'completed'
-                              ? 'bg-green-500/20 text-green-300 border-green-500/30'
-                              : 'bg-amber-500/20 text-amber-300 border-amber-500/30'
-                          )}>
-                            {c.visaOrder.payment_status}
-                          </Badge>
-                        )}
-                        {c.serviceRequest?.priority && c.serviceRequest.priority !== 'normal' && (
-                          <Badge className="text-[8px] font-black uppercase border rounded-sm px-1 py-0 bg-red-500/20 text-red-300 border-red-500/30">
-                            {c.serviceRequest.priority}
-                          </Badge>
-                        )}
-                        {deadlineDays !== null && (isTransfer || isCos) && (
-                          <DeadlineBadge
-                            days={deadlineDays}
-                            label={isTransfer ? 'PRAZO' : 'I-94'}
-                            redThreshold={isTransfer ? 7 : 15}
-                            yellowThreshold={isTransfer ? 15 : 30}
-                          />
-                        )}
-                        {missingDeadline && (
-                          <Badge className="text-[8px] font-black uppercase border rounded-sm px-1 py-0 bg-white/5 text-gray-600 border-white/5">
-                            {isTransfer ? 'PRAZO?' : 'I-94?'}
-                          </Badge>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })
-              )}
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
+interface StuckState {
+  tone: 'critical' | 'danger' | 'warning' | null;
+  label: string | null;
 }
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
 
 function toLabel(value: string | null | undefined) {
   if (!value) return '-';
   return value.replace(/[_-]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+function shortId(value: string | null | undefined) {
+  if (!value) return '-';
+  return value.length > 12 ? `${value.slice(0, 8)}...` : value;
 }
 
 function timeAgo(iso: string | null | undefined) {
@@ -193,15 +88,12 @@ function timeAgo(iso: string | null | undefined) {
   return `${Math.floor(hrs / 24)}d ago`;
 }
 
-function shortId(value: string | null | undefined) {
-  if (!value) return '—';
-  return value.length > 12 ? `${value.slice(0, 8)}…` : value;
+function daysSince(iso: string | null | undefined) {
+  if (!iso) return null;
+  const diff = Date.now() - new Date(iso).getTime();
+  return Math.max(0, Math.floor(diff / (1000 * 60 * 60 * 24)));
 }
 
-/**
- * Returns days until a deadline date string (YYYY-MM-DD or ISO).
- * Returns null if date is absent or already passed.
- */
 function daysUntil(dateStr: string | null | undefined): number | null {
   if (!dateStr) return null;
   const today = new Date();
@@ -212,83 +104,128 @@ function daysUntil(dateStr: string | null | undefined): number | null {
   return diff >= 0 ? diff : null;
 }
 
-interface DeadlineBadgeProps {
-  days: number;
-  label: string;
-  redThreshold: number;
-  yellowThreshold: number;
-}
-function DeadlineBadge({ days, label, redThreshold, yellowThreshold }: DeadlineBadgeProps) {
-  const colorClass =
-    days <= redThreshold
-      ? 'bg-red-500/20 text-red-300 border-red-500/40'
-      : days <= yellowThreshold
-        ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
-        : 'bg-white/5 text-gray-400 border-white/10';
-  return (
-    <Badge className={cn('text-[8px] font-black uppercase border rounded-sm px-1 py-0', colorClass)}>
-      {label} {days}d
-    </Badge>
-  );
+function normalizeOnboardingStep(onboardingStep: string | null | undefined) {
+  const step = onboardingStep || 'selection_fee';
+
+  if (step === 'selection_fee') return 'identity_verification';
+  if (step === 'process_type') return 'scholarship_selection';
+  if (step === 'reinstatement_fee') return 'placement_fee';
+  if (step === 'completed') return 'my_applications';
+
+  return step;
 }
 
-function paymentStatusColor(status: string | null) {
-  if (status === 'completed') return 'bg-green-500/20 text-green-300 border-green-500/30';
-  if (status === 'cancelled') return 'bg-white/5 text-gray-500 border-white/10';
-  return 'bg-amber-500/20 text-amber-300 border-amber-500/30';
-}
-
-const APPLICATION_FLOW_STEPS: OperationalStage[] = [
-  'checkout_started',
-  'payment_pending',
-  'awaiting_payment_confirmation',
-  'payment_confirmed',
-  'contract_pending',
-  'contract_under_review',
-  'documents_pending',
-  'documents_under_review',
-  'in_processing',
-  'completed',
-];
-
-function getApplicationFlowProgress(stage: OperationalStage) {
-  const index = APPLICATION_FLOW_STEPS.indexOf(stage);
-  const totalSteps = APPLICATION_FLOW_STEPS.length;
-
-  if (index >= 0) {
-    const currentStep = index + 1;
-    return {
-      currentStep,
-      totalSteps,
-      percent: (currentStep / totalSteps) * 100,
-      label: 'Application Flow',
-      status: OPERATIONAL_STAGE_LABELS[stage],
-    };
-  }
+function getOnboardingProgress(onboardingStep: string | null | undefined) {
+  const step = normalizeOnboardingStep(onboardingStep);
+  const index = ONBOARDING_STEPS.findIndex((s) => s.key === step);
+  const totalSteps = ONBOARDING_STEPS.length;
+  const currentStep = index >= 0 ? index + 1 : 1;
+  const label = index >= 0 ? ONBOARDING_STEPS[index].label : toLabel(step);
 
   return {
-    currentStep: 0,
+    step,
+    currentStep,
     totalSteps,
-    percent: 0,
-    label: stage === 'blocked' ? 'Paused' : 'Application Flow',
-    status: OPERATIONAL_STAGE_LABELS[stage],
+    percent: (currentStep / totalSteps) * 100,
+    label,
   };
 }
 
-// ---------------------------------------------------------------------------
-// Filter predicates
-// ---------------------------------------------------------------------------
+function isPreOnboardingCase(item: OnboardingCase) {
+  return !item.profile.has_paid_selection_process_fee || item.profile.onboarding_current_step === 'selection_fee';
+}
 
-const PAGE_SIZE = 15;
+function getCrmViewForCase(item: OnboardingCase): CrmView {
+  return isPreOnboardingCase(item) ? 'pre_onboarding' : 'onboarding';
+}
+
+function getPreOnboardingPaymentStatus(item: OnboardingCase) {
+  if (item.profile.has_paid_selection_process_fee) return 'confirmed';
+
+  const zelleStatus = item.checkoutZellePending?.status;
+  if (zelleStatus === 'pending_verification') return 'pending_zelle';
+  if (zelleStatus === 'approved') return 'confirmed';
+
+  const method = (item.profile.selection_process_fee_payment_method || item.visaOrder?.payment_method || '').toLowerCase();
+  if (method === 'zelle') return 'pending_zelle';
+  if (['card', 'stripe', 'credit_card', 'debit_card'].includes(method)) return 'pending_card';
+
+  if (item.visaOrder?.payment_status === 'completed') return 'confirmed';
+  if (item.visaOrder?.payment_status === 'pending' && item.visaOrder.payment_method === 'zelle') return 'pending_zelle';
+
+  return 'pending_card';
+}
+
+function getPreOnboardingPaymentLabel(item: OnboardingCase) {
+  const status = getPreOnboardingPaymentStatus(item);
+  if (status === 'pending_zelle') return 'Pending Zelle';
+  if (status === 'pending_card') return 'Pending Card';
+  return 'Confirmed';
+}
+
+function getPreOnboardingPaymentBadgeClass(item: OnboardingCase) {
+  const status = getPreOnboardingPaymentStatus(item);
+  if (status === 'confirmed') return 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30';
+  if (status === 'pending_zelle') return 'bg-amber-500/20 text-amber-300 border-amber-500/30';
+  return 'bg-sky-500/20 text-sky-300 border-sky-500/30';
+}
+
+function getStuckState(item: OnboardingCase, productLine?: 'cos' | 'transfer'): StuckState {
+  const currentStep = item.profile.onboarding_current_step || 'selection_fee';
+  const daysIdle = daysSince(item.profile.updated_at);
+  const transferDeadlineDays = productLine === 'transfer' ? daysUntil(item.profile.transfer_deadline_date) : null;
+
+  if (transferDeadlineDays !== null && transferDeadlineDays < 15) {
+    return { tone: 'critical', label: `Deadline ${transferDeadlineDays}d` };
+  }
+
+  if (daysIdle === null) return { tone: null, label: null };
+
+  if (currentStep === 'selection_survey' && daysIdle > 3) {
+    return { tone: 'warning', label: `Survey ${daysIdle}d` };
+  }
+
+  if (daysIdle > 7) {
+    return { tone: 'danger', label: `${daysIdle}d stopped` };
+  }
+
+  return { tone: null, label: null };
+}
+
+function alertBadgeClass(tone: StuckState['tone']) {
+  if (tone === 'critical') return 'bg-red-600/20 text-red-200 border-red-500/40';
+  if (tone === 'danger') return 'bg-red-500/20 text-red-300 border-red-500/30';
+  if (tone === 'warning') return 'bg-amber-500/20 text-amber-300 border-amber-500/30';
+  return 'bg-white/5 text-gray-500 border-white/10';
+}
+
+function getDeadlineLabel(item: OnboardingCase, productLine?: 'cos' | 'transfer') {
+  if (productLine === 'transfer') {
+    const days = daysUntil(item.profile.transfer_deadline_date);
+    return days === null ? 'No deadline' : `Deadline ${days}d`;
+  }
+
+  if (productLine === 'cos') {
+    const days = daysUntil(item.profile.cos_i94_expiry_date);
+    return days === null ? 'No I-94' : `I-94 ${days}d`;
+  }
+
+  return toLabel(item.profile.onboarding_current_step);
+}
 
 function applyFilters(
   cases: OnboardingCase[],
   search: string,
-  filters: OnboardingCrmFilters
-): OnboardingCase[] {
+  filters: OnboardingCrmFilters,
+  crmView: CrmView
+) {
   const term = search.trim().toLowerCase();
 
-  return cases.filter(({ profile, serviceRequest, visaOrder, operationalStage }) => {
+  return cases.filter((item) => {
+    const { profile, serviceRequest, visaOrder, operationalStage } = item;
+
+    if (getCrmViewForCase(item) !== crmView) return false;
+
     if (term) {
       const hit =
         (profile.full_name || '').toLowerCase().includes(term) ||
@@ -304,19 +241,32 @@ function applyFilters(
 
     if (!filters.showArchived && operationalStage === 'cancelled') return false;
 
-    const { profileTab } = filters;
-    if (profileTab === 'completed' && !profile.onboarding_completed) return false;
-    if (profileTab === 'in_progress' && !!profile.onboarding_completed) return false;
-    if (profileTab === 'selection_paid' && !profile.has_paid_selection_process_fee) return false;
-    if (profileTab === 'placement' && !profile.placement_fee_flow) return false;
+    if (crmView === 'pre_onboarding') {
+      const preTab = filters.profileTab as PreOnboardingTab;
+      const paymentStatus = getPreOnboardingPaymentStatus(item);
+      if (preTab === 'pre_pending' && paymentStatus === 'confirmed') return false;
+      if (preTab === 'pre_zelle' && paymentStatus !== 'pending_zelle') return false;
+      if (preTab === 'pre_card' && paymentStatus !== 'pending_card') return false;
+    } else {
+      const { profileTab } = filters;
+      if (profileTab === 'completed' && !profile.onboarding_completed) return false;
+      if (profileTab === 'in_progress' && !!profile.onboarding_completed) return false;
+      if (profileTab === 'selection_paid' && !profile.has_paid_selection_process_fee) return false;
+      if (profileTab === 'placement' && !profile.placement_fee_flow) return false;
+    }
 
     const hasOwnership = !!(profile.migma_seller_id || profile.migma_agent_id);
     if (filters.ownership === 'owned' && !hasOwnership) return false;
     if (filters.ownership === 'unassigned' && hasOwnership) return false;
 
     if (filters.paymentStatus !== 'all') {
-      if (!visaOrder) return false;
-      if (visaOrder.payment_status !== filters.paymentStatus) return false;
+      const effectivePaymentStatus =
+        crmView === 'pre_onboarding'
+          ? getPreOnboardingPaymentStatus(item) === 'confirmed'
+            ? 'completed'
+            : 'pending'
+          : visaOrder?.payment_status;
+      if (effectivePaymentStatus !== filters.paymentStatus) return false;
     }
 
     if (filters.caseStatus !== 'all') {
@@ -328,19 +278,152 @@ function applyFilters(
   });
 }
 
-// ---------------------------------------------------------------------------
-// Props
-// ---------------------------------------------------------------------------
-
-interface OnboardingCrmBoardProps {
+function KanbanView({
+  cases,
+  crmView,
+  productLine,
+}: {
+  cases: OnboardingCase[];
+  crmView: CrmView;
   productLine?: 'cos' | 'transfer';
-  title: string;
-  description: string;
-}
+}) {
+  const navigate = useNavigate();
 
-// ---------------------------------------------------------------------------
-// Component
-// ---------------------------------------------------------------------------
+  if (crmView === 'pre_onboarding') {
+    const byStatus = new Map<(typeof PRE_ONBOARDING_COLUMNS)[number], OnboardingCase[]>();
+    for (const column of PRE_ONBOARDING_COLUMNS) byStatus.set(column, []);
+    for (const item of cases) {
+      byStatus.get(getPreOnboardingPaymentStatus(item))?.push(item);
+    }
+
+    const labels: Record<(typeof PRE_ONBOARDING_COLUMNS)[number], string> = {
+      pending_zelle: 'Pending Zelle',
+      pending_card: 'Pending Card',
+      confirmed: 'Confirmed',
+    };
+
+    return (
+      <div
+        className="flex gap-3 overflow-x-auto pb-4 min-h-[400px] snap-x snap-mandatory scroll-p-3 scroll-smooth touch-pan-x touch-pan-y"
+        style={{ WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none' }}
+      >
+        {PRE_ONBOARDING_COLUMNS.map((column) => {
+          const cards = byStatus.get(column) ?? [];
+          return (
+            <div
+              key={column}
+              className="flex-shrink-0 w-[85vw] max-w-[320px] sm:w-72 snap-center rounded-lg border border-white/5 bg-black/30 flex flex-col"
+            >
+              <div className="px-3 py-2.5 border-b border-white/5 flex items-center justify-between">
+                <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">{labels[column]}</span>
+                <span className="text-[10px] font-bold text-gray-600 bg-white/5 px-1.5 py-0.5 rounded-full">{cards.length}</span>
+              </div>
+              <div className="p-2 space-y-2 max-h-[600px] overflow-y-auto">
+                {cards.map((item) => (
+                  <button
+                    key={item.profile.id}
+                    onClick={() => navigate(`/dashboard/users/${item.profile.id}`)}
+                    className="w-full text-left bg-black/60 border border-white/5 rounded-md p-3 space-y-2 hover:border-white/10 transition-colors"
+                  >
+                    <div>
+                      <p className="text-[11px] font-bold text-white uppercase truncate">
+                        {item.profile.full_name || item.profile.email || 'Unnamed'}
+                      </p>
+                      <p className="text-[10px] text-gray-500 truncate">{item.profile.email || '-'}</p>
+                    </div>
+                    <div className="flex flex-wrap gap-1">
+                      <Badge className={cn('text-[8px] font-black uppercase rounded-sm border', getPreOnboardingPaymentBadgeClass(item))}>
+                        {getPreOnboardingPaymentLabel(item)}
+                      </Badge>
+                      <Badge className="text-[8px] font-black uppercase rounded-sm border bg-white/5 text-gray-400 border-white/10">
+                        {item.profile.selection_process_fee_payment_method || item.visaOrder?.payment_method || 'payment?'}
+                      </Badge>
+                    </div>
+                    <div className="text-[10px] text-gray-400">
+                      <div>Signup: {timeAgo(item.profile.created_at)}</div>
+                      <div>Owner: {shortId(item.profile.migma_seller_id)}</div>
+                    </div>
+                  </button>
+                ))}
+                {cards.length === 0 && <p className="text-[10px] text-gray-700 text-center py-4 italic">Empty</p>}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    );
+  }
+
+  const byStep = new Map<string, OnboardingCase[]>();
+  for (const column of ONBOARDING_KANBAN_COLUMNS) byStep.set(column, []);
+  for (const item of cases) {
+    const step = normalizeOnboardingStep(item.profile.onboarding_current_step);
+    const resolvedStep = byStep.has(step) ? step : 'identity_verification';
+    byStep.get(resolvedStep)?.push(item);
+  }
+
+  return (
+    <div
+      className="flex gap-3 overflow-x-auto pb-4 min-h-[400px] snap-x snap-mandatory scroll-p-3 scroll-smooth touch-pan-x touch-pan-y"
+      style={{ WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none' }}
+    >
+      {ONBOARDING_KANBAN_COLUMNS.map((column) => {
+        const cards = byStep.get(column) ?? [];
+        return (
+          <div
+            key={column}
+            className="flex-shrink-0 w-[85vw] max-w-[320px] sm:w-72 snap-center rounded-lg border border-white/5 bg-black/30 flex flex-col"
+          >
+            <div className="px-3 py-2.5 border-b border-white/5 flex items-center justify-between">
+              <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">{toLabel(column)}</span>
+              <span className="text-[10px] font-bold text-gray-600 bg-white/5 px-1.5 py-0.5 rounded-full">{cards.length}</span>
+            </div>
+            <div className="p-2 space-y-2 max-h-[600px] overflow-y-auto">
+              {cards.map((item) => {
+                const progress = getOnboardingProgress(item.profile.onboarding_current_step);
+                const stuckState = getStuckState(item, productLine);
+                return (
+                  <button
+                    key={item.profile.id}
+                    onClick={() => navigate(`/dashboard/users/${item.profile.id}`)}
+                    className="w-full text-left bg-black/60 border border-white/5 rounded-md p-3 space-y-2 hover:border-white/10 transition-colors"
+                  >
+                    <div>
+                      <p className="text-[11px] font-bold text-white uppercase truncate">
+                        {item.profile.full_name || item.profile.email || 'Unnamed'}
+                      </p>
+                      <p className="text-[10px] text-gray-500 truncate">{item.profile.email || '-'}</p>
+                    </div>
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-[9px] text-gold-medium font-black">{progress.currentStep}/{progress.totalSteps}</span>
+                        <span className="text-[8px] text-gray-500 truncate max-w-[120px]">{progress.label}</span>
+                      </div>
+                      <div className="w-full h-1 bg-white/10 rounded-full overflow-hidden">
+                        <div className="h-full bg-gold-medium rounded-full" style={{ width: `${progress.percent}%` }} />
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap gap-1">
+                      <Badge className={cn('text-[8px] font-black uppercase rounded-sm border', OPERATIONAL_STAGE_COLORS[item.operationalStage])}>
+                        {OPERATIONAL_STAGE_LABELS[item.operationalStage]}
+                      </Badge>
+                      {stuckState.label && (
+                        <Badge className={cn('text-[8px] font-black uppercase rounded-sm border', alertBadgeClass(stuckState.tone))}>
+                          {stuckState.label}
+                        </Badge>
+                      )}
+                    </div>
+                  </button>
+                );
+              })}
+              {cards.length === 0 && <p className="text-[10px] text-gray-700 text-center py-4 italic">Empty</p>}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 
 export function OnboardingCrmBoard({ productLine, title, description }: OnboardingCrmBoardProps) {
   const navigate = useNavigate();
@@ -350,6 +433,7 @@ export function OnboardingCrmBoard({ productLine, title, description }: Onboardi
   const [filters, setFilters] = useState<OnboardingCrmFilters>(() => loadPersistedFilters());
   const [currentPage, setCurrentPage] = useState(1);
   const [viewMode, setViewMode] = useState<'table' | 'kanban'>('table');
+  const [crmView, setCrmView] = useState<CrmView>('pre_onboarding');
   const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768);
 
   useEffect(() => {
@@ -375,66 +459,77 @@ export function OnboardingCrmBoard({ productLine, title, description }: Onboardi
   }, [filters]);
 
   const filteredCases = useMemo(
-    () => applyFilters(cases, search, filters),
-    [cases, search, filters]
+    () => applyFilters(cases, search, filters, crmView),
+    [cases, search, filters, crmView]
   );
 
   const totalPages = Math.max(1, Math.ceil(filteredCases.length / PAGE_SIZE));
-  const currentData = filteredCases.slice(
-    (currentPage - 1) * PAGE_SIZE,
-    currentPage * PAGE_SIZE
-  );
+  const currentData = filteredCases.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
 
-  useEffect(() => setCurrentPage(1), [search, filters]);
+  useEffect(() => setCurrentPage(1), [search, filters, crmView]);
   useEffect(() => {
     if (currentPage > totalPages) setCurrentPage(totalPages);
   }, [currentPage, totalPages]);
 
   const stats = useMemo(() => {
-    const all = cases.filter(({ operationalStage }) => operationalStage !== 'cancelled');
-    const owned = all.filter((c) => !!(c.profile.migma_seller_id || c.profile.migma_agent_id));
-    return {
-      total: all.length,
-      owned: owned.length,
-      unassigned: all.length - owned.length,
-      paymentPending: all.filter(
-        (c) =>
-          c.operationalStage === 'payment_pending' ||
-          c.operationalStage === 'awaiting_payment_confirmation'
-      ).length,
-      inProcessing: all.filter(
-        (c) =>
-          c.operationalStage === 'in_processing' ||
-          c.operationalStage === 'documents_pending' ||
-          c.operationalStage === 'documents_under_review' ||
-          c.operationalStage === 'contract_pending' ||
-          c.operationalStage === 'contract_under_review'
-      ).length,
-      completed: all.filter((c) => c.operationalStage === 'completed').length,
-      blocked: all.filter((c) => c.operationalStage === 'blocked').length,
-    };
-  }, [cases]);
+    const scopedCases = cases.filter(
+      (item) =>
+        getCrmViewForCase(item) === crmView &&
+        (filters.showArchived || item.operationalStage !== 'cancelled')
+    );
+    const owned = scopedCases.filter((item) => !!(item.profile.migma_seller_id || item.profile.migma_agent_id)).length;
 
-  const filterTabs: Array<{ id: OnboardingCrmFilters['profileTab']; label: string }> = [
-    { id: 'all', label: 'All' },
-    { id: 'in_progress', label: 'In Progress' },
-    { id: 'completed', label: 'Completed' },
-    { id: 'selection_paid', label: 'Selection Paid' },
-    { id: 'placement', label: 'Placement' },
-  ];
+    if (crmView === 'pre_onboarding') {
+      return {
+        cards: [
+          { label: 'Pre-Leads', value: scopedCases.length, valueColor: 'text-white' },
+          { label: 'Pending', value: scopedCases.filter((item) => getPreOnboardingPaymentStatus(item) !== 'confirmed').length, valueColor: 'text-amber-400' },
+          { label: 'Zelle', value: scopedCases.filter((item) => getPreOnboardingPaymentStatus(item) === 'pending_zelle').length, valueColor: 'text-orange-400' },
+          { label: 'Card', value: scopedCases.filter((item) => getPreOnboardingPaymentStatus(item) === 'pending_card').length, valueColor: 'text-sky-400' },
+          { label: 'Confirmed', value: scopedCases.filter((item) => getPreOnboardingPaymentStatus(item) === 'confirmed').length, valueColor: 'text-emerald-400' },
+          { label: 'Owned', value: owned, valueColor: 'text-gray-400' },
+        ],
+      };
+    }
+
+    return {
+      cards: [
+        { label: 'Active Cases', value: scopedCases.length, valueColor: 'text-white' },
+        { label: 'Stuck', value: scopedCases.filter((item) => {
+          const tone = getStuckState(item, productLine).tone;
+          return tone === 'danger' || tone === 'warning';
+        }).length, valueColor: 'text-amber-400' },
+        { label: 'Critical', value: scopedCases.filter((item) => getStuckState(item, productLine).tone === 'critical').length, valueColor: 'text-red-400' },
+        { label: 'In Process', value: scopedCases.filter((item) => item.operationalStage === 'in_processing' || item.operationalStage === 'documents_pending' || item.operationalStage === 'documents_under_review').length, valueColor: 'text-sky-400' },
+        { label: 'Completed', value: scopedCases.filter((item) => item.operationalStage === 'completed').length, valueColor: 'text-gold-light' },
+        { label: 'Owned', value: owned, valueColor: 'text-gray-400' },
+      ],
+    };
+  }, [cases, crmView, filters.showArchived, productLine]);
+
+  const filterTabs: Array<{ id: OnboardingCrmFilters['profileTab']; label: string }> = crmView === 'pre_onboarding'
+    ? [
+        { id: 'all', label: 'All' },
+        { id: 'pre_pending', label: 'Pending' },
+        { id: 'pre_zelle', label: 'Zelle' },
+        { id: 'pre_card', label: 'Card' },
+      ]
+    : [
+        { id: 'all', label: 'All' },
+        { id: 'in_progress', label: 'In Progress' },
+        { id: 'completed', label: 'Completed' },
+        { id: 'placement', label: 'Placement' },
+      ];
 
   return (
-    <div className="p-3 sm:p-6 max-w-7xl mx-auto space-y-3 sm:space-y-6">
-      {/* Header */}
+    <div className="w-full max-w-full sm:max-w-7xl mx-auto overflow-x-hidden p-3 sm:p-6 space-y-3 sm:space-y-6">
       <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-3 sm:gap-4">
         <div className="flex items-center gap-2 sm:gap-3 min-w-0 overflow-hidden">
           <div className="p-2 bg-gold-medium/10 rounded-lg shrink-0">
             <UserRound className="w-5 h-5 sm:w-8 sm:h-8 text-gold-medium" />
           </div>
           <div className="min-w-0">
-            <h1 className="text-xl sm:text-3xl font-bold text-white uppercase tracking-tight truncate">
-              {title}
-            </h1>
+            <h1 className="text-xl sm:text-3xl font-bold text-white uppercase tracking-tight truncate">{title}</h1>
             <p className="text-gray-500 text-[10px] sm:text-sm truncate">{description}</p>
           </div>
         </div>
@@ -451,28 +546,17 @@ export function OnboardingCrmBoard({ productLine, title, description }: Onboardi
           </div>
 
           <div className="flex items-center gap-2 w-full sm:w-auto">
-            {/* View toggle */}
             <div className="flex border border-white/10 rounded-lg overflow-hidden shrink-0 h-9">
               <button
                 onClick={() => setViewMode('table')}
-                className={cn(
-                  'flex items-center gap-1.5 px-3 py-2 text-xs transition-colors',
-                  viewMode === 'table'
-                    ? 'bg-gold-medium/20 text-gold-light'
-                    : 'bg-transparent text-gray-500 hover:text-gray-300'
-                )}
+                className={cn('flex items-center gap-1.5 px-3 py-2 text-xs transition-colors', viewMode === 'table' ? 'bg-gold-medium/20 text-gold-light' : 'bg-transparent text-gray-500 hover:text-gray-300')}
               >
                 <Table2 className="w-3.5 h-3.5" />
                 <span className="hidden sm:inline">Table</span>
               </button>
               <button
                 onClick={() => setViewMode('kanban')}
-                className={cn(
-                  'flex items-center gap-1.5 px-3 py-2 text-xs transition-colors border-l border-white/10',
-                  viewMode === 'kanban'
-                    ? 'bg-gold-medium/20 text-gold-light'
-                    : 'bg-transparent text-gray-500 hover:text-gray-300'
-                )}
+                className={cn('flex items-center gap-1.5 px-3 py-2 text-xs transition-colors border-l border-white/10', viewMode === 'kanban' ? 'bg-gold-medium/20 text-gold-light' : 'bg-transparent text-gray-500 hover:text-gray-300')}
               >
                 <Kanban className="w-3.5 h-3.5" />
                 <span className="hidden sm:inline">Kanban</span>
@@ -485,40 +569,45 @@ export function OnboardingCrmBoard({ productLine, title, description }: Onboardi
               size="sm"
               className="gap-2 flex-1 sm:flex-none h-9 border-gray-700 bg-transparent hover:bg-white/10 text-white"
             >
-              <RefreshCw className={cn("w-3.5 h-3.5", loading && "animate-spin")} />
+              <RefreshCw className={cn('w-3.5 h-3.5', loading && 'animate-spin')} />
               <span className="sm:inline hidden">Refresh</span>
             </Button>
           </div>
         </div>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-2">
+      <div className="grid grid-cols-1 sm:flex gap-2 sm:overflow-x-auto pb-2">
         {[
-          { label: 'Active Cases', value: stats.total,         valueColor: 'text-white'       },
-          { label: 'Pmt Pending',  value: stats.paymentPending, valueColor: 'text-amber-400'   },
-          { label: 'In Process',   value: stats.inProcessing,  valueColor: 'text-sky-400'     },
-          { label: 'Blocked',      value: stats.blocked,       valueColor: 'text-red-400'     },
-          { label: 'Completed',    value: stats.completed,     valueColor: 'text-gold-light'  },
-          { label: 'Owned',        value: stats.owned,         valueColor: 'text-gray-400'    },
-        ].map((stat) => (
-          <div
-            key={stat.label}
-            className="bg-black/40 border border-white/5 p-2 sm:p-3 rounded-xl flex items-center justify-between hover:border-white/10 transition-all"
+          { id: 'pre_onboarding' as const, label: 'Pre-Onboarding', description: 'Checkout done, selection fee still pending.' },
+          { id: 'onboarding' as const, label: 'Onboarding', description: 'Selection fee confirmed, operational flow active.' },
+        ].map((tab) => (
+          <button
+            key={tab.id}
+            onClick={() => setCrmView(tab.id)}
+            className={cn(
+              'w-full sm:min-w-[220px] rounded-2xl border p-4 text-left transition-all',
+              crmView === tab.id
+                ? 'border-gold-medium/40 bg-gold-medium/10 shadow-[0_0_20px_rgba(206,159,72,0.15)]'
+                : 'border-white/5 bg-black/30 hover:border-white/10'
+            )}
           >
-            <span className="text-[9px] sm:text-[10px] text-gray-500 font-black uppercase tracking-widest leading-none">
-              {stat.label}
-            </span>
-            <span className={cn('font-black text-sm sm:text-base leading-none', stat.valueColor)}>
-              {stat.value}
-            </span>
+            <div className="text-[11px] font-black uppercase tracking-[0.2em] text-gold-light">{tab.label}</div>
+            <p className="mt-2 text-xs text-gray-400 leading-relaxed">{tab.description}</p>
+          </button>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-2">
+        {stats.cards.map((stat) => (
+          <div key={stat.label} className="bg-black/40 border border-white/5 p-2 sm:p-3 rounded-xl flex items-center justify-between hover:border-white/10 transition-all">
+            <span className="text-[9px] sm:text-[10px] text-gray-500 font-black uppercase tracking-widest leading-none">{stat.label}</span>
+            <span className={cn('font-black text-sm sm:text-base leading-none', stat.valueColor)}>{stat.value}</span>
           </div>
         ))}
       </div>
 
-      {/* Filters */}
       <div className="space-y-4">
-        <div className="flex gap-2 overflow-x-auto pb-2 touch-manipulation" style={{ WebkitOverflowScrolling: 'touch' }}>
+        <div className="flex flex-wrap gap-2 pb-2">
           {filterTabs.map((tab) => (
             <Button
               key={tab.id}
@@ -536,37 +625,33 @@ export function OnboardingCrmBoard({ productLine, title, description }: Onboardi
           ))}
         </div>
 
-        <div className="flex overflow-x-auto pb-2 gap-3 items-center touch-manipulation" style={{ WebkitOverflowScrolling: 'touch' }}>
-          <div className="flex gap-1.5 shrink-0 bg-white/5 p-1 rounded-lg border border-white/5">
-            {(['all', 'pending', 'completed', 'cancelled'] as const).map((v) => (
+        <div className="flex flex-col sm:flex-row pb-2 gap-3 items-stretch sm:items-center">
+          <div className="flex flex-wrap gap-1.5 shrink-0 bg-white/5 p-1 rounded-lg border border-white/5">
+            {(['all', 'pending', 'completed', 'cancelled'] as const).map((value) => (
               <button
-                key={v}
-                onClick={() => setFilters((f) => ({ ...f, paymentStatus: v }))}
+                key={value}
+                onClick={() => setFilters((f) => ({ ...f, paymentStatus: value }))}
                 className={cn(
-                  'h-7 px-3 text-[9px] font-black uppercase tracking-widest rounded-md whitespace-nowrap transition-all',
-                  filters.paymentStatus === v
-                    ? 'bg-white/10 text-white shadow-inner'
-                    : 'text-gray-500 hover:text-gray-300'
+                  'h-7 px-3 text-[9px] font-black uppercase tracking-widest rounded-md whitespace-nowrap transition-all flex-1 sm:flex-none',
+                  filters.paymentStatus === value ? 'bg-white/10 text-white shadow-inner' : 'text-gray-500 hover:text-gray-300'
                 )}
               >
-                {v === 'all' ? 'Pmt: All' : v}
+                {value === 'all' ? 'Pmt: All' : value}
               </button>
             ))}
           </div>
 
-          <div className="flex gap-1.5 shrink-0 bg-white/5 p-1 rounded-lg border border-white/5">
-            {(['all', 'owned', 'unassigned'] as const).map((v) => (
+          <div className="flex flex-wrap gap-1.5 shrink-0 bg-white/5 p-1 rounded-lg border border-white/5">
+            {(['all', 'owned', 'unassigned'] as const).map((value) => (
               <button
-                key={v}
-                onClick={() => setFilters((f) => ({ ...f, ownership: v }))}
+                key={value}
+                onClick={() => setFilters((f) => ({ ...f, ownership: value }))}
                 className={cn(
-                  'h-7 px-3 text-[9px] font-black uppercase tracking-widest rounded-md whitespace-nowrap transition-all',
-                  filters.ownership === v
-                    ? 'bg-white/10 text-white shadow-inner'
-                    : 'text-gray-500 hover:text-gray-300'
+                  'h-7 px-3 text-[9px] font-black uppercase tracking-widest rounded-md whitespace-nowrap transition-all flex-1 sm:flex-none',
+                  filters.ownership === value ? 'bg-white/10 text-white shadow-inner' : 'text-gray-500 hover:text-gray-300'
                 )}
               >
-                {v === 'all' ? 'Owner: All' : v === 'owned' ? 'Assigned' : 'Open'}
+                {value === 'all' ? 'Owner: All' : value === 'owned' ? 'Assigned' : 'Open'}
               </button>
             ))}
           </div>
@@ -575,10 +660,7 @@ export function OnboardingCrmBoard({ productLine, title, description }: Onboardi
             variant="ghost"
             size="sm"
             onClick={() => setFilters((f) => ({ ...f, showArchived: !f.showArchived }))}
-            className={cn(
-              'h-9 px-3 text-[9px] font-black uppercase tracking-widest rounded-lg shrink-0 transition-all border border-white/5',
-              filters.showArchived ? 'text-gold-light' : 'text-gray-500'
-            )}
+            className={cn('h-9 px-3 text-[9px] font-black uppercase tracking-widest rounded-lg shrink-0 transition-all border border-white/5 w-full sm:w-auto', filters.showArchived ? 'text-gold-light' : 'text-gray-500')}
           >
             <Archive className="w-3.5 h-3.5 mr-2" />
             {filters.showArchived ? 'Hide' : 'Show'} Archived
@@ -586,363 +668,303 @@ export function OnboardingCrmBoard({ productLine, title, description }: Onboardi
         </div>
       </div>
 
-      {/* Kanban */}
       {viewMode === 'kanban' && (
         loading ? (
           <div className="flex justify-center items-center py-20">
             <Loader2 className="w-10 h-10 animate-spin text-gold-medium" />
           </div>
         ) : (
-          <KanbanView cases={filteredCases} />
+          <KanbanView cases={filteredCases} crmView={crmView} productLine={productLine} />
         )
       )}
 
-      {/* Table */}
-      {viewMode === 'table' && <Card className="bg-gradient-to-br from-gold-light/5 via-transparent to-gold-dark/5 border border-white/5">
-        <CardContent className="p-0">
-          {loading ? (
-            <div className="flex justify-center items-center py-20">
-              <Loader2 className="w-10 h-10 animate-spin text-gold-medium" />
-            </div>
-          ) : currentData.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-20 text-gray-500">
-              <AlertCircle className="w-12 h-12 mb-4 opacity-20" />
-              <p className="text-lg font-medium">No cases match the current filters.</p>
-            </div>
-          ) : (
-            <>
-              {/* Desktop table */}
-              {!isMobile && <div className="overflow-x-auto touch-manipulation" style={{ WebkitOverflowScrolling: 'touch' }}>
-                <table className="w-full text-left">
-                  <thead>
-                    <tr className="border-b border-white/5 text-[10px] lg:text-[11px] font-black uppercase text-gray-500 tracking-[0.2em]">
-                      <th className="px-3 py-3 lg:px-5 lg:py-4">Client</th>
-                      <th className="px-3 py-3 lg:px-5 lg:py-4">Stage</th>
-                      <th className="px-3 py-3 lg:px-5 lg:py-4">Progress</th>
-                      <th className="px-3 py-3 lg:px-5 lg:py-4">Order</th>
-                      <th className="px-3 py-3 lg:px-5 lg:py-4">Owner</th>
-                      <th className="px-3 py-3 lg:px-5 lg:py-4">Activity</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-white/5">
-                    {currentData.map(({ profile, serviceRequest, visaOrder, operationalStage }) => {
-                      const flowProgress = getApplicationFlowProgress(operationalStage);
+      {viewMode === 'table' && (
+        <Card className="bg-gradient-to-br from-gold-light/5 via-transparent to-gold-dark/5 border border-white/5">
+          <CardContent className="p-0">
+            {loading ? (
+              <div className="flex justify-center items-center py-20">
+                <Loader2 className="w-10 h-10 animate-spin text-gold-medium" />
+              </div>
+            ) : currentData.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-20 text-gray-500">
+                <AlertCircle className="w-12 h-12 mb-4 opacity-20" />
+                <p className="text-lg font-medium">No cases match the current filters.</p>
+              </div>
+            ) : (
+              <>
+                {!isMobile && (
+                  <div className="overflow-x-auto" style={{ WebkitOverflowScrolling: 'touch' }}>
+                    <table className="w-full text-left">
+                      <thead>
+                        {crmView === 'pre_onboarding' ? (
+                          <tr className="border-b border-white/5 text-[10px] lg:text-[11px] font-black uppercase text-gray-500 tracking-[0.2em]">
+                            <th className="px-3 py-3 lg:px-5 lg:py-4">Client</th>
+                            <th className="px-3 py-3 lg:px-5 lg:py-4">Signup</th>
+                            <th className="px-3 py-3 lg:px-5 lg:py-4">Payment</th>
+                            <th className="px-3 py-3 lg:px-5 lg:py-4">Owner</th>
+                            <th className="px-3 py-3 lg:px-5 lg:py-4">Follow-Up</th>
+                            <th className="px-3 py-3 lg:px-5 lg:py-4">Activity</th>
+                          </tr>
+                        ) : (
+                          <tr className="border-b border-white/5 text-[10px] lg:text-[11px] font-black uppercase text-gray-500 tracking-[0.2em]">
+                            <th className="px-3 py-3 lg:px-5 lg:py-4">Client</th>
+                            <th className="px-3 py-3 lg:px-5 lg:py-4">CRM Stage</th>
+                            <th className="px-3 py-3 lg:px-5 lg:py-4">Step</th>
+                            <th className="px-3 py-3 lg:px-5 lg:py-4">Alert</th>
+                            <th className="px-3 py-3 lg:px-5 lg:py-4">Deadline</th>
+                            <th className="px-3 py-3 lg:px-5 lg:py-4">Owner</th>
+                          </tr>
+                        )}
+                      </thead>
+                      <tbody className="divide-y divide-white/5">
+                        {currentData.map((item) => {
+                          const { profile, serviceRequest, visaOrder, operationalStage } = item;
+                          const progress = getOnboardingProgress(profile.onboarding_current_step);
+                          const stuckState = getStuckState(item, productLine);
+
+                          if (crmView === 'pre_onboarding') {
+                            return (
+                              <tr
+                                key={profile.id}
+                                className="group hover:bg-white/[0.02] transition-colors cursor-pointer"
+                                onClick={() => navigate(`/dashboard/users/${profile.id}`)}
+                              >
+                                <td className="px-3 py-3 lg:px-5 lg:py-4 min-w-[180px]">
+                                  <div className="flex flex-col gap-0.5 min-w-0">
+                                    <span className="text-white font-bold text-sm tracking-tight uppercase truncate">{profile.full_name || profile.email || 'Unnamed'}</span>
+                                    <span className="text-[10px] text-gray-500 font-mono italic truncate">{profile.email || '-'}</span>
+                                    <span className="text-[10px] text-gray-600 uppercase font-bold tracking-wider truncate">{profile.phone || '-'}</span>
+                                  </div>
+                                </td>
+                                <td className="px-3 py-3 lg:px-5 lg:py-4">
+                                  <div className="flex flex-col gap-1">
+                                    <span className="text-[10px] text-gray-300">{timeAgo(profile.created_at)}</span>
+                                    <span className="text-[10px] text-gray-600 uppercase tracking-wider">updated {timeAgo(profile.updated_at)}</span>
+                                  </div>
+                                </td>
+                                <td className="px-3 py-3 lg:px-5 lg:py-4">
+                                  <div className="flex flex-col gap-1">
+                                    <Badge className={cn('w-fit text-[9px] font-black uppercase rounded-sm border', getPreOnboardingPaymentBadgeClass(item))}>
+                                      {getPreOnboardingPaymentLabel(item)}
+                                    </Badge>
+                                    <span className="text-[10px] text-gray-500 uppercase tracking-wider">
+                                      {profile.selection_process_fee_payment_method || visaOrder?.payment_method || 'method?'}
+                                    </span>
+                                  </div>
+                                </td>
+                                <td className="px-3 py-3 lg:px-5 lg:py-4">
+                                  <div className="flex flex-col gap-1">
+                                    <span className="text-[10px] text-gray-500 uppercase tracking-wider">seller {shortId(profile.migma_seller_id)}</span>
+                                    <span className="text-[10px] text-gray-500 uppercase tracking-wider">agent {shortId(profile.migma_agent_id)}</span>
+                                  </div>
+                                </td>
+                                <td className="px-3 py-3 lg:px-5 lg:py-4">
+                                  <div className="flex flex-col gap-1">
+                                    <span className="text-[10px] text-gray-300">{daysSince(profile.created_at) ?? 0}d since signup</span>
+                                    {item.checkoutZellePending?.status && (
+                                      <span className="text-[10px] text-gray-600 uppercase tracking-wider">{toLabel(item.checkoutZellePending.status)}</span>
+                                    )}
+                                  </div>
+                                </td>
+                                <td className="px-3 py-3 lg:px-5 lg:py-4 text-right">
+                                  <Badge className="w-fit text-[8px] font-black uppercase rounded-sm border bg-white/5 text-gray-500 border-white/10 group-hover:border-gold-medium/30 group-hover:text-gold-light transition-colors px-2 py-0.5">
+                                    View
+                                  </Badge>
+                                </td>
+                              </tr>
+                            );
+                          }
+
+                          return (
+                            <tr
+                              key={profile.id}
+                              className="group hover:bg-white/[0.02] transition-colors cursor-pointer"
+                              onClick={() => navigate(`/dashboard/users/${profile.id}`)}
+                            >
+                              <td className="px-3 py-3 lg:px-5 lg:py-4 min-w-[180px]">
+                                <div className="flex flex-col gap-0.5 min-w-0">
+                                  <span className="text-white font-bold text-sm tracking-tight uppercase truncate">{profile.full_name || profile.email || 'Unnamed'}</span>
+                                  <span className="text-[10px] text-gray-500 font-mono italic truncate">{profile.email || '-'}</span>
+                                  <span className="text-[10px] text-gray-600 uppercase font-bold tracking-wider truncate">{profile.phone || '-'}</span>
+                                </div>
+                              </td>
+                              <td className="px-3 py-3 lg:px-5 lg:py-4">
+                                <Badge className={cn('w-fit text-[9px] font-black uppercase rounded-sm border', OPERATIONAL_STAGE_COLORS[operationalStage])}>
+                                  {OPERATIONAL_STAGE_LABELS[operationalStage]}
+                                </Badge>
+                              </td>
+                              <td className="px-3 py-3 lg:px-5 lg:py-4 min-w-[160px]">
+                                <div className="flex flex-col gap-1.5">
+                                  <div className="flex items-center justify-between gap-2">
+                                    <span className="text-[10px] lg:text-xs text-gold-medium font-black">{progress.currentStep}/{progress.totalSteps}</span>
+                                    <span className="text-[8px] lg:text-[9px] text-gray-400 font-bold tracking-tighter truncate">{progress.label}</span>
+                                  </div>
+                                  <Progress value={progress.percent} className="h-1.5 bg-white/10" />
+                                </div>
+                              </td>
+                              <td className="px-3 py-3 lg:px-5 lg:py-4">
+                                {stuckState.label ? (
+                                  <Badge className={cn('text-[9px] font-black uppercase rounded-sm border', alertBadgeClass(stuckState.tone))}>
+                                    {stuckState.label}
+                                  </Badge>
+                                ) : (
+                                  <span className="text-[10px] text-gray-600">Healthy</span>
+                                )}
+                              </td>
+                              <td className="px-3 py-3 lg:px-5 lg:py-4">
+                                <div className="flex flex-col gap-1">
+                                  <span className="text-[10px] text-gray-300">{getDeadlineLabel(item, productLine)}</span>
+                                  <span className="text-[10px] text-gray-600 uppercase tracking-wider">updated {timeAgo(profile.updated_at)}</span>
+                                </div>
+                              </td>
+                              <td className="px-3 py-3 lg:px-5 lg:py-4">
+                                <div className="flex flex-col gap-1.5">
+                                  {serviceRequest?.owner_user_id ? (
+                                    <div className="flex items-center gap-1.5">
+                                      <UserCheck className="w-3.5 h-3.5 text-gold-medium shrink-0" />
+                                      <span className="text-[10px] text-gray-300 font-mono break-all max-w-[100px]">{serviceRequest.owner_user_id.slice(0, 8)}...</span>
+                                    </div>
+                                  ) : (
+                                    <span className="text-[10px] text-gray-600 italic">Unassigned</span>
+                                  )}
+                                  <span className="text-[10px] text-gray-500 uppercase tracking-wider">seller {shortId(profile.migma_seller_id)}</span>
+                                  <span className="text-[10px] text-gray-500 uppercase tracking-wider">agent {shortId(profile.migma_agent_id)}</span>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+
+                {isMobile && (
+                  <div className="p-3 space-y-3">
+                    {currentData.map((item) => {
+                      const { profile, serviceRequest, operationalStage } = item;
+                      const progress = getOnboardingProgress(profile.onboarding_current_step);
+                      const stuckState = getStuckState(item, productLine);
 
                       return (
-                        <tr
+                        <Card
                           key={profile.id}
-                          className="group hover:bg-white/[0.02] transition-colors cursor-pointer border-b border-white/[0.02] last:border-0"
+                          className="hover:shadow-xl transition-all duration-300 bg-gradient-to-br from-zinc-900 via-black to-zinc-900 border border-gold-medium/20 hover:border-gold-medium/40 group relative overflow-hidden cursor-pointer w-full"
                           onClick={() => navigate(`/dashboard/users/${profile.id}`)}
                         >
-                        <td className="px-3 py-3 lg:px-5 lg:py-4 min-w-[140px] max-w-[200px] lg:max-w-none">
-                          <div className="flex flex-col gap-0.5 min-w-0">
-                            <span className="text-white font-bold text-sm tracking-tight uppercase truncate">
-                              {profile.full_name || profile.email || 'Unnamed'}
-                            </span>
-                            <span className="text-[10px] text-gray-500 font-mono italic truncate">
-                              {profile.email || '—'}
-                            </span>
-                            <span className="text-[10px] text-gray-600 uppercase font-bold tracking-wider truncate">
-                              {profile.phone || '—'}
-                            </span>
-                            <div className="flex flex-wrap gap-1 pt-1 opacity-70">
-                              <Badge className="text-[8px] font-black uppercase rounded-sm border bg-white/5 text-gray-400 border-white/10 shrink-0">
-                                {profile.onboarding_current_step || 'step 0'}
-                              </Badge>
-                              <Badge className="text-[8px] font-black uppercase rounded-sm border bg-white/5 text-gray-400 border-white/10 shrink-0">
-                                {profile.migma_seller_id ? 'owned' : 'open'}
-                              </Badge>
-                            </div>
-                          </div>
-                        </td>
-
-                        <td className="px-3 py-3 lg:px-5 lg:py-4">
-                          <div className="flex flex-col gap-1.5">
-                            <Badge
-                              className={cn(
-                                'w-fit text-[9px] font-black uppercase rounded-sm border',
-                                OPERATIONAL_STAGE_COLORS[operationalStage]
-                              )}
-                            >
-                              {OPERATIONAL_STAGE_LABELS[operationalStage]}
-                            </Badge>
-                            {serviceRequest?.priority && serviceRequest.priority !== 'normal' && (
-                              <Badge
-                                className={cn(
-                                  'w-fit text-[9px] font-black uppercase rounded-sm border',
-                                  serviceRequest.priority === 'urgent'
-                                    ? 'bg-red-500/20 text-red-300 border-red-500/30'
-                                    : serviceRequest.priority === 'high'
-                                    ? 'bg-orange-500/20 text-orange-300 border-orange-500/30'
-                                    : 'bg-white/5 text-gray-400 border-white/10'
-                                )}
-                              >
-                                {serviceRequest.priority}
-                              </Badge>
-                            )}
-                          </div>
-                        </td>
-
-                        <td className="px-3 py-3 lg:px-5 lg:py-4 w-1/4 min-w-[110px]">
-                          <div className="flex flex-col gap-1.5">
-                            <div className="flex items-center justify-between gap-2">
-                              <span className="text-[10px] lg:text-xs text-white font-black">
-                                {flowProgress.currentStep}/{flowProgress.totalSteps}
-                              </span>
-                              <span className="text-[8px] lg:text-[9px] text-gray-500 uppercase font-bold tracking-tighter truncate">
-                                {flowProgress.label}
-                              </span>
-                            </div>
-                            <Progress
-                              value={flowProgress.percent}
-                              className="h-1 bg-white/10"
-                            />
-                            <div className="flex items-center justify-between gap-1 text-[8px] lg:text-[9px] text-gray-500 uppercase font-bold tracking-tighter">
-                              <span className="truncate">{flowProgress.status}</span>
-                              <span>{Math.round(flowProgress.percent)}%</span>
-                            </div>
-                          </div>
-                        </td>
-
-                        <td className="px-3 py-3 lg:px-5 lg:py-4 min-w-[100px]">
-                          {visaOrder ? (
-                            <div className="flex flex-col gap-1 min-w-0">
-                              <span className="text-[10px] text-gray-300 font-mono truncate">
-                                {visaOrder.order_number || 'Order'}
-                              </span>
-                              <Badge
-                                className={cn(
-                                  'w-fit text-[9px] font-black uppercase rounded-sm border',
-                                  paymentStatusColor(visaOrder.payment_status)
-                                )}
-                              >
-                                {visaOrder.payment_status || 'pending'}
-                              </Badge>
-                              <span className="text-[10px] text-gray-600 uppercase tracking-wider truncate">
-                                {visaOrder.payment_method || '—'}
-                              </span>
-                            </div>
-                          ) : (
-                            <span className="text-[10px] text-gray-600 italic">No order</span>
-                          )}
-                        </td>
-
-                        <td className="px-3 py-3 lg:px-5 lg:py-4">
-                          <div className="flex flex-col gap-1.5">
-                            {serviceRequest?.owner_user_id ? (
-                              <div className="flex items-center gap-1.5">
-                                <UserCheck className="w-3.5 h-3.5 text-gold-medium shrink-0" />
-                                <span className="text-[10px] text-gray-300 font-mono break-all max-w-[100px]">
-                                  {serviceRequest.owner_user_id.slice(0, 8)}…
-                                </span>
-                              </div>
-                            ) : (
-                              <span className="text-[10px] text-gray-600 italic">Unassigned</span>
-                            )}
-                            <span className="text-[10px] text-gray-500 uppercase tracking-wider">
-                              seller {shortId(profile.migma_seller_id)}
-                            </span>
-                            <span className="text-[10px] text-gray-500 uppercase tracking-wider">
-                              agent {shortId(profile.migma_agent_id)}
-                            </span>
-                          </div>
-                        </td>
-
-                        <td className="px-3 py-3 lg:px-5 lg:py-4 text-right">
-                          <div className="flex flex-col gap-1 items-end">
-                            <span className="text-[9px] text-gray-500 font-mono whitespace-nowrap">
-                              {timeAgo(profile.updated_at)}
-                            </span>
-                            <div className="flex items-center gap-2">
-                               <Badge className="w-fit text-[8px] font-black uppercase rounded-sm border bg-white/5 text-gray-500 border-white/10 group-hover:border-gold-medium/30 group-hover:text-gold-light transition-colors px-2 py-0.5">
-                                View
-                              </Badge>
-                            </div>
-                          </div>
-                        </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>}
-
-              {/* Mobile card list */}
-              {isMobile && <div className="p-3 space-y-3">
-                {currentData.map(({ profile, serviceRequest, visaOrder, operationalStage }) => {
-                  const flowProgress = getApplicationFlowProgress(operationalStage);
-                  const isTransfer = visaOrder?.product_slug?.startsWith('transfer-');
-                  const isCos = visaOrder?.product_slug?.startsWith('cos-');
-
-                  return (
-                    <Card
-                      key={profile.id}
-                      className="hover:shadow-xl transition-all duration-300 bg-gradient-to-br from-zinc-900 via-black to-zinc-900 border border-gold-medium/20 hover:border-gold-medium/40 group relative overflow-hidden cursor-pointer w-full"
-                      onClick={() => navigate(`/dashboard/users/${profile.id}`)}
-                    >
-                      <div className="absolute top-0 right-0 w-32 h-32 bg-gold-medium/5 blur-3xl -mr-16 -mt-16 group-hover:bg-gold-medium/10 transition-all rounded-full" />
-
-                      <CardHeader className="p-3 pb-2 relative">
-                        <div className="flex flex-col gap-2">
-                          <div className="flex-1 min-w-0">
-                            {/* Nome — igual ao contracts */}
-                            <div className="flex items-center gap-2 mb-1">
+                          <CardHeader className="p-3 pb-2 relative">
+                            <div className="flex items-start gap-2">
                               <div className="p-1.5 bg-gold-medium/10 rounded-lg border border-gold-medium/20 shrink-0">
                                 <User className="w-3.5 h-3.5 text-gold-light" />
                               </div>
-                              <CardTitle className="text-base font-black uppercase tracking-tight text-white leading-tight">
-                                {profile.full_name || profile.email || 'Unnamed'}
-                              </CardTitle>
-                            </div>
-
-                            {/* Email + phone + stage — igual ao email+country+date do contracts */}
-                            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[10px] text-gray-500 font-bold uppercase tracking-wider">
-                              <span className="text-gray-400 break-all normal-case font-normal opacity-80">
-                                {profile.email || '—'}
-                              </span>
-                              {profile.phone && (
-                                <span className="bg-white/5 px-1.5 py-0.5 rounded border border-white/5">
-                                  {profile.phone}
-                                </span>
-                              )}
-                            </div>
-                          </div>
-
-                          {/* Stage badge — igual ao VerificationStatusBadge do contracts */}
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <Badge className={cn('text-[9px] font-black uppercase rounded-sm border', OPERATIONAL_STAGE_COLORS[operationalStage])}>
-                              {OPERATIONAL_STAGE_LABELS[operationalStage]}
-                            </Badge>
-                            {serviceRequest?.priority && serviceRequest.priority !== 'normal' && (
-                              <Badge className={cn(
-                                'text-[9px] font-black uppercase rounded-sm border',
-                                serviceRequest.priority === 'urgent'
-                                  ? 'bg-red-500/20 text-red-300 border-red-500/30'
-                                  : 'bg-orange-500/20 text-orange-300 border-orange-500/30'
-                              )}>
-                                {serviceRequest.priority}
-                              </Badge>
-                            )}
-                          </div>
-                        </div>
-                      </CardHeader>
-
-                      <CardContent className="p-3 pt-0 relative">
-                        {/* Seção "Application Flow" — igual ao "Legal Records" do contracts */}
-                        <div className="mb-3 p-2.5 bg-black/40 rounded-xl border border-white/5 space-y-2">
-                          <h4 className="text-[10px] font-black text-gold-light/80 uppercase tracking-[0.2em] flex items-center gap-2 opacity-80">
-                            <Activity className="w-3 h-3 text-gold-medium" />
-                            Application Flow
-                          </h4>
-                          <div className="space-y-1.5">
-                            <div className="flex items-center gap-2.5">
-                              <div className="w-1.5 h-1.5 rounded-full bg-gold-medium/40 shrink-0" />
-                              <div className="flex items-baseline gap-2 min-w-0">
-                                <span className="text-[9px] text-gray-500 font-bold uppercase tracking-widest whitespace-nowrap">Stage</span>
-                                <span className="text-white font-black text-[10px] truncate">{flowProgress.status}</span>
-                              </div>
-                            </div>
-                            <div className="flex items-center gap-2.5">
-                              <div className="w-1.5 h-1.5 rounded-full bg-gold-medium/40 shrink-0" />
-                              <div className="flex items-baseline gap-2">
-                                <span className="text-[9px] text-gray-500 font-bold uppercase tracking-widest whitespace-nowrap">Progress</span>
-                                <span className="text-white font-black font-mono text-[10px]">{flowProgress.currentStep}/{flowProgress.totalSteps}</span>
-                              </div>
-                            </div>
-                            {visaOrder?.order_number && (
-                              <div className="flex items-center gap-2.5">
-                                <Globe className="w-3 h-3 text-gold-medium/60 shrink-0" />
-                                <div className="flex items-baseline gap-2 min-w-0 overflow-hidden">
-                                  <span className="text-[9px] text-gray-500 font-bold uppercase tracking-widest whitespace-nowrap">Order</span>
-                                  <span className="text-gray-400 font-mono text-[9px] truncate opacity-70 italic">{visaOrder.order_number}</span>
+                              <div className="min-w-0 flex-1">
+                                <CardTitle className="text-base font-black uppercase tracking-tight text-white leading-tight">
+                                  {profile.full_name || profile.email || 'Unnamed'}
+                                </CardTitle>
+                                <div className="mt-1 text-[10px] text-gray-500">
+                                  <div className="break-all normal-case">{profile.email || '-'}</div>
+                                  {profile.phone && <div>{profile.phone}</div>}
                                 </div>
                               </div>
-                            )}
-                            {visaOrder?.payment_status && (
-                              <div className="flex items-center gap-2.5">
-                                <div className="w-1.5 h-1.5 rounded-full bg-gold-medium/40 shrink-0" />
-                                <div className="flex items-baseline gap-2">
-                                  <span className="text-[9px] text-gray-500 font-bold uppercase tracking-widest whitespace-nowrap">Payment</span>
-                                  <Badge className={cn('text-[8px] font-black uppercase rounded-sm border', paymentStatusColor(visaOrder.payment_status))}>
-                                    {visaOrder.payment_status}
-                                  </Badge>
+                            </div>
+                          </CardHeader>
+
+                          <CardContent className="p-3 pt-0">
+                            {crmView === 'pre_onboarding' ? (
+                              <div className="space-y-2">
+                                <Badge className={cn('text-[9px] font-black uppercase rounded-sm border', getPreOnboardingPaymentBadgeClass(item))}>
+                                  {getPreOnboardingPaymentLabel(item)}
+                                </Badge>
+                                <div className="text-[10px] text-gray-400 space-y-1">
+                                  <div>Signup: {timeAgo(profile.created_at)}</div>
+                                  <div>Method: {profile.selection_process_fee_payment_method || item.visaOrder?.payment_method || 'payment?'}</div>
+                                  <div>Owner: {shortId(profile.migma_seller_id)}</div>
                                 </div>
                               </div>
-                            )}
-                          </div>
-                          {/* Progress bar */}
-                          <div className="relative h-1.5 w-full bg-white/5 rounded-full overflow-hidden mt-1">
-                            <div
-                              className="absolute top-0 left-0 h-full bg-gradient-to-r from-gold-dark to-gold-light transition-all duration-500"
-                              style={{ width: `${flowProgress.percent}%` }}
-                            />
-                          </div>
-                        </div>
-
-                        {/* Botão View — igual aos botões VIEW/PDF do contracts */}
-                        <div className="grid grid-cols-2 gap-2">
-                          <button
-                            className="bg-gold-medium/5 hover:bg-gold-medium/20 text-gold-light border border-gold-medium/10 h-9 text-[10px] font-black uppercase tracking-widest transition-all rounded-md flex items-center justify-center gap-2"
-                            onClick={(e) => { e.stopPropagation(); navigate(`/dashboard/users/${profile.id}`); }}
-                          >
-                            <Eye className="w-3.5 h-3.5 shrink-0" />
-                            View
-                          </button>
-                          <div className="bg-white/5 border border-white/5 h-9 text-[10px] font-black uppercase tracking-widest rounded-md flex items-center justify-center gap-2 text-gray-500">
-                            {serviceRequest?.owner_user_id ? (
-                              <>
-                                <UserCheck className="w-3.5 h-3.5 text-gold-medium shrink-0" />
-                                <span className="text-gray-400">Assigned</span>
-                              </>
                             ) : (
-                              <span className="italic">Unassigned</span>
+                              <div className="space-y-2">
+                                <Badge className={cn('text-[9px] font-black uppercase rounded-sm border', OPERATIONAL_STAGE_COLORS[operationalStage])}>
+                                  {OPERATIONAL_STAGE_LABELS[operationalStage]}
+                                </Badge>
+                                <div className="space-y-1.5">
+                                  <div className="flex items-center justify-between gap-2">
+                                    <span className="text-[9px] text-gray-500 font-bold uppercase tracking-widest">Step</span>
+                                    <span className="text-gold-medium font-black text-[10px]">{progress.currentStep}/{progress.totalSteps} - {progress.label}</span>
+                                  </div>
+                                  <div className="w-full h-1.5 bg-white/10 rounded-full overflow-hidden">
+                                    <div className="h-full bg-gold-medium rounded-full" style={{ width: `${progress.percent}%` }} />
+                                  </div>
+                                </div>
+                                <div className="text-[10px] text-gray-400 space-y-1">
+                                  <div>{getDeadlineLabel(item, productLine)}</div>
+                                  <div>{stuckState.label || `Updated ${timeAgo(profile.updated_at)}`}</div>
+                                  <div>{serviceRequest?.owner_user_id ? 'Assigned' : 'Unassigned'}</div>
+                                </div>
+                              </div>
                             )}
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  );
-                })}
-              </div>}
 
-              {/* Pagination */}
-              <div className="p-3 sm:p-4 border-t border-white/5 flex items-center justify-between gap-2 sm:gap-4">
-                <p className="text-[9px] sm:text-[10px] uppercase font-black text-gray-600 tracking-widest">
-                  {filteredCases.length === 0
-                    ? 'No results'
-                    : `${(currentPage - 1) * PAGE_SIZE + 1}–${Math.min(
-                        currentPage * PAGE_SIZE,
-                        filteredCases.length
-                      )} of ${filteredCases.length}`}
-                </p>
-                <div className="flex items-center gap-1.5 sm:gap-2">
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                    disabled={currentPage === 1}
-                    className="h-8 w-8 border-white/10 bg-black/40 text-gray-400 hover:bg-white/5 disabled:opacity-30"
-                  >
-                    <ChevronLeft className="w-3.5 h-3.5" />
-                  </Button>
-                  <span className="text-[10px] sm:text-[11px] text-gray-400 font-black uppercase tracking-wider px-1">
-                    {currentPage} / {totalPages}
-                  </span>
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                    disabled={currentPage === totalPages}
-                    className="h-8 w-8 border-white/10 bg-black/40 text-gray-400 hover:bg-white/5 disabled:opacity-30"
-                  >
-                    <ChevronRight className="w-3.5 h-3.5" />
-                  </Button>
+                            <div className="grid grid-cols-2 gap-2 mt-3">
+                              <button
+                                className="bg-gold-medium/5 hover:bg-gold-medium/20 text-gold-light border border-gold-medium/10 h-9 text-[10px] font-black uppercase tracking-widest transition-all rounded-md flex items-center justify-center gap-2"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  navigate(`/dashboard/users/${profile.id}`);
+                                }}
+                              >
+                                <Eye className="w-3.5 h-3.5 shrink-0" />
+                                View
+                              </button>
+                              <div className="bg-white/5 border border-white/5 h-9 text-[10px] font-black uppercase tracking-widest rounded-md flex items-center justify-center gap-2 text-gray-500">
+                                {serviceRequest?.owner_user_id ? (
+                                  <>
+                                    <UserCheck className="w-3.5 h-3.5 text-gold-medium shrink-0" />
+                                    <span className="text-gray-400">Assigned</span>
+                                  </>
+                                ) : (
+                                  <span className="italic">Unassigned</span>
+                                )}
+                              </div>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      );
+                    })}
+                  </div>
+                )}
+
+                <div className="p-3 sm:p-4 border-t border-white/5 flex items-center justify-between gap-2 sm:gap-4">
+                  <p className="text-[9px] sm:text-[10px] uppercase font-black text-gray-600 tracking-widest">
+                    {filteredCases.length === 0
+                      ? 'No results'
+                      : `${(currentPage - 1) * PAGE_SIZE + 1}-${Math.min(currentPage * PAGE_SIZE, filteredCases.length)} of ${filteredCases.length}`}
+                  </p>
+                  <div className="flex items-center gap-1.5 sm:gap-2">
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+                      disabled={currentPage === 1}
+                      className="h-8 w-8 border-white/10 bg-black/40 text-gray-400 hover:bg-white/5 disabled:opacity-30"
+                    >
+                      <ChevronLeft className="w-3.5 h-3.5" />
+                    </Button>
+                    <span className="text-[10px] sm:text-[11px] text-gray-400 font-black uppercase tracking-wider px-1">{currentPage} / {totalPages}</span>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
+                      disabled={currentPage === totalPages}
+                      className="h-8 w-8 border-white/10 bg-black/40 text-gray-400 hover:bg-white/5 disabled:opacity-30"
+                    >
+                      <ChevronRight className="w-3.5 h-3.5" />
+                    </Button>
+                  </div>
                 </div>
-              </div>
-            </>
-          )}
-        </CardContent>
-      </Card>}
+              </>
+            )}
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

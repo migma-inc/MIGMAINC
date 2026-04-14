@@ -42,7 +42,12 @@ const FileUploadArea: React.FC<FileUploadProps> = ({ label, hint, file, onFile, 
 
   const validate = (f: File): string | null => {
     if (!ALLOWED_TYPES.includes(f.type)) return t('migma_checkout.step2.error_file_type', 'Apenas arquivos JPG e PNG são permitidos');
-    if (f.size > MAX_SIZE_MB * 1024 * 1024) return t('migma_checkout.step2.error_file_size', { size: MAX_SIZE_MB }, `O arquivo deve ter menos de ${MAX_SIZE_MB}MB`);
+    if (f.size > MAX_SIZE_MB * 1024 * 1024) {
+      return t('migma_checkout.step2.error_file_size', {
+        size: MAX_SIZE_MB,
+        defaultValue: `O arquivo deve ter menos de ${MAX_SIZE_MB}MB`,
+      });
+    }
     return null;
   };
 
@@ -312,7 +317,10 @@ export const Step2Documents: React.FC<Props> = ({ onComplete, onBack, isComplete
       <div className="bg-[#111] border border-white/10 rounded-2xl p-6 space-y-6">
         <h3 className="text-base font-bold text-white">{t('migma_checkout.step2.doc_upload_title', 'Upload de Documentos')}</h3>
         <p className="text-sm text-gray-400">
-          {t('migma_checkout.step2.doc_upload_desc', { maxSize: MAX_SIZE_MB }, `Envie fotos nítidas dos seus documentos. Arquivos devem ser JPG ou PNG, máx ${MAX_SIZE_MB}MB cada.`)}
+          {t('migma_checkout.step2.doc_upload_desc', {
+            maxSize: MAX_SIZE_MB,
+            defaultValue: `Envie fotos nítidas dos seus documentos. Arquivos devem ser JPG ou PNG, máx ${MAX_SIZE_MB}MB cada.`,
+          })}
         </p>
 
         <FileUploadArea

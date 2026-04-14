@@ -6,13 +6,17 @@ interface Props {
   email: string;
   name: string;
   service: string;
+  whatsapp?: string;
+  academicFormation?: string;
+  englishLevel?: string;
+  surveyCompletedAt?: string; // ISO string — usado para calcular o unlock de 24h
   onContinue: () => void;
 }
 
 const TARGET = 1481;
 const DURATION_MS = 2800;
 
-export const SurveyCompletionScreen: React.FC<Props> = ({ email, name, service, onContinue }) => {
+export const SurveyCompletionScreen: React.FC<Props> = ({ email, name, service, whatsapp, academicFormation, englishLevel, surveyCompletedAt, onContinue }) => {
   const [count, setCount] = useState(0);
   const [unlockAt, setUnlockAt] = useState<Date | null>(null);
   const [timeLeft, setTimeLeft] = useState('');
@@ -39,18 +43,11 @@ export const SurveyCompletionScreen: React.FC<Props> = ({ email, name, service, 
     return () => { if (animationRef.current) cancelAnimationFrame(animationRef.current); };
   }, []);
 
-  // Botão "Escolher Faculdades" bloqueado por 24h
+  // Botão "Escolher Faculdades" bloqueado por 24h — usa selection_survey_completed_at do banco
   useEffect(() => {
-    const stored = localStorage.getItem('migma_survey_completed_at');
-    let completedAt: Date;
-    if (stored) {
-      completedAt = new Date(stored);
-    } else {
-      completedAt = new Date();
-      localStorage.setItem('migma_survey_completed_at', completedAt.toISOString());
-    }
+    const completedAt = surveyCompletedAt ? new Date(surveyCompletedAt) : new Date();
     setUnlockAt(new Date(completedAt.getTime() + 24 * 60 * 60 * 1000));
-  }, []);
+  }, [surveyCompletedAt]);
 
   // Countdown timer
   useEffect(() => {
@@ -110,9 +107,40 @@ export const SurveyCompletionScreen: React.FC<Props> = ({ email, name, service, 
         {/* Resumo da candidatura */}
         <div className="mt-8 bg-[#0d0d0d] border border-white/10 rounded-2xl p-5 text-left space-y-2 text-sm">
           <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-3">Resumo da candidatura</p>
-          {name && <div className="flex justify-between"><span className="text-gray-400">Nome</span><span className="text-white font-semibold">{name}</span></div>}
-          {email && <div className="flex justify-between"><span className="text-gray-400">E-mail</span><span className="text-white font-semibold">{email}</span></div>}
-          <div className="flex justify-between"><span className="text-gray-400">Serviço</span><span className="text-white font-semibold">{serviceLabel}</span></div>
+          {name && (
+            <div className="flex justify-between gap-4">
+              <span className="text-gray-400 shrink-0">Nome</span>
+              <span className="text-white font-semibold text-right">{name}</span>
+            </div>
+          )}
+          {email && (
+            <div className="flex justify-between gap-4">
+              <span className="text-gray-400 shrink-0">E-mail</span>
+              <span className="text-white font-semibold text-right">{email}</span>
+            </div>
+          )}
+          {whatsapp && (
+            <div className="flex justify-between gap-4">
+              <span className="text-gray-400 shrink-0">WhatsApp</span>
+              <span className="text-white font-semibold text-right">{whatsapp}</span>
+            </div>
+          )}
+          <div className="flex justify-between gap-4">
+            <span className="text-gray-400 shrink-0">Perfil / Serviço</span>
+            <span className="text-white font-semibold text-right">{serviceLabel}</span>
+          </div>
+          {academicFormation && (
+            <div className="flex justify-between gap-4">
+              <span className="text-gray-400 shrink-0">Formação</span>
+              <span className="text-white font-semibold text-right">{academicFormation}</span>
+            </div>
+          )}
+          {englishLevel && (
+            <div className="flex justify-between gap-4">
+              <span className="text-gray-400 shrink-0">Nível de inglês</span>
+              <span className="text-white font-semibold text-right">{englishLevel}</span>
+            </div>
+          )}
         </div>
 
         {/* Card de retorno */}

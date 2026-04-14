@@ -7,7 +7,7 @@ import {
   CheckCircle, Building, Shield, Loader2, Award, DollarSign,
 } from 'lucide-react';
 import { useStudentAuth } from '../../../contexts/StudentAuthContext';
-import { matriculaSupabase } from '../../../lib/matriculaSupabase';
+import { supabase } from '../../../lib/supabase';
 import { getPlacementFee, formatPlacementFee } from '../../../utils/placementFeeCalculator';
 import { calculateCardAmountWithFees } from '../../../utils/stripeFeeCalculator';
 import type { StepProps } from '../types';
@@ -34,7 +34,7 @@ export const PlacementFeeStep: React.FC<StepProps> = ({ onNext }) => {
   const fetchApplications = useCallback(async () => {
     if (!userProfile?.id) return;
     try {
-      const { data } = await matriculaSupabase
+      const { data } = await supabase
         .from('scholarship_applications')
         .select(`
           id, is_placement_fee_paid, scholarship_id,
@@ -64,7 +64,7 @@ export const PlacementFeeStep: React.FC<StepProps> = ({ onNext }) => {
   if (loading) {
     return (
       <div className="flex justify-center py-16">
-        <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
+        <Loader2 className="w-8 h-8 animate-spin text-gold-medium" />
       </div>
     );
   }
@@ -72,21 +72,21 @@ export const PlacementFeeStep: React.FC<StepProps> = ({ onNext }) => {
   if (alreadyPaid) {
     return (
       <div className="space-y-8 pb-12 max-w-2xl mx-auto px-4">
-        <div className="bg-white border border-emerald-500/30 rounded-[2.5rem] p-8 text-center shadow-xl">
-          <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
-            <CheckCircle className="w-10 h-10 text-emerald-500" />
+        <div className="border border-emerald-500/20 bg-emerald-500/5 rounded-2xl p-8 text-center">
+          <div className="w-16 h-16 bg-emerald-500/10 rounded-full flex items-center justify-center mx-auto mb-4 border border-emerald-500/20">
+            <CheckCircle className="w-10 h-10 text-emerald-400" />
           </div>
-          <h3 className="text-2xl font-black text-slate-900 mb-2 uppercase tracking-tight">
+          <h3 className="text-2xl font-black text-white mb-2 uppercase tracking-tight">
             Placement Fee Paid!
           </h3>
-          <p className="text-slate-500 mb-6">
+          <p className="text-gray-400 mb-6">
             Your Placement Fee has been confirmed. Our team will now process your application.
           </p>
           <button
             onClick={onNext}
-            className="bg-blue-600 text-white py-3 px-8 rounded-xl hover:bg-blue-700 font-bold uppercase tracking-widest shadow-lg transition-all"
+            className="bg-gold-medium hover:bg-gold-dark text-black py-3 px-8 rounded-xl font-black uppercase tracking-widest transition-colors"
           >
-            See My Applications
+            See My Applications →
           </button>
         </div>
       </div>
@@ -95,11 +95,10 @@ export const PlacementFeeStep: React.FC<StepProps> = ({ onNext }) => {
 
   return (
     <div className="space-y-8 pb-12 max-w-4xl mx-auto px-4">
-      <div className="text-center md:text-left space-y-3">
-        <h2 className="text-3xl md:text-5xl font-black text-slate-900 uppercase tracking-tighter">
-          Placement Fee
-        </h2>
-        <p className="text-lg text-slate-600 font-medium">
+      <div className="space-y-1">
+        <p className="text-xs font-black uppercase tracking-widest text-gold-medium">Etapa 8</p>
+        <h2 className="text-2xl font-black text-white uppercase tracking-tight">Placement Fee</h2>
+        <p className="text-sm text-gray-400 font-medium">
           The Placement Fee is 20% of your scholarship's annual value.
           This covers the full placement service until your university acceptance.
         </p>
@@ -107,72 +106,72 @@ export const PlacementFeeStep: React.FC<StepProps> = ({ onNext }) => {
 
       {/* Resumo da bolsa */}
       {scholarship && (
-        <div className="bg-white border border-slate-200 rounded-2xl p-5 flex items-center gap-4">
-          <div className="w-12 h-12 rounded-xl bg-slate-100 flex items-center justify-center flex-shrink-0">
-            <Building className="w-6 h-6 text-slate-500" />
+        <div className="bg-white/5 border border-white/10 rounded-2xl p-5 flex items-center gap-4">
+          <div className="w-12 h-12 rounded-xl bg-white/10 flex items-center justify-center flex-shrink-0">
+            <Building className="w-6 h-6 text-gray-400" />
           </div>
           <div className="flex-1 min-w-0">
-            <div className="font-bold text-slate-900 truncate">{scholarshipName}</div>
-            <div className="text-sm text-slate-500">{universityName}</div>
+            <div className="font-bold text-white truncate">{scholarshipName}</div>
+            <div className="text-sm text-gray-500">{universityName}</div>
           </div>
           <div className="text-right flex-shrink-0">
-            <div className="text-sm text-slate-500">Annual Value</div>
-            <div className="font-bold text-slate-900">${annualValue.toLocaleString()}</div>
+            <div className="text-xs text-gray-500">Annual Value</div>
+            <div className="font-bold text-white">${annualValue.toLocaleString()}</div>
           </div>
         </div>
       )}
 
       {/* Cálculo do placement fee */}
-      <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-100 rounded-2xl p-6">
+      <div className="bg-gold-medium/5 border border-gold-medium/20 rounded-2xl p-6">
         <div className="flex items-center gap-3 mb-4">
-          <Award className="w-6 h-6 text-blue-500" />
-          <span className="font-bold text-slate-900">Placement Fee Calculation</span>
+          <Award className="w-6 h-6 text-gold-medium" />
+          <span className="font-bold text-white">Placement Fee Calculation</span>
         </div>
         <div className="space-y-2 text-sm">
-          <div className="flex justify-between text-slate-600">
+          <div className="flex justify-between text-gray-400">
             <span>Annual Scholarship Value</span>
-            <span>${annualValue.toLocaleString()}</span>
+            <span className="text-white">${annualValue.toLocaleString()}</span>
           </div>
-          <div className="flex justify-between text-slate-600">
+          <div className="flex justify-between text-gray-400">
             <span>Placement Fee Rate</span>
-            <span>20%</span>
+            <span className="text-white">20%</span>
           </div>
-          <div className="border-t border-blue-200 pt-2 flex justify-between font-bold text-slate-900 text-lg">
-            <span>Placement Fee</span>
-            <span className="text-blue-600">{formatPlacementFee(placementFee)}</span>
+          <div className="border-t border-gold-medium/20 pt-2 flex justify-between font-bold text-lg">
+            <span className="text-white">Placement Fee</span>
+            <span className="text-gold-medium">{formatPlacementFee(placementFee)}</span>
           </div>
         </div>
       </div>
 
       {/* Fee breakdown total */}
-      <div className="bg-slate-50 border border-slate-100 rounded-2xl p-5 space-y-3">
-        <div className="flex justify-between text-sm text-slate-600">
+      <div className="bg-white/5 border border-white/10 rounded-2xl p-5 space-y-3">
+        <div className="flex justify-between text-sm text-gray-400">
           <span>Placement Fee</span>
-          <span className="font-semibold">{formatPlacementFee(placementFee)}</span>
+          <span className="font-semibold text-white">{formatPlacementFee(placementFee)}</span>
         </div>
-        <div className="flex justify-between text-sm text-slate-600">
+        <div className="flex justify-between text-sm text-gray-400">
           <span>Processing Fee (Stripe 3.9% + $0.30)</span>
-          <span className="font-semibold">${(amountWithFees - placementFee).toFixed(2)}</span>
+          <span className="font-semibold text-white">${(amountWithFees - placementFee).toFixed(2)}</span>
         </div>
-        <div className="border-t border-slate-200 pt-3 flex justify-between font-bold text-slate-900">
+        <div className="border-t border-white/10 pt-3 flex justify-between font-bold text-white">
           <span>Total Charged</span>
           <span className="text-xl">${amountWithFees.toFixed(2)}</span>
         </div>
       </div>
 
       {/* Segurança */}
-      <div className="flex items-center gap-2 text-sm text-slate-500 bg-slate-50 rounded-xl p-3">
-        <Shield className="w-4 h-4 text-blue-500 flex-shrink-0" />
+      <div className="flex items-center gap-2 text-sm text-gray-500 bg-white/5 border border-white/10 rounded-xl p-3">
+        <Shield className="w-4 h-4 text-gold-medium flex-shrink-0" />
         Secure payment processed by Stripe. Your card data is never stored.
       </div>
 
       {/* Placeholder de pagamento */}
-      <div className="bg-blue-50 border border-blue-200 rounded-2xl p-6 text-center space-y-3">
-        <DollarSign className="w-10 h-10 text-blue-500 mx-auto" />
-        <p className="text-blue-800 font-medium">
+      <div className="bg-gold-medium/5 border border-gold-medium/20 rounded-2xl p-6 text-center space-y-3">
+        <DollarSign className="w-10 h-10 text-gold-medium mx-auto" />
+        <p className="text-white font-medium">
           Payment integration is being configured.
         </p>
-        <p className="text-blue-600 text-sm">
+        <p className="text-gray-400 text-sm">
           Contact your advisor to complete this payment.
         </p>
       </div>

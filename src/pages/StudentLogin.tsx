@@ -3,16 +3,18 @@
  * Autentica diretamente no Auth do Supabase da Migma.
  */
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Mail, Lock, AlertCircle, Loader2, Eye, EyeOff, ArrowLeft } from 'lucide-react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Mail, Lock, AlertCircle, Loader2, Eye, EyeOff, ArrowLeft, CheckCircle } from 'lucide-react';
 import { useStudentAuth } from '../contexts/StudentAuthContext';
 import { supabase } from '../lib/supabase';
 
 const StudentLogin: React.FC = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { signIn } = useStudentAuth();
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState(searchParams.get('email') ?? '');
   const [password, setPassword] = useState('');
+  const justRegistered = searchParams.get('registered') === '1';
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -88,6 +90,12 @@ const StudentLogin: React.FC = () => {
 
         {/* Card */}
         <div className="bg-[#0d0d0d] border border-white/10 rounded-2xl p-8 shadow-2xl">
+          {justRegistered && (
+            <div className="flex items-center gap-2 text-emerald-400 text-sm bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-3 mb-5">
+              <CheckCircle className="w-4 h-4 flex-shrink-0" />
+              Conta criada com sucesso! Faça login para continuar.
+            </div>
+          )}
           <form onSubmit={handleSubmit} className="space-y-5" id="student-login-form">
 
             {/* Email */}

@@ -7,9 +7,11 @@ import {
   CheckCircle2,
   Clock3,
   DollarSign,
+  FileText,
   Image,
   Loader2,
   Mail,
+  MapPin,
   Phone,
   RefreshCw,
   Shield,
@@ -33,6 +35,7 @@ import {
   type CrmIdentityFile,
   type CrmMessage,
   type CrmStageHistory,
+  type CrmSurveyResponse,
   type CrmVisaOrder,
   OPERATIONAL_STAGE_COLORS,
   OPERATIONAL_STAGE_LABELS,
@@ -42,6 +45,10 @@ import {
   updateCaseOwner,
   updateCaseStatus,
 } from '@/lib/onboarding-crm';
+import {
+  ALL_QUESTIONS,
+  SURVEY_SECTIONS,
+} from '@/data/migmaSurveyQuestions';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -130,10 +137,12 @@ function SectionCard({ title, icon: Icon, children }: { title: string; icon: Rea
 // Tabs
 // ---------------------------------------------------------------------------
 
-type Tab = 'overview' | 'orders' | 'documents' | 'timeline' | 'messages' | 'followups';
+type Tab = 'overview' | 'orders' | 'documents' | 'timeline' | 'messages' | 'followups' | 'survey' | 'journey';
 
 const TABS: Array<{ id: Tab; label: string }> = [
   { id: 'overview', label: 'Overview' },
+  { id: 'journey', label: 'Journey' },
+  { id: 'survey', label: 'Survey' },
   { id: 'orders', label: 'Orders' },
   { id: 'documents', label: 'Documents' },
   { id: 'timeline', label: 'Timeline' },
@@ -1042,6 +1051,278 @@ function MessagesTab({ messages }: { messages: CrmMessage[] }) {
 }
 
 // ---------------------------------------------------------------------------
+// Tab: Survey
+// ---------------------------------------------------------------------------
+
+const QUESTION_LABEL: Record<string, string> = Object.fromEntries(
+  ALL_QUESTIONS.map((q) => [q.id, q.text])
+);
+
+const DOC_TYPE_LABELS: Record<string, string> = {
+  passport: 'Passport',
+  diploma: 'High School / College Diploma',
+  transcript: 'Official Transcript',
+  proof_of_funds: 'Proof of Funds',
+  i94: 'I-94',
+  visa: 'Current Visa',
+  other: 'Other',
+};
+
+function formatAnswerValue(value: string | string[] | null | undefined): string {
+  if (value === null || value === undefined) return '—';
+  if (Array.isArray(value)) return value.join(', ') || '—';
+  if (value === 'true') return 'Yes';
+  if (value === 'false') return 'No';
+  return value.replace(/[_-]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()) || '—';
+}
+
+function SurveyTab({ surveyResponses }: { surveyResponses: CrmSurveyResponse[] }) {
+  if (surveyResponses.length === 0) {
+    return <EmptyState icon={FileText} message="Survey not completed yet." />;
+  }
+
+  return (
+    <div className="space-y-6">
+      {surveyResponses.map((resp) => (
+        <div key={resp.id} className="space-y-4">
+          {/* Header */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <span className="text-[10px] font-black uppercase border rounded-sm px-2 py-0.5 bg-gold-medium/10 text-gold-light border-gold-medium/20">
+                {resp.service_type?.toUpperCase() ?? 'UNKNOWN SERVICE'}
+              </span>
+              {resp.transfer_deadline_date && (
+                <span className="text-[10px] font-black uppercase border rounded-sm px-2 py-0.5 bg-amber-500/10 text-amber-300 border-amber-500/20">
+                  Transfer Deadline: {new Date(resp.transfer_deadline_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                </span>
+              )}
+              {resp.cos_i94_expiry_date && (
+                <span className="text-[10px] font-black uppercase border rounded-sm px-2 py-0.5 bg-red-500/10 text-red-300 border-red-500/20">
+                  I-94 Expiry: {new Date(resp.cos_i94_expiry_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                </span>
+              )}
+            </div>
+            {resp.completed_at && (
+              <span className="text-[10px] text-gray-600">
+                Completed {fmtDate(resp.completed_at)}
+              </span>
+            )}
+          </div>
+
+          {/* Sections */}
+          {SURVEY_SECTIONS.map((section) => {
+            const sectionQuestions = ALL_QUESTIONS.filter((q) => q.section === section.key);
+            const answers = resp.answers ?? {};
+            const hasAnswers = sectionQuestions.some((q) => answers[q.id] !== undefined);
+            if (!hasAnswers) return null;
+
+            return (
+              <Card key={section.key} className="bg-black/30 border border-white/5">
+                <CardHeader className="pb-2 pt-4 px-5">
+                  <CardTitle className="text-xs font-black uppercase tracking-widest text-gold-medium">
+                    Section {section.key} — {section.title}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="px-5 pb-4">
+                  <div className="space-y-2">
+                    {sectionQuestions.map((q) => {
+                      const raw = answers[q.id];
+                      if (raw === undefined) return null;
+                      return (
+                        <div key={q.id} className="flex items-start justify-between gap-4 py-1.5 border-b border-white/5 last:border-0">
+                          <span className="text-[11px] text-gray-400 leading-snug max-w-[55%]">
+                            {QUESTION_LABEL[q.id] ?? q.id}
+                          </span>
+                          <span className="text-[11px] text-white font-medium text-right">
+                            {formatAnswerValue(raw as string | string[])}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Tab: Journey
+// ---------------------------------------------------------------------------
+
+interface JourneyMilestone {
+  id: string;
+  label: string;
+  sublabel?: string;
+  ts: string | null;
+  kind: 'account' | 'checkout' | 'payment' | 'survey' | 'case' | 'stage' | 'document';
+}
+
+function buildJourneyMilestones(
+  detail: CaseDetailPage,
+): JourneyMilestone[] {
+  const { profile, visaOrders, serviceRequests, stageHistory, studentDocuments } = detail;
+  const milestones: JourneyMilestone[] = [];
+
+  // 1. Account created
+  milestones.push({
+    id: 'account-created',
+    label: 'Account created',
+    sublabel: profile.email ?? undefined,
+    ts: profile.created_at,
+    kind: 'account',
+  });
+
+  // 2. Checkout started (oldest order)
+  const oldestOrder = [...visaOrders].sort(
+    (a, b) => new Date(a.created_at ?? 0).getTime() - new Date(b.created_at ?? 0).getTime()
+  )[0];
+  if (oldestOrder) {
+    milestones.push({
+      id: `checkout-${oldestOrder.id}`,
+      label: 'Checkout started',
+      sublabel: toLabel(oldestOrder.product_slug),
+      ts: oldestOrder.created_at,
+      kind: 'checkout',
+    });
+  }
+
+  // 3. Payment confirmed
+  const paidOrder = visaOrders.find((o) => o.paid_at);
+  if (paidOrder?.paid_at) {
+    milestones.push({
+      id: `payment-${paidOrder.id}`,
+      label: 'Payment confirmed',
+      sublabel: paidOrder.payment_method ? toLabel(paidOrder.payment_method) : undefined,
+      ts: paidOrder.paid_at,
+      kind: 'payment',
+    });
+  }
+
+  // 4. Survey completed
+  if (profile.selection_survey_completed_at) {
+    milestones.push({
+      id: 'survey-completed',
+      label: 'Survey completed',
+      sublabel: toLabel(profile.service_type),
+      ts: profile.selection_survey_completed_at,
+      kind: 'survey',
+    });
+  }
+
+  // 5. Service request created
+  for (const sr of serviceRequests) {
+    if (sr.created_at) {
+      milestones.push({
+        id: `case-${sr.id}`,
+        label: 'Operational case created',
+        sublabel: toLabel(sr.service_type),
+        ts: sr.created_at,
+        kind: 'case',
+      });
+    }
+  }
+
+  // 6. Stage transitions (most recent 8)
+  for (const h of [...stageHistory].reverse().slice(0, 8)) {
+    milestones.push({
+      id: `stage-${h.id}`,
+      label: `${toLabel(h.from_stage) || 'Start'} → ${toLabel(h.to_stage)}`,
+      sublabel: h.reason ?? undefined,
+      ts: h.created_at,
+      kind: 'stage',
+    });
+  }
+
+  // 7. Student documents uploaded
+  for (const doc of studentDocuments) {
+    milestones.push({
+      id: `doc-${doc.id}`,
+      label: DOC_TYPE_LABELS[doc.document_type ?? ''] ?? toLabel(doc.document_type),
+      sublabel: doc.original_name ?? undefined,
+      ts: doc.created_at,
+      kind: 'document',
+    });
+  }
+
+  return milestones
+    .filter((m) => m.ts)
+    .sort((a, b) => new Date(a.ts!).getTime() - new Date(b.ts!).getTime());
+}
+
+const JOURNEY_KIND_STYLES: Record<JourneyMilestone['kind'], { dot: string; icon: React.ElementType }> = {
+  account:  { dot: 'bg-white/30',      icon: User },
+  checkout: { dot: 'bg-sky-500',       icon: Tag },
+  payment:  { dot: 'bg-green-500',     icon: DollarSign },
+  survey:   { dot: 'bg-gold-medium',   icon: FileText },
+  case:     { dot: 'bg-violet-500',    icon: Workflow },
+  stage:    { dot: 'bg-amber-400',     icon: Activity },
+  document: { dot: 'bg-cyan-500',      icon: MapPin },
+};
+
+function JourneyTab({ detail }: { detail: CaseDetailPage }) {
+  const milestones = buildJourneyMilestones(detail);
+
+  if (milestones.length === 0) {
+    return <EmptyState icon={Activity} message="No journey data available yet." />;
+  }
+
+  return (
+    <div className="relative">
+      {/* Vertical line */}
+      <div className="absolute left-[19px] top-3 bottom-3 w-px bg-white/5" />
+
+      <div className="space-y-0">
+        {milestones.map((m, idx) => {
+          const { dot, icon: Icon } = JOURNEY_KIND_STYLES[m.kind];
+          const prev = milestones[idx - 1];
+          const deltaMs = prev?.ts ? new Date(m.ts!).getTime() - new Date(prev.ts).getTime() : null;
+          const deltaDays = deltaMs !== null ? Math.round(deltaMs / 86400000) : null;
+
+          return (
+            <div key={m.id}>
+              {/* Delta between milestones */}
+              {deltaDays !== null && deltaDays > 0 && (
+                <div className="flex items-center gap-2 pl-[42px] py-1">
+                  <span className="text-[9px] text-gray-700 uppercase tracking-widest">
+                    +{deltaDays}d
+                  </span>
+                </div>
+              )}
+
+              <div className="flex items-start gap-4 py-2">
+                {/* Dot */}
+                <div className={`relative z-10 flex items-center justify-center w-9 h-9 shrink-0 rounded-full border border-white/10 bg-black`}>
+                  <div className={`w-2 h-2 rounded-full ${dot}`} />
+                </div>
+
+                {/* Content */}
+                <div className="flex-1 min-w-0 pt-1.5">
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <Icon className="w-3.5 h-3.5 text-gray-500 shrink-0" />
+                      <span className="text-sm font-bold text-white truncate">{m.label}</span>
+                    </div>
+                    <span className="text-[10px] text-gray-600 shrink-0">{fmtDate(m.ts)}</span>
+                  </div>
+                  {m.sublabel && (
+                    <p className="text-[11px] text-gray-500 mt-0.5 pl-5">{m.sublabel}</p>
+                  )}
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Empty state
 // ---------------------------------------------------------------------------
 
@@ -1212,6 +1493,8 @@ export function AdminUserDetail() {
             : tab.id === 'timeline' ? detail.events.length + detail.stageHistory.length
             : tab.id === 'messages' ? detail.messages.length
             : tab.id === 'followups' ? detail.followups.length
+            : tab.id === 'survey' ? detail.surveyResponses.length
+            : tab.id === 'journey' ? (detail.studentDocuments.length + detail.stageHistory.length) || null
             : null;
 
           return (
@@ -1269,6 +1552,12 @@ export function AdminUserDetail() {
             adminId={currentAdminId.current}
             onRefresh={load}
           />
+        )}
+        {activeTab === 'survey' && (
+          <SurveyTab surveyResponses={detail.surveyResponses} />
+        )}
+        {activeTab === 'journey' && (
+          <JourneyTab detail={detail} />
         )}
       </div>
     </div>

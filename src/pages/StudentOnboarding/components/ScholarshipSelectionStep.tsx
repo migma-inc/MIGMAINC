@@ -8,7 +8,7 @@ import {
   Loader2, AlertCircle,
 } from 'lucide-react';
 import { useStudentAuth } from '../../../contexts/StudentAuthContext';
-import { matriculaSupabase } from '../../../lib/matriculaSupabase';
+import { supabase } from '../../../lib/supabase';
 import { applicationStore } from '../../../stores/applicationStore';
 import type { StepProps } from '../types';
 
@@ -52,7 +52,7 @@ export const ScholarshipSelectionStep: React.FC<StepProps> = ({ onNext }) => {
     if (!user?.id || !userProfile?.id) return;
     try {
       const [scholarshipsRes, appsRes] = await Promise.all([
-        matriculaSupabase
+        supabase
           .from('scholarships')
           .select(`
             id, title, name, level, application_fee_amount,
@@ -61,7 +61,7 @@ export const ScholarshipSelectionStep: React.FC<StepProps> = ({ onNext }) => {
           `)
           .eq('is_active', true)
           .order('is_highlighted', { ascending: false }),
-        matriculaSupabase
+        supabase
           .from('scholarship_applications')
           .select('id, scholarship_id')
           .eq('student_id', userProfile.id),
@@ -114,14 +114,14 @@ export const ScholarshipSelectionStep: React.FC<StepProps> = ({ onNext }) => {
       }));
 
       // Usar upsert para evitar duplicatas
-      const { error: appError } = await matriculaSupabase
+      const { error: appError } = await supabase
         .from('scholarship_applications')
         .upsert(insertData, { onConflict: 'student_id,scholarship_id' });
 
       if (appError) throw appError;
 
       // Atualizar selected_scholarship_id no perfil
-      const { error: profileError } = await matriculaSupabase
+      const { error: profileError } = await supabase
         .from('user_profiles')
         .update({ selected_scholarship_id: firstId })
         .eq('user_id', user.id);
@@ -153,11 +153,12 @@ export const ScholarshipSelectionStep: React.FC<StepProps> = ({ onNext }) => {
 
   return (
     <div className="space-y-8 pb-12 max-w-4xl mx-auto px-4">
-      <div className="text-center md:text-left space-y-3">
-        <h2 className="text-3xl md:text-5xl font-black text-slate-900 uppercase tracking-tighter">
+      <div className="space-y-1">
+        <p className="text-xs font-black uppercase tracking-widest text-gold-medium">Etapa 4</p>
+        <h2 className="text-2xl font-black text-white uppercase tracking-tight">
           {isReviewing ? 'Your Scholarships' : 'Choose Your Scholarship'}
         </h2>
-        <p className="text-lg text-slate-600 font-medium">
+        <p className="text-sm text-gray-400 font-medium">
           {isReviewing
             ? 'These are the scholarships you have applied for.'
             : 'Select one or more scholarships that match your profile.'}
@@ -167,19 +168,19 @@ export const ScholarshipSelectionStep: React.FC<StepProps> = ({ onNext }) => {
       {!isReviewing && (
         <div className="flex flex-col sm:flex-row gap-3">
           <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
             <input
               type="text"
               placeholder="Search scholarships or universities..."
               value={searchTerm}
               onChange={e => setSearchTerm(e.target.value)}
-              className="w-full pl-9 pr-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full pl-9 pr-4 py-2.5 bg-[#0d0d0d] border border-white/10 rounded-xl text-sm text-white placeholder-gray-600 focus:outline-none focus:border-gold-medium/60 transition-colors"
             />
           </div>
           <select
             value={selectedLevel}
             onChange={e => setSelectedLevel(e.target.value)}
-            className="px-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+            className="px-4 py-2.5 bg-[#0d0d0d] border border-white/10 rounded-xl text-sm text-white focus:outline-none focus:border-gold-medium/60 transition-colors"
           >
             <option value="all">All levels</option>
             {levels.map(l => <option key={l} value={l!}>{l}</option>)}
@@ -189,11 +190,11 @@ export const ScholarshipSelectionStep: React.FC<StepProps> = ({ onNext }) => {
 
       {loading ? (
         <div className="flex justify-center py-12">
-          <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
+          <Loader2 className="w-8 h-8 animate-spin text-gold-medium" />
         </div>
       ) : filtered.length === 0 ? (
-        <div className="text-center py-12 text-slate-500">
-          <GraduationCap className="w-12 h-12 mx-auto mb-3 text-slate-300" />
+        <div className="text-center py-12 text-gray-500">
+          <GraduationCap className="w-12 h-12 mx-auto mb-3 text-gray-700" />
           <p>No scholarships found.</p>
         </div>
       ) : (
@@ -212,27 +213,29 @@ export const ScholarshipSelectionStep: React.FC<StepProps> = ({ onNext }) => {
                 key={scholarship.id}
                 onClick={() => toggleScholarship(scholarship.id)}
                 className={`
-                  relative bg-white border-2 rounded-2xl p-5 transition-all cursor-pointer
-                  ${isSelected ? 'border-blue-500 shadow-lg shadow-blue-100' : 'border-slate-200 hover:border-slate-300'}
-                  ${isReviewing ? 'cursor-default' : ''}
+                  relative border-2 rounded-2xl p-5 transition-all
+                  ${isReviewing ? 'cursor-default' : 'cursor-pointer'}
+                  ${isSelected
+                    ? 'border-gold-medium bg-gold-medium/5'
+                    : 'border-white/10 bg-white/5 hover:border-white/20'}
                 `}
               >
                 {scholarship.is_highlighted && (
-                  <div className="absolute top-3 right-3 bg-amber-400 text-amber-900 text-xs font-bold px-2 py-0.5 rounded-full">
+                  <div className="absolute top-3 right-3 bg-gold-medium text-black text-xs font-bold px-2 py-0.5 rounded-full">
                     Featured
                   </div>
                 )}
                 {isSelected && !isReviewing && (
-                  <CheckCircle2 className="absolute top-3 right-3 w-5 h-5 text-blue-500" />
+                  <CheckCircle2 className="absolute top-3 right-3 w-5 h-5 text-gold-medium" />
                 )}
 
                 <div className="flex items-start gap-3 mb-3">
-                  <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center flex-shrink-0">
-                    <Building className="w-5 h-5 text-slate-500" />
+                  <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center flex-shrink-0">
+                    <Building className="w-5 h-5 text-gray-400" />
                   </div>
                   <div>
-                    <div className="font-bold text-slate-900 text-sm leading-tight">{name}</div>
-                    <div className="text-xs text-slate-500 mt-0.5">
+                    <div className="font-bold text-white text-sm leading-tight">{name}</div>
+                    <div className="text-xs text-gray-500 mt-0.5">
                       {scholarship.universities?.name}
                       {scholarship.universities?.state && `, ${scholarship.universities.state}`}
                     </div>
@@ -240,17 +243,17 @@ export const ScholarshipSelectionStep: React.FC<StepProps> = ({ onNext }) => {
                 </div>
 
                 <div className="space-y-1.5 text-sm">
-                  <div className="flex items-center gap-2 text-slate-600">
+                  <div className="flex items-center gap-2 text-gray-400">
                     <DollarSign className="w-4 h-4 text-emerald-500" />
-                    <span>Annual Value: <strong className="text-slate-900">${annualValue.toLocaleString()}</strong></span>
+                    <span>Annual Value: <strong className="text-white">${annualValue.toLocaleString()}</strong></span>
                   </div>
-                  <div className="flex items-center gap-2 text-slate-600">
-                    <Award className="w-4 h-4 text-blue-500" />
-                    <span>Placement Fee: <strong className="text-slate-900">${placementFee.toLocaleString()}</strong> (20%)</span>
+                  <div className="flex items-center gap-2 text-gray-400">
+                    <Award className="w-4 h-4 text-gold-medium" />
+                    <span>Placement Fee: <strong className="text-white">${placementFee.toLocaleString()}</strong> (20%)</span>
                   </div>
                   {scholarship.level && (
                     <div className="inline-flex">
-                      <span className="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full font-medium capitalize">
+                      <span className="text-xs bg-white/10 text-gray-400 px-2 py-0.5 rounded-full font-medium capitalize">
                         {scholarship.level}
                       </span>
                     </div>
@@ -263,7 +266,7 @@ export const ScholarshipSelectionStep: React.FC<StepProps> = ({ onNext }) => {
       )}
 
       {error && (
-        <div className="flex items-center gap-2 text-red-500 text-sm font-medium">
+        <div className="flex items-center gap-2 text-red-400 text-sm bg-red-500/10 border border-red-500/20 rounded-lg px-4 py-3">
           <AlertCircle className="w-4 h-4 flex-shrink-0" />
           {error}
         </div>
@@ -272,14 +275,14 @@ export const ScholarshipSelectionStep: React.FC<StepProps> = ({ onNext }) => {
       {!isReviewing && (
         <div className="flex items-center justify-between">
           {selectedIds.size > 0 && (
-            <span className="text-sm text-slate-600 font-medium">
+            <span className="text-sm text-gray-400 font-medium">
               {selectedIds.size} scholarship{selectedIds.size > 1 ? 's' : ''} selected
             </span>
           )}
           <button
             onClick={handleConfirm}
             disabled={selectedIds.size === 0 || saving}
-            className="ml-auto flex items-center gap-2 bg-blue-600 text-white py-3 px-8 rounded-xl hover:bg-blue-700 transition-all font-bold uppercase tracking-widest shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+            className="ml-auto flex items-center gap-2 bg-gold-medium hover:bg-gold-dark text-black py-3 px-8 rounded-xl transition-colors font-black uppercase tracking-widest disabled:opacity-40 disabled:cursor-not-allowed"
           >
             {saving ? <><Loader2 className="w-4 h-4 animate-spin" /> Saving...</> : 'Confirm Selection'}
           </button>
@@ -289,9 +292,9 @@ export const ScholarshipSelectionStep: React.FC<StepProps> = ({ onNext }) => {
       {isReviewing && (
         <button
           onClick={onNext}
-          className="flex items-center gap-2 bg-blue-600 text-white py-3 px-8 rounded-xl hover:bg-blue-700 transition-all font-bold uppercase tracking-widest shadow-lg"
+          className="flex items-center gap-2 bg-gold-medium hover:bg-gold-dark text-black py-3 px-8 rounded-xl transition-colors font-black uppercase tracking-widest"
         >
-          Continue
+          Continue →
         </button>
       )}
     </div>

@@ -5,7 +5,7 @@
 import React, { useState, useEffect } from 'react';
 import { ChevronRight, ChevronLeft, CheckCircle, Loader2, AlertCircle } from 'lucide-react';
 import { useStudentAuth } from '../../../contexts/StudentAuthContext';
-import { matriculaSupabase } from '../../../lib/matriculaSupabase';
+import { supabase } from '../../../lib/supabase';
 import { questions, sections } from '../../../data/formQuestions';
 import type { StepProps } from '../types';
 
@@ -92,7 +92,7 @@ export const SelectionSurveyStep: React.FC<StepProps> = ({ onNext }) => {
     try {
       // Para alunos Migma: aprovação automática ao completar o quiz
 
-      const { error: updateError } = await matriculaSupabase
+      const { error: updateError } = await supabase
         .from('user_profiles')
         .update({ selection_survey_passed: true })
         .eq('user_id', user.id);

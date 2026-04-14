@@ -865,7 +865,7 @@ export const ZelleApprovalPage = () => {
 
       const finalSlug = normalizedSlug(rawSlug);
 
-      const { data: product, error: prodError } = await supabase
+      const { data: product } = await supabase
         .from('visa_products')
         .select('*')
         .eq('slug', finalSlug)
