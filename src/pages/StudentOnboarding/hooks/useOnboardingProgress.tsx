@@ -6,9 +6,14 @@ import type { OnboardingStep, OnboardingState } from '../types';
 
 const VALID_STEPS: OnboardingStep[] = [
   'selection_fee', 'identity_verification', 'selection_survey',
-  'scholarship_selection', 'process_type', 'documents_upload',
+  'scholarship_selection', 'documents_upload',
   'payment', 'scholarship_fee', 'placement_fee', 'reinstatement_fee', 'my_applications', 'completed'
 ];
+
+const normalizeLegacyStep = (step: OnboardingStep | null | undefined): OnboardingStep | null => {
+  if (!step) return null;
+  return step === 'process_type' ? 'documents_upload' : step;
+};
 
 export const useOnboardingProgress = () => {
   const { user, userProfile } = useStudentAuth();
@@ -56,8 +61,8 @@ export const useOnboardingProgress = () => {
   const currentStepRef = useRef<OnboardingStep>('selection_fee');
 
   const [state, setState] = useState<OnboardingState>(() => {
-    const savedStep = userProfile?.onboarding_current_step;
-    const initial = (savedStep as OnboardingStep) || 'selection_fee';
+    const savedStep = normalizeLegacyStep(userProfile?.onboarding_current_step as OnboardingStep | null);
+    const initial = savedStep || 'selection_fee';
     currentStepRef.current = initial;
     return {
       currentStep: initial,
@@ -172,10 +177,7 @@ export const useOnboardingProgress = () => {
       }
 
       // Tipo de processo
-      const processTypeSelected =
-        (appsData && appsData.length > 0 && !!appsData[0].student_process_type) ||
-        (freshProfile.student_process_type && ['initial', 'transfer', 'change_of_status', 'resident'].includes(freshProfile.student_process_type)) ||
-        (freshProfile.documents_uploaded || false);
+      const processTypeSelected = !!freshProfile.service_type || scholarshipsSelected || (freshProfile.documents_uploaded || false);
 
       const documentsUploaded = freshProfile.documents_uploaded || false;
       const documentsApproved = freshProfile.documents_status === 'approved';
@@ -206,8 +208,6 @@ export const useOnboardingProgress = () => {
         maxAllowedStep = 'selection_survey';
       } else if (!scholarshipsSelected) {
         maxAllowedStep = 'scholarship_selection';
-      } else if (!processTypeSelected) {
-        maxAllowedStep = 'process_type';
       } else if (!documentsUploaded) {
         maxAllowedStep = 'documents_upload';
       } else if (!applicationFeePaid) {
@@ -221,8 +221,8 @@ export const useOnboardingProgress = () => {
       }
 
       // Decisão final do step
-      const uiStep = currentStepRef.current;
-      const savedStep = (freshProfile.onboarding_current_step as OnboardingStep) || 'selection_fee';
+      const uiStep = normalizeLegacyStep(currentStepRef.current) ?? 'selection_fee';
+      const savedStep = normalizeLegacyStep(freshProfile.onboarding_current_step as OnboardingStep | null) ?? 'selection_fee';
       const uiIdx = VALID_STEPS.indexOf(uiStep);
       const maxIdx = VALID_STEPS.indexOf(maxAllowedStep);
       const savedIdx = VALID_STEPS.indexOf(savedStep);

@@ -23,8 +23,17 @@ import { SurveyCompletionScreen } from './components/SurveyCompletionScreen';
 
 // ---------------------------------------------------------------------------
 
+const VALID_SERVICE_TYPES = ['transfer', 'cos', 'initial', 'eb2', 'eb3'] as const;
+type ValidServiceType = typeof VALID_SERVICE_TYPES[number];
+function normalizeService(raw: string | null | undefined): ValidServiceType {
+  if (!raw) return 'transfer';
+  const match = VALID_SERVICE_TYPES.find(v => raw === v || raw.startsWith(v + '-'));
+  return match ?? 'transfer';
+}
+
 const MigmaSurvey: React.FC = () => {
-  const { service = 'transfer' } = useParams<{ service: string }>();
+  const { service: rawService = 'transfer' } = useParams<{ service: string }>();
+  const service = normalizeService(rawService);
   const navigate = useNavigate();
 
   const questions = getQuestionsForService(service);
@@ -125,22 +134,36 @@ const MigmaSurvey: React.FC = () => {
         if (val !== undefined) operationalFields[dbField] = val;
       }
 
-      // Upsert into selection_survey_responses
-      const { error: upsertErr } = await supabase
+      // Select → update/insert (sem depender de constraint única em selection_survey_responses)
+      const { data: existing } = await supabase
         .from('selection_survey_responses')
-        .upsert(
-          {
-            profile_id: profileId,
-            service_type: service,
-            ...operationalFields,
-            answers,
-            completed_at: now,
-            updated_at: now,
-          },
-          { onConflict: 'profile_id,service_type' }
-        );
+        .select('id')
+        .eq('profile_id', profileId)
+        .eq('service_type', service)
+        .maybeSingle();
 
-      if (upsertErr) throw upsertErr;
+      const surveyPayload = {
+        profile_id: profileId,
+        service_type: service,
+        ...operationalFields,
+        answers,
+        completed_at: now,
+        updated_at: now,
+      };
+
+      let surveyErr;
+      if (existing?.id) {
+        ({ error: surveyErr } = await supabase
+          .from('selection_survey_responses')
+          .update(surveyPayload)
+          .eq('id', existing.id));
+      } else {
+        ({ error: surveyErr } = await supabase
+          .from('selection_survey_responses')
+          .insert(surveyPayload));
+      }
+
+      if (surveyErr) throw surveyErr;
 
       // Mirror operational fields to user_profiles
       const profileUpdate: Record<string, any> = {

@@ -25,10 +25,18 @@ import { SurveyCompletionScreen } from '../../MigmaSurvey/components/SurveyCompl
 import type { StepProps } from '../types';
 
 export const MigmaSurveyStep: React.FC<StepProps> = ({ onNext }) => {
-  const { user, userProfile, updateUserProfile } = useStudentAuth();
+  const { user, userProfile, updateUserProfile, refreshProfile } = useStudentAuth();
 
-  // Serviço determinado pelo perfil, não pela URL
-  const service = (userProfile as any)?.service_type ?? 'transfer';
+  // Serviço determinado pelo perfil, normalizado para os valores aceitos pelo banco
+  // ex: 'cos-selection-process' → 'cos'
+  const VALID_SERVICE_TYPES = ['transfer', 'cos', 'initial', 'eb2', 'eb3'] as const;
+  type ValidServiceType = typeof VALID_SERVICE_TYPES[number];
+  function normalizeService(raw: string | null | undefined): ValidServiceType {
+    if (!raw) return 'transfer';
+    const match = VALID_SERVICE_TYPES.find(v => raw === v || raw.startsWith(v + '-'));
+    return match ?? 'transfer';
+  }
+  const service = normalizeService((userProfile as any)?.service_type);
 
   const questions = getQuestionsForService(service);
   const sections = SURVEY_SECTIONS;
@@ -124,22 +132,36 @@ export const MigmaSurveyStep: React.FC<StepProps> = ({ onNext }) => {
         if (val !== undefined) operationalFields[dbField] = val;
       }
 
-      // 1. Upsert em selection_survey_responses (MIGMA supabase)
-      const { error: upsertErr } = await supabase
+      // 1. Select → update/insert em selection_survey_responses (sem depender de constraint única)
+      const { data: existing } = await supabase
         .from('selection_survey_responses')
-        .upsert(
-          {
-            profile_id: profileId,
-            service_type: service,
-            ...operationalFields,
-            answers,
-            completed_at: now,
-            updated_at: now,
-          },
-          { onConflict: 'profile_id,service_type' }
-        );
+        .select('id')
+        .eq('profile_id', profileId)
+        .eq('service_type', service)
+        .maybeSingle();
 
-      if (upsertErr) throw upsertErr;
+      const surveyPayload = {
+        profile_id: profileId,
+        service_type: service,
+        ...operationalFields,
+        answers,
+        completed_at: now,
+        updated_at: now,
+      };
+
+      let surveyErr;
+      if (existing?.id) {
+        ({ error: surveyErr } = await supabase
+          .from('selection_survey_responses')
+          .update(surveyPayload)
+          .eq('id', existing.id));
+      } else {
+        ({ error: surveyErr } = await supabase
+          .from('selection_survey_responses')
+          .insert(surveyPayload));
+      }
+
+      if (surveyErr) throw surveyErr;
 
       // 2. Espelhar campos operacionais em user_profiles (MIGMA supabase)
       const profileUpdate: Record<string, any> = {
@@ -172,6 +194,7 @@ export const MigmaSurveyStep: React.FC<StepProps> = ({ onNext }) => {
         .eq('user_id', user.id);
 
       await updateUserProfile?.({ selection_survey_passed: true } as any);
+      await refreshProfile();
 
       setSurveyCompletedAt(now);
       setCompleted(true);

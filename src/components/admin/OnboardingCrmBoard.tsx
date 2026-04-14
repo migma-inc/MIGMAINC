@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   AlertCircle,
   Archive,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   Eye,
@@ -104,26 +105,58 @@ function daysUntil(dateStr: string | null | undefined): number | null {
   return diff >= 0 ? diff : null;
 }
 
+// Step order — used to pick the furthest-along step
+const STEP_ORDER = [
+  'selection_fee', 'identity_verification', 'selection_survey',
+  'scholarship_selection', 'documents_upload', 'payment',
+  'scholarship_fee', 'placement_fee', 'my_applications', 'completed',
+];
+
 function normalizeOnboardingStep(onboardingStep: string | null | undefined) {
   const step = onboardingStep || 'selection_fee';
-
-  if (step === 'selection_fee') return 'identity_verification';
   if (step === 'process_type') return 'scholarship_selection';
   if (step === 'reinstatement_fee') return 'placement_fee';
   if (step === 'completed') return 'my_applications';
-
   return step;
 }
 
-function getOnboardingProgress(onboardingStep: string | null | undefined) {
-  const step = normalizeOnboardingStep(onboardingStep);
-  const index = ONBOARDING_STEPS.findIndex((s) => s.key === step);
+/**
+ * Deriva o step efetivo do perfil usando as flags booleanas como mínimo garantido.
+ * Isso evita que o CRM mostre um step desatualizado quando o aluno avançou no
+ * onboarding mas o campo `onboarding_current_step` ainda não foi persistido.
+ */
+function getEffectiveStep(profile: OnboardingCase['profile']): string {
+  // Mínimo derivado pelas flags
+  let flagMin: string;
+  if (!profile.has_paid_selection_process_fee) {
+    flagMin = 'selection_fee';
+  } else if (!profile.identity_verified) {
+    flagMin = 'identity_verification';
+  } else if (!profile.selection_survey_passed) {
+    flagMin = 'selection_survey';
+  } else {
+    flagMin = 'scholarship_selection'; // survey passou → no mínimo em scholarship
+  }
+
+  const saved = normalizeOnboardingStep(profile.onboarding_current_step);
+  const flagIdx = STEP_ORDER.indexOf(flagMin);
+  const savedIdx = STEP_ORDER.indexOf(saved);
+
+  // Retorna o step mais avançado entre o derivado por flags e o salvo no banco
+  return savedIdx >= flagIdx ? saved : flagMin;
+}
+
+function getOnboardingProgress(profile: OnboardingCase['profile']) {
+  const step = getEffectiveStep(profile);
+  // Mapeia selection_fee → identity_verification para exibição
+  const displayStep = step === 'selection_fee' ? 'identity_verification' : step;
+  const index = ONBOARDING_STEPS.findIndex((s) => s.key === displayStep);
   const totalSteps = ONBOARDING_STEPS.length;
   const currentStep = index >= 0 ? index + 1 : 1;
-  const label = index >= 0 ? ONBOARDING_STEPS[index].label : toLabel(step);
+  const label = index >= 0 ? ONBOARDING_STEPS[index].label : toLabel(displayStep);
 
   return {
-    step,
+    step: displayStep,
     currentStep,
     totalSteps,
     percent: (currentStep / totalSteps) * 100,
@@ -132,7 +165,10 @@ function getOnboardingProgress(onboardingStep: string | null | undefined) {
 }
 
 function isPreOnboardingCase(item: OnboardingCase) {
-  return !item.profile.has_paid_selection_process_fee || item.profile.onboarding_current_step === 'selection_fee';
+  // Usa o step efetivo (derivado por flags) em vez do campo bruto
+  // para evitar falsos positivos quando onboarding_current_step está desatualizado
+  const effective = getEffectiveStep(item.profile);
+  return !item.profile.has_paid_selection_process_fee || effective === 'selection_fee';
 }
 
 function getCrmViewForCase(item: OnboardingCase): CrmView {
@@ -173,12 +209,29 @@ function getPreOnboardingPaymentBadgeClass(item: OnboardingCase) {
 function getStuckState(item: OnboardingCase, productLine?: 'cos' | 'transfer'): StuckState {
   const currentStep = item.profile.onboarding_current_step || 'selection_fee';
   const daysIdle = daysSince(item.profile.updated_at);
-  const transferDeadlineDays = productLine === 'transfer' ? daysUntil(item.profile.transfer_deadline_date) : null;
 
-  if (transferDeadlineDays !== null && transferDeadlineDays < 15) {
-    return { tone: 'critical', label: `Deadline ${transferDeadlineDays}d` };
+  // ── Transfer: alertas em 30, 15, 7, 1 dia ──────────────────────────────
+  if (productLine === 'transfer') {
+    const d = daysUntil(item.profile.transfer_deadline_date);
+    if (d !== null) {
+      if (d <= 7)  return { tone: 'critical', label: `Deadline ${d}d` };
+      if (d <= 15) return { tone: 'danger',   label: `Deadline ${d}d` };
+      if (d <= 30) return { tone: 'warning',  label: `Deadline ${d}d` };
+    }
   }
 
+  // ── COS: alertas em 60, 30, 15, 7 dias ────────────────────────────────
+  if (productLine === 'cos') {
+    const d = daysUntil(item.profile.cos_i94_expiry_date);
+    if (d !== null) {
+      if (d <= 7)  return { tone: 'critical', label: `I-94 ${d}d` };
+      if (d <= 15) return { tone: 'danger',   label: `I-94 ${d}d` };
+      if (d <= 30) return { tone: 'warning',  label: `I-94 ${d}d` };
+      if (d <= 60) return { tone: 'warning',  label: `I-94 ${d}d` };
+    }
+  }
+
+  // ── All: alerta genérico por inatividade ───────────────────────────────
   if (daysIdle === null) return { tone: null, label: null };
 
   if (currentStep === 'selection_survey' && daysIdle > 3) {
@@ -357,7 +410,7 @@ function KanbanView({
   const byStep = new Map<string, OnboardingCase[]>();
   for (const column of ONBOARDING_KANBAN_COLUMNS) byStep.set(column, []);
   for (const item of cases) {
-    const step = normalizeOnboardingStep(item.profile.onboarding_current_step);
+    const step = getEffectiveStep(item.profile);
     const resolvedStep = byStep.has(step) ? step : 'identity_verification';
     byStep.get(resolvedStep)?.push(item);
   }
@@ -380,7 +433,7 @@ function KanbanView({
             </div>
             <div className="p-2 space-y-2 max-h-[600px] overflow-y-auto">
               {cards.map((item) => {
-                const progress = getOnboardingProgress(item.profile.onboarding_current_step);
+                const progress = getOnboardingProgress(item.profile);
                 const stuckState = getStuckState(item, productLine);
                 return (
                   <button
@@ -434,6 +487,7 @@ export function OnboardingCrmBoard({ productLine, title, description }: Onboardi
   const [currentPage, setCurrentPage] = useState(1);
   const [viewMode, setViewMode] = useState<'table' | 'kanban'>('table');
   const [crmView, setCrmView] = useState<CrmView>('pre_onboarding');
+  const [showAlertLegend, setShowAlertLegend] = useState(false);
   const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768);
 
   useEffect(() => {
@@ -606,6 +660,48 @@ export function OnboardingCrmBoard({ productLine, title, description }: Onboardi
         ))}
       </div>
 
+      {/* Alert legend accordion */}
+      {crmView === 'onboarding' && (
+        <div className="rounded-xl border border-white/10 bg-black/30 overflow-hidden">
+          <button
+            onClick={() => setShowAlertLegend(v => !v)}
+            className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-white/5 transition-colors"
+          >
+            <span className="text-[10px] font-black uppercase tracking-widest text-gray-500">
+              Alert Thresholds
+            </span>
+            <ChevronDown className={cn('w-4 h-4 text-gray-600 transition-transform', showAlertLegend && 'rotate-180')} />
+          </button>
+          {showAlertLegend && (
+            <div className="px-4 pb-4 grid grid-cols-1 sm:grid-cols-3 gap-3 border-t border-white/5 pt-3">
+              <div className="space-y-1.5">
+                <p className="text-[10px] font-black uppercase tracking-widest text-amber-400">Transfer — Deadline</p>
+                <div className="space-y-1 text-xs text-gray-400">
+                  <div className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full bg-yellow-400 shrink-0" /> ≤ 30 dias</div>
+                  <div className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full bg-orange-400 shrink-0" /> ≤ 15 dias</div>
+                  <div className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full bg-red-500 shrink-0" /> ≤ 7 dias</div>
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <p className="text-[10px] font-black uppercase tracking-widest text-sky-400">COS — I-94 Expiry</p>
+                <div className="space-y-1 text-xs text-gray-400">
+                  <div className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full bg-yellow-400 shrink-0" /> ≤ 60 dias</div>
+                  <div className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full bg-orange-400 shrink-0" /> ≤ 15 dias</div>
+                  <div className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full bg-red-500 shrink-0" /> ≤ 7 dias</div>
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <p className="text-[10px] font-black uppercase tracking-widest text-gray-500">Inatividade (geral)</p>
+                <div className="space-y-1 text-xs text-gray-400">
+                  <div className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full bg-yellow-400 shrink-0" /> Survey parado &gt; 3d</div>
+                  <div className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full bg-orange-400 shrink-0" /> Parado &gt; 7d</div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       <div className="space-y-4">
         <div className="flex flex-wrap gap-2 pb-2">
           {filterTabs.map((tab) => (
@@ -719,7 +815,7 @@ export function OnboardingCrmBoard({ productLine, title, description }: Onboardi
                       <tbody className="divide-y divide-white/5">
                         {currentData.map((item) => {
                           const { profile, serviceRequest, visaOrder, operationalStage } = item;
-                          const progress = getOnboardingProgress(profile.onboarding_current_step);
+                          const progress = getOnboardingProgress(profile);
                           const stuckState = getStuckState(item, productLine);
 
                           if (crmView === 'pre_onboarding') {
@@ -843,7 +939,7 @@ export function OnboardingCrmBoard({ productLine, title, description }: Onboardi
                   <div className="p-3 space-y-3">
                     {currentData.map((item) => {
                       const { profile, serviceRequest, operationalStage } = item;
-                      const progress = getOnboardingProgress(profile.onboarding_current_step);
+                      const progress = getOnboardingProgress(profile);
                       const stuckState = getStuckState(item, productLine);
 
                       return (
