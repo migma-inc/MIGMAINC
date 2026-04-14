@@ -9,7 +9,11 @@
       "Bash(rtk gain:*)",
       "Bash(C:/Users/victurib/.local/bin/rtk.exe gain:*)",
       "Bash(C:/Users/victurib/.local/bin/rtk.exe git:*)",
-      "Bash(find:*)"
+      "Bash(find:*)",
+      "Bash(git checkout:*)",
+      "Bash(git add:*)",
+      "Bash(git rm:*)",
+      "Bash(rtk git:*)"
     ]
   }
 }
