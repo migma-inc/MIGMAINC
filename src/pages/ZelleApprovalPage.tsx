@@ -1117,23 +1117,8 @@ export const ZelleApprovalPage = () => {
   const approveMigmaCheckoutZelle = async (payment: any) => {
     setProcessingMigmaCheckoutId(payment.id);
     try {
-      // 1. Call migma-payment-completed to mark selection_process_fee as paid in Matricula USA
-      const { error: fnErr } = await supabase.functions.invoke('migma-payment-completed', {
-        body: {
-          user_id: payment.migma_user_id,
-          fee_type: 'selection_process',
-          amount: payment.amount,
-          payment_method: 'zelle',
-          receipt_url: payment.receipt_url,
-          service_type: payment.service_type || 'transfer',
-          service_request_id: payment.service_request_id || undefined,
-          zelle_payment_id: payment.n8n_payment_id || undefined,
-        },
-      });
-
-      if (fnErr) throw new Error(fnErr.message || 'Failed to call migma-payment-completed');
-
-      // 2. Mark record as approved
+      // 1. Mark local checkout record as approved BEFORE calling processMigmaApproval.
+      // This prevents processMigmaApproval's internal loadOrders() from fetching stale data!
       const { error: updateErr } = await supabase
         .from('migma_checkout_zelle_pending')
         .update({
@@ -1146,13 +1131,47 @@ export const ZelleApprovalPage = () => {
 
       if (updateErr) console.error('[MigmaCheckout Zelle] Failed to update status:', updateErr);
 
-      setAlertData({ title: 'Success', message: `Zelle approved — ${payment.client_name} marked as paid!`, variant: 'success' });
-      setShowAlert(true);
-      await loadOrders();
+      // 2. Locate the exact duplicate record in migma_payments
+      const { data: migmaPayment } = await supabase
+        .from('migma_payments')
+        .select('id')
+        .eq('user_id', payment.migma_user_id)
+        .in('status', ['pending', 'pending_verification'])
+        .maybeSingle();
+
+      if (migmaPayment) {
+        // Run the main robust approval (creates visa_orders, fires PDFs, etc)
+        // This will call loadOrders() at the end, updating the UI properly!
+        await processMigmaApproval(migmaPayment.id);
+      } else {
+        // Fallback just in case there's no migma_payments mapping
+        const { error: fnErr } = await supabase.functions.invoke('migma-payment-completed', {
+          body: {
+            user_id: payment.migma_user_id,
+            fee_type: 'selection_process',
+            amount: payment.amount,
+            payment_method: 'zelle',
+            receipt_url: payment.receipt_url,
+            service_type: payment.service_type || 'transfer',
+            service_request_id: payment.service_request_id || undefined,
+            zelle_payment_id: payment.n8n_payment_id || undefined,
+          },
+        });
+
+        if (fnErr) throw new Error(fnErr.message || 'Failed to call migma-payment-completed');
+
+        // Since processMigmaApproval wasn't called, we must manually alert and reload
+        setAlertData({ title: 'Success', message: `Zelle approved — ${payment.client_name} marked as paid!`, variant: 'success' });
+        setShowAlert(true);
+        await loadOrders();
+      }
     } catch (err) {
       console.error('[MigmaCheckout Zelle] Approval error:', err);
-      setAlertData({ title: 'Error', message: err instanceof Error ? err.message : 'Failed to approve', variant: 'error' });
-      setShowAlert(true);
+      // Don't show generic error if processMigmaApproval already showed it
+      if (!(err instanceof Error) || err.message !== 'Failed to approve payment') {
+        setAlertData({ title: 'Error', message: err instanceof Error ? err.message : 'Failed to approve', variant: 'error' });
+        setShowAlert(true);
+      }
     } finally {
       setProcessingMigmaCheckoutId(null);
     }
@@ -1161,6 +1180,7 @@ export const ZelleApprovalPage = () => {
   const rejectMigmaCheckoutZelle = async (payment: any) => {
     setProcessingMigmaCheckoutId(payment.id);
     try {
+      // 1. Mark local checkout record as rejected
       await supabase
         .from('migma_checkout_zelle_pending')
         .update({
@@ -1169,6 +1189,26 @@ export const ZelleApprovalPage = () => {
           updated_at: new Date().toISOString(),
         })
         .eq('id', payment.id);
+
+      // 2. Reject corresponding migma_payments as well so it doesn't stay stuck
+      const { data: migmaPayment } = await supabase
+        .from('migma_payments')
+        .select('id')
+        .eq('user_id', payment.migma_user_id)
+        .in('status', ['pending', 'pending_verification'])
+        .maybeSingle();
+
+      if (migmaPayment) {
+        // Run edge function process-zelle-rejection for the migma payment duplicate
+        await supabase.functions.invoke('process-zelle-rejection', {
+          body: {
+            id: migmaPayment.id,
+            type: 'migma_payment',
+            rejection_reason: 'Rejeitado via lista secundária (Migma Checkout)',
+            processed_by_user_id: (await supabase.auth.getUser()).data.user?.id
+          }
+        });
+      }
 
       setAlertData({ title: 'Rejected', message: `Payment from ${payment.client_name} rejected.`, variant: 'success' });
       setShowAlert(true);

@@ -261,9 +261,11 @@ export const MigmaSurveyStep: React.FC<StepProps> = ({ onNext }) => {
           {t('student_onboarding.survey.section_label', { key: currentSection.key })}
         </p>
         <h2 className="text-2xl font-black text-white uppercase tracking-tight">
-          {currentSection.title}
+          {t(`survey_questions.sections.${currentSection.key}.title`, { defaultValue: currentSection.title })}
         </h2>
-        <p className="text-sm text-gray-400 mt-1">{currentSection.description}</p>
+        <p className="text-sm text-gray-400 mt-1">
+          {t(`survey_questions.sections.${currentSection.key}.description`, { defaultValue: currentSection.description })}
+        </p>
       </div>
 
       {/* Questions */}

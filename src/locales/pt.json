@@ -445,6 +445,23 @@
             "title": "Processo Concluído!",
             "subtitle": "Parabéns! Seu processo de candidatura está completo. Nossa equipe entrará em contato com os próximos passos."
         },
+        "survey_completion": {
+            "title": "Perfil enviado com sucesso!",
+            "subtitle": "Seu perfil foi encaminhado para",
+            "institutions": "instituições credenciadas no SEVIS pelo DHS",
+            "summary_title": "Resumo da candidatura",
+            "name": "Nome",
+            "email": "E-mail",
+            "whatsapp": "WhatsApp",
+            "profile_service": "Perfil / Serviço",
+            "formation": "Formação",
+            "english_level": "Nível de inglês",
+            "feedback_time": "Em até 24 horas",
+            "feedback_desc": "Você saberá quais universidades pré-aceitaram sua candidatura.",
+            "email_sent": "E-mail de confirmação enviado para",
+            "btn_choose_colleges": "Escolher Faculdades →",
+            "available_in": "Disponível em"
+        },
         "steps": {
             "profile": "Perfil",
             "survey": "Pesquisa",

@@ -1,6 +1,7 @@
 import React from 'react';
 import { Check, AlertTriangle, Info } from 'lucide-react';
 import type { SurveyQuestion } from '../../../data/migmaSurveyQuestions';
+import { useTranslation } from 'react-i18next';
 
 interface Props {
   question: SurveyQuestion;
@@ -9,13 +10,15 @@ interface Props {
 }
 
 export const SurveyQuestionField: React.FC<Props> = ({ question, value, onChange }) => {
+  const { t } = useTranslation();
+
   const baseLabel = (
     <label className="block text-white font-semibold text-sm mb-3 leading-relaxed">
-      {question.text}
+      {t(`survey_questions.${question.id}.text`, { defaultValue: question.text })}
       {question.required && <span className="text-gold-medium ml-1">*</span>}
       {question.exactCount && (
         <span className="ml-2 text-gold-medium/70 text-xs font-normal">
-          (escolha exatamente {question.exactCount})
+          {t('survey_questions.exact_count', { count: question.exactCount, defaultValue: `(escolha exatamente {{count}})`, replace: { count: question.exactCount } })}
         </span>
       )}
     </label>
@@ -64,13 +67,13 @@ export const SurveyQuestionField: React.FC<Props> = ({ question, value, onChange
                 }`}>
                   {isSelected && <Check className="w-2.5 h-2.5 text-black" />}
                 </span>
-                {opt.label}
+                {t(`survey_questions.${question.id}.options.${opt.value}`, { defaultValue: opt.label })}
               </button>
             );
           })}
         </div>
         <p className={`mt-2 text-xs ${selected.length === exactCount ? 'text-emerald-400' : 'text-gray-500'}`}>
-          {selected.length} / {exactCount} selecionados
+          {t('survey_questions.selected_count', { selected: selected.length, total: exactCount, defaultValue: '{{selected}} / {{total}} selecionados', replace: { selected: selected.length, total: exactCount } })}
         </p>
       </div>
     );
@@ -100,7 +103,7 @@ export const SurveyQuestionField: React.FC<Props> = ({ question, value, onChange
               <span className={`w-4 h-4 rounded-full border-2 flex-shrink-0 ${
                 value === opt.value ? 'border-gold-medium bg-gold-medium' : 'border-white/20'
               }`} />
-              {opt.label}
+              {t(`survey_questions.${question.id}.options.${opt.value}`, { defaultValue: opt.label })}
             </button>
           ))}
         </div>
@@ -117,9 +120,9 @@ export const SurveyQuestionField: React.FC<Props> = ({ question, value, onChange
         {baseLabel}
         <div className="flex gap-3">
           {([
-            { label: 'Sim', emoji: '✓' },
-            { label: 'Não', emoji: '✕' },
-          ] as const).map(({ label, emoji }) => {
+            { label: 'Sim', emoji: '✓', key: 'yes' },
+            { label: 'Não', emoji: '✕', key: 'no' },
+          ] as const).map(({ label, emoji, key }) => {
             const isSelected = value === label;
             const isYes = label === 'Sim';
             return (
@@ -144,7 +147,7 @@ export const SurveyQuestionField: React.FC<Props> = ({ question, value, onChange
                 }`}>
                   {emoji}
                 </span>
-                {label}
+                {t(`survey_questions.yesno.${key}`, { defaultValue: label })}
               </button>
             );
           })}
@@ -177,7 +180,7 @@ export const SurveyQuestionField: React.FC<Props> = ({ question, value, onChange
             {checked && <Check className="w-3 h-3 text-black" />}
           </span>
           <span className={`text-sm font-semibold leading-relaxed ${checked ? 'text-gold-light' : 'text-gray-300'}`}>
-            {question.text}
+            {t(`survey_questions.${question.id}.text`, { defaultValue: question.text })}
             {question.required && <span className="text-gold-medium ml-1">*</span>}
           </span>
         </button>
@@ -196,7 +199,7 @@ export const SurveyQuestionField: React.FC<Props> = ({ question, value, onChange
           value={typeof value === 'string' ? value : ''}
           onChange={e => onChange(e.target.value)}
           rows={4}
-          placeholder="Escreva aqui..."
+          placeholder={t('survey_questions.textarea_placeholder', { defaultValue: 'Escreva aqui...' })}
           className="w-full bg-[#0d0d0d] border-2 border-white/10 focus:border-gold-medium text-white placeholder-gray-600 rounded-xl px-4 py-3 text-sm outline-none transition-colors resize-none"
         />
       </div>
@@ -213,7 +216,7 @@ export const SurveyQuestionField: React.FC<Props> = ({ question, value, onChange
         {question.description && (
           <div className="flex gap-2.5 rounded-xl border border-gold-medium/20 bg-gold-medium/5 px-4 py-3">
             <Info className="w-4 h-4 text-gold-medium flex-shrink-0 mt-0.5" />
-            <p className="text-xs text-gray-400 leading-relaxed">{question.description}</p>
+            <p className="text-xs text-gray-400 leading-relaxed">{t(`survey_questions.${question.id}.description`, { defaultValue: question.description })}</p>
           </div>
         )}
         <input
@@ -225,7 +228,7 @@ export const SurveyQuestionField: React.FC<Props> = ({ question, value, onChange
         {question.warning && (
           <div className="flex gap-2.5 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3">
             <AlertTriangle className="w-4 h-4 text-red-400 flex-shrink-0 mt-0.5" />
-            <p className="text-xs text-red-300 font-semibold leading-relaxed">{question.warning}</p>
+            <p className="text-xs text-red-300 font-semibold leading-relaxed">{t(`survey_questions.${question.id}.warning`, { defaultValue: question.warning })}</p>
           </div>
         )}
       </div>
@@ -242,7 +245,7 @@ export const SurveyQuestionField: React.FC<Props> = ({ question, value, onChange
         type={question.type === 'email' ? 'email' : 'text'}
         value={typeof value === 'string' ? value : ''}
         onChange={e => onChange(e.target.value)}
-        placeholder={question.type === 'email' ? 'seu@email.com' : ''}
+        placeholder={question.type === 'email' ? t('survey_questions.email_placeholder', { defaultValue: 'seu@email.com' }) : ''}
         className="w-full bg-[#0d0d0d] border-2 border-white/10 focus:border-gold-medium text-white placeholder-gray-600 rounded-xl px-4 py-3 text-sm outline-none transition-colors"
       />
     </div>

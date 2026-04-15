@@ -129,10 +129,10 @@ const SECTION_A: SurveyQuestion[] = [
     required: true,
     exactCount: 2,
     options: [
-      { label: '2x/ano (3 dias)', value: '2x_year' },
-      { label: '4x/ano (4 dias)', value: '4x_year' },
-      { label: '2x/semana', value: '2x_week' },
-      { label: '4x/semana', value: '4x_week' },
+      { label: 'Duas vezes por ano (3 dias consecutivos)', value: '2x_year' },
+      { label: 'Quatro vezes por ano (4 dias consecutivos)', value: '4x_year' },
+      { label: 'Duas vezes na semana', value: '2x_week' },
+      { label: 'Quatro vezes na semana', value: '4x_week' },
     ],
   },
   {
@@ -143,7 +143,6 @@ const SECTION_A: SurveyQuestion[] = [
     required: true,
     exactCount: 2,
     options: [
-      { label: 'Até $3.800/ano', value: 'up_to_3800' },
       { label: '$3.800 – $6.000/ano', value: '3800_6000' },
       { label: '$6.000 – $9.000/ano', value: '6000_9000' },
       { label: '$9.000 – $13.800/ano', value: '9000_13800' },

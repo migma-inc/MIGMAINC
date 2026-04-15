@@ -462,13 +462,23 @@ export async function loadOnboardingBoard(productLine?: 'cos' | 'transfer'): Pro
         operationalStage: deriveOperationalStage(profile, sr, order),
       };
     })
-    // When filtering by product line, match against profile service_type or student_process_type
-    // (service_type may be compound like 'cos-selection-process' → normalize prefix)
+    // When filtering by product line, match against:
+    // 1. profile.service_type (may be compound like 'cos-selection-process')
+    // 2. profile.student_process_type
+    // 3. visaOrder.product_slug (fallback when profile fields are null — common when checkout
+    //    creates the visa_order but doesn't yet write back to user_profiles.service_type)
     .filter((c) => {
       if (!productLine) return true;
       const st = c.profile.service_type ?? '';
       const pt = c.profile.student_process_type ?? '';
-      return st === productLine || st.startsWith(productLine + '-') || pt === productLine;
+      const slug = c.visaOrder?.product_slug ?? '';
+      return (
+        st === productLine ||
+        st.startsWith(productLine + '-') ||
+        pt === productLine ||
+        slug === productLine ||
+        slug.startsWith(productLine + '-')
+      );
     });
 
   return { cases, error: null };
