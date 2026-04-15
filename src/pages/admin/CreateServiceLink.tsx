@@ -15,7 +15,9 @@ import {
   Settings,
   Loader2,
   Copy,
-  CheckCircle
+  CheckCircle,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 import {
   Dialog,
@@ -44,6 +46,7 @@ interface VisaProduct {
   extra_unit_label: string;
   extra_unit_price: string | number;
   calculation_type: 'base_plus_units' | 'units_only';
+  show_in_generate_links: boolean;
 }
 
 const EMPTY_FORM = {
@@ -54,6 +57,7 @@ const EMPTY_FORM = {
   extra_unit_label: 'Number of dependents',
   allow_extra_units: true,
   calculation_type: 'base_plus_units' as 'base_plus_units' | 'units_only',
+  show_in_generate_links: true,
 };
 
 function generateSlug(name: string): string {
@@ -138,6 +142,7 @@ export function CreateServiceLink() {
       extra_unit_label: product.extra_unit_label || 'Number of dependents',
       allow_extra_units: product.allow_extra_units,
       calculation_type: product.calculation_type,
+      show_in_generate_links: product.show_in_generate_links ?? true,
     });
     setIsModalOpen(true);
   };
@@ -168,6 +173,11 @@ export function CreateServiceLink() {
     }
   };
 
+  const invalidateGenerateLinksCache = () => {
+    sessionStorage.removeItem('seller_products_cache_v6');
+    sessionStorage.removeItem('seller_products_cache_timestamp_v6');
+  };
+
   const closeModalAndRefresh = async () => {
     setIsModalOpen(false);
     resetModal();
@@ -193,11 +203,13 @@ export function CreateServiceLink() {
             extra_unit_label: formData.extra_unit_label,
             allow_extra_units: formData.allow_extra_units,
             calculation_type: formData.calculation_type,
+            show_in_generate_links: formData.show_in_generate_links,
             updated_at: new Date().toISOString(),
           })
           .eq('id', editingProduct.id);
 
         if (error) throw error;
+        invalidateGenerateLinksCache();
       } else {
         // INSERT
         const slug = generateSlug(formData.name);
@@ -213,10 +225,12 @@ export function CreateServiceLink() {
             extra_unit_label: formData.extra_unit_label,
             allow_extra_units: formData.allow_extra_units,
             calculation_type: formData.calculation_type,
+            show_in_generate_links: formData.show_in_generate_links,
             is_active: true,
           });
 
         if (error) throw error;
+        invalidateGenerateLinksCache();
 
         // Advance to contract step instead of closing
         setCreatedSlug(slug);
@@ -262,6 +276,18 @@ export function CreateServiceLink() {
     }
   };
 
+  const handleToggleGenerateLinks = async (id: string, currentState: boolean) => {
+    const { error } = await supabase
+      .from('visa_products')
+      .update({ show_in_generate_links: !currentState, updated_at: new Date().toISOString() })
+      .eq('id', id);
+
+    if (!error) {
+      setProducts(prev => prev.map(p => p.id === id ? { ...p, show_in_generate_links: !currentState } : p));
+      invalidateGenerateLinksCache();
+    }
+  };
+
   const filteredProducts = products.filter(p =>
     p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     p.slug.toLowerCase().includes(searchQuery.toLowerCase())
@@ -272,11 +298,11 @@ export function CreateServiceLink() {
       {/* Header Section */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-white tracking-tight">Create Service Link</h1>
+          <h1 className="text-3xl font-bold text-gold-light tracking-tight">Create Service Link</h1>
           <p className="text-gray-400 mt-1">
             Manage and create your sales links for services.
             {!loading && (
-              <span className="ml-2 text-xs text-gray-600">{products.length} total · {products.filter(p => p.is_active).length} active</span>
+              <span className="ml-2 text-xs text-gold-medium/50">{products.length} total · {products.filter(p => p.is_active).length} active</span>
             )}
           </p>
         </div>
@@ -370,6 +396,22 @@ export function CreateServiceLink() {
                         ? 'The slug will not change when editing.'
                         : 'Slug is auto-generated from the name. All new links are active by default.'}
                     </p>
+                  </div>
+
+                  <div className="flex items-center justify-between p-3 bg-black/30 border border-white/10 rounded-lg">
+                    <div>
+                      <p className="text-xs font-medium text-gray-300">Exibir em Generate Links</p>
+                      <p className="text-xs text-gray-500 mt-0.5">Quando ativo, este serviço aparece na página de geração de links.</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setFormData(prev => ({ ...prev, show_in_generate_links: !prev.show_in_generate_links }))}
+                      className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none ${formData.show_in_generate_links ? 'bg-gold-medium' : 'bg-zinc-700'}`}
+                    >
+                      <span
+                        className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow transition duration-200 ${formData.show_in_generate_links ? 'translate-x-4' : 'translate-x-0'}`}
+                      />
+                    </button>
                   </div>
 
                   {formError && (
@@ -474,10 +516,10 @@ export function CreateServiceLink() {
       </Dialog>
 
       {/* Table Section */}
-      <Card className="bg-black/40 border-gold-medium/20">
-        <CardHeader className="border-b border-white/5">
+      <Card className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30">
+        <CardHeader className="border-b border-gold-medium/20">
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-            <CardTitle className="text-white flex items-center gap-2">
+            <CardTitle className="text-gold-light flex items-center gap-2">
               <LinkIcon className="w-5 h-5 text-gold-medium" />
               Service Configuration Inventory
             </CardTitle>
@@ -487,53 +529,124 @@ export function CreateServiceLink() {
                 placeholder="Filter services by name, price or slug..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10 bg-zinc-900 border-gold-medium/30 text-white h-10"
+                className="pl-10 bg-black/50 border-gold-medium/30 text-white h-10"
               />
             </div>
           </div>
         </CardHeader>
         <CardContent className="p-0">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm text-left">
-              <thead className="text-xs text-gray-500 border-b border-white/5">
-                <tr>
-                  <th className="px-6 py-4 font-medium">Status</th>
-                  <th className="px-6 py-4 font-medium">Service</th>
-                  <th className="px-6 py-4 font-medium">Price</th>
-                  <th className="px-6 py-4 font-medium text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-white/5">
-                {loading ? (
+
+          {/* ── LOADING ── */}
+          {loading && (
+            <div className="flex flex-col items-center gap-3 py-20">
+              <Loader2 className="w-8 h-8 animate-spin text-gold-medium opacity-50" />
+              <span className="text-xs text-gray-500">Loading services...</span>
+            </div>
+          )}
+
+          {/* ── EMPTY ── */}
+          {!loading && filteredProducts.length === 0 && (
+            <p className="text-gray-500 text-sm text-center py-16">No services found.</p>
+          )}
+
+          {/* ── MOBILE CARDS (< md) ── */}
+          {!loading && filteredProducts.length > 0 && (
+            <div className="md:hidden p-3 space-y-3">
+              {filteredProducts.map((p) => (
+                <div key={p.id} className="p-4 space-y-3 bg-black/50 rounded-lg border border-gold-medium/20 hover:border-gold-medium/40 transition-colors">
+                  {/* Name + slug */}
+                  <div>
+                    <p className="font-semibold text-gold-light text-sm">{p.name}</p>
+                    <p className="text-xs text-gold-medium/60 font-mono mt-0.5">{p.slug}</p>
+                  </div>
+
+                  {/* Badges row */}
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <button onClick={() => handleToggleActive(p.id, p.is_active)} title="Toggle active">
+                      <Badge className={`${p.is_active ? 'bg-green-500/10 text-green-400 border-green-500/20 hover:bg-green-500/20' : 'bg-red-900/10 text-red-400 border-red-500/20 hover:bg-red-500/20'} text-xs font-medium cursor-pointer transition-colors`}>
+                        {p.is_active ? 'Ativo' : 'Desativado'}
+                      </Badge>
+                    </button>
+                    <button onClick={() => handleToggleGenerateLinks(p.id, p.show_in_generate_links)} title="Toggle Generate Links visibility">
+                      <Badge className={`flex items-center gap-1 text-xs font-medium cursor-pointer transition-colors ${p.show_in_generate_links ? 'bg-blue-500/10 text-blue-400 border-blue-500/20 hover:bg-blue-500/20' : 'bg-zinc-800 text-gray-600 border-white/5 hover:bg-zinc-700'}`}>
+                        {p.show_in_generate_links ? <><Eye className="w-2.5 h-2.5" /> Generate Links</> : <><EyeOff className="w-2.5 h-2.5" /> Oculto</>}
+                      </Badge>
+                    </button>
+                  </div>
+
+                  {/* Price */}
+                  <div>
+                    <span className="text-white font-semibold text-sm">US${Number(p.base_price_usd).toFixed(2)}</span>
+                    <span className="text-gray-500 text-xs ml-1">base</span>
+                    <p className="text-xs text-gray-400 mt-0.5">
+                      + US${Number(p.price_per_dependent_usd || p.extra_unit_price).toFixed(2)} / {p.extra_unit_label || 'unit'}
+                    </p>
+                  </div>
+
+                  {/* Actions */}
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleCopyLink(p.slug)}
+                      className={`flex-1 h-9 text-xs font-medium border transition-colors ${copiedSlug === p.slug ? 'text-green-400 border-green-500/20 bg-green-500/5' : 'text-gray-400 border-white/10 hover:bg-gold-medium/10 hover:text-white'}`}
+                    >
+                      {copiedSlug === p.slug ? <CheckCircle className="w-3.5 h-3.5 mr-1.5" /> : <Copy className="w-3.5 h-3.5 mr-1.5" />}
+                      {copiedSlug === p.slug ? 'Copiado' : 'Copy URL'}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => openEditModal(p)}
+                      className="h-9 w-9 p-0 text-gray-400 hover:text-gold-light hover:bg-gold-medium/10 border border-white/10"
+                    >
+                      <Edit className="w-3.5 h-3.5" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setDeleteConfirmProduct(p)}
+                      className="h-9 w-9 p-0 text-gray-400 hover:text-red-400 hover:bg-red-500/10 border border-white/10"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* ── DESKTOP TABLE (≥ md) ── */}
+          {!loading && filteredProducts.length > 0 && (
+            <div className="hidden md:block overflow-x-auto">
+              <table className="w-full text-sm text-left">
+                <thead className="text-xs text-gray-500 border-b border-gold-medium/20">
                   <tr>
-                    <td colSpan={4} className="px-6 py-20 text-center">
-                      <div className="flex flex-col items-center gap-3">
-                        <Loader2 className="w-8 h-8 animate-spin text-gold-medium opacity-50" />
-                        <span className="text-xs text-gray-500">Loading services...</span>
-                      </div>
-                    </td>
+                    <th className="px-6 py-4 font-medium">Status</th>
+                    <th className="px-6 py-4 font-medium">Service</th>
+                    <th className="px-6 py-4 font-medium">Price</th>
+                    <th className="px-6 py-4 font-medium text-right">Actions</th>
                   </tr>
-                ) : filteredProducts.length === 0 ? (
-                  <tr>
-                    <td colSpan={4} className="px-6 py-16 text-center">
-                      <p className="text-gray-500 text-sm">No services found.</p>
-                    </td>
-                  </tr>
-                ) : (
-                  filteredProducts.map((p) => (
-                    <tr key={p.id} className="hover:bg-white/[0.02] transition-colors">
+                </thead>
+                <tbody className="divide-y divide-gold-medium/10">
+                  {filteredProducts.map((p) => (
+                    <tr key={p.id} className="hover:bg-gold-medium/5 transition-colors">
                       <td className="px-6 py-4">
-                        <button
-                          onClick={() => handleToggleActive(p.id, p.is_active)}
-                          title="Click to toggle"
-                        >
-                          <Badge className={`${p.is_active ? "bg-green-500/10 text-green-400 border-green-500/20 hover:bg-green-500/20" : "bg-red-900/10 text-red-400 border-red-500/20 hover:bg-red-500/20"} text-xs font-medium cursor-pointer transition-colors`}>
-                            {p.is_active ? 'Ativo' : 'Desativado'}
-                          </Badge>
-                        </button>
+                        <div className="flex flex-col items-center gap-1.5">
+                          <button onClick={() => handleToggleActive(p.id, p.is_active)} title="Click to toggle active">
+                            <Badge className={`${p.is_active ? 'bg-green-500/10 text-green-400 border-green-500/20 hover:bg-green-500/20' : 'bg-red-900/10 text-red-400 border-red-500/20 hover:bg-red-500/20'} text-xs font-medium cursor-pointer transition-colors`}>
+                              {p.is_active ? 'Ativo' : 'Desativado'}
+                            </Badge>
+                          </button>
+                          <button onClick={() => handleToggleGenerateLinks(p.id, p.show_in_generate_links)} title="Click to toggle visibility in Generate Links">
+                            <Badge className={`flex items-center gap-1 text-xs font-medium cursor-pointer transition-colors ${p.show_in_generate_links ? 'bg-blue-500/10 text-blue-400 border-blue-500/20 hover:bg-blue-500/20' : 'bg-zinc-800 text-gray-600 border-white/5 hover:bg-zinc-700'}`}>
+                              {p.show_in_generate_links ? <><Eye className="w-2.5 h-2.5" /> Generate Links</> : <><EyeOff className="w-2.5 h-2.5" /> Oculto</>}
+                            </Badge>
+                          </button>
+                        </div>
                       </td>
                       <td className="px-6 py-4">
-                        <div className="font-semibold text-white text-sm">{p.name}</div>
+                        <div className="font-semibold text-gold-light text-sm">{p.name}</div>
                         <div className="flex items-center gap-2 mt-0.5">
                           <span className="text-xs text-gold-medium/60 font-mono">{p.slug}</span>
                           <span className="text-xs text-gray-600">· {p.id.slice(0, 8)}...</span>
@@ -578,11 +691,12 @@ export function CreateServiceLink() {
                         </div>
                       </td>
                     </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
         </CardContent>
       </Card>
     </div>

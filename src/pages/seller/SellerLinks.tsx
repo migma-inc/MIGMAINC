@@ -65,8 +65,8 @@ interface PrefillValidationResult {
 // Lista de países ordenada alfabeticamente com "Other" por último
 const countries = getSortedCountries();
 
-const PRODUCTS_CACHE_KEY = 'seller_products_cache_v5';
-const PRODUCTS_CACHE_TIMESTAMP_KEY = 'seller_products_cache_timestamp_v5';
+const PRODUCTS_CACHE_KEY = 'seller_products_cache_v6';
+const PRODUCTS_CACHE_TIMESTAMP_KEY = 'seller_products_cache_timestamp_v6';
 const PRODUCTS_CACHE_DURATION = 10 * 60 * 1000; // 10 minutos (produtos mudam menos frequentemente)
 
 function getCachedProducts(): VisaProduct[] | null {
@@ -555,6 +555,7 @@ export function SellerLinks() {
           .from('visa_products')
           .select('slug, name, description, base_price_usd, extra_unit_price, extra_unit_label, calculation_type, allow_extra_units')
           .eq('is_active', true)
+          .eq('show_in_generate_links', true)
           .order('name');
 
         const { data: productsData, error } = productsResult;
