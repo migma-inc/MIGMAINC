@@ -99,13 +99,14 @@ Deno.serve(async (req: Request) => {
     if (!parcelowClientId || !parcelowClientSecret) throw new Error("Chaves Parcelow ausentes nos secrets.");
 
     const client = new ParcelowClient(parcelowClientId, parcelowClientSecret, parcelowEnv);
-    const finalRef = body.order_id || `MIG-${Date.now()}`;
+    const finalRef = (body.order_id || `MIG-${Date.now()}`) + (body.reference_suffix || '');
     const originUrl = body.site_url || req.headers.get("origin") || 'https://migmainc.com';
 
     // Determinar slug para redirecionamento
     const serviceSlug = (body.service_type || 'transfer').replace('-selection-process', '');
-    const successUrl = `${originUrl}/student/checkout/${serviceSlug}?success=true&order_id=${finalRef}`;
-    const failedUrl = `${originUrl}/student/checkout/${serviceSlug}?failed=true&order_id=${finalRef}`;
+    // Suporta override de URLs para split payment (os redirects embutem split_payment_id)
+    const successUrl = body.redirect_success_override || `${originUrl}/student/checkout/${serviceSlug}?success=true&order_id=${finalRef}`;
+    const failedUrl = body.redirect_failed_override || `${originUrl}/student/checkout/${serviceSlug}?failed=true&order_id=${finalRef}`;
 
     console.log(`[migma-parcelow-checkout] Criando checkout [${serviceSlug}] para ${body.email} valor=${body.amount}`);
 
@@ -134,9 +135,10 @@ Deno.serve(async (req: Request) => {
 
     if (!parcelowOrderId) {
         console.error("[migma-parcelow-checkout] Resposta da Parcelow sem ID:", JSON.stringify(data));
-    } else {
+    } else if (!body.is_split_part) {
+        // Para split parts o webhook usa split_payments — não cria pendente individual
         console.log(`[migma-parcelow-checkout] ✅ Gravando pendente: ParcelowID=${parcelowOrderId} UserID=${body.user_id}`);
-        
+
         const { error: insertErr } = await supabase
             .from("migma_parcelow_pending")
             .insert({

@@ -23,7 +23,8 @@
       "Bash(psql:*)",
       "Bash(cmdkey /list)",
       "Bash(powershell -Command ':*)",
-      "Bash(powershell:*)"
+      "Bash(powershell:*)",
+      "Bash(rtk grep:*)"
     ]
   }
 }

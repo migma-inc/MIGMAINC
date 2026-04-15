@@ -102,6 +102,25 @@ async function processSplitPaymentWebhook(
   if (bothPartsPaid) {
     console.log("[Split Webhook] 🎉 AMBAS AS PARTES PAGAS! Finalizando pedido...");
     updateData.overall_status = 'fully_completed';
+
+    // Migma split: finalizar imediatamente antes do UPDATE para evitar race conditions
+    if (splitPayment.source === 'migma') {
+      console.log("[Split Webhook] 🎓 Migma split detectado — chamando migma-payment-completed...");
+      const { error: migmaPayErr } = await supabase.functions.invoke("migma-payment-completed", {
+        body: {
+          user_id: splitPayment.migma_user_id,
+          fee_type: "selection_process",
+          amount: parseFloat(splitPayment.total_amount_usd),
+          payment_method: "parcelow",
+          service_type: splitPayment.migma_service_type || "transfer",
+        },
+      });
+      if (migmaPayErr) {
+        console.error("[Split Webhook] ❌ migma-payment-completed falhou:", migmaPayErr);
+      } else {
+        console.log("[Split Webhook] ✅ Migma selection_process fee processado!");
+      }
+    }
   } else {
     console.log(`[Split Webhook] ⏳ Apenas Part ${partNumber} paga. Aguardando Part ${isPart1 ? 2 : 1}...`);
     updateData.overall_status = 'part1_completed';
@@ -121,8 +140,8 @@ async function processSplitPaymentWebhook(
   console.log("[Split Webhook] ✅ Split payment atualizado com sucesso");
 
   // Se ambas as partes foram pagas, processar como pedido completo
-  if (bothPartsPaid) {
-    console.log("[Split Webhook] 📄 Gerando contratos e documentos...");
+  if (bothPartsPaid && splitPayment.source !== 'migma') {
+    console.log("[Split Webhook] 📄 Gerando contratos e documentos (visa)...");
 
     // Buscar o registro atualizado do split para calcular os totais consolidados
     const { data: latestSplit, error: fetchSplitError } = await supabase
@@ -503,9 +522,10 @@ async function processSplitPaymentWebhook(
 
     console.log("[Split Webhook] ✅ Fluxo de split payment totalmente concluído!");
   } else {
-    if (isPart1) {
+    if (isPart1 && splitPayment.source !== 'migma') {
+      // Email de P2 é específico do fluxo visa — migma trata por outro canal
       try {
-        console.log("[Split Webhook] Sending part 2 checkout email after part 1 confirmation...");
+        console.log("[Split Webhook] Sending part 2 checkout email after part 1 confirmation (visa)...");
         const { data: emailResult, error: emailError } = await supabase.functions.invoke(
           "send-split-part2-payment-email",
           {
@@ -547,9 +567,15 @@ async function processParcelowWebhookEvent(event: ParcelowWebhookEvent, supabase
     .maybeSingle();
 
   if (splitPayment) {
-    console.log("[Parcelow Webhook] 🎯 Split payment detectado! ID:", splitPayment.id);
+    console.log("[Parcelow Webhook] 🎯 Split payment detectado! ID:", splitPayment.id, "Source:", splitPayment.source);
 
-    // Buscar a order principal ligada ao split
+    // Migma splits não têm visa_orders — processar diretamente sem mainOrder
+    if (splitPayment.source === 'migma') {
+      await processSplitPaymentWebhook(eventType, parcelowOrder, splitPayment, null, supabase);
+      return;
+    }
+
+    // Buscar a order principal ligada ao split (somente para visa)
     const { data: mainOrder } = await supabase
       .from("visa_orders")
       .select("*")

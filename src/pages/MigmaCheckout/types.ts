@@ -1,4 +1,13 @@
 export type PaymentMethod = 'square' | 'parcelow' | 'pix' | 'zelle' | 'stripe' | 'parcelow_card' | 'parcelow_pix' | 'parcelow_ted';
+export type SplitPaymentMethod = 'card' | 'pix' | 'ted';
+
+export interface SplitPaymentConfig {
+  enabled: boolean;
+  part1_amount: number;
+  part1_method: SplitPaymentMethod;
+  part2_amount: number;
+  part2_method: SplitPaymentMethod;
+}
 export type CardOwnership = 'own' | 'third_party';
 export type IPRegion = 'US' | 'BR' | 'OTHER';
 export type ServiceType = 'transfer' | 'cos' | 'eb2' | 'eb3' | 'initial';

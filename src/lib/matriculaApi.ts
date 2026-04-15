@@ -188,6 +188,32 @@ export interface StudentParcelowCheckoutResponse {
   details?: unknown;
 }
 
+export interface MigmaSplitParcelowCheckoutPayload {
+  user_id: string;
+  order_id: string;
+  email: string;
+  full_name: string;
+  phone?: string;
+  cpf?: string;
+  payer_info?: any;
+  service_type: string;
+  service_request_id?: string;
+  total_amount: number;
+  part1_amount: number;
+  part1_method: 'card' | 'pix' | 'ted';
+  part2_amount: number;
+  part2_method: 'card' | 'pix' | 'ted';
+  origin: string;
+}
+
+export interface MigmaSplitParcelowCheckoutResponse {
+  success: boolean;
+  split_payment_id: string;
+  part1_checkout_url: string;
+  part2_checkout_url: string;
+  error?: string;
+}
+
 async function invokeFunction<T>(name: string, options: {
   method?: 'POST' | 'GET';
   body?: object;
@@ -295,6 +321,12 @@ export const matriculaApi = {
 
   migmaParcelowCheckout: (payload: StudentParcelowCheckoutPayload) =>
     invokeFunction<StudentParcelowCheckoutResponse>('migma-parcelow-checkout', {
+      method: 'POST',
+      body: payload,
+    }),
+
+  migmaSplitParcelowCheckout: (payload: MigmaSplitParcelowCheckoutPayload) =>
+    invokeFunction<MigmaSplitParcelowCheckoutResponse>('migma-split-parcelow-checkout', {
       method: 'POST',
       body: payload,
     }),

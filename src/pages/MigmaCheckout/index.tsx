@@ -22,7 +22,7 @@ import { getServiceConfig } from './serviceConfigs';
 import { matriculaApi } from '../../lib/matriculaApi';
 import { supabase } from '../../lib/supabase';
 import { processZellePaymentWithN8n } from '../../lib/zelle-n8n-integration';
-import type { Step1Data, Step2Data, CheckoutState, PaymentMethod, CardOwnership, IPRegion, PayerInfo } from './types';
+import type { Step1Data, Step2Data, CheckoutState, PaymentMethod, CardOwnership, IPRegion, PayerInfo, SplitPaymentConfig } from './types';
 
 interface ExtendedState extends CheckoutState {
   matriculaUserId: string | null;
@@ -475,7 +475,7 @@ const MigmaCheckout: React.FC = () => {
     data: Step1Data,
     registeredUserId: string,  // já vem do onRegisterUser — não chama de novo
     total: number,
-    payment: { method: PaymentMethod; receipt: File | null; cardOwnership?: CardOwnership; cpf?: string; payerInfo?: PayerInfo }
+    payment: { method: PaymentMethod; receipt: File | null; cardOwnership?: CardOwnership; cpf?: string; payerInfo?: PayerInfo; splitConfig?: SplitPaymentConfig }
   ) => {
     setProcessing(true);
     setProgress(10);
@@ -528,6 +528,56 @@ const MigmaCheckout: React.FC = () => {
         setProcessMessage('Redirecionando para o Stripe...');
         setProgress(100);
         window.location.href = result.url;
+        return;
+      }
+
+      if (payment.splitConfig?.enabled) {
+        setProgress(60);
+        setProcessMessage('Configurando pagamento dividido...');
+
+        const finalOrderId = orderIdRef.current ?? orderId ?? crypto.randomUUID();
+
+        const splitResult = await matriculaApi.migmaSplitParcelowCheckout({
+          user_id: userId,
+          order_id: finalOrderId,
+          email: data.email,
+          full_name: data.full_name,
+          cpf: payment.cpf,
+          service_type: service ?? 'transfer',
+          service_request_id: state.serviceRequestId || undefined,
+          total_amount: total,
+          part1_amount: payment.splitConfig.part1_amount,
+          part1_method: payment.splitConfig.part1_method,
+          part2_amount: payment.splitConfig.part2_amount,
+          part2_method: payment.splitConfig.part2_method,
+          origin: window.location.origin,
+        });
+
+        if (!splitResult?.success || !splitResult?.part1_checkout_url) {
+          throw new Error(splitResult?.error || 'Não foi possível configurar o pagamento dividido.');
+        }
+
+        if (splitResult?.split_payment_id) {
+          sessionStorage.setItem('last_split_payment_id', splitResult.split_payment_id);
+        }
+
+        localStorage.setItem(getDraftKey(service), JSON.stringify({
+          state: {
+            userId,
+            totalPrice: total,
+            matriculaUserId: state.matriculaUserId,
+            step1Completed: true,
+            step2Completed: false,
+            serviceRequestId: state.serviceRequestId,
+            currentStep: 2,
+          },
+          step1Data: data,
+          step2Data: null,
+        }));
+
+        setProcessMessage('Redirecionando para a Parcelow (Parte 1)...');
+        setProgress(100);
+        window.location.href = splitResult.part1_checkout_url;
         return;
       }
 

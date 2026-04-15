@@ -164,27 +164,28 @@ const StudentOnboarding: React.FC = () => {
       <div className="max-w-5xl mx-auto px-4 py-8">
         {/* Logo / header */}
         <div className="mb-8 flex items-center justify-between">
-          <img 
-            src="/logo.png" 
-            alt="Migma" 
-            className="h-8 object-contain cursor-pointer" 
-            onClick={() => navigate('/')}
-            onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} 
-          />
-          
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-6">
+            <img 
+              src="/logo.png" 
+              alt="Migma" 
+              className="h-8 object-contain cursor-pointer" 
+              onClick={() => navigate('/')}
+              onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} 
+            />
+            <div className="h-4 w-[1px] bg-white/10 hidden sm:block" />
             <LanguageSelector />
-            <button
-              onClick={() => {
-                signOut();
-                navigate('/student/login');
-              }}
-              className="px-4 py-2 flex items-center gap-2 bg-white/5 border border-white/10 text-gray-400 hover:bg-white/10 hover:text-white rounded-xl transition-all text-sm font-semibold"
-            >
-              <LogOut className="w-4 h-4" />
-              <span>{t('admin_header.logout', 'Sair')}</span>
-            </button>
           </div>
+          
+          <button
+            onClick={() => {
+              signOut();
+              navigate('/student/login');
+            }}
+            className="px-4 py-2 flex items-center gap-2 bg-white/5 border border-white/10 text-gray-400 hover:bg-white/10 hover:text-white rounded-xl transition-all text-sm font-semibold"
+          >
+            <LogOut className="w-4 h-4" />
+            <span>{t('admin_header.logout', 'Sair')}</span>
+          </button>
         </div>
 
         {/* Step indicator */}
