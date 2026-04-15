@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
-import { AlertCircle, ArrowLeft, Clock, ShieldCheck, FileText, CreditCard, Loader2 } from 'lucide-react';
+import { AlertCircle, ArrowLeft, Clock, ShieldCheck, FileText, CreditCard, Loader2, Ticket, CheckCircle, XCircle, Tag } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { LanguageSelector } from '@/components/LanguageSelector';
 import { StepIndicator } from '@/features/visa-checkout/components/shared/StepIndicator';
@@ -60,6 +60,16 @@ export const EB3InstallmentCheckout = () => {
     const [cpf, setCpf] = useState('');
     const [creditCardName, setCreditCardName] = useState('');
     const [payerInfo, setPayerInfo] = useState<PayerInfo | null>(null);
+
+    // Coupon States
+    const [couponCode, setCouponCode] = useState('');
+    const [appliedCoupon, setAppliedCoupon] = useState<{
+        code: string;
+        discountType: 'fixed' | 'percentage';
+        discountValue: number;
+    } | null>(null);
+    const [couponLoading, setCouponLoading] = useState(false);
+    const [couponMessage, setCouponMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
 
     const hasLoaded = useRef(false);
 
@@ -163,6 +173,41 @@ export const EB3InstallmentCheckout = () => {
         }
     };
 
+    const handleApplyCoupon = async () => {
+        if (!couponCode.trim()) return;
+        setCouponLoading(true);
+        setCouponMessage(null);
+        try {
+            const { data, error } = await supabase.rpc('validate_promotional_coupon', {
+                p_code: couponCode.trim()
+            });
+            if (error) throw error;
+            if (data && data.valid) {
+                setAppliedCoupon({
+                    code: data.code,
+                    discountType: data.type,
+                    discountValue: data.value
+                });
+                setCouponMessage({ text: 'Coupon applied successfully!', type: 'success' });
+            } else {
+                setAppliedCoupon(null);
+                setCouponMessage({ text: data?.message || 'Invalid or inactive coupon.', type: 'error' });
+            }
+        } catch (err) {
+            console.error('Coupon validation error:', err);
+            setAppliedCoupon(null);
+            setCouponMessage({ text: 'Error validating coupon. Please try again.', type: 'error' });
+        } finally {
+            setCouponLoading(false);
+        }
+    };
+
+    const handleRemoveCoupon = () => {
+        setAppliedCoupon(null);
+        setCouponCode('');
+        setCouponMessage(null);
+    };
+
     const handleNext = () => {
         window.scrollTo({ top: 0, behavior: 'smooth' });
         setCurrentStep(prev => prev + 1);
@@ -204,6 +249,8 @@ export const EB3InstallmentCheckout = () => {
                     signature_url: signatureImageDataUrl,
                     cpf: paymentMethod === 'parcelow' ? cpf : null,
                     card_name: paymentMethod === 'parcelow' ? creditCardName : null,
+                    coupon_code: appliedCoupon?.code ?? null,
+                    discount_amount: discountAmount > 0 ? discountAmount : null,
                     payment_metadata: {
                         eb3_schedule_id: installment.id,
                         installment_number: installment.installment_number,
@@ -328,7 +375,17 @@ export const EB3InstallmentCheckout = () => {
     dueDate.setHours(0, 0, 0, 0);
 
     const isOverdue = today > dueDate && installment.status === 'pending';
-    const totalAmount = Number(installment.amount_usd) + (isOverdue ? Number(installment.late_fee_usd) : 0);
+    const baseAmount = Number(installment.amount_usd) + (isOverdue ? Number(installment.late_fee_usd) : 0);
+    let discountAmount = 0;
+    if (appliedCoupon) {
+        if (appliedCoupon.discountType === 'fixed') {
+            discountAmount = appliedCoupon.discountValue;
+        } else {
+            discountAmount = baseAmount * (appliedCoupon.discountValue / 100);
+        }
+        discountAmount = Math.min(discountAmount, baseAmount);
+    }
+    const totalAmount = Math.max(0, baseAmount - discountAmount);
     const formattedDueDate = new Date(installment.due_date).toLocaleDateString('en-US', {
         year: 'numeric',
         month: 'long',
@@ -386,6 +443,51 @@ export const EB3InstallmentCheckout = () => {
                                             <Label className="text-gray-400 text-xs uppercase">Email Address</Label>
                                             <p className="text-white font-medium border-b border-white/5 pb-2">{installment.client_email}</p>
                                         </div>
+                                    </div>
+
+                                    {/* Coupon Section */}
+                                    <div className="space-y-2 pt-2 border-t border-white/5">
+                                        <h3 className="text-sm font-medium text-white flex items-center gap-2">
+                                            <Ticket className="w-4 h-4 text-gold-medium" />
+                                            Have a coupon?
+                                        </h3>
+                                        <div className="flex gap-2">
+                                            <Input
+                                                value={couponCode}
+                                                onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
+                                                placeholder="Enter coupon code"
+                                                className="bg-black/50 border-gold-medium/30 text-white uppercase placeholder:normal-case placeholder:text-gray-500"
+                                                disabled={!!appliedCoupon || couponLoading}
+                                                onKeyDown={(e) => e.key === 'Enter' && handleApplyCoupon()}
+                                            />
+                                            {appliedCoupon ? (
+                                                <Button
+                                                    variant="outline"
+                                                    onClick={handleRemoveCoupon}
+                                                    className="border-red-500/50 text-red-400 hover:bg-red-500/10 hover:text-red-300 shrink-0"
+                                                >
+                                                    Remove
+                                                </Button>
+                                            ) : (
+                                                <Button
+                                                    onClick={handleApplyCoupon}
+                                                    disabled={!couponCode.trim() || couponLoading}
+                                                    className="bg-gold-medium text-black hover:bg-gold-light font-medium shrink-0"
+                                                >
+                                                    {couponLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Apply'}
+                                                </Button>
+                                            )}
+                                        </div>
+                                        {couponMessage && (
+                                            <div className={`text-xs flex items-center gap-1.5 ${couponMessage.type === 'success' ? 'text-green-400' : 'text-red-400'}`}>
+                                                {couponMessage.type === 'success' ? (
+                                                    <CheckCircle className="w-3.5 h-3.5" />
+                                                ) : (
+                                                    <XCircle className="w-3.5 h-3.5" />
+                                                )}
+                                                {couponMessage.text}
+                                            </div>
+                                        )}
                                     </div>
 
                                     <Button
@@ -600,6 +702,15 @@ export const EB3InstallmentCheckout = () => {
                                         <div className="flex justify-between text-sm text-red-400">
                                             <span>Late Fee:</span>
                                             <span className="font-medium">+ ${Number(installment.late_fee_usd).toFixed(2)}</span>
+                                        </div>
+                                    )}
+                                    {appliedCoupon && discountAmount > 0 && (
+                                        <div className="flex justify-between text-sm text-green-400">
+                                            <span className="flex items-center gap-1">
+                                                <Tag className="w-3 h-3" />
+                                                Discount ({appliedCoupon.code}):
+                                            </span>
+                                            <span className="font-medium">- ${discountAmount.toFixed(2)}</span>
                                         </div>
                                     )}
                                     <div className="flex justify-between items-center pt-2 border-t border-white/5 mt-2">
