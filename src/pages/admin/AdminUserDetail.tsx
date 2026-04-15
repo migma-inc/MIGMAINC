@@ -23,6 +23,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { getSecureUrl } from '@/lib/storage';
@@ -279,8 +280,7 @@ function OverviewTab({
                   onClick={onAssignToMe}
                   disabled={mutating}
                   size="sm"
-                  variant="outline"
-                  className="border-white/10 text-white hover:bg-white/5 shrink-0"
+                  className="bg-white/5 hover:bg-white/10 border border-white/10 text-white font-bold shrink-0"
                 >
                   <UserCheck className="w-4 h-4 mr-1.5" />
                   Assign to Me
@@ -292,12 +292,11 @@ function OverviewTab({
                   onClick={onArchive}
                   disabled={mutating}
                   size="sm"
-                  variant="outline"
                   className={cn(
-                    'border-white/10 text-sm font-bold',
+                    'font-bold border',
                     primaryRequest.case_status === 'cancelled'
-                      ? 'text-green-400 hover:bg-green-500/10'
-                      : 'text-red-400 hover:bg-red-500/10'
+                      ? 'bg-green-500/10 border-green-500/30 text-green-400 hover:bg-green-500/20'
+                      : 'bg-red-500/10 border-red-500/30 text-red-400 hover:bg-red-500/20'
                   )}
                 >
                   {primaryRequest.case_status === 'cancelled' ? 'Restore Active' : 'Archive Case'}
@@ -583,6 +582,15 @@ function DocumentsTab({
 }) {
   const [resolvedUrls, setResolvedUrls] = useState<Record<string, string>>({});
   const [loadingUrls, setLoadingUrls] = useState(true);
+  const [mediaModal, setMediaModal] = useState<{ url: string; label: string } | null>(null);
+
+  function openModal(url: string, label: string) {
+    setMediaModal({ url, label });
+  }
+
+  function isPdf(url: string) {
+    return url.split('?')[0].toLowerCase().endsWith('.pdf');
+  }
 
   useEffect(() => {
     if (files.length === 0 && studentDocuments.length === 0) { setLoadingUrls(false); return; }
@@ -613,36 +621,39 @@ function DocumentsTab({
       {orderDocuments.length > 0 && (
         <div>
           <div className="text-xs text-gray-500 uppercase tracking-widest font-bold mb-3">Order Documents</div>
-          <div className="space-y-2">
-            {orderDocuments.map((doc) => (
-              <Card key={doc.id} className="bg-black/30 border border-white/5">
-                <CardContent className="p-4 flex items-center justify-between gap-4">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="text-xs font-bold text-white">{doc.label}</span>
-                      {doc.orderNumber && (
-                        <span className="text-[9px] text-gray-600 uppercase tracking-wider font-mono">
-                          {doc.orderNumber}
-                        </span>
-                      )}
+          <div className="flex flex-wrap gap-4">
+            {orderDocuments.map((doc) => {
+              const url = doc.url;
+              const label = doc.label;
+              const pdf = url ? isPdf(url) : false;
+              return (
+                <div
+                  key={doc.id}
+                  onClick={() => {
+                      if (url) openModal(url, label);
+                  }}
+                  className="group relative cursor-pointer w-28 h-28 sm:w-32 sm:h-32 rounded-lg overflow-hidden border border-white/20 bg-black/50 hover:border-white transition-all hover:scale-105 duration-300 shadow-lg shadow-black/50"
+                >
+                  {url && !pdf ? (
+                    <img
+                      src={url}
+                      alt={label}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="flex h-full w-full items-center justify-center bg-white/5">
+                        {pdf ? <FileText className="w-8 h-8 text-gray-400" /> : <Image className="w-8 h-8 text-gray-600" />}
                     </div>
-                    {doc.url && (
-                      <p className="text-[10px] font-mono text-gray-500 truncate">{doc.url}</p>
-                    )}
-                  </div>
-                  {doc.url && (
-                    <a
-                      href={doc.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="shrink-0 text-[10px] font-black uppercase tracking-widest text-gold-light hover:text-gold-medium border border-white/10 rounded px-3 py-1.5 hover:bg-white/5 transition-colors"
-                    >
-                      Open
-                    </a>
                   )}
-                </CardContent>
-              </Card>
-            ))}
+                  <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                      {pdf ? <FileText className="w-6 h-6 text-white" /> : <Image className="w-6 h-6 text-white" />}
+                  </div>
+                  <div className="absolute bottom-0 inset-x-0 bg-black/80 text-[9px] leading-tight min-h-[32px] flex items-center justify-center text-center text-white py-1 px-1 uppercase tracking-wider z-10 font-bold line-clamp-2">
+                      {label}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
@@ -651,45 +662,39 @@ function DocumentsTab({
       {srDocuments.length > 0 && (
         <div>
           <div className="text-xs text-gray-500 uppercase tracking-widest font-bold mb-3">Operational Documents</div>
-          <div className="space-y-2">
-            {srDocuments.map((doc) => (
-              <Card key={doc.id} className="bg-black/30 border border-white/5">
-                <CardContent className="p-4 flex items-center justify-between gap-4">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      {doc.document_status && (
-                        <span className={cn('text-[9px] font-black uppercase border rounded-sm px-2 py-0.5', statusDocBadge(doc.document_status))}>
-                          {doc.document_status}
-                        </span>
-                      )}
-                      <span className="text-xs font-bold text-white">{toLabel(doc.document_type) || 'Document'}</span>
-                      {doc.source && (
-                        <span className="text-[9px] text-gray-600 uppercase tracking-wider">{doc.source.replace(/_/g, ' ')}</span>
-                      )}
+          <div className="flex flex-wrap gap-4">
+            {srDocuments.map((doc) => {
+              const url = doc.storage_url;
+              const label = toLabel(doc.document_type) || 'Document';
+              const pdf = url ? isPdf(url) : false;
+              return (
+                <div
+                  key={doc.id}
+                  onClick={() => {
+                      if (url) openModal(url, label);
+                  }}
+                  className="group relative cursor-pointer w-28 h-28 sm:w-32 sm:h-32 rounded-lg overflow-hidden border border-white/20 bg-black/50 hover:border-white transition-all hover:scale-105 duration-300 shadow-lg shadow-black/50"
+                >
+                  {url && !pdf ? (
+                    <img
+                      src={url}
+                      alt={label}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="flex h-full w-full items-center justify-center bg-white/5">
+                        {pdf ? <FileText className="w-8 h-8 text-gray-400" /> : <Image className="w-8 h-8 text-gray-600" />}
                     </div>
-                    {doc.file_name && (
-                      <p className="text-[10px] font-mono text-gray-500 truncate">{doc.file_name}</p>
-                    )}
-                    {doc.mime_type && (
-                      <p className="text-[10px] text-gray-600">{doc.mime_type}</p>
-                    )}
-                    <p className="text-[10px] text-gray-600 mt-1 uppercase tracking-wider">
-                      Received {timeAgo(doc.received_at ?? doc.created_at)}
-                    </p>
-                  </div>
-                  {doc.storage_url && (
-                    <a
-                      href={doc.storage_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="shrink-0 text-[10px] font-black uppercase tracking-widest text-gold-light hover:text-gold-medium border border-white/10 rounded px-3 py-1.5 hover:bg-white/5 transition-colors"
-                    >
-                      Open
-                    </a>
                   )}
-                </CardContent>
-              </Card>
-            ))}
+                  <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                      {pdf ? <FileText className="w-6 h-6 text-white" /> : <Image className="w-6 h-6 text-white" />}
+                  </div>
+                  <div className="absolute bottom-0 inset-x-0 bg-black/80 text-[9px] leading-tight min-h-[32px] flex items-center justify-center text-center text-white py-1 px-1 uppercase tracking-wider z-10 font-bold line-clamp-2">
+                      {label}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
@@ -698,40 +703,85 @@ function DocumentsTab({
       {studentDocuments.length > 0 && (
         <div>
           <div className="text-xs text-gray-500 uppercase tracking-widest font-bold mb-3">Student Onboarding Documents</div>
-          <div className="space-y-2">
-            {studentDocuments.map((doc) => (
-              <Card key={doc.id} className="bg-black/30 border border-white/5">
-                <CardContent className="p-4 flex items-center justify-between gap-4">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="text-xs font-bold text-white">
-                        {(DOC_TYPE_LABELS[doc.type ?? ''] ?? toLabel(doc.type)) || 'Document'}
-                      </span>
-                      <span className="text-[9px] text-gray-600 uppercase tracking-wider">student onboarding</span>
+          <div className="flex flex-wrap gap-4">
+            {studentDocuments.map((doc) => {
+              const url = resolvedUrls[doc.id];
+              const label = (DOC_TYPE_LABELS[doc.type ?? ''] ?? toLabel(doc.type)) || 'Document';
+              const pdf = url ? isPdf(url) : false;
+              return (
+                <div
+                  key={doc.id}
+                  onClick={() => {
+                      if (url) openModal(url, label);
+                  }}
+                  className="group relative cursor-pointer w-28 h-28 sm:w-32 sm:h-32 rounded-lg overflow-hidden border border-white/20 bg-black/50 hover:border-white transition-all hover:scale-105 duration-300 shadow-lg shadow-black/50"
+                >
+                  {url && !pdf ? (
+                    <img
+                      src={url}
+                      alt={label}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="flex h-full w-full items-center justify-center bg-white/5">
+                        {pdf ? <FileText className="w-8 h-8 text-gray-400" /> : <Image className="w-8 h-8 text-gray-600" />}
                     </div>
-                    {doc.original_filename && (
-                      <p className="text-[10px] font-mono text-gray-500 truncate">{doc.original_filename}</p>
-                    )}
-                    <p className="text-[10px] text-gray-600 mt-1 uppercase tracking-wider">
-                      Uploaded {timeAgo(doc.uploaded_at)}
-                    </p>
-                  </div>
-                  {resolvedUrls[doc.id] && (
-                    <a
-                      href={resolvedUrls[doc.id]}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="shrink-0 text-[10px] font-black uppercase tracking-widest text-gold-light hover:text-gold-medium border border-white/10 rounded px-3 py-1.5 hover:bg-white/5 transition-colors"
-                    >
-                      Open
-                    </a>
                   )}
-                </CardContent>
-              </Card>
-            ))}
+                  <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                      {pdf ? <FileText className="w-6 h-6 text-white" /> : <Image className="w-6 h-6 text-white" />}
+                  </div>
+                  <div className="absolute bottom-0 inset-x-0 bg-black/80 text-[9px] leading-tight min-h-[32px] flex items-center justify-center text-center text-white py-1 px-1 uppercase tracking-wider z-10 font-bold line-clamp-2">
+                      {label}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
+
+      {/* Media modal */}
+      <Dialog open={!!mediaModal} onOpenChange={(open) => { if (!open) setMediaModal(null); }}>
+        <DialogContent
+          className="max-w-4xl w-full bg-black/95 border border-white/10 p-0 overflow-hidden"
+          aria-describedby={undefined}
+        >
+          <DialogTitle className="sr-only">
+            {mediaModal?.label ?? 'Document Preview'}
+          </DialogTitle>
+          {mediaModal && (
+            <>
+              <div className="flex items-center justify-between px-5 py-3 border-b border-white/10">
+                <span className="text-xs font-black uppercase tracking-widest text-gray-300">{mediaModal.label}</span>
+                <a
+                  href={mediaModal.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-[10px] font-black uppercase tracking-widest text-gold-light hover:text-gold-medium transition-colors"
+                >
+                  Open in tab
+                </a>
+              </div>
+              <div className="w-full" style={{ maxHeight: '80vh', overflowY: 'auto' }}>
+                {isPdf(mediaModal.url) ? (
+                  <iframe
+                    src={mediaModal.url}
+                    className="w-full"
+                    style={{ height: '80vh', border: 'none' }}
+                    title={mediaModal.label}
+                  />
+                ) : (
+                  <img
+                    src={mediaModal.url}
+                    alt={mediaModal.label}
+                    className="w-full h-auto object-contain"
+                  />
+                )}
+              </div>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* Identity files */}
       {files.length > 0 && (
@@ -742,31 +792,36 @@ function DocumentsTab({
               <Loader2 className="w-8 h-8 animate-spin text-gold-medium" />
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5">
+            <div className="flex flex-wrap gap-4">
               {files.map((file) => {
                 const url = resolvedUrls[file.id];
+                const label = FILE_TYPE_LABELS[file.file_type] ?? toLabel(file.file_type);
                 return (
-                  <Card key={file.id} className="bg-black/30 border border-white/5 overflow-hidden">
-                    <div className="aspect-[4/3] bg-white/5 flex items-center justify-center overflow-hidden">
-                      {url ? (
-                        <img
-                          src={url}
-                          alt={FILE_TYPE_LABELS[file.file_type] ?? file.file_type}
-                          className="w-full h-full object-cover"
-                        />
-                      ) : (
-                        <Image className="w-10 h-10 text-gray-600" />
-                      )}
+                  <div
+                    key={file.id}
+                    onClick={() => {
+                        if (url) openModal(url, label);
+                    }}
+                    className="group relative cursor-pointer w-28 h-28 sm:w-32 sm:h-32 rounded-lg overflow-hidden border border-white/20 bg-black/50 hover:border-white transition-all hover:scale-105 duration-300 shadow-lg shadow-black/50"
+                  >
+                    {url ? (
+                      <img
+                        src={url}
+                        alt={label}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className="flex h-full w-full items-center justify-center bg-white/5">
+                          <Image className="w-8 h-8 text-gray-600" />
+                      </div>
+                    )}
+                    <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                        <Image className="w-6 h-6 text-white" />
                     </div>
-                    <CardContent className="p-3">
-                      <p className="text-xs font-black uppercase tracking-widest text-gray-400">
-                        {FILE_TYPE_LABELS[file.file_type] ?? toLabel(file.file_type)}
-                      </p>
-                      {file.file_name && (
-                        <p className="text-[10px] text-gray-600 font-mono truncate mt-0.5">{file.file_name}</p>
-                      )}
-                    </CardContent>
-                  </Card>
+                    <span className="absolute bottom-0 inset-x-0 bg-black/80 text-[10px] text-center text-white py-1 uppercase tracking-widest z-10 font-bold">
+                        {label}
+                    </span>
+                  </div>
                 );
               })}
             </div>
@@ -1160,22 +1215,22 @@ function SurveyTab({ surveyResponses }: { surveyResponses: CrmSurveyResponse[] }
           {/* Header */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <span className="text-[10px] font-black uppercase border rounded-sm px-2 py-0.5 bg-gold-medium/10 text-gold-light border-gold-medium/20">
+              <span className="text-xs font-black uppercase border rounded-sm px-2.5 py-1 bg-gold-medium/10 text-gold-light border-gold-medium/20">
                 {resp.service_type?.toUpperCase() ?? 'UNKNOWN SERVICE'}
               </span>
               {resp.transfer_deadline_date && (
-                <span className="text-[10px] font-black uppercase border rounded-sm px-2 py-0.5 bg-amber-500/10 text-amber-300 border-amber-500/20">
+                <span className="text-xs font-black uppercase border rounded-sm px-2.5 py-1 bg-amber-500/10 text-amber-300 border-amber-500/20">
                   Transfer Deadline: {new Date(resp.transfer_deadline_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                 </span>
               )}
               {resp.cos_i94_expiry_date && (
-                <span className="text-[10px] font-black uppercase border rounded-sm px-2 py-0.5 bg-red-500/10 text-red-300 border-red-500/20">
+                <span className="text-xs font-black uppercase border rounded-sm px-2.5 py-1 bg-red-500/10 text-red-300 border-red-500/20">
                   I-94 Expiry: {new Date(resp.cos_i94_expiry_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                 </span>
               )}
             </div>
             {resp.completed_at && (
-              <span className="text-[10px] text-gray-600">
+              <span className="text-xs text-gray-500">
                 Completed {fmtDate(resp.completed_at)}
               </span>
             )}
@@ -1190,22 +1245,22 @@ function SurveyTab({ surveyResponses }: { surveyResponses: CrmSurveyResponse[] }
 
             return (
               <Card key={section.key} className="bg-black/30 border border-white/5">
-                <CardHeader className="pb-2 pt-4 px-5">
-                  <CardTitle className="text-xs font-black uppercase tracking-widest text-gold-medium">
+                <CardHeader className="pb-3 pt-5 px-6">
+                  <CardTitle className="text-sm font-black uppercase tracking-widest text-gold-medium">
                     Section {section.key} — {section.title}
                   </CardTitle>
                 </CardHeader>
-                <CardContent className="px-5 pb-4">
-                  <div className="space-y-2">
+                <CardContent className="px-6 pb-5">
+                  <div className="space-y-1">
                     {sectionQuestions.map((q) => {
                       const raw = answers[q.id];
                       if (raw === undefined) return null;
                       return (
-                        <div key={q.id} className="flex items-start justify-between gap-4 py-1.5 border-b border-white/5 last:border-0">
-                          <span className="text-[11px] text-gray-400 leading-snug max-w-[55%]">
+                        <div key={q.id} className="flex items-start justify-between gap-6 py-2.5 border-b border-white/5 last:border-0">
+                          <span className="text-sm text-gray-400 leading-snug max-w-[55%]">
                             {QUESTION_LABEL[q.id] ?? q.id}
                           </span>
-                          <span className="text-[11px] text-white font-medium text-right">
+                          <span className="text-sm text-white font-semibold text-right">
                             {formatAnswerValue(raw as string | string[])}
                           </span>
                         </div>

@@ -11,9 +11,6 @@ import type { OnboardingStep } from './types';
 const SelectionFeeStep = React.lazy(() =>
   import('./components/SelectionFeeStep').then(m => ({ default: m.SelectionFeeStep }))
 );
-const IdentityVerificationStep = React.lazy(() =>
-  import('./components/IdentityVerificationStep').then(m => ({ default: m.IdentityVerificationStep }))
-);
 const MigmaSurveyStep = React.lazy(() =>
   import('./components/MigmaSurveyStep').then(m => ({ default: m.MigmaSurveyStep }))
 );
@@ -33,9 +30,11 @@ const WaitingApprovalStep = React.lazy(() =>
   import('./components/WaitingApprovalStep').then(m => ({ default: m.WaitingApprovalStep }))
 );
 
-const normalizeLegacyStep = (step: OnboardingStep | null | undefined): OnboardingStep | null => {
+const normalizeLegacyStep = (step: OnboardingStep | string | null | undefined): OnboardingStep | null => {
   if (!step) return null;
-  return step === 'process_type' ? 'documents_upload' : step;
+  if (step === 'process_type') return 'documents_upload';
+  if (step === 'identity_verification') return 'selection_survey';
+  return step as OnboardingStep;
 };
 
 const StepLoader = () => (
@@ -77,7 +76,7 @@ const StudentOnboarding: React.FC = () => {
   }, [authLoading, user, navigate]);
 
   const VALID_STEPS: OnboardingStep[] = [
-    'selection_fee', 'identity_verification', 'selection_survey',
+    'selection_fee', 'selection_survey',
     'scholarship_selection', 'documents_upload',
     'payment', 'placement_fee', 'my_applications',
   ];
@@ -113,7 +112,6 @@ const StudentOnboarding: React.FC = () => {
 
   const getOrderedSteps = useCallback((): OnboardingStep[] => [
     'selection_fee',
-    'identity_verification',
     'selection_survey',
     'scholarship_selection',
     'documents_upload',
@@ -141,7 +139,6 @@ const StudentOnboarding: React.FC = () => {
 
   const completedSteps: OnboardingStep[] = [];
   if (state.selectionFeePaid) completedSteps.push('selection_fee');
-  if (state.identityVerified) completedSteps.push('identity_verification');
   if (state.selectionSurveyPassed) completedSteps.push('selection_survey');
   if (state.scholarshipsSelected) completedSteps.push('scholarship_selection');
   if (state.documentsUploaded) completedSteps.push('documents_upload');
@@ -196,7 +193,6 @@ const StudentOnboarding: React.FC = () => {
         {/* Step content */}
         <Suspense fallback={<StepLoader />}>
           {state.currentStep === 'selection_fee' && <SelectionFeeStep {...stepProps} />}
-          {state.currentStep === 'identity_verification' && <IdentityVerificationStep {...stepProps} />}
           {state.currentStep === 'selection_survey' && <MigmaSurveyStep {...stepProps} />}
           {state.currentStep === 'scholarship_selection' && <ScholarshipSelectionStep {...stepProps} />}
           {state.currentStep === 'documents_upload' && <DocumentsUploadStep {...stepProps} />}

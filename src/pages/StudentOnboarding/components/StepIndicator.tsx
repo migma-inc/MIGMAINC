@@ -5,18 +5,18 @@ import type { OnboardingStep } from '../types';
 
 const STEPS: { key: OnboardingStep; labelKey: string }[] = [
   { key: 'identity_verification', labelKey: 'student_onboarding.steps.profile' },
-  { key: 'selection_survey',      labelKey: 'student_onboarding.steps.survey' },
+  { key: 'selection_survey', labelKey: 'student_onboarding.steps.survey' },
   { key: 'scholarship_selection', labelKey: 'student_onboarding.steps.scholarship' },
-  { key: 'documents_upload',      labelKey: 'student_onboarding.steps.documents' },
-  { key: 'payment',               labelKey: 'student_onboarding.steps.payment' },
-  { key: 'placement_fee',         labelKey: 'student_onboarding.steps.placement_fee' },
-  { key: 'my_applications',       labelKey: 'student_onboarding.steps.my_applications' },
+  { key: 'documents_upload', labelKey: 'student_onboarding.steps.documents' },
+  { key: 'payment', labelKey: 'student_onboarding.steps.payment' },
+  { key: 'placement_fee', labelKey: 'student_onboarding.steps.placement_fee' },
+  { key: 'my_applications', labelKey: 'student_onboarding.steps.my_applications' },
 ];
 
 const STEP_ALIAS: Partial<Record<OnboardingStep, OnboardingStep>> = {
-  process_type:      'documents_upload',
+  process_type: 'documents_upload',
   reinstatement_fee: 'placement_fee',
-  completed:         'my_applications',
+  completed: 'my_applications',
 };
 
 interface StepIndicatorProps {
@@ -69,11 +69,10 @@ export const StepIndicator: React.FC<StepIndicatorProps> = ({ currentStep, compl
                     <CheckCircle className="w-5 h-5 text-gold-medium" />
                   </div>
                 ) : (
-                  <div className={`w-8 h-8 rounded-full flex items-center justify-center border-2 transition-all ${
-                    isCurrent
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center border-2 transition-all ${isCurrent
                       ? 'bg-gold-medium border-gold-medium shadow-lg shadow-gold-medium/20'
                       : 'bg-transparent border-white/20'
-                  }`}>
+                    }`}>
                     {isCurrent
                       ? <div className="w-2 h-2 bg-black rounded-full animate-pulse" />
                       : <span className="text-xs font-bold text-gray-600">{index + 1}</span>
@@ -81,10 +80,9 @@ export const StepIndicator: React.FC<StepIndicatorProps> = ({ currentStep, compl
                   </div>
                 )}
               </div>
-              <span className={`text-center text-xs leading-tight max-w-[80px] font-medium ${
-                isCurrent   ? 'text-gold-medium font-bold' :
-                isCompleted ? 'text-gold-medium/60'        : 'text-gray-600'
-              }`}>
+              <span className={`text-center text-xs leading-tight max-w-[80px] font-medium ${isCurrent ? 'text-gold-medium font-bold' :
+                  isCompleted ? 'text-gold-medium/60' : 'text-gray-600'
+                }`}>
                 {t(step.labelKey)}
               </span>
             </div>
