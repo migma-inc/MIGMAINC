@@ -16,7 +16,14 @@
       "Bash(rtk git:*)",
       "Bash(rtk tsc:*)",
       "Bash(rtk next:*)",
-      "Bash(npm run:*)"
+      "Bash(npm run:*)",
+      "Bash(node:*)",
+      "Bash(grep:*)",
+      "Bash(supabase:*)",
+      "Bash(psql:*)",
+      "Bash(cmdkey /list)",
+      "Bash(powershell -Command ':*)",
+      "Bash(powershell:*)"
     ]
   }
 }

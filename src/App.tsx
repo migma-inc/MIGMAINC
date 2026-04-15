@@ -47,6 +47,7 @@ import { SellerCommissions } from './pages/seller/SellerCommissions';
 import { SellerFunnel } from './pages/seller/SellerFunnel';
 import { SellerOrders } from './pages/seller/SellerOrders';
 import { SellerLinks } from './pages/seller/SellerLinks';
+import { SellerStudentLinks } from './pages/seller/SellerStudentLinks';
 import { SellerLeads } from './pages/seller/SellerLeads';
 import { SellerOrderDetail } from './pages/SellerOrderDetail';
 import { SellerZelleApprovalPage } from './pages/seller/SellerZelleApprovalPage';
@@ -137,6 +138,7 @@ function App() {
           <Route path="funnel" element={<SellerFunnel />} />
           <Route path="orders" element={<SellerOrders />} />
           <Route path="links" element={<SellerLinks />} />
+          <Route path="student-links" element={<SellerStudentLinks />} />
           <Route path="leads" element={<SellerLeads />} />
           <Route path="zelle-approvals" element={<SellerZelleApprovalPage />} />
         </Route>
@@ -182,6 +184,7 @@ function App() {
           <Route path="profile" element={<AdminProfile />} />
           <Route path="send-existing-contracts" element={<SendExistingContracts />} />
           <Route path="links" element={<SellerLinks />} />
+          <Route path="student-links" element={<SellerStudentLinks />} />
           <Route path="create-service" element={<CreateServiceLink />} />
           <Route path="users" element={<AdminUsers />} />
           <Route path="users/:profileId" element={<AdminUserDetail />} />

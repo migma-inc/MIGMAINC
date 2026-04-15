@@ -55,7 +55,7 @@ export function Sidebar({ className, isMobileOpen = false, onMobileClose }: Side
   );
 
   const [isLinksOpen, setIsLinksOpen] = useState(
-    location.pathname.includes('/dashboard/links') || location.pathname.includes('/dashboard/create-service') || location.pathname.includes('/dashboard/tracking')
+    location.pathname.includes('/dashboard/links') || location.pathname.includes('/dashboard/student-links') || location.pathname.includes('/dashboard/create-service') || location.pathname.includes('/dashboard/tracking')
   );
   const [isCrmOpen, setIsCrmOpen] = useState(
     location.pathname.includes('/dashboard/users') ||
@@ -360,7 +360,7 @@ export function Sidebar({ className, isMobileOpen = false, onMobileClose }: Side
             onClick={() => setIsLinksOpen(!isLinksOpen)}
             className={cn(
               'w-full flex items-center justify-between px-4 py-3 rounded-lg transition-colors group border border-transparent',
-              (location.pathname.includes('/dashboard/links') || location.pathname.includes('/dashboard/create-service') || location.pathname.includes('/dashboard/tracking'))
+              (location.pathname.includes('/dashboard/links') || location.pathname.includes('/dashboard/student-links') || location.pathname.includes('/dashboard/create-service') || location.pathname.includes('/dashboard/tracking'))
                 ? 'bg-gold-medium/5 text-gold-light font-medium'
                 : 'text-gray-400 hover:bg-gold-medium/10 hover:text-gold-light'
             )}
@@ -386,6 +386,19 @@ export function Sidebar({ className, isMobileOpen = false, onMobileClose }: Side
               >
                 <Activity className="w-3.5 h-3.5" />
                 <span>Generate Links</span>
+              </Link>
+              <Link
+                to="/dashboard/student-links"
+                onClick={onMobileClose}
+                className={cn(
+                  'flex items-center gap-3 px-4 py-2 rounded-lg text-sm transition-colors',
+                  location.pathname === '/dashboard/student-links'
+                    ? 'text-gold-light font-medium'
+                    : 'text-gray-500 hover:text-gold-light'
+                )}
+              >
+                <GraduationCap className="w-3.5 h-3.5" />
+                <span>Student Links</span>
               </Link>
               <Link
                 to="/dashboard/create-service"

@@ -2,17 +2,24 @@
  * Página de Login do Aluno — Migma
  * Autentica diretamente no Auth do Supabase da Migma.
  */
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Mail, Lock, AlertCircle, Loader2, Eye, EyeOff, ArrowLeft, CheckCircle } from 'lucide-react';
 import { useStudentAuth } from '../contexts/StudentAuthContext';
 import { supabase } from '../lib/supabase';
+import { saveSellerRef } from '../lib/referral-tracking';
 
 const StudentLogin: React.FC = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { signIn } = useStudentAuth();
   const [email, setEmail] = useState(searchParams.get('email') ?? '');
+
+  // Persist seller ref so it survives the login redirect
+  useEffect(() => {
+    const ref = searchParams.get('ref') || searchParams.get('seller_id');
+    if (ref) saveSellerRef(ref);
+  }, []);
   const [password, setPassword] = useState('');
   const justRegistered = searchParams.get('registered') === '1';
   const [showPassword, setShowPassword] = useState(false);

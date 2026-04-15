@@ -7,6 +7,7 @@ import {
   Upload, FileText, CheckCircle, Loader2,
   AlertCircle, ArrowRight,
 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { useStudentAuth } from '../../../contexts/StudentAuthContext';
 import { supabase } from '../../../lib/supabase';
 import type { StepProps } from '../types';
@@ -14,20 +15,20 @@ import type { StepProps } from '../types';
 const DOCUMENT_TYPES = [
   {
     key: 'passport',
-    label: 'Passport',
-    description: 'Upload a clear photo or scan of your passport (biographical page).',
+    labelKey: 'student_onboarding.documents.passport_label',
+    descKey: 'student_onboarding.documents.passport_desc',
     required: true,
   },
   {
     key: 'diploma',
-    label: 'High School Diploma',
-    description: 'Upload your high school diploma or equivalent certificate.',
+    labelKey: 'student_onboarding.documents.diploma_label',
+    descKey: 'student_onboarding.documents.diploma_desc',
     required: true,
   },
   {
     key: 'funds_proof',
-    label: 'Proof of Funds',
-    description: 'Bank statements showing minimum $22,000 USD (+ $5,000 per dependent).',
+    labelKey: 'student_onboarding.documents.funds_label',
+    descKey: 'student_onboarding.documents.funds_desc',
     required: true,
   },
 ];
@@ -41,6 +42,7 @@ interface UploadedDoc {
 }
 
 export const DocumentsUploadStep: React.FC<StepProps> = ({ onNext }) => {
+  const { t } = useTranslation();
   const { user, userProfile, updateUserProfile } = useStudentAuth();
   const [selectedFiles, setSelectedFiles] = useState<Record<string, File | null>>({});
   const [uploadingFiles, setUploadingFiles] = useState<Record<string, boolean>>({});
@@ -187,10 +189,10 @@ export const DocumentsUploadStep: React.FC<StepProps> = ({ onNext }) => {
   return (
     <div className="space-y-8 pb-12 max-w-4xl mx-auto px-4">
       <div className="space-y-1">
-        <p className="text-xs font-black uppercase tracking-widest text-gold-medium">Etapa 6</p>
-        <h2 className="text-2xl font-black text-white uppercase tracking-tight">Upload Documents</h2>
+        <p className="text-xs font-black uppercase tracking-widest text-gold-medium">{t('student_onboarding.documents.step_label')}</p>
+        <h2 className="text-2xl font-black text-white uppercase tracking-tight">{t('student_onboarding.documents.title')}</h2>
         <p className="text-sm text-gray-400 font-medium">
-          Upload the required documents to proceed with your application.
+          {t('student_onboarding.documents.subtitle')}
         </p>
       </div>
 
@@ -198,7 +200,7 @@ export const DocumentsUploadStep: React.FC<StepProps> = ({ onNext }) => {
         <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-2xl p-4 flex items-center gap-3">
           <CheckCircle className="w-5 h-5 text-emerald-400 flex-shrink-0" />
           <p className="text-emerald-400 font-medium text-sm">
-            Documents submitted successfully. Our team is reviewing them.
+            {t('student_onboarding.documents.locked_notice')}
           </p>
         </div>
       )}
@@ -229,10 +231,10 @@ export const DocumentsUploadStep: React.FC<StepProps> = ({ onNext }) => {
                   </div>
                   <div className="flex-1">
                     <div className="flex items-center gap-2">
-                      <span className="font-bold text-white">{doc.label}</span>
-                      {doc.required && <span className="text-xs text-red-400 font-medium">Required</span>}
+                      <span className="font-bold text-white">{t(doc.labelKey)}</span>
+                      {doc.required && <span className="text-xs text-red-400 font-medium">*</span>}
                     </div>
-                    <p className="text-sm text-gray-500 mt-0.5">{doc.description}</p>
+                    <p className="text-sm text-gray-500 mt-0.5">{t(doc.descKey)}</p>
 
                     {uploaded && (
                       <div className="mt-2 flex items-center gap-1.5 text-sm text-emerald-400 font-medium">
@@ -256,7 +258,7 @@ export const DocumentsUploadStep: React.FC<StepProps> = ({ onNext }) => {
                           className="flex items-center gap-1.5 text-sm border border-white/10 bg-white/5 rounded-lg px-3 py-1.5 hover:border-white/20 transition-colors font-medium text-gray-300"
                         >
                           <Upload className="w-4 h-4" />
-                          {uploaded ? 'Replace' : 'Select File'}
+                          {uploaded ? t('student_onboarding.documents.change') : t('student_onboarding.documents.upload')}
                         </button>
                         {selectedFile && (
                           <span className="text-sm text-gray-500 truncate max-w-[200px]">
@@ -297,10 +299,10 @@ export const DocumentsUploadStep: React.FC<StepProps> = ({ onNext }) => {
             className="ml-auto flex items-center gap-2 bg-gold-medium hover:bg-gold-dark text-black py-3 px-8 rounded-xl transition-colors font-black uppercase tracking-widest disabled:opacity-40 disabled:cursor-not-allowed"
           >
             {saving
-              ? <><Loader2 className="w-4 h-4 animate-spin" /> Uploading...</>
+              ? <><Loader2 className="w-4 h-4 animate-spin" /> {t('student_onboarding.documents.uploading')}</>
               : allRequiredUploaded
-              ? <><ArrowRight className="w-4 h-4" /> Continue</>
-              : <><Upload className="w-4 h-4" /> Upload Files</>
+              ? <><ArrowRight className="w-4 h-4" /> {t('student_onboarding.selection_fee.continue')}</>
+              : <><Upload className="w-4 h-4" /> {t('student_onboarding.documents.submit')}</>
             }
           </button>
         </div>
@@ -311,7 +313,7 @@ export const DocumentsUploadStep: React.FC<StepProps> = ({ onNext }) => {
           onClick={onNext}
           className="flex items-center gap-2 bg-gold-medium hover:bg-gold-dark text-black py-3 px-8 rounded-xl transition-colors font-black uppercase tracking-widest"
         >
-          <ArrowRight className="w-4 h-4" /> Continue
+          <ArrowRight className="w-4 h-4" /> {t('student_onboarding.selection_fee.continue')}
         </button>
       )}
     </div>

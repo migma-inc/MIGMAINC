@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { useStudentAuth } from '../../contexts/StudentAuthContext';
 import { useOnboardingProgress } from './hooks/useOnboardingProgress';
 import { StepIndicator } from './components/StepIndicator';
+import { LanguageSelector } from '../../components/LanguageSelector';
 import type { OnboardingStep } from './types';
 
 const SelectionFeeStep = React.lazy(() =>
@@ -42,20 +43,22 @@ const StepLoader = () => (
   </div>
 );
 
-const CompletedScreen = () => (
-  <div className="min-h-screen flex flex-col items-center justify-center px-4 text-center">
-    <div className="w-20 h-20 bg-emerald-100 rounded-full flex items-center justify-center mb-6">
-      <span className="text-4xl">🎓</span>
+const CompletedScreen = () => {
+  const { t } = useTranslation();
+  return (
+    <div className="min-h-screen flex flex-col items-center justify-center px-4 text-center">
+      <div className="w-20 h-20 bg-emerald-100 rounded-full flex items-center justify-center mb-6">
+        <span className="text-4xl">🎓</span>
+      </div>
+      <h1 className="text-4xl font-black text-slate-900 mb-3 uppercase tracking-tighter">
+        {t('student_onboarding.completed.title')}
+      </h1>
+      <p className="text-lg text-slate-600 max-w-md">
+        {t('student_onboarding.completed.subtitle')}
+      </p>
     </div>
-    <h1 className="text-4xl font-black text-slate-900 mb-3 uppercase tracking-tighter">
-      Process Completed!
-    </h1>
-    <p className="text-lg text-slate-600 max-w-md">
-      Congratulations! Your application process is complete.
-      The team will be in touch with next steps.
-    </p>
-  </div>
-);
+  );
+};
 
 const StudentOnboarding: React.FC = () => {
   const { user, loading: authLoading, signOut } = useStudentAuth();
@@ -169,16 +172,19 @@ const StudentOnboarding: React.FC = () => {
             onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} 
           />
           
-          <button
-            onClick={() => {
-              signOut();
-              navigate('/student/login');
-            }}
-            className="px-4 py-2 flex items-center gap-2 bg-white/5 border border-white/10 text-gray-400 hover:bg-white/10 hover:text-white rounded-xl transition-all text-sm font-semibold"
-          >
-            <LogOut className="w-4 h-4" />
-            <span>{t('admin_header.logout', 'Sair')}</span>
-          </button>
+          <div className="flex items-center gap-3">
+            <LanguageSelector />
+            <button
+              onClick={() => {
+                signOut();
+                navigate('/student/login');
+              }}
+              className="px-4 py-2 flex items-center gap-2 bg-white/5 border border-white/10 text-gray-400 hover:bg-white/10 hover:text-white rounded-xl transition-all text-sm font-semibold"
+            >
+              <LogOut className="w-4 h-4" />
+              <span>{t('admin_header.logout', 'Sair')}</span>
+            </button>
+          </div>
         </div>
 
         {/* Step indicator */}

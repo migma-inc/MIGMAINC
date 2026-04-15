@@ -7,6 +7,7 @@ import {
   Clock, CheckCircle, Building, GraduationCap, FileText,
   RefreshCw, AlertCircle, Timer,
 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { useStudentAuth } from '../../../contexts/StudentAuthContext';
 import { supabase } from '../../../lib/supabase';
 import type { StepProps } from '../types';
@@ -24,14 +25,15 @@ interface Application {
   };
 }
 
-const STATUS_LABELS: Record<string, { label: string; color: string }> = {
-  pending:     { label: 'Under Review',  color: 'text-amber-400 bg-amber-500/10 border-amber-500/20' },
-  in_review:   { label: 'In Review',     color: 'text-gold-medium bg-gold-medium/10 border-gold-medium/20' },
-  accepted:    { label: 'Accepted',      color: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20' },
-  rejected:    { label: 'Not Approved',  color: 'text-red-400 bg-red-500/10 border-red-500/20' },
+const STATUS_LABELS: Record<string, { labelKey: string; color: string }> = {
+  pending:     { labelKey: 'student_onboarding.waiting.status_pending',   color: 'text-amber-400 bg-amber-500/10 border-amber-500/20' },
+  in_review:   { labelKey: 'student_onboarding.waiting.status_in_review', color: 'text-gold-medium bg-gold-medium/10 border-gold-medium/20' },
+  accepted:    { labelKey: 'student_onboarding.waiting.status_accepted',  color: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20' },
+  rejected:    { labelKey: 'student_onboarding.waiting.status_rejected',  color: 'text-red-400 bg-red-500/10 border-red-500/20' },
 };
 
 export const WaitingApprovalStep: React.FC<StepProps> = () => {
+  const { t } = useTranslation();
   const { user, userProfile } = useStudentAuth();
   const [applications, setApplications] = useState<Application[]>([]);
   const [notifications, setNotifications] = useState<any[]>([]);
@@ -86,7 +88,7 @@ export const WaitingApprovalStep: React.FC<StepProps> = () => {
       const days = Math.ceil((target.getTime() - today.getTime()) / 86_400_000);
       return {
         type: 'transfer' as const,
-        label: 'Transfer Deadline',
+        label: t('student_onboarding.waiting.deadline_transfer'),
         days,
         date: target.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
         alertThresholds: [30, 15, 7, 1],
@@ -100,7 +102,7 @@ export const WaitingApprovalStep: React.FC<StepProps> = () => {
       const days = Math.ceil((target.getTime() - today.getTime()) / 86_400_000);
       return {
         type: 'cos' as const,
-        label: 'I-94 / Status Expiry',
+        label: t('student_onboarding.waiting.deadline_cos'),
         days,
         date: target.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
         alertThresholds: [60, 30, 15, 7],
@@ -120,10 +122,10 @@ export const WaitingApprovalStep: React.FC<StepProps> = () => {
   return (
     <div className="space-y-8 pb-12 max-w-4xl mx-auto px-4">
       <div className="space-y-1">
-        <p className="text-xs font-black uppercase tracking-widest text-gold-medium">My Applications</p>
-        <h2 className="text-2xl font-black text-white uppercase tracking-tight">Application Status</h2>
+        <p className="text-xs font-black uppercase tracking-widest text-gold-medium">{t('student_onboarding.waiting.section_label')}</p>
+        <h2 className="text-2xl font-black text-white uppercase tracking-tight">{t('student_onboarding.waiting.title')}</h2>
         <p className="text-sm text-gray-400 font-medium">
-          Our team is working on your applications. We'll notify you with updates.
+          {t('student_onboarding.waiting.subtitle')}
         </p>
       </div>
 
@@ -159,12 +161,12 @@ export const WaitingApprovalStep: React.FC<StepProps> = () => {
                 </span>
                 {deadlineUrgency === 'critical' && (
                   <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-red-500/20 text-red-400 border border-red-500/30">
-                    Urgente
+                    {t('student_onboarding.waiting.urgency_critical')}
                   </span>
                 )}
                 {deadlineUrgency === 'high' && (
                   <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/30">
-                    Atenção
+                    {t('student_onboarding.waiting.urgency_high')}
                   </span>
                 )}
               </div>
@@ -176,7 +178,7 @@ export const WaitingApprovalStep: React.FC<StepProps> = () => {
               }`}>
                 {deadline.days > 0 ? deadline.days : 0}
                 <span className="text-base font-semibold text-gray-500 ml-1">
-                  {deadline.days === 1 ? 'day left' : 'days left'}
+                  {deadline.days === 1 ? t('student_onboarding.waiting.days_left_one') : t('student_onboarding.waiting.days_left_other')}
                 </span>
               </div>
               <div className="text-sm text-gray-500 mt-0.5">{deadline.date}</div>
@@ -184,8 +186,8 @@ export const WaitingApprovalStep: React.FC<StepProps> = () => {
                 <div className="mt-2 text-sm font-semibold text-red-400 flex items-center gap-1.5">
                   <AlertCircle className="w-4 h-4" />
                   {deadline.type === 'transfer'
-                    ? 'Transfer deadline has passed. Contact your advisor immediately.'
-                    : 'I-94 / status has expired. Contact your advisor immediately.'}
+                    ? t('student_onboarding.waiting.deadline_passed_transfer')
+                    : t('student_onboarding.waiting.deadline_passed_cos')}
                 </div>
               )}
               {deadline.days > 0 && deadlineUrgency !== 'ok' && (
@@ -196,8 +198,8 @@ export const WaitingApprovalStep: React.FC<StepProps> = () => {
                 }`}>
                   <AlertCircle className="w-4 h-4 flex-shrink-0" />
                   {deadline.type === 'transfer'
-                    ? 'Your transfer deadline is approaching. Ensure all documents are submitted.'
-                    : 'Your I-94 / status expiry is approaching. Contact your advisor.'}
+                    ? t('student_onboarding.waiting.deadline_approaching_transfer')
+                    : t('student_onboarding.waiting.deadline_approaching_cos')}
                 </div>
               )}
             </div>
@@ -220,17 +222,17 @@ export const WaitingApprovalStep: React.FC<StepProps> = () => {
           }
           <div>
             <div className="font-bold text-white">
-              {docsStatus === 'approved' ? 'Documents Approved!' :
-               docsStatus === 'rejected' ? 'Documents Need Attention' :
-               docsStatus === 'under_review' ? 'Documents Under Review' :
-               'Documents Submitted'}
+              {docsStatus === 'approved' ? t('student_onboarding.waiting.docs_approved') :
+               docsStatus === 'rejected' ? t('student_onboarding.waiting.docs_rejected') :
+               docsStatus === 'under_review' ? t('student_onboarding.waiting.docs_under_review') :
+               t('student_onboarding.waiting.docs_submitted')}
             </div>
             <div className="text-sm text-gray-400 mt-0.5">
               {docsStatus === 'approved'
-                ? 'Great news! Your documents have been approved. The university acceptance process is underway.'
+                ? t('student_onboarding.waiting.docs_approved_desc')
                 : docsStatus === 'rejected'
-                ? 'Some documents were not approved. Our team will contact you with instructions.'
-                : 'Your documents are being reviewed by our team. This typically takes 3-5 business days.'}
+                ? t('student_onboarding.waiting.docs_rejected_desc')
+                : t('student_onboarding.waiting.docs_review_desc')}
             </div>
           </div>
         </div>
@@ -239,13 +241,13 @@ export const WaitingApprovalStep: React.FC<StepProps> = () => {
       {/* Candidaturas */}
       <div className="space-y-4">
         <div className="flex items-center justify-between">
-          <h3 className="text-base font-bold text-white">Your Applications</h3>
+          <h3 className="text-base font-bold text-white">{t('student_onboarding.waiting.applications_title')}</h3>
           <button
             onClick={fetchData}
             className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-300 transition-colors"
           >
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-            Refresh
+            {t('student_onboarding.waiting.refresh')}
           </button>
         </div>
 
@@ -256,7 +258,7 @@ export const WaitingApprovalStep: React.FC<StepProps> = () => {
         ) : applications.length === 0 ? (
           <div className="bg-white/5 border border-white/10 rounded-2xl p-8 text-center">
             <GraduationCap className="w-12 h-12 text-gray-700 mx-auto mb-3" />
-            <p className="text-gray-500 font-medium">No applications found yet.</p>
+            <p className="text-gray-500 font-medium">{t('student_onboarding.waiting.no_applications')}</p>
           </div>
         ) : (
           applications.map(app => {
@@ -274,7 +276,7 @@ export const WaitingApprovalStep: React.FC<StepProps> = () => {
                   <div className="text-sm text-gray-500">{universityName}</div>
                 </div>
                 <span className={`text-xs font-semibold px-2.5 py-1 rounded-full border ${statusInfo.color}`}>
-                  {statusInfo.label}
+                  {t(statusInfo.labelKey)}
                 </span>
               </div>
             );
@@ -287,7 +289,7 @@ export const WaitingApprovalStep: React.FC<StepProps> = () => {
         <div className="space-y-3">
           <h3 className="text-base font-bold text-white flex items-center gap-2">
             <FileText className="w-5 h-5 text-gold-medium" />
-            Updates
+            {t('student_onboarding.waiting.updates_title')}
           </h3>
           {notifications.slice(0, 5).map(notif => (
             <div key={notif.id} className={`border rounded-2xl p-4 ${!notif.read_at ? 'border-gold-medium/20 bg-gold-medium/5' : 'border-white/10 bg-white/5'}`}>
@@ -305,7 +307,7 @@ export const WaitingApprovalStep: React.FC<StepProps> = () => {
 
       <div className="text-xs text-gray-600 text-center flex items-center justify-center gap-1">
         <Clock className="w-3 h-3" />
-        Last updated: {lastRefresh.toLocaleTimeString()}
+        {t('student_onboarding.waiting.last_updated', { time: lastRefresh.toLocaleTimeString() })}
       </div>
     </div>
   );

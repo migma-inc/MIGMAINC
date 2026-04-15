@@ -1,21 +1,22 @@
 import React from 'react';
 import { CheckCircle } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import type { OnboardingStep } from '../types';
 
-const STEPS: { key: OnboardingStep; label: string }[] = [
-  { key: 'selection_fee',    label: 'Selection Fee' },
-  { key: 'selection_survey', label: 'Survey' },
-  { key: 'scholarship_selection', label: 'Scholarship' },
-  { key: 'documents_upload',      label: 'Documents' },
-  { key: 'payment',               label: 'Application Fee' },
-  { key: 'placement_fee',         label: 'Placement Fee' },
-  { key: 'my_applications',       label: 'My Applications' },
+const STEPS: { key: OnboardingStep; labelKey: string }[] = [
+  { key: 'identity_verification', labelKey: 'student_onboarding.steps.profile' },
+  { key: 'selection_survey', labelKey: 'student_onboarding.steps.survey' },
+  { key: 'scholarship_selection', labelKey: 'student_onboarding.steps.scholarship' },
+  { key: 'documents_upload', labelKey: 'student_onboarding.steps.documents' },
+  { key: 'payment', labelKey: 'student_onboarding.steps.payment' },
+  { key: 'placement_fee', labelKey: 'student_onboarding.steps.placement_fee' },
+  { key: 'my_applications', labelKey: 'student_onboarding.steps.my_applications' },
 ];
 
 const STEP_ALIAS: Partial<Record<OnboardingStep, OnboardingStep>> = {
-  process_type:      'documents_upload',
+  process_type: 'documents_upload',
   reinstatement_fee: 'placement_fee',
-  completed:         'my_applications',
+  completed: 'my_applications',
 };
 
 interface StepIndicatorProps {
@@ -24,6 +25,7 @@ interface StepIndicatorProps {
 }
 
 export const StepIndicator: React.FC<StepIndicatorProps> = ({ currentStep, completedSteps }) => {
+  const { t } = useTranslation();
   const resolvedStep = STEP_ALIAS[currentStep] ?? currentStep;
   const currentIndex = STEPS.findIndex(s => s.key === resolvedStep);
   const totalSteps = STEPS.length;
@@ -42,10 +44,10 @@ export const StepIndicator: React.FC<StepIndicatorProps> = ({ currentStep, compl
       {/* Counter + current step label */}
       <div className="flex items-center justify-between text-xs mb-4 px-1">
         <span className="font-bold tracking-widest uppercase text-gray-500">
-          Step {currentIndex + 1} of {totalSteps}
+          {t('student_onboarding.steps.counter', { current: currentIndex + 1, total: totalSteps })}
         </span>
         <span className="font-black text-gold-medium uppercase tracking-tight">
-          {STEPS[currentIndex]?.label ?? ''}
+          {STEPS[currentIndex] ? t(STEPS[currentIndex].labelKey) : ''}
         </span>
       </div>
 
@@ -67,11 +69,10 @@ export const StepIndicator: React.FC<StepIndicatorProps> = ({ currentStep, compl
                     <CheckCircle className="w-5 h-5 text-gold-medium" />
                   </div>
                 ) : (
-                  <div className={`w-8 h-8 rounded-full flex items-center justify-center border-2 transition-all ${
-                    isCurrent
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center border-2 transition-all ${isCurrent
                       ? 'bg-gold-medium border-gold-medium shadow-lg shadow-gold-medium/20'
                       : 'bg-transparent border-white/20'
-                  }`}>
+                    }`}>
                     {isCurrent
                       ? <div className="w-2 h-2 bg-black rounded-full animate-pulse" />
                       : <span className="text-xs font-bold text-gray-600">{index + 1}</span>
@@ -79,11 +80,10 @@ export const StepIndicator: React.FC<StepIndicatorProps> = ({ currentStep, compl
                   </div>
                 )}
               </div>
-              <span className={`text-center text-xs leading-tight max-w-[80px] font-medium ${
-                isCurrent   ? 'text-gold-medium font-bold' :
-                isCompleted ? 'text-gold-medium/60'        : 'text-gray-600'
-              }`}>
-                {step.label}
+              <span className={`text-center text-xs leading-tight max-w-[80px] font-medium ${isCurrent ? 'text-gold-medium font-bold' :
+                  isCompleted ? 'text-gold-medium/60' : 'text-gray-600'
+                }`}>
+                {t(step.labelKey)}
               </span>
             </div>
           );

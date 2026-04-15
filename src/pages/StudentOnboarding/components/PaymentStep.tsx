@@ -7,6 +7,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import {
   CheckCircle, Building, Shield, Loader2, DollarSign,
 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { useStudentAuth } from '../../../contexts/StudentAuthContext';
 import { supabase } from '../../../lib/supabase';
 import { calculateCardAmountWithFees } from '../../../utils/stripeFeeCalculator';
@@ -27,6 +28,7 @@ interface ApplicationWithScholarship {
 }
 
 export const PaymentStep: React.FC<StepProps> = ({ onNext }) => {
+  const { t } = useTranslation();
   const { userProfile } = useStudentAuth();
   const [applications, setApplications] = useState<ApplicationWithScholarship[]>([]);
   const [loading, setLoading] = useState(true);
@@ -78,14 +80,14 @@ export const PaymentStep: React.FC<StepProps> = ({ onNext }) => {
             <CheckCircle className="w-10 h-10 text-emerald-400" />
           </div>
           <h3 className="text-2xl font-black text-white mb-2 uppercase tracking-tight">
-            Application Fee Paid!
+            {t('student_onboarding.payment.paid_title')}
           </h3>
-          <p className="text-gray-400 mb-6">Your application fee has been confirmed.</p>
+          <p className="text-gray-400 mb-6">{t('student_onboarding.payment.paid_desc')}</p>
           <button
             onClick={onNext}
             className="bg-gold-medium hover:bg-gold-dark text-black py-3 px-8 rounded-xl font-black uppercase tracking-widest transition-colors"
           >
-            Continue →
+            {t('student_onboarding.payment.continue')}
           </button>
         </div>
       </div>
@@ -95,10 +97,10 @@ export const PaymentStep: React.FC<StepProps> = ({ onNext }) => {
   return (
     <div className="space-y-8 pb-12 max-w-4xl mx-auto px-4">
       <div className="space-y-1">
-        <p className="text-xs font-black uppercase tracking-widest text-gold-medium">Etapa 7</p>
-        <h2 className="text-2xl font-black text-white uppercase tracking-tight">Application Fee</h2>
+        <p className="text-xs font-black uppercase tracking-widest text-gold-medium">{t('student_onboarding.payment.step_label')}</p>
+        <h2 className="text-2xl font-black text-white uppercase tracking-tight">{t('student_onboarding.payment.title')}</h2>
         <p className="text-sm text-gray-400 font-medium">
-          Pay the application fee to submit your scholarship application.
+          {t('student_onboarding.payment.subtitle')}
         </p>
       </div>
 
@@ -114,7 +116,7 @@ export const PaymentStep: React.FC<StepProps> = ({ onNext }) => {
           </div>
           <div className="ml-auto text-right">
             <div className="text-2xl font-black text-white">${applicationFee}</div>
-            <div className="text-xs text-gray-500">Application Fee</div>
+            <div className="text-xs text-gray-500">{t('student_onboarding.payment.application_fee_label')}</div>
           </div>
         </div>
       )}
@@ -122,15 +124,15 @@ export const PaymentStep: React.FC<StepProps> = ({ onNext }) => {
       {/* Fee breakdown */}
       <div className="bg-white/5 border border-white/10 rounded-2xl p-5 space-y-3">
         <div className="flex justify-between text-sm text-gray-400">
-          <span>Application Fee</span>
+          <span>{t('student_onboarding.payment.application_fee_label')}</span>
           <span className="font-semibold text-white">${applicationFee.toFixed(2)}</span>
         </div>
         <div className="flex justify-between text-sm text-gray-400">
-          <span>Processing Fee (Stripe 3.9% + $0.30)</span>
+          <span>{t('student_onboarding.payment.processing_fee')}</span>
           <span className="font-semibold text-white">${(amountWithFees - applicationFee).toFixed(2)}</span>
         </div>
         <div className="border-t border-white/10 pt-3 flex justify-between font-bold text-white">
-          <span>Total Charged</span>
+          <span>{t('student_onboarding.payment.total')}</span>
           <span className="text-xl">${amountWithFees.toFixed(2)}</span>
         </div>
       </div>
@@ -138,17 +140,17 @@ export const PaymentStep: React.FC<StepProps> = ({ onNext }) => {
       {/* Info de segurança */}
       <div className="flex items-center gap-2 text-sm text-gray-500 bg-white/5 border border-white/10 rounded-xl p-3">
         <Shield className="w-4 h-4 text-gold-medium flex-shrink-0" />
-        Secure payment processed by Stripe. Your card data is never stored.
+        {t('student_onboarding.payment.secure')}
       </div>
 
       {/* Placeholder de pagamento — integração Stripe a ser implementada */}
       <div className="bg-gold-medium/5 border border-gold-medium/20 rounded-2xl p-6 text-center space-y-3">
         <DollarSign className="w-10 h-10 text-gold-medium mx-auto" />
         <p className="text-white font-medium">
-          Payment integration is being configured.
+          {t('student_onboarding.payment.integration_pending')}
         </p>
         <p className="text-gray-400 text-sm">
-          Contact your advisor to complete this payment.
+          {t('student_onboarding.payment.contact_advisor')}
         </p>
       </div>
     </div>

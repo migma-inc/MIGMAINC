@@ -11,6 +11,7 @@
  */
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Loader2 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { supabase } from '../../../lib/supabase';
 import { useStudentAuth } from '../../../contexts/StudentAuthContext';
 import {
@@ -25,6 +26,7 @@ import { SurveyCompletionScreen } from '../../MigmaSurvey/components/SurveyCompl
 import type { StepProps } from '../types';
 
 export const MigmaSurveyStep: React.FC<StepProps> = ({ onNext }) => {
+  const { t } = useTranslation();
   const { user, userProfile, updateUserProfile, refreshProfile } = useStudentAuth();
 
   // Serviço determinado pelo perfil, normalizado para os valores aceitos pelo banco
@@ -201,7 +203,7 @@ export const MigmaSurveyStep: React.FC<StepProps> = ({ onNext }) => {
       scrollTop();
     } catch (err: any) {
       console.error('[MigmaSurveyStep] submit error', err);
-      setError('Erro ao salvar suas respostas. Tente novamente.');
+      setError(t('student_onboarding.survey.error_save'));
     } finally {
       setSaving(false);
     }
@@ -219,6 +221,7 @@ export const MigmaSurveyStep: React.FC<StepProps> = ({ onNext }) => {
           englishLevel={typeof answers['a_english_level'] === 'string' ? answers['a_english_level'] : ''}
           surveyCompletedAt={surveyCompletedAt}
           onContinue={onNext}
+          standalone={false}
         />
       </div>
     );
@@ -248,14 +251,14 @@ export const MigmaSurveyStep: React.FC<StepProps> = ({ onNext }) => {
           );
         })}
         <span className="ml-2 text-xs text-gray-500 font-medium">
-          Seção {currentSectionIdx + 1} de {sections.length}
+          {t('student_onboarding.survey.section_counter', { current: currentSectionIdx + 1, total: sections.length })}
         </span>
       </div>
 
       {/* Section header */}
       <div>
         <p className="text-xs font-black uppercase tracking-widest text-gold-medium mb-1">
-          Seção {currentSection.key}
+          {t('student_onboarding.survey.section_label', { key: currentSection.key })}
         </p>
         <h2 className="text-2xl font-black text-white uppercase tracking-tight">
           {currentSection.title}
@@ -289,7 +292,7 @@ export const MigmaSurveyStep: React.FC<StepProps> = ({ onNext }) => {
           disabled={currentSectionIdx === 0}
           className="px-5 py-2.5 text-sm font-bold text-gray-400 border border-white/10 rounded-lg hover:bg-white/5 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
         >
-          ← Voltar
+          {t('student_onboarding.survey.back')}
         </button>
 
         <button
@@ -298,7 +301,7 @@ export const MigmaSurveyStep: React.FC<StepProps> = ({ onNext }) => {
           className="px-8 py-2.5 text-sm font-black uppercase tracking-widest bg-gold-medium hover:bg-gold-dark text-black rounded-lg disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
         >
           {saving && <Loader2 className="w-4 h-4 animate-spin" />}
-          {currentSectionIdx < sections.length - 1 ? 'Próxima Seção →' : 'Enviar Questionário →'}
+          {currentSectionIdx < sections.length - 1 ? t('student_onboarding.survey.next_section') : t('student_onboarding.survey.submit_survey')}
         </button>
       </div>
     </div>
