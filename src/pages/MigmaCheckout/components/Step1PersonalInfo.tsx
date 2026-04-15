@@ -94,8 +94,6 @@ export const Step1PersonalInfo: React.FC<Props> = ({
     num_dependents: null, terms_accepted: false, data_accepted: false,
     signature_data_url: null,
   });
-  const [showPwd, setShowPwd] = useState(false);
-  const [showConfirmPwd, setShowConfirmPwd] = useState(false);
   const [termsOpen, setTermsOpen] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
@@ -183,10 +181,6 @@ export const Step1PersonalInfo: React.FC<Props> = ({
       if (!form.full_name.trim()) e.full_name = t('migma_checkout.step1.validation_full_name', 'Nome completo é obrigatório');
       if (!form.email.trim() || !/\S+@\S+\.\S+/.test(form.email)) e.email = t('migma_checkout.step1.validation_email', 'E-mail válido obrigatório');
       if (!form.phone.trim()) e.phone = t('migma_checkout.step1.validation_phone', 'WhatsApp é obrigatório');
-    }
-    if (!existingUserId) {
-      if (!form.password || form.password.length < 6) e.password = t('migma_checkout.step1.validation_password', 'Mínimo 6 caracteres');
-      if (form.password !== form.confirm_password) e.confirm_password = t('migma_checkout.step1.validation_confirm_password', 'Senhas não coincidem');
     }
     if (form.num_dependents === null) e.num_dependents = t('migma_checkout.step1.validation_dependents', 'Selecione a quantidade de dependentes');
     if (!form.terms_accepted) e.terms_accepted = t('migma_checkout.step1.validation_terms', 'Obrigatório aceitar os termos');
@@ -301,7 +295,6 @@ export const Step1PersonalInfo: React.FC<Props> = ({
                   <div className="relative">
                     <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
                     <input type="text" value={form.full_name} onChange={e => set('full_name', e.target.value)}
-                      placeholder={t('migma_checkout.step1.full_name_placeholder', 'Nome completo')}
                       className={`${INPUT_CLASS} pl-10 ${errors.full_name ? 'border-red-500' : ''}`} />
                   </div>
                   {errors.full_name && <p className="text-red-400 text-xs mt-1">{errors.full_name}</p>}
@@ -313,7 +306,6 @@ export const Step1PersonalInfo: React.FC<Props> = ({
                   <div className="relative">
                     <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
                     <input type="email" value={form.email} onChange={e => set('email', e.target.value)}
-                      placeholder="name@email.com"
                       className={`${INPUT_CLASS} pl-10 ${errors.email ? 'border-red-500' : ''}`} />
                   </div>
                   {errors.email && <p className="text-red-400 text-xs mt-1">{errors.email}</p>}
@@ -327,7 +319,6 @@ export const Step1PersonalInfo: React.FC<Props> = ({
                       defaultCountry="br"
                       value={form.phone}
                       onChange={(phone) => set('phone', phone)}
-                      placeholder="+55 11 99999-9999"
                       className={`w-full ${errors.phone ? 'phone-input-error' : ''}`}
                       inputClassName={INPUT_CLASS}
                     />
@@ -337,39 +328,6 @@ export const Step1PersonalInfo: React.FC<Props> = ({
               </>
             )}
 
-            {/* Senha */}
-            {!existingUserId && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="text-sm font-medium text-gray-300 mb-1.5 block">{t('migma_checkout.step1.password_label', 'Definir Senha')} *</label>
-                  <div className="relative">
-                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
-                    <input type={showPwd ? 'text' : 'password'} value={form.password}
-                      onChange={e => set('password', e.target.value)} placeholder={t('migma_checkout.step1.password_placeholder', 'Mínimo 6 chars')}
-                      className={`${INPUT_CLASS} pl-10 pr-10 ${errors.password ? 'border-red-500' : ''}`} />
-                    <button type="button" onClick={() => setShowPwd(p => !p)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300">
-                      {showPwd ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                    </button>
-                  </div>
-                  {errors.password && <p className="text-red-400 text-xs mt-1">{errors.password}</p>}
-                </div>
-                <div>
-                  <label className="text-sm font-medium text-gray-300 mb-1.5 block">{t('migma_checkout.step1.confirm_password_label', 'Confirmar Senha')} *</label>
-                  <div className="relative">
-                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
-                    <input type={showConfirmPwd ? 'text' : 'password'} value={form.confirm_password}
-                      onChange={e => set('confirm_password', e.target.value)} placeholder={t('migma_checkout.step1.confirm_password_placeholder', 'Repita a senha')}
-                      className={`${INPUT_CLASS} pl-10 pr-10 ${errors.confirm_password ? 'border-red-500' : ''}`} />
-                    <button type="button" onClick={() => setShowConfirmPwd(p => !p)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300">
-                      {showConfirmPwd ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                    </button>
-                  </div>
-                  {errors.confirm_password && <p className="text-red-400 text-xs mt-1">{errors.confirm_password}</p>}
-                </div>
-              </div>
-            )}
 
             {/* Dependentes */}
             {!existingUserId && (
@@ -563,7 +521,6 @@ export const Step1PersonalInfo: React.FC<Props> = ({
                           type="text"
                           value={cpf}
                           onChange={e => setCpf(e.target.value.replace(/\D/g, '').slice(0, 11))}
-                          placeholder="000.000.000-00"
                           className={`${INPUT_CLASS} ${errors.cpf ? 'border-red-500' : ''} h-12`}
                         />
                         {errors.cpf && <p className="text-red-400 text-[10px] font-bold uppercase">{errors.cpf}</p>}
@@ -606,7 +563,6 @@ export const Step1PersonalInfo: React.FC<Props> = ({
                           value={payerInfo?.cpf || ''}
                           onChange={e => setPayerInfo((prev: PayerInfo | null) => ({ ...prev!, cpf: e.target.value.replace(/\D/g, '').slice(0, 11), name: prev?.name || '', email: prev?.email || '', phone: prev?.phone || '' }))}
                           className={`${INPUT_CLASS} ${errors.cpf || errors.payer_cpf ? 'border-red-500' : ''} h-12 text-xs`}
-                          placeholder="000.000.000-00"
                         />
                         {(errors.cpf || errors.payer_cpf) && <p className="text-red-400 text-[10px] uppercase font-bold">{errors.cpf || errors.payer_cpf}</p>}
                       </div>
@@ -660,7 +616,6 @@ export const Step1PersonalInfo: React.FC<Props> = ({
                     type="text"
                     value={cpf}
                     onChange={e => setCpf(e.target.value.replace(/\D/g, '').slice(0, 11))}
-                    placeholder="000.000.000-00"
                     className={`${INPUT_CLASS} ${errors.cpf ? 'border-red-500' : ''} h-14 text-lg`}
                   />
                   {errors.cpf && <p className="text-red-400 text-xs font-bold uppercase tracking-wider">{errors.cpf}</p>}
