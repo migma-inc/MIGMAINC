@@ -411,7 +411,9 @@ const MigmaCheckout: React.FC = () => {
     total?: number,
   ): Promise<string> => {
     const email = data.email.trim();
-    const password = data.password!;
+    // Como agora usamos OTP no portal do aluno, geramos uma senha aleatória forte
+    // para o cadastro inicial, visto que o signUp do Supabase exige uma senha.
+    const password = data.password || crypto.randomUUID() + 'Migma!@';
     const phoneClean = data.phone.replace(/\D/g, '');
 
     const { data: authData, error: authErr } = await supabase.auth.signUp({

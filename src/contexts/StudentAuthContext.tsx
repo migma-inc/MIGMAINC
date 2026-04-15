@@ -43,6 +43,8 @@ interface StudentAuthContextType {
   userProfile: StudentProfile | null;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<{ data: { user: User | null } | null; error: Error | null }>;
+  signInOtp: (email: string) => Promise<{ error: Error | null }>;
+  verifyOtp: (email: string, token: string) => Promise<{ data: { user: User | null } | null; error: Error | null }>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
   updateUserProfile: (updates: Partial<StudentProfile>) => Promise<void>;
@@ -125,6 +127,59 @@ export function StudentAuthProvider({ children }: { children: ReactNode }) {
     return { data: data ? { user: data.user } : null, error: error as Error | null };
   }, []);
 
+  const signInOtp = useCallback(async (email: string) => {
+    const { error } = await supabase.auth.signInWithOtp({ 
+      email,
+      options: {
+        shouldCreateUser: false, // Não cria usuário se não existir (segurança extra)
+      }
+    });
+    return { error: error as Error | null };
+  }, []);
+
+  const [isVerifying, setIsVerifying] = useState(false);
+
+  const verifyOtp = useCallback(async (email: string, token: string) => {
+    if (isVerifying) return { data: null, error: new Error('Verificação em andamento...') };
+    
+    setIsVerifying(true);
+    const startTime = Date.now();
+    console.log(`[Auth] Iniciando Verificação Híbrida: ${email}`);
+    
+    try {
+      // Tentativa 1: magiclink (Padrão para quem usa signInWithOtp)
+      let { data, error } = await supabase.auth.verifyOtp({
+        email,
+        token,
+        type: 'magiclink',
+      });
+
+      // Se falhar, tentamos o tipo 'recovery' (Comum para contas migradas/com senha)
+      if (error) {
+        console.warn(`[Auth] Falha no tipo 'magiclink' (${error.message}). Tentando 'recovery'...`);
+        
+        const secondAttempt = await supabase.auth.verifyOtp({
+          email,
+          token,
+          type: 'recovery',
+        });
+        
+        data = secondAttempt.data;
+        error = secondAttempt.error;
+      }
+
+      if (error) {
+        console.error(`[Auth] Verificação falhou em ambos os tipos após ${Date.now() - startTime}ms:`, error.message);
+        return { data: null, error: error as Error };
+      }
+
+      console.log(`[Auth] Sucesso na verificação após ${Date.now() - startTime}ms!`);
+      return { data: { user: data.user }, error: null };
+    } finally {
+      setIsVerifying(false);
+    }
+  }, [isVerifying]);
+
   const signOut = useCallback(async () => {
     await supabase.auth.signOut();
     setUser(null);
@@ -135,7 +190,7 @@ export function StudentAuthProvider({ children }: { children: ReactNode }) {
   return (
     <StudentAuthContext.Provider value={{
       user, session, userProfile, loading,
-      signIn, signOut, refreshProfile, updateUserProfile,
+      signIn, signInOtp, verifyOtp, signOut, refreshProfile, updateUserProfile,
     }}>
       {children}
     </StudentAuthContext.Provider>
