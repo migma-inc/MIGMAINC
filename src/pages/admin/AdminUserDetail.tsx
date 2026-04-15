@@ -630,7 +630,10 @@ function DocumentsTab({
                 <div
                   key={doc.id}
                   onClick={() => {
-                      if (url) openModal(url, label);
+                      if (url) {
+                        if (pdf) window.open(url, '_blank');
+                        else openModal(url, label);
+                      }
                   }}
                   className="group relative cursor-pointer w-28 h-28 sm:w-32 sm:h-32 rounded-lg overflow-hidden border border-white/20 bg-black/50 hover:border-white transition-all hover:scale-105 duration-300 shadow-lg shadow-black/50"
                 >
@@ -671,7 +674,10 @@ function DocumentsTab({
                 <div
                   key={doc.id}
                   onClick={() => {
-                      if (url) openModal(url, label);
+                      if (url) {
+                        if (pdf) window.open(url, '_blank');
+                        else openModal(url, label);
+                      }
                   }}
                   className="group relative cursor-pointer w-28 h-28 sm:w-32 sm:h-32 rounded-lg overflow-hidden border border-white/20 bg-black/50 hover:border-white transition-all hover:scale-105 duration-300 shadow-lg shadow-black/50"
                 >
@@ -712,7 +718,10 @@ function DocumentsTab({
                 <div
                   key={doc.id}
                   onClick={() => {
-                      if (url) openModal(url, label);
+                      if (url) {
+                        if (pdf) window.open(url, '_blank');
+                        else openModal(url, label);
+                      }
                   }}
                   className="group relative cursor-pointer w-28 h-28 sm:w-32 sm:h-32 rounded-lg overflow-hidden border border-white/20 bg-black/50 hover:border-white transition-all hover:scale-105 duration-300 shadow-lg shadow-black/50"
                 >
@@ -800,7 +809,10 @@ function DocumentsTab({
                   <div
                     key={file.id}
                     onClick={() => {
-                        if (url) openModal(url, label);
+                        if (url) {
+                          if (isPdf(url)) window.open(url, '_blank');
+                          else openModal(url, label);
+                        }
                     }}
                     className="group relative cursor-pointer w-28 h-28 sm:w-32 sm:h-32 rounded-lg overflow-hidden border border-white/20 bg-black/50 hover:border-white transition-all hover:scale-105 duration-300 shadow-lg shadow-black/50"
                   >
