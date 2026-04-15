@@ -1,16 +1,16 @@
 import React from 'react';
 import { CheckCircle } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import type { OnboardingStep } from '../types';
 
-const STEPS: { key: OnboardingStep; label: string }[] = [
-  { key: 'selection_fee',         label: 'Selection Fee' },
-  { key: 'identity_verification', label: 'Profile' },
-  { key: 'selection_survey',      label: 'Survey' },
-  { key: 'scholarship_selection', label: 'Scholarship' },
-  { key: 'documents_upload',      label: 'Documents' },
-  { key: 'payment',               label: 'Application Fee' },
-  { key: 'placement_fee',         label: 'Placement Fee' },
-  { key: 'my_applications',       label: 'My Applications' },
+const STEPS: { key: OnboardingStep; labelKey: string }[] = [
+  { key: 'identity_verification', labelKey: 'student_onboarding.steps.profile' },
+  { key: 'selection_survey',      labelKey: 'student_onboarding.steps.survey' },
+  { key: 'scholarship_selection', labelKey: 'student_onboarding.steps.scholarship' },
+  { key: 'documents_upload',      labelKey: 'student_onboarding.steps.documents' },
+  { key: 'payment',               labelKey: 'student_onboarding.steps.payment' },
+  { key: 'placement_fee',         labelKey: 'student_onboarding.steps.placement_fee' },
+  { key: 'my_applications',       labelKey: 'student_onboarding.steps.my_applications' },
 ];
 
 const STEP_ALIAS: Partial<Record<OnboardingStep, OnboardingStep>> = {
@@ -25,6 +25,7 @@ interface StepIndicatorProps {
 }
 
 export const StepIndicator: React.FC<StepIndicatorProps> = ({ currentStep, completedSteps }) => {
+  const { t } = useTranslation();
   const resolvedStep = STEP_ALIAS[currentStep] ?? currentStep;
   const currentIndex = STEPS.findIndex(s => s.key === resolvedStep);
   const totalSteps = STEPS.length;
@@ -43,10 +44,10 @@ export const StepIndicator: React.FC<StepIndicatorProps> = ({ currentStep, compl
       {/* Counter + current step label */}
       <div className="flex items-center justify-between text-xs mb-4 px-1">
         <span className="font-bold tracking-widest uppercase text-gray-500">
-          Step {currentIndex + 1} of {totalSteps}
+          {t('student_onboarding.steps.counter', { current: currentIndex + 1, total: totalSteps })}
         </span>
         <span className="font-black text-gold-medium uppercase tracking-tight">
-          {STEPS[currentIndex]?.label ?? ''}
+          {STEPS[currentIndex] ? t(STEPS[currentIndex].labelKey) : ''}
         </span>
       </div>
 
@@ -84,7 +85,7 @@ export const StepIndicator: React.FC<StepIndicatorProps> = ({ currentStep, compl
                 isCurrent   ? 'text-gold-medium font-bold' :
                 isCompleted ? 'text-gold-medium/60'        : 'text-gray-600'
               }`}>
-                {step.label}
+                {t(step.labelKey)}
               </span>
             </div>
           );

@@ -7,6 +7,7 @@ import {
   Award, Building, DollarSign, Search, GraduationCap, CheckCircle2,
   Loader2, AlertCircle,
 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { useStudentAuth } from '../../../contexts/StudentAuthContext';
 import { supabase } from '../../../lib/supabase';
 import { applicationStore } from '../../../stores/applicationStore';
@@ -37,6 +38,7 @@ interface Application {
 }
 
 export const ScholarshipSelectionStep: React.FC<StepProps> = ({ onNext }) => {
+  const { t } = useTranslation();
   const { user, userProfile } = useStudentAuth();
   const [scholarships, setScholarships] = useState<Scholarship[]>([]);
   const [applications, setApplications] = useState<Application[]>([]);
@@ -95,8 +97,8 @@ export const ScholarshipSelectionStep: React.FC<StepProps> = ({ onNext }) => {
   };
 
   const handleConfirm = async () => {
-    if (selectedIds.size === 0) { setError('Please select at least one scholarship.'); return; }
-    if (!userProfile?.id || !user?.id) { setError('Authentication error. Please refresh.'); return; }
+    if (selectedIds.size === 0) { setError(t('student_onboarding.scholarship.error_select')); return; }
+    if (!userProfile?.id || !user?.id) { setError(t('student_onboarding.scholarship.error_auth')); return; }
 
     setSaving(true);
     setError(null);
@@ -135,7 +137,7 @@ export const ScholarshipSelectionStep: React.FC<StepProps> = ({ onNext }) => {
       setIsReviewing(true);
       onNext();
     } catch (err: any) {
-      setError(err.message || 'Failed to save. Please try again.');
+      setError(err.message || t('student_onboarding.scholarship.error_save'));
     } finally {
       setSaving(false);
     }
@@ -154,14 +156,14 @@ export const ScholarshipSelectionStep: React.FC<StepProps> = ({ onNext }) => {
   return (
     <div className="space-y-8 pb-12 max-w-4xl mx-auto px-4">
       <div className="space-y-1">
-        <p className="text-xs font-black uppercase tracking-widest text-gold-medium">Etapa 4</p>
+        <p className="text-xs font-black uppercase tracking-widest text-gold-medium">{t('student_onboarding.scholarship.step_label')}</p>
         <h2 className="text-2xl font-black text-white uppercase tracking-tight">
-          {isReviewing ? 'Your Scholarships' : 'Choose Your Scholarship'}
+          {isReviewing ? t('student_onboarding.scholarship.title_reviewing') : t('student_onboarding.scholarship.title_selecting')}
         </h2>
         <p className="text-sm text-gray-400 font-medium">
           {isReviewing
-            ? 'These are the scholarships you have applied for.'
-            : 'Select one or more scholarships that match your profile.'}
+            ? t('student_onboarding.scholarship.subtitle_reviewing')
+            : t('student_onboarding.scholarship.subtitle_selecting')}
         </p>
       </div>
 
@@ -171,7 +173,7 @@ export const ScholarshipSelectionStep: React.FC<StepProps> = ({ onNext }) => {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
             <input
               type="text"
-              placeholder="Search scholarships or universities..."
+              placeholder={t('student_onboarding.scholarship.search_placeholder')}
               value={searchTerm}
               onChange={e => setSearchTerm(e.target.value)}
               className="w-full pl-9 pr-4 py-2.5 bg-[#0d0d0d] border border-white/10 rounded-xl text-sm text-white placeholder-gray-600 focus:outline-none focus:border-gold-medium/60 transition-colors"
@@ -182,7 +184,7 @@ export const ScholarshipSelectionStep: React.FC<StepProps> = ({ onNext }) => {
             onChange={e => setSelectedLevel(e.target.value)}
             className="px-4 py-2.5 bg-[#0d0d0d] border border-white/10 rounded-xl text-sm text-white focus:outline-none focus:border-gold-medium/60 transition-colors"
           >
-            <option value="all">All levels</option>
+            <option value="all">{t('student_onboarding.scholarship.all_levels')}</option>
             {levels.map(l => <option key={l} value={l!}>{l}</option>)}
           </select>
         </div>
@@ -195,7 +197,7 @@ export const ScholarshipSelectionStep: React.FC<StepProps> = ({ onNext }) => {
       ) : filtered.length === 0 ? (
         <div className="text-center py-12 text-gray-500">
           <GraduationCap className="w-12 h-12 mx-auto mb-3 text-gray-700" />
-          <p>No scholarships found.</p>
+          <p>{t('student_onboarding.scholarship.no_results')}</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -222,7 +224,7 @@ export const ScholarshipSelectionStep: React.FC<StepProps> = ({ onNext }) => {
               >
                 {scholarship.is_highlighted && (
                   <div className="absolute top-3 right-3 bg-gold-medium text-black text-xs font-bold px-2 py-0.5 rounded-full">
-                    Featured
+                    {t('student_onboarding.scholarship.featured')}
                   </div>
                 )}
                 {isSelected && !isReviewing && (
@@ -245,11 +247,11 @@ export const ScholarshipSelectionStep: React.FC<StepProps> = ({ onNext }) => {
                 <div className="space-y-1.5 text-sm">
                   <div className="flex items-center gap-2 text-gray-400">
                     <DollarSign className="w-4 h-4 text-emerald-500" />
-                    <span>Annual Value: <strong className="text-white">${annualValue.toLocaleString()}</strong></span>
+                    <span>{t('student_onboarding.scholarship.annual_value')} <strong className="text-white">${annualValue.toLocaleString()}</strong></span>
                   </div>
                   <div className="flex items-center gap-2 text-gray-400">
                     <Award className="w-4 h-4 text-gold-medium" />
-                    <span>Placement Fee: <strong className="text-white">${placementFee.toLocaleString()}</strong> (20%)</span>
+                    <span>{t('student_onboarding.scholarship.placement_fee_label')} <strong className="text-white">${placementFee.toLocaleString()}</strong> (20%)</span>
                   </div>
                   {scholarship.level && (
                     <div className="inline-flex">
@@ -276,7 +278,9 @@ export const ScholarshipSelectionStep: React.FC<StepProps> = ({ onNext }) => {
         <div className="flex items-center justify-between">
           {selectedIds.size > 0 && (
             <span className="text-sm text-gray-400 font-medium">
-              {selectedIds.size} scholarship{selectedIds.size > 1 ? 's' : ''} selected
+              {selectedIds.size === 1
+                ? t('student_onboarding.scholarship.selected_count_one', { count: selectedIds.size })
+                : t('student_onboarding.scholarship.selected_count_other', { count: selectedIds.size })}
             </span>
           )}
           <button
@@ -284,7 +288,7 @@ export const ScholarshipSelectionStep: React.FC<StepProps> = ({ onNext }) => {
             disabled={selectedIds.size === 0 || saving}
             className="ml-auto flex items-center gap-2 bg-gold-medium hover:bg-gold-dark text-black py-3 px-8 rounded-xl transition-colors font-black uppercase tracking-widest disabled:opacity-40 disabled:cursor-not-allowed"
           >
-            {saving ? <><Loader2 className="w-4 h-4 animate-spin" /> Saving...</> : 'Confirm Selection'}
+            {saving ? <><Loader2 className="w-4 h-4 animate-spin" /> {t('student_onboarding.scholarship.saving')}</> : t('student_onboarding.scholarship.confirm')}
           </button>
         </div>
       )}
@@ -294,7 +298,7 @@ export const ScholarshipSelectionStep: React.FC<StepProps> = ({ onNext }) => {
           onClick={onNext}
           className="flex items-center gap-2 bg-gold-medium hover:bg-gold-dark text-black py-3 px-8 rounded-xl transition-colors font-black uppercase tracking-widest"
         >
-          Continue →
+          {t('student_onboarding.scholarship.continue')}
         </button>
       )}
     </div>

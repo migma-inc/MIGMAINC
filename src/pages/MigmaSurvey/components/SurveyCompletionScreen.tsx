@@ -11,12 +11,13 @@ interface Props {
   englishLevel?: string;
   surveyCompletedAt?: string; // ISO string — usado para calcular o unlock de 24h
   onContinue: () => void;
+  standalone?: boolean; // false = embutido no StudentOnboarding (sem topbar)
 }
 
 const TARGET = 1481;
 const DURATION_MS = 2800;
 
-export const SurveyCompletionScreen: React.FC<Props> = ({ email, name, service, whatsapp, academicFormation, englishLevel, surveyCompletedAt, onContinue }) => {
+export const SurveyCompletionScreen: React.FC<Props> = ({ email, name, service, whatsapp, academicFormation, englishLevel, surveyCompletedAt, onContinue, standalone = true }) => {
   const [count, setCount] = useState(0);
   const [unlockAt, setUnlockAt] = useState<Date | null>(null);
   const [timeLeft, setTimeLeft] = useState('');
@@ -70,10 +71,10 @@ export const SurveyCompletionScreen: React.FC<Props> = ({ email, name, service, 
   const serviceLabel = service === 'transfer' ? 'Transfer' : service === 'cos' ? 'COS' : service.toUpperCase();
 
   return (
-    <div className="min-h-screen bg-black">
-      <CheckoutTopbar serviceLabel={serviceLabel} />
+    <div className={standalone ? 'min-h-screen bg-black' : ''}>
+      {standalone && <CheckoutTopbar serviceLabel={serviceLabel} />}
 
-      <main className="max-w-xl mx-auto px-4 pb-20 text-center" style={{ paddingTop: '140px' }}>
+      <main className="max-w-xl mx-auto px-4 pb-20 text-center" style={{ paddingTop: standalone ? '140px' : '24px' }}>
         {/* Ícone de troféu */}
         <div className="w-20 h-20 bg-gold-medium/10 border-2 border-gold-medium/30 rounded-full flex items-center justify-center mx-auto mb-6">
           <Trophy className="w-9 h-9 text-gold-medium" />

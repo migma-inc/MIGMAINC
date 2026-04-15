@@ -1594,7 +1594,7 @@ export const ZelleApprovalPage = () => {
                         <Button
                           variant="outline"
                           size="sm"
-                          className="text-xs border-white/10 bg-white/5 hover:bg-white/10"
+                          className="text-xs border-gold-medium/40 bg-gold-medium/10 text-gold-light hover:bg-gold-medium/20 hover:border-gold-medium/60"
                           onClick={() => { setSelectedZelleUrl(payment.receipt_url); setSelectedZelleTitle(`Zelle Receipt — ${payment.client_name}`); }}
                         >
                           <Eye className="w-3.5 h-3.5 mr-1.5" /> View Receipt

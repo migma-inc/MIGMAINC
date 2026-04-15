@@ -5,12 +5,24 @@
  */
 import React, { useState, useEffect } from 'react';
 import { Loader2, CheckCircle } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { useStudentAuth } from '../../../contexts/StudentAuthContext';
 import { supabase } from '../../../lib/supabase';
 import type { StepProps } from '../types';
 
-const DOCUMENT_TYPES = ['Passaporte', 'RG', 'CNH'];
-const MARITAL_STATUS_OPTIONS = ['Solteiro(a)', 'Casado(a)', 'Divorciado(a)', 'Viúvo(a)'];
+const DOCUMENT_TYPES: { value: string; labelKey: string }[] = [
+  { value: 'Passaporte', labelKey: 'student_onboarding.identity.doc_passport' },
+  { value: 'RG',         labelKey: 'student_onboarding.identity.doc_rg' },
+  { value: 'CNH',        labelKey: 'student_onboarding.identity.doc_cnh' },
+];
+
+const MARITAL_STATUS_OPTIONS: { value: string; labelKey: string }[] = [
+  { value: 'Solteiro(a)',   labelKey: 'student_onboarding.identity.status_single' },
+  { value: 'Casado(a)',     labelKey: 'student_onboarding.identity.status_married' },
+  { value: 'Divorciado(a)', labelKey: 'student_onboarding.identity.status_divorced' },
+  { value: 'Viúvo(a)',      labelKey: 'student_onboarding.identity.status_widowed' },
+];
+
 const COUNTRIES = [
   'Brasil', 'Estados Unidos', 'Portugal', 'Argentina', 'Colômbia',
   'México', 'Chile', 'Peru', 'Venezuela', 'Outro',
@@ -43,6 +55,7 @@ const EMPTY_FORM: IdentityForm = {
 };
 
 export const IdentityVerificationStep: React.FC<StepProps> = ({ onNext }) => {
+  const { t } = useTranslation();
   const { user } = useStudentAuth();
   const [form, setForm] = useState<IdentityForm>(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
@@ -104,7 +117,7 @@ export const IdentityVerificationStep: React.FC<StepProps> = ({ onNext }) => {
       setAlreadyVerified(true);
       onNext();
     } catch (err: any) {
-      setError(err.message || 'Erro ao salvar. Tente novamente.');
+      setError(err.message || t('student_onboarding.identity.error_generic'));
     } finally {
       setSaving(false);
     }
@@ -117,14 +130,14 @@ export const IdentityVerificationStep: React.FC<StepProps> = ({ onNext }) => {
           <CheckCircle className="w-10 h-10 text-emerald-400" />
         </div>
         <h3 className="text-2xl font-black text-white uppercase tracking-tight mb-2">
-          Perfil Completo!
+          {t('student_onboarding.identity.already_verified_title')}
         </h3>
-        <p className="text-gray-400 mb-6">Seus dados já foram registrados.</p>
+        <p className="text-gray-400 mb-6">{t('student_onboarding.identity.already_verified_desc')}</p>
         <button
           onClick={onNext}
           className="px-8 py-3 bg-gold-medium hover:bg-gold-dark text-black font-black uppercase tracking-widest rounded-xl transition-colors"
         >
-          Continuar →
+          {t('student_onboarding.identity.continue')}
         </button>
       </div>
     );
@@ -135,19 +148,19 @@ export const IdentityVerificationStep: React.FC<StepProps> = ({ onNext }) => {
       {/* Header */}
       <div>
         <p className="text-xs font-black uppercase tracking-widest text-gold-medium mb-1">
-          Etapa 2
+          {t('student_onboarding.identity.step_label')}
         </p>
         <h2 className="text-2xl font-black text-white uppercase tracking-tight">
-          Dados do Perfil
+          {t('student_onboarding.identity.title')}
         </h2>
         <p className="text-sm text-gray-400 mt-1">
-          Preencha todas as informações abaixo para continuar.
+          {t('student_onboarding.identity.subtitle')}
         </p>
       </div>
 
       <div className="space-y-4">
         {/* Data de Nascimento */}
-        <Field label="Data de Nascimento">
+        <Field label={t('student_onboarding.identity.birth_date')}>
           <input
             type="date"
             value={form.birth_date}
@@ -158,13 +171,13 @@ export const IdentityVerificationStep: React.FC<StepProps> = ({ onNext }) => {
 
         {/* Tipo + Número do Documento */}
         <div className="grid grid-cols-2 gap-3">
-          <Field label="Tipo de Documento">
+          <Field label={t('student_onboarding.identity.doc_type')}>
             <select value={form.document_type} onChange={set('document_type')} className={selectCls}>
-              <option value="">Selecione</option>
-              {DOCUMENT_TYPES.map(d => <option key={d} value={d}>{d}</option>)}
+              <option value="">{t('student_onboarding.identity.select_placeholder')}</option>
+              {DOCUMENT_TYPES.map(d => <option key={d.value} value={d.value}>{t(d.labelKey)}</option>)}
             </select>
           </Field>
-          <Field label="Número do Documento">
+          <Field label={t('student_onboarding.identity.doc_number')}>
             <input
               type="text"
               value={form.document_number}
@@ -176,34 +189,34 @@ export const IdentityVerificationStep: React.FC<StepProps> = ({ onNext }) => {
         </div>
 
         {/* Endereço */}
-        <Field label="Endereço (Rua e número)">
+        <Field label={t('student_onboarding.identity.address')}>
           <input
             type="text"
             value={form.address}
             onChange={set('address')}
-            placeholder="Ex: Rua das Flores, 123"
+            placeholder={t('student_onboarding.identity.address_placeholder')}
             className={inputCls}
           />
         </Field>
 
         {/* Cidade + Estado */}
         <div className="grid grid-cols-2 gap-3">
-          <Field label="Cidade">
-            <input type="text" value={form.city} onChange={set('city')} placeholder="Ex: São Paulo" className={inputCls} />
+          <Field label={t('student_onboarding.identity.city')}>
+            <input type="text" value={form.city} onChange={set('city')} placeholder={t('student_onboarding.identity.city_placeholder')} className={inputCls} />
           </Field>
-          <Field label="Estado / Província">
-            <input type="text" value={form.state} onChange={set('state')} placeholder="Ex: SP" className={inputCls} />
+          <Field label={t('student_onboarding.identity.state')}>
+            <input type="text" value={form.state} onChange={set('state')} placeholder={t('student_onboarding.identity.state_placeholder')} className={inputCls} />
           </Field>
         </div>
 
         {/* CEP + País */}
         <div className="grid grid-cols-2 gap-3">
-          <Field label="CEP / Código Postal">
-            <input type="text" value={form.zip_code} onChange={set('zip_code')} placeholder="Ex: 01310-100" className={inputCls} />
+          <Field label={t('student_onboarding.identity.zip')}>
+            <input type="text" value={form.zip_code} onChange={set('zip_code')} placeholder={t('student_onboarding.identity.zip_placeholder')} className={inputCls} />
           </Field>
-          <Field label="País de Residência">
+          <Field label={t('student_onboarding.identity.country')}>
             <select value={form.country} onChange={set('country')} className={selectCls}>
-              <option value="">Selecione</option>
+              <option value="">{t('student_onboarding.identity.select_placeholder')}</option>
               {COUNTRIES.map(c => <option key={c} value={c}>{c}</option>)}
             </select>
           </Field>
@@ -211,16 +224,16 @@ export const IdentityVerificationStep: React.FC<StepProps> = ({ onNext }) => {
 
         {/* Nacionalidade + Estado Civil */}
         <div className="grid grid-cols-2 gap-3">
-          <Field label="Nacionalidade">
+          <Field label={t('student_onboarding.identity.nationality')}>
             <select value={form.nationality} onChange={set('nationality')} className={selectCls}>
-              <option value="">Selecione</option>
+              <option value="">{t('student_onboarding.identity.select_placeholder')}</option>
               {COUNTRIES.map(c => <option key={c} value={c}>{c}</option>)}
             </select>
           </Field>
-          <Field label="Estado Civil">
+          <Field label={t('student_onboarding.identity.marital_status')}>
             <select value={form.marital_status} onChange={set('marital_status')} className={selectCls}>
-              <option value="">Selecione</option>
-              {MARITAL_STATUS_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
+              <option value="">{t('student_onboarding.identity.select_placeholder')}</option>
+              {MARITAL_STATUS_OPTIONS.map(s => <option key={s.value} value={s.value}>{t(s.labelKey)}</option>)}
             </select>
           </Field>
         </div>
@@ -240,7 +253,7 @@ export const IdentityVerificationStep: React.FC<StepProps> = ({ onNext }) => {
           className="px-8 py-2.5 text-sm font-black uppercase tracking-widest bg-gold-medium hover:bg-gold-dark text-black rounded-lg disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
         >
           {saving && <Loader2 className="w-4 h-4 animate-spin" />}
-          Continuar →
+          {saving ? t('student_onboarding.identity.saving') : t('student_onboarding.identity.continue')}
         </button>
       </div>
     </div>
