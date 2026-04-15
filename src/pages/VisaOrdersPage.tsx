@@ -767,7 +767,13 @@ export const VisaOrdersPage = () => {
           from += batchSize;
         }
 
-        const visibleFilteredOrders = allFilteredOrders.filter(order => shouldDisplayOrder(order, showHidden));
+        const visibleFilteredOrders = allFilteredOrders
+          .filter(order => shouldDisplayOrder(order, showHidden))
+          .sort((a, b) => {
+            const dateA = new Date(a.paid_at ?? a.created_at).getTime();
+            const dateB = new Date(b.paid_at ?? b.created_at).getTime();
+            return dateB - dateA;
+          });
         const totalVisibleOrders = visibleFilteredOrders.length;
         const currentPageSafe = Math.max(currentPage, 1);
         const startIndex = (currentPageSafe - 1) * itemsPerPage;
