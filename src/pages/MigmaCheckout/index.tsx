@@ -122,10 +122,11 @@ const MigmaCheckout: React.FC = () => {
         let resolvedPrice = profile?.total_price_usd || 0;
 
         if (!resolvedPrice) {
+          const userEmail = profile?.email || session.user.email;
           const { data: latestOrder } = await supabase
             .from('visa_orders')
             .select('total_price_usd')
-            .eq('client_email', profile?.email)
+            .eq('client_email', userEmail)
             .order('created_at', { ascending: false })
             .limit(1)
             .maybeSingle();
@@ -142,6 +143,9 @@ const MigmaCheckout: React.FC = () => {
             .limit(1)
             .maybeSingle();
           resolvedPrice = feePayment?.amount || 0;
+        }
+        if (!resolvedPrice && config) {
+          resolvedPrice = config.basePrice;
         }
 
         if (resolvedPrice) {
@@ -290,17 +294,18 @@ const MigmaCheckout: React.FC = () => {
         return;
       }
 
-      // Pagamento submetido (qualquer método, incl. Zelle em análise) mas docs ainda não enviados → Step 2
-      if (profile.payment_submitted_at && !profile.identity_verified) {
+      // Pagamento confirmado ou submetido (qualquer método, incl. Zelle em análise) mas docs ainda não enviados → Step 2
+      if ((profile.has_paid_selection_process_fee || profile.payment_submitted_at) && !profile.identity_verified) {
         console.log('[MigmaCheckout] 🔄 Recuperando sessão: Pagamento confirmado, aguardando documentação. Indo para Passo 2.');
 
         // Cascade fallback para resolver o preço
         let resolvedPrice = profile.total_price_usd || 0;
         if (!resolvedPrice) {
+          const userEmail = profile.email || session.user.email;
           const { data: latestOrder } = await supabase
             .from('visa_orders')
             .select('total_price_usd')
-            .eq('client_email', profile.email)
+            .eq('client_email', userEmail)
             .order('created_at', { ascending: false })
             .limit(1)
             .maybeSingle();
@@ -316,6 +321,10 @@ const MigmaCheckout: React.FC = () => {
             .limit(1)
             .maybeSingle();
           resolvedPrice = feePayment?.amount || 0;
+        }
+
+        if (!resolvedPrice && config) {
+          resolvedPrice = config.basePrice;
         }
 
         const resolvedName = profile.full_name
@@ -354,10 +363,11 @@ const MigmaCheckout: React.FC = () => {
         console.log('[MigmaCheckout] 🔄 Recuperando sessão: Identificado progresso até o Passo 3.');
         
         // 🔍 Tentar recuperar service_request_id e preço da ordem existente
+        const userEmail = profile.email || session.user.email;
         const { data: latestOrder } = await supabase
           .from('visa_orders')
           .select('service_request_id, total_price_usd')
-          .eq('client_email', profile.email)
+          .eq('client_email', userEmail)
           .order('created_at', { ascending: false })
           .limit(1)
           .maybeSingle();
@@ -374,6 +384,10 @@ const MigmaCheckout: React.FC = () => {
             .limit(1)
             .maybeSingle();
           resolvedPrice = feePayment?.amount || 0;
+        }
+
+        if (!resolvedPrice && config) {
+          resolvedPrice = config.basePrice;
         }
 
         const resolvedName = profile.full_name
@@ -396,9 +410,17 @@ const MigmaCheckout: React.FC = () => {
         // Recuperar dados pessoais do Step 2 de user_identity
         const { data: identity } = await supabase
           .from('user_identity')
-          .select('birth_date, document_type, document_number, address, city, state, zip_code, country, nationality, marital_status, notes')
+          .select('birth_date, document_type, document_number, address, city, state, zip_code, country, nationality, marital_status, notes, checkout_service, checkout_price')
           .eq('user_id', session.user.id)
           .maybeSingle();
+
+        if (identity?.checkout_price !== undefined && identity.checkout_price !== null) {
+          resolvedPrice = identity.checkout_price;
+        }
+
+        if (!resolvedPrice && config) {
+          resolvedPrice = config.basePrice;
+        }
 
         if (identity) {
           setStep2Data({
@@ -428,10 +450,23 @@ const MigmaCheckout: React.FC = () => {
           .in('type', ['passport', 'passport_back', 'selfie_with_doc']);
 
         if (docs && docs.length > 0) {
+          const updatedDocs = await Promise.all(docs.map(async (doc) => {
+            if (doc.file_url && doc.file_url.includes('/public/migma-student-documents/')) {
+              const path = doc.file_url.split('/public/migma-student-documents/')[1];
+              if (path) {
+                const { data } = await supabase.storage.from('migma-student-documents').createSignedUrl(path, 3600);
+                if (data?.signedUrl) {
+                  return { ...doc, file_url: data.signedUrl };
+                }
+              }
+            }
+            return doc;
+          }));
+
           setRecoveredDocUrls({
-            docFront: docs.find(d => d.type === 'passport')?.file_url ?? null,
-            docBack: docs.find(d => d.type === 'passport_back')?.file_url ?? null,
-            selfie: docs.find(d => d.type === 'selfie_with_doc')?.file_url ?? null,
+            docFront: updatedDocs.find(d => d.type === 'passport')?.file_url ?? null,
+            docBack: updatedDocs.find(d => d.type === 'passport_back')?.file_url ?? null,
+            selfie: updatedDocs.find(d => d.type === 'selfie_with_doc')?.file_url ?? null,
           });
         }
 
@@ -864,6 +899,8 @@ const MigmaCheckout: React.FC = () => {
           nationality: data.nationality || null,
           marital_status: data.civil_status || null,
           notes: data.notes || null,
+          checkout_service: service ?? 'transfer',
+          checkout_price: state.totalPrice,
           updated_at: new Date().toISOString(),
         }, { onConflict: 'user_id' });
 
