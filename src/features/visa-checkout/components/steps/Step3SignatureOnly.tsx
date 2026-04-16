@@ -12,9 +12,10 @@ interface Step3SignatureOnlyProps {
     actions: VisaCheckoutActions;
     onPrev: () => void;
     onFinalize: () => Promise<void>;
+    couponSlot?: React.ReactNode;
 }
 
-export const Step3SignatureOnly: React.FC<Step3SignatureOnlyProps> = ({ state, actions, onPrev, onFinalize }) => {
+export const Step3SignatureOnly: React.FC<Step3SignatureOnlyProps> = ({ state, actions, onPrev, onFinalize, couponSlot }) => {
     const {
         termsAccepted, dataAuthorization, contractTemplate, chargebackAnnexTemplate,
         signatureImageDataUrl, signatureConfirmed, submitting
@@ -55,6 +56,8 @@ export const Step3SignatureOnly: React.FC<Step3SignatureOnlyProps> = ({ state, a
                         onEdit={() => actions.setSignatureConfirmed(false)}
                     />
                 )}
+
+                {couponSlot}
 
                 <div className="flex flex-col sm:flex-row gap-4 pt-4 border-t border-white/10">
                     <button
