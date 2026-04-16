@@ -14,6 +14,7 @@ import { OrderSummary } from './components/shared/OrderSummary';
 import { Step1PersonalInfo } from './components/steps/Step1PersonalInfo';
 import { Step2Documents } from './components/steps/Step2Documents';
 import { Step3SignatureOnly } from './components/steps/Step3SignatureOnly';
+import { CouponSection } from './components/steps/step3/CouponSection';
 
 import { ArrowLeft, Loader2, AlertCircle } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
@@ -41,8 +42,19 @@ export const VisaSignatureCheckoutPage: React.FC = () => {
     useTemplateLoader(productSlug, state.selectedUpsell, actions);
 
     const baseTotal = customPrice ? parseFloat(customPrice) : (product ? calculateBaseTotal(product, state.extraUnits) : 0);
+
+    let discountAmount = 0;
+    if (state.appliedCoupon) {
+        if (state.appliedCoupon.discountType === 'fixed') {
+            discountAmount = state.appliedCoupon.discountValue;
+        } else {
+            discountAmount = baseTotal * (state.appliedCoupon.discountValue / 100);
+        }
+        discountAmount = Math.min(discountAmount, baseTotal);
+    }
+
     // No Signature Only flow, we don't apply payment gateway fees
-    const totalWithFees = baseTotal;
+    const totalWithFees = Math.max(0, baseTotal - discountAmount);
 
     const { handleManualSubmission } = useSignatureOnlyHandlers(
         productSlug,
@@ -136,6 +148,7 @@ export const VisaSignatureCheckoutPage: React.FC = () => {
                                     <span className="text-white font-bold text-lg">US$ {totalWithFees.toFixed(2)}</span>
                                 </div>
                             </div>
+
                         </div>
 
                         {state.currentStep === 1 && (
@@ -145,7 +158,23 @@ export const VisaSignatureCheckoutPage: React.FC = () => {
                             <Step2Documents state={state} actions={actions} onNext={handleNextStep2} onPrev={handlePrev} />
                         )}
                         {state.currentStep === 3 && (
-                            <Step3SignatureOnly state={state} actions={actions} onPrev={handlePrev} onFinalize={handleManualSubmission} />
+                            <Step3SignatureOnly
+                                state={state}
+                                actions={actions}
+                                onPrev={handlePrev}
+                                onFinalize={handleManualSubmission}
+                                couponSlot={
+                                    <CouponSection
+                                        actions={actions}
+                                        couponCode={state.couponCode}
+                                        appliedCoupon={state.appliedCoupon}
+                                        serviceRequestId={state.serviceRequestId || ''}
+                                        clientName={state.clientName}
+                                        clientEmail={state.clientEmail}
+                                        productSlug={productSlug || ''}
+                                    />
+                                }
+                            />
                         )}
                     </main>
 
@@ -155,6 +184,8 @@ export const VisaSignatureCheckoutPage: React.FC = () => {
                             extraUnits={state.extraUnits}
                             totalWithFees={totalWithFees}
                             paymentMethod="manual"
+                            discountAmount={discountAmount}
+                            appliedCouponCode={state.appliedCoupon?.code ?? null}
                             showPaymentButton={state.currentStep === 3}
                             isSubmitting={state.submitting}
                             isPaymentReady={state.signatureConfirmed && state.termsAccepted}
