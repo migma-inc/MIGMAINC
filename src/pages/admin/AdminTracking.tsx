@@ -17,16 +17,12 @@ import {
 } from "@/components/ui/popover";
 import {
   Calendar,
-  DollarSign,
-  TrendingUp,
   Users,
   Loader2,
   ChevronLeft,
   ChevronRight,
   Timer,
   CheckCircle,
-  CreditCard,
-  History,
   HelpCircle
 } from 'lucide-react';
 
@@ -48,6 +44,7 @@ interface TrackingJourney {
   steps: TrackingStep[];
   paid_count: number;
   total_steps: number;
+  slugs: { slug: string; paid_at: string | null; created_at: string; status: string }[];
 }
 
 const JOURNEY_CONFIG: Record<string, {
@@ -222,7 +219,7 @@ export function AdminTracking() {
 
       const result: TrackingJourney[] = [];
 
-      for (const [nameKey, data] of Object.entries(grouped)) {
+      for (const [, data] of Object.entries(grouped)) {
         const slugList = data.slugs.map(s => s.slug);
         const journeyType = detectJourneyType(slugList);
         if (!journeyType) continue;
@@ -269,6 +266,7 @@ export function AdminTracking() {
           steps,
           paid_count,
           total_steps: config.steps.length,
+          slugs: data.slugs,
         });
       }
 
@@ -382,12 +380,6 @@ export function AdminTracking() {
     return { label: 'On Track', className: 'bg-blue-500/20 text-blue-400 border-blue-500/50' };
   };
 
-  const timeRangeLabel: Record<TimeRange, string> = {
-    '24h': 'last 24h',
-    '7d':  'last 7 days',
-    '30d': 'last 30 days',
-    'all': 'all time',
-  };
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6">
