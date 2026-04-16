@@ -22,13 +22,12 @@ interface MethodOption {
 }
 
 const METHODS: MethodOption[] = [
-  // Stripe temporariamente desabilitado
-  // {
-  //   id: 'stripe',
-  //   labelKey: 'checkout.method_stripe_label',
-  //   sublabelKey: 'checkout.method_stripe_sub',
-  //   regions: ['US', 'BR', 'OTHER'],
-  // },
+  {
+    id: 'stripe',
+    labelKey: 'checkout.method_stripe_label',
+    sublabelKey: 'checkout.method_stripe_sub',
+    regions: ['US', 'BR', 'OTHER'],
+  },
   {
     id: 'parcelow_card',
     labelKey: 'checkout.method_parcelow_card_label',

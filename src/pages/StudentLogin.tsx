@@ -158,9 +158,11 @@ const StudentLogin: React.FC = () => {
           <h1 className="text-4xl font-black text-white uppercase tracking-tighter mb-2">
             Portal do Aluno
           </h1>
-          <p className="text-gray-400 font-medium">
-            {view === 'email' ? 'Acesso seguro sem senha' : 'Confirme seu acesso'}
-          </p>
+          {view !== 'email' && (
+            <p className="text-gray-400 font-medium">
+              Confirme seu acesso
+            </p>
+          )}
         </div>
 
         {/* Glass Card */}
@@ -190,8 +192,8 @@ const StudentLogin: React.FC = () => {
                 className="space-y-6"
               >
                 <div>
-                  <label htmlFor="student-email" className="text-xs font-bold text-[#C9A84C] uppercase tracking-widest mb-3 block">
-                    Seu E-mail de Aluno
+                  <label htmlFor="student-email" className="sr-only">
+                    E-mail
                   </label>
                   <div className="relative group">
                     <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500 group-focus-within:text-[#C9A84C] transition-colors" />
@@ -318,11 +320,7 @@ const StudentLogin: React.FC = () => {
           </AnimatePresence>
         </div>
 
-        {/* Footer info */}
-        <p className="text-center text-[10px] text-gray-600 mt-8 uppercase tracking-[0.2em] font-bold">
-          Sistema de Proteção de Dados Migma Inc. <br/>
-          🔒 Criptografia de ponta a ponta
-        </p>
+
       </motion.div>
     </div>
   );
