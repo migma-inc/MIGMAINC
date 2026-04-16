@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -65,8 +65,8 @@ interface PrefillValidationResult {
 // Lista de países ordenada alfabeticamente com "Other" por último
 const countries = getSortedCountries();
 
-const PRODUCTS_CACHE_KEY = 'seller_products_cache_v6';
-const PRODUCTS_CACHE_TIMESTAMP_KEY = 'seller_products_cache_timestamp_v6';
+const PRODUCTS_CACHE_KEY = 'seller_products_cache_v7';
+const PRODUCTS_CACHE_TIMESTAMP_KEY = 'seller_products_cache_timestamp_v7';
 const PRODUCTS_CACHE_DURATION = 10 * 60 * 1000; // 10 minutos (produtos mudam menos frequentemente)
 
 function getCachedProducts(): VisaProduct[] | null {
@@ -1699,19 +1699,47 @@ export function SellerLinks() {
                                 const extraPrice = parseFloat(product.extra_unit_price || '0');
                                 const hasExtraUnits = product.allow_extra_units && extraPrice > 0;
 
+                                // EB-3: sub-group denominators and section headers
+                                let displayPaymentNumber = paymentNumber;
+                                let displayDenominator = stepDenominator;
+                                let eb3SectionLabel: string | null = null;
+                                if (key === 'eb3') {
+                                  if (!isTotalProcess && product.slug.includes('step-')) {
+                                    const stepProducts = sortedProducts.filter(p => p.slug.includes('step-') && !isFullProcessPayment(p));
+                                    displayDenominator = stepProducts.length;
+                                    displayPaymentNumber = stepProducts.findIndex(p => p.slug === product.slug) + 1;
+                                    if (displayPaymentNumber === 1) eb3SectionLabel = 'Step Plan';
+                                  } else if (!isTotalProcess && product.slug.includes('installment-')) {
+                                    const installmentProducts = sortedProducts.filter(p => p.slug.includes('installment-') && !isFullProcessPayment(p));
+                                    displayDenominator = installmentProducts.length;
+                                    displayPaymentNumber = installmentProducts.findIndex(p => p.slug === product.slug) + 1;
+                                    if (displayPaymentNumber === 1) eb3SectionLabel = 'Installment Plan';
+                                  } else if (isTotalProcess) {
+                                    const prevProduct = index > 0 ? sortedProducts[index - 1] : null;
+                                    if (!prevProduct || !isFullProcessPayment(prevProduct)) eb3SectionLabel = 'Full Process Payment';
+                                  }
+                                }
+
 
                                 return (
-                                  <div
-                                    key={product.slug}
-                                    className="p-4 bg-black/50 rounded-lg border border-gold-medium/20 hover:border-gold-medium/40 transition-colors"
-                                  >
+                                  <React.Fragment key={product.slug}>
+                                    {eb3SectionLabel && (
+                                      <div className="flex items-center gap-2 pb-1 pt-3 first:pt-0">
+                                        <div className="h-px flex-1 bg-gold-medium/20" />
+                                        <span className="text-[10px] font-bold text-gold-medium uppercase tracking-widest px-2">{eb3SectionLabel}</span>
+                                        <div className="h-px flex-1 bg-gold-medium/20" />
+                                      </div>
+                                    )}
+                                    <div
+                                      className="p-4 bg-black/50 rounded-lg border border-gold-medium/20 hover:border-gold-medium/40 transition-colors"
+                                    >
                                     <div className="flex flex-col sm:flex-row items-start justify-between gap-4">
                                       <div className="flex-1 space-y-2 w-full">
                                         {/* Payment Label with Number */}
                                         <div className="flex items-center gap-2">
                                           {!isTotalProcess && (
                                             <span className="text-xs font-semibold text-gold-light bg-gold-medium/20 px-2 py-1 rounded">
-                                              {paymentNumber}/{stepDenominator}
+                                              {displayPaymentNumber}/{displayDenominator}
                                             </span>
                                           )}
                                           <h4 className="text-white font-semibold">{paymentLabel}</h4>
@@ -1894,7 +1922,8 @@ export function SellerLinks() {
                                         <p className="text-xs text-red-400">{prefillError}</p>
                                       </div>
                                     )}
-                                  </div>
+                                    </div>
+                                  </React.Fragment>
                                 );
                               })}
                             </div>

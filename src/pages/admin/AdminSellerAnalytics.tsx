@@ -16,7 +16,7 @@ import { CommissionByProductChart } from '@/components/seller/CommissionByProduc
 import { CommissionConversionCard } from '@/components/seller/CommissionConversionCard';
 import { ComparisonCard } from '@/components/seller/ComparisonCard';
 import { ExportButton } from '@/components/seller/ExportButton';
-import { getAnalyticsData, getPreviousPeriod, getCommissionChartData } from '@/lib/seller-analytics';
+import { getAnalyticsData, getPreviousPeriod, getCommissionChartData, getSellerChartData } from '@/lib/seller-analytics';
 import type { AnalyticsData } from '@/lib/seller-analytics';
 import { formatCurrency } from '@/lib/utils';
 import { ShoppingCart, CheckCircle, DollarSign, BarChart3, Coins } from 'lucide-react';
@@ -166,7 +166,7 @@ export function AdminSellerAnalytics({ sellerId: propSellerId, isModal }: AdminS
       try {
         const previousPeriod = getPreviousPeriod(analyticsData.period.start, analyticsData.period.end);
         const [prevData, prevCommissionData] = await Promise.all([
-          (await import('@/lib/seller-analytics')).getSellerChartData(seller.seller_id_public, previousPeriod, granularity),
+          getSellerChartData(seller.seller_id_public, previousPeriod, granularity),
           getCommissionChartData(seller.seller_id_public, previousPeriod, granularity),
         ]);
         setComparisonChartData(prevData);

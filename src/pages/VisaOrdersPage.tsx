@@ -20,6 +20,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Pagination } from "@/components/ui/pagination";
 import { AlertModal } from '@/components/ui/alert-modal';
 import { calculateOrderAmounts } from '@/lib/seller-commissions';
+import { PeriodFilter, type PeriodOption, type CustomDateRange } from '@/components/seller/PeriodFilter';
 
 const isLocal = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
 
@@ -620,8 +621,24 @@ export const VisaOrdersPage = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const [orders, setOrders] = useState<VisaOrder[]>([]);
   const [loading, setLoading] = useState(true);
-  const [showHidden, setShowHidden] = useState(false);
-  const [activeTab, setActiveTab] = useState<'real' | 'signatures'>('real');
+  
+  // Persist showHidden and activeTab in URL
+  const showHidden = searchParams.get('hidden') === 'true';
+  const activeTab = (searchParams.get('tab') as 'real' | 'signatures') || 'real';
+  const setShowHidden = (val: boolean) => {
+    const newParams = new URLSearchParams(searchParams);
+    if (val) newParams.set('hidden', 'true');
+    else newParams.delete('hidden');
+    newParams.set('page', '1');
+    setSearchParams(newParams, { replace: true });
+  };
+  const setActiveTab = (val: 'real' | 'signatures') => {
+    const newParams = new URLSearchParams(searchParams);
+    newParams.set('tab', val);
+    newParams.set('page', '1');
+    setSearchParams(newParams, { replace: true });
+  };
+
   const initialSearch = searchParams.get('search') || '';
   const [searchInput, setSearchInput] = useState(initialSearch);
   const [searchTerm, setSearchTerm] = useState(initialSearch);
@@ -642,6 +659,29 @@ export const VisaOrdersPage = () => {
   const sellerFilter = searchParams.get('seller') || 'all';
   const methodFilter = searchParams.get('method') || 'all';
   const currentPage = parseInt(searchParams.get('page') || '1', 10);
+  
+  // Period filter states (synced with URL)
+  const periodFilter = (searchParams.get('period') as PeriodOption) || 'all_time';
+  const customRange: CustomDateRange = {
+    start: searchParams.get('start') || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+    end: searchParams.get('end') || new Date().toISOString().split('T')[0]
+  };
+
+  const setPeriodFilter = (val: PeriodOption) => {
+    const newParams = new URLSearchParams(searchParams);
+    newParams.set('period', val);
+    newParams.set('page', '1');
+    setSearchParams(newParams, { replace: true });
+  };
+
+  const setCustomDateRange = (range: CustomDateRange) => {
+    const newParams = new URLSearchParams(searchParams);
+    newParams.set('start', range.start);
+    newParams.set('end', range.end);
+    newParams.set('page', '1');
+    setSearchParams(newParams, { replace: true });
+  };
+
   const [totalCount, setTotalCount] = useState(0);
 
   const buildOrdersQuery = ({
@@ -694,6 +734,30 @@ export const VisaOrdersPage = () => {
       query = query.eq('payment_status', 'pending');
     }
 
+    // Apply Period Filter
+    if (periodFilter !== 'all_time') {
+      let start: Date | null = null;
+      let end: Date | null = null;
+      const now = new Date();
+
+      if (periodFilter === 'thismonth') {
+        start = new Date(now.getFullYear(), now.getMonth(), 1);
+        end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+      } else if (periodFilter === 'lastmonth') {
+        start = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+        end = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59);
+      } else if (periodFilter === 'custom') {
+        start = new Date(customRange.start + 'T00:00:00');
+        end = new Date(customRange.end + 'T23:59:59');
+      }
+
+      if (start && end) {
+        // Filter by paid_at if available, otherwise created_at
+        // Using or because some orders might not have paid_at yet
+        query = query.gte('created_at', start.toISOString()).lte('created_at', end.toISOString());
+      }
+    }
+
     return query;
   };
 
@@ -740,9 +804,9 @@ export const VisaOrdersPage = () => {
   };
 
   useEffect(() => {
-    const loadData = async () => {
+    const loadData = async (isInitial = false) => {
       try {
-        setLoading(true);
+        if (isInitial) setLoading(true);
         const batchSize = 1000;
         const allFilteredOrders: VisaOrder[] = [];
         let from = 0;
@@ -767,7 +831,13 @@ export const VisaOrdersPage = () => {
           from += batchSize;
         }
 
-        const visibleFilteredOrders = allFilteredOrders.filter(order => shouldDisplayOrder(order, showHidden));
+        const visibleFilteredOrders = allFilteredOrders
+          .filter(order => shouldDisplayOrder(order, showHidden))
+          .sort((a, b) => {
+            const dateA = new Date(a.paid_at ?? a.created_at).getTime();
+            const dateB = new Date(b.paid_at ?? b.created_at).getTime();
+            return dateB - dateA;
+          });
         const totalVisibleOrders = visibleFilteredOrders.length;
         const currentPageSafe = Math.max(currentPage, 1);
         const startIndex = (currentPageSafe - 1) * itemsPerPage;
@@ -804,7 +874,7 @@ export const VisaOrdersPage = () => {
       }
     };
 
-    loadData();
+    loadData(orders.length === 0);
   }, [statusFilter, sellerFilter, methodFilter, searchTerm, currentPage, activeTab, showHidden]);
 
   useEffect(() => {
@@ -850,7 +920,7 @@ export const VisaOrdersPage = () => {
       }
       newParams.set('page', '1');
       setSearchParams(newParams, { replace: true });
-    }, 300);
+    }, 800); // Increased debounce to be less aggressive
 
     return () => clearTimeout(timeoutId);
   }, [searchInput, searchParams, setSearchParams]);
@@ -1131,6 +1201,17 @@ export const VisaOrdersPage = () => {
               </Select>
             </div>
 
+            <div className="w-full md:w-auto">
+              <PeriodFilter
+                value={periodFilter}
+                onChange={setPeriodFilter}
+                showLabel={false}
+                customDateRange={customRange}
+                onCustomDateRangeChange={setCustomDateRange}
+                locale="en"
+              />
+            </div>
+
             <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
               {isLocal && (
                 <Button
@@ -1187,12 +1268,7 @@ export const VisaOrdersPage = () => {
         <Tabs
           value={activeTab}
           onValueChange={(value) => {
-            const nextTab = value as 'real' | 'signatures';
-            setActiveTab(nextTab);
-
-            const newParams = new URLSearchParams(searchParams);
-            newParams.set('page', '1');
-            setSearchParams(newParams, { replace: true });
+            setActiveTab(value as 'real' | 'signatures');
           }}
           className="space-y-6"
         >
