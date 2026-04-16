@@ -490,6 +490,37 @@ export const VisaOrderDetailPage = () => {
     return products.find(p => p.slug === slug)?.name || slug;
   };
 
+  const isContractRequired = (slug: string, name: string) => {
+    const n = name.toLowerCase();
+    const s = slug.toLowerCase();
+    
+    // Explicitly exclude by slug suffix or known annex-only slugs
+    if (s.endsWith('-scholarship') || s.endsWith('-i20-control')) return false;
+    if (s.includes('catalog') || s.includes('monthly') || (s.includes('installment') && !s.includes('initial'))) return false;
+    if (s === 'eb2-i140-step' || s === 'eb2-i485-step' || s === 'eb2-annex-installment') return false;
+    if (s.includes('consultation')) return false;
+
+    // Check for explicit name indicators
+    if (n.includes('(annex)') && !n.includes('contract')) return false;
+    if (n.includes('step 2') || n.includes('step 3') || n.includes('parte 2') || n.includes('final payment')) return false;
+
+    // Products that definitely REQUIRE a contract (based on active templates list)
+    if (
+      s.includes('selection-process') || 
+      s.includes('initial') || 
+      s.includes('full-process') ||
+      s.includes('premium') ||
+      s.includes('revolution') ||
+      s.includes('-1/2') ||
+      s.includes('-12')
+    ) return true;
+
+    // Default to true for main visa types if not caught by exclusions
+    if (s.includes('eb2') || s.includes('eb3') || s.includes('o1-visa') || s.includes('e2-l1-visa')) return true;
+
+    return true;
+  };
+
   const getDocumentUrl = (filePath: string): string => {
     return filePath; // As URLs já são resolvidas no carregamento
   };
@@ -832,8 +863,11 @@ export const VisaOrderDetailPage = () => {
                   </div>
                 </div>
 
-                {(!order.annex_pdf_url || !order.contract_pdf_url || !order.payment_metadata?.invoice_pdf_url) && 
-                  (order.payment_status === 'paid' || order.payment_status === 'completed') && (
+                {(
+                  !order.annex_pdf_url || 
+                  (!order.contract_pdf_url && isContractRequired(order.product_slug, getProductName(order.product_slug))) || 
+                  !order.payment_metadata?.invoice_pdf_url
+                ) && (order.payment_status === 'paid' || order.payment_status === 'completed') && (
                   <div className="mt-4 p-3 bg-amber-500/5 border border-amber-500/20 rounded flex items-center gap-3">
                     <AlertCircle className="w-5 h-5 text-amber-500 shrink-0" />
                     <p className="text-[11px] text-amber-200/80 leading-relaxed">
