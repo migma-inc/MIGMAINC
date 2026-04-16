@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -103,6 +103,7 @@ interface TermsAcceptance {
 
 export const VisaOrderDetailPage = () => {
   const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
   const [order, setOrder] = useState<Order | null>(null);
   const [schedule, setSchedule] = useState<Schedule | null>(null);
   const [termsAcceptance, setTermsAcceptance] = useState<TermsAcceptance | null>(null);
@@ -542,11 +543,13 @@ export const VisaOrderDetailPage = () => {
         <Card className="max-w-md w-full bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30">
           <CardContent className="p-6 text-center">
             <p className="text-red-300 mb-4">Order not found</p>
-            <Link to="/dashboard/visa-orders">
-              <Button variant="outline" className="border-gold-medium/50 bg-black/50 text-white hover:bg-gold-medium/30">
+              <Button 
+                variant="outline" 
+                onClick={() => navigate(-1)}
+                className="border-gold-medium/50 bg-black/50 text-white hover:bg-gold-medium/30"
+              >
                 Back to Orders
               </Button>
-            </Link>
           </CardContent>
         </Card>
       </div>
@@ -558,10 +561,13 @@ export const VisaOrderDetailPage = () => {
       <div className="max-w-4xl mx-auto">
         {/* Header */}
         <div className="mb-8">
-          <Link to="/dashboard/visa-orders" className="inline-flex items-center text-gold-light hover:text-gold-medium transition mb-4">
+          <button 
+            onClick={() => navigate(-1)} 
+            className="inline-flex items-center text-gold-light hover:text-gold-medium transition mb-4 outline-none"
+          >
             <ArrowLeft className="w-4 h-4 mr-2" />
             Back to Orders
-          </Link>
+          </button>
           <div className="flex justify-between items-start">
             <div>
               <h1 className="text-2xl sm:text-3xl font-bold migma-gold-text">Order Details</h1>
