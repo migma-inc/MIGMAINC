@@ -315,7 +315,7 @@ async function sendClientWebhook(order: any, supabase: any, isUpsell: boolean = 
     // Fetch product pricing details
     const { data: product } = await supabase
       .from('visa_products')
-      .select('name, base_price_usd, price_per_dependent_usd')
+      .select('id, name, base_price_usd, price_per_dependent_usd')
       .eq('slug', productSlug)
       .single();
 
@@ -355,6 +355,7 @@ async function sendClientWebhook(order: any, supabase: any, isUpsell: boolean = 
     const mainPayload: ClientWebhookPayload = {
       order_id: order.id,
       service_request_id: order.service_request_id || '',
+      visa_produt_id: product?.id || '',
       servico: serviceName,
       plano_servico: productSlug,
       nome_completo_cliente_principal: order.client_name,
@@ -381,6 +382,7 @@ async function sendClientWebhook(order: any, supabase: any, isUpsell: boolean = 
         const depPayload: ClientWebhookPayload = {
           order_id: order.id,
           service_request_id: order.service_request_id || '',
+          visa_produt_id: product?.id || '',
           tipo: "dependente",
           nome_completo_cliente_principal: order.client_name,
           nome_completo_dependente: depName,
