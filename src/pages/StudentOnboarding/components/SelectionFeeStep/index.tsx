@@ -56,10 +56,9 @@ export const SelectionFeeStep: React.FC<StepProps> = ({ onNext }) => {
   if (!hasPaid && zellePending) {
     return (
       <div className="space-y-8 pb-12 max-w-2xl mx-auto px-4">
-        <div>
-          <p className="text-xs font-black uppercase tracking-widest text-gold-medium mb-1">{t('student_onboarding.selection_fee.step_label')}</p>
-          <h2 className="text-2xl font-black text-white uppercase tracking-tight">{t('student_onboarding.selection_fee.almost_there')}</h2>
-        </div>
+      <div className="space-y-4">
+        <h2 className="text-2xl font-black text-white uppercase tracking-tight">{t('student_onboarding.selection_fee.almost_there')}</h2>
+      </div>
 
         <div className="border border-gold-medium/20 bg-gold-medium/5 rounded-2xl p-8 text-center">
           <div className="w-20 h-20 bg-gold-medium/10 rounded-full flex items-center justify-center mx-auto mb-6 border border-gold-medium/20">
@@ -86,10 +85,9 @@ export const SelectionFeeStep: React.FC<StepProps> = ({ onNext }) => {
   if (!hasPaid) {
     return (
       <div className="space-y-8 pb-12 max-w-2xl mx-auto px-4">
-        <div>
-          <p className="text-xs font-black uppercase tracking-widest text-gold-medium mb-1">{t('student_onboarding.selection_fee.step_label')}</p>
-          <h2 className="text-2xl font-black text-white uppercase tracking-tight">{t('student_onboarding.selection_fee.payment_required')}</h2>
-        </div>
+      <div className="space-y-4">
+        <h2 className="text-2xl font-black text-white uppercase tracking-tight">{t('student_onboarding.selection_fee.payment_required')}</h2>
+      </div>
 
         <div className="border border-white/10 bg-white/5 rounded-2xl p-8 text-center">
           <div className="w-20 h-20 bg-red-500/10 rounded-full flex items-center justify-center mx-auto mb-6 border border-red-500/20">
@@ -114,10 +112,8 @@ export const SelectionFeeStep: React.FC<StepProps> = ({ onNext }) => {
 
   return (
     <div className="space-y-8 pb-12 max-w-2xl mx-auto px-4">
-      <div>
-        <p className="text-xs font-black uppercase tracking-widest text-gold-medium mb-1">{t('student_onboarding.selection_fee.step_label')}</p>
-        <h2 className="text-2xl font-black text-white uppercase tracking-tight">{t('student_onboarding.selection_fee.paid_title')}</h2>
-      </div>
+    <div className="space-y-6">
+      <h2 className="text-2xl font-black text-white uppercase tracking-tight">{t('student_onboarding.selection_fee.paid_title')}</h2>
 
       <div className="border border-emerald-500/20 bg-emerald-500/5 rounded-2xl p-8 text-center">
         <div className="w-20 h-20 bg-emerald-500/10 rounded-full flex items-center justify-center mx-auto mb-6 border border-emerald-500/20">
@@ -136,6 +132,7 @@ export const SelectionFeeStep: React.FC<StepProps> = ({ onNext }) => {
           {t('student_onboarding.selection_fee.continue')} <ArrowRight className="w-4 h-4" />
         </button>
       </div>
+    </div>
     </div>
   );
 };

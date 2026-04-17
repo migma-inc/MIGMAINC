@@ -166,8 +166,41 @@ Deno.serve(async (req) => {
           console.error(`[user_profiles] update falhou: ${profErr.message}`);
         } else {
           console.log(
-            `[user_profiles] ✅ paid=true | price=${amountNum > 0 ? amountNum : "preservado"} | service_type=${service_type ?? "preservado"}`
+            `[user_profiles] ✅ selection_process: paid=true | price=${amountNum > 0 ? amountNum : "preservado"}`
           );
+        }
+      }
+
+      // 🎯 NOVO: Tratar Placement Fee (V11)
+      if (fee_type === "placement_fee" || fee_type === "placement-fee") {
+        console.log(`[V11] 🎓 Processando baixa de Placement Fee para user ${user_id}...`);
+        
+        // 1. Atualizar user_profiles
+        const { error: profErr } = await migma
+          .from("user_profiles")
+          .update({
+            is_placement_fee_paid: true,
+            placement_fee_paid_at: new Date().toISOString()
+          })
+          .eq("user_id", user_id);
+
+        if (profErr) console.error(`[user_profiles] update placement_fee falhou: ${profErr.message}`);
+
+        // 2. Atualizar institution_applications se ID disponível
+        if (body.application_id) {
+          const { error: appErr } = await migma
+            .from("institution_applications")
+            .update({
+              status: "payment_confirmed",
+              placement_fee_paid_at: new Date().toISOString()
+            })
+            .eq("id", body.application_id);
+
+          if (appErr) {
+            console.error(`[institution_applications] status paid falhou: ${appErr.message}`);
+          } else {
+            console.log(`[institution_applications] ✅ status=payment_confirmed para app ${body.application_id}`);
+          }
         }
       }
     } else if (

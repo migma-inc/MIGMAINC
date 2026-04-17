@@ -6,14 +6,15 @@ import type { OnboardingStep, OnboardingState } from '../types';
 
 const VALID_STEPS: OnboardingStep[] = [
   'selection_fee', 'selection_survey',
-  'scholarship_selection', 'documents_upload',
-  'payment', 'scholarship_fee', 'placement_fee', 'reinstatement_fee', 'my_applications', 'completed'
+  'scholarship_selection', 'placement_fee',
+  'documents_upload', 'payment', 'my_applications', 'completed'
 ];
 
 const normalizeLegacyStep = (step: OnboardingStep | string | null | undefined): OnboardingStep | null => {
   if (!step) return null;
   if (step === 'process_type') return 'documents_upload';
   if (step === 'identity_verification') return 'selection_survey';
+  if (step === 'wait_room') return 'scholarship_selection';
   return step as OnboardingStep;
 };
 
@@ -68,6 +69,7 @@ export const useOnboardingProgress = () => {
       currentStep: initial,
       selectionFeePaid: userProfile?.has_paid_selection_process_fee || false,
       selectionSurveyPassed: userProfile?.selection_survey_passed || false,
+      contractApproved: false,
       scholarshipsSelected: false,
       processTypeSelected: false,
       documentsUploaded: userProfile?.documents_uploaded || false,
@@ -80,6 +82,7 @@ export const useOnboardingProgress = () => {
       onboardingCompleted: userProfile?.onboarding_completed || false,
       migmaCheckoutCompleted: !!userProfile?.migma_checkout_completed_at,
       isNewFlowUser: true, // Migma: sempre placement_fee_flow = true
+      surveyCompletedAt: null,
     };
   });
 
@@ -153,22 +156,51 @@ export const useOnboardingProgress = () => {
       // Flags do perfil
       const selectionFeePaid = !!freshProfile.has_paid_selection_process_fee;
       const selectionSurveyPassed = !!freshProfile.selection_survey_passed;
+      const surveyCompletedAt: string | null = freshProfile.selection_survey_completed_at ?? null;
 
-      // Candidaturas
-      const { data: appsData } = await supabase
-        .from('scholarship_applications')
-        .select('id, scholarship_id, student_process_type, is_application_fee_paid')
-        .eq('student_id', studentId);
+      // Verifica aprovação do contrato ou anexo na tabela visa_orders (Migma DB)
+      let contractApproved = false;
+      if (selectionSurveyPassed && freshProfile.email) {
+        const { data: orderData } = await supabase
+          .from('visa_orders')
+          .select('contract_approval_status, annex_approval_status')
+          .eq('client_email', freshProfile.email)
+          .or('contract_approval_status.eq.approved,annex_approval_status.eq.approved')
+          .limit(1)
+          .maybeSingle();
+        contractApproved = !!orderData;
+      }
 
-      // Cart de bolsas
+      const [{ data: appsData }, { data: v11AppsData }] = await Promise.all([
+        supabase
+          .from('scholarship_applications')
+          .select('id, scholarship_id, student_process_type, is_application_fee_paid')
+          .eq('student_id', studentId),
+        supabase
+          .from('institution_applications')
+          .select('id, status, institution_id, scholarship_level_id')
+          .eq('profile_id', studentId)
+      ]);
+
+      // Cart de bolsas / Seleção realizada
       let scholarshipsSelected = false;
+      let scholarshipsApproved = false;
       if (selectionFeePaid) {
         await applicationStore.fetchCart(user.id);
         const currentCart = useCartStore.getState().cart;
+        
+        const hasLegacyApps = appsData && appsData.length > 0;
+        const hasV11Apps = v11AppsData && v11AppsData.length > 0;
+        
         scholarshipsSelected = !!(
           currentCart.length > 0 ||
-          (appsData && appsData.length > 0) ||
+          hasLegacyApps ||
+          hasV11Apps ||
           !!freshProfile.selected_scholarship_id
+        );
+
+        scholarshipsApproved = hasV11Apps && v11AppsData!.some(a => 
+          ['approved', 'payment_pending', 'payment_confirmed'].includes(a.status)
         );
       }
 
@@ -193,23 +225,22 @@ export const useOnboardingProgress = () => {
 
       // Calcula o step máximo permitido
       let maxAllowedStep: OnboardingStep = 'selection_fee';
-      
+
       if (isMigma && !migmaCheckoutCompleted) {
         maxAllowedStep = 'selection_fee';
       } else if (!selectionFeePaid) {
         maxAllowedStep = 'selection_fee';
       } else if (!selectionSurveyPassed) {
         maxAllowedStep = 'selection_survey';
-      } else if (!scholarshipsSelected) {
+      } else if (!scholarshipsSelected || !scholarshipsApproved) {
+        // Must have selected AND at least one must be approved to advance
         maxAllowedStep = 'scholarship_selection';
+      } else if (!placementFeePaid) {
+        maxAllowedStep = 'placement_fee';
       } else if (!documentsUploaded) {
         maxAllowedStep = 'documents_upload';
       } else if (!applicationFeePaid) {
         maxAllowedStep = 'payment';
-      } else if (!placementFeePaid) {
-        maxAllowedStep = 'placement_fee';
-      } else if (isTransferInactive && !reinstatementFeePaid) {
-        maxAllowedStep = 'reinstatement_fee';
       } else {
         maxAllowedStep = 'my_applications';
       }
@@ -221,15 +252,17 @@ export const useOnboardingProgress = () => {
       const maxIdx = VALID_STEPS.indexOf(maxAllowedStep);
       const savedIdx = VALID_STEPS.indexOf(savedStep);
 
+      // Always advance to maxAllowedStep — ensures student is pushed forward
+      // when a step is completed externally (e.g. admin approves scholarship).
       let chosenStep: OnboardingStep;
       if (onboardingCompleted) {
         chosenStep = 'completed';
-      } else if (uiIdx !== -1 && uiIdx <= maxIdx && uiIdx >= savedIdx) {
-        chosenStep = uiStep;
       } else if (uiIdx > maxIdx) {
+        // Student somehow got ahead of what's allowed — push back
         chosenStep = maxAllowedStep;
       } else {
-        chosenStep = (savedIdx <= maxIdx) ? savedStep : maxAllowedStep;
+        // Always move to the furthest allowed step
+        chosenStep = maxAllowedStep;
       }
 
       if (currentCheckId !== lastCheckId.current) return;
@@ -239,6 +272,7 @@ export const useOnboardingProgress = () => {
         currentStep: chosenStep,
         selectionFeePaid,
         selectionSurveyPassed,
+        contractApproved,
         scholarshipsSelected,
         processTypeSelected,
         documentsUploaded,
@@ -251,6 +285,7 @@ export const useOnboardingProgress = () => {
         onboardingCompleted,
         migmaCheckoutCompleted,
         isNewFlowUser,
+        surveyCompletedAt,
       });
 
       if (chosenStep !== savedStep) {

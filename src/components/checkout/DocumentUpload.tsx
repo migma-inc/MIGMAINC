@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Camera, Upload, X, Loader2 } from 'lucide-react';
 import { compressImage } from '@/utils/image-compression';
+import { supabase } from '@/lib/supabase';
 
 interface DocumentFile {
   file: File;
@@ -115,7 +116,6 @@ export const DocumentUpload = ({ clientId, onComplete, onCancel }: DocumentUploa
 
   // Upload file to Supabase Storage
   const uploadFile = async (file: File, folder: string): Promise<string> => {
-    const { supabase } = await import('@/lib/supabase');
 
     if (file.size <= 0) {
       throw new Error('Cannot upload an empty document');

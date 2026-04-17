@@ -14,8 +14,8 @@ const SelectionFeeStep = React.lazy(() =>
 const MigmaSurveyStep = React.lazy(() =>
   import('./components/MigmaSurveyStep').then(m => ({ default: m.MigmaSurveyStep }))
 );
-const ScholarshipSelectionStep = React.lazy(() =>
-  import('./components/ScholarshipSelectionStep').then(m => ({ default: m.ScholarshipSelectionStep }))
+const UniversitySelectionStep = React.lazy(() =>
+  import('./components/UniversitySelectionStep').then(m => ({ default: m.UniversitySelectionStep }))
 );
 const DocumentsUploadStep = React.lazy(() =>
   import('./components/DocumentsUploadStep').then(m => ({ default: m.DocumentsUploadStep }))
@@ -34,12 +34,13 @@ const normalizeLegacyStep = (step: OnboardingStep | string | null | undefined): 
   if (!step) return null;
   if (step === 'process_type') return 'documents_upload';
   if (step === 'identity_verification') return 'selection_survey';
+  if (step === 'wait_room') return 'scholarship_selection';
   return step as OnboardingStep;
 };
 
 const StepLoader = () => (
-  <div className="flex justify-center items-center py-20">
-    <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
+  <div className="flex justify-center items-center py-32 min-h-[400px]">
+    <Loader2 className="w-10 h-10 animate-spin text-gold-medium" />
   </div>
 );
 
@@ -114,9 +115,9 @@ const StudentOnboarding: React.FC = () => {
     'selection_fee',
     'selection_survey',
     'scholarship_selection',
+    'placement_fee',
     'documents_upload',
     'payment',
-    'placement_fee', // Migma: sempre placement_fee_flow = true
     'my_applications',
   ], []);
 
@@ -160,31 +161,32 @@ const StudentOnboarding: React.FC = () => {
   const stepProps = { onNext: handleNext, onBack: handleBack, currentStep: state.currentStep };
 
   return (
-    <div className="min-h-screen bg-[#0a0a0a]">
-      <div className="max-w-5xl mx-auto px-4 py-8">
+    <div className="min-h-screen bg-[#0a0a0a] relative">
+      <div className="max-w-5xl mx-auto px-4 py-8 relative">
         {/* Logo / header */}
         <div className="mb-8 flex items-center justify-between">
-          <img 
-            src="/logo.png" 
-            alt="Migma" 
-            className="h-8 object-contain cursor-pointer" 
-            onClick={() => navigate('/')}
-            onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} 
-          />
-          
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-6">
+            <img 
+              src="/logo.png" 
+              alt="Migma" 
+              className="h-8 object-contain cursor-pointer" 
+              onClick={() => navigate('/')}
+              onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} 
+            />
+            <div className="h-4 w-[1px] bg-white/10 hidden sm:block" />
             <LanguageSelector />
-            <button
-              onClick={() => {
-                signOut();
-                navigate('/student/login');
-              }}
-              className="px-4 py-2 flex items-center gap-2 bg-white/5 border border-white/10 text-gray-400 hover:bg-white/10 hover:text-white rounded-xl transition-all text-sm font-semibold"
-            >
-              <LogOut className="w-4 h-4" />
-              <span>{t('admin_header.logout', 'Sair')}</span>
-            </button>
           </div>
+          
+          <button
+            onClick={() => {
+              signOut();
+              navigate('/student/login');
+            }}
+            className="px-4 py-2 flex items-center gap-2 bg-white/5 border border-white/10 text-gray-400 hover:bg-white/10 hover:text-white rounded-xl transition-all text-sm font-semibold"
+          >
+            <LogOut className="w-4 h-4" />
+            <span>{t('admin_header.logout', 'Sair')}</span>
+          </button>
         </div>
 
         {/* Step indicator */}
@@ -193,8 +195,8 @@ const StudentOnboarding: React.FC = () => {
         {/* Step content */}
         <Suspense fallback={<StepLoader />}>
           {state.currentStep === 'selection_fee' && <SelectionFeeStep {...stepProps} />}
-          {state.currentStep === 'selection_survey' && <MigmaSurveyStep {...stepProps} />}
-          {state.currentStep === 'scholarship_selection' && <ScholarshipSelectionStep {...stepProps} />}
+          {state.currentStep === 'selection_survey' && <MigmaSurveyStep {...stepProps} contractApproved={state.contractApproved} />}
+          {state.currentStep === 'scholarship_selection' && <UniversitySelectionStep {...stepProps} />}
           {state.currentStep === 'documents_upload' && <DocumentsUploadStep {...stepProps} />}
           {state.currentStep === 'payment' && <PaymentStep {...stepProps} />}
           {state.currentStep === 'placement_fee' && <PlacementFeeStep {...stepProps} />}

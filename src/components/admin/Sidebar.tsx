@@ -2,6 +2,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { FileText, ClipboardList, LayoutDashboard, Phone, ShoppingCart, DollarSign, UserCircle2, UserRound, Mail, FileCode, Calendar, X, Activity, Ticket, LinkIcon, ChevronDown, ChevronRight, GraduationCap, UserPlus, Crown, Plus, Users } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useState, useEffect } from 'react';
+import { supabase } from '@/lib/supabase';
 
 interface SidebarProps {
   className?: string;
@@ -82,7 +83,6 @@ export function Sidebar({ className, isMobileOpen = false, onMobileClose }: Side
 
   const loadCounts = async () => {
     try {
-      const { supabase } = await import('@/lib/supabase');
 
       // 1. Applications Count
       const { count: appCount } = await supabase

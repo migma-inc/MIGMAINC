@@ -445,35 +445,17 @@ Deno.serve(async (req) => {
     const isParcelow = order.payment_method === 'parcelow';
     const metadata = order.payment_metadata || {};
 
-    // Total USD reference (including fees if Parcelow)
-    const totalUsdPaid = isParcelow
-      ? parseFloat(String(metadata.total_usd || order.total_price_usd))
-      : parseFloat(order.total_price_usd);
+    // Total USD reference (net amount in USD, ignoring Parcelow extra fees)
+    const totalUsdPaid = parseFloat(order.total_price_usd);
 
     const upsellUsd = parseFloat(order.upsell_price_usd || '0');
 
-    // Calculate effective exchange rate if Parcelow
-    let exchangeRate = 1;
-    if (isParcelow) {
-      const totalBrl = parseFloat(String(metadata.total_brl || metadata.base_brl || 0));
-      if (totalBrl > 0 && totalUsdPaid > 0) {
-        exchangeRate = totalBrl / totalUsdPaid;
-        currencySymbol = 'R$';
-      }
-    }
-
     if (is_upsell && order.upsell_price_usd) {
       // Upsell contract amount
-      displayAmount = isParcelow ? (upsellUsd * exchangeRate) : upsellUsd;
+      displayAmount = upsellUsd;
     } else {
       // Main contract amount (Total Paid - Upsell)
-      const mainAmountUsd = totalUsdPaid - upsellUsd;
-      displayAmount = isParcelow ? (mainAmountUsd * exchangeRate) : mainAmountUsd;
-    }
-
-    // Safety fallback for Parcelow to match metadata exactly if no upsell exists
-    if (isParcelow && !is_upsell && !order.upsell_price_usd && metadata.total_brl) {
-      displayAmount = parseFloat(String(metadata.total_brl));
+      displayAmount = totalUsdPaid - upsellUsd;
     }
 
     pdf.setFont('helvetica', 'bold');

@@ -50,6 +50,7 @@ import {
   ALL_QUESTIONS,
   SURVEY_SECTIONS,
 } from '@/data/migmaSurveyQuestions';
+import { ScholarshipApprovalTab } from './ScholarshipApprovalTab';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -88,6 +89,55 @@ function paymentBadge(status: string | null) {
   if (status === 'completed') return 'bg-green-500/20 text-green-300 border-green-500/30';
   if (status === 'cancelled') return 'bg-white/5 text-gray-500 border-white/10';
   return 'bg-amber-500/20 text-amber-300 border-amber-500/30';
+}
+
+function SlaCountdown({ surveyCompletedAt }: { surveyCompletedAt: string | null }) {
+  const [timeLeft, setTimeLeft] = useState<{ hours: number; mins: number; secs: number; expired: boolean } | null>(null);
+
+  useEffect(() => {
+    if (!surveyCompletedAt) return;
+    
+    const calculate = () => {
+      const deadline = new Date(surveyCompletedAt).getTime() + 24 * 60 * 60 * 1000;
+      const diff = deadline - Date.now();
+      
+      if (diff <= 0) {
+        setTimeLeft({ hours: 0, mins: 0, secs: 0, expired: true });
+        return;
+      }
+      
+      const hours = Math.floor(diff / (1000 * 60 * 60));
+      const mins = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+      const secs = Math.floor((diff % (1000 * 60)) / 1000);
+      setTimeLeft({ hours, mins, secs, expired: false });
+    };
+
+    calculate();
+    const interval = setInterval(calculate, 1000);
+    return () => clearInterval(interval);
+  }, [surveyCompletedAt]);
+
+  if (!timeLeft) return null;
+
+  const pad = (n: number) => String(n).padStart(2, '0');
+
+  return (
+    <div className={cn(
+      "rounded-lg border px-4 py-3 flex flex-col items-center justify-center gap-1",
+      timeLeft.expired 
+        ? "bg-red-500/20 border-red-500/40 text-red-400 animate-pulse" 
+        : timeLeft.hours < 6 
+          ? "bg-orange-500/20 border-orange-500/40 text-orange-300" 
+          : "bg-emerald-500/20 border-emerald-300/40 text-emerald-300"
+    )}>
+      <span className="text-[10px] font-black uppercase tracking-widest opacity-70">
+        {timeLeft.expired ? 'SLA Expirado' : 'Tempo Restante (SLA 24h)'}
+      </span>
+      <span className="text-2xl font-black tabular-nums">
+        {pad(timeLeft.hours)}:{pad(timeLeft.mins)}:{pad(timeLeft.secs)}
+      </span>
+    </div>
+  );
 }
 
 function contractBadge(status: string | null) {
@@ -138,12 +188,13 @@ function SectionCard({ title, icon: Icon, children }: { title: string; icon: Rea
 // Tabs
 // ---------------------------------------------------------------------------
 
-type Tab = 'overview' | 'orders' | 'documents' | 'timeline' | 'messages' | 'followups' | 'survey' | 'journey';
+type Tab = 'overview' | 'orders' | 'documents' | 'timeline' | 'messages' | 'followups' | 'survey' | 'journey' | 'scholarship';
 
 const TABS: Array<{ id: Tab; label: string }> = [
   { id: 'overview', label: 'Overview' },
   { id: 'journey', label: 'Journey' },
   { id: 'survey', label: 'Survey' },
+  { id: 'scholarship', label: 'Bolsas V11' },
   { id: 'orders', label: 'Orders' },
   { id: 'documents', label: 'Documents' },
   { id: 'timeline', label: 'Timeline' },
@@ -315,11 +366,18 @@ function OverviewTab({
       <div className="space-y-5">
         {/* Operational Stage */}
         <SectionCard title="Operational Stage" icon={Activity}>
-          <div className={cn(
-            'rounded-lg border px-4 py-3 text-center font-black uppercase tracking-widest text-sm',
-            OPERATIONAL_STAGE_COLORS[operationalStage]
-          )}>
-            {OPERATIONAL_STAGE_LABELS[operationalStage]}
+          <div className="space-y-3">
+            <div className={cn(
+              'rounded-lg border px-4 py-3 text-center font-black uppercase tracking-widest text-sm',
+              OPERATIONAL_STAGE_COLORS[operationalStage]
+            )}>
+              {OPERATIONAL_STAGE_LABELS[operationalStage]}
+            </div>
+
+            {/* SLA Countdown if contract is pending */}
+            {primaryOrder?.contract_approval_status === 'pending' && profile.selection_survey_completed_at && (
+              <SlaCountdown surveyCompletedAt={profile.selection_survey_completed_at} />
+            )}
           </div>
         </SectionCard>
 
@@ -1698,6 +1756,9 @@ export function AdminUserDetail() {
         )}
         {activeTab === 'journey' && (
           <JourneyTab detail={detail} />
+        )}
+        {activeTab === 'scholarship' && (
+          <ScholarshipApprovalTab detail={detail} />
         )}
       </div>
     </div>

@@ -79,7 +79,7 @@ const StudentLogin: React.FC = () => {
 
   const handleVerifyCode = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!otp || otp.length < 8 || loading) return;
+    if (!otp || otp.length < 6 || loading) return;
 
     setLoading(true);
     setError(null);
@@ -158,9 +158,11 @@ const StudentLogin: React.FC = () => {
           <h1 className="text-4xl font-black text-white uppercase tracking-tighter mb-2">
             Portal do Aluno
           </h1>
-          <p className="text-gray-400 font-medium">
-            {view === 'email' ? 'Acesso seguro sem senha' : 'Confirme seu acesso'}
-          </p>
+          {view !== 'email' && (
+            <p className="text-gray-400 font-medium">
+              Confirme seu acesso
+            </p>
+          )}
         </div>
 
         {/* Glass Card */}
@@ -190,8 +192,8 @@ const StudentLogin: React.FC = () => {
                 className="space-y-6"
               >
                 <div>
-                  <label htmlFor="student-email" className="text-xs font-bold text-[#C9A84C] uppercase tracking-widest mb-3 block">
-                    Seu E-mail de Aluno
+                  <label htmlFor="student-email" className="sr-only">
+                    E-mail
                   </label>
                   <div className="relative group">
                     <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500 group-focus-within:text-[#C9A84C] transition-colors" />
@@ -261,10 +263,10 @@ const StudentLogin: React.FC = () => {
                     type="text"
                     inputMode="numeric"
                     autoComplete="one-time-code"
-                    maxLength={8}
+                    maxLength={6}
                     value={otp}
                     onChange={e => setOtp(e.target.value.replace(/\D/g, ''))}
-                    placeholder="00000000"
+                    placeholder="000000"
                     className="w-full py-5 bg-black/40 border border-white/5 rounded-2xl text-white text-2xl font-black tracking-[0.6em] text-center placeholder:text-gray-800 outline-none focus:border-[#C9A84C]/50 focus:ring-4 focus:ring-[#C9A84C]/5 transition-all"
                   />
                 </div>
@@ -283,7 +285,7 @@ const StudentLogin: React.FC = () => {
                 <div className="space-y-4">
                   <button
                     type="submit"
-                    disabled={loading || otp.length < 8}
+                    disabled={loading || otp.length < 6}
                     className="w-full relative group overflow-hidden disabled:opacity-50"
                   >
                     <div className="absolute inset-0 bg-[#C9A84C]" />
@@ -318,11 +320,7 @@ const StudentLogin: React.FC = () => {
           </AnimatePresence>
         </div>
 
-        {/* Footer info */}
-        <p className="text-center text-[10px] text-gray-600 mt-8 uppercase tracking-[0.2em] font-bold">
-          Sistema de Proteção de Dados Migma Inc. <br/>
-          🔒 Criptografia de ponta a ponta
-        </p>
+
       </motion.div>
     </div>
   );

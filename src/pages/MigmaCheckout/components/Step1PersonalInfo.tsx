@@ -9,7 +9,8 @@ import { PhoneInput } from 'react-international-phone';
 import 'react-international-phone/style.css';
 import { TermsModal } from './TermsModal';
 import { ZelleUpload } from '../../../features/visa-checkout/components/steps/step3/ZelleUpload';
-import type { Step1Data, ServiceConfig, PaymentMethod, IPRegion, CardOwnership, PayerInfo } from '../types';
+import type { Step1Data, ServiceConfig, PaymentMethod, IPRegion, CardOwnership, PayerInfo, SplitPaymentConfig } from '../types';
+import { SplitPaymentSelector } from '../../../features/visa-checkout/components/steps/step3/SplitPaymentSelector';
 import { calcTotal } from '../serviceConfigs';
 import { getContractTemplateByProductSlug, getChargebackAnnexTemplate } from '../../../lib/contract-templates';
 
@@ -21,13 +22,12 @@ interface MethodOption {
 }
 
 const METHODS: MethodOption[] = [
-  // Stripe temporariamente desabilitado
-  // {
-  //   id: 'stripe',
-  //   labelKey: 'checkout.method_stripe_label',
-  //   sublabelKey: 'checkout.method_stripe_sub',
-  //   regions: ['US', 'BR', 'OTHER'],
-  // },
+  {
+    id: 'stripe',
+    labelKey: 'checkout.method_stripe_label',
+    sublabelKey: 'checkout.method_stripe_sub',
+    regions: ['US', 'BR', 'OTHER'],
+  },
   {
     id: 'parcelow_card',
     labelKey: 'checkout.method_parcelow_card_label',
@@ -63,12 +63,13 @@ interface Props {
     data: Step1Data,
     userId: string,
     total: number,
-    payment: { 
-      method: PaymentMethod; 
-      receipt: File | null; 
-      cardOwnership?: CardOwnership; 
+    payment: {
+      method: PaymentMethod;
+      receipt: File | null;
+      cardOwnership?: CardOwnership;
       cpf?: string;
       payerInfo?: any;
+      splitConfig?: SplitPaymentConfig;
     },
   ) => Promise<void>;
   onRegisterUser: (
@@ -111,12 +112,19 @@ export const Step1PersonalInfo: React.FC<Props> = ({
   const [payerInfo, setPayerInfo] = useState<PayerInfo | null>(null);
   const [receipt, setReceipt] = useState<File | null>(null);
 
+  // Split payment state
+  const [activeSplitConfig, setActiveSplitConfig] = useState<SplitPaymentConfig | null>(null);
+  const [splitCpf, setSplitCpf] = useState('');
+
   const total = calcTotal(config, form.num_dependents);
   const availableMethods = METHODS.filter(m => m.regions.includes(region));
   const needsReceipt = method === 'zelle';
   const isParcelow = method === 'parcelow_card' || method === 'parcelow_pix' || method === 'parcelow_ted';
   const isParcelowCard = method === 'parcelow_card';
   const needsCpfOnly = method === 'parcelow_pix' || method === 'parcelow_ted';
+
+  const canUseSplit = region === 'BR' || region === 'OTHER';
+  const isSplitEnabled = !!activeSplitConfig;
 
   // Helper to validate CPF checksum
   const validateCPF = (val: string) => {
@@ -186,10 +194,20 @@ export const Step1PersonalInfo: React.FC<Props> = ({
     if (!form.terms_accepted) e.terms_accepted = t('migma_checkout.step1.validation_terms', 'Obrigatório aceitar os termos');
     if (!form.data_accepted) e.data_accepted = t('migma_checkout.step1.validation_data', 'Obrigatório autorizar dados');
     if (!form.signature_data_url) e.signature = t('migma_checkout.step1.validation_signature', 'Assinatura é obrigatória');
-    // Validação Parcelow (4.5 PRD v7.0)
-    if (isParcelow) {
+    if (isSplitEnabled) {
+      // Validação split — SplitPaymentSelector só emite config quando válida, mas verificamos por segurança
+      if (!activeSplitConfig) {
+        e.split_amount = 'Configure os valores e métodos de cada parte antes de continuar';
+      }
+      if (!splitCpf) {
+        e.cpf = t('migma_checkout.step3.validation_cpf_required', 'O CPF é obrigatório para pagamentos via Parcelow');
+      } else if (!validateCPF(splitCpf)) {
+        e.cpf = t('migma_checkout.step3.validation_cpf_invalid', 'CPF inválido. Verifique os números preenchidos');
+      }
+    } else if (isParcelow) {
+      // Validação Parcelow normal (4.5 PRD v7.0)
       const cpfToValidate = (isParcelowCard && cardOwnership === 'third_party') ? (payerInfo?.cpf || '') : cpf;
-      
+
       if (!cpfToValidate) {
         e.cpf = t('migma_checkout.step3.validation_cpf_required', 'O CPF é obrigatório para pagamentos via Parcelow');
       } else if (!validateCPF(cpfToValidate)) {
@@ -231,13 +249,22 @@ export const Step1PersonalInfo: React.FC<Props> = ({
         // await supabase.from('user_profiles').update({ cpf: userCpf }).eq('user_id', userId);
       }
 
-      await onComplete(form, userId!, total, {
-        method: method!,
-        receipt: needsReceipt ? receipt : null,
-        cardOwnership: isParcelowCard ? cardOwnership : undefined,
-        cpf: isParcelow ? ((isParcelowCard && cardOwnership === 'third_party') ? payerInfo?.cpf : cpf) : undefined,
-        payerInfo: (isParcelowCard && cardOwnership === 'third_party') ? payerInfo : undefined,
-      });
+      if (isSplitEnabled && activeSplitConfig) {
+        await onComplete(form, userId!, total, {
+          method: 'parcelow_card', // nominal — index.tsx detecta splitConfig e ignora este campo
+          receipt: null,
+          cpf: splitCpf,
+          splitConfig: activeSplitConfig,
+        });
+      } else {
+        await onComplete(form, userId!, total, {
+          method: method!,
+          receipt: needsReceipt ? receipt : null,
+          cardOwnership: isParcelowCard ? cardOwnership : undefined,
+          cpf: isParcelow ? ((isParcelowCard && cardOwnership === 'third_party') ? payerInfo?.cpf : cpf) : undefined,
+          payerInfo: (isParcelowCard && cardOwnership === 'third_party') ? payerInfo : undefined,
+        });
+      }
     } catch (err: any) {
       console.error('[Step1] Error:', err);
       setGlobalError(err.message || t('migma_checkout.step1.error_saving', 'Falha no registro. Tente novamente.'));
@@ -477,14 +504,14 @@ export const Step1PersonalInfo: React.FC<Props> = ({
             {t('migma_checkout.step3.payment_method_title', 'Informações de Pagamento')}
           </h3>
 
-          {/* 4.5 Dados do Pagador / Titularidade (Vem ANTES de acordo com PRD v7.0) */}
+          {/* 4.5 Dados do Pagador / Titularidade */}
           <div className="space-y-6">
             {/* Caso 1: Cartão Parcelow (Seus dados ou Terceiro) */}
             {method === 'parcelow_card' && (
               <div className="space-y-6 animate-in fade-in slide-in-from-top-2">
-                <div className="bg-[#0d0d0d] border border-white/5 rounded-2xl p-5 space-y-4 shadow-inner">
+                <div className="flex flex-col gap-4 bg-zinc-900/60 p-5 rounded-xl border border-gold-medium/20 shadow-xl">
                   <p className="text-sm font-bold text-white uppercase tracking-wide">
-                    {t('checkout.is_card_owner_question', 'Este cartão de crédito é seu ou de outra pessoa?')}
+                    {t('checkout.is_card_owner_question', 'O cartão de crédito que você vai usar é seu ou de outra pessoa?')}
                   </p>
                   <div className="grid grid-cols-2 gap-3">
                     {(['own', 'third_party'] as const).map((val) => (
@@ -492,16 +519,16 @@ export const Step1PersonalInfo: React.FC<Props> = ({
                         key={val}
                         type="button"
                         onClick={() => { setCardOwnership(val); if (val === 'own') setPayerInfo(null); }}
-                        className={`flex items-center justify-center gap-2 py-3 px-4 rounded-xl border-2 transition-all font-bold uppercase tracking-wider text-xs ${
+                        className={`flex items-center justify-center gap-2 py-3 px-4 rounded-lg border-2 transition-all duration-300 font-bold uppercase tracking-wider text-xs ${
                           cardOwnership === val
-                            ? 'bg-gold-medium border-gold-medium text-black shadow-[0_0_10px_rgba(212,175,55,0.2)]'
-                            : 'bg-black/40 border-white/5 text-gray-500 hover:border-white/10 hover:text-white'
+                            ? 'bg-gold-medium border-gold-medium text-black shadow-[0_0_15px_rgba(212,175,55,0.3)]'
+                            : 'bg-black/40 border-white/10 text-gray-400 hover:border-gold-light/50 hover:text-white'
                         }`}
                       >
-                        <div className={`w-3.5 h-3.5 rounded-full border-2 flex items-center justify-center ${
+                        <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
                           cardOwnership === val ? 'border-black' : 'border-gray-600'
                         }`}>
-                          {cardOwnership === val && <div className="w-1.5 h-1.5 rounded-full bg-black" />}
+                          {cardOwnership === val && <div className="w-2 h-2 rounded-full bg-black" />}
                         </div>
                         {val === 'own' ? t('checkout.my_card', 'Meu Cartão') : t('checkout.third_party_card', 'Cartão de Terceiro')}
                       </button>
@@ -510,7 +537,7 @@ export const Step1PersonalInfo: React.FC<Props> = ({
                 </div>
 
                 {cardOwnership === 'own' ? (
-                  <div className="bg-[#0b0b0b] border border-white/5 rounded-2xl p-6 shadow-xl">
+                  <div className="bg-zinc-900/40 border border-gold-medium/20 rounded-lg p-4 space-y-4 animate-in fade-in slide-in-from-top-2 shadow-xl">
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                       <div className="space-y-2">
                         <div className="flex items-center gap-2 mb-1 pl-1">
@@ -539,7 +566,7 @@ export const Step1PersonalInfo: React.FC<Props> = ({
                     </div>
                   </div>
                 ) : (
-                  <div className="bg-[#0b0b0b] border border-gold-medium/20 rounded-2xl p-6 space-y-6 shadow-2xl animate-in zoom-in-95 duration-300">
+                  <div className="bg-zinc-900/40 border border-gold-medium/20 rounded-lg p-4 space-y-6 animate-in fade-in slide-in-from-top-2 shadow-xl">
                     <h4 className="text-gold-light font-black text-xs uppercase tracking-widest border-b border-white/5 pb-3 flex items-center gap-2">
                       <Users className="w-4 h-4" />
                       {t('checkout.payer_data_title', 'Dados do Titular do Cartão')}
@@ -636,8 +663,37 @@ export const Step1PersonalInfo: React.FC<Props> = ({
             )}
           </div>
 
-          {/* 4.6 Seleção do Meio de Pagamento (Fica ABAIXO dos dados) */}
-          <div className="space-y-4 pt-8 border-t border-white/5">
+          {/* Split Payment — reutiliza SplitPaymentSelector do visa-checkout */}
+          {canUseSplit && (
+            <div className="space-y-4 mt-6">
+              <SplitPaymentSelector
+                totalAmount={total}
+                onSplitChange={(config) => setActiveSplitConfig(config as SplitPaymentConfig | null)}
+              />
+
+              {/* CPF — exibido quando split está ativo */}
+              {isSplitEnabled && (
+                <div className="bg-zinc-900/40 border border-gold-medium/20 rounded-lg p-4 space-y-3 animate-in fade-in slide-in-from-top-2 duration-300">
+                  <div className="flex items-center gap-2">
+                    <FileText className="w-4 h-4 text-gold-medium" />
+                    <label className="text-xs font-black text-gray-400 uppercase tracking-widest">Seu CPF *</label>
+                  </div>
+                  <input
+                    type="text"
+                    value={splitCpf}
+                    onChange={e => setSplitCpf(e.target.value.replace(/\D/g, '').slice(0, 11))}
+                    placeholder="00000000000"
+                    className={`${INPUT_CLASS} h-12 ${errors.cpf ? 'border-red-500' : ''}`}
+                  />
+                  {errors.cpf && <p className="text-red-400 text-xs font-bold uppercase">{errors.cpf}</p>}
+                  {errors.split_amount && <p className="text-red-400 text-xs font-bold uppercase tracking-wider">{errors.split_amount}</p>}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* 4.6 Seleção do Meio de Pagamento (oculta quando split está ativo) */}
+          <div className="space-y-4 pt-8 border-t border-white/5" style={{ display: isSplitEnabled ? 'none' : undefined }}>
             <div className="flex items-center justify-between mb-2">
               <p className="text-[10px] font-black text-white uppercase tracking-[0.2em] pl-1 bg-gold-medium/10 py-1 px-3 rounded-md inline-block">
                 {t('migma_checkout.step3.select_method_title', 'Selecione a Forma de Pagamento')}

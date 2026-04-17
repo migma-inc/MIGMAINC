@@ -20,6 +20,24 @@ const DOCUMENT_TYPES = [
     required: true,
   },
   {
+    key: 'transfer_i20',
+    labelKey: 'student_onboarding.documents.i20_label',
+    descKey: 'student_onboarding.documents.i20_desc',
+    required: true,
+  },
+  {
+    key: 'i94',
+    labelKey: 'student_onboarding.documents.i94_label',
+    descKey: 'student_onboarding.documents.i94_desc',
+    required: true,
+  },
+  {
+    key: 'f1_visa',
+    labelKey: 'student_onboarding.documents.visa_label',
+    descKey: 'student_onboarding.documents.visa_desc',
+    required: true,
+  },
+  {
     key: 'diploma',
     labelKey: 'student_onboarding.documents.diploma_label',
     descKey: 'student_onboarding.documents.diploma_desc',
@@ -30,6 +48,24 @@ const DOCUMENT_TYPES = [
     labelKey: 'student_onboarding.documents.funds_label',
     descKey: 'student_onboarding.documents.funds_desc',
     required: true,
+  },
+  {
+    key: 'address_us',
+    labelKey: 'student_onboarding.documents.address_us_label',
+    descKey: 'student_onboarding.documents.address_us_desc',
+    required: true,
+  },
+  {
+    key: 'address_br',
+    labelKey: 'student_onboarding.documents.address_br_label',
+    descKey: 'student_onboarding.documents.address_br_desc',
+    required: true,
+  },
+  {
+    key: 'family_docs',
+    labelKey: 'student_onboarding.documents.family_label',
+    descKey: 'student_onboarding.documents.family_desc',
+    required: false,
   },
 ];
 
@@ -189,7 +225,6 @@ export const DocumentsUploadStep: React.FC<StepProps> = ({ onNext }) => {
   return (
     <div className="space-y-8 pb-12 max-w-4xl mx-auto px-4">
       <div className="space-y-1">
-        <p className="text-xs font-black uppercase tracking-widest text-gold-medium">{t('student_onboarding.documents.step_label')}</p>
         <h2 className="text-2xl font-black text-white uppercase tracking-tight">{t('student_onboarding.documents.title')}</h2>
         <p className="text-sm text-gray-400 font-medium">
           {t('student_onboarding.documents.subtitle')}
@@ -215,64 +250,86 @@ export const DocumentsUploadStep: React.FC<StepProps> = ({ onNext }) => {
             const uploaded = getDocStatus(doc.key);
             const selectedFile = selectedFiles[doc.key];
             const isUploading = uploadingFiles[doc.key];
+            const isFunds = doc.key === 'funds_proof';
 
             return (
-              <div key={doc.key} className={`border-2 rounded-2xl p-5 transition-all ${
-                uploaded ? 'border-emerald-500/30 bg-emerald-500/5' : 'border-white/10 bg-white/5'
-              }`}>
-                <div className="flex items-start gap-4">
-                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${
-                    uploaded ? 'bg-emerald-500/10' : 'bg-white/10'
-                  }`}>
-                    {uploaded
-                      ? <CheckCircle className="w-5 h-5 text-emerald-400" />
-                      : <FileText className="w-5 h-5 text-gray-400" />
-                    }
-                  </div>
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <span className="font-bold text-white">{t(doc.labelKey)}</span>
-                      {doc.required && <span className="text-xs text-red-400 font-medium">*</span>}
+              <React.Fragment key={doc.key}>
+                {isFunds && (
+                  <div className="bg-gold-medium/5 border border-gold-medium/20 rounded-2xl p-6 mb-2">
+                    <div className="flex items-start gap-4">
+                      <div className="w-10 h-10 rounded-full bg-gold-medium/10 flex items-center justify-center flex-shrink-0">
+                        <AlertCircle className="w-5 h-5 text-gold-medium" />
+                      </div>
+                      <div className="space-y-2">
+                        <h4 className="text-gold-medium font-bold uppercase tracking-wider text-sm">Atenção ao Bank Statement</h4>
+                        <p className="text-sm text-gray-400 leading-relaxed">
+                          O Bank Statement <strong>NÃO</strong> é o valor que você vai gastar. É apenas uma comprovação para a imigração de que você tem capacidade financeira. Pode ser: conta corrente, poupança, investimentos, conta de familiar ou patrocinador, ou combinação de contas.
+                        </p>
+                        <p className="text-sm text-gray-500 italic">
+                          Não tem o valor disponível agora? Entre em contato com nossa equipe — temos soluções.
+                        </p>
+                      </div>
                     </div>
-                    <p className="text-sm text-gray-500 mt-0.5">{t(doc.descKey)}</p>
-
-                    {uploaded && (
-                      <div className="mt-2 flex items-center gap-1.5 text-sm text-emerald-400 font-medium">
-                        <CheckCircle className="w-4 h-4" />
-                        {uploaded.original_filename}
+                  </div>
+                )}
+                
+                <div className={`border-2 rounded-2xl p-5 transition-all ${
+                  uploaded ? 'border-emerald-500/30 bg-emerald-500/5' : 'border-white/10 bg-white/5'
+                }`}>
+                  <div className="flex items-start gap-4">
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${
+                      uploaded ? 'bg-emerald-500/10' : 'bg-white/10'
+                    }`}>
+                      {uploaded
+                        ? <CheckCircle className="w-5 h-5 text-emerald-400" />
+                        : <FileText className="w-5 h-5 text-gray-400" />
+                      }
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-white">{t(doc.labelKey)}</span>
+                        {doc.required && <span className="text-xs text-red-400 font-medium">*</span>}
                       </div>
-                    )}
+                      <p className="text-sm text-gray-500 mt-0.5">{t(doc.descKey)}</p>
 
-                    {!isLocked && (
-                      <div className="mt-3 flex items-center gap-3">
-                        <input
-                          type="file"
-                          ref={el => { fileInputRefs.current[doc.key] = el; }}
-                          onChange={e => handleFileSelect(doc.key, e.target.files?.[0] || null)}
-                          accept=".pdf,.jpg,.jpeg,.png,.webp"
-                          className="hidden"
-                        />
-                        <button
-                          onClick={() => fileInputRefs.current[doc.key]?.click()}
-                          disabled={isUploading}
-                          className="flex items-center gap-1.5 text-sm border border-white/10 bg-white/5 rounded-lg px-3 py-1.5 hover:border-white/20 transition-colors font-medium text-gray-300"
-                        >
-                          <Upload className="w-4 h-4" />
-                          {uploaded ? t('student_onboarding.documents.change') : t('student_onboarding.documents.upload')}
-                        </button>
-                        {selectedFile && (
-                          <span className="text-sm text-gray-500 truncate max-w-[200px]">
-                            {selectedFile.name}
-                          </span>
-                        )}
-                        {isUploading && (
-                          <Loader2 className="w-4 h-4 animate-spin text-gold-medium" />
-                        )}
-                      </div>
-                    )}
+                      {uploaded && (
+                        <div className="mt-2 flex items-center gap-1.5 text-sm text-emerald-400 font-medium">
+                          <CheckCircle className="w-4 h-4" />
+                          {uploaded.original_filename}
+                        </div>
+                      )}
+
+                      {!isLocked && (
+                        <div className="mt-3 flex items-center gap-3">
+                          <input
+                            type="file"
+                            ref={el => { fileInputRefs.current[doc.key] = el; }}
+                            onChange={e => handleFileSelect(doc.key, e.target.files?.[0] || null)}
+                            accept=".pdf,.jpg,.jpeg,.png,.webp"
+                            className="hidden"
+                          />
+                          <button
+                            onClick={() => fileInputRefs.current[doc.key]?.click()}
+                            disabled={isUploading}
+                            className="flex items-center gap-1.5 text-sm border border-white/10 bg-white/5 rounded-lg px-3 py-1.5 hover:border-white/20 transition-colors font-medium text-gray-300"
+                          >
+                            <Upload className="w-4 h-4" />
+                            {uploaded ? t('student_onboarding.documents.change') : t('student_onboarding.documents.upload')}
+                          </button>
+                          {selectedFile && (
+                            <span className="text-sm text-gray-500 truncate max-w-[200px]">
+                              {selectedFile.name}
+                            </span>
+                          )}
+                          {isUploading && (
+                            <Loader2 className="w-4 h-4 animate-spin text-gold-medium" />
+                          )}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
-              </div>
+              </React.Fragment>
             );
           })}
         </div>

@@ -6,7 +6,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
-import { approveApplication, rejectApplication, approveApplicationForMeeting, approveApplicationAfterMeeting } from '@/lib/admin';
+import { approveApplication, rejectApplication, approveApplicationForMeeting, approveApplicationAfterMeeting, updateMeetingInfo } from '@/lib/admin';
 import { resendContractTermsEmail } from '@/lib/partner-terms';
 import { approvePartnerContract, rejectPartnerContract } from '@/lib/partner-contracts';
 import { getCurrentUser } from '@/lib/auth';
@@ -211,7 +211,6 @@ function ApplicationDetailContent() {
     setShowMeetingModal(false);
     setIsProcessing(true);
     try {
-      const { updateMeetingInfo } = await import('@/lib/admin');
       const result = await updateMeetingInfo(
         application.id,
         data.meetingDate,

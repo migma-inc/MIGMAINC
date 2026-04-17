@@ -77,7 +77,13 @@ export const SplitPaymentRedirectFlow = () => {
             setIsPolling(false);
             setLoading(false);
             setTimeout(() => {
-                navigate(`/checkout/success?order_id=${split.order_id}&method=parcelow_split`);
+                if (split.source === 'migma') {
+                    // Migma split: redirecionar ao checkout do aluno que verifica o flag de pagamento
+                    const service = split.migma_service_type || 'transfer';
+                    navigate(`/student/checkout/${service}?success=true`);
+                } else {
+                    navigate(`/checkout/success?order_id=${split.order_id}&method=parcelow_split`);
+                }
             }, 2000);
             return;
         }

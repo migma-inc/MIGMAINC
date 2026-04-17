@@ -65,8 +65,8 @@ interface PrefillValidationResult {
 // Lista de países ordenada alfabeticamente com "Other" por último
 const countries = getSortedCountries();
 
-const PRODUCTS_CACHE_KEY = 'seller_products_cache_v6';
-const PRODUCTS_CACHE_TIMESTAMP_KEY = 'seller_products_cache_timestamp_v6';
+const PRODUCTS_CACHE_KEY = 'seller_products_cache_v7';
+const PRODUCTS_CACHE_TIMESTAMP_KEY = 'seller_products_cache_timestamp_v7';
 const PRODUCTS_CACHE_DURATION = 10 * 60 * 1000; // 10 minutos (produtos mudam menos frequentemente)
 
 function getCachedProducts(): VisaProduct[] | null {

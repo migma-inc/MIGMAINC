@@ -147,25 +147,35 @@ export function StudentAuthProvider({ children }: { children: ReactNode }) {
     console.log(`[Auth] Iniciando Verificação Híbrida: ${email}`);
     
     try {
-      // Tentativa 1: magiclink (Padrão para quem usa signInWithOtp)
+      // Tentativa 1: email (Tipo curinga/padrão para OTP)
       let { data, error } = await supabase.auth.verifyOtp({
         email,
         token,
-        type: 'magiclink',
+        type: 'email',
       });
 
-      // Se falhar, tentamos o tipo 'recovery' (Comum para contas migradas/com senha)
+      // Se falhar, tenta magiclink (Padrão para quem usa signInWithOtp legado)
+      if (error) {
+        console.warn(`[Auth] Falha no tipo 'email' (${error.message}). Tentando 'magiclink'...`);
+        const secondAttempt = await supabase.auth.verifyOtp({
+          email,
+          token,
+          type: 'magiclink',
+        });
+        data = secondAttempt.data;
+        error = secondAttempt.error;
+      }
+
+      // Se falhar ambos, tentamos o tipo 'recovery' (Comum para contas migradas/com senha)
       if (error) {
         console.warn(`[Auth] Falha no tipo 'magiclink' (${error.message}). Tentando 'recovery'...`);
-        
-        const secondAttempt = await supabase.auth.verifyOtp({
+        const thirdAttempt = await supabase.auth.verifyOtp({
           email,
           token,
           type: 'recovery',
         });
-        
-        data = secondAttempt.data;
-        error = secondAttempt.error;
+        data = thirdAttempt.data;
+        error = thirdAttempt.error;
       }
 
       if (error) {

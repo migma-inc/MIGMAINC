@@ -30,7 +30,10 @@ export const QuantitySelector: React.FC<QuantitySelectorProps> = ({
         onExtraUnitsChange(num);
 
         const isUnitsOnly = product.calculation_type === 'units_only';
-        const requiredNamesCount = isUnitsOnly ? (num > 0 ? num - 1 : 0) : num;
+        const isRfeDefense = product.slug === 'rfe-defense';
+        const requiredNamesCount = isUnitsOnly
+            ? (isRfeDefense ? num : (num > 0 ? num - 1 : 0))
+            : num;
 
         const newNames = [...dependentNames];
         if (requiredNamesCount < newNames.length) {
@@ -90,7 +93,7 @@ export const QuantitySelector: React.FC<QuantitySelectorProps> = ({
                         value={name}
                         onChange={(e) => handleNameChange(i, e.target.value)}
                         className="bg-white text-black min-h-[44px]"
-                        placeholder={t('checkout.full_name_placeholder', 'Full name')}
+                        placeholder={product.slug === 'rfe-defense' ? t('checkout.evidence_description_placeholder', 'Evidence description') : t('checkout.full_name_placeholder', 'Full name')}
                     />
                 </div>
             ))}

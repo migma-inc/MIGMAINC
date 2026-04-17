@@ -79,7 +79,12 @@ export const SplitPaymentRedirectSuccessStyle = () => {
             setIsPolling(false);
             setLoading(false);
             setTimeout(() => {
-                navigate(`/checkout/success?order_id=${split.order_id}&method=parcelow_split`);
+                if (split.source === 'migma') {
+                    const service = split.migma_service_type || 'transfer';
+                    navigate(`/student/checkout/${service}?success=true`);
+                } else {
+                    navigate(`/checkout/success?order_id=${split.order_id}&method=parcelow_split`);
+                }
             }, 2000);
             return;
         }

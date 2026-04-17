@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -103,6 +103,7 @@ interface TermsAcceptance {
 
 export const VisaOrderDetailPage = () => {
   const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
   const [order, setOrder] = useState<Order | null>(null);
   const [schedule, setSchedule] = useState<Schedule | null>(null);
   const [termsAcceptance, setTermsAcceptance] = useState<TermsAcceptance | null>(null);
@@ -490,6 +491,37 @@ export const VisaOrderDetailPage = () => {
     return products.find(p => p.slug === slug)?.name || slug;
   };
 
+  const isContractRequired = (slug: string, name: string) => {
+    const n = name.toLowerCase();
+    const s = slug.toLowerCase();
+    
+    // Explicitly exclude by slug suffix or known annex-only slugs
+    if (s.endsWith('-scholarship') || s.endsWith('-i20-control')) return false;
+    if (s.includes('catalog') || s.includes('monthly') || (s.includes('installment') && !s.includes('initial'))) return false;
+    if (s === 'eb2-i140-step' || s === 'eb2-i485-step' || s === 'eb2-annex-installment') return false;
+    if (s.includes('consultation')) return false;
+
+    // Check for explicit name indicators
+    if (n.includes('(annex)') && !n.includes('contract')) return false;
+    if (n.includes('step 2') || n.includes('step 3') || n.includes('parte 2') || n.includes('final payment')) return false;
+
+    // Products that definitely REQUIRE a contract (based on active templates list)
+    if (
+      s.includes('selection-process') || 
+      s.includes('initial') || 
+      s.includes('full-process') ||
+      s.includes('premium') ||
+      s.includes('revolution') ||
+      s.includes('-1/2') ||
+      s.includes('-12')
+    ) return true;
+
+    // Default to true for main visa types if not caught by exclusions
+    if (s.includes('eb2') || s.includes('eb3') || s.includes('o1-visa') || s.includes('e2-l1-visa')) return true;
+
+    return true;
+  };
+
   const getDocumentUrl = (filePath: string): string => {
     return filePath; // As URLs já são resolvidas no carregamento
   };
@@ -511,11 +543,13 @@ export const VisaOrderDetailPage = () => {
         <Card className="max-w-md w-full bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30">
           <CardContent className="p-6 text-center">
             <p className="text-red-300 mb-4">Order not found</p>
-            <Link to="/dashboard/visa-orders">
-              <Button variant="outline" className="border-gold-medium/50 bg-black/50 text-white hover:bg-gold-medium/30">
+              <Button 
+                variant="outline" 
+                onClick={() => navigate(-1)}
+                className="border-gold-medium/50 bg-black/50 text-white hover:bg-gold-medium/30"
+              >
                 Back to Orders
               </Button>
-            </Link>
           </CardContent>
         </Card>
       </div>
@@ -527,10 +561,13 @@ export const VisaOrderDetailPage = () => {
       <div className="max-w-4xl mx-auto">
         {/* Header */}
         <div className="mb-8">
-          <Link to="/dashboard/visa-orders" className="inline-flex items-center text-gold-light hover:text-gold-medium transition mb-4">
+          <button 
+            onClick={() => navigate(-1)} 
+            className="inline-flex items-center text-gold-light hover:text-gold-medium transition mb-4 outline-none"
+          >
             <ArrowLeft className="w-4 h-4 mr-2" />
             Back to Orders
-          </Link>
+          </button>
           <div className="flex justify-between items-start">
             <div>
               <h1 className="text-2xl sm:text-3xl font-bold migma-gold-text">Order Details</h1>
@@ -832,8 +869,11 @@ export const VisaOrderDetailPage = () => {
                   </div>
                 </div>
 
-                {(!order.annex_pdf_url || !order.contract_pdf_url || !order.payment_metadata?.invoice_pdf_url) && 
-                  (order.payment_status === 'paid' || order.payment_status === 'completed') && (
+                {(
+                  !order.annex_pdf_url || 
+                  (!order.contract_pdf_url && isContractRequired(order.product_slug, getProductName(order.product_slug))) || 
+                  !order.payment_metadata?.invoice_pdf_url
+                ) && (order.payment_status === 'paid' || order.payment_status === 'completed') && (
                   <div className="mt-4 p-3 bg-amber-500/5 border border-amber-500/20 rounded flex items-center gap-3">
                     <AlertCircle className="w-5 h-5 text-amber-500 shrink-0" />
                     <p className="text-[11px] text-amber-200/80 leading-relaxed">

@@ -17,7 +17,7 @@ import { ApplicationsList } from '@/components/admin/ApplicationsList';
 import { PartnerContractsList } from '@/components/admin/PartnerContractsList';
 import { Sidebar } from '@/components/admin/Sidebar';
 import type { Application } from '@/types/application';
-import { approveApplication, rejectApplication, getApplicationStats, approveApplicationForMeeting, approveApplicationAfterMeeting } from '@/lib/admin';
+import { approveApplication, rejectApplication, getApplicationStats, approveApplicationForMeeting, approveApplicationAfterMeeting, updateMeetingInfo } from '@/lib/admin';
 import { resendContractTermsEmail } from '@/lib/partner-terms';
 import { approvePartnerContract, rejectPartnerContract } from '@/lib/partner-contracts';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -426,7 +426,6 @@ export function DashboardContent() {
     setShowMeetingModal(false);
     setIsProcessing(true);
     try {
-      const { updateMeetingInfo } = await import('@/lib/admin');
       const result = await updateMeetingInfo(
         pendingApplication.id,
         data.meetingDate,
