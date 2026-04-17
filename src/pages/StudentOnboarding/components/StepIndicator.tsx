@@ -4,13 +4,12 @@ import { useTranslation } from 'react-i18next';
 import type { OnboardingStep } from '../types';
 
 const STEPS: { key: OnboardingStep; labelKey: string }[] = [
-  { key: 'identity_verification', labelKey: 'student_onboarding.steps.profile' },
+  { key: 'selection_fee', labelKey: 'student_onboarding.steps.selection_fee' },
   { key: 'selection_survey', labelKey: 'student_onboarding.steps.survey' },
   { key: 'scholarship_selection', labelKey: 'student_onboarding.steps.scholarship' },
   { key: 'documents_upload', labelKey: 'student_onboarding.steps.documents' },
-  { key: 'payment', labelKey: 'student_onboarding.steps.payment' },
   { key: 'placement_fee', labelKey: 'student_onboarding.steps.placement_fee' },
-  { key: 'my_applications', labelKey: 'student_onboarding.steps.my_applications' },
+  { key: 'payment', labelKey: 'student_onboarding.steps.payment' },
 ];
 
 const STEP_ALIAS: Partial<Record<OnboardingStep, OnboardingStep>> = {
@@ -18,6 +17,7 @@ const STEP_ALIAS: Partial<Record<OnboardingStep, OnboardingStep>> = {
   reinstatement_fee: 'placement_fee',
   completed: 'my_applications',
   wait_room: 'selection_survey',
+  payment: 'my_applications'
 };
 
 interface StepIndicatorProps {
@@ -27,23 +27,31 @@ interface StepIndicatorProps {
 
 export const StepIndicator: React.FC<StepIndicatorProps> = ({ currentStep, completedSteps }) => {
   const { t } = useTranslation();
+  
+  // Resolve alias steps to the main steps we display
   const resolvedStep = STEP_ALIAS[currentStep] ?? currentStep;
   const currentIndex = STEPS.findIndex(s => s.key === resolvedStep);
   const totalSteps = STEPS.length;
   
-  // Encontra o maior índice concluído para a barra de progresso
+  // Find the highest completed index for visual progress
   const lastCompletedIndex = STEPS.reduce((max, step, idx) => 
-    completedSteps.includes(step.key) ? Math.max(max, idx) : max, -1
+    completedSteps.includes(step.key) || completedSteps.some(cs => STEP_ALIAS[cs] === step.key)
+      ? Math.max(max, idx) 
+      : max, 
+    -1
   );
   
-  // O progresso visual deve ser baseado no que é maior: o step atual ou o último concluído
+  // Use the highest of current or last completed
   const effectivelyCurrentIndex = Math.max(currentIndex, lastCompletedIndex);
   
+  // Progress bar percentage (overall completion)
   const progress = ((effectivelyCurrentIndex + 1) / totalSteps) * 100;
+  
+  // Active line percentage (line between dots)
   const progressLinePercentage = totalSteps > 1 ? (effectivelyCurrentIndex / (totalSteps - 1)) * 100 : 0;
 
   return (
-    <div className="w-full mb-8 bg-white/[0.02] border border-white/10 rounded-[2rem] p-5 md:p-8 shadow-2xl relative overflow-hidden">
+    <div className="w-full mb-8 bg-zinc-900 border border-white/10 rounded-[2rem] p-5 md:p-8 shadow-2xl relative overflow-hidden">
       {/* Background Glow */}
       <div className="absolute -top-24 -right-24 w-48 h-48 bg-gold-medium/5 blur-[80px] rounded-full pointer-events-none" />
       
@@ -72,7 +80,7 @@ export const StepIndicator: React.FC<StepIndicatorProps> = ({ currentStep, compl
         </div>
       </div>
 
-      {/* Steps visualization (now visible on all screens but more compact on mobile) */}
+      {/* Steps visualization */}
       <div className="flex items-start justify-between relative mt-2 gap-2">
         {/* Background line */}
         <div className="absolute top-4 left-0 w-full h-[1px] bg-white/10 rounded-full z-0 transform -translate-y-1/2" />
@@ -84,7 +92,9 @@ export const StepIndicator: React.FC<StepIndicatorProps> = ({ currentStep, compl
 
         {STEPS.map((step, index) => {
           const isCurrent = step.key === resolvedStep;
-          const isCompleted = completedSteps.includes(step.key) || index < currentIndex;
+          const isCompleted = completedSteps.includes(step.key) || 
+                             completedSteps.some(cs => STEP_ALIAS[cs] === step.key) ||
+                             index < currentIndex;
 
           return (
             <div
@@ -99,11 +109,11 @@ export const StepIndicator: React.FC<StepIndicatorProps> = ({ currentStep, compl
                 ) : (
                   <div className={`w-6 h-6 md:w-8 md:h-8 rounded-full flex items-center justify-center border transition-all duration-300 z-10 ${isCurrent
                       ? 'bg-gold-medium border-gold-medium ring-4 ring-gold-medium/15 shadow-[0_0_15px_rgba(212,175,55,0.3)]'
-                      : 'bg-zinc-900 border-white/10'
+                      : 'bg-zinc-950 border-white/10'
                     }`}>
                     {isCurrent
                       ? <div className="w-1.5 h-1.5 md:w-2.5 md:h-2.5 bg-zinc-950 rounded-full" />
-                      : <span className="text-[10px] md:text-[11px] font-bold text-gray-500">{index + 1}</span>
+                      : <span className="text-[10px] md:text-[11px] font-bold text-gray-400">{index + 1}</span>
                     }
                   </div>
                 )}
@@ -119,7 +129,6 @@ export const StepIndicator: React.FC<StepIndicatorProps> = ({ currentStep, compl
           );
         })}
       </div>
-    </div>
     </div>
   );
 };

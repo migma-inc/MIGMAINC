@@ -3,8 +3,9 @@
  * Multi-select até 4 universidades → Review → Confirm → salva no banco.
  */
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
-  Search, Filter, MapPin, GraduationCap,
+  Search, MapPin, Clock,
   ChevronRight, Loader2, AlertCircle, X, CheckCircle2, AlertTriangle,
   DollarSign, Info, Shield
 } from 'lucide-react';
@@ -24,6 +25,7 @@ type View = 'list' | 'review';
 
 export const UniversitySelectionStep: React.FC<StepProps> = ({ onNext }) => {
   const { userProfile } = useStudentAuth();
+  const { t } = useTranslation();
 
   // ── Data ──
   const [institutions, setInstitutions] = useState<Institution[]>([]);
@@ -48,6 +50,7 @@ export const UniversitySelectionStep: React.FC<StepProps> = ({ onNext }) => {
   // ── View state ──
   const [view, setView] = useState<View>('list');
   const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [existingApps, setExistingApps] = useState<any[]>([]);
   const [saving, setSaving] = useState(false);
 
   // ── Fetch ──
@@ -66,6 +69,18 @@ export const UniversitySelectionStep: React.FC<StepProps> = ({ onNext }) => {
 
       if (fetchError) throw fetchError;
       setInstitutions((data as Institution[]) || []);
+
+      if (userProfile?.id) {
+        const { data: apps } = await supabase
+          .from('institution_applications')
+          .select(`
+            id, status, institution_id, scholarship_level_id,
+            institutions ( name, city, state ),
+            institution_scholarships ( scholarship_level, discount_percent )
+          `)
+          .eq('profile_id', userProfile.id);
+        setExistingApps(apps || []);
+      }
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -196,6 +211,59 @@ export const UniversitySelectionStep: React.FC<StepProps> = ({ onNext }) => {
   }
 
   const selectedInst = modalInstId ? institutions.find(i => i.id === modalInstId) : null;
+  const isPendingApproval = existingApps.length > 0 && existingApps.every(a => a.status === 'pending_admin_approval');
+
+  // ── Awaiting Approval inline view (Spec V11) ──
+  if (isPendingApproval) {
+    return (
+      <div className="max-w-lg mx-auto px-4 py-12 flex flex-col items-center text-center space-y-8">
+        <div className="w-20 h-20 bg-gold-medium/10 border border-gold-medium/20 rounded-3xl flex items-center justify-center relative">
+          <div className="absolute inset-0 bg-gold-medium/10 blur-xl animate-pulse rounded-full" />
+          <Clock className="w-10 h-10 text-gold-medium relative z-10" />
+        </div>
+
+        <div className="space-y-2">
+          <h3 className="text-3xl font-black text-white uppercase tracking-tight leading-tight">
+            Análise de Perfil <span className="text-gold-medium">Migma</span>
+          </h3>
+          <p className="text-gray-400 font-medium leading-relaxed">
+            Nossa equipe de especialistas está revisando suas seleções de universidade e seu perfil acadêmico para aprovação das bolsas.
+          </p>
+        </div>
+
+        <div className="w-full space-y-3">
+          <p className="text-[10px] font-black uppercase text-gray-500 tracking-[0.2em]">Candidaturas em Revisão:</p>
+          <div className="space-y-2">
+            {existingApps.map(app => (
+              <div key={app.id} className="flex items-center justify-between bg-white/[0.03] border border-white/5 rounded-2xl px-5 py-3.5 group hover:bg-white/[0.05] transition-colors">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center text-xs font-bold text-gray-400">
+                    {app.institutions?.name.charAt(0)}
+                  </div>
+                  <span className="text-sm font-bold text-white group-hover:text-gold-medium transition-colors">
+                    {app.institutions?.name}
+                  </span>
+                </div>
+                <span className="text-[10px] bg-gold-medium/10 text-gold-medium px-2.5 py-1 rounded-full font-black uppercase tracking-tighter">
+                  {app.institution_scholarships?.scholarship_level || 'Bolsa Migma'}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="space-y-3">
+          <div className="flex items-center justify-center gap-2 text-xs font-bold text-gray-500 uppercase tracking-widest">
+            <div className="w-1 h-1 bg-gold-medium rounded-full animate-ping" />
+            Aprovação estimada em até 24h úteis
+          </div>
+          <p className="text-[11px] text-gray-600 leading-relaxed italic">
+            Você receberá uma notificação em seu WhatsApp assim que o pagamento da taxa de bolsa (Placement Fee) for liberado.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   // ──────────────────────────────────────────────
   // REVIEW VIEW (7.6)
@@ -296,7 +364,7 @@ export const UniversitySelectionStep: React.FC<StepProps> = ({ onNext }) => {
         {/* ── 7.7 Confirmation Modal ── */}
         {showConfirmModal && (
           <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
-            <div className="absolute inset-0 bg-black/90 backdrop-blur-xl" onClick={() => setShowConfirmModal(false)} />
+            <div className="absolute inset-0 bg-black/60 backdrop-blur-md" onClick={() => setShowConfirmModal(false)} />
             <div className="relative bg-[#0f0f0f] border border-white/10 rounded-3xl p-8 max-w-md w-full shadow-[0_0_80px_rgba(0,0,0,1)] space-y-6">
               <div className="flex flex-col items-center text-center space-y-3">
                 <div className="w-14 h-14 bg-amber-500/10 border border-amber-500/20 rounded-2xl flex items-center justify-center">
@@ -359,30 +427,28 @@ export const UniversitySelectionStep: React.FC<StepProps> = ({ onNext }) => {
       {/* ── 7.1 Header ── */}
       <div className="space-y-4 text-center md:text-left">
         <h1 className="text-3xl sm:text-4xl font-black text-white tracking-tight uppercase">
-          Escolha sua <span className="text-gold-medium">Universidade</span>
+          {t('student_onboarding.scholarship.title_selecting')}
         </h1>
         <p className="text-gray-400 max-w-2xl leading-relaxed font-medium">
-          Parabéns! Com base no seu perfil, selecionamos as universidades credenciadas no SEVIS que
-          pré-aceitaram sua candidatura. Escolha até{' '}
-          <strong className="text-white">4 opções</strong> para prosseguir com sua candidatura.
+          {t('student_onboarding.scholarship.subtitle_selecting')}
         </p>
       </div>
 
-      {/* ── 7.2 Guia Rápido ── */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        {[
-          { icon: Filter, text: 'Use os filtros para buscar por universidade, área ou bolsa' },
-          { icon: Info, text: 'Clique em qualquer card para ver detalhes e escolher o nível de bolsa' },
-          { icon: GraduationCap, text: 'Selecione até 4 universidades simultaneamente' },
-          { icon: ChevronRight, text: 'Clique em Continuar após selecionar ao menos uma' },
-        ].map(({ icon: Icon, text }, i) => (
-          <div key={i} className="bg-white/[0.02] border border-white/5 rounded-2xl p-4 flex items-start gap-3">
-            <div className="w-7 h-7 bg-gold-medium/10 rounded-lg flex items-center justify-center shrink-0 mt-0.5">
-              <Icon className="w-3.5 h-3.5 text-gold-medium" />
+      {/* ── 7.2 Guia Rápido (List Style) ── */}
+      <div className="bg-white/[0.02] border border-white/5 rounded-[2rem] p-6 lg:p-8">
+        <div className="flex flex-col gap-4">
+          {[
+            t('student_onboarding.scholarship.instruction_filter'),
+            t('student_onboarding.scholarship.instruction_details'),
+            t('student_onboarding.scholarship.instruction_limit'),
+            t('student_onboarding.scholarship.instruction_continue'),
+          ].map((text, i) => (
+            <div key={i} className="flex items-center gap-4 group">
+              <div className="w-1.5 h-1.5 bg-gold-medium rounded-full shrink-0 group-hover:scale-150 transition-all shadow-[0_0_10px_rgba(212,175,55,0.4)]" />
+              <p className="text-sm text-gray-400 font-medium group-hover:text-gray-300 transition-colors uppercase tracking-wider">{text}</p>
             </div>
-            <p className="text-xs text-gray-500 leading-relaxed">{text}</p>
-          </div>
-        ))}
+          ))}
+        </div>
       </div>
 
       {/* ── 7.3 Filters ── */}
@@ -610,6 +676,7 @@ export const UniversitySelectionStep: React.FC<StepProps> = ({ onNext }) => {
           </div>
         </div>
       )}
+
     </div>
   );
 };

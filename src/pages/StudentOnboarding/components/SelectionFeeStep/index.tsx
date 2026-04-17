@@ -133,5 +133,6 @@ export const SelectionFeeStep: React.FC<StepProps> = ({ onNext }) => {
         </button>
       </div>
     </div>
+    </div>
   );
 };

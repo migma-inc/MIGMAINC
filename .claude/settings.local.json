@@ -27,7 +27,9 @@
       "Bash(rtk grep:*)",
       "Bash(python3 -c \" import sys, json for line in sys.stdin: try: obj = json.loads\\(line\\) role = obj.get\\('role',''\\) if role == 'user': content = obj.get\\('content',''\\) if isinstance\\(content, list\\): for c in content: if isinstance\\(c, dict\\) and c.get\\('type'\\) == 'text': txt = c.get\\('text',''\\).strip\\(\\) if txt and not txt.startswith\\('<'\\): print\\(f'USER: {txt[:300]}'\\) print\\('---'\\) elif isinstance\\(content, str\\) and content.strip\\(\\) and not content.strip\\(\\).startswith\\('<'\\): print\\(f'USER: {content.strip\\(\\)[:300]}'\\) print\\('---'\\) except: pass \")",
       "Bash(python3:*)",
-      "Bash(rtk ls:*)"
+      "Bash(rtk ls:*)",
+      "Bash(ls -lah /c/Users/victurib/Migma/migma-lp/supabase/migrations/*v11*)",
+      "Bash(ls -lah /c/Users/victurib/Migma/migma-lp/supabase/migrations/*institution*)"
     ]
   }
 }

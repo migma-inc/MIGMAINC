@@ -9,13 +9,13 @@
 **Card: Deploy de Migrations e Banco de Dados**
 **Descrição:** Atualizar o schema de produção remoto com o que já foi construído nas etapas anteriores.
 **Checklists Extras:**
-- [ ] Aplicar migrations pendentes no remoto: `20260407223000`, `20260409143000`, `20260410100000–100002`
-- [ ] Aplicar migration auxiliar: `selection_survey_completed` (generated column em `user_profiles`)
+- [x] Aplicar migrations pendentes no remoto: `20260407223000`, `20260409143000`, `20260410100000–100002`
+- [x] Aplicar migration auxiliar: `selection_survey_completed` (generated column em `user_profiles`)
 
 **Card: Deploy e Teste de Edge Functions**
 **Descrição:** Subir para produção as funções essenciais de webhook e cron jobs.
 **Checklists Extras:**
-- [ ] Deploy das edge functions de pagamentos: `square-webhook`, `stripe-visa-webhook`, `parcelow-webhook`, `send-zelle-webhook`
+- [x] Deploy das edge functions de pagamentos: `square-webhook`, `stripe-visa-webhook`, `parcelow-webhook`, `send-zelle-webhook`
 - [ ] Deploy de edge functions visa: `approve-visa-contract`, `reject-visa-contract`
 - [ ] Deploy e teste manual (HTTP) da cron: `onboarding-sla-cron`
 
@@ -26,27 +26,27 @@
 **Card: Construir Tabelas Geração de Instituições**
 **Descrição:** Models fundamentais para gerenciar faculdades, cursos e bolsas do catálogo v11.
 **Checklists Extras:**
-- [ ] Criar Migration para tabela `institutions` (dados base, badges, rules)
-- [ ] Criar Migration para tabela `institution_courses` (cursos, níveis, meses, CPT)
-- [ ] Criar Migration para tabela `institution_scholarships` (bolsas, discount_percent, placement fee, tuition, migma monthly)
+- [x] Criar Migration para tabela `institutions` (dados base, badges, rules)
+- [x] Criar Migration para tabela `institution_courses` (cursos, níveis, meses, CPT)
+- [x] Criar Migration para tabela `institution_scholarships` (bolsas, discount_percent, placement fee, tuition, migma monthly)
 
 **Card: Tabelas de Processo, Documentos e Finanças**
 **Descrição:** Models auxiliares para comportar a jornada do aluno e transações complexas.
 **Checklists Extras:**
-- [ ] Migration: `institution_applications` (candidaturas feitas pelo cliente)
+- [x] Migration: `institution_applications` (candidaturas feitas pelo cliente)
 - [ ] Migration: `global_document_requests` (pipeline de documentos transferência e COS)
 - [ ] Migration: `institution_forms` (controle dos PDFs gerados e assinatura)
 - [ ] Migration: `recurring_charges` (gestão das cobranças mensais da diferença Migma)
 - [ ] Migration: `referral_links` (programa de indicação e tracking)
-- [ ] Adicionar RLS (Row Level Security) focado no cliente para estas tabelas
+- [x] Adicionar RLS (Row Level Security) focado no cliente para estas tabelas
 
 **Card: Seed de Dados (Institucional)**
 **Descrição:** Entrar no banco de dados com a carga real das 15 instituições.
 **Checklists Extras:**
-- [ ] Inserir Caroline University e Oikos University em detalhes (spec seções 10.3)
-- [ ] Inserir CSI e Trine University com dados iniciais
-- [ ] Recuperar manual/guia interno para preencher ALAs, AAE, Internexus etc.
-- [ ] Inserir escolas ESL (CSI e Ucedas) configurando flag global ESL.
+- [x] Inserir Caroline University e Oikos University em detalhes (spec seções 10.3)
+- [x] Inserir CSI e Trine University com dados iniciais
+- [x] Recuperar manual/guia interno para preencher ALAs, AAE, Internexus etc.
+- [x] Inserir escolas ESL (CSI e Ucedas) configurando flag global ESL.
 
 ---
 
@@ -55,18 +55,18 @@
 **Card: UI e Validações Rígidas no Form (Step 1-5)**
 **Descrição:** Forçar as regras de seleção exata e simplificação de UX apontadas na spec v11.
 **Checklists Extras:**
-- [ ] Remover tela/pergunta "Tipo de processo" e forçar preenchimento via URL (`service_type` state)
-- [ ] Regra "Exatamente 2": impedir < 2 e bloquear UI para > 2 nas Áreas de Interesse
-- [ ] Regra "Exatamente 2": Aplicar na Frequência das Aulas e Faixa de Investimento
-- [ ] Regra "Exatamente 3": Aplicar nas Regiões de Preferência
-- [ ] Garantir que 100% dos dados essenciais do FormV7 persistem no perfil da V11
+- [x] Remover tela/pergunta "Tipo de processo" e forçar preenchimento via URL (`service_type` state)
+- [x] Regra "Exatamente 2": impedir < 2 e bloquear UI para > 2 nas Áreas de Interesse
+- [x] Regra "Exatamente 2": Aplicar na Frequência das Aulas e Faixa de Investimento
+- [x] Regra "Exatamente 3": Aplicar nas Regiões de Preferência
+- [x] Garantir que 100% dos dados essenciais do FormV7 persistem no perfil da V11
 
 **Card: Pós Questionário e Timer 24h**
 **Descrição:** Tela final que gera bloqueio para engatar urgência e análise admin.
 **Checklists Extras:**
-- [ ] Construir layout da tela de conclusão (Timer exibindo aguarde até finalização de análise e contagem de instituições simulada 1481)
-- [ ] Botão de ir para Escolha Desabilitado 
-- [ ] Implementar Teste E2E (Checkout Inicial -> Questionário Respondido -> Tela Final)
+- [x] Construir layout da tela de conclusão (Timer exibindo aguarde até finalização de análise e contagem de instituições simulada 1481)
+- [x] Botão de ir para Escolha Desabilitado 
+- [x] Implementar Teste E2E (Checkout Inicial -> Questionário Respondido -> Tela Final)
 
 ---
 
@@ -75,15 +75,15 @@
 **Card: Admin Board: Rejeição ou Aprovação de Prospects**
 **Descrição:** Nova aba no Dashboard do administrador para revisão se o contratante atende aos requisitos iniciais Migma.
 **Checklists Extras:**
-- [ ] Adicionar status de `profile_approval_status` (pending review/approved/rejected)
-- [ ] Admin Board: Tela "AGUARD. APROVAÇÃO" com fotos selfie e docs para overview rapido.
-- [ ] Criar Action Buttons de Approve/Reject, gravando auditoria do admin que realizou (IP e Timestamps)
+- [x] Adicionar status de `profile_approval_status` (pending review/approved/rejected)
+- [x] Admin Board: Tela "AGUARD. APROVAÇÃO" com fotos selfie e docs para overview rapido.
+- [x] Criar Action Buttons de Approve/Reject, gravando auditoria do admin que realizou (IP e Timestamps)
 - [ ] Emitir Edge-Function enviando "Bem-Vindo/Contrato Oficial" via Automação após Aprovação de Admin
 
 **Card: Frontend do Estudante Pós-Aprovação**
 **Descrição:** Refletir decisão do admin para destrancar etapa 2 do onboarding do cliente
 **Checklists Extras:**
-- [ ] Mostrar status liberado e habilitar botão de "Acesse a Escolha de Faculdades"
+- [x] Mostrar status liberado e habilitar botão de "Acesse a Escolha de Faculdades"
 - [ ] Notificação transacional WhatsApp com o resultado positivo (Agendar no Módulo 8)
 
 ---
@@ -93,25 +93,25 @@
 **Card: UI Listagem e Lógica da Matriz (Search & Filters)**
 **Descrição:** Catálogo base de universidades, com as regras complexas de CPT/OPT sendo filtradas dinamicamente.
 **Checklists Extras:**
-- [ ] Construir header dinâmico "X universidades confirmaram seu pré-aceite de 1481"
-- [ ] Lógica Oculta ESL: Trazer ESL branch APENAS se cliente for Básico/Zero ou "forçado" via admin toggle
-- [ ] Implementar 8 filtros avançados no front-end: Nome, Uni, Nível, Área(56 cursos), Modality, Permit, Cost Range.
-- [ ] Card das universidades: Visual rico, com badgets e desconto % plotados claramente.
-- [ ] Seleção Limitada: Máximo de 4 cards escolhidos, bloquear outros cliques ao atingir. Cartão ganha hover dourado/destaque ao ser clicado.
+- [x] Construir header dinâmico "X universidades confirmaram seu pré-aceite de 1481"
+- [x] Lógica Oculta ESL: Trazer ESL branch APENAS se cliente for Básico/Zero ou "forçado" via admin toggle
+- [x] Implementar 8 filtros avançados no front-end: Nome, Uni, Nível, Área(56 cursos), Modality, Permit, Cost Range.
+- [x] Card das universidades: Visual rico, com badgets e desconto % plotados claramente.
+- [x] Seleção Limitada: Máximo de 4 cards escolhidos, bloquear outros cliques ao atingir. Cartão ganha hover dourado/destaque ao ser clicado.
 
 **Card: Modal Interativa Super Detalhada**
 **Descrição:** Modal que exibe TUDO sobre a faculdade. Uma das telas de venda mais críticas.
 **Checklists Extras:**
-- [ ] Seção "Tabela Interativa": Linhas Clicáveis de diferentes Tiers de Placements ($200/$600/$1000). Hover com calculo real "Você economiza X".
-- [ ] Calculadora inline momentânea em "Quanto vou pagar?" -> Destaca 4 triggers (Hoje, após aceite, matricula inicial, recorrente anual)
-- [ ] Seção "Regras": Requisitos, Linguagem CPT explicada, FAQ Dropdowns rápidos.
-- [ ] Banner ou CallOut do programa Migma Rewards de 10 indicados = Tuition Zera
+- [x] Seção "Tabela Interativa": Linhas Clicáveis de diferentes Tiers de Placements ($200/$600/$1000). Hover com calculo real "Você economiza X".
+- [x] Calculadora inline momentânea em "Quanto vou pagar?" -> Destaca 4 triggers (Hoje, após aceite, matricula inicial, recorrente anual)
+- [x] Seção "Regras": Requisitos, Linguagem CPT explicada, FAQ Dropdowns rápidos.
+- [x] Banner ou CallOut do programa Migma Rewards de 10 indicados = Tuition Zera
 
 **Card: Tela de Revisão de Carrinho Universitario**
 **Descrição:** A tela pre-submit final certificando o carrinho escolhido (Máximo 4)
 **Checklists Extras:**
-- [ ] Montar visualizador de resumo das escolhas (Curso | Placement Fee alvo | Tuiton Anual Resultante)
-- [ ] Botão de "Confirmar Escolha em Definitivo" disparando Pop-up severo "Não Editável mais adiante"
+- [x] Montar visualizador de resumo das escolhas (Curso | Placement Fee alvo | Tuiton Anual Resultante)
+- [x] Botão de "Confirmar Escolha em Definitivo" disparando Pop-up severo "Não Editável mais adiante"
 
 ---
 
@@ -120,9 +120,9 @@
 **Card: Seleção do Placement e Emissão de Ticket (Admin)**
 **Descrição:** Dos N selecionados, o Administrador valida 1 como o "Ganhador" e gira o link de pagamento do fee
 **Checklists Extras:**
-- [ ] Criar Admin View da tela "AGUAR. APROVAÇÃO BOLSA" para analisar as escolhas enviadas pelo prospect
-- [ ] Flow Admin: Escolher Facul 1 das 4. Clicar em Gerar Link Checkout Placement.
-- [ ] Edge Function disparar Pagamentos gerado por API Square/Parcelow (Envio por Email).
+- [x] Criar Admin View da tela "AGUAR. APROVAÇÃO BOLSA" para analisar as escolhas enviadas pelo prospect
+- [x] Flow Admin: Escolher Facul 1 das 4. Clicar em Gerar Link Checkout Placement.
+- [x] Edge Function disparar Pagamentos gerado por API Square/Parcelow (Envio por Email).
 - [ ] Mecanismo Automático (CRON): Se o perfil ficar 24h sem Admin aprovar, o script força auto-aprovação Oikos ou Caroline pela prioridade nativa.
 
 **Card: Portal de Documentos Requeridos e Dados Avançados**
@@ -130,7 +130,7 @@
 **Checklists Extras:**
 - [ ] Gatilho Webhook: Libera Global Docs na Sidebar após Placement compensado em Banco.
 - [ ] Trava financeira 1x/2x: Armazenamento da forma de parcelamento para trancar Carta de Aceite na ETAPA 6.
-- [ ] UI Lista Dinamica Front: Exibir BankStatement (Com Aviso Alert Migma sem sustos), I-797 (se aplicável), e outros baseados na categoria de visto requisitado.
+- [x] UI Lista Dinamica Front: Exibir BankStatement (Com Aviso Alert Migma sem sustos), I-797 (se aplicável), e outros baseados na categoria de visto requisitado.
 - [ ] Admin Docs Manager: View de admin que dá Feedback doc por doc "Aceito" ou "Refeito".
 - [ ] Liberar Dados Complementares Forms(Sponsors, Recomendantes) apôs Documentos finalizarem.
 

@@ -1,3 +1,151 @@
+▝▜█████▛▘  Sonnet 4.6 with medium effort · Claude Pro
+  ▘▘ ▝▝    ~\Migma\migma-lp
+
+  ✻ Voice mode is now available · /voice to enable
+
+  Searched for 1 pattern, read 2 files (ctrl+o to expand)
+
+● Tenho tudo que preciso. Criando o plano.
+
+● Updated plan
+  ⎿  /plan to preview
+
+  Searched for 1 pattern (ctrl+o to expand)
+
+● Padrão de RLS admin confirmado: (auth.jwt() -> 'user_metadata' ->> 'role') = 'admin'. Atualizando o plano.
+
+● Updated plan
+  ⎿  /plan to preview
+
+● User approved Claude's plan
+  ⎿  Plan saved to: ~\.claude\plans\melodic-sniffing-lagoon.md · /plan to edit
+     Plano: Admin — Aprovação de Bolsa V11 + Fix de Schema
+
+     Context
+
+     O aluno seleciona até 4 universidades no onboarding (UniversitySelectionStep).
+     Após a seleção, fica travado na tela "Perfil em Revisão pela Banca Migma" (PlacementFeeStep).
+     O admin precisa aprovar a bolsa para liberar o link de Placement Fee ao aluno.
+
+     O ScholarshipApprovalTab.tsx já está implementado e integrado no AdminUserDetail (aba "Bolsas V11").
+     O fluxo completo já existe no código. O único bloqueador é o schema do banco — a migration não tem as colunas payment_link_url e payment_link_generated_at que o código    
+     usa.
+
+     O que já existe (não tocar)
+
+     - src/pages/admin/ScholarshipApprovalTab.tsx — UI completa de aprovação ✓
+     - src/pages/admin/AdminUserDetail.tsx linha 1748 — tab "Bolsas V11" integrado ✓
+     - src/pages/StudentOnboarding/components/PlacementFeeStep.tsx — tela do aluno ✓
+     - supabase/functions/migma-parcelow-checkout/index.ts — geração do link Parcelow ✓
+     - Fluxo: approve → gera link Parcelow → rejeita outras apps → envia email ✓
+
+     Problema único: Migration incompleta
+
+     supabase/migrations/20260417093328_create_v11_process_schema.sql
+
+     A tabela institution_applications criada nessa migration NÃO tem:
+     - payment_link_url TEXT — URL do checkout Parcelow
+     - payment_link_generated_at TIMESTAMPTZ — timestamp de geração
+
+     O código em ScholarshipApprovalTab.tsx (linha 39-40) e PlacementFeeStep.tsx (linha 42) já referenciam essas colunas. Sem elas, o UPDATE da aprovação vai falhar
+     silenciosamente.
+
+     Plano de execução
+
+     Passo 1 — Nova migration para adicionar as colunas
+
+     Criar arquivo: supabase/migrations/20260417100000_add_payment_link_to_institution_applications.sql
+
+     ALTER TABLE public.institution_applications
+       ADD COLUMN IF NOT EXISTS payment_link_url TEXT,
+       ADD COLUMN IF NOT EXISTS payment_link_generated_at TIMESTAMPTZ;
+
+     Passo 2 — RLS para admins
+
+     As políticas atuais só deixam o próprio usuário fazer SELECT/UPDATE.
+     O admin usa o supabase client com anon key, então o UPDATE vai ser bloqueado pela RLS.
+
+     Padrão confirmado em todas as migrations do projeto: (auth.jwt() -> 'user_metadata' ->> 'role') = 'admin'
+
+     Adicionar na mesma migration:
+     -- Admins podem SELECT em qualquer institution_application
+     CREATE POLICY "Admins can read all applications"
+       ON public.institution_applications
+       FOR SELECT
+       USING ((auth.jwt() -> 'user_metadata' ->> 'role') = 'admin');
+
+     -- Admins podem UPDATE em qualquer institution_application (aprovação, link, rejeição)
+     CREATE POLICY "Admins can update all applications"
+       ON public.institution_applications
+       FOR UPDATE
+       USING ((auth.jwt() -> 'user_metadata' ->> 'role') = 'admin')
+       WITH CHECK ((auth.jwt() -> 'user_metadata' ->> 'role') = 'admin');
+
+     Passo 3 — Verificar acesso ao CRM Board (sem mudança de código)
+
+     Confirmar que OnboardingCrmBoard tem cards de alunos em placement_fee step
+     que linkam para AdminUserDetail com a aba "scholarship" pré-selecionada.
+     Se não tiver, adicionar ?tab=scholarship na URL de navegação do card.
+
+     ┌─────────────────────────────────────────────────────────────────────────────────────┬─────────────────────────────────────────────────────────┐
+     │                                       Arquivo                                       │                          Ação                           │
+     ├─────────────────────────────────────────────────────────────────────────────────────┼─────────────────────────────────────────────────────────┤
+     │ supabase/migrations/20260417100000_add_payment_link_to_institution_applications.sql │ CRIAR (nova migration)                                  │
+     ├─────────────────────────────────────────────────────────────────────────────────────┼─────────────────────────────────────────────────────────┤
+     │ src/components/admin/OnboardingCrmBoard.tsx                                         │ Verificar link para tab scholarship (pode não precisar) │
+     └─────────────────────────────────────────────────────────────────────────────────────┴─────────────────────────────────────────────────────────┘
+
+     Fluxo pós-implementação
+
+     1. Admin abre AdminUserDetail do aluno → aba "Bolsas V11"
+     2. Vê até 4 cards de universidades com status AGUARD. APROVAÇÃO
+     3. Seleciona o radio da bolsa desejada → clica "Aprovar Bolsa"
+     4. Sistema: gera link Parcelow, atualiza status → payment_pending, rejeita demais, envia email
+     5. Aluno: PlacementFeeStep exibe o botão de pagamento em tempo real (subscription Supabase ativa)
+
+     Verificação
+
+     1. Aplicar migration no Supabase
+     2. Admin aprova bolsa de aluno de teste → confirmar no Supabase Studio que payment_link_url foi salvo
+     3. Aluno no onboarding → PlacementFeeStep deve exibir o card de pagamento automaticamente
+     4. Email chega ao aluno com link Parcelow
+
+
+
+● Write(supabase\migrations\20260417100000_add_payment_link_to_institution_applications.sql)
+  ⎿  Wrote 19 lines to supabase\migrations\20260417100000_add_payment_link_to_institution_applications.sql
+       1 -- Migration: add payment_link columns to institution_applications
+       2 -- Required by ScholarshipApprovalTab (admin approval flow) and PlacementFeeStep (student UI)
+       3
+       4 ALTER TABLE public.institution_applications
+       5   ADD COLUMN IF NOT EXISTS payment_link_url TEXT,
+       6   ADD COLUMN IF NOT EXISTS payment_link_generated_at TIMESTAMPTZ;
+       7
+       8 -- Admins can SELECT any institution_application (to view student selections in approval tab)
+       9 CREATE POLICY "Admins can read all applications"
+      10   ON public.institution_applications
+     … +9 lines (ctrl+o to expand)
+
+● Agora verifico o CRM Board para ver se há link para a aba scholarship.
+
+  Searched for 3 patterns (ctrl+o to expand)
+
+● AdminUserDetail não lê URL params para tab — o admin precisa clicar manualmente. Não é bloqueador, mas posso adicionar depois se quiser.
+
+  Done. O que foi feito:
+
+  Criada supabase/migrations/20260417100000_add_payment_link_to_institution_applications.sql com:
+  - ADD COLUMN payment_link_url TEXT e payment_link_generated_at TIMESTAMPTZ na tabela institution_applications
+  - Política RLS para admin ler qualquer application
+  - Política RLS para admin atualizar qualquer application (necessário para a aprovação funcionar)
+
+  Fluxo agora funcional:
+  1. Admin → AdminUserDetail de qualquer aluno → aba "Bolsas V11"
+  2. Seleciona a bolsa aprovada → clica "Aprovar Bolsa"
+  3. Sistema gera link Parcelow, salva payment_link_url, rejeita demais apps, envia email
+  4. Aluno vê o botão de pagamento em tempo real na tela "Perfil em Revisão"
+
+  Só precisa aplicar a migration no Supabase.
 **MIGMA INC.**
 
 **Documentação de Alterações**

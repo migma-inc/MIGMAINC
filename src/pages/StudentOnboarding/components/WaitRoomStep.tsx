@@ -5,7 +5,7 @@
  * O admin aprova o contrato na VisaOrderDetailPage, o que libera o step scholarship_selection.
  */
 import React, { useEffect, useState, useMemo } from 'react';
-import { Clock, GraduationCap, CheckCircle, RefreshCw } from 'lucide-react';
+import { Clock, CheckCircle, RefreshCw } from 'lucide-react';
 
 interface WaitRoomProps {
   surveyCompletedAt: string | null;
@@ -114,20 +114,6 @@ export const WaitRoomStep: React.FC<WaitRoomProps> = ({ surveyCompletedAt, check
         </div>
       )}
 
-      {/* Botão desabilitado */}
-      <div className="space-y-2">
-        <button
-          disabled
-          className="w-full flex items-center justify-center gap-3 py-4 px-6 rounded-2xl bg-white/5 border border-white/10 text-gray-600 cursor-not-allowed font-bold text-base"
-        >
-          <GraduationCap className="w-5 h-5" />
-          Escolher Faculdades
-          <span className="text-xs font-normal text-gray-700 ml-1">(aguardando aprovação)</span>
-        </button>
-        <p className="text-xs text-gray-600 text-center">
-          Este botão será liberado assim que seu contrato for aprovado pelos nossos consultores.
-        </p>
-      </div>
 
       {/* Última atualização */}
       <div className="text-xs text-gray-700 text-center flex items-center justify-center gap-1.5">

@@ -29,14 +29,12 @@ const PlacementFeeStep = React.lazy(() =>
 const WaitingApprovalStep = React.lazy(() =>
   import('./components/WaitingApprovalStep').then(m => ({ default: m.WaitingApprovalStep }))
 );
-const WaitRoomStep = React.lazy(() =>
-  import('./components/WaitRoomStep').then(m => ({ default: m.WaitRoomStep }))
-);
 
 const normalizeLegacyStep = (step: OnboardingStep | string | null | undefined): OnboardingStep | null => {
   if (!step) return null;
   if (step === 'process_type') return 'documents_upload';
   if (step === 'identity_verification') return 'selection_survey';
+  if (step === 'wait_room') return 'scholarship_selection';
   return step as OnboardingStep;
 };
 
@@ -79,7 +77,7 @@ const StudentOnboarding: React.FC = () => {
   }, [authLoading, user, navigate]);
 
   const VALID_STEPS: OnboardingStep[] = [
-    'selection_fee', 'selection_survey', 'wait_room',
+    'selection_fee', 'selection_survey',
     'scholarship_selection', 'documents_upload',
     'payment', 'placement_fee', 'my_applications',
   ];
@@ -116,11 +114,10 @@ const StudentOnboarding: React.FC = () => {
   const getOrderedSteps = useCallback((): OnboardingStep[] => [
     'selection_fee',
     'selection_survey',
-    'wait_room',
     'scholarship_selection',
+    'placement_fee',
     'documents_upload',
     'payment',
-    'placement_fee', // Migma: sempre placement_fee_flow = true
     'my_applications',
   ], []);
 
@@ -199,9 +196,6 @@ const StudentOnboarding: React.FC = () => {
         <Suspense fallback={<StepLoader />}>
           {state.currentStep === 'selection_fee' && <SelectionFeeStep {...stepProps} />}
           {state.currentStep === 'selection_survey' && <MigmaSurveyStep {...stepProps} contractApproved={state.contractApproved} />}
-          {state.currentStep === 'wait_room' && (
-            <WaitRoomStep surveyCompletedAt={state.surveyCompletedAt} checkProgress={checkProgress} />
-          )}
           {state.currentStep === 'scholarship_selection' && <UniversitySelectionStep {...stepProps} />}
           {state.currentStep === 'documents_upload' && <DocumentsUploadStep {...stepProps} />}
           {state.currentStep === 'payment' && <PaymentStep {...stepProps} />}

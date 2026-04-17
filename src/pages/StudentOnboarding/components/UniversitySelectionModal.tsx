@@ -173,7 +173,7 @@ export const UniversitySelectionModal: React.FC<Props> = ({
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 md:p-10">
       <div
-        className="absolute inset-0 bg-black/90 backdrop-blur-xl"
+        className="absolute inset-0 bg-black/60 backdrop-blur-md"
         onClick={onClose}
       />
 
