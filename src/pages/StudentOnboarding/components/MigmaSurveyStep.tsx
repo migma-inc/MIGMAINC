@@ -25,7 +25,11 @@ import { SurveyQuestionField } from '../../MigmaSurvey/components/SurveyQuestion
 import { SurveyCompletionScreen } from '../../MigmaSurvey/components/SurveyCompletionScreen';
 import type { StepProps } from '../types';
 
-export const MigmaSurveyStep: React.FC<StepProps> = ({ onNext }) => {
+interface ExtendedStepProps extends StepProps {
+  contractApproved?: boolean;
+}
+
+export const MigmaSurveyStep: React.FC<ExtendedStepProps> = ({ onNext, contractApproved }) => {
   const { t } = useTranslation();
   const { user, userProfile, updateUserProfile, refreshProfile } = useStudentAuth();
 
@@ -222,6 +226,7 @@ export const MigmaSurveyStep: React.FC<StepProps> = ({ onNext }) => {
           surveyCompletedAt={surveyCompletedAt}
           onContinue={onNext}
           standalone={false}
+          contractApproved={contractApproved}
         />
       </div>
     );

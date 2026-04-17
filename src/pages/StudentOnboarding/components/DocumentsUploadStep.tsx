@@ -189,7 +189,6 @@ export const DocumentsUploadStep: React.FC<StepProps> = ({ onNext }) => {
   return (
     <div className="space-y-8 pb-12 max-w-4xl mx-auto px-4">
       <div className="space-y-1">
-        <p className="text-xs font-black uppercase tracking-widest text-gold-medium">{t('student_onboarding.documents.step_label')}</p>
         <h2 className="text-2xl font-black text-white uppercase tracking-tight">{t('student_onboarding.documents.title')}</h2>
         <p className="text-sm text-gray-400 font-medium">
           {t('student_onboarding.documents.subtitle')}

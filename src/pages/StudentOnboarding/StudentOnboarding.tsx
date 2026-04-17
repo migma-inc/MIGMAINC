@@ -14,8 +14,8 @@ const SelectionFeeStep = React.lazy(() =>
 const MigmaSurveyStep = React.lazy(() =>
   import('./components/MigmaSurveyStep').then(m => ({ default: m.MigmaSurveyStep }))
 );
-const ScholarshipSelectionStep = React.lazy(() =>
-  import('./components/ScholarshipSelectionStep').then(m => ({ default: m.ScholarshipSelectionStep }))
+const UniversitySelectionStep = React.lazy(() =>
+  import('./components/UniversitySelectionStep').then(m => ({ default: m.UniversitySelectionStep }))
 );
 const DocumentsUploadStep = React.lazy(() =>
   import('./components/DocumentsUploadStep').then(m => ({ default: m.DocumentsUploadStep }))
@@ -29,6 +29,9 @@ const PlacementFeeStep = React.lazy(() =>
 const WaitingApprovalStep = React.lazy(() =>
   import('./components/WaitingApprovalStep').then(m => ({ default: m.WaitingApprovalStep }))
 );
+const WaitRoomStep = React.lazy(() =>
+  import('./components/WaitRoomStep').then(m => ({ default: m.WaitRoomStep }))
+);
 
 const normalizeLegacyStep = (step: OnboardingStep | string | null | undefined): OnboardingStep | null => {
   if (!step) return null;
@@ -38,8 +41,8 @@ const normalizeLegacyStep = (step: OnboardingStep | string | null | undefined): 
 };
 
 const StepLoader = () => (
-  <div className="flex justify-center items-center py-20">
-    <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
+  <div className="flex justify-center items-center py-32 min-h-[400px]">
+    <Loader2 className="w-10 h-10 animate-spin text-gold-medium" />
   </div>
 );
 
@@ -76,7 +79,7 @@ const StudentOnboarding: React.FC = () => {
   }, [authLoading, user, navigate]);
 
   const VALID_STEPS: OnboardingStep[] = [
-    'selection_fee', 'selection_survey',
+    'selection_fee', 'selection_survey', 'wait_room',
     'scholarship_selection', 'documents_upload',
     'payment', 'placement_fee', 'my_applications',
   ];
@@ -113,6 +116,7 @@ const StudentOnboarding: React.FC = () => {
   const getOrderedSteps = useCallback((): OnboardingStep[] => [
     'selection_fee',
     'selection_survey',
+    'wait_room',
     'scholarship_selection',
     'documents_upload',
     'payment',
@@ -160,8 +164,8 @@ const StudentOnboarding: React.FC = () => {
   const stepProps = { onNext: handleNext, onBack: handleBack, currentStep: state.currentStep };
 
   return (
-    <div className="min-h-screen bg-[#0a0a0a]">
-      <div className="max-w-5xl mx-auto px-4 py-8">
+    <div className="min-h-screen bg-[#0a0a0a] relative">
+      <div className="max-w-5xl mx-auto px-4 py-8 relative">
         {/* Logo / header */}
         <div className="mb-8 flex items-center justify-between">
           <div className="flex items-center gap-6">
@@ -194,8 +198,11 @@ const StudentOnboarding: React.FC = () => {
         {/* Step content */}
         <Suspense fallback={<StepLoader />}>
           {state.currentStep === 'selection_fee' && <SelectionFeeStep {...stepProps} />}
-          {state.currentStep === 'selection_survey' && <MigmaSurveyStep {...stepProps} />}
-          {state.currentStep === 'scholarship_selection' && <ScholarshipSelectionStep {...stepProps} />}
+          {state.currentStep === 'selection_survey' && <MigmaSurveyStep {...stepProps} contractApproved={state.contractApproved} />}
+          {state.currentStep === 'wait_room' && (
+            <WaitRoomStep surveyCompletedAt={state.surveyCompletedAt} checkProgress={checkProgress} />
+          )}
+          {state.currentStep === 'scholarship_selection' && <UniversitySelectionStep {...stepProps} />}
           {state.currentStep === 'documents_upload' && <DocumentsUploadStep {...stepProps} />}
           {state.currentStep === 'payment' && <PaymentStep {...stepProps} />}
           {state.currentStep === 'placement_fee' && <PlacementFeeStep {...stepProps} />}

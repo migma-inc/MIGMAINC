@@ -600,6 +600,37 @@ async function processParcelowWebhookEvent(event: ParcelowWebhookEvent, supabase
     .eq("parcelow_order_id", parcelowOrder.id.toString());
 
   if (orderError || !orders || orders.length === 0) {
+    // ── V11 PLACEMENT FEE: verificar via referência ──
+    const ref = parcelowOrder.reference || "";
+    if (ref.includes("-APP-")) {
+      const appIdShort = ref.split("-APP-")[1]?.slice(0, 8);
+      console.log(`[Parcelow Webhook] 🎓 V11 App Referência detectada: ${appIdShort}`);
+      
+      if (appIdShort && (eventType === "event_order_paid" || eventType === "event_order_confirmed")) {
+        const { data: appV11 } = await supabase
+          .from("institution_applications")
+          .select("id, profile_id, status, institution_scholarships(placement_fee_usd)")
+          .filter("id", "ilike", `${appIdShort}%`)
+          .maybeSingle();
+
+        if (appV11) {
+          console.log(`[Parcelow Webhook] ✅ Aplicação V11 encontrada: ${appV11.id}`);
+          const { error: payErr } = await supabase.functions.invoke("migma-payment-completed", {
+            body: {
+              user_id: appV11.profile_id,
+              fee_type: "placement_fee",
+              amount: appV11.institution_scholarships?.placement_fee_usd || 0,
+              payment_method: "parcelow",
+              service_type: "v11-onboarding",
+              application_id: appV11.id,
+              parcelow_order_id: parcelowOrder.id.toString(),
+            },
+          });
+          if (!payErr) return; // Sucesso, para aqui
+        }
+      }
+    }
+
     // ── MIGMA CHECKOUT: verificar migma_parcelow_pending ──────────────────────
     console.log(`[Parcelow Webhook] 🔍 Buscando na migma_parcelow_pending por ID: ${parcelowOrder.id}`);
     const { data: migmaPending, error: migmaErr } = await supabase

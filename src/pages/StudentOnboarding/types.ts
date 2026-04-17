@@ -1,6 +1,7 @@
 export type OnboardingStep =
   | 'selection_fee'
   | 'selection_survey'
+  | 'wait_room'
   | 'scholarship_selection'
   | 'process_type'
   | 'documents_upload'
@@ -15,6 +16,7 @@ export interface OnboardingState {
   currentStep: OnboardingStep;
   selectionFeePaid: boolean;
   selectionSurveyPassed: boolean;
+  contractApproved: boolean;
   scholarshipsSelected: boolean;
   processTypeSelected: boolean;
   documentsUploaded: boolean;
@@ -27,6 +29,7 @@ export interface OnboardingState {
   onboardingCompleted: boolean;
   migmaCheckoutCompleted: boolean;
   isNewFlowUser: boolean; // sempre true para Migma
+  surveyCompletedAt: string | null;
 }
 
 export interface OnboardingProgress {

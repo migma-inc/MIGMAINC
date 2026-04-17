@@ -13,12 +13,13 @@ interface Props {
   surveyCompletedAt?: string; // ISO string — usado para calcular o unlock de 24h
   onContinue: () => void;
   standalone?: boolean; // false = embutido no StudentOnboarding (sem topbar)
+  contractApproved?: boolean; // Se true, o botão libera na mesma hora
 }
 
 const TARGET = 1481;
 const DURATION_MS = 2800;
 
-export const SurveyCompletionScreen: React.FC<Props> = ({ email, name, service, whatsapp, academicFormation, englishLevel, surveyCompletedAt, onContinue, standalone = true }) => {
+export const SurveyCompletionScreen: React.FC<Props> = ({ email, name, service, whatsapp, academicFormation, englishLevel, surveyCompletedAt, onContinue, standalone = true, contractApproved = false }) => {
   const { t, i18n } = useTranslation();
   const [count, setCount] = useState(0);
   const [unlockAt, setUnlockAt] = useState<Date | null>(null);
@@ -69,7 +70,7 @@ export const SurveyCompletionScreen: React.FC<Props> = ({ email, name, service, 
     return () => clearInterval(interval);
   }, [unlockAt]);
 
-  const isUnlocked = !timeLeft;
+  const isUnlocked = !timeLeft || contractApproved;
   const serviceLabel = service === 'transfer' ? 'Transfer' : service === 'cos' ? 'COS' : service.toUpperCase();
 
   return (
@@ -146,11 +147,11 @@ export const SurveyCompletionScreen: React.FC<Props> = ({ email, name, service, 
           )}
         </div>
 
-        {/* Card de retorno */}
+        {/* Card de retorno (Texto atualizado para V11) */}
         <div className="mt-4 bg-gold-medium/5 border border-gold-medium/20 rounded-2xl p-5">
-          <p className="text-gold-light font-bold text-sm mb-1">{t('student_onboarding.survey_completion.feedback_time')}</p>
+          <p className="text-gold-light font-bold text-sm mb-1">Em até 24 horas</p>
           <p className="text-gray-400 text-sm">
-            {t('student_onboarding.survey_completion.feedback_desc')}
+            Nossa equipe vai analisar o seu perfil e aprovar o seu contrato.
           </p>
         </div>
 
