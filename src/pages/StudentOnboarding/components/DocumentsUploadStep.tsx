@@ -1,6 +1,6 @@
 /**
  * Etapa 6 — Upload de documentos.
- * Faz upload para o Storage do Matricula USA e registra em student_documents.
+ * Faz upload para o Storage do Matricula USA e registra em global_document_requests.
  */
 import React, { useState, useEffect, useRef } from 'react';
 import {
@@ -14,13 +14,7 @@ import type { StepProps } from '../types';
 
 const DOCUMENT_TYPES = [
   {
-    key: 'passport',
-    labelKey: 'student_onboarding.documents.passport_label',
-    descKey: 'student_onboarding.documents.passport_desc',
-    required: true,
-  },
-  {
-    key: 'transfer_i20',
+    key: 'current_i20',
     labelKey: 'student_onboarding.documents.i20_label',
     descKey: 'student_onboarding.documents.i20_desc',
     required: true,
@@ -38,13 +32,13 @@ const DOCUMENT_TYPES = [
     required: true,
   },
   {
-    key: 'diploma',
+    key: 'history_diploma',
     labelKey: 'student_onboarding.documents.diploma_label',
     descKey: 'student_onboarding.documents.diploma_desc',
     required: true,
   },
   {
-    key: 'funds_proof',
+    key: 'bank_statement',
     labelKey: 'student_onboarding.documents.funds_label',
     descKey: 'student_onboarding.documents.funds_desc',
     required: true,
@@ -62,7 +56,7 @@ const DOCUMENT_TYPES = [
     required: true,
   },
   {
-    key: 'family_docs',
+    key: 'certidoes',
     labelKey: 'student_onboarding.documents.family_label',
     descKey: 'student_onboarding.documents.family_desc',
     required: false,
@@ -71,9 +65,19 @@ const DOCUMENT_TYPES = [
 
 interface UploadedDoc {
   id: string;
+  document_type: string;
+  submitted_url: string | null;
+  status: string | null;
+  requested_at?: string | null;
+  submitted_at?: string | null;
+}
+
+interface PassportDoc {
+  id: string;
   type: string;
-  file_url: string;
-  original_filename: string;
+  file_url: string | null;
+  original_filename: string | null;
+  status: string | null;
   uploaded_at?: string | null;
 }
 
@@ -83,6 +87,7 @@ export const DocumentsUploadStep: React.FC<StepProps> = ({ onNext }) => {
   const [selectedFiles, setSelectedFiles] = useState<Record<string, File | null>>({});
   const [uploadingFiles, setUploadingFiles] = useState<Record<string, boolean>>({});
   const [uploadedDocs, setUploadedDocs] = useState<UploadedDoc[]>([]);
+  const [passportDoc, setPassportDoc] = useState<PassportDoc | null>(null);
   const [isLocked, setIsLocked] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -90,19 +95,33 @@ export const DocumentsUploadStep: React.FC<StepProps> = ({ onNext }) => {
   const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
   useEffect(() => {
-    if (!user?.id) return;
+    if (!user?.id || !userProfile?.id) return;
     setIsLocked(userProfile?.documents_uploaded || false);
     fetchUploadedDocs();
-  }, [user?.id]);
+  }, [user?.id, userProfile?.id]);
 
   const fetchUploadedDocs = async () => {
-    if (!user?.id) return;
+    if (!user?.id || !userProfile?.id) {
+      setLoading(false);
+      return;
+    }
     try {
-      const { data } = await supabase
-        .from('student_documents')
-        .select('id, type, file_url, original_filename, uploaded_at')
-        .eq('user_id', user.id);
-      setUploadedDocs((data as UploadedDoc[]) || []);
+      const [globalDocsRes, passportRes] = await Promise.all([
+        supabase
+          .from('global_document_requests')
+          .select('id, document_type, submitted_url, status, requested_at, submitted_at')
+          .eq('profile_id', userProfile.id)
+          .order('requested_at', { ascending: false }),
+        supabase
+          .from('student_documents')
+          .select('id, type, file_url, original_filename, status, uploaded_at')
+          .eq('user_id', user.id)
+          .eq('type', 'passport')
+          .maybeSingle(),
+      ]);
+
+      setUploadedDocs((globalDocsRes.data as UploadedDoc[]) || []);
+      setPassportDoc((passportRes.data as PassportDoc) || null);
     } catch (err) {
       console.error('[DocumentsUploadStep]', err);
     } finally {
@@ -116,13 +135,13 @@ export const DocumentsUploadStep: React.FC<StepProps> = ({ onNext }) => {
   };
 
   const uploadFile = async (docType: string, file: File): Promise<boolean> => {
-    if (!user?.id) return false;
+    if (!user?.id || !userProfile?.id) return false;
     setUploadingFiles(prev => ({ ...prev, [docType]: true }));
 
     try {
       const ext = file.name.split('.').pop() || 'pdf';
       const fileName = `${docType}_${Date.now()}.${ext}`;
-      const filePath = `${user.id}/${docType}/${fileName}`;
+      const filePath = `${user.id}/global-documents/${fileName}`;
 
       const { error: uploadError } = await supabase.storage
         .from('migma-student-documents')
@@ -135,32 +154,31 @@ export const DocumentsUploadStep: React.FC<StepProps> = ({ onNext }) => {
         .getPublicUrl(filePath);
 
       const payload = {
-        user_id: user.id,
-        type: docType,
-        file_url: publicUrlData.publicUrl,
-        original_filename: file.name,
-        file_size_bytes: file.size,
+        profile_id: userProfile.id,
+        service_type: userProfile.service_type ?? userProfile.student_process_type ?? 'unknown',
+        document_type: docType,
+        submitted_url: publicUrlData.publicUrl,
         status: 'pending',
-        source: 'migma',
-        uploaded_at: new Date().toISOString(),
+        requested_at: new Date().toISOString(),
+        submitted_at: new Date().toISOString(),
       };
 
       const { data: existingDoc, error: existingDocError } = await supabase
-        .from('student_documents')
+        .from('global_document_requests')
         .select('id')
-        .eq('user_id', user.id)
-        .eq('type', docType)
+        .eq('profile_id', userProfile.id)
+        .eq('document_type', docType)
         .maybeSingle();
 
       if (existingDocError) throw existingDocError;
 
       const { error: dbError } = existingDoc?.id
         ? await supabase
-            .from('student_documents')
+            .from('global_document_requests')
             .update(payload)
             .eq('id', existingDoc.id)
         : await supabase
-            .from('student_documents')
+            .from('global_document_requests')
             .insert(payload);
 
       if (dbError) throw dbError;
@@ -186,7 +204,12 @@ export const DocumentsUploadStep: React.FC<StepProps> = ({ onNext }) => {
     setError(null);
 
     let allSuccess = true;
+    if (selectedFiles.passport) {
+      const passportSuccess = await uploadPassport(selectedFiles.passport);
+      if (!passportSuccess) allSuccess = false;
+    }
     for (const [docType, file] of filesToUpload) {
+      if (docType === 'passport') continue;
       const success = await uploadFile(docType, file!);
       if (!success) allSuccess = false;
     }
@@ -198,29 +221,96 @@ export const DocumentsUploadStep: React.FC<StepProps> = ({ onNext }) => {
 
     // Verificar se todos os documentos obrigatórios foram enviados
     const updatedDocs = await supabase
-      .from('student_documents')
-      .select('type')
-      .eq('user_id', user!.id);
+      .from('global_document_requests')
+      .select('document_type')
+      .eq('profile_id', userProfile!.id);
 
-    const uploadedTypes = (updatedDocs.data || []).map((d: any) => d.type);
+    const uploadedTypes = (updatedDocs.data || []).map((d: any) => d.document_type);
     const requiredTypes = DOCUMENT_TYPES.filter(d => d.required).map(d => d.key);
     const allUploaded = requiredTypes.every(t => uploadedTypes.includes(t));
 
     if (allUploaded) {
+      const nextProfileUpdate = {
+        documents_uploaded: true,
+        documents_status: 'under_review',
+      };
+
       await supabase
         .from('user_profiles')
-        .update({ documents_uploaded: true })
+        .update(nextProfileUpdate)
         .eq('user_id', user!.id);
-      await updateUserProfile({ documents_uploaded: true } as any);
+      await updateUserProfile(nextProfileUpdate as any);
       onNext();
     }
   };
 
-  const getDocStatus = (docType: string) => {
-    return uploadedDocs.find(d => d.type === docType);
+  const uploadPassport = async (file: File): Promise<boolean> => {
+    if (!user?.id) return false;
+    setUploadingFiles(prev => ({ ...prev, passport: true }));
+
+    try {
+      const ext = file.name.split('.').pop() || 'pdf';
+      const fileName = `passport_${Date.now()}.${ext}`;
+      const filePath = `${user.id}/identity/${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('migma-student-documents')
+        .upload(filePath, file, { upsert: true });
+
+      if (uploadError) throw uploadError;
+
+      const { data: publicUrlData } = supabase.storage
+        .from('migma-student-documents')
+        .getPublicUrl(filePath);
+
+      const payload = {
+        user_id: user.id,
+        type: 'passport',
+        file_url: publicUrlData.publicUrl,
+        original_filename: file.name,
+        file_size_bytes: file.size,
+        status: 'pending',
+        source: 'migma',
+        uploaded_at: new Date().toISOString(),
+      };
+
+      const { data: existingDoc, error: existingDocError } = await supabase
+        .from('student_documents')
+        .select('id')
+        .eq('user_id', user.id)
+        .eq('type', 'passport')
+        .maybeSingle();
+
+      if (existingDocError) throw existingDocError;
+
+      const { error: dbError } = existingDoc?.id
+        ? await supabase
+            .from('student_documents')
+            .update(payload)
+            .eq('id', existingDoc.id)
+        : await supabase
+            .from('student_documents')
+            .insert(payload);
+
+      if (dbError) throw dbError;
+
+      return true;
+    } catch (err: any) {
+      console.error('[DocumentsUploadStep] Erro ao fazer upload de passport:', err);
+      setError(`Failed to upload passport: ${err.message}`);
+      return false;
+    } finally {
+      setUploadingFiles(prev => ({ ...prev, passport: false }));
+    }
   };
 
-  const allRequiredUploaded = DOCUMENT_TYPES.filter(d => d.required).every(d => getDocStatus(d.key));
+  const getDocStatus = (docType: string) => {
+    return uploadedDocs.find(d => d.document_type === docType);
+  };
+
+  const getPassportStatus = () => passportDoc;
+
+  const allRequiredUploaded = DOCUMENT_TYPES.filter(d => d.required).every(d => getDocStatus(d.key)) && !!getPassportStatus();
 
   return (
     <div className="space-y-8 pb-12 max-w-4xl mx-auto px-4">
@@ -246,11 +336,67 @@ export const DocumentsUploadStep: React.FC<StepProps> = ({ onNext }) => {
         </div>
       ) : (
         <div className="space-y-4">
+          <div className={`border-2 rounded-2xl p-5 transition-all ${passportDoc ? 'border-emerald-500/30 bg-emerald-500/5' : 'border-white/10 bg-white/5'}`}>
+            <div className="flex items-start gap-4">
+              <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${passportDoc ? 'bg-emerald-500/10' : 'bg-white/10'}`}>
+                {passportDoc
+                  ? <CheckCircle className="w-5 h-5 text-emerald-400" />
+                  : <FileText className="w-5 h-5 text-gray-400" />
+                }
+              </div>
+              <div className="flex-1">
+                <div className="flex items-center gap-2">
+                  <span className="font-bold text-white">{t('student_onboarding.documents.passport_label')}</span>
+                  <span className="text-xs text-red-400 font-medium">*</span>
+                  {passportDoc && (
+                    <span className="text-[10px] font-black uppercase border rounded-sm px-2 py-0.5 bg-emerald-500/10 text-emerald-300 border-emerald-500/20">
+                      Already sent
+                    </span>
+                  )}
+                </div>
+                <p className="text-sm text-gray-500 mt-0.5">{t('student_onboarding.documents.passport_desc')}</p>
+
+                {passportDoc && (
+                  <div className="mt-2 flex items-center gap-1.5 text-sm text-emerald-400 font-medium">
+                    <CheckCircle className="w-4 h-4" />
+                    {passportDoc.original_filename || 'Passport uploaded'}
+                  </div>
+                )}
+
+                <div className="mt-3 flex items-center gap-3">
+                  <input
+                    type="file"
+                    ref={el => { fileInputRefs.current.passport = el; }}
+                    onChange={e => handleFileSelect('passport', e.target.files?.[0] || null)}
+                    accept=".pdf,.jpg,.jpeg,.png,.webp"
+                    className="hidden"
+                  />
+                  <button
+                    onClick={() => fileInputRefs.current.passport?.click()}
+                    disabled={uploadingFiles.passport}
+                    className="flex items-center gap-1.5 text-sm border border-white/10 bg-white/5 rounded-lg px-3 py-1.5 hover:border-white/20 transition-colors font-medium text-gray-300"
+                  >
+                    <Upload className="w-4 h-4" />
+                    {passportDoc ? t('student_onboarding.documents.change') : t('student_onboarding.documents.upload')}
+                  </button>
+                  {selectedFiles.passport && (
+                    <span className="text-sm text-gray-500 truncate max-w-[200px]">
+                      {selectedFiles.passport.name}
+                    </span>
+                  )}
+                  {uploadingFiles.passport && (
+                    <Loader2 className="w-4 h-4 animate-spin text-gold-medium" />
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+
           {DOCUMENT_TYPES.map(doc => {
             const uploaded = getDocStatus(doc.key);
             const selectedFile = selectedFiles[doc.key];
             const isUploading = uploadingFiles[doc.key];
-            const isFunds = doc.key === 'funds_proof';
+            const isFunds = doc.key === 'bank_statement';
 
             return (
               <React.Fragment key={doc.key}>
@@ -295,7 +441,7 @@ export const DocumentsUploadStep: React.FC<StepProps> = ({ onNext }) => {
                       {uploaded && (
                         <div className="mt-2 flex items-center gap-1.5 text-sm text-emerald-400 font-medium">
                           <CheckCircle className="w-4 h-4" />
-                          {uploaded.original_filename}
+                          {uploaded.submitted_url?.split('/').pop() ?? 'Uploaded'}
                         </div>
                       )}
 

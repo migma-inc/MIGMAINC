@@ -29,6 +29,9 @@ const PlacementFeeStep = React.lazy(() =>
 const WaitingApprovalStep = React.lazy(() =>
   import('./components/WaitingApprovalStep').then(m => ({ default: m.WaitingApprovalStep }))
 );
+const AcceptanceLetterStep = React.lazy(() =>
+  import('./components/AcceptanceLetterStep').then(m => ({ default: m.AcceptanceLetterStep }))
+);
 
 const normalizeLegacyStep = (step: OnboardingStep | string | null | undefined): OnboardingStep | null => {
   if (!step) return null;
@@ -79,7 +82,7 @@ const StudentOnboarding: React.FC = () => {
   const VALID_STEPS: OnboardingStep[] = [
     'selection_fee', 'selection_survey',
     'scholarship_selection', 'documents_upload',
-    'payment', 'placement_fee', 'my_applications',
+    'payment', 'placement_fee', 'my_applications', 'acceptance_letter',
   ];
 
   // Sincronizar URL -> State na carga inicial
@@ -119,6 +122,7 @@ const StudentOnboarding: React.FC = () => {
     'documents_upload',
     'payment',
     'my_applications',
+    'acceptance_letter',
   ], []);
 
   const handleNext = useCallback(async () => {
@@ -204,6 +208,7 @@ const StudentOnboarding: React.FC = () => {
             <WaitingApprovalStep {...stepProps} />
           )}
           {state.currentStep === 'scholarship_fee' && <WaitingApprovalStep {...stepProps} />}
+          {state.currentStep === 'acceptance_letter' && <AcceptanceLetterStep {...stepProps} />}
         </Suspense>
       </div>
     </div>

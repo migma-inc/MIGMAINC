@@ -25,6 +25,34 @@ interface Application {
   };
 }
 
+interface DocumentRequest {
+  id: string;
+  document_type: string;
+  status: string | null;
+  submitted_url: string | null;
+  requested_at: string | null;
+  submitted_at: string | null;
+}
+
+const DOCUMENT_LABELS: Record<string, string> = {
+  current_i20: 'I-20 Atual',
+  i94: 'I-94',
+  f1_visa: 'Visto F-1',
+  history_diploma: 'Histórico / Diploma',
+  bank_statement: 'Comprovante de Fundos',
+  address_us: 'Endereço nos EUA',
+  address_br: 'Endereço no Brasil',
+  certidoes: 'Certidões',
+};
+
+const DOCUMENT_STATUS_LABELS: Record<string, { label: string; color: string }> = {
+  pending: { label: 'Pendente', color: 'text-amber-400 bg-amber-500/10 border-amber-500/20' },
+  in_review: { label: 'Em análise', color: 'text-gold-medium bg-gold-medium/10 border-gold-medium/20' },
+  under_review: { label: 'Em análise', color: 'text-gold-medium bg-gold-medium/10 border-gold-medium/20' },
+  approved: { label: 'Aprovado', color: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20' },
+  rejected: { label: 'Rejeitado', color: 'text-red-400 bg-red-500/10 border-red-500/20' },
+};
+
 const STATUS_LABELS: Record<string, { labelKey: string; color: string }> = {
   pending:     { labelKey: 'student_onboarding.waiting.status_pending',   color: 'text-amber-400 bg-amber-500/10 border-amber-500/20' },
   in_review:   { labelKey: 'student_onboarding.waiting.status_in_review', color: 'text-gold-medium bg-gold-medium/10 border-gold-medium/20' },
@@ -37,6 +65,7 @@ export const WaitingApprovalStep: React.FC<StepProps> = () => {
   const { user, userProfile } = useStudentAuth();
   const [applications, setApplications] = useState<Application[]>([]);
   const [notifications, setNotifications] = useState<any[]>([]);
+  const [documentRequests, setDocumentRequests] = useState<DocumentRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [lastRefresh, setLastRefresh] = useState(new Date());
 
@@ -44,7 +73,7 @@ export const WaitingApprovalStep: React.FC<StepProps> = () => {
     if (!user?.id || !userProfile?.id) return;
     setLoading(true);
     try {
-      const [appsRes, notifRes] = await Promise.all([
+      const [appsRes, notifRes, docsRes] = await Promise.all([
         supabase
           .from('scholarship_applications')
           .select(`id, status, created_at, scholarship_id, scholarships(id, title, name, universities(name))`)
@@ -56,10 +85,16 @@ export const WaitingApprovalStep: React.FC<StepProps> = () => {
           .eq('user_id', user.id)
           .order('created_at', { ascending: false })
           .limit(10),
+        supabase
+          .from('global_document_requests')
+          .select('id, document_type, status, submitted_url, requested_at, submitted_at')
+          .eq('profile_id', userProfile.id)
+          .order('requested_at', { ascending: false }),
       ]);
 
       setApplications((appsRes.data as unknown as Application[]) || []);
       setNotifications(notifRes.data || []);
+      setDocumentRequests((docsRes.data as DocumentRequest[]) || []);
       setLastRefresh(new Date());
     } catch (err) {
       console.error('[WaitingApprovalStep] Erro:', err);
@@ -236,6 +271,49 @@ export const WaitingApprovalStep: React.FC<StepProps> = () => {
             </div>
           </div>
         </div>
+      </div>
+
+      {/* Documentos enviados */}
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <h3 className="text-base font-bold text-white">Documentos enviados</h3>
+          <p className="text-xs text-gray-500">Passport aparece na etapa anterior e pode ser atualizado por lá.</p>
+        </div>
+
+        {documentRequests.length === 0 ? (
+          <div className="bg-white/5 border border-white/10 rounded-2xl p-6 text-center text-gray-500 text-sm">
+            Nenhum documento complementar enviado ainda.
+          </div>
+        ) : (
+          <div className="grid gap-3">
+            {documentRequests.map(doc => {
+              const statusInfo = DOCUMENT_STATUS_LABELS[doc.status || 'pending'] || {
+                label: doc.status || 'Pendente',
+                color: 'text-gray-400 bg-white/5 border-white/10',
+              };
+              const label = DOCUMENT_LABELS[doc.document_type] || doc.document_type;
+              const fileName = doc.submitted_url?.split('/').pop() || 'arquivo enviado';
+              const submittedDate = doc.submitted_at || doc.requested_at;
+
+              return (
+                <div key={doc.id} className="bg-white/5 border border-white/10 rounded-2xl p-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                  <div className="min-w-0">
+                    <div className="font-semibold text-white">{label}</div>
+                    <div className="text-sm text-gray-500 truncate">{fileName}</div>
+                    {submittedDate && (
+                      <div className="text-xs text-gray-600 mt-1">
+                        Enviado em {new Date(submittedDate).toLocaleDateString()}
+                      </div>
+                    )}
+                  </div>
+                  <span className={`inline-flex w-fit text-xs font-semibold px-2.5 py-1 rounded-full border ${statusInfo.color}`}>
+                    {statusInfo.label}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* Candidaturas */}

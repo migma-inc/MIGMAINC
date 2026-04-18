@@ -11,9 +11,10 @@
  */
 import { useEffect, useState, useCallback } from 'react';
 import {
-  Award, Building2, CheckCircle2, Clock, Copy, DollarSign,
+  Award, CheckCircle2, Clock, Copy, DollarSign,
   ExternalLink, GraduationCap, Loader2, MapPin, RefreshCw,
   Send, Shield, Timer, X, AlertTriangle, CheckCircle,
+  FileText, Package, Link, CreditCard, Download,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -34,10 +35,17 @@ interface InstitutionApplication {
   scholarship_level_id: string | null;
   status: string;
   placement_fee_paid_at: string | null;
+  placement_fee_installments: number | null;
+  placement_fee_2nd_installment_paid_at: string | null;
   admin_approved_at: string | null;
   admin_approved_by: string | null;
   payment_link_url: string | null;
   payment_link_generated_at: string | null;
+  forms_status: string | null;
+  package_status: string | null;
+  package_storage_url: string | null;
+  package_sent_at: string | null;
+  acceptance_letter_url: string | null;
   created_at: string;
   institutions: {
     id: string;
@@ -98,6 +106,14 @@ export function ScholarshipApprovalTab({ detail }: { detail: CaseDetailPage }) {
   const [actionMsg, setActionMsg] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
+  // V11 post-payment states
+  const [generatingForms, setGeneratingForms] = useState(false);
+  const [buildingPackage, setBuildingPackage] = useState(false);
+  const [savingLetterUrl, setSavingLetterUrl] = useState(false);
+  const [confirming2nd, setConfirming2nd] = useState(false);
+  const [letterUrlInput, setLetterUrlInput] = useState('');
+  const [v11Msg, setV11Msg] = useState<{ text: string; ok: boolean } | null>(null);
+
   const fetchApplications = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -106,8 +122,11 @@ export function ScholarshipApprovalTab({ detail }: { detail: CaseDetailPage }) {
         .from('institution_applications')
         .select(`
           id, profile_id, institution_id, scholarship_level_id, status,
-          placement_fee_paid_at, admin_approved_at, admin_approved_by,
-          payment_link_url, payment_link_generated_at, created_at,
+          placement_fee_paid_at, placement_fee_installments, placement_fee_2nd_installment_paid_at,
+          admin_approved_at, admin_approved_by,
+          payment_link_url, payment_link_generated_at,
+          forms_status, package_status, package_storage_url, package_sent_at,
+          acceptance_letter_url, created_at,
           institutions (
             id, name, city, state, modality, cpt_opt, accepts_cos, accepts_transfer, application_fee_usd,
             institution_courses ( course_name, degree_level, area )
@@ -252,6 +271,81 @@ export function ScholarshipApprovalTab({ detail }: { detail: CaseDetailPage }) {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     });
+  };
+
+  // ── V11 handlers ──
+
+  const handleGenerateForms = async (appId: string) => {
+    setGeneratingForms(true);
+    setV11Msg(null);
+    try {
+      const res = await supabase.functions.invoke('generate-institution-forms', {
+        body: { application_id: appId },
+      });
+      if (res.error) throw new Error(res.error.message);
+      const n = res.data?.forms_generated ?? '?';
+      setV11Msg({ text: `${n} formulários gerados com sucesso.`, ok: true });
+      await fetchApplications();
+    } catch (e: any) {
+      setV11Msg({ text: `Erro: ${e.message}`, ok: false });
+    } finally {
+      setGeneratingForms(false);
+    }
+  };
+
+  const handleBuildPackage = async (appId: string) => {
+    setBuildingPackage(true);
+    setV11Msg(null);
+    try {
+      const res = await supabase.functions.invoke('package-matriculausa', {
+        body: { application_id: appId, force: true },
+      });
+      if (res.error) throw new Error(res.error.message);
+      setV11Msg({ text: `Pacote gerado. ${res.data?.forms_added ?? 0} forms + ${res.data?.docs_added ?? 0} docs.`, ok: true });
+      await fetchApplications();
+    } catch (e: any) {
+      setV11Msg({ text: `Erro: ${e.message}`, ok: false });
+    } finally {
+      setBuildingPackage(false);
+    }
+  };
+
+  const handleSaveLetterUrl = async (appId: string) => {
+    if (!letterUrlInput.trim()) return;
+    setSavingLetterUrl(true);
+    setV11Msg(null);
+    try {
+      const { error } = await supabase
+        .from('institution_applications')
+        .update({ acceptance_letter_url: letterUrlInput.trim() })
+        .eq('id', appId);
+      if (error) throw error;
+      setV11Msg({ text: 'URL da carta de aceite salva.', ok: true });
+      setLetterUrlInput('');
+      await fetchApplications();
+    } catch (e: any) {
+      setV11Msg({ text: `Erro: ${e.message}`, ok: false });
+    } finally {
+      setSavingLetterUrl(false);
+    }
+  };
+
+  const handleConfirm2ndInstallment = async (appId: string) => {
+    setConfirming2nd(true);
+    setV11Msg(null);
+    try {
+      const { error } = await supabase
+        .from('institution_applications')
+        .update({ placement_fee_2nd_installment_paid_at: new Date().toISOString() })
+        .eq('id', appId);
+      if (error) throw error;
+      setV11Msg({ text: '2ª parcela confirmada. Carta de aceite desbloqueada para o aluno.', ok: true });
+      await fetchApplications();
+    } catch (e: any) {
+      setV11Msg({ text: `Erro: ${e.message}`, ok: false });
+    } finally {
+      setConfirming2nd(false);
+    }
   };
 
   // ─────────────────────────────────────────────────────────────
@@ -663,6 +757,186 @@ export function ScholarshipApprovalTab({ detail }: { detail: CaseDetailPage }) {
           </div>
         </div>
       </div>
+
+      {/* ── V11 Fluxo Pós-Pagamento ── */}
+      {overallStatus === 'paid' && approvedApp && (() => {
+        const paidApp = approvedApp as InstitutionApplication;
+        const needs2nd = paidApp.placement_fee_installments === 2 && !paidApp.placement_fee_2nd_installment_paid_at;
+        return (
+          <div className="space-y-4">
+            <h3 className="text-xs font-black uppercase tracking-widest text-gray-400 flex items-center gap-2 pt-2">
+              <Package className="w-4 h-4 text-gold-medium" />
+              Fluxo V11 — Pós-Pagamento
+            </h3>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+              {/* 1. Gerar Formulários */}
+              <Card className="bg-black/30 border border-white/10">
+                <CardContent className="p-5 space-y-3">
+                  <div className="flex items-center gap-2">
+                    <FileText className="w-4 h-4 text-gold-medium" />
+                    <span className="text-xs font-black uppercase tracking-widest text-gray-300">Formulários PDF</span>
+                    {paidApp.forms_status && (
+                      <span className={cn(
+                        'ml-auto text-[9px] font-black uppercase px-2 py-0.5 rounded-full border',
+                        paidApp.forms_status === 'generated' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-amber-500/10 text-amber-400 border-amber-500/20'
+                      )}>
+                        {paidApp.forms_status}
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-gray-500">
+                    Gera os PDFs dos formulários da universidade com os dados do aluno.
+                  </p>
+                  <Button
+                    size="sm"
+                    disabled={generatingForms}
+                    onClick={() => handleGenerateForms(paidApp.id)}
+                    className="w-full bg-gold-medium/10 border border-gold-medium/20 text-gold-medium hover:bg-gold-medium/20 text-xs font-black"
+                    variant="outline"
+                  >
+                    {generatingForms
+                      ? <><Loader2 className="w-3.5 h-3.5 mr-2 animate-spin" />Gerando...</>
+                      : <><FileText className="w-3.5 h-3.5 mr-2" />{paidApp.forms_status === 'generated' ? 'Regenerar PDFs' : 'Gerar PDFs'}</>}
+                  </Button>
+                </CardContent>
+              </Card>
+
+              {/* 2. Pacote MatriculaUSA */}
+              <Card className="bg-black/30 border border-white/10">
+                <CardContent className="p-5 space-y-3">
+                  <div className="flex items-center gap-2">
+                    <Package className="w-4 h-4 text-blue-400" />
+                    <span className="text-xs font-black uppercase tracking-widest text-gray-300">Pacote MatriculaUSA</span>
+                    {paidApp.package_status && (
+                      <span className={cn(
+                        'ml-auto text-[9px] font-black uppercase px-2 py-0.5 rounded-full border',
+                        paidApp.package_status === 'ready' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-blue-500/10 text-blue-400 border-blue-500/20'
+                      )}>
+                        {paidApp.package_status}
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-gray-500">
+                    Monta ZIP com formulários + documentos e gera link de download (7 dias).
+                  </p>
+                  <Button
+                    size="sm"
+                    disabled={buildingPackage}
+                    onClick={() => handleBuildPackage(paidApp.id)}
+                    className="w-full bg-blue-500/10 border border-blue-500/20 text-blue-300 hover:bg-blue-500/20 text-xs font-black"
+                    variant="outline"
+                  >
+                    {buildingPackage
+                      ? <><Loader2 className="w-3.5 h-3.5 mr-2 animate-spin" />Montando...</>
+                      : <><Package className="w-3.5 h-3.5 mr-2" />{paidApp.package_status === 'ready' ? 'Remontar Pacote' : 'Montar Pacote'}</>}
+                  </Button>
+                  {paidApp.package_storage_url && (
+                    <a
+                      href={paidApp.package_storage_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-2 text-xs text-emerald-400 hover:text-emerald-300 transition-colors"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      Baixar ZIP
+                    </a>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* 3. Carta de Aceite */}
+              <Card className="bg-black/30 border border-white/10">
+                <CardContent className="p-5 space-y-3">
+                  <div className="flex items-center gap-2">
+                    <Link className="w-4 h-4 text-emerald-400" />
+                    <span className="text-xs font-black uppercase tracking-widest text-gray-300">Carta de Aceite / I-20</span>
+                    {paidApp.acceptance_letter_url && (
+                      <span className="ml-auto text-[9px] font-black uppercase px-2 py-0.5 rounded-full border bg-emerald-500/10 text-emerald-400 border-emerald-500/20">
+                        Disponível
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-gray-500">
+                    Cole a URL da carta de aceite/I-20 recebida do MatriculaUSA para liberar ao aluno.
+                  </p>
+                  {paidApp.acceptance_letter_url && (
+                    <div className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-xl px-3 py-2">
+                      <span className="text-xs text-gray-400 truncate flex-1 font-mono">{paidApp.acceptance_letter_url}</span>
+                      <a href={paidApp.acceptance_letter_url} target="_blank" rel="noopener noreferrer" className="text-emerald-400 hover:text-emerald-300">
+                        <ExternalLink className="w-3.5 h-3.5" />
+                      </a>
+                    </div>
+                  )}
+                  <div className="flex gap-2">
+                    <input
+                      type="url"
+                      value={letterUrlInput}
+                      onChange={e => setLetterUrlInput(e.target.value)}
+                      placeholder="https://..."
+                      className="flex-1 bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-xs text-white placeholder-gray-600 outline-none focus:border-emerald-500/40"
+                    />
+                    <Button
+                      size="sm"
+                      disabled={savingLetterUrl || !letterUrlInput.trim()}
+                      onClick={() => handleSaveLetterUrl(paidApp.id)}
+                      className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 hover:bg-emerald-500/20 text-xs font-black shrink-0"
+                      variant="outline"
+                    >
+                      {savingLetterUrl ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Salvar'}
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* 4. 2ª Parcela Placement Fee */}
+              {needs2nd && (
+                <Card className="bg-black/30 border border-amber-500/20">
+                  <CardContent className="p-5 space-y-3">
+                    <div className="flex items-center gap-2">
+                      <CreditCard className="w-4 h-4 text-amber-400" />
+                      <span className="text-xs font-black uppercase tracking-widest text-gray-300">2ª Parcela Placement Fee</span>
+                      <span className="ml-auto text-[9px] font-black uppercase px-2 py-0.5 rounded-full border bg-amber-500/10 text-amber-400 border-amber-500/20">
+                        Pendente
+                      </span>
+                    </div>
+                    <p className="text-xs text-gray-500">
+                      Aluno pagou em 2x. Confirme o recebimento da 2ª parcela para desbloquear a carta de aceite.
+                    </p>
+                    <Button
+                      size="sm"
+                      disabled={confirming2nd}
+                      onClick={() => handleConfirm2ndInstallment(paidApp.id)}
+                      className="w-full bg-amber-500/10 border border-amber-500/20 text-amber-300 hover:bg-amber-500/20 text-xs font-black"
+                      variant="outline"
+                    >
+                      {confirming2nd
+                        ? <><Loader2 className="w-3.5 h-3.5 mr-2 animate-spin" />Confirmando...</>
+                        : <><CheckCircle className="w-3.5 h-3.5 mr-2" />Confirmar 2ª Parcela Recebida</>}
+                    </Button>
+                  </CardContent>
+                </Card>
+              )}
+            </div>
+
+            {/* V11 feedback */}
+            {v11Msg && (
+              <div className={cn(
+                'rounded-xl px-4 py-3 text-sm border',
+                v11Msg.ok
+                  ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-300'
+                  : 'bg-red-500/10 border-red-500/20 text-red-300'
+              )}>
+                {v11Msg.ok
+                  ? <CheckCircle2 className="w-4 h-4 inline mr-2" />
+                  : <AlertTriangle className="w-4 h-4 inline mr-2" />}
+                {v11Msg.text}
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {/* ── Confirmation Dialog ── */}
       <Dialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>

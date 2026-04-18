@@ -795,6 +795,20 @@ export interface CrmStudentDocument {
   file_url: string | null;
   original_filename: string | null;
   uploaded_at: string | null;
+  status: string | null;
+  rejection_reason: string | null;
+}
+
+export interface CrmGlobalDocumentRequest {
+  id: string;
+  profile_id: string;
+  document_type: string;
+  service_type: string | null;
+  status: string | null;
+  rejection_reason: string | null;
+  submitted_url: string | null;
+  requested_at: string | null;
+  submitted_at: string | null;
 }
 
 export interface CrmUserIdentity {
@@ -833,6 +847,8 @@ export interface CaseDetailPage {
   surveyResponses: CrmSurveyResponse[];
   /** Documentos enviados durante o onboarding do estudante */
   studentDocuments: CrmStudentDocument[];
+  /** Documentos complementares enviados após a universidade */
+  globalDocumentRequests: CrmGlobalDocumentRequest[];
   /** Dados pessoais preenchidos no step de identidade */
   userIdentity: CrmUserIdentity | null;
 }
@@ -916,7 +932,7 @@ export async function loadDetailPage(profileId: string): Promise<{
   const srId = primaryRequest?.id ?? null;
   const srIds = serviceRequests.map((sr) => sr.id);
 
-  const [historyResult, eventsResult, followupsResult, messagesResult, srDocumentsResult, identityResult, surveyResult, studentDocsResult, userIdentityResult] = await Promise.all([
+  const [historyResult, eventsResult, followupsResult, messagesResult, srDocumentsResult, identityResult, surveyResult, studentDocsResult, globalDocsResult, userIdentityResult] = await Promise.all([
     srId
       ? supabase
           .from('service_request_stage_history')
@@ -990,9 +1006,18 @@ export async function loadDetailPage(profileId: string): Promise<{
     profile.user_id
       ? supabase
           .from('student_documents')
-          .select('id, user_id, type, file_url, original_filename, uploaded_at')
+          .select('id, user_id, type, file_url, original_filename, uploaded_at, status, rejection_reason')
           .eq('user_id', profile.user_id)
           .order('uploaded_at', { ascending: false })
+      : Promise.resolve({ data: [], error: null }),
+
+    // Documentos complementares enviados após a universidade
+    profile.id
+      ? supabase
+          .from('global_document_requests')
+          .select('id, profile_id, document_type, service_type, status, rejection_reason, submitted_url, requested_at, submitted_at')
+          .eq('profile_id', profile.id)
+          .order('requested_at', { ascending: false })
       : Promise.resolve({ data: [], error: null }),
 
     // Dados pessoais do step de identidade
@@ -1021,6 +1046,7 @@ export async function loadDetailPage(profileId: string): Promise<{
       identityFiles: (identityResult.data ?? []) as CrmIdentityFile[],
       surveyResponses: (surveyResult.data ?? []) as CrmSurveyResponse[],
       studentDocuments: (studentDocsResult.data ?? []) as CrmStudentDocument[],
+      globalDocumentRequests: (globalDocsResult.data ?? []) as CrmGlobalDocumentRequest[],
       userIdentity: (userIdentityResult.data ?? null) as CrmUserIdentity | null,
     },
     error: null,
