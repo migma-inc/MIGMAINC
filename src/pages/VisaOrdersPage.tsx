@@ -1138,17 +1138,15 @@ export const VisaOrdersPage = () => {
             </div>
 
             <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
-              {isLocal && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setShowHidden(!showHidden)}
-                  className={`border-gold-medium/30 bg-black/50 text-gold-light hover:bg-gold-medium/20 text-xs md:text-sm ${showHidden ? 'bg-gold-medium/40' : ''}`}
-                >
-                  {showHidden ? <Eye className="w-4 h-4 mr-2" /> : <EyeOff className="w-4 h-4 mr-2" />}
-                  {showHidden ? 'Show Real Only' : 'Show All'}
-                </Button>
-              )}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowHidden(!showHidden)}
+                className={`border-gold-medium/30 bg-black/50 text-gold-light hover:bg-gold-medium/20 text-xs md:text-sm ${showHidden ? 'bg-gold-medium/40' : ''}`}
+              >
+                {showHidden ? <Eye className="w-4 h-4 mr-2" /> : <EyeOff className="w-4 h-4 mr-2" />}
+                {showHidden ? 'Show Real Only' : 'Show All'}
+              </Button>
 
               <Popover>
                 <PopoverTrigger asChild>
