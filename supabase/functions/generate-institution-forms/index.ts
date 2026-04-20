@@ -22,9 +22,7 @@ const CAROLINE_FORMS = [
 ] as const;
 
 const OIKOS_FORMS = [
-  "application_for_admission",
-  "i20_request_form",
-  "letter_of_recommendation",       // external signer
+  "application_packet",
   "affidavit_of_financial_support",  // conditional on sponsor
   "enrollment_agreement",
   "statement_of_institutional_purpose",
@@ -32,7 +30,6 @@ const OIKOS_FORMS = [
   "code_of_conduct",
   "refund_policy",
   "agreement_to_complete_mandatory_intensives",
-  "christian_faith_statement",       // client edits rascunho
   "termo_responsabilidade_estudante", // internal only
 ] as const;
 
@@ -41,6 +38,7 @@ type FormType = typeof CAROLINE_FORMS[number] | typeof OIKOS_FORMS[number];
 // ─── Form display names ───────────────────────────────────────────────────────
 
 const FORM_LABELS: Record<string, string> = {
+  application_packet:                        "Application Packet",
   application_for_admission:                  "Application for Admission",
   i20_request_form:                           "I-20 Request Form",
   letter_of_recommendation:                   "Letter of Recommendation",
@@ -55,6 +53,419 @@ const FORM_LABELS: Record<string, string> = {
   agreement_to_complete_mandatory_intensives: "Agreement to Complete Mandatory Intensives",
   christian_faith_statement:                  "Christian Faith Statement",
   termo_responsabilidade_estudante:           "Termo de Responsabilidade do Estudante",
+};
+
+const OIKOS_APPLICATION_PACKET_TEMPLATE_FILENAME = "1. Application Packet - OIKOS (1).pdf";
+const OIKOS_VERIFICATION_OF_FINANCIAL_TEMPLATE_FILENAME = "5. Verification of Financial  (1).pdf";
+
+type PacketDegreeProgram =
+  | "ba_biblical_studies"
+  | "bm"
+  | "baba"
+  | "mdiv"
+  | "mm"
+  | "mba"
+  | "dmin"
+  | "dma"
+  | "dba";
+
+interface PacketGridColumn {
+  key: string;
+  x: number;
+  maxWidth: number;
+}
+
+interface PacketGridRowField {
+  x: number;
+  top: number;
+  maxWidth: number;
+}
+
+interface PacketTextField {
+  page: number;
+  x: number;
+  top: number;
+  maxWidth: number;
+  source: string;
+  align?: "left" | "right";
+  transform?: "year2digits_or_suffix" | "year4digits_or_suffix" | "year2digits" | "year4digits";
+  width?: number;
+  height?: number;
+  fontSize?: number;
+  minFontSize?: number;
+  valign?: "baseline" | "middle";
+  paddingLeft?: number;
+  paddingRight?: number;
+  baselineOffset?: number;
+  renderWhen?: {
+    path: string;
+    equals: unknown;
+  };
+}
+
+interface PacketCheckboxField {
+  page: number;
+  x: number;
+  top: number;
+  source: string;
+  equals: unknown;
+}
+
+interface PacketGridField {
+  page: number;
+  maxRows: number;
+  source: string;
+  columns?: PacketGridColumn[];
+  rowTops?: number[];
+  rows?: Record<string, PacketGridRowField>[];
+}
+
+interface PacketMultilineField {
+  page: number;
+  x: number;
+  top: number;
+  width: number;
+  height: number;
+  source: string;
+  lineHeight: number;
+  fontSize: number;
+}
+
+interface OverlayTextField {
+  page: number;
+  x: number;
+  top: number;
+  maxWidth: number;
+  source: string;
+  align?: "left" | "right";
+  transform?: "student_display_name";
+  optional?: boolean;
+  format?: "MM/DD/YYYY";
+}
+
+interface OikosApplicationPacketData {
+  applicant: {
+    koreanName?: string;
+    firstName?: string;
+    middleName?: string;
+    lastName?: string;
+    fullName?: string;
+    dateOfBirth?: string;
+    gender?: "M" | "F";
+    placeOfBirth?: string;
+    ssn?: string;
+    driversLicenseNumber?: string;
+    driversLicenseState?: string;
+    email?: string;
+    phoneDay?: string;
+    phoneNight?: string;
+    visaStatus?: string;
+    alienRegistrationNumber?: string;
+    usCitizen?: boolean;
+    countryOfCitizenship?: string;
+    permanentAddress?: string;
+    currentAddress?: string;
+  };
+  maritalStatus?: string;
+  admission: {
+    startSemester?: "spring" | "summer" | "fall";
+    startYear?: string;
+    degreeProgram?: PacketDegreeProgram;
+  };
+  emergencyContact?: {
+    name?: string;
+    phone?: string;
+    address?: string;
+  };
+  personalReferences?: Array<Record<string, string | undefined>>;
+  academicBackground?: Array<Record<string, string | undefined>>;
+  workMinistryExperience?: Array<Record<string, string | undefined>>;
+  discoverySource?: {
+    internet?: boolean;
+    yahoo?: boolean;
+    google?: boolean;
+    oikosWebsite?: boolean;
+    postedFlyer?: boolean;
+    personalReferral?: boolean;
+    other?: boolean;
+    otherText?: string;
+  };
+  signature?: {
+    applicantSignatureText?: string;
+    applicantDate?: string;
+  };
+  i20?: {
+    requestType?: "new_student" | "change_of_status" | "transfer_student";
+    foreignAddress?: string;
+    usAddress?: string;
+    dependents?: Array<Record<string, string | undefined>>;
+  };
+  recommendation?: {
+    applicantAddressLine?: string;
+    applicantCityStateZip?: string;
+    applicantTelephone?: string;
+  };
+  christianFaith?: {
+    name?: string;
+    date?: string;
+    statement?: string;
+  };
+  derived?: {
+    applicantDisplayName?: string;
+    applicantPassportLastName?: string;
+    applicantPassportFirstName?: string;
+    applicantPassportMiddleName?: string;
+    applicantCityStateZip?: string;
+    applicantPrimaryPhone?: string;
+    applicantDayPhone?: string;
+    applicantNightPhone?: string;
+    applicantSignatureText?: string;
+    christianFaithName?: string;
+    christianFaithDate?: string;
+    christianFaithStatement?: string;
+  };
+  personalReferencesNormalized?: Array<Record<string, string | undefined>>;
+  academicBackgroundNormalized?: Array<Record<string, string | undefined>>;
+}
+
+interface OikosVerificationFinancialData {
+  student: {
+    lastName?: string;
+    firstName?: string;
+    middleName?: string;
+    dateOfBirth?: string;
+    address?: string;
+    city?: string;
+    state?: string;
+    zip?: string;
+  };
+  financial: {
+    annualProjectedTuitionExpense?: string;
+    annualSupportAmount?: string;
+  };
+  sponsor: {
+    name?: string;
+    relationship?: string;
+    telephone?: string;
+    address?: string;
+    city?: string;
+    state?: string;
+    zip?: string;
+    signatureDate?: string;
+    signatureText?: string;
+  };
+  notary?: {
+    sponsorOathSignatureText?: string;
+    subscribedDay?: string;
+    subscribedMonth?: string;
+    subscribedLocation?: string;
+    commissionExpiresOn?: string;
+    officerSignatureText?: string;
+    officerTitle?: string;
+  };
+}
+
+const OIKOS_APPLICATION_PACKET_V1: {
+  acroForm: Record<string, PacketTextField>;
+  overlay: {
+    text: Record<string, PacketTextField>;
+    checkboxes: Record<string, PacketCheckboxField>;
+    grids: Record<string, PacketGridField>;
+    multiline: Record<string, PacketMultilineField>;
+  };
+} = {
+  acroForm: {
+    christian_faith_name: { page: 4, x: 0, top: 0, maxWidth: 0, source: "christianFaith.name" },
+    christian_faith_date: { page: 4, x: 0, top: 0, maxWidth: 0, source: "christianFaith.date" },
+    christian_faith_statement: { page: 4, x: 0, top: 0, maxWidth: 0, source: "christianFaith.statement" },
+  },
+  overlay: {
+    text: {
+      applicant_korean_name: { page: 0, x: 112, top: 183, maxWidth: 128, source: "applicant.koreanName" },
+      applicant_english_name: { page: 0, x: 320, top: 172, maxWidth: 140, width: 170, height: 16, fontSize: 10, minFontSize: 8, valign: "middle", baselineOffset: -1, source: "derived.applicantDisplayName" },
+      applicant_ssn: { page: 0, x: 141, top: 206, maxWidth: 82, source: "applicant.ssn" },
+      applicant_drivers_license_number: { page: 0, x: 338, top: 206, maxWidth: 70, source: "applicant.driversLicenseNumber" },
+      applicant_drivers_license_state: { page: 0, x: 473, top: 206, maxWidth: 52, source: "applicant.driversLicenseState" },
+      applicant_permanent_address: { page: 0, x: 180, top: 217, maxWidth: 345, width: 360, height: 16, fontSize: 10, minFontSize: 8, valign: "middle", baselineOffset: -1, source: "applicant.permanentAddress" },
+      applicant_current_address: { page: 0, x: 160, top: 240, maxWidth: 360, width: 372, height: 16, fontSize: 10, minFontSize: 8, valign: "middle", baselineOffset: -1, source: "applicant.currentAddress" },
+      applicant_phone_day: { page: 0, x: 138, top: 264, maxWidth: 120, width: 126, height: 14, fontSize: 10, minFontSize: 8, valign: "middle", baselineOffset: -1, source: "applicant.phoneDay" },
+      applicant_phone_night: { page: 0, x: 422, top: 264, maxWidth: 124, width: 130, height: 14, fontSize: 10, minFontSize: 8, valign: "middle", baselineOffset: -1, source: "applicant.phoneNight" },
+      applicant_email: { page: 0, x: 160, top: 286, maxWidth: 210, width: 220, height: 16, fontSize: 10, minFontSize: 8, valign: "middle", baselineOffset: -1, source: "applicant.email" },
+      applicant_dob: { page: 0, x: 141, top: 309, maxWidth: 88, width: 92, height: 16, fontSize: 10, minFontSize: 8, valign: "middle", baselineOffset: -1, source: "applicant.dateOfBirth" },
+      applicant_place_of_birth: { page: 0, x: 463, top: 315, maxWidth: 96, source: "applicant.placeOfBirth" },
+      applicant_country_of_citizenship: { page: 0, x: 472, top: 354, maxWidth: 110, width: 116, height: 16, fontSize: 10, minFontSize: 8, valign: "middle", baselineOffset: -1, source: "applicant.countryOfCitizenship" },
+      applicant_visa_status: { page: 0, x: 110, top: 377, maxWidth: 110, width: 118, height: 16, fontSize: 10, minFontSize: 8, valign: "middle", baselineOffset: -1, source: "applicant.visaStatus" },
+      applicant_alien_registration_number: { page: 0, x: 408, top: 389, maxWidth: 112, source: "applicant.alienRegistrationNumber" },
+      start_year_spring: { page: 0, x: 151, top: 461, maxWidth: 20, source: "admission.startYear", transform: "year2digits", renderWhen: { path: "admission.startSemester", equals: "spring" } },
+      start_year_fall: { page: 0, x: 268, top: 461, maxWidth: 20, source: "admission.startYear", transform: "year2digits", renderWhen: { path: "admission.startSemester", equals: "fall" } },
+      start_year_summer: { page: 0, x: 404, top: 461, maxWidth: 30, source: "admission.startYear", transform: "year4digits", renderWhen: { path: "admission.startSemester", equals: "summer" } },
+      emergency_contact_name: { page: 0, x: 100, top: 633, maxWidth: 150, width: 160, height: 16, fontSize: 10, minFontSize: 8, valign: "middle", baselineOffset: -1, source: "emergencyContact.name" },
+      emergency_contact_phone: { page: 0, x: 470, top: 633, maxWidth: 150, width: 160, height: 16, fontSize: 10, minFontSize: 8, valign: "middle", baselineOffset: -1, source: "emergencyContact.phone" },
+      emergency_contact_address: { page: 0, x: 94, top: 654, maxWidth: 390, width: 410, height: 16, fontSize: 10, minFontSize: 8, valign: "middle", baselineOffset: -1, source: "emergencyContact.address" },
+      found_other_text: { page: 1, x: 278, top: 593, maxWidth: 245, source: "discoverySource.otherText" },
+      applicant_signature_text: { page: 1, x: 150, top: 647, maxWidth: 255, width: 270, height: 16, fontSize: 10, minFontSize: 8, valign: "middle", baselineOffset: -1, source: "derived.applicantSignatureText" },
+      applicant_signature_date: { page: 1, x: 520, top: 647, maxWidth: 86, width: 86, height: 16, fontSize: 10, minFontSize: 8, valign: "middle", baselineOffset: -1, source: "signature.applicantDate", align: "right" },
+      i20_last_name: { page: 2, x: 112, top: 183, maxWidth: 116, width: 122, height: 16, fontSize: 10, minFontSize: 8, valign: "middle", baselineOffset: -1, source: "derived.applicantPassportLastName" },
+      i20_first_name: { page: 2, x: 302, top: 183, maxWidth: 122, width: 128, height: 16, fontSize: 10, minFontSize: 8, valign: "middle", baselineOffset: -1, source: "derived.applicantPassportFirstName" },
+      i20_middle_name: { page: 2, x: 486, top: 183, maxWidth: 88, width: 90, height: 16, fontSize: 10, minFontSize: 8, valign: "middle", baselineOffset: -1, source: "derived.applicantPassportMiddleName" },
+      i20_dob: { page: 2, x: 138, top: 236, maxWidth: 112, width: 116, height: 16, fontSize: 10, minFontSize: 8, valign: "middle", baselineOffset: -1, source: "applicant.dateOfBirth" },
+      i20_place_of_birth: { page: 2, x: 423, top: 236, maxWidth: 145, width: 148, height: 16, fontSize: 10, minFontSize: 8, valign: "middle", baselineOffset: -1, source: "applicant.placeOfBirth" },
+      i20_country_of_citizenship: { page: 2, x: 176, top: 272, maxWidth: 360, width: 370, height: 16, fontSize: 10, minFontSize: 8, valign: "middle", baselineOffset: -1, source: "applicant.countryOfCitizenship" },
+      i20_foreign_address: { page: 2, x: 148, top: 308, maxWidth: 395, width: 404, height: 16, fontSize: 10, minFontSize: 8, valign: "middle", baselineOffset: -1, source: "i20.foreignAddress" },
+      i20_us_address: { page: 2, x: 132, top: 344, maxWidth: 408, width: 418, height: 16, fontSize: 10, minFontSize: 8, valign: "middle", baselineOffset: -1, source: "i20.usAddress" },
+      recommendation_applicant_name: { page: 3, x: 136, top: 146, maxWidth: 250, source: "derived.applicantDisplayName" },
+      recommendation_applicant_address: { page: 3, x: 82, top: 172, maxWidth: 485, source: "recommendation.applicantAddressLine" },
+      recommendation_city_state_zip: { page: 3, x: 164, top: 199, maxWidth: 215, source: "recommendation.applicantCityStateZip" },
+      recommendation_applicant_phone: { page: 3, x: 458, top: 193, maxWidth: 96, width: 100, height: 16, fontSize: 10, minFontSize: 8, valign: "middle", baselineOffset: -1, source: "derived.applicantPrimaryPhone" },
+    },
+    checkboxes: {
+      applicant_gender_m: { page: 0, x: 257, top: 319, source: "applicant.gender", equals: "M" },
+      applicant_gender_f: { page: 0, x: 279, top: 319, source: "applicant.gender", equals: "F" },
+      applicant_us_citizen_yes: { page: 0, x: 186, top: 365, source: "applicant.usCitizen", equals: true },
+      applicant_us_citizen_no: { page: 0, x: 214, top: 365, source: "applicant.usCitizen", equals: false },
+      start_semester_spring: { page: 0, x: 57, top: 445, source: "admission.startSemester", equals: "spring" },
+      start_semester_fall: { page: 0, x: 170, top: 445, source: "admission.startSemester", equals: "fall" },
+      start_semester_summer: { page: 0, x: 272, top: 445, source: "admission.startSemester", equals: "summer" },
+      degree_ba_biblical_studies: { page: 0, x: 57, top: 514, source: "admission.degreeProgram", equals: "ba_biblical_studies" },
+      degree_bm: { page: 0, x: 185, top: 514, source: "admission.degreeProgram", equals: "bm" },
+      degree_baba: { page: 0, x: 316, top: 514, source: "admission.degreeProgram", equals: "baba" },
+      degree_mdiv: { page: 0, x: 57, top: 553, source: "admission.degreeProgram", equals: "mdiv" },
+      degree_mm: { page: 0, x: 184, top: 553, source: "admission.degreeProgram", equals: "mm" },
+      degree_mba: { page: 0, x: 316, top: 553, source: "admission.degreeProgram", equals: "mba" },
+      degree_dmin: { page: 0, x: 57, top: 593, source: "admission.degreeProgram", equals: "dmin" },
+      degree_dma: { page: 0, x: 186, top: 593, source: "admission.degreeProgram", equals: "dma" },
+      degree_dba: { page: 0, x: 322, top: 593, source: "admission.degreeProgram", equals: "dba" },
+      marital_single: { page: 1, x: 142, top: 43, source: "maritalStatus", equals: "single" },
+      marital_married: { page: 1, x: 202, top: 43, source: "maritalStatus", equals: "married" },
+      found_internet: { page: 1, x: 44, top: 570, source: "discoverySource.internet", equals: true },
+      found_yahoo: { page: 1, x: 115, top: 570, source: "discoverySource.yahoo", equals: true },
+      found_google: { page: 1, x: 167, top: 570, source: "discoverySource.google", equals: true },
+      found_oikos_website: { page: 1, x: 230, top: 570, source: "discoverySource.oikosWebsite", equals: true },
+      found_posted_flyer: { page: 1, x: 363, top: 570, source: "discoverySource.postedFlyer", equals: true },
+      found_personal_referral: { page: 1, x: 44, top: 590, source: "discoverySource.personalReferral", equals: true },
+      found_other: { page: 1, x: 172, top: 590, source: "discoverySource.other", equals: true },
+      i20_request_new_student: { page: 2, x: 109, top: 390, source: "i20.requestType", equals: "new_student" },
+      i20_request_change_of_status: { page: 2, x: 197, top: 390, source: "i20.requestType", equals: "change_of_status" },
+      i20_request_transfer_student: { page: 2, x: 357, top: 390, source: "i20.requestType", equals: "transfer_student" },
+      i20_program_ba_biblical_studies: { page: 2, x: 37, top: 462, source: "admission.degreeProgram", equals: "ba_biblical_studies" },
+      i20_program_bm: { page: 2, x: 184, top: 462, source: "admission.degreeProgram", equals: "bm" },
+      i20_program_baba: { page: 2, x: 320, top: 463, source: "admission.degreeProgram", equals: "baba" },
+      i20_program_mdiv: { page: 2, x: 37, top: 503, source: "admission.degreeProgram", equals: "mdiv" },
+      i20_program_mm: { page: 2, x: 186, top: 503, source: "admission.degreeProgram", equals: "mm" },
+      i20_program_mba: { page: 2, x: 320, top: 504, source: "admission.degreeProgram", equals: "mba" },
+      i20_program_dmin: { page: 2, x: 37, top: 536, source: "admission.degreeProgram", equals: "dmin" },
+    },
+    grids: {
+      personalReferences: {
+        page: 1,
+        maxRows: 4,
+        source: "personalReferences",
+        columns: [
+          { key: "name", x: 44, maxWidth: 126 },
+          { key: "relationship", x: 183, maxWidth: 72 },
+          { key: "gender", x: 264, maxWidth: 50 },
+          { key: "contactNumber", x: 327, maxWidth: 106 },
+          { key: "countryOfCitizenship", x: 444, maxWidth: 130 },
+        ],
+        rowTops: [126, 153, 180, 207],
+      },
+      academicBackground: {
+        page: 1,
+        maxRows: 4,
+        source: "academicBackground",
+        columns: [
+          { key: "schoolName", x: 44, maxWidth: 88 },
+          { key: "location", x: 148, maxWidth: 185 },
+          { key: "duration", x: 346, maxWidth: 110 },
+          { key: "degreeDiploma", x: 472, maxWidth: 98 },
+        ],
+        rowTops: [289, 317, 344, 371],
+      },
+      workMinistryExperience: {
+        page: 1,
+        maxRows: 3,
+        source: "workMinistryExperience",
+        rows: [
+          {
+            companyOrChurch: { x: 194, top: 415, maxWidth: 235 },
+            duration: { x: 120, top: 435, maxWidth: 64 },
+            position: { x: 258, top: 435, maxWidth: 170 },
+          },
+          {
+            companyOrChurch: { x: 194, top: 455, maxWidth: 235 },
+            duration: { x: 120, top: 475, maxWidth: 64 },
+            position: { x: 258, top: 475, maxWidth: 170 },
+          },
+          {
+            companyOrChurch: { x: 194, top: 495, maxWidth: 235 },
+            duration: { x: 120, top: 515, maxWidth: 64 },
+            position: { x: 258, top: 515, maxWidth: 170 },
+          },
+        ],
+      },
+      dependents: {
+        page: 2,
+        maxRows: 6,
+        source: "i20.dependents",
+        columns: [
+          { key: "name", x: 38, maxWidth: 102 },
+          { key: "relationship", x: 148, maxWidth: 58 },
+          { key: "sex", x: 217, maxWidth: 22 },
+          { key: "dateOfBirth", x: 251, maxWidth: 74 },
+          { key: "placeOfBirth", x: 338, maxWidth: 96 },
+          { key: "countryOfCitizenship", x: 447, maxWidth: 98 },
+        ],
+        rowTops: [626, 645, 663, 682, 700, 719],
+      },
+    },
+    multiline: {
+      christian_faith_statement: {
+        page: 4,
+        x: 58,
+        top: 190,
+        width: 490,
+        height: 405,
+        source: "christianFaith.statement",
+        lineHeight: 14,
+        fontSize: 11,
+      },
+    },
+  },
+};
+
+const OIKOS_VERIFICATION_OF_FINANCIAL_V1: {
+  text: Record<string, OverlayTextField>;
+} = {
+  text: {
+    student_last_name: { page: 0, x: 62, top: 169, maxWidth: 118, source: "student.lastName" },
+    student_first_name: { page: 0, x: 185, top: 169, maxWidth: 118, source: "student.firstName" },
+    student_middle_name: { page: 0, x: 306, top: 169, maxWidth: 78, source: "student.middleName" },
+    student_date_of_birth: { page: 0, x: 403, top: 169, maxWidth: 115, source: "student.dateOfBirth", format: "MM/DD/YYYY" },
+    student_address: { page: 0, x: 62, top: 215, maxWidth: 180, source: "student.address" },
+    student_city: { page: 0, x: 263, top: 215, maxWidth: 95, source: "student.city" },
+    student_state: { page: 0, x: 354, top: 215, maxWidth: 42, source: "student.state" },
+    student_zip: { page: 0, x: 406, top: 215, maxWidth: 52, source: "student.zip" },
+    annual_projected_tuition_expense: { page: 0, x: 468, top: 308, maxWidth: 72, source: "financial.annualProjectedTuitionExpense", align: "right" },
+    sponsor_name: { page: 0, x: 62, top: 354, maxWidth: 205, source: "sponsor.name" },
+    sponsor_relationship: { page: 0, x: 286, top: 354, maxWidth: 72, source: "sponsor.relationship" },
+    sponsor_telephone: { page: 0, x: 378, top: 354, maxWidth: 110, source: "sponsor.telephone" },
+    sponsor_address: { page: 0, x: 62, top: 400, maxWidth: 180, source: "sponsor.address" },
+    sponsor_city: { page: 0, x: 267, top: 400, maxWidth: 92, source: "sponsor.city" },
+    sponsor_state: { page: 0, x: 354, top: 400, maxWidth: 42, source: "sponsor.state" },
+    sponsor_zip: { page: 0, x: 406, top: 400, maxWidth: 52, source: "sponsor.zip" },
+    sponsor_name_inline: { page: 0, x: 80, top: 462, maxWidth: 120, source: "sponsor.name" },
+    student_name_inline: { page: 0, x: 326, top: 462, maxWidth: 110, source: "student.firstName", transform: "student_display_name" },
+    annual_support_amount: { page: 0, x: 401, top: 483, maxWidth: 85, source: "financial.annualSupportAmount", align: "right" },
+    sponsor_signature_text: { page: 0, x: 113, top: 534, maxWidth: 185, source: "sponsor.signatureText", optional: true },
+    sponsor_signature_date: { page: 0, x: 386, top: 534, maxWidth: 86, source: "sponsor.signatureDate", format: "MM/DD/YYYY", optional: true },
+    sponsor_oath_signature_text: { page: 0, x: 160, top: 663, maxWidth: 190, source: "notary.sponsorOathSignatureText", optional: true },
+    subscribed_day: { page: 0, x: 273, top: 707, maxWidth: 34, source: "notary.subscribedDay", optional: true },
+    subscribed_month: { page: 0, x: 355, top: 707, maxWidth: 84, source: "notary.subscribedMonth", optional: true },
+    subscribed_location: { page: 0, x: 65, top: 728, maxWidth: 170, source: "notary.subscribedLocation", optional: true },
+    commission_expires_on: { page: 0, x: 333, top: 728, maxWidth: 165, source: "notary.commissionExpiresOn", optional: true },
+    officer_signature_text: { page: 0, x: 62, top: 783, maxWidth: 205, source: "notary.officerSignatureText", optional: true },
+    officer_title: { page: 0, x: 307, top: 783, maxWidth: 115, source: "notary.officerTitle", optional: true },
+  },
 };
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -86,6 +497,188 @@ interface SupplementalData {
 interface Payload {
   application_id: string;
   supplemental_data?: SupplementalData;
+  debug_env?: boolean;
+}
+
+function getValueAtPath(data: Record<string, any>, path: string): unknown {
+  return path.split(".").reduce<unknown>((acc, key) => {
+    if (acc == null || typeof acc !== "object") return undefined;
+    return (acc as Record<string, unknown>)[key];
+  }, data);
+}
+
+function asString(value: unknown): string {
+  if (value == null) return "";
+  if (typeof value === "string") return value.trim();
+  if (typeof value === "number" || typeof value === "boolean") return String(value);
+  return "";
+}
+
+function truncateToWidth(font: PDFFont, text: string, size: number, maxWidth: number): string {
+  if (!text) return "";
+  if (font.widthOfTextAtSize(text, size) <= maxWidth) return text;
+
+  let output = text;
+  while (output.length > 0 && font.widthOfTextAtSize(`${output}...`, size) > maxWidth) {
+    output = output.slice(0, -1);
+  }
+  return output ? `${output}...` : "";
+}
+
+function wrapTextToWidth(font: PDFFont, text: string, size: number, maxWidth: number): string[] {
+  const rawLines = text.split(/\r?\n/);
+  const lines: string[] = [];
+
+  for (const rawLine of rawLines) {
+    const words = rawLine.split(/\s+/).filter(Boolean);
+    if (words.length === 0) {
+      lines.push("");
+      continue;
+    }
+
+    let current = "";
+    for (const word of words) {
+      const candidate = current ? `${current} ${word}` : word;
+      if (font.widthOfTextAtSize(candidate, size) <= maxWidth) {
+        current = candidate;
+        continue;
+      }
+
+      if (current) lines.push(current);
+
+      if (font.widthOfTextAtSize(word, size) <= maxWidth) {
+        current = word;
+        continue;
+      }
+
+      let remainder = word;
+      while (remainder.length > 0) {
+        let chunk = remainder;
+        while (chunk.length > 1 && font.widthOfTextAtSize(chunk, size) > maxWidth) {
+          chunk = chunk.slice(0, -1);
+        }
+        lines.push(chunk);
+        remainder = remainder.slice(chunk.length);
+      }
+      current = "";
+    }
+
+    if (current) lines.push(current);
+  }
+
+  return lines;
+}
+
+function topToPdfY(page: PDFPage, top: number, fontSize: number): number {
+  return page.getHeight() - top - fontSize;
+}
+
+function normalizeCheckboxValue(value: unknown): unknown {
+  if (typeof value === "string") return value.trim().toLowerCase();
+  return value;
+}
+
+function compact(value?: string | null): string {
+  return (value ?? "").trim();
+}
+
+function joinNonEmpty(parts: Array<string | undefined | null>, sep = " "): string {
+  return parts.map((part) => compact(part)).filter(Boolean).join(sep);
+}
+
+function isProbablyEmail(value?: string | null): boolean {
+  const text = compact(value);
+  return /\S+@\S+\.\S+/.test(text);
+}
+
+function safeName(value?: string | null): string {
+  const text = compact(value);
+  return isProbablyEmail(text) ? "" : text;
+}
+
+function looksLikePhone(value?: string | null): boolean {
+  const text = compact(value);
+  return /[0-9()+\- ]{6,}/.test(text);
+}
+
+function shouldRenderField(data: Record<string, any>, renderWhen?: { path: string; equals: unknown }): boolean {
+  if (!renderWhen) return true;
+  return getValueAtPath(data, renderWhen.path) === renderWhen.equals;
+}
+
+function maybeFormatDate(value: string | null | undefined): string | undefined {
+  if (!value) return undefined;
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return value;
+  const month = String(parsed.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(parsed.getUTCDate()).padStart(2, "0");
+  const year = String(parsed.getUTCFullYear());
+  return `${month}/${day}/${year}`;
+}
+
+function joinAddress(parts: Array<string | null | undefined>): string | undefined {
+  const filtered = parts.map((part) => asString(part)).filter(Boolean);
+  return filtered.length > 0 ? filtered.join(", ") : undefined;
+}
+
+function splitFullName(fullName: string | null | undefined) {
+  const parts = asString(fullName).split(/\s+/).filter(Boolean);
+  return {
+    firstName: parts[0] ?? undefined,
+    middleName: parts.length > 2 ? parts.slice(1, -1).join(" ") : undefined,
+    lastName: parts.length > 1 ? parts[parts.length - 1] : undefined,
+  };
+}
+
+function parsePreferredStart(value: string | undefined): { startSemester?: "spring" | "summer" | "fall"; startYear?: string } {
+  const raw = asString(value).toLowerCase();
+  if (!raw) return {};
+
+  const startSemester = raw.includes("spring")
+    ? "spring"
+    : raw.includes("summer")
+    ? "summer"
+    : raw.includes("fall") || raw.includes("autumn")
+    ? "fall"
+    : undefined;
+
+  const yearMatch = raw.match(/\b(20\d{2})\b/);
+  return {
+    startSemester,
+    startYear: yearMatch?.[1],
+  };
+}
+
+function transformPacketValue(value: string, transform: PacketTextField["transform"]): string {
+  if (!transform || !value) return value;
+  if (transform === "year2digits_or_suffix") return value.slice(-2);
+  if (transform === "year4digits_or_suffix") return value.slice(-4);
+  if (transform === "year2digits") return value.length === 4 ? value.slice(-2) : value;
+  if (transform === "year4digits") return value;
+  return value;
+}
+
+function formatMoneyValue(value: unknown): string | undefined {
+  if (value == null || value === "") return undefined;
+  const numeric = typeof value === "number" ? value : Number(String(value).replace(/[^0-9.-]/g, ""));
+  if (!Number.isFinite(numeric)) return asString(value) || undefined;
+  return new Intl.NumberFormat("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(numeric);
+}
+
+function inferPacketDegreeProgram(course: Record<string, any> | null): PacketDegreeProgram | undefined {
+  const degree = asString(course?.degree_level).toLowerCase();
+  const courseName = asString(course?.course_name).toLowerCase();
+
+  if (courseName.includes("biblical")) return "ba_biblical_studies";
+  if (courseName.includes("music") || degree.includes("music")) return degree.startsWith("doctor") ? "dma" : degree.startsWith("master") ? "mm" : "bm";
+  if (courseName.includes("business") || courseName.includes("administration") || courseName.includes("mba")) {
+    if (degree.startsWith("doctor")) return "dba";
+    return "mba";
+  }
+  if (courseName.includes("divinity")) return "mdiv";
+  if (courseName.includes("ministry") || degree.includes("ministry")) return "dmin";
+  if (courseName.includes("arts") || degree.includes("bachelor")) return "baba";
+  return undefined;
 }
 
 // ─── PDF builder helpers ──────────────────────────────────────────────────────
@@ -189,6 +782,179 @@ async function buildHeader(
 
 // ─── Form data builders ───────────────────────────────────────────────────────
 
+function buildOikosApplicationPacketData(
+  profile: Record<string, any>,
+  course: Record<string, any> | null,
+  survey: Record<string, any> | null,
+  supplemental: SupplementalData,
+  identity: Record<string, any> | null,
+): OikosApplicationPacketData {
+  const answers = (survey?.answers ?? {}) as Record<string, any>;
+  const splitName = splitFullName(profile.full_name);
+  const preferredStart = parsePreferredStart(supplemental.preferred_start_term);
+  const usAddress = joinAddress([identity?.address, identity?.city, identity?.state, identity?.zip_code]);
+  const foreignAddress = supplemental.emergency_contact?.address;
+  const birthCity = asString(answers.birthplace_city);
+  const birthCountry = asString(answers.birthplace_country);
+  const placeOfBirth = [birthCity, birthCountry].filter(Boolean).join(", ") || undefined;
+  const nationality = asString(identity?.nationality ?? identity?.country) || undefined;
+  const maritalStatusRaw = asString(identity?.marital_status).toLowerCase();
+  const maritalStatus = maritalStatusRaw.includes("married")
+    ? "married"
+    : maritalStatusRaw.includes("single")
+    ? "single"
+    : undefined;
+  const signatureDate = maybeFormatDate(new Date().toISOString());
+  const applicantDateOfBirth = maybeFormatDate(identity?.birth_date);
+  const applicantPhone = asString(profile.phone ?? profile.whatsapp) || undefined;
+  const applicantFullName = compact(profile.full_name) || undefined;
+  const requestType = profile.service_type === "transfer"
+    ? "transfer_student"
+    : profile.service_type === "cos"
+    ? "change_of_status"
+    : "new_student";
+  const applicantDisplayName = compact(
+    compact(profile.full_name) || joinNonEmpty([splitName.firstName, splitName.middleName, splitName.lastName]),
+  );
+  const applicantPrimaryPhone = looksLikePhone(profile.phone ?? profile.whatsapp) ? asString(profile.phone ?? profile.whatsapp) : undefined;
+  const cityStateZip = joinNonEmpty([identity?.city, identity?.state, identity?.zip_code], ", ");
+  const personalReferencesNormalized = (supplemental.recommenders ?? []).slice(0, 4).map((ref) => ({
+      name: compact(ref.name) || undefined,
+    relationship: compact(ref.position) || undefined,
+    gender: undefined,
+    contactNumber: looksLikePhone(ref.contact) ? compact(ref.contact) : undefined,
+    countryOfCitizenship: undefined,
+  }));
+  const academicBackgroundNormalized = survey?.academic_formation
+    ? [{
+        schoolName: compact(survey.academic_formation) || undefined,
+        location: undefined,
+        duration: undefined,
+        degreeDiploma: compact(survey.academic_formation) || undefined,
+      }]
+    : [];
+  const christianFaithStatement = compact(answers.christian_faith_statement ?? answers.faith_statement) || undefined;
+
+  return {
+    applicant: {
+      firstName: splitName.firstName,
+      middleName: splitName.middleName,
+      lastName: splitName.lastName,
+      fullName: applicantDisplayName || undefined,
+      dateOfBirth: applicantDateOfBirth,
+      gender: asString(answers.gender).toUpperCase() === "F" ? "F" : asString(answers.gender).toUpperCase() === "M" ? "M" : undefined,
+      placeOfBirth,
+      email: asString(profile.email) || undefined,
+      phoneDay: applicantPrimaryPhone,
+      phoneNight: applicantPrimaryPhone,
+      visaStatus: profile.service_type === "cos" ? "Change of Status" : profile.service_type === "transfer" ? "Transfer" : undefined,
+      usCitizen: nationality?.toLowerCase().includes("united states") || nationality?.toLowerCase() === "usa",
+      countryOfCitizenship: nationality,
+      permanentAddress: foreignAddress,
+      currentAddress: usAddress,
+    },
+    maritalStatus,
+    admission: {
+      startSemester: preferredStart.startSemester,
+      startYear: preferredStart.startYear,
+      degreeProgram: inferPacketDegreeProgram(course),
+    },
+    emergencyContact: {
+      name: supplemental.emergency_contact?.name,
+      phone: supplemental.emergency_contact?.phone,
+      address: supplemental.emergency_contact?.address,
+    },
+    personalReferences: personalReferencesNormalized,
+    academicBackground: academicBackgroundNormalized,
+    workMinistryExperience: (supplemental.work_experience ?? []).slice(0, 3).map((item) => ({
+      companyOrChurch: item.company,
+      duration: item.period,
+      position: item.position,
+    })),
+    discoverySource: {
+      internet: true,
+      google: true,
+    },
+    signature: {
+      applicantSignatureText: undefined,
+      applicantDate: signatureDate,
+    },
+    i20: {
+      requestType,
+      foreignAddress,
+      usAddress,
+      dependents: [],
+    },
+    recommendation: {
+      applicantAddressLine: usAddress ?? foreignAddress,
+      applicantCityStateZip: cityStateZip || undefined,
+      applicantTelephone: applicantPrimaryPhone,
+    },
+    christianFaith: {
+      name: applicantDisplayName || undefined,
+      date: signatureDate,
+      statement: christianFaithStatement,
+    },
+    derived: {
+      applicantDisplayName: applicantDisplayName || undefined,
+      applicantPassportLastName: compact(splitName.lastName) || undefined,
+      applicantPassportFirstName: compact(splitName.firstName) || undefined,
+      applicantPassportMiddleName: compact(splitName.middleName) || undefined,
+      applicantCityStateZip: cityStateZip || undefined,
+      applicantPrimaryPhone,
+      applicantDayPhone: applicantPrimaryPhone,
+      applicantNightPhone: applicantPrimaryPhone,
+      applicantSignatureText: undefined,
+      christianFaithName: applicantDisplayName || undefined,
+      christianFaithDate: signatureDate,
+      christianFaithStatement,
+    },
+    personalReferencesNormalized,
+    academicBackgroundNormalized,
+  };
+}
+
+function buildOikosVerificationFinancialData(
+  profile: Record<string, any>,
+  scholarship: Record<string, any> | null,
+  supplemental: SupplementalData,
+  identity: Record<string, any> | null,
+): OikosVerificationFinancialData {
+  const splitName = splitFullName(profile.full_name);
+  const studentAddress = joinAddress([identity?.address]);
+  const tuitionExpense = formatMoneyValue(scholarship?.tuition_annual_usd);
+  const supportAmount = formatMoneyValue(supplemental.sponsor?.committed_amount_usd ?? scholarship?.tuition_annual_usd);
+
+  return {
+    student: {
+      lastName: splitName.lastName,
+      firstName: splitName.firstName,
+      middleName: splitName.middleName,
+      dateOfBirth: maybeFormatDate(identity?.birth_date),
+      address: studentAddress,
+      city: asString(identity?.city) || undefined,
+      state: asString(identity?.state) || undefined,
+      zip: asString(identity?.zip_code) || undefined,
+    },
+    financial: {
+      annualProjectedTuitionExpense: tuitionExpense,
+      annualSupportAmount: supportAmount,
+    },
+    sponsor: {
+      name: supplemental.sponsor?.full_name,
+      relationship: supplemental.sponsor?.relationship,
+      telephone: supplemental.sponsor?.phone,
+      address: supplemental.sponsor?.address,
+      city: undefined,
+      state: undefined,
+      zip: undefined,
+      signatureDate: undefined,
+      signatureText: undefined,
+    },
+    notary: {},
+  };
+}
+
 function buildFormData(
   formType: string,
   profile: Record<string, any>,
@@ -199,6 +965,10 @@ function buildFormData(
   supplemental: SupplementalData,
   identity: Record<string, any> | null,
 ): Record<string, any> {
+  if (formType === "application_packet") {
+    return buildOikosApplicationPacketData(profile, course, survey, supplemental, identity);
+  }
+
   // §11.3 field mapping — user_identity is source of truth for personal data
   const addressUsa = identity?.address
     ? `${identity.address}, ${identity.city ?? ""}, ${identity.state ?? ""} ${identity.zip_code ?? ""}`.trim().replace(/,\s*$/, "")
@@ -306,6 +1076,319 @@ function drawClauseLines(ctx: DrawCtx, title: string, lines: string[]): DrawCtx 
   return ctx;
 }
 
+async function resolveTemplatePath(filename: string): Promise<string> {
+  const moduleRelativeUrl = new URL(`./templates/${filename}`, import.meta.url);
+  const attempted: string[] = [moduleRelativeUrl.pathname];
+  try {
+    await Deno.stat(moduleRelativeUrl);
+    return moduleRelativeUrl.pathname;
+  } catch {
+    // fallback to cwd-based candidates
+  }
+
+  const candidates = [
+    `./templates/${filename}`,
+    `../pdf-template/${filename}`,
+    `../../pdf-template/${filename}`,
+    `../../../pdf-template/${filename}`,
+    `./pdf-template/${filename}`,
+    `../${filename}`,
+  ];
+
+  for (const candidate of candidates) {
+    attempted.push(candidate);
+    try {
+      await Deno.stat(candidate);
+      return candidate;
+    } catch {
+      // try next
+    }
+  }
+
+  throw new Error(`template file not found: ${filename} | import_meta=${import.meta.url} | cwd=${Deno.cwd()} | attempted=${attempted.join(" ; ")}`);
+}
+
+async function loadPdfTemplate(filename: string): Promise<Uint8Array> {
+  const baseUrl = Deno.env.get("PDF_TEMPLATE_BASE_URL");
+  if (baseUrl) {
+    const remoteUrl = new URL(filename, baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`);
+    const response = await fetch(remoteUrl);
+    if (!response.ok) {
+      throw new Error(`template fetch failed: ${remoteUrl.toString()} (${response.status})`);
+    }
+    return new Uint8Array(await response.arrayBuffer());
+  }
+
+  const resolvedPath = await resolveTemplatePath(filename);
+  return await Deno.readFile(resolvedPath);
+}
+
+function drawPacketTextField(
+  page: PDFPage,
+  font: PDFFont,
+  value: string,
+  field: PacketTextField,
+  fontSize = 10,
+) {
+  const resolved = transformPacketValue(value, field.transform);
+  if (!resolved) return;
+
+  const boxWidth = field.width ?? field.maxWidth;
+  const boxHeight = field.height ?? (field.fontSize ?? fontSize) + 6;
+  const baseSize = field.fontSize ?? fontSize;
+  const minSize = field.minFontSize ?? baseSize;
+  const paddingLeft = field.paddingLeft ?? 2;
+  const paddingRight = field.paddingRight ?? 2;
+  const usableWidth = Math.max(0, boxWidth - paddingLeft - paddingRight);
+
+  let drawSize = baseSize;
+  while (drawSize > minSize && font.widthOfTextAtSize(resolved, drawSize) > usableWidth) {
+    drawSize -= 0.25;
+  }
+
+  const text = truncateToWidth(font, resolved, drawSize, usableWidth);
+  if (!text) return;
+
+  const textWidth = font.widthOfTextAtSize(text, drawSize);
+  const textHeight = font.heightAtSize(drawSize);
+
+  let x = field.x + paddingLeft;
+  if (field.align === "right") x = field.x + boxWidth - paddingRight - textWidth;
+
+  let y = topToPdfY(page, field.top, drawSize) + (field.baselineOffset ?? 0);
+  if (field.valign === "middle") {
+    y = page.getHeight() - field.top - ((boxHeight - textHeight) / 2) - textHeight + (field.baselineOffset ?? 0);
+  }
+
+  page.drawText(text, {
+    x,
+    y,
+    size: drawSize,
+    font,
+    color: rgb(0, 0, 0),
+    maxWidth: usableWidth,
+  });
+}
+
+function drawPacketCheckbox(page: PDFPage, font: PDFFont, x: number, top: number) {
+  page.drawText("X", {
+    x,
+    y: topToPdfY(page, top, 10),
+    size: 10,
+    font,
+    color: rgb(0, 0, 0),
+  });
+}
+
+function drawPacketGrid(
+  page: PDFPage,
+  font: PDFFont,
+  rows: Array<Record<string, any>>,
+  grid: PacketGridField,
+) {
+  if (rows.length > grid.maxRows) {
+    console.warn("[generate-institution-forms] template_row_overflow", {
+      formType: "application_packet",
+      section: grid.source,
+      maxRows: grid.maxRows,
+      received: rows.length,
+    });
+  }
+
+  if (grid.columns && grid.rowTops) {
+    rows.slice(0, grid.maxRows).forEach((row, index) => {
+      const rowTop = grid.rowTops?.[index];
+      if (rowTop == null) return;
+      for (const column of grid.columns ?? []) {
+        const text = truncateToWidth(font, asString(row[column.key]), 9, column.maxWidth);
+        if (!text) continue;
+        page.drawText(text, {
+          x: column.x,
+          y: topToPdfY(page, rowTop, 9),
+          size: 9,
+          font,
+          color: rgb(0, 0, 0),
+          maxWidth: column.maxWidth,
+        });
+      }
+    });
+    return;
+  }
+
+  if (grid.rows) {
+    rows.slice(0, grid.maxRows).forEach((row, index) => {
+      const rowLayout = grid.rows?.[index];
+      if (!rowLayout) return;
+      for (const [key, layout] of Object.entries(rowLayout)) {
+        const text = truncateToWidth(font, asString(row[key]), 9, layout.maxWidth);
+        if (!text) continue;
+        page.drawText(text, {
+          x: layout.x,
+          y: topToPdfY(page, layout.top, 9),
+          size: 9,
+          font,
+          color: rgb(0, 0, 0),
+          maxWidth: layout.maxWidth,
+        });
+      }
+    });
+  }
+}
+
+function drawPacketMultiline(
+  page: PDFPage,
+  font: PDFFont,
+  value: string,
+  field: PacketMultilineField,
+) {
+  const lines = wrapTextToWidth(font, value, field.fontSize, field.width);
+  const maxLines = Math.max(1, Math.floor(field.height / field.lineHeight));
+  const visible = lines.slice(0, maxLines);
+
+  if (lines.length > maxLines) {
+    console.warn("[generate-institution-forms] template_multiline_overflow", {
+      formType: "application_packet",
+      field: field.source,
+      lines: lines.length,
+      maxLines,
+    });
+  }
+
+  page.drawText(visible.join("\n"), {
+    x: field.x,
+    y: topToPdfY(page, field.top, field.fontSize),
+    size: field.fontSize,
+    font,
+    color: rgb(0, 0, 0),
+    lineHeight: field.lineHeight,
+    maxWidth: field.width,
+  });
+}
+
+function resolveOverlayTextValue(
+  formData: Record<string, any>,
+  field: OverlayTextField,
+): string {
+  let value = asString(getValueAtPath(formData, field.source));
+
+  if (field.transform === "student_display_name") {
+    const firstName = asString(getValueAtPath(formData, "student.firstName"));
+    const lastName = asString(getValueAtPath(formData, "student.lastName"));
+    value = [firstName, lastName].filter(Boolean).join(" ");
+  }
+
+  if (field.format === "MM/DD/YYYY") {
+    value = maybeFormatDate(value) ?? value;
+  }
+
+  return value;
+}
+
+async function generateOikosVerificationFinancialPdf(
+  formData: OikosVerificationFinancialData,
+): Promise<Uint8Array> {
+  if (!formData.sponsor?.name) {
+    throw new Error("verification_of_financial_support requires sponsor.name");
+  }
+
+  const templateBytes = await loadPdfTemplate(OIKOS_VERIFICATION_OF_FINANCIAL_TEMPLATE_FILENAME);
+  const doc = await PDFDocument.load(templateBytes);
+  const page = doc.getPages()[0];
+  const font = await doc.embedFont(StandardFonts.Helvetica);
+
+  for (const field of Object.values(OIKOS_VERIFICATION_OF_FINANCIAL_V1.text)) {
+    const value = resolveOverlayTextValue(formData as unknown as Record<string, any>, field);
+    if (!value) {
+      if (field.optional) {
+        console.info("[generate-institution-forms] template_optional_field_blank", {
+          formType: "verification_of_financial_support",
+          field: field.source,
+        });
+      }
+      continue;
+    }
+
+    drawPacketTextField(page, font, value, {
+      page: field.page,
+      x: field.x,
+      top: field.top,
+      maxWidth: field.maxWidth,
+      source: field.source,
+      align: field.align,
+    });
+  }
+
+  return await doc.save();
+}
+
+async function generateOikosApplicationPacketPdf(
+  formData: OikosApplicationPacketData,
+): Promise<Uint8Array> {
+  const templateBytes = await loadPdfTemplate(OIKOS_APPLICATION_PACKET_TEMPLATE_FILENAME);
+  const doc = await PDFDocument.load(templateBytes);
+  const pages = doc.getPages();
+  const font = await doc.embedFont(StandardFonts.Helvetica);
+
+  for (const field of Object.values(OIKOS_APPLICATION_PACKET_V1.overlay.text)) {
+    if (!shouldRenderField(formData as unknown as Record<string, any>, field.renderWhen)) continue;
+    const value = asString(getValueAtPath(formData as unknown as Record<string, any>, field.source));
+    if (!value) continue;
+    drawPacketTextField(pages[field.page], font, value, field);
+  }
+
+  for (const field of Object.values(OIKOS_APPLICATION_PACKET_V1.overlay.checkboxes)) {
+    const current = normalizeCheckboxValue(getValueAtPath(formData as unknown as Record<string, any>, field.source));
+    const expected = normalizeCheckboxValue(field.equals);
+    if (current === expected) {
+      drawPacketCheckbox(pages[field.page], font, field.x, field.top);
+    }
+  }
+
+  for (const grid of Object.values(OIKOS_APPLICATION_PACKET_V1.overlay.grids)) {
+    const rows = getValueAtPath(formData as unknown as Record<string, any>, grid.source);
+    if (!Array.isArray(rows) || rows.length === 0) continue;
+    drawPacketGrid(pages[grid.page], font, rows as Array<Record<string, any>>, grid);
+  }
+
+  let acroFormFilled = false;
+  try {
+    const form = doc.getForm();
+    form.getTextField("Text13").setText(asString(getValueAtPath(formData as unknown as Record<string, any>, "derived.christianFaithName")));
+    form.getTextField("Text14").setText(asString(getValueAtPath(formData as unknown as Record<string, any>, "derived.christianFaithDate")));
+    form.getTextField("Text16").setText(asString(getValueAtPath(formData as unknown as Record<string, any>, "derived.christianFaithStatement")));
+    form.updateFieldAppearances(font);
+    form.flatten();
+    acroFormFilled = true;
+  } catch (error) {
+    console.warn("[generate-institution-forms] packet_acroform_fallback", error);
+  }
+
+  if (!acroFormFilled) {
+    const fallbackName = asString(getValueAtPath(formData as unknown as Record<string, any>, "derived.christianFaithName"));
+    const fallbackDate = asString(getValueAtPath(formData as unknown as Record<string, any>, "derived.christianFaithDate"));
+    const fallbackStatement = asString(getValueAtPath(formData as unknown as Record<string, any>, "derived.christianFaithStatement"));
+    const page = pages[4];
+
+    if (fallbackName) {
+      page.drawText(
+        truncateToWidth(font, fallbackName, 10, 142),
+        { x: 104, y: topToPdfY(page, 160, 10), size: 10, font, color: rgb(0, 0, 0), maxWidth: 142 },
+      );
+    }
+    if (fallbackDate) {
+      page.drawText(
+        truncateToWidth(font, fallbackDate, 10, 138),
+        { x: 415, y: topToPdfY(page, 160, 10), size: 10, font, color: rgb(0, 0, 0), maxWidth: 138 },
+      );
+    }
+    if (fallbackStatement) {
+      drawPacketMultiline(page, font, fallbackStatement, OIKOS_APPLICATION_PACKET_V1.overlay.multiline.christian_faith_statement);
+    }
+  }
+
+  return await doc.save();
+}
+
 // ─── PDF generator ────────────────────────────────────────────────────────────
 
 async function generateFormPdf(
@@ -313,7 +1396,16 @@ async function generateFormPdf(
   formData: Record<string, any>,
   institutionName: string,
   profileName: string,
+  institutionSlug?: string,
 ): Promise<Uint8Array> {
+  if (formType === "application_packet") {
+    return await generateOikosApplicationPacketPdf(formData as OikosApplicationPacketData);
+  }
+
+  if (formType === "affidavit_of_financial_support" && institutionSlug?.includes("oikos")) {
+    return await generateOikosVerificationFinancialPdf(formData as OikosVerificationFinancialData);
+  }
+
   const doc = await PDFDocument.create();
   const fontBold = await doc.embedFont(StandardFonts.HelveticaBold);
   const fontReg  = await doc.embedFont(StandardFonts.Helvetica);
@@ -618,7 +1710,25 @@ Deno.serve(async (req) => {
   const supabase = createClient(supabaseUrl, supabaseKey);
 
   try {
-    const { application_id, supplemental_data = {} }: Payload = await req.json();
+    const { application_id, supplemental_data = {}, debug_env = false }: Payload = await req.json();
+
+    if (debug_env) {
+      return new Response(
+        JSON.stringify({
+          cwd: Deno.cwd(),
+          supabaseUrl,
+          hasRemoteUrl: Boolean(Deno.env.get("REMOTE_SUPABASE_URL")),
+          hasRemoteServiceRole: Boolean(Deno.env.get("REMOTE_SUPABASE_SERVICE_ROLE_KEY")),
+          hasSupabaseUrl: Boolean(Deno.env.get("SUPABASE_URL")),
+          hasSupabaseServiceRole: Boolean(Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")),
+          templateProbe: {
+            filename: OIKOS_APPLICATION_PACKET_TEMPLATE_FILENAME,
+            exists: await resolveTemplatePath(OIKOS_APPLICATION_PACKET_TEMPLATE_FILENAME).then(() => true).catch((error) => String(error.message ?? error)),
+          },
+        }),
+        { status: 200, headers: { ...CORS, "Content-Type": "application/json" } },
+      );
+    }
 
     if (!application_id) {
       return new Response(JSON.stringify({ error: "application_id is required" }), { status: 400, headers: CORS });
@@ -723,8 +1833,10 @@ Deno.serve(async (req) => {
     const now = new Date().toISOString();
 
     for (const formType of finalFormList) {
-      const formData = buildFormData(formType, profile, institution, scholarship, course, survey, resolvedSupplemental, identity);
-      const pdfBytes  = await generateFormPdf(formType, formData, institution.name, profile.full_name ?? "");
+      const formData = formType === "affidavit_of_financial_support" && isOikos
+        ? buildOikosVerificationFinancialData(profile, scholarship, resolvedSupplemental, identity)
+        : buildFormData(formType, profile, institution, scholarship, course, survey, resolvedSupplemental, identity);
+      const pdfBytes  = await generateFormPdf(formType, formData, institution.name, profile.full_name ?? "", slug);
 
       const storagePath = `${app.profile_id}/${application_id}/${formType}.pdf`;
 

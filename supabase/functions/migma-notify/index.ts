@@ -26,6 +26,10 @@ export type TriggerType =
   | "dependent_pending"
   | "referral_goal_reached"
   | "new_referral_closed"
+  // Billing (Fase 9)
+  | "billing_started"
+  | "billing_installment_due"
+  | "billing_suspended"
   // Admin-facing
   | "admin_new_documents"
   | "admin_package_complete"
@@ -49,23 +53,31 @@ interface NotifyPayload {
     closures_count?: number;
     client_name?: string;
     client_id?: string;
+    // Billing (Fase 9)
+    monthly_usd?: number;
+    installments_total?: number;
+    installments_paid?: number;
+    degree_level?: string;
+    next_billing_date?: string;
+    billing_link?: string;
+    suspend_reason?: string;
   };
 }
 
-// ─── Z-API stub ──────────────────────────────────────────────────────────────
-// Replace this block when Z-API credentials arrive.
-// Expected env vars: ZAPI_INSTANCE_ID, ZAPI_TOKEN, ZAPI_PHONE_NUMBER
+// ─── Evolution API ────────────────────────────────────────────────────────────
+// Required env vars: EVOLUTION_API_URL, EVOLUTION_API_KEY, EVOLUTION_INSTANCE
 
 async function sendWhatsApp(phone: string, message: string): Promise<{ sent: boolean; reason?: string }> {
-  const instanceId = Deno.env.get("ZAPI_INSTANCE_ID");
-  const token = Deno.env.get("ZAPI_TOKEN");
+  const apiUrl  = Deno.env.get("EVOLUTION_API_URL");
+  const apiKey  = Deno.env.get("EVOLUTION_API_KEY");
+  const instance = Deno.env.get("EVOLUTION_INSTANCE");
 
-  if (!instanceId || !token) {
-    console.log(`[migma-notify][whatsapp:stub] Z-API not configured. Would send to ${phone}: ${message.slice(0, 80)}...`);
-    return { sent: false, reason: "zapi_not_configured" };
+  if (!apiUrl || !apiKey || !instance) {
+    console.log(`[migma-notify][whatsapp:stub] Evolution API not configured. Would send to ${phone}: ${message.slice(0, 80)}...`);
+    return { sent: false, reason: "evolution_not_configured" };
   }
 
-  // Normalise phone: strip non-digits, ensure country code present
+  // Normalise: digits only, ensure country code (min 10 digits)
   const normalised = phone.replace(/\D/g, "");
   if (normalised.length < 10) {
     console.warn(`[migma-notify][whatsapp] Invalid phone: ${phone}`);
@@ -74,18 +86,23 @@ async function sendWhatsApp(phone: string, message: string): Promise<{ sent: boo
 
   try {
     const res = await fetch(
-      `https://api.z-api.io/instances/${instanceId}/token/${token}/send-text`,
+      `${apiUrl.replace(/\/$/, "")}/message/sendText/${instance}`,
       {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone: normalised, message }),
+        headers: {
+          "Content-Type": "application/json",
+          "apikey": apiKey,
+        },
+        body: JSON.stringify({ number: normalised, text: message }),
       }
     );
     if (!res.ok) {
       const body = await res.text();
-      console.error(`[migma-notify][whatsapp] Z-API error ${res.status}: ${body}`);
-      return { sent: false, reason: `zapi_${res.status}` };
+      console.error(`[migma-notify][whatsapp] Evolution API error ${res.status}: ${body}`);
+      return { sent: false, reason: `evolution_${res.status}` };
     }
+    const result = await res.json().catch(() => ({}));
+    console.log(`[migma-notify][whatsapp] Sent to ${normalised}, key=${result?.key?.id ?? "?"}`);
     return { sent: true };
   } catch (err: any) {
     console.error("[migma-notify][whatsapp] Fetch error:", err.message);
@@ -347,6 +364,51 @@ function buildTemplate(
         ${data.client_id ? btn("Ver pacote", `${dash}/admin/users/${data.client_id}`) : ""}
       `),
       whatsapp: `✅ *Migma Admin* — Pacote completo\n\n${data.client_name ?? "Cliente"} tem pacote pronto para MatriculaUSA.\n${data.client_id ? `${dash}/admin/users/${data.client_id}` : dash}`,
+    };
+
+    // ── 19 — BILLING ──────────────────────────────────────────────────────────
+    case "billing_started": return {
+      subject: "Billing Migma ativado — sua mensalidade foi configurada",
+      emailHtml: emailWrapper("Billing ativado", `
+        <p>Olá, ${highlight(firstName)}!</p>
+        <p>Seu plano de mensalidades Migma foi ativado com sucesso.</p>
+        <ul style="color:#ccc;line-height:2;">
+          <li>Valor mensal: <strong>US$ ${data.monthly_usd?.toLocaleString("en-US") ?? "–"}</strong></li>
+          <li>Parcelas: <strong>${data.installments_total ?? "–"}x</strong></li>
+          <li>Curso: <strong>${data.degree_level ?? "–"}</strong></li>
+        </ul>
+        <p>Você receberá o link de pagamento todo mês com antecedência. Em caso de dúvidas, fale com o time Migma.</p>
+        ${btn("Acessar minha conta", `${dash}/student`)}
+      `),
+      whatsapp: `💳 *Migma* — Billing ativado!\n\nOlá ${firstName}, sua mensalidade de *US$ ${data.monthly_usd?.toLocaleString("en-US") ?? "–"}* em ${data.installments_total ?? "–"}x foi configurada. Você receberá o link de pagamento mensalmente. Dúvidas: ${dash}/student`,
+    };
+
+    // ── 20 — BILLING ──────────────────────────────────────────────────────────
+    case "billing_installment_due": return {
+      subject: `Parcela ${(data.installments_paid ?? 0) + 1}/${data.installments_total ?? "–"} disponível — US$ ${data.monthly_usd?.toLocaleString("en-US") ?? "–"}`,
+      emailHtml: emailWrapper("Link de pagamento disponível", `
+        <p>Olá, ${highlight(firstName)}!</p>
+        <p>Sua parcela <strong>${(data.installments_paid ?? 0) + 1} de ${data.installments_total ?? "–"}</strong> está disponível para pagamento.</p>
+        <p>Valor: <strong>US$ ${data.monthly_usd?.toLocaleString("en-US") ?? "–"}</strong></p>
+        ${data.billing_link
+          ? btn("Pagar agora", data.billing_link)
+          : `<p style="color:#888;">Link de pagamento em processamento. Acesse ${dash}/student para mais informações.</p>`}
+        <p style="margin-top:20px;color:#888;font-size:13px;">Próxima parcela: ${data.next_billing_date ?? "–"}.</p>
+      `),
+      whatsapp: `💳 *Migma* — Parcela ${(data.installments_paid ?? 0) + 1}/${data.installments_total ?? "–"} disponível!\n\nOlá ${firstName}, sua mensalidade de *US$ ${data.monthly_usd?.toLocaleString("en-US") ?? "–"}* está pronta para pagamento.\n\n${data.billing_link ? `Pague aqui: ${data.billing_link}` : "Link em breve pelo portal."}`,
+    };
+
+    // ── 21 — BILLING ──────────────────────────────────────────────────────────
+    case "billing_suspended": return {
+      subject: "Billing Migma suspenso — entre em contato",
+      emailHtml: emailWrapper("Billing suspenso", `
+        <p>Olá, ${highlight(firstName)}!</p>
+        <p>Seu billing Migma foi <strong>suspenso</strong>.</p>
+        ${data.suspend_reason ? `<p style="background:#1a1a1a;border-left:3px solid #e55;padding:12px 16px;border-radius:4px;color:#ddd;">${data.suspend_reason}</p>` : ""}
+        <p>Entre em contato com o time Migma para regularizar sua situação e reativar o plano.</p>
+        ${btn("Falar com o time Migma", `${dash}/student`)}
+      `),
+      whatsapp: `⚠️ *Migma* — Billing suspenso\n\nOlá ${firstName}, seu plano de mensalidades foi suspenso.${data.suspend_reason ? `\n\nMotivo: ${data.suspend_reason}` : ""}\n\nEntre em contato: ${dash}/student`,
     };
 
     // ── 18 — ADMIN ────────────────────────────────────────────────────────────

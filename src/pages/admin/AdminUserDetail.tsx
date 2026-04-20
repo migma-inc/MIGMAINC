@@ -12,10 +12,13 @@ import {
   Loader2,
   Mail,
   MapPin,
+  PauseCircle,
   Phone,
+  PlayCircle,
   RefreshCw,
   Shield,
   Tag,
+  TrendingUp,
   User,
   UserCheck,
   Workflow,
@@ -216,6 +219,9 @@ function OverviewTab({
   onAssign,
   onAssignToMe,
   onArchive,
+  onStartBilling,
+  onSuspendBilling,
+  billingMsg,
 }: {
   detail: CaseDetailPage;
   ownerInput: string;
@@ -225,6 +231,9 @@ function OverviewTab({
   onAssign: () => void;
   onAssignToMe: () => void;
   onArchive: () => void;
+  onStartBilling: () => void;
+  onSuspendBilling: (action: 'suspend' | 'cancel' | 'reactivate') => void;
+  billingMsg: string | null;
 }) {
   const { profile, primaryRequest, primaryOrder, operationalStage, stageHistory, userIdentity } = detail;
 
@@ -458,6 +467,65 @@ function OverviewTab({
               </div>
             ))}
           </div>
+        </SectionCard>
+
+        {/* Billing Recorrente */}
+        <SectionCard title="Billing Recorrente" icon={TrendingUp}>
+          {detail.recurringCharge ? (
+            <div className="space-y-3">
+              <div className="space-y-1.5">
+                <InfoRow label="Status" value={
+                  <Badge className={cn('text-[9px] font-black uppercase border rounded-sm',
+                    detail.recurringCharge.status === 'active' ? 'bg-green-500/10 border-green-500/30 text-green-400' :
+                    detail.recurringCharge.status === 'suspended' ? 'bg-yellow-500/10 border-yellow-500/30 text-yellow-400' :
+                    'bg-red-500/10 border-red-500/30 text-red-400'
+                  )}>
+                    {detail.recurringCharge.status}
+                  </Badge>
+                } />
+                <InfoRow label="Valor/mês" value={`$${detail.recurringCharge.monthly_usd.toLocaleString('en-US')}`} />
+                <InfoRow label="Parcelas" value={`${detail.recurringCharge.installments_paid} / ${detail.recurringCharge.installments_total}`} />
+                <InfoRow label="Próx. cobrança" value={detail.recurringCharge.next_billing_date ?? '—'} />
+                {detail.recurringCharge.suspended_reason && (
+                  <InfoRow label="Motivo suspensão" value={<span className="text-yellow-400 text-xs">{detail.recurringCharge.suspended_reason}</span>} />
+                )}
+              </div>
+              <div className="flex gap-2 pt-1 flex-wrap">
+                {detail.recurringCharge.status === 'active' && (
+                  <Button size="sm" onClick={() => onSuspendBilling('suspend')} disabled={mutating}
+                    className="bg-yellow-500/10 border border-yellow-500/30 text-yellow-400 hover:bg-yellow-500/20 font-bold text-xs">
+                    <PauseCircle className="w-3.5 h-3.5 mr-1.5" />Suspender
+                  </Button>
+                )}
+                {detail.recurringCharge.status === 'suspended' && (
+                  <Button size="sm" onClick={() => onSuspendBilling('reactivate')} disabled={mutating}
+                    className="bg-green-500/10 border border-green-500/30 text-green-400 hover:bg-green-500/20 font-bold text-xs">
+                    <PlayCircle className="w-3.5 h-3.5 mr-1.5" />Reativar
+                  </Button>
+                )}
+                {detail.recurringCharge.status !== 'cancelled' && (
+                  <Button size="sm" onClick={() => onSuspendBilling('cancel')} disabled={mutating}
+                    className="bg-red-500/10 border border-red-500/30 text-red-400 hover:bg-red-500/20 font-bold text-xs">
+                    Cancelar
+                  </Button>
+                )}
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <p className="text-gray-500 text-sm italic">Nenhum billing ativo.</p>
+              {detail.institutionApplication && (
+                <Button size="sm" onClick={onStartBilling} disabled={mutating}
+                  className="bg-gold-medium hover:bg-gold-dark text-black font-black w-full">
+                  <PlayCircle className="w-4 h-4 mr-1.5" />Iniciar Billing
+                </Button>
+              )}
+              {!detail.institutionApplication && (
+                <p className="text-gray-600 text-xs">Aguardando application V11.</p>
+              )}
+            </div>
+          )}
+          {billingMsg && <p className="text-xs text-gold-light mt-2">{billingMsg}</p>}
         </SectionCard>
       </div>
     </div>
@@ -1921,6 +1989,7 @@ export function AdminUserDetail() {
   const [mutating, setMutating] = useState(false);
   const [mutationMsg, setMutationMsg] = useState<string | null>(null);
   const [currentAdminId, setCurrentAdminId] = useState<string | null>(null);
+  const [billingMsg, setBillingMsg] = useState<string | null>(null);
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
@@ -1975,6 +2044,49 @@ export function AdminUserDetail() {
     setMutating(false);
     setMutationMsg(err ? `Error: ${err}` : next === 'cancelled' ? 'Case archived.' : 'Case restored.');
     if (!err) load();
+  }
+
+  const functionsBase = import.meta.env.VITE_FUNCTIONS_BASE_URL as string | undefined;
+
+  async function invokeFunction(name: string, body: object): Promise<{ error: string | null }> {
+    if (functionsBase) {
+      // Modo híbrido: chama function local diretamente
+      const res = await fetch(`${functionsBase}/${name}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json().catch(() => ({}));
+      return { error: res.ok ? null : (data?.error ?? `HTTP ${res.status}`) };
+    }
+    // Produção: usa cliente Supabase normal
+    const { error } = await supabase.functions.invoke(name, { body });
+    return { error: error?.message ?? null };
+  }
+
+  async function handleStartBilling() {
+    if (!detail?.institutionApplication) return;
+    setMutating(true);
+    setBillingMsg(null);
+    const { error } = await invokeFunction('start-migma-billing', {
+      application_id: detail.institutionApplication.id,
+    });
+    setMutating(false);
+    setBillingMsg(error ? `Erro: ${error}` : 'Billing iniciado.');
+    if (!error) load();
+  }
+
+  async function handleSuspendBilling(action: 'suspend' | 'cancel' | 'reactivate') {
+    if (!detail?.recurringCharge) return;
+    setMutating(true);
+    setBillingMsg(null);
+    const { error } = await invokeFunction('suspend-migma-billing', {
+      charge_id: detail.recurringCharge.id, action,
+    });
+    setMutating(false);
+    const msgs = { suspend: 'Billing suspenso.', cancel: 'Billing cancelado.', reactivate: 'Billing reativado.' };
+    setBillingMsg(error ? `Erro: ${error}` : msgs[action]);
+    if (!error) load();
   }
 
   // ---------------------------------------------------------------------------
@@ -2099,6 +2211,9 @@ export function AdminUserDetail() {
             onAssign={handleAssign}
             onAssignToMe={handleAssignToMe}
             onArchive={handleArchive}
+            onStartBilling={handleStartBilling}
+            onSuspendBilling={handleSuspendBilling}
+            billingMsg={billingMsg}
           />
         )}
         {activeTab === 'orders' && <OrdersTab orders={detail.visaOrders} />}
