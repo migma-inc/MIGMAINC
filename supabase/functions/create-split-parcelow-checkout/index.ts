@@ -54,6 +54,11 @@ Deno.serve(async (req: Request) => {
         }
 
         const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+        // Parse request body
+        const body: any = await req.json();
+        const { order_id, part1_amount, part1_method, part2_amount, part2_method, parcelow_environment, app_url } = body;
+
         const forwardedOrigin = app_url || req.headers.get("origin") || req.headers.get("referer") || "";
         const forwardedHeaders = {
             'Authorization': `Bearer ${supabaseServiceKey}`,
@@ -63,10 +68,6 @@ Deno.serve(async (req: Request) => {
                 referer: forwardedOrigin,
             } : {}),
         };
-
-        // Parse request body
-        const body: any = await req.json();
-        const { order_id, part1_amount, part1_method, part2_amount, part2_method, parcelow_environment, app_url } = body;
         const detectedParcelowEnvironment = parcelow_environment || detectParcelowEnvironment(req, app_url);
 
         console.log("[Split Checkout] 📦 Request:", {
