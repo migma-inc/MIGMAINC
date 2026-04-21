@@ -1,6 +1,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
 import { PDFDocument, rgb, StandardFonts, PDFFont, PDFPage } from "npm:pdf-lib@^1.17.1";
+import { fromFileUrl } from "https://deno.land/std@0.224.0/path/mod.ts";
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -88,7 +89,7 @@ interface PacketTextField {
   maxWidth: number;
   source: string;
   align?: "left" | "right";
-  transform?: "year2digits_or_suffix" | "year4digits_or_suffix" | "year2digits" | "year4digits";
+  transform?: "year2digits_or_suffix" | "year4digits_or_suffix" | "year2digits" | "year4digits" | "phone_area_code" | "phone_local_number";
   width?: number;
   height?: number;
   fontSize?: number;
@@ -288,19 +289,21 @@ const OIKOS_APPLICATION_PACKET_V1: {
       applicant_drivers_license_state: { page: 0, x: 473, top: 206, maxWidth: 52, source: "applicant.driversLicenseState" },
       applicant_permanent_address: { page: 0, x: 180, top: 217, maxWidth: 345, width: 360, height: 16, fontSize: 10, minFontSize: 8, valign: "middle", baselineOffset: -1, source: "applicant.permanentAddress" },
       applicant_current_address: { page: 0, x: 160, top: 240, maxWidth: 360, width: 372, height: 16, fontSize: 10, minFontSize: 8, valign: "middle", baselineOffset: -1, source: "applicant.currentAddress" },
-      applicant_phone_day: { page: 0, x: 138, top: 264, maxWidth: 120, width: 126, height: 14, fontSize: 10, minFontSize: 8, valign: "middle", baselineOffset: -1, source: "applicant.phoneDay" },
-      applicant_phone_night: { page: 0, x: 422, top: 264, maxWidth: 124, width: 130, height: 14, fontSize: 10, minFontSize: 8, valign: "middle", baselineOffset: -1, source: "applicant.phoneNight" },
+      applicant_phone_day_area:   { page: 0, x: 133, top: 283, maxWidth: 38,  fontSize: 10, baselineOffset: 12, source: "applicant.phoneDay",   transform: "phone_area_code"   },
+      applicant_phone_day_number: { page: 0, x: 180, top: 283, maxWidth: 100, fontSize: 10, baselineOffset: 12, source: "applicant.phoneDay",   transform: "phone_local_number" },
+      applicant_phone_night_area:   { page: 0, x: 302, top: 283, maxWidth: 38,  fontSize: 10, baselineOffset: 12, source: "applicant.phoneNight", transform: "phone_area_code"   },
+      applicant_phone_night_number: { page: 0, x: 345, top: 283, maxWidth: 100, fontSize: 10, baselineOffset: 12, source: "applicant.phoneNight", transform: "phone_local_number" },
       applicant_email: { page: 0, x: 160, top: 286, maxWidth: 210, width: 220, height: 16, fontSize: 10, minFontSize: 8, valign: "middle", baselineOffset: -1, source: "applicant.email" },
-      applicant_dob: { page: 0, x: 141, top: 309, maxWidth: 88, width: 92, height: 16, fontSize: 10, minFontSize: 8, valign: "middle", baselineOffset: -1, source: "applicant.dateOfBirth" },
+      applicant_dob: { page: 0, x: 130, top: 309, maxWidth: 88, width: 92, height: 16, fontSize: 10, minFontSize: 8, valign: "middle", baselineOffset: -1, source: "applicant.dateOfBirth" },
       applicant_place_of_birth: { page: 0, x: 463, top: 315, maxWidth: 96, source: "applicant.placeOfBirth" },
       applicant_country_of_citizenship: { page: 0, x: 472, top: 354, maxWidth: 110, width: 116, height: 16, fontSize: 10, minFontSize: 8, valign: "middle", baselineOffset: -1, source: "applicant.countryOfCitizenship" },
       applicant_visa_status: { page: 0, x: 110, top: 377, maxWidth: 110, width: 118, height: 16, fontSize: 10, minFontSize: 8, valign: "middle", baselineOffset: -1, source: "applicant.visaStatus" },
       applicant_alien_registration_number: { page: 0, x: 408, top: 389, maxWidth: 112, source: "applicant.alienRegistrationNumber" },
-      start_year_spring: { page: 0, x: 151, top: 461, maxWidth: 20, source: "admission.startYear", transform: "year2digits", renderWhen: { path: "admission.startSemester", equals: "spring" } },
-      start_year_fall: { page: 0, x: 268, top: 461, maxWidth: 20, source: "admission.startYear", transform: "year2digits", renderWhen: { path: "admission.startSemester", equals: "fall" } },
-      start_year_summer: { page: 0, x: 404, top: 461, maxWidth: 30, source: "admission.startYear", transform: "year4digits", renderWhen: { path: "admission.startSemester", equals: "summer" } },
+      start_year_spring: { page: 0, x: 151, top: 452, maxWidth: 20, baselineOffset: 11, source: "admission.startYear", transform: "year2digits", renderWhen: { path: "admission.startSemester", equals: "spring" } },
+      start_year_fall: { page: 0, x: 268, top: 452, maxWidth: 20, baselineOffset: 11, source: "admission.startYear", transform: "year2digits", renderWhen: { path: "admission.startSemester", equals: "fall" } },
+      start_year_summer: { page: 0, x: 404, top: 452, maxWidth: 30, baselineOffset: 11, source: "admission.startYear", transform: "year4digits", renderWhen: { path: "admission.startSemester", equals: "summer" } },
       emergency_contact_name: { page: 0, x: 100, top: 633, maxWidth: 150, width: 160, height: 16, fontSize: 10, minFontSize: 8, valign: "middle", baselineOffset: -1, source: "emergencyContact.name" },
-      emergency_contact_phone: { page: 0, x: 470, top: 633, maxWidth: 150, width: 160, height: 16, fontSize: 10, minFontSize: 8, valign: "middle", baselineOffset: -1, source: "emergencyContact.phone" },
+      emergency_contact_phone: { page: 0, x: 392, top: 633, maxWidth: 150, width: 160, height: 16, fontSize: 10, minFontSize: 8, valign: "middle", baselineOffset: -1, source: "emergencyContact.phone" },
       emergency_contact_address: { page: 0, x: 94, top: 654, maxWidth: 390, width: 410, height: 16, fontSize: 10, minFontSize: 8, valign: "middle", baselineOffset: -1, source: "emergencyContact.address" },
       found_other_text: { page: 1, x: 278, top: 593, maxWidth: 245, source: "discoverySource.otherText" },
       applicant_signature_text: { page: 1, x: 150, top: 647, maxWidth: 255, width: 270, height: 16, fontSize: 10, minFontSize: 8, valign: "middle", baselineOffset: -1, source: "derived.applicantSignatureText" },
@@ -437,15 +440,15 @@ const OIKOS_VERIFICATION_OF_FINANCIAL_V1: {
   text: Record<string, OverlayTextField>;
 } = {
   text: {
-    student_last_name: { page: 0, x: 62, top: 169, maxWidth: 118, source: "student.lastName" },
-    student_first_name: { page: 0, x: 185, top: 169, maxWidth: 118, source: "student.firstName" },
-    student_middle_name: { page: 0, x: 306, top: 169, maxWidth: 78, source: "student.middleName" },
-    student_date_of_birth: { page: 0, x: 403, top: 169, maxWidth: 115, source: "student.dateOfBirth", format: "MM/DD/YYYY" },
-    student_address: { page: 0, x: 62, top: 215, maxWidth: 180, source: "student.address" },
-    student_city: { page: 0, x: 263, top: 215, maxWidth: 95, source: "student.city" },
-    student_state: { page: 0, x: 354, top: 215, maxWidth: 42, source: "student.state" },
-    student_zip: { page: 0, x: 406, top: 215, maxWidth: 52, source: "student.zip" },
-    annual_projected_tuition_expense: { page: 0, x: 468, top: 308, maxWidth: 72, source: "financial.annualProjectedTuitionExpense", align: "right" },
+    student_last_name: { page: 0, x: 62, top: 170, maxWidth: 118, source: "student.lastName" },
+    student_first_name: { page: 0, x: 185, top: 170, maxWidth: 118, source: "student.firstName" },
+    student_middle_name: { page: 0, x: 306, top: 170, maxWidth: 78, source: "student.middleName" },
+    student_date_of_birth: { page: 0, x: 403, top: 170, maxWidth: 115, source: "student.dateOfBirth", format: "MM/DD/YYYY" },
+    student_address: { page: 0, x: 115, top: 198, maxWidth: 140, source: "student.address" },
+    student_city: { page: 0, x: 280, top: 198, maxWidth: 80, source: "student.city" },
+    student_state: { page: 0, x: 385, top: 198, maxWidth: 30, source: "student.state" },
+    student_zip: { page: 0, x: 425, top: 198, maxWidth: 50, source: "student.zip" },
+    annual_projected_tuition_expense: { page: 0, x: 360, top: 303, maxWidth: 72, source: "financial.annualProjectedTuitionExpense" },
     sponsor_name: { page: 0, x: 62, top: 354, maxWidth: 205, source: "sponsor.name" },
     sponsor_relationship: { page: 0, x: 286, top: 354, maxWidth: 72, source: "sponsor.relationship" },
     sponsor_telephone: { page: 0, x: 378, top: 354, maxWidth: 110, source: "sponsor.telephone" },
@@ -453,11 +456,11 @@ const OIKOS_VERIFICATION_OF_FINANCIAL_V1: {
     sponsor_city: { page: 0, x: 267, top: 400, maxWidth: 92, source: "sponsor.city" },
     sponsor_state: { page: 0, x: 354, top: 400, maxWidth: 42, source: "sponsor.state" },
     sponsor_zip: { page: 0, x: 406, top: 400, maxWidth: 52, source: "sponsor.zip" },
-    sponsor_name_inline: { page: 0, x: 80, top: 462, maxWidth: 120, source: "sponsor.name" },
-    student_name_inline: { page: 0, x: 326, top: 462, maxWidth: 110, source: "student.firstName", transform: "student_display_name" },
-    annual_support_amount: { page: 0, x: 401, top: 483, maxWidth: 85, source: "financial.annualSupportAmount", align: "right" },
-    sponsor_signature_text: { page: 0, x: 113, top: 534, maxWidth: 185, source: "sponsor.signatureText", optional: true },
-    sponsor_signature_date: { page: 0, x: 386, top: 534, maxWidth: 86, source: "sponsor.signatureDate", format: "MM/DD/YYYY", optional: true },
+    sponsor_name_inline: { page: 0, x: 80, top: 442, maxWidth: 120, source: "sponsor.name" },
+    student_name_inline: { page: 0, x: 326, top: 442, maxWidth: 110, source: "student.firstName", transform: "student_display_name" },
+    annual_support_amount: { page: 0, x: 370, top: 465, maxWidth: 85, source: "financial.annualSupportAmount" },
+    sponsor_signature_text: { page: 0, x: 113, top: 518, maxWidth: 185, source: "sponsor.signatureText", optional: true },
+    sponsor_signature_date: { page: 0, x: 386, top: 518, maxWidth: 86, source: "sponsor.signatureDate", format: "MM/DD/YYYY", optional: true },
     sponsor_oath_signature_text: { page: 0, x: 160, top: 663, maxWidth: 190, source: "notary.sponsorOathSignatureText", optional: true },
     subscribed_day: { page: 0, x: 273, top: 707, maxWidth: 34, source: "notary.subscribedDay", optional: true },
     subscribed_month: { page: 0, x: 355, top: 707, maxWidth: 84, source: "notary.subscribedMonth", optional: true },
@@ -649,12 +652,31 @@ function parsePreferredStart(value: string | undefined): { startSemester?: "spri
   };
 }
 
+function extractPhoneParts(raw: string): { area: string; local: string } {
+  const digits = raw.replace(/\D/g, "");
+  // Brazil +55 DD NNNNNNNNN (12-13 digits)
+  if (digits.startsWith("55") && digits.length >= 12) {
+    return { area: digits.slice(2, 4), local: digits.slice(4) };
+  }
+  // US +1 NXX NXXXXXX (11 digits)
+  if (digits.startsWith("1") && digits.length === 11) {
+    return { area: digits.slice(1, 4), local: digits.slice(4) };
+  }
+  // Generic: first 2-3 digits as area code
+  if (digits.length >= 10) {
+    return { area: digits.slice(0, 2), local: digits.slice(2) };
+  }
+  return { area: "", local: digits };
+}
+
 function transformPacketValue(value: string, transform: PacketTextField["transform"]): string {
   if (!transform || !value) return value;
   if (transform === "year2digits_or_suffix") return value.slice(-2);
   if (transform === "year4digits_or_suffix") return value.slice(-4);
   if (transform === "year2digits") return value.length === 4 ? value.slice(-2) : value;
   if (transform === "year4digits") return value;
+  if (transform === "phone_area_code") return extractPhoneParts(value).area;
+  if (transform === "phone_local_number") return extractPhoneParts(value).local;
   return value;
 }
 
@@ -1078,10 +1100,11 @@ function drawClauseLines(ctx: DrawCtx, title: string, lines: string[]): DrawCtx 
 
 async function resolveTemplatePath(filename: string): Promise<string> {
   const moduleRelativeUrl = new URL(`./templates/${filename}`, import.meta.url);
-  const attempted: string[] = [moduleRelativeUrl.pathname];
+  const moduleRelativePath = fromFileUrl(moduleRelativeUrl);
+  const attempted: string[] = [moduleRelativePath];
   try {
-    await Deno.stat(moduleRelativeUrl);
-    return moduleRelativeUrl.pathname;
+    await Deno.stat(moduleRelativePath);
+    return moduleRelativePath;
   } catch {
     // fallback to cwd-based candidates
   }
@@ -1111,12 +1134,34 @@ async function resolveTemplatePath(filename: string): Promise<string> {
 async function loadPdfTemplate(filename: string): Promise<Uint8Array> {
   const baseUrl = Deno.env.get("PDF_TEMPLATE_BASE_URL");
   if (baseUrl) {
-    const remoteUrl = new URL(filename, baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`);
-    const response = await fetch(remoteUrl);
-    if (!response.ok) {
-      throw new Error(`template fetch failed: ${remoteUrl.toString()} (${response.status})`);
+    const baseCandidates = [
+      baseUrl,
+      baseUrl.replace("host.docker.internal", "192.168.2.104"),
+      "http://192.168.2.104:8011/",
+    ];
+
+    let lastError: string | null = null;
+    for (const candidate of [...new Set(baseCandidates.filter(Boolean))]) {
+      const remoteUrl = new URL(filename, candidate.endsWith("/") ? candidate : `${candidate}/`);
+      try {
+        const response = await fetch(remoteUrl);
+        if (!response.ok) {
+          lastError = `template fetch failed: ${remoteUrl.toString()} (${response.status})`;
+          continue;
+        }
+        return new Uint8Array(await response.arrayBuffer());
+      } catch (error) {
+        lastError = `template fetch failed: ${remoteUrl.toString()} (${error instanceof Error ? error.message : String(error)})`;
+      }
     }
-    return new Uint8Array(await response.arrayBuffer());
+
+    try {
+      const resolvedPath = await resolveTemplatePath(filename);
+      return await Deno.readFile(resolvedPath);
+    } catch (localError) {
+      const localMessage = localError instanceof Error ? localError.message : String(localError);
+      throw new Error(`${lastError ?? `template fetch failed for ${filename}`} | local fallback failed: ${localMessage}`);
+    }
   }
 
   const resolvedPath = await resolveTemplatePath(filename);

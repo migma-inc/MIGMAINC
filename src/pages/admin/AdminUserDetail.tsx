@@ -40,6 +40,8 @@ import {
   type CrmMessage,
   type CrmStageHistory,
   type CrmSurveyResponse,
+  type CrmSupportHandoff,
+  type CrmSupportChatMessage,
   type CrmVisaOrder,
   OPERATIONAL_STAGE_COLORS,
   OPERATIONAL_STAGE_LABELS,
@@ -192,13 +194,14 @@ function SectionCard({ title, icon: Icon, children }: { title: string; icon: Rea
 // Tabs
 // ---------------------------------------------------------------------------
 
-type Tab = 'overview' | 'orders' | 'documents' | 'timeline' | 'messages' | 'followups' | 'survey' | 'journey' | 'scholarship';
+type Tab = 'overview' | 'orders' | 'documents' | 'timeline' | 'messages' | 'followups' | 'survey' | 'journey' | 'scholarship' | 'support';
 
 const TABS: Array<{ id: Tab; label: string }> = [
   { id: 'overview', label: 'Overview' },
   { id: 'journey', label: 'Journey' },
   { id: 'survey', label: 'Survey' },
   { id: 'scholarship', label: 'Bolsas V11' },
+  { id: 'support', label: 'Suporte IA' },
   { id: 'orders', label: 'Orders' },
   { id: 'documents', label: 'Documents' },
   { id: 'timeline', label: 'Timeline' },
@@ -1975,6 +1978,221 @@ function EmptyState({ icon: Icon, message }: { icon: React.ElementType; message:
 // Main page
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// Tab: Support IA
+// ---------------------------------------------------------------------------
+
+const HANDOFF_STATUS_LABELS: Record<CrmSupportHandoff['status'], string> = {
+  pending: 'Aguardando',
+  in_progress: 'Em atendimento',
+  resolved: 'Resolvido',
+};
+
+const HANDOFF_STATUS_COLORS: Record<CrmSupportHandoff['status'], string> = {
+  pending: 'bg-yellow-500/15 text-yellow-400 border-yellow-500/30',
+  in_progress: 'bg-blue-500/15 text-blue-400 border-blue-500/30',
+  resolved: 'bg-green-500/15 text-green-400 border-green-500/30',
+};
+
+function SupportTab({
+  handoffs,
+  chatMessages,
+  profileId,
+  onRefresh,
+}: {
+  handoffs: CrmSupportHandoff[];
+  chatMessages: CrmSupportChatMessage[];
+  profileId: string;
+  onRefresh: () => void;
+}) {
+  const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [assignInput, setAssignInput] = useState<Record<string, string>>({});
+  const [resolveNoteInput, setResolveNoteInput] = useState<Record<string, string>>({});
+  const [resolvingId, setResolvingId] = useState<string | null>(null);
+  const [chatOpen, setChatOpen] = useState(false);
+
+  const updateHandoff = async (
+    id: string,
+    patch: Partial<Pick<CrmSupportHandoff, 'status' | 'assigned_to'>>,
+  ) => {
+    setUpdatingId(id);
+    const update: Record<string, unknown> = { ...patch };
+    if (patch.status === 'resolved') update.resolved_at = new Date().toISOString();
+    await supabase.from('support_handoffs').update(update).eq('id', id);
+    setUpdatingId(null);
+    onRefresh();
+  };
+
+  const resolveHandoff = async (id: string) => {
+    const note = resolveNoteInput[id]?.trim();
+    if (!note) return;
+
+    setUpdatingId(id);
+
+    await supabase.from('support_handoffs').update({
+      status: 'resolved',
+      resolved_at: new Date().toISOString(),
+      resolved_note: note,
+    }).eq('id', id);
+
+    // Insere marco visual no chat do aluno
+    await supabase.from('support_chat_messages').insert({
+      profile_id: profileId,
+      role: 'system',
+      content: `Atendimento encerrado pela equipe. ${note}`,
+    });
+
+    setResolvingId(null);
+    setUpdatingId(null);
+    onRefresh();
+  };
+
+  return (
+    <div className="space-y-4">
+      {/* Header */}
+      <div className="flex justify-between items-center">
+        <p className="text-xs text-white/40">{handoffs.length} transferência(s) · {chatMessages.length} mensagens</p>
+        <button
+          onClick={() => setChatOpen(true)}
+          disabled={chatMessages.length === 0}
+          className="px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-white/60 text-xs font-medium hover:bg-white/10 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+        >
+          Ver histórico de chat
+        </button>
+      </div>
+
+      {/* Handoffs */}
+      {handoffs.length === 0 ? (
+        <p className="text-white/30 text-sm">Nenhuma transferência registrada.</p>
+      ) : (
+        <div className="space-y-2">
+          {handoffs.map((h) => (
+            <div key={h.id} className="bg-white/5 border border-white/10 rounded-xl p-3 space-y-2">
+              {/* Linha 1 — status + ações */}
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className={`shrink-0 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${HANDOFF_STATUS_COLORS[h.status]}`}>
+                    {HANDOFF_STATUS_LABELS[h.status]}
+                  </span>
+                  <span className="text-xs text-white/30 truncate">
+                    {new Date(h.created_at).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })} · via {h.triggered_by === 'ai_escalation' ? 'IA' : h.triggered_by === 'student_request' ? 'aluno' : 'admin'}
+                  </span>
+                </div>
+                <div className="flex gap-2 shrink-0">
+                  {h.status === 'pending' && (
+                    <button onClick={() => updateHandoff(h.id, { status: 'in_progress' })} disabled={updatingId === h.id}
+                      className="px-3 py-1 rounded-lg bg-blue-500/20 text-blue-400 text-xs font-medium hover:bg-blue-500/30 transition-colors disabled:opacity-50">
+                      Assumir
+                    </button>
+                  )}
+                  {h.status === 'in_progress' && resolvingId !== h.id && (
+                    <button onClick={() => setResolvingId(h.id)}
+                      className="px-3 py-1 rounded-lg bg-green-500/20 text-green-400 text-xs font-medium hover:bg-green-500/30 transition-colors">
+                      Resolver
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Motivo + última msg */}
+              {(h.reason || h.last_ai_message) && (
+                <div className="space-y-1">
+                  {h.reason && <p className="text-xs text-white/60"><span className="text-white/30">Motivo: </span>{h.reason}</p>}
+                  {h.last_ai_message && (
+                    <p className="text-xs text-white/40 italic border-l-2 border-white/10 pl-2 truncate">"{h.last_ai_message}"</p>
+                  )}
+                </div>
+              )}
+
+              {/* Nota de resolução — expande ao clicar Resolver */}
+              {h.status === 'in_progress' && resolvingId === h.id && (
+                <div className="space-y-2 pt-1 border-t border-white/10">
+                  <p className="text-xs text-white/50">Nota para o aluno <span className="text-red-400">*</span></p>
+                  <textarea
+                    value={resolveNoteInput[h.id] ?? ''}
+                    onChange={(e) => setResolveNoteInput((p) => ({ ...p, [h.id]: e.target.value }))}
+                    placeholder="Ex: Situação esclarecida. Seu I-94 foi verificado e está dentro do prazo."
+                    rows={2}
+                    className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-xs text-white placeholder-white/20 outline-none focus:border-green-500/40 resize-none"
+                  />
+                  <div className="flex gap-2 justify-end">
+                    <button onClick={() => setResolvingId(null)}
+                      className="px-3 py-1 rounded-lg text-white/40 text-xs hover:text-white/60 transition-colors">
+                      Cancelar
+                    </button>
+                    <button
+                      onClick={() => resolveHandoff(h.id)}
+                      disabled={!resolveNoteInput[h.id]?.trim() || updatingId === h.id}
+                      className="px-3 py-1 rounded-lg bg-green-500/20 text-green-400 text-xs font-medium hover:bg-green-500/30 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      {updatingId === h.id ? 'Salvando…' : 'Confirmar resolução'}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Nota exibida após resolução */}
+              {h.status === 'resolved' && h.resolved_note && (
+                <p className="text-xs text-green-400/60 border-l-2 border-green-500/20 pl-2">
+                  "{h.resolved_note}"
+                </p>
+              )}
+
+              {/* Atribuir */}
+              {h.status !== 'resolved' && (
+                <div className="flex gap-2 items-center pt-1">
+                  <input
+                    value={assignInput[h.id] ?? h.assigned_to ?? ''}
+                    onChange={(e) => setAssignInput((p) => ({ ...p, [h.id]: e.target.value }))}
+                    placeholder="Atribuir a…"
+                    className="flex-1 bg-white/5 border border-white/10 rounded-lg px-2.5 py-1 text-xs text-white placeholder-white/20 outline-none focus:border-[#CE9F48]/40"
+                  />
+                  <button
+                    onClick={() => updateHandoff(h.id, { assigned_to: assignInput[h.id] ?? h.assigned_to ?? '' })}
+                    disabled={updatingId === h.id}
+                    className="px-2.5 py-1 rounded-lg bg-[#CE9F48]/20 text-[#CE9F48] text-xs font-medium hover:bg-[#CE9F48]/30 transition-colors disabled:opacity-50"
+                  >
+                    Salvar
+                  </button>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Modal histórico de chat */}
+      <Dialog open={chatOpen} onOpenChange={setChatOpen}>
+        <DialogContent className="bg-[#111] border border-white/10 max-w-xl w-full max-h-[80vh] flex flex-col p-0">
+          <div className="flex items-center justify-between px-5 py-4 border-b border-white/10">
+            <DialogTitle className="text-sm font-semibold text-white">
+              Histórico de chat — {chatMessages.length} mensagens
+            </DialogTitle>
+          </div>
+          <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
+            {chatMessages.map((msg) => (
+              <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                <div className={`max-w-[80%] rounded-xl px-3 py-2 text-sm whitespace-pre-wrap ${
+                  msg.role === 'user'
+                    ? 'bg-[#CE9F48]/20 text-white border border-[#CE9F48]/20'
+                    : 'bg-white/5 border border-white/10 text-white/80'
+                }`}>
+                  <p className={`text-xs mb-1 ${msg.role === 'user' ? 'text-[#CE9F48]/50' : 'text-white/25'}`}>
+                    {msg.role === 'user' ? 'Aluno' : 'IA'} · {new Date(msg.created_at).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                  </p>
+                  {msg.content}
+                </div>
+              </div>
+            ))}
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+
 export function AdminUserDetail() {
   const { profileId } = useParams<{ profileId: string }>();
   const navigate = useNavigate();
@@ -2175,6 +2393,7 @@ export function AdminUserDetail() {
             : tab.id === 'followups' ? detail.followups.length
             : tab.id === 'survey' ? detail.surveyResponses.length
             : tab.id === 'journey' ? (detail.studentDocuments.length + detail.stageHistory.length) || null
+            : tab.id === 'support' ? detail.supportHandoffs.filter(h => h.status !== 'resolved').length || null
             : null;
 
           return (
@@ -2250,6 +2469,14 @@ export function AdminUserDetail() {
         )}
         {activeTab === 'scholarship' && (
           <ScholarshipApprovalTab detail={detail} />
+        )}
+        {activeTab === 'support' && (
+          <SupportTab
+            handoffs={detail.supportHandoffs}
+            chatMessages={detail.supportChatMessages}
+            profileId={detail.profile.id}
+            onRefresh={load}
+          />
         )}
       </div>
     </div>

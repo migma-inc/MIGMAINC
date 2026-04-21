@@ -33,7 +33,8 @@ export type TriggerType =
   // Admin-facing
   | "admin_new_documents"
   | "admin_package_complete"
-  | "admin_no_university_match";
+  | "admin_no_university_match"
+  | "admin_support_handoff";
 
 // ─── Payload ──────────────────────────────────────────────────────────────────
 
@@ -420,6 +421,18 @@ function buildTemplate(
         ${data.client_id ? btn("Ver perfil do cliente", `${dash}/admin/users/${data.client_id}`) : ""}
       `),
       whatsapp: `⚠️ *Migma Admin* — Sem match universitário\n\n${data.client_name ?? "Cliente"} não tem Caroline/Oikos disponível. Intervenção necessária.\n${data.client_id ? `${dash}/admin/users/${data.client_id}` : dash}`,
+    };
+
+    // ── 19 — ADMIN support handoff ────────────────────────────────────────────
+    case "admin_support_handoff": return {
+      subject: `[Suporte] 🙋 Aluno aguarda atendimento humano: ${data.client_name ?? "aluno"}`,
+      emailHtml: emailWrapper("[Suporte] Transferência para atendente", `
+        <p>O agente de IA transferiu <strong>${data.client_name ?? "um aluno"}</strong> para atendimento humano.</p>
+        ${data.reason ? `<p><strong>Motivo:</strong> ${data.reason}</p>` : ""}
+        ${data.last_message ? `<p><strong>Última mensagem:</strong><br><em>"${data.last_message}"</em></p>` : ""}
+        ${data.client_id ? btn("Abrir conversa", `${dash}/admin/users/${data.client_id}`) : ""}
+      `),
+      whatsapp: `🙋 *Migma Suporte* — Transferência solicitada\n\nAluno: ${data.client_name ?? "N/D"}\n${data.reason ? `Motivo: ${data.reason}\n` : ""}${data.client_id ? `${dash}/admin/users/${data.client_id}` : dash}`,
     };
 
     default:

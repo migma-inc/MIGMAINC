@@ -886,6 +886,30 @@ export interface CaseDetailPage {
   institutionApplication: CrmInstitutionApplication | null;
   /** Charge de billing recorrente ativo/suspenso, se existir */
   recurringCharge: CrmRecurringCharge | null;
+  /** Handoffs de suporte (transferência para humano) */
+  supportHandoffs: CrmSupportHandoff[];
+  /** Histórico de chat de suporte */
+  supportChatMessages: CrmSupportChatMessage[];
+}
+
+export interface CrmSupportHandoff {
+  id: string;
+  profile_id: string;
+  triggered_by: 'ai_escalation' | 'student_request' | 'admin_manual';
+  reason: string | null;
+  last_ai_message: string | null;
+  assigned_to: string | null;
+  status: 'pending' | 'in_progress' | 'resolved';
+  resolved_at: string | null;
+  resolved_note: string | null;
+  created_at: string;
+}
+
+export interface CrmSupportChatMessage {
+  id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  created_at: string;
 }
 
 /**
@@ -967,7 +991,7 @@ export async function loadDetailPage(profileId: string): Promise<{
   const srId = primaryRequest?.id ?? null;
   const srIds = serviceRequests.map((sr) => sr.id);
 
-  const [historyResult, eventsResult, followupsResult, messagesResult, srDocumentsResult, identityResult, surveyResult, studentDocsResult, globalDocsResult, userIdentityResult, institutionAppResult, recurringChargeResult] = await Promise.all([
+  const [historyResult, eventsResult, followupsResult, messagesResult, srDocumentsResult, identityResult, surveyResult, studentDocsResult, globalDocsResult, userIdentityResult, institutionAppResult, recurringChargeResult, supportHandoffsResult, supportChatResult] = await Promise.all([
     srId
       ? supabase
           .from('service_request_stage_history')
@@ -1083,6 +1107,21 @@ export async function loadDetailPage(profileId: string): Promise<{
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle(),
+
+    // Handoffs de suporte
+    supabase
+      .from('support_handoffs')
+      .select('id, profile_id, triggered_by, reason, last_ai_message, assigned_to, status, resolved_at, resolved_note, created_at')
+      .eq('profile_id', profileId)
+      .order('created_at', { ascending: false }),
+
+    // Histórico de chat de suporte
+    supabase
+      .from('support_chat_messages')
+      .select('id, role, content, created_at')
+      .eq('profile_id', profileId)
+      .order('created_at', { ascending: true })
+      .limit(300),
   ]);
 
   return {
@@ -1105,6 +1144,8 @@ export async function loadDetailPage(profileId: string): Promise<{
       userIdentity: (userIdentityResult.data ?? null) as CrmUserIdentity | null,
       institutionApplication: (institutionAppResult.data ?? null) as CrmInstitutionApplication | null,
       recurringCharge: (recurringChargeResult.data ?? null) as CrmRecurringCharge | null,
+      supportHandoffs: (supportHandoffsResult.data ?? []) as CrmSupportHandoff[],
+      supportChatMessages: (supportChatResult.data ?? []) as CrmSupportChatMessage[],
     },
     error: null,
   };
