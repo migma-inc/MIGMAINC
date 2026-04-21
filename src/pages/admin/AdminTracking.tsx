@@ -180,10 +180,9 @@ export function AdminTracking() {
       }> = {};
 
       for (const order of orders) {
-        // Group by normalized name if available, fallback to email
         const normalizedName = order.client_name?.toLowerCase().trim();
         const email = (order.client_email || '').toLowerCase().trim();
-        const key = normalizedName || email;
+        const key = email || normalizedName;
         if (!key) continue;
 
         if (!grouped[key]) {

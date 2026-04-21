@@ -390,7 +390,7 @@ const OrderTable = ({
                       variant="ghost"
                       size="sm"
                       disabled={isUpdating === order.id}
-                      onClick={() => toggleHideOrder(order.id, !!order.is_hidden)}
+                      onClick={() => toggleHideOrder(order.id, !!order.is_hidden, order.payment_status)}
                       className={`mt-1 w-full flex items-center gap-2 text-xs ${order.is_hidden ? 'text-green-400' : 'text-gray-500 hover:text-red-400'}`}
                     >
                       {order.is_hidden ? <Undo2 className="w-3 h-3" /> : <Archive className="w-3 h-3" />}
@@ -594,7 +594,7 @@ const OrderTable = ({
                     variant="ghost"
                     size="sm"
                     disabled={isUpdating === order.id}
-                    onClick={() => toggleHideOrder(order.id, !!order.is_hidden)}
+                    onClick={() => toggleHideOrder(order.id, !!order.is_hidden, order.payment_status)}
                     className={`flex-1 flex items-center justify-center gap-2 text-[10px] font-bold uppercase tracking-wider h-8 ${order.is_hidden ? 'text-green-400' : 'text-gray-500 hover:text-red-400'}`}
                   >
                     {order.is_hidden ? <Undo2 className="w-3 h-3" /> : <Archive className="w-3 h-3" />}
@@ -972,7 +972,14 @@ export const VisaOrdersPage = () => {
     }
   };
 
-  const toggleHideOrder = async (orderId: string, currentStatus: boolean) => {
+  const toggleHideOrder = async (orderId: string, currentStatus: boolean, paymentStatus?: string) => {
+    const isHiding = !currentStatus;
+    if (isHiding && paymentStatus === 'completed') {
+      const confirmed = window.confirm(
+        'Atenção: este pedido já foi pago (completed). Tem certeza que deseja ocultá-lo do painel?'
+      );
+      if (!confirmed) return;
+    }
     try {
       setIsUpdating(orderId);
       const { error } = await supabase
