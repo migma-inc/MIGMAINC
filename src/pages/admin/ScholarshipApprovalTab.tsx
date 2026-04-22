@@ -50,6 +50,7 @@ interface InstitutionApplication {
   institutions: {
     id: string;
     name: string;
+    slug: string;
     city: string;
     state: string;
     modality: string;
@@ -128,7 +129,7 @@ export function ScholarshipApprovalTab({ detail }: { detail: CaseDetailPage }) {
           forms_status, package_status, package_storage_url, package_sent_at,
           acceptance_letter_url, created_at,
           institutions (
-            id, name, city, state, modality, cpt_opt, accepts_cos, accepts_transfer, application_fee_usd,
+            id, name, slug, city, state, modality, cpt_opt, accepts_cos, accepts_transfer, application_fee_usd,
             institution_courses ( course_name, degree_level, area )
           ),
           institution_scholarships (
@@ -206,6 +207,14 @@ export function ScholarshipApprovalTab({ detail }: { detail: CaseDetailPage }) {
         })
         .eq('id', app.id);
       if (approveErr) throw approveErr;
+
+      // 2b. Sync to MatriculaUSA — Caroline/Oikos only (fire-and-forget)
+      const institutionSlug = (app.institutions?.slug ?? '').toLowerCase();
+      if (institutionSlug.includes('caroline') || institutionSlug.includes('oikos')) {
+        supabase.functions.invoke('sync-to-matriculausa', {
+          body: { application_id: app.id },
+        }).catch(e => console.error('[sync-to-matriculausa]', e));
+      }
 
       // 3. Reject all other pending applications for this profile
       const otherIds = applications
