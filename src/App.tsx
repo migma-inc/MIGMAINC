@@ -6,6 +6,8 @@ import { lazy, Suspense } from 'react';
 const StudentOnboarding = lazy(() => import('./pages/StudentOnboarding/StudentOnboarding'));
 const StudentLogin = lazy(() => import('./pages/StudentLogin'));
 const MigmaCheckout = lazy(() => import('./pages/MigmaCheckout'));
+const StudentRewards = lazy(() => import('./pages/StudentRewards'));
+const StudentSupport = lazy(() => import('./pages/StudentSupport'));
 import { Home } from './pages/Home';
 import { Services } from './pages/Services';
 import { About } from './pages/About';
@@ -207,6 +209,12 @@ function App() {
         } />
         <Route path="/student/onboarding" element={
           <Suspense fallback={null}><StudentOnboarding /></Suspense>
+        } />
+        <Route path="/student/rewards" element={
+          <Suspense fallback={null}><StudentRewards /></Suspense>
+        } />
+        <Route path="/student/support" element={
+          <Suspense fallback={null}><StudentSupport /></Suspense>
         } />
 
         {/* Catch-all 404 Route */}

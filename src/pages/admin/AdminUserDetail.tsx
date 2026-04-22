@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   Activity,
@@ -12,10 +12,13 @@ import {
   Loader2,
   Mail,
   MapPin,
+  PauseCircle,
   Phone,
+  PlayCircle,
   RefreshCw,
   Shield,
   Tag,
+  TrendingUp,
   User,
   UserCheck,
   Workflow,
@@ -23,7 +26,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { getSecureUrl } from '@/lib/storage';
@@ -37,6 +40,8 @@ import {
   type CrmMessage,
   type CrmStageHistory,
   type CrmSurveyResponse,
+  type CrmSupportHandoff,
+  type CrmSupportChatMessage,
   type CrmVisaOrder,
   OPERATIONAL_STAGE_COLORS,
   OPERATIONAL_STAGE_LABELS,
@@ -50,6 +55,7 @@ import {
   ALL_QUESTIONS,
   SURVEY_SECTIONS,
 } from '@/data/migmaSurveyQuestions';
+import { reviewGlobalDocuments, reviewStudentDocuments } from '@/lib/student-documents';
 import { ScholarshipApprovalTab } from './ScholarshipApprovalTab';
 
 // ---------------------------------------------------------------------------
@@ -188,13 +194,14 @@ function SectionCard({ title, icon: Icon, children }: { title: string; icon: Rea
 // Tabs
 // ---------------------------------------------------------------------------
 
-type Tab = 'overview' | 'orders' | 'documents' | 'timeline' | 'messages' | 'followups' | 'survey' | 'journey' | 'scholarship';
+type Tab = 'overview' | 'orders' | 'documents' | 'timeline' | 'messages' | 'followups' | 'survey' | 'journey' | 'scholarship' | 'support';
 
 const TABS: Array<{ id: Tab; label: string }> = [
   { id: 'overview', label: 'Overview' },
   { id: 'journey', label: 'Journey' },
   { id: 'survey', label: 'Survey' },
   { id: 'scholarship', label: 'Bolsas V11' },
+  { id: 'support', label: 'Suporte IA' },
   { id: 'orders', label: 'Orders' },
   { id: 'documents', label: 'Documents' },
   { id: 'timeline', label: 'Timeline' },
@@ -215,6 +222,9 @@ function OverviewTab({
   onAssign,
   onAssignToMe,
   onArchive,
+  onStartBilling,
+  onSuspendBilling,
+  billingMsg,
 }: {
   detail: CaseDetailPage;
   ownerInput: string;
@@ -224,6 +234,9 @@ function OverviewTab({
   onAssign: () => void;
   onAssignToMe: () => void;
   onArchive: () => void;
+  onStartBilling: () => void;
+  onSuspendBilling: (action: 'suspend' | 'cancel' | 'reactivate') => void;
+  billingMsg: string | null;
 }) {
   const { profile, primaryRequest, primaryOrder, operationalStage, stageHistory, userIdentity } = detail;
 
@@ -458,6 +471,65 @@ function OverviewTab({
             ))}
           </div>
         </SectionCard>
+
+        {/* Billing Recorrente */}
+        <SectionCard title="Billing Recorrente" icon={TrendingUp}>
+          {detail.recurringCharge ? (
+            <div className="space-y-3">
+              <div className="space-y-1.5">
+                <InfoRow label="Status" value={
+                  <Badge className={cn('text-[9px] font-black uppercase border rounded-sm',
+                    detail.recurringCharge.status === 'active' ? 'bg-green-500/10 border-green-500/30 text-green-400' :
+                    detail.recurringCharge.status === 'suspended' ? 'bg-yellow-500/10 border-yellow-500/30 text-yellow-400' :
+                    'bg-red-500/10 border-red-500/30 text-red-400'
+                  )}>
+                    {detail.recurringCharge.status}
+                  </Badge>
+                } />
+                <InfoRow label="Valor/mês" value={`$${detail.recurringCharge.monthly_usd.toLocaleString('en-US')}`} />
+                <InfoRow label="Parcelas" value={`${detail.recurringCharge.installments_paid} / ${detail.recurringCharge.installments_total}`} />
+                <InfoRow label="Próx. cobrança" value={detail.recurringCharge.next_billing_date ?? '—'} />
+                {detail.recurringCharge.suspended_reason && (
+                  <InfoRow label="Motivo suspensão" value={<span className="text-yellow-400 text-xs">{detail.recurringCharge.suspended_reason}</span>} />
+                )}
+              </div>
+              <div className="flex gap-2 pt-1 flex-wrap">
+                {detail.recurringCharge.status === 'active' && (
+                  <Button size="sm" onClick={() => onSuspendBilling('suspend')} disabled={mutating}
+                    className="bg-yellow-500/10 border border-yellow-500/30 text-yellow-400 hover:bg-yellow-500/20 font-bold text-xs">
+                    <PauseCircle className="w-3.5 h-3.5 mr-1.5" />Suspender
+                  </Button>
+                )}
+                {detail.recurringCharge.status === 'suspended' && (
+                  <Button size="sm" onClick={() => onSuspendBilling('reactivate')} disabled={mutating}
+                    className="bg-green-500/10 border border-green-500/30 text-green-400 hover:bg-green-500/20 font-bold text-xs">
+                    <PlayCircle className="w-3.5 h-3.5 mr-1.5" />Reativar
+                  </Button>
+                )}
+                {detail.recurringCharge.status !== 'cancelled' && (
+                  <Button size="sm" onClick={() => onSuspendBilling('cancel')} disabled={mutating}
+                    className="bg-red-500/10 border border-red-500/30 text-red-400 hover:bg-red-500/20 font-bold text-xs">
+                    Cancelar
+                  </Button>
+                )}
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <p className="text-gray-500 text-sm italic">Nenhum billing ativo.</p>
+              {detail.institutionApplication && (
+                <Button size="sm" onClick={onStartBilling} disabled={mutating}
+                  className="bg-gold-medium hover:bg-gold-dark text-black font-black w-full">
+                  <PlayCircle className="w-4 h-4 mr-1.5" />Iniciar Billing
+                </Button>
+              )}
+              {!detail.institutionApplication && (
+                <p className="text-gray-600 text-xs">Aguardando application V11.</p>
+              )}
+            </div>
+          )}
+          {billingMsg && <p className="text-xs text-gold-light mt-2">{billingMsg}</p>}
+        </SectionCard>
       </div>
     </div>
   );
@@ -557,13 +629,6 @@ const FILE_TYPE_LABELS: Record<string, string> = {
   selfie_doc: 'Selfie with ID',
 };
 
-function statusDocBadge(status: string | null) {
-  if (status === 'approved') return 'bg-green-500/20 text-green-300 border-green-500/30';
-  if (status === 'rejected') return 'bg-red-500/20 text-red-300 border-red-500/30';
-  if (status === 'received') return 'bg-sky-500/20 text-sky-300 border-sky-500/30';
-  return 'bg-white/5 text-gray-400 border-white/10';
-}
-
 type VisaOrderDocument = {
   id: string;
   label: string;
@@ -628,30 +693,139 @@ function buildVisaOrderDocuments(orders: CrmVisaOrder[]): VisaOrderDocument[] {
 }
 
 function DocumentsTab({
+  profileId,
+  profileUserId,
+  adminId,
+  onRefresh,
   files,
   srDocuments,
   studentDocuments,
+  globalDocumentRequests,
   orderDocuments,
 }: {
+  profileId: string;
+  profileUserId: string | null;
+  adminId: string | null;
+  onRefresh: () => Promise<void>;
   files: CrmIdentityFile[];
   srDocuments: CrmDocument[];
   studentDocuments: CaseDetailPage['studentDocuments'];
+  globalDocumentRequests: CaseDetailPage['globalDocumentRequests'];
   orderDocuments: VisaOrderDocument[];
 }) {
   const [resolvedUrls, setResolvedUrls] = useState<Record<string, string>>({});
   const [loadingUrls, setLoadingUrls] = useState(true);
-  const [mediaModal, setMediaModal] = useState<{ url: string; label: string } | null>(null);
+  const [mediaModal, setMediaModal] = useState<{
+    url: string;
+    label: string;
+    reviewTarget?: {
+      scope: 'student' | 'global';
+      documentId: string;
+      status: string | null;
+      rejectionReason?: string | null;
+    };
+  } | null>(null);
+  const [reviewing, setReviewing] = useState(false);
+  const [reviewDialog, setReviewDialog] = useState<{
+    scope: 'student' | 'global';
+    decision: 'approve' | 'reject';
+  } | null>(null);
+  const [rejectionReason, setRejectionReason] = useState('');
+  const [modalRejecting, setModalRejecting] = useState(false);
 
-  function openModal(url: string, label: string) {
-    setMediaModal({ url, label });
+  function openModal(
+    url: string,
+    label: string,
+    reviewTarget?: {
+      scope: 'student' | 'global';
+      documentId: string;
+      status: string | null;
+      rejectionReason?: string | null;
+    }
+  ) {
+    setMediaModal({ url, label, reviewTarget });
+    setModalRejecting(false);
   }
 
   function isPdf(url: string) {
     return url.split('?')[0].toLowerCase().endsWith('.pdf');
   }
 
+  const openReviewDialog = (scope: 'student' | 'global', decision: 'approve' | 'reject') => {
+    setReviewDialog({ scope, decision });
+    setRejectionReason('');
+  };
+
+  const runReview = async () => {
+    if (!profileId || !profileUserId || !adminId) return;
+
+    if (!reviewDialog) return;
+
+    const reason = reviewDialog.decision === 'reject' ? rejectionReason.trim() : undefined;
+    if (reviewDialog.decision === 'reject' && !reason) {
+      return;
+    }
+
+    setReviewing(true);
+    try {
+      const result = reviewDialog.scope === 'global'
+        ? await reviewGlobalDocuments(profileId, reviewDialog.decision, adminId, reason)
+        : await reviewStudentDocuments(profileId, reviewDialog.decision, adminId, reason);
+
+      if (!result.success) {
+        alert(result.error || 'Falha ao revisar documentos');
+        return;
+      }
+
+      setReviewDialog(null);
+      await onRefresh();
+    } finally {
+      setReviewing(false);
+    }
+  };
+
+  const runModalReview = async (decision: 'approve' | 'reject') => {
+    if (!profileId || !profileUserId || !adminId || !mediaModal?.reviewTarget) return;
+
+    const reason = decision === 'reject' ? rejectionReason.trim() : undefined;
+    if (decision === 'reject' && !reason) {
+      return;
+    }
+
+    setReviewing(true);
+    try {
+      const result = mediaModal.reviewTarget.scope === 'global'
+        ? await reviewGlobalDocuments(
+            profileId,
+            decision,
+            adminId,
+            reason,
+            mediaModal.reviewTarget.documentId
+          )
+        : await reviewStudentDocuments(
+            profileId,
+            decision,
+            adminId,
+            reason,
+            mediaModal.reviewTarget.documentId
+          );
+
+      if (!result.success) {
+        alert(result.error || 'Falha ao revisar documentos');
+        return;
+      }
+
+      setMediaModal(null);
+      setModalRejecting(false);
+      setRejectionReason('');
+      await onRefresh();
+    } finally {
+      setReviewing(false);
+    }
+  };
+
   useEffect(() => {
-    if (files.length === 0 && studentDocuments.length === 0) { setLoadingUrls(false); return; }
+    if (files.length === 0 && studentDocuments.length === 0 && globalDocumentRequests.length === 0) { setLoadingUrls(false); return; }
     (async () => {
       const resolved: Record<string, string> = {};
       for (const f of files) {
@@ -663,15 +837,45 @@ function DocumentsTab({
         const url = await getSecureUrl(doc.file_url);
         if (url) resolved[doc.id] = url;
       }
+      for (const doc of globalDocumentRequests) {
+        if (!doc.submitted_url) continue;
+        const url = await getSecureUrl(doc.submitted_url);
+        if (url) resolved[doc.id] = url;
+      }
       setResolvedUrls(resolved);
       setLoadingUrls(false);
     })();
-  }, [files, studentDocuments]);
+  }, [files, studentDocuments, globalDocumentRequests]);
 
-  const hasAnything = files.length > 0 || srDocuments.length > 0 || studentDocuments.length > 0 || orderDocuments.length > 0;
+  const hasAnything = files.length > 0 || srDocuments.length > 0 || studentDocuments.length > 0 || globalDocumentRequests.length > 0 || orderDocuments.length > 0;
   if (!hasAnything) {
     return <EmptyState icon={Image} message="No documents found for this case." />;
   }
+
+  const studentReviewSummary =
+    studentDocuments.length === 0
+      ? null
+      : studentDocuments.some((doc) => doc.status === 'rejected')
+        ? 'rejected'
+        : studentDocuments.every((doc) => doc.status === 'approved')
+          ? 'approved'
+          : studentDocuments.some((doc) => doc.status === 'under_review')
+            ? 'under_review'
+            : 'pending';
+
+  const globalDocumentOrder: Record<string, number> = {
+    current_i20: 1,
+    i94: 2,
+    f1_visa: 3,
+    history_diploma: 4,
+    bank_statement: 5,
+    address_us: 6,
+    address_br: 7,
+    certidoes: 8,
+  };
+  const orderedGlobalDocumentRequests = [...globalDocumentRequests].sort(
+    (a, b) => (globalDocumentOrder[a.document_type] ?? 999) - (globalDocumentOrder[b.document_type] ?? 999)
+  );
 
   return (
     <div className="space-y-8">
@@ -688,7 +892,10 @@ function DocumentsTab({
                 <div
                   key={doc.id}
                   onClick={() => {
-                      if (url) openModal(url, label);
+                      if (url) {
+                        if (pdf) window.open(url, '_blank');
+                        else openModal(url, label);
+                      }
                   }}
                   className="group relative cursor-pointer w-28 h-28 sm:w-32 sm:h-32 rounded-lg overflow-hidden border border-white/20 bg-black/50 hover:border-white transition-all hover:scale-105 duration-300 shadow-lg shadow-black/50"
                 >
@@ -729,7 +936,10 @@ function DocumentsTab({
                 <div
                   key={doc.id}
                   onClick={() => {
-                      if (url) openModal(url, label);
+                      if (url) {
+                        if (pdf) window.open(url, '_blank');
+                        else openModal(url, label);
+                      }
                   }}
                   className="group relative cursor-pointer w-28 h-28 sm:w-32 sm:h-32 rounded-lg overflow-hidden border border-white/20 bg-black/50 hover:border-white transition-all hover:scale-105 duration-300 shadow-lg shadow-black/50"
                 >
@@ -749,6 +959,69 @@ function DocumentsTab({
                   </div>
                   <div className="absolute bottom-0 inset-x-0 bg-black/80 text-[9px] leading-tight min-h-[32px] flex items-center justify-center text-center text-white py-1 px-1 uppercase tracking-wider z-10 font-bold line-clamp-2">
                       {label}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Complementary documents */}
+      {orderedGlobalDocumentRequests.length > 0 && (
+        <div>
+          <div className="flex items-center justify-between gap-3 mb-3">
+            <div className="flex items-center gap-2 flex-wrap">
+              <div className="text-xs text-gray-500 uppercase tracking-widest font-bold">Post-University Documents</div>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-4">
+            {orderedGlobalDocumentRequests.map((doc) => {
+              const url = resolvedUrls[doc.id];
+              const label = toLabel(doc.document_type);
+              const status = doc.status || 'pending';
+              const pdf = url ? isPdf(url) : false;
+              const badgeKey =
+                status === 'approved' || status === 'rejected' || status === 'under_review'
+                  ? status
+                  : 'pending';
+
+              return (
+                <div
+                  key={doc.id}
+                  onClick={() => {
+                    if (url) {
+                      openModal(url, label, {
+                        scope: 'global',
+                        documentId: doc.id,
+                        status: doc.status,
+                        rejectionReason: doc.rejection_reason,
+                      });
+                    }
+                  }}
+                  className="group relative cursor-pointer w-28 h-28 sm:w-32 sm:h-32 rounded-lg overflow-hidden border border-white/20 bg-black/50 hover:border-white transition-all hover:scale-105 duration-300 shadow-lg shadow-black/50"
+                >
+                  {url && !pdf ? (
+                    <img
+                      src={url}
+                      alt={label}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="flex h-full w-full items-center justify-center bg-white/5">
+                      {pdf ? <FileText className="w-8 h-8 text-gray-400" /> : <Image className="w-8 h-8 text-gray-600" />}
+                    </div>
+                  )}
+                  <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                    {pdf ? <FileText className="w-6 h-6 text-white" /> : <Image className="w-6 h-6 text-white" />}
+                  </div>
+                  <div className="absolute top-2 right-2 z-10">
+                    <Badge className={cn('text-[8px] font-black uppercase border rounded-sm px-1.5 py-0.5', studentDocBadge(badgeKey))}>
+                      {toLabel(status)}
+                    </Badge>
+                  </div>
+                  <div className="absolute bottom-0 inset-x-0 bg-black/80 text-[9px] leading-tight min-h-[32px] flex items-center justify-center text-center text-white py-1 px-1 uppercase tracking-wider z-10 font-bold line-clamp-2">
+                    {label}
                   </div>
                 </div>
               );
@@ -760,7 +1033,16 @@ function DocumentsTab({
       {/* Student onboarding documents */}
       {studentDocuments.length > 0 && (
         <div>
-          <div className="text-xs text-gray-500 uppercase tracking-widest font-bold mb-3">Student Onboarding Documents</div>
+          <div className="flex items-center justify-between gap-3 mb-3">
+            <div className="flex items-center gap-2 flex-wrap">
+              <div className="text-xs text-gray-500 uppercase tracking-widest font-bold">Student Onboarding Documents</div>
+              {studentReviewSummary && (
+                <Badge className={cn('text-[9px] font-black uppercase border rounded-sm', studentDocBadge(studentReviewSummary))}>
+                  {toLabel(studentReviewSummary)}
+                </Badge>
+              )}
+            </div>
+          </div>
           <div className="flex flex-wrap gap-4">
             {studentDocuments.map((doc) => {
               const url = resolvedUrls[doc.id];
@@ -770,7 +1052,14 @@ function DocumentsTab({
                 <div
                   key={doc.id}
                   onClick={() => {
-                      if (url) openModal(url, label);
+                    if (url) {
+                      openModal(url, label, {
+                        scope: 'student',
+                        documentId: doc.id,
+                        status: doc.status,
+                        rejectionReason: doc.rejection_reason,
+                      });
+                    }
                   }}
                   className="group relative cursor-pointer w-28 h-28 sm:w-32 sm:h-32 rounded-lg overflow-hidden border border-white/20 bg-black/50 hover:border-white transition-all hover:scale-105 duration-300 shadow-lg shadow-black/50"
                 >
@@ -791,6 +1080,11 @@ function DocumentsTab({
                   <div className="absolute bottom-0 inset-x-0 bg-black/80 text-[9px] leading-tight min-h-[32px] flex items-center justify-center text-center text-white py-1 px-1 uppercase tracking-wider z-10 font-bold line-clamp-2">
                       {label}
                   </div>
+                  <div className="absolute top-2 right-2">
+                    <Badge className={cn('text-[8px] font-black uppercase border rounded-sm px-1.5 py-0.5', studentDocBadge(doc.status))}>
+                      {toLabel(doc.status)}
+                    </Badge>
+                  </div>
                 </div>
               );
             })}
@@ -798,10 +1092,74 @@ function DocumentsTab({
         </div>
       )}
 
+      {/* Review modal */}
+      <Dialog open={!!reviewDialog && !reviewing} onOpenChange={(open) => !open && setReviewDialog(null)}>
+        <DialogContent className="sm:max-w-md bg-[#0b0b0b] border border-white/10 text-white">
+          <DialogTitle className="text-lg font-black uppercase tracking-wide">
+            {reviewDialog?.decision === 'approve' ? 'Confirmar aprovação' : 'Recusar documentos'}
+          </DialogTitle>
+          <div className="mt-2 text-sm text-gray-400">
+            {reviewDialog?.scope === 'global'
+              ? 'Essa ação vale para os documentos enviados depois da universidade.'
+              : 'Essa ação vale para os documentos de onboarding do aluno.'}
+          </div>
+
+          {reviewDialog?.decision === 'reject' && (
+            <div className="mt-4 space-y-2">
+              <label className="text-xs font-bold uppercase tracking-widest text-gray-500">
+                Motivo da rejeição
+              </label>
+              <textarea
+                value={rejectionReason}
+                onChange={(e) => setRejectionReason(e.target.value)}
+                rows={4}
+                className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-gray-600 focus:border-gold-medium/40"
+                placeholder="Explique ao aluno o que precisa ser corrigido."
+              />
+            </div>
+          )}
+
+          <div className="mt-6 flex items-center justify-end gap-3">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setReviewDialog(null)}
+              className="border-white/10 bg-white/5 text-gray-300 hover:bg-white/10"
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              disabled={reviewing || (reviewDialog?.decision === 'reject' && !rejectionReason.trim())}
+              onClick={runReview}
+              className={reviewDialog?.decision === 'approve'
+                ? 'bg-emerald-500 hover:bg-emerald-400 text-black'
+                : 'bg-red-500 hover:bg-red-400 text-white'}
+            >
+              {reviewDialog?.decision === 'approve' ? 'Aprovar' : 'Recusar'}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={reviewing} onOpenChange={() => undefined}>
+        <DialogContent className="sm:max-w-sm bg-[#0b0b0b] border border-white/10 text-white">
+          <div className="flex flex-col items-center text-center py-2">
+            <Loader2 className="w-8 h-8 animate-spin text-gold-medium" />
+            <DialogTitle className="mt-4 text-lg font-black uppercase tracking-wide">
+              Processando
+            </DialogTitle>
+            <p className="mt-2 text-sm text-gray-400">
+              Atualizando os documentos e recarregando os dados do CRM.
+            </p>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* Media modal */}
       <Dialog open={!!mediaModal} onOpenChange={(open) => { if (!open) setMediaModal(null); }}>
         <DialogContent
-          className="max-w-4xl w-full bg-black/95 border border-white/10 p-0 overflow-hidden"
+          className="max-w-4xl w-full max-h-[90vh] bg-black/95 border border-white/10 p-0 overflow-hidden flex flex-col"
           aria-describedby={undefined}
         >
           <DialogTitle className="sr-only">
@@ -809,33 +1167,118 @@ function DocumentsTab({
           </DialogTitle>
           {mediaModal && (
             <>
-              <div className="flex items-center justify-between px-5 py-3 border-b border-white/10">
+              <div className="flex shrink-0 items-center justify-between px-5 py-3 border-b border-white/10">
                 <span className="text-xs font-black uppercase tracking-widest text-gray-300">{mediaModal.label}</span>
                 <a
                   href={mediaModal.url}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-[10px] font-black uppercase tracking-widest text-gold-light hover:text-gold-medium transition-colors"
-                >
-                  Open in tab
-                </a>
+                  >
+                    Open in tab
+                  </a>
               </div>
-              <div className="w-full" style={{ maxHeight: '80vh', overflowY: 'auto' }}>
-                {isPdf(mediaModal.url) ? (
-                  <iframe
-                    src={mediaModal.url}
-                    className="w-full"
-                    style={{ height: '80vh', border: 'none' }}
-                    title={mediaModal.label}
-                  />
-                ) : (
-                  <img
-                    src={mediaModal.url}
-                    alt={mediaModal.label}
-                    className="w-full h-auto object-contain"
-                  />
-                )}
+              <div className="flex-1 min-h-0 overflow-auto bg-black">
+                <div className="w-full h-full min-h-[55vh]">
+                  {isPdf(mediaModal.url) ? (
+                    <iframe
+                      src={mediaModal.url}
+                      className="block w-full h-full min-h-[55vh] border-none"
+                      title={mediaModal.label}
+                    />
+                  ) : (
+                    <img
+                      src={mediaModal.url}
+                      alt={mediaModal.label}
+                      className="block w-full h-auto max-h-full object-contain"
+                    />
+                  )}
+                </div>
               </div>
+              {mediaModal.reviewTarget && (
+                <div className="shrink-0 border-t border-white/10 px-5 py-4 space-y-3 bg-[#0b0b0b]/95 backdrop-blur">
+                  <div className="flex items-center justify-between gap-3 flex-wrap">
+                    <div>
+                      <div className="text-xs font-black uppercase tracking-widest text-gray-500">
+                        Review document
+                      </div>
+                      <div className="text-sm text-gray-300 mt-0.5">
+                        {toLabel(mediaModal.reviewTarget.status)} - {mediaModal.label}
+                      </div>
+                      {mediaModal.reviewTarget.status === 'rejected' && mediaModal.reviewTarget.rejectionReason && (
+                        <div className="mt-3 rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3">
+                          <div className="text-[10px] font-black uppercase tracking-widest text-red-300">
+                            Motivo da rejeição
+                          </div>
+                          <div className="mt-1 text-sm text-red-100 whitespace-pre-line">
+                            {mediaModal.reviewTarget.rejectionReason}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        disabled={reviewing}
+                        onClick={() => setModalRejecting(true)}
+                        className="border-red-500/30 text-red-300 hover:bg-red-500/10"
+                      >
+                        Reject
+                      </Button>
+                      <Button
+                        type="button"
+                        disabled={reviewing}
+                        onClick={() => {
+                          setModalRejecting(false);
+                          setRejectionReason('');
+                          runModalReview('approve');
+                        }}
+                        className="bg-emerald-500 hover:bg-emerald-400 text-black"
+                      >
+                        Approve
+                      </Button>
+                    </div>
+                  </div>
+
+                  {modalRejecting && (
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold uppercase tracking-widest text-gray-500">
+                        Motivo da rejeição
+                      </label>
+                      <textarea
+                        value={rejectionReason}
+                        onChange={(e) => setRejectionReason(e.target.value)}
+                        rows={4}
+                        className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-gray-600 focus:border-gold-medium/40"
+                        placeholder="Explique o que precisa ser corrigido neste documento."
+                      />
+                      <div className="flex items-center justify-end gap-3">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          disabled={reviewing}
+                          onClick={() => {
+                            setModalRejecting(false);
+                            setRejectionReason('');
+                          }}
+                          className="border-white/10 bg-white/5 text-gray-300 hover:bg-white/10"
+                        >
+                          Cancelar
+                        </Button>
+                        <Button
+                          type="button"
+                          disabled={reviewing || !rejectionReason.trim()}
+                          onClick={() => runModalReview('reject')}
+                          className="bg-red-500 hover:bg-red-400 text-white"
+                        >
+                          Confirmar recusa
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </>
           )}
         </DialogContent>
@@ -858,7 +1301,10 @@ function DocumentsTab({
                   <div
                     key={file.id}
                     onClick={() => {
-                        if (url) openModal(url, label);
+                        if (url) {
+                          if (isPdf(url)) window.open(url, '_blank');
+                          else openModal(url, label);
+                        }
                     }}
                     className="group relative cursor-pointer w-28 h-28 sm:w-32 sm:h-32 rounded-lg overflow-hidden border border-white/20 bg-black/50 hover:border-white transition-all hover:scale-105 duration-300 shadow-lg shadow-black/50"
                   >
@@ -1253,6 +1699,14 @@ const DOC_TYPE_LABELS: Record<string, string> = {
   other: 'Other',
 };
 
+function studentDocBadge(status: string | null) {
+  if (status === 'approved') return 'bg-green-500/20 text-green-300 border-green-500/30';
+  if (status === 'rejected') return 'bg-red-500/20 text-red-300 border-red-500/30';
+  if (status === 'under_review') return 'bg-sky-500/20 text-sky-300 border-sky-500/30';
+  if (status === 'pending') return 'bg-amber-500/20 text-amber-300 border-amber-500/30';
+  return 'bg-white/5 text-gray-400 border-white/10';
+}
+
 function formatAnswerValue(value: string | string[] | null | undefined): string {
   if (value === null || value === undefined) return '—';
   if (Array.isArray(value)) return value.join(', ') || '—';
@@ -1350,7 +1804,7 @@ interface JourneyMilestone {
 function buildJourneyMilestones(
   detail: CaseDetailPage,
 ): JourneyMilestone[] {
-  const { profile, visaOrders, serviceRequests, stageHistory, studentDocuments } = detail;
+  const { profile, visaOrders, serviceRequests, stageHistory, studentDocuments, globalDocumentRequests } = detail;
   const milestones: JourneyMilestone[] = [];
 
   // 1. Account created
@@ -1524,6 +1978,221 @@ function EmptyState({ icon: Icon, message }: { icon: React.ElementType; message:
 // Main page
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// Tab: Support IA
+// ---------------------------------------------------------------------------
+
+const HANDOFF_STATUS_LABELS: Record<CrmSupportHandoff['status'], string> = {
+  pending: 'Aguardando',
+  in_progress: 'Em atendimento',
+  resolved: 'Resolvido',
+};
+
+const HANDOFF_STATUS_COLORS: Record<CrmSupportHandoff['status'], string> = {
+  pending: 'bg-yellow-500/15 text-yellow-400 border-yellow-500/30',
+  in_progress: 'bg-blue-500/15 text-blue-400 border-blue-500/30',
+  resolved: 'bg-green-500/15 text-green-400 border-green-500/30',
+};
+
+function SupportTab({
+  handoffs,
+  chatMessages,
+  profileId,
+  onRefresh,
+}: {
+  handoffs: CrmSupportHandoff[];
+  chatMessages: CrmSupportChatMessage[];
+  profileId: string;
+  onRefresh: () => void;
+}) {
+  const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [assignInput, setAssignInput] = useState<Record<string, string>>({});
+  const [resolveNoteInput, setResolveNoteInput] = useState<Record<string, string>>({});
+  const [resolvingId, setResolvingId] = useState<string | null>(null);
+  const [chatOpen, setChatOpen] = useState(false);
+
+  const updateHandoff = async (
+    id: string,
+    patch: Partial<Pick<CrmSupportHandoff, 'status' | 'assigned_to'>>,
+  ) => {
+    setUpdatingId(id);
+    const update: Record<string, unknown> = { ...patch };
+    if (patch.status === 'resolved') update.resolved_at = new Date().toISOString();
+    await supabase.from('support_handoffs').update(update).eq('id', id);
+    setUpdatingId(null);
+    onRefresh();
+  };
+
+  const resolveHandoff = async (id: string) => {
+    const note = resolveNoteInput[id]?.trim();
+    if (!note) return;
+
+    setUpdatingId(id);
+
+    await supabase.from('support_handoffs').update({
+      status: 'resolved',
+      resolved_at: new Date().toISOString(),
+      resolved_note: note,
+    }).eq('id', id);
+
+    // Insere marco visual no chat do aluno
+    await supabase.from('support_chat_messages').insert({
+      profile_id: profileId,
+      role: 'system',
+      content: `Atendimento encerrado pela equipe. ${note}`,
+    });
+
+    setResolvingId(null);
+    setUpdatingId(null);
+    onRefresh();
+  };
+
+  return (
+    <div className="space-y-4">
+      {/* Header */}
+      <div className="flex justify-between items-center">
+        <p className="text-xs text-white/40">{handoffs.length} transferência(s) · {chatMessages.length} mensagens</p>
+        <button
+          onClick={() => setChatOpen(true)}
+          disabled={chatMessages.length === 0}
+          className="px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-white/60 text-xs font-medium hover:bg-white/10 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+        >
+          Ver histórico de chat
+        </button>
+      </div>
+
+      {/* Handoffs */}
+      {handoffs.length === 0 ? (
+        <p className="text-white/30 text-sm">Nenhuma transferência registrada.</p>
+      ) : (
+        <div className="space-y-2">
+          {handoffs.map((h) => (
+            <div key={h.id} className="bg-white/5 border border-white/10 rounded-xl p-3 space-y-2">
+              {/* Linha 1 — status + ações */}
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className={`shrink-0 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${HANDOFF_STATUS_COLORS[h.status]}`}>
+                    {HANDOFF_STATUS_LABELS[h.status]}
+                  </span>
+                  <span className="text-xs text-white/30 truncate">
+                    {new Date(h.created_at).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })} · via {h.triggered_by === 'ai_escalation' ? 'IA' : h.triggered_by === 'student_request' ? 'aluno' : 'admin'}
+                  </span>
+                </div>
+                <div className="flex gap-2 shrink-0">
+                  {h.status === 'pending' && (
+                    <button onClick={() => updateHandoff(h.id, { status: 'in_progress' })} disabled={updatingId === h.id}
+                      className="px-3 py-1 rounded-lg bg-blue-500/20 text-blue-400 text-xs font-medium hover:bg-blue-500/30 transition-colors disabled:opacity-50">
+                      Assumir
+                    </button>
+                  )}
+                  {h.status === 'in_progress' && resolvingId !== h.id && (
+                    <button onClick={() => setResolvingId(h.id)}
+                      className="px-3 py-1 rounded-lg bg-green-500/20 text-green-400 text-xs font-medium hover:bg-green-500/30 transition-colors">
+                      Resolver
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Motivo + última msg */}
+              {(h.reason || h.last_ai_message) && (
+                <div className="space-y-1">
+                  {h.reason && <p className="text-xs text-white/60"><span className="text-white/30">Motivo: </span>{h.reason}</p>}
+                  {h.last_ai_message && (
+                    <p className="text-xs text-white/40 italic border-l-2 border-white/10 pl-2 truncate">"{h.last_ai_message}"</p>
+                  )}
+                </div>
+              )}
+
+              {/* Nota de resolução — expande ao clicar Resolver */}
+              {h.status === 'in_progress' && resolvingId === h.id && (
+                <div className="space-y-2 pt-1 border-t border-white/10">
+                  <p className="text-xs text-white/50">Nota para o aluno <span className="text-red-400">*</span></p>
+                  <textarea
+                    value={resolveNoteInput[h.id] ?? ''}
+                    onChange={(e) => setResolveNoteInput((p) => ({ ...p, [h.id]: e.target.value }))}
+                    placeholder="Ex: Situação esclarecida. Seu I-94 foi verificado e está dentro do prazo."
+                    rows={2}
+                    className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-xs text-white placeholder-white/20 outline-none focus:border-green-500/40 resize-none"
+                  />
+                  <div className="flex gap-2 justify-end">
+                    <button onClick={() => setResolvingId(null)}
+                      className="px-3 py-1 rounded-lg text-white/40 text-xs hover:text-white/60 transition-colors">
+                      Cancelar
+                    </button>
+                    <button
+                      onClick={() => resolveHandoff(h.id)}
+                      disabled={!resolveNoteInput[h.id]?.trim() || updatingId === h.id}
+                      className="px-3 py-1 rounded-lg bg-green-500/20 text-green-400 text-xs font-medium hover:bg-green-500/30 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      {updatingId === h.id ? 'Salvando…' : 'Confirmar resolução'}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Nota exibida após resolução */}
+              {h.status === 'resolved' && h.resolved_note && (
+                <p className="text-xs text-green-400/60 border-l-2 border-green-500/20 pl-2">
+                  "{h.resolved_note}"
+                </p>
+              )}
+
+              {/* Atribuir */}
+              {h.status !== 'resolved' && (
+                <div className="flex gap-2 items-center pt-1">
+                  <input
+                    value={assignInput[h.id] ?? h.assigned_to ?? ''}
+                    onChange={(e) => setAssignInput((p) => ({ ...p, [h.id]: e.target.value }))}
+                    placeholder="Atribuir a…"
+                    className="flex-1 bg-white/5 border border-white/10 rounded-lg px-2.5 py-1 text-xs text-white placeholder-white/20 outline-none focus:border-[#CE9F48]/40"
+                  />
+                  <button
+                    onClick={() => updateHandoff(h.id, { assigned_to: assignInput[h.id] ?? h.assigned_to ?? '' })}
+                    disabled={updatingId === h.id}
+                    className="px-2.5 py-1 rounded-lg bg-[#CE9F48]/20 text-[#CE9F48] text-xs font-medium hover:bg-[#CE9F48]/30 transition-colors disabled:opacity-50"
+                  >
+                    Salvar
+                  </button>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Modal histórico de chat */}
+      <Dialog open={chatOpen} onOpenChange={setChatOpen}>
+        <DialogContent className="bg-[#111] border border-white/10 max-w-xl w-full max-h-[80vh] flex flex-col p-0">
+          <div className="flex items-center justify-between px-5 py-4 border-b border-white/10">
+            <DialogTitle className="text-sm font-semibold text-white">
+              Histórico de chat — {chatMessages.length} mensagens
+            </DialogTitle>
+          </div>
+          <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
+            {chatMessages.map((msg) => (
+              <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                <div className={`max-w-[80%] rounded-xl px-3 py-2 text-sm whitespace-pre-wrap ${
+                  msg.role === 'user'
+                    ? 'bg-[#CE9F48]/20 text-white border border-[#CE9F48]/20'
+                    : 'bg-white/5 border border-white/10 text-white/80'
+                }`}>
+                  <p className={`text-xs mb-1 ${msg.role === 'user' ? 'text-[#CE9F48]/50' : 'text-white/25'}`}>
+                    {msg.role === 'user' ? 'Aluno' : 'IA'} · {new Date(msg.created_at).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                  </p>
+                  {msg.content}
+                </div>
+              </div>
+            ))}
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+
 export function AdminUserDetail() {
   const { profileId } = useParams<{ profileId: string }>();
   const navigate = useNavigate();
@@ -1537,11 +2206,12 @@ export function AdminUserDetail() {
   const [ownerInput, setOwnerInput] = useState('');
   const [mutating, setMutating] = useState(false);
   const [mutationMsg, setMutationMsg] = useState<string | null>(null);
-  const currentAdminId = useRef<string | null>(null);
+  const [currentAdminId, setCurrentAdminId] = useState<string | null>(null);
+  const [billingMsg, setBillingMsg] = useState<string | null>(null);
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
-      currentAdminId.current = data?.user?.id ?? null;
+      setCurrentAdminId(data?.user?.id ?? null);
     });
   }, []);
 
@@ -1573,11 +2243,11 @@ export function AdminUserDetail() {
   }
 
   async function handleAssignToMe() {
-    if (!currentAdminId.current || !detail?.primaryRequest) return;
-    setOwnerInput(currentAdminId.current);
+    if (!currentAdminId || !detail?.primaryRequest) return;
+    setOwnerInput(currentAdminId);
     setMutating(true);
     setMutationMsg(null);
-    const { error: err } = await updateCaseOwner(detail.primaryRequest.id, currentAdminId.current);
+    const { error: err } = await updateCaseOwner(detail.primaryRequest.id, currentAdminId);
     setMutating(false);
     setMutationMsg(err ? `Error: ${err}` : 'Assigned to you.');
     if (!err) load();
@@ -1592,6 +2262,49 @@ export function AdminUserDetail() {
     setMutating(false);
     setMutationMsg(err ? `Error: ${err}` : next === 'cancelled' ? 'Case archived.' : 'Case restored.');
     if (!err) load();
+  }
+
+  const functionsBase = import.meta.env.VITE_FUNCTIONS_BASE_URL as string | undefined;
+
+  async function invokeFunction(name: string, body: object): Promise<{ error: string | null }> {
+    if (functionsBase) {
+      // Modo híbrido: chama function local diretamente
+      const res = await fetch(`${functionsBase}/${name}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json().catch(() => ({}));
+      return { error: res.ok ? null : (data?.error ?? `HTTP ${res.status}`) };
+    }
+    // Produção: usa cliente Supabase normal
+    const { error } = await supabase.functions.invoke(name, { body });
+    return { error: error?.message ?? null };
+  }
+
+  async function handleStartBilling() {
+    if (!detail?.institutionApplication) return;
+    setMutating(true);
+    setBillingMsg(null);
+    const { error } = await invokeFunction('start-migma-billing', {
+      application_id: detail.institutionApplication.id,
+    });
+    setMutating(false);
+    setBillingMsg(error ? `Erro: ${error}` : 'Billing iniciado.');
+    if (!error) load();
+  }
+
+  async function handleSuspendBilling(action: 'suspend' | 'cancel' | 'reactivate') {
+    if (!detail?.recurringCharge) return;
+    setMutating(true);
+    setBillingMsg(null);
+    const { error } = await invokeFunction('suspend-migma-billing', {
+      charge_id: detail.recurringCharge.id, action,
+    });
+    setMutating(false);
+    const msgs = { suspend: 'Billing suspenso.', cancel: 'Billing cancelado.', reactivate: 'Billing reativado.' };
+    setBillingMsg(error ? `Erro: ${error}` : msgs[action]);
+    if (!error) load();
   }
 
   // ---------------------------------------------------------------------------
@@ -1674,12 +2387,13 @@ export function AdminUserDetail() {
         {TABS.map((tab) => {
           const count =
             tab.id === 'orders' ? detail.visaOrders.length
-            : tab.id === 'documents' ? detail.identityFiles.length + detail.srDocuments.length + orderDocuments.length
+            : tab.id === 'documents' ? detail.identityFiles.length + detail.srDocuments.length + detail.globalDocumentRequests.length + orderDocuments.length
             : tab.id === 'timeline' ? detail.events.length + detail.stageHistory.length
             : tab.id === 'messages' ? detail.messages.length
             : tab.id === 'followups' ? detail.followups.length
             : tab.id === 'survey' ? detail.surveyResponses.length
             : tab.id === 'journey' ? (detail.studentDocuments.length + detail.stageHistory.length) || null
+            : tab.id === 'support' ? detail.supportHandoffs.filter(h => h.status !== 'resolved').length || null
             : null;
 
           return (
@@ -1716,14 +2430,22 @@ export function AdminUserDetail() {
             onAssign={handleAssign}
             onAssignToMe={handleAssignToMe}
             onArchive={handleArchive}
+            onStartBilling={handleStartBilling}
+            onSuspendBilling={handleSuspendBilling}
+            billingMsg={billingMsg}
           />
         )}
         {activeTab === 'orders' && <OrdersTab orders={detail.visaOrders} />}
         {activeTab === 'documents' && (
           <DocumentsTab
+            profileId={detail.profile.id}
+            profileUserId={detail.profile.user_id}
+            adminId={currentAdminId}
+            onRefresh={load}
             files={detail.identityFiles}
             srDocuments={detail.srDocuments}
             studentDocuments={detail.studentDocuments}
+            globalDocumentRequests={detail.globalDocumentRequests}
             orderDocuments={orderDocuments}
           />
         )}
@@ -1735,7 +2457,7 @@ export function AdminUserDetail() {
           <FollowupsTab
             followups={detail.followups}
             serviceRequestId={detail.primaryRequest?.id ?? null}
-            adminId={currentAdminId.current}
+            adminId={currentAdminId}
             onRefresh={load}
           />
         )}
@@ -1747,6 +2469,14 @@ export function AdminUserDetail() {
         )}
         {activeTab === 'scholarship' && (
           <ScholarshipApprovalTab detail={detail} />
+        )}
+        {activeTab === 'support' && (
+          <SupportTab
+            handoffs={detail.supportHandoffs}
+            chatMessages={detail.supportChatMessages}
+            profileId={detail.profile.id}
+            onRefresh={load}
+          />
         )}
       </div>
     </div>

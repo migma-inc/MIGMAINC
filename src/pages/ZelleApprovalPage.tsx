@@ -1160,6 +1160,31 @@ export const ZelleApprovalPage = () => {
 
         if (fnErr) throw new Error(fnErr.message || 'Failed to call migma-payment-completed');
 
+        // Also ensure any hanging visa_orders in manual_pending for this user are marked as approved!
+        const { data: visaOrders } = await supabase
+          .from('visa_orders')
+          .select('id')
+          .eq('user_id', payment.migma_user_id)
+          .eq('payment_status', 'manual_pending')
+          .order('created_at', { ascending: false })
+          .limit(1);
+
+        if (visaOrders && visaOrders.length > 0) {
+          const orderId = visaOrders[0].id;
+          await supabase
+            .from('visa_orders')
+            .update({ 
+               payment_status: 'approved',
+               paid_at: new Date().toISOString()
+            })
+            .eq('id', orderId);
+
+          // Disparar funções de PDFs para a ordem aprovada via fallback
+          supabase.functions.invoke('generate-visa-contract-pdf', { body: { order_id: orderId } }).catch(e => console.error('Fallback PDF error:', e));
+          supabase.functions.invoke('generate-annex-pdf', { body: { order_id: orderId } }).catch(e => console.error('Fallback Annex error:', e));
+          supabase.functions.invoke('generate-invoice-pdf', { body: { order_id: orderId } }).catch(e => console.error('Fallback Invoice error:', e));
+        }
+
         // Since processMigmaApproval wasn't called, we must manually alert and reload
         setAlertData({ title: 'Success', message: `Zelle approved — ${payment.client_name} marked as paid!`, variant: 'success' });
         setShowAlert(true);

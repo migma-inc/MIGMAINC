@@ -68,6 +68,7 @@ const MigmaCheckout: React.FC = () => {
 
   const [step1Data, setStep1Data] = useState<Step1Data | null>(null);
   const [step2Data, setStep2Data] = useState<Step2Data | null>(null);
+  const [recoveredDocUrls, setRecoveredDocUrls] = useState<{ docFront: string | null; docBack: string | null; selfie: string | null } | null>(null);
   const [paymentLoading, setPaymentLoading] = useState(false);
   const [processing, setProcessing] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -105,9 +106,52 @@ const MigmaCheckout: React.FC = () => {
   }, [searchParams]);
 
   useEffect(() => {
-    // Se estiver no Passo 3 mas o valor estiver zerado, força um refresh para garantir dados corretos
+    // Se estiver no Passo 3 mas o valor estiver zerado, resolve via cascade no banco
     if (state.currentStep === 3 && state.totalPrice === 0 && !regionLoading) {
       refreshProfile();
+      (async () => {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) return;
+
+        const { data: profile } = await supabase
+          .from('user_profiles')
+          .select('total_price_usd, email')
+          .eq('user_id', session.user.id)
+          .maybeSingle();
+
+        let resolvedPrice = profile?.total_price_usd || 0;
+
+        if (!resolvedPrice) {
+          const userEmail = profile?.email || session.user.email;
+          const { data: latestOrder } = await supabase
+            .from('visa_orders')
+            .select('total_price_usd')
+            .eq('client_email', userEmail)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          resolvedPrice = latestOrder?.total_price_usd || 0;
+        }
+
+        if (!resolvedPrice) {
+          const { data: feePayment } = await supabase
+            .from('individual_fee_payments')
+            .select('amount')
+            .eq('user_id', session.user.id)
+            .eq('fee_type', 'selection_process')
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          resolvedPrice = feePayment?.amount || 0;
+        }
+        if (!resolvedPrice && config) {
+          resolvedPrice = config.basePrice;
+        }
+
+        if (resolvedPrice) {
+          setState(prev => ({ ...prev, totalPrice: resolvedPrice }));
+        }
+      })();
     }
   }, [state.currentStep, state.totalPrice, regionLoading]);
 
@@ -240,7 +284,7 @@ const MigmaCheckout: React.FC = () => {
     // 🚀 Verificação de "Status Real" no banco (Recuperação Pós-Login)
     const { data: profile } = await supabase
       .from('user_profiles')
-      .select('has_paid_selection_process_fee, identity_verified, full_name, email, phone, signature_url, migma_checkout_completed_at, total_price_usd, service_type')
+      .select('has_paid_selection_process_fee, identity_verified, full_name, email, phone, signature_url, migma_checkout_completed_at, total_price_usd, service_type, payment_submitted_at')
       .eq('user_id', session.user.id)
       .maybeSingle();
 
@@ -250,22 +294,23 @@ const MigmaCheckout: React.FC = () => {
         return;
       }
 
-      // Se já pagou e tem identidade/v5 doc flow (identificado pelo flag identity_verified ou presença de arquivos)
-      // No fluxo Migma, identity_verified é setado após o Step 2
-      if (profile.has_paid_selection_process_fee && profile.identity_verified) {
-        console.log('[MigmaCheckout] 🔄 Recuperando sessão: Identificado progresso até o Passo 3.');
-        
-        // 🔍 Tentar recuperar service_request_id e preço da ordem existente
-        const { data: latestOrder } = await supabase
-          .from('visa_orders')
-          .select('service_request_id, total_price_usd')
-          .eq('client_email', profile.email)
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .maybeSingle();
+      // Pagamento confirmado ou submetido (qualquer método, incl. Zelle em análise) mas docs ainda não enviados → Step 2
+      if ((profile.has_paid_selection_process_fee || profile.payment_submitted_at) && !profile.identity_verified) {
+        console.log('[MigmaCheckout] 🔄 Recuperando sessão: Pagamento confirmado, aguardando documentação. Indo para Passo 2.');
 
-        // Fallback em cascata: perfil → visa_orders → individual_fee_payments → 0
-        let resolvedPrice = profile.total_price_usd || latestOrder?.total_price_usd || 0;
+        // Cascade fallback para resolver o preço
+        let resolvedPrice = profile.total_price_usd || 0;
+        if (!resolvedPrice) {
+          const userEmail = profile.email || session.user.email;
+          const { data: latestOrder } = await supabase
+            .from('visa_orders')
+            .select('total_price_usd')
+            .eq('client_email', userEmail)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          resolvedPrice = latestOrder?.total_price_usd || 0;
+        }
         if (!resolvedPrice) {
           const { data: feePayment } = await supabase
             .from('individual_fee_payments')
@@ -276,6 +321,10 @@ const MigmaCheckout: React.FC = () => {
             .limit(1)
             .maybeSingle();
           resolvedPrice = feePayment?.amount || 0;
+        }
+
+        if (!resolvedPrice && config) {
+          resolvedPrice = config.basePrice;
         }
 
         const resolvedName = profile.full_name
@@ -294,6 +343,132 @@ const MigmaCheckout: React.FC = () => {
           data_accepted: true,
           signature_data_url: profile.signature_url || null
         });
+
+        setState(prev => ({
+          ...prev,
+          userId: session.user.id,
+          totalPrice: resolvedPrice,
+          dbServiceType: profile.service_type || null,
+          step1Completed: true,
+          step2Completed: false,
+          paymentConfirmed: true,
+          currentStep: 2
+        }));
+        return;
+      }
+
+      // Se já pagou e tem identidade/v5 doc flow (identificado pelo flag identity_verified ou presença de arquivos)
+      // No fluxo Migma, identity_verified é setado após o Step 2
+      if (profile.has_paid_selection_process_fee && profile.identity_verified) {
+        console.log('[MigmaCheckout] 🔄 Recuperando sessão: Identificado progresso até o Passo 3.');
+        
+        // 🔍 Tentar recuperar service_request_id e preço da ordem existente
+        const userEmail = profile.email || session.user.email;
+        const { data: latestOrder } = await supabase
+          .from('visa_orders')
+          .select('service_request_id, total_price_usd')
+          .eq('client_email', userEmail)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        // Fallback em cascata: perfil → visa_orders → individual_fee_payments → 0
+        let resolvedPrice = profile.total_price_usd || latestOrder?.total_price_usd || 0;
+        if (!resolvedPrice) {
+          const { data: feePayment } = await supabase
+            .from('individual_fee_payments')
+            .select('amount')
+            .eq('user_id', session.user.id)
+            .eq('fee_type', 'selection_process')
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          resolvedPrice = feePayment?.amount || 0;
+        }
+
+        if (!resolvedPrice && config) {
+          resolvedPrice = config.basePrice;
+        }
+
+        const resolvedName = profile.full_name
+          || session.user.user_metadata?.full_name
+          || session.user.user_metadata?.name
+          || '';
+
+        setStep1Data({
+          full_name: resolvedName,
+          email: profile.email || session.user.email || '',
+          phone: profile.phone || '',
+          password: '',
+          confirm_password: '',
+          num_dependents: null,
+          terms_accepted: true,
+          data_accepted: true,
+          signature_data_url: profile.signature_url || null
+        });
+
+        // Recuperar dados pessoais do Step 2 de user_identity
+        const { data: identity } = await supabase
+          .from('user_identity')
+          .select('birth_date, document_type, document_number, address, city, state, zip_code, country, nationality, marital_status, notes, checkout_service, checkout_price')
+          .eq('user_id', session.user.id)
+          .maybeSingle();
+
+        if (identity?.checkout_price !== undefined && identity.checkout_price !== null) {
+          resolvedPrice = identity.checkout_price;
+        }
+
+        if (!resolvedPrice && config) {
+          resolvedPrice = config.basePrice;
+        }
+
+        if (identity) {
+          setStep2Data({
+            birth_date: identity.birth_date || '',
+            doc_type: (identity.document_type as any) || 'passport',
+            doc_number: identity.document_number || '',
+            address: identity.address || '',
+            city: identity.city || '',
+            state: identity.state || '',
+            zip_code: identity.zip_code || '',
+            country: identity.country || '',
+            nationality: identity.nationality || '',
+            civil_status: (identity.marital_status as any) || 'single',
+            notes: identity.notes || '',
+            doc_front: null,
+            doc_back: null,
+            selfie: null,
+          });
+        }
+
+        // Recuperar URLs dos documentos de student_documents
+        const { data: docs } = await supabase
+          .from('student_documents')
+          .select('type, file_url')
+          .eq('user_id', session.user.id)
+          .eq('source', 'migma')
+          .in('type', ['passport', 'passport_back', 'selfie_with_doc']);
+
+        if (docs && docs.length > 0) {
+          const updatedDocs = await Promise.all(docs.map(async (doc) => {
+            if (doc.file_url && doc.file_url.includes('/public/migma-student-documents/')) {
+              const path = doc.file_url.split('/public/migma-student-documents/')[1];
+              if (path) {
+                const { data } = await supabase.storage.from('migma-student-documents').createSignedUrl(path, 3600);
+                if (data?.signedUrl) {
+                  return { ...doc, file_url: data.signedUrl };
+                }
+              }
+            }
+            return doc;
+          }));
+
+          setRecoveredDocUrls({
+            docFront: updatedDocs.find(d => d.type === 'passport')?.file_url ?? null,
+            docBack: updatedDocs.find(d => d.type === 'passport_back')?.file_url ?? null,
+            selfie: updatedDocs.find(d => d.type === 'selfie_with_doc')?.file_url ?? null,
+          });
+        }
 
         setState(prev => ({
           ...prev,
@@ -525,6 +700,7 @@ const MigmaCheckout: React.FC = () => {
           step1Data: data,
         };
         localStorage.setItem(STRIPE_LS_KEY, JSON.stringify(stripeState));
+        await supabase.from('user_profiles').update({ payment_submitted_at: new Date().toISOString() }).eq('user_id', userId);
         setProcessMessage('Redirecionando para o Stripe...');
         setProgress(100);
         window.location.href = result.url;
@@ -632,6 +808,7 @@ const MigmaCheckout: React.FC = () => {
             step1Data: data,
             step2Data: null,
           }));
+          await supabase.from('user_profiles').update({ payment_submitted_at: new Date().toISOString() }).eq('user_id', userId);
           setProcessMessage('Redirecionando para a Parcelow...');
           setProgress(100);
           window.location.href = finalUrl;
@@ -694,6 +871,7 @@ const MigmaCheckout: React.FC = () => {
       processPayment();
 
       setProgress(75);
+      await supabase.from('user_profiles').update({ payment_submitted_at: new Date().toISOString() }).eq('user_id', userId);
       await new Promise(r => setTimeout(r, 200));
       setProgress(100);
       setStep1Data({ ...data, payment_method: payment.method });
@@ -756,6 +934,25 @@ const MigmaCheckout: React.FC = () => {
           documents: docsForApi,
           service_request_id: state.serviceRequestId || undefined
         });
+
+        // Persiste dados pessoais do Step 2 em user_identity
+        await supabase.from('user_identity').upsert({
+          user_id: effectiveUserId,
+          birth_date: data.birth_date || null,
+          document_type: data.doc_type || null,
+          document_number: data.doc_number || null,
+          address: data.address || null,
+          city: data.city || null,
+          state: data.state || null,
+          zip_code: data.zip_code || null,
+          country: data.country || null,
+          nationality: data.nationality || null,
+          marital_status: data.civil_status || null,
+          notes: data.notes || null,
+          checkout_service: service ?? 'transfer',
+          checkout_price: state.totalPrice,
+          updated_at: new Date().toISOString(),
+        }, { onConflict: 'user_id' });
 
         // identity_files é populado pelo backend (migma-payment-completed) após garantir FK de service_request
 
@@ -910,6 +1107,7 @@ const MigmaCheckout: React.FC = () => {
               docBack: step2Data?.doc_back ?? null,
               selfie: step2Data?.selfie ?? null,
             }}
+            documentUrls={recoveredDocUrls ?? undefined}
             personalInfo={{
               birthDate: step2Data?.birth_date ?? '',
               docType: step2Data?.doc_type ?? '',

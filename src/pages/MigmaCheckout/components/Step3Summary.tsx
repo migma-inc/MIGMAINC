@@ -14,6 +14,11 @@ interface Props {
     docBack: File | null;
     selfie: File | null;
   };
+  documentUrls?: {
+    docFront: string | null;
+    docBack: string | null;
+    selfie: string | null;
+  };
   personalInfo: {
     birthDate: string;
     docType: string;
@@ -47,10 +52,12 @@ const INFO_BOX_CLASS = "bg-white/5 border border-white/10 rounded-2xl p-6 space-
 interface DocPreviewProps {
   file: File | null;
   label: string;
+  fallbackUrl?: string | null;
 }
 
-const DocPreview: React.FC<DocPreviewProps> = ({ file, label }) => {
-  const url = useMemo(() => (file ? URL.createObjectURL(file) : null), [file]);
+const DocPreview: React.FC<DocPreviewProps> = ({ file, label, fallbackUrl }) => {
+  const objectUrl = useMemo(() => (file ? URL.createObjectURL(file) : null), [file]);
+  const url = objectUrl ?? fallbackUrl ?? null;
 
   return (
     <div className="flex flex-col gap-2">
@@ -75,7 +82,7 @@ const DocPreview: React.FC<DocPreviewProps> = ({ file, label }) => {
   );
 };
 
-export const Step3Summary: React.FC<Props> = ({ userData, documents, personalInfo, onFinish }) => {
+export const Step3Summary: React.FC<Props> = ({ userData, documents, documentUrls, personalInfo, onFinish }) => {
   const { t } = useTranslation();
 
   return (
@@ -188,9 +195,9 @@ export const Step3Summary: React.FC<Props> = ({ userData, documents, personalInf
           <h3 className="font-black uppercase tracking-widest text-xs">Documentos Enviados</h3>
         </div>
         <div className="grid grid-cols-3 gap-4">
-          <DocPreview file={documents.docFront} label="Frente" />
-          <DocPreview file={documents.docBack} label="Verso" />
-          <DocPreview file={documents.selfie} label="Selfie" />
+          <DocPreview file={documents.docFront} label="Frente" fallbackUrl={documentUrls?.docFront} />
+          <DocPreview file={documents.docBack} label="Verso" fallbackUrl={documentUrls?.docBack} />
+          <DocPreview file={documents.selfie} label="Selfie" fallbackUrl={documentUrls?.selfie} />
         </div>
       </div>
 

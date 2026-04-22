@@ -10,6 +10,7 @@ export type OnboardingStep =
   | 'placement_fee'
   | 'reinstatement_fee'
   | 'my_applications'
+  | 'acceptance_letter'
   | 'completed';
 
 export interface OnboardingState {

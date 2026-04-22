@@ -795,6 +795,20 @@ export interface CrmStudentDocument {
   file_url: string | null;
   original_filename: string | null;
   uploaded_at: string | null;
+  status: string | null;
+  rejection_reason: string | null;
+}
+
+export interface CrmGlobalDocumentRequest {
+  id: string;
+  profile_id: string;
+  document_type: string;
+  service_type: string | null;
+  status: string | null;
+  rejection_reason: string | null;
+  submitted_url: string | null;
+  requested_at: string | null;
+  submitted_at: string | null;
 }
 
 export interface CrmUserIdentity {
@@ -811,6 +825,37 @@ export interface CrmUserIdentity {
   nationality: string | null;
   marital_status: string | null;
   updated_at: string | null;
+}
+
+export interface CrmInstitutionApplication {
+  id: string;
+  profile_id: string;
+  institution_id: string;
+  scholarship_level_id: string | null;
+  status: string;
+  package_status: string | null;
+  acceptance_letter_url: string | null;
+  placement_fee_installments: number | null;
+  placement_fee_2nd_installment_paid_at: string | null;
+  created_at: string;
+  institutions: { name: string } | null;
+}
+
+export interface CrmRecurringCharge {
+  id: string;
+  profile_id: string;
+  application_id: string | null;
+  monthly_usd: number;
+  installments_total: number;
+  installments_paid: number;
+  status: 'active' | 'suspended' | 'cancelled' | 'exempted';
+  start_date: string | null;
+  next_billing_date: string | null;
+  end_date: string | null;
+  exempted_by_referral: boolean;
+  suspended_at: string | null;
+  suspended_reason: string | null;
+  created_at: string;
 }
 
 export interface CaseDetailPage {
@@ -833,8 +878,38 @@ export interface CaseDetailPage {
   surveyResponses: CrmSurveyResponse[];
   /** Documentos enviados durante o onboarding do estudante */
   studentDocuments: CrmStudentDocument[];
+  /** Documentos complementares enviados após a universidade */
+  globalDocumentRequests: CrmGlobalDocumentRequest[];
   /** Dados pessoais preenchidos no step de identidade */
   userIdentity: CrmUserIdentity | null;
+  /** Application V11 mais recente (bolsa universitária) */
+  institutionApplication: CrmInstitutionApplication | null;
+  /** Charge de billing recorrente ativo/suspenso, se existir */
+  recurringCharge: CrmRecurringCharge | null;
+  /** Handoffs de suporte (transferência para humano) */
+  supportHandoffs: CrmSupportHandoff[];
+  /** Histórico de chat de suporte */
+  supportChatMessages: CrmSupportChatMessage[];
+}
+
+export interface CrmSupportHandoff {
+  id: string;
+  profile_id: string;
+  triggered_by: 'ai_escalation' | 'student_request' | 'admin_manual';
+  reason: string | null;
+  last_ai_message: string | null;
+  assigned_to: string | null;
+  status: 'pending' | 'in_progress' | 'resolved';
+  resolved_at: string | null;
+  resolved_note: string | null;
+  created_at: string;
+}
+
+export interface CrmSupportChatMessage {
+  id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  created_at: string;
 }
 
 /**
@@ -916,7 +991,7 @@ export async function loadDetailPage(profileId: string): Promise<{
   const srId = primaryRequest?.id ?? null;
   const srIds = serviceRequests.map((sr) => sr.id);
 
-  const [historyResult, eventsResult, followupsResult, messagesResult, srDocumentsResult, identityResult, surveyResult, studentDocsResult, userIdentityResult] = await Promise.all([
+  const [historyResult, eventsResult, followupsResult, messagesResult, srDocumentsResult, identityResult, surveyResult, studentDocsResult, globalDocsResult, userIdentityResult, institutionAppResult, recurringChargeResult, supportHandoffsResult, supportChatResult] = await Promise.all([
     srId
       ? supabase
           .from('service_request_stage_history')
@@ -990,9 +1065,18 @@ export async function loadDetailPage(profileId: string): Promise<{
     profile.user_id
       ? supabase
           .from('student_documents')
-          .select('id, user_id, type, file_url, original_filename, uploaded_at')
+          .select('id, user_id, type, file_url, original_filename, uploaded_at, status, rejection_reason')
           .eq('user_id', profile.user_id)
           .order('uploaded_at', { ascending: false })
+      : Promise.resolve({ data: [], error: null }),
+
+    // Documentos complementares enviados após a universidade
+    profile.id
+      ? supabase
+          .from('global_document_requests')
+          .select('id, profile_id, document_type, service_type, status, rejection_reason, submitted_url, requested_at, submitted_at')
+          .eq('profile_id', profile.id)
+          .order('requested_at', { ascending: false })
       : Promise.resolve({ data: [], error: null }),
 
     // Dados pessoais do step de identidade
@@ -1003,6 +1087,41 @@ export async function loadDetailPage(profileId: string): Promise<{
           .eq('user_id', profile.user_id)
           .maybeSingle()
       : Promise.resolve({ data: null, error: null }),
+
+    // Application V11 mais recente
+    supabase
+      .from('institution_applications')
+      .select('id, profile_id, institution_id, scholarship_level_id, status, package_status, acceptance_letter_url, placement_fee_installments, placement_fee_2nd_installment_paid_at, created_at, institutions(name)')
+      .eq('profile_id', profileId)
+      .in('status', ['payment_confirmed', 'approved', 'pending_admin_approval'])
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+
+    // Charge de billing recorrente ativo/suspenso
+    supabase
+      .from('recurring_charges')
+      .select('id, profile_id, application_id, monthly_usd, installments_total, installments_paid, status, start_date, next_billing_date, end_date, exempted_by_referral, suspended_at, suspended_reason, created_at')
+      .eq('profile_id', profileId)
+      .in('status', ['active', 'suspended'])
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+
+    // Handoffs de suporte
+    supabase
+      .from('support_handoffs')
+      .select('id, profile_id, triggered_by, reason, last_ai_message, assigned_to, status, resolved_at, resolved_note, created_at')
+      .eq('profile_id', profileId)
+      .order('created_at', { ascending: false }),
+
+    // Histórico de chat de suporte
+    supabase
+      .from('support_chat_messages')
+      .select('id, role, content, created_at')
+      .eq('profile_id', profileId)
+      .order('created_at', { ascending: true })
+      .limit(300),
   ]);
 
   return {
@@ -1021,7 +1140,12 @@ export async function loadDetailPage(profileId: string): Promise<{
       identityFiles: (identityResult.data ?? []) as CrmIdentityFile[],
       surveyResponses: (surveyResult.data ?? []) as CrmSurveyResponse[],
       studentDocuments: (studentDocsResult.data ?? []) as CrmStudentDocument[],
+      globalDocumentRequests: (globalDocsResult.data ?? []) as CrmGlobalDocumentRequest[],
       userIdentity: (userIdentityResult.data ?? null) as CrmUserIdentity | null,
+      institutionApplication: (institutionAppResult.data ?? null) as CrmInstitutionApplication | null,
+      recurringCharge: (recurringChargeResult.data ?? null) as CrmRecurringCharge | null,
+      supportHandoffs: (supportHandoffsResult.data ?? []) as CrmSupportHandoff[],
+      supportChatMessages: (supportChatResult.data ?? []) as CrmSupportChatMessage[],
     },
     error: null,
   };

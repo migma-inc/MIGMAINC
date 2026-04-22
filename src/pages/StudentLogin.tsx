@@ -11,6 +11,8 @@ import { useStudentAuth } from '../contexts/StudentAuthContext';
 import { supabase } from '../lib/supabase';
 import { saveSellerRef } from '../lib/referral-tracking';
 
+const OTP_LENGTH = 8;
+
 const StudentLogin: React.FC = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -79,7 +81,7 @@ const StudentLogin: React.FC = () => {
 
   const handleVerifyCode = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!otp || otp.length < 6 || loading) return;
+    if (!otp || otp.length < OTP_LENGTH || loading) return;
 
     setLoading(true);
     setError(null);
@@ -249,7 +251,7 @@ const StudentLogin: React.FC = () => {
                     <ShieldCheck className="w-8 h-8 text-[#C9A84C]" />
                   </div>
                   <p className="text-gray-400 text-sm leading-relaxed">
-                    Enviamos um código de 6 dígitos para:<br/>
+                    Enviamos um código de 8 dígitos para:<br/>
                     <strong className="text-white">{email}</strong>
                   </p>
                 </div>
@@ -263,10 +265,10 @@ const StudentLogin: React.FC = () => {
                     type="text"
                     inputMode="numeric"
                     autoComplete="one-time-code"
-                    maxLength={6}
+                    maxLength={OTP_LENGTH}
                     value={otp}
                     onChange={e => setOtp(e.target.value.replace(/\D/g, ''))}
-                    placeholder="000000"
+                    placeholder="00000000"
                     className="w-full py-5 bg-black/40 border border-white/5 rounded-2xl text-white text-2xl font-black tracking-[0.6em] text-center placeholder:text-gray-800 outline-none focus:border-[#C9A84C]/50 focus:ring-4 focus:ring-[#C9A84C]/5 transition-all"
                   />
                 </div>
@@ -285,7 +287,7 @@ const StudentLogin: React.FC = () => {
                 <div className="space-y-4">
                   <button
                     type="submit"
-                    disabled={loading || otp.length < 6}
+                    disabled={loading || otp.length < OTP_LENGTH}
                     className="w-full relative group overflow-hidden disabled:opacity-50"
                   >
                     <div className="absolute inset-0 bg-[#C9A84C]" />
