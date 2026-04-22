@@ -29,7 +29,8 @@
       "Bash(python3:*)",
       "Bash(rtk ls:*)",
       "Bash(ls -lah /c/Users/victurib/Migma/migma-lp/supabase/migrations/*v11*)",
-      "Bash(ls -lah /c/Users/victurib/Migma/migma-lp/supabase/migrations/*institution*)"
+      "Bash(ls -lah /c/Users/victurib/Migma/migma-lp/supabase/migrations/*institution*)",
+      "Bash(xargs ls:*)"
     ]
   }
 }
