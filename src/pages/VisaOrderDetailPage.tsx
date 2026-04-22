@@ -200,7 +200,9 @@ export const VisaOrderDetailPage = () => {
             .from('terms_acceptance')
             .select('*')
             .eq('service_request_id', orderData.service_request_id)
-            .single();
+            .order('accepted_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
 
           if (!termsError && termsData) {
             setTermsAcceptance(termsData);
