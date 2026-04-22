@@ -675,8 +675,8 @@ export function VisaContractApprovalPage() {
                                                     const idFileList = order.service_request_id ? (idFiles[order.service_request_id] || []) : [];
                                                     const validIdFiles = idFileList.filter(isRenderableIdentityFile);
                                                     const invalidIdFiles = idFileList.filter(file => !isRenderableIdentityFile(file));
+                                                    // Fallback: usar contract_document_url e contract_selfie_url direto do order (MigmaCheckout)
                                                     const fallbackPhotos: Array<{ url: string; label: string }> = [];
-
                                                     if (validIdFiles.length === 0) {
                                                         if (order.contract_document_url) fallbackPhotos.push({ url: order.contract_document_url, label: 'Doc Front' });
                                                         if (order.contract_document_back_url) fallbackPhotos.push({ url: order.contract_document_back_url, label: 'Doc Back' });

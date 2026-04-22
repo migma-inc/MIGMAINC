@@ -17,11 +17,12 @@ Deno.serve(async (req: Request) => {
 
     console.log("[Auto-Confirm] Request received:", { userId, role });
 
-    // Verify that this is a seller registration
-    if (role !== "seller") {
+    // Verify that this is an allowed role
+    const allowedRoles = ["seller", "student"];
+    if (!allowedRoles.includes(role)) {
       console.error("[Auto-Confirm] Invalid role:", role);
       return new Response(
-        JSON.stringify({ error: "Auto-confirmation only for sellers" }),
+        JSON.stringify({ error: `Auto-confirmation only for: ${allowedRoles.join(", ")}` }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }

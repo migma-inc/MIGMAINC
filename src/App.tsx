@@ -1,5 +1,13 @@
 
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { lazy, Suspense } from 'react';
+
+// Student flow (lazy loaded)
+const StudentOnboarding = lazy(() => import('./pages/StudentOnboarding/StudentOnboarding'));
+const StudentLogin = lazy(() => import('./pages/StudentLogin'));
+const MigmaCheckout = lazy(() => import('./pages/MigmaCheckout'));
+const StudentRewards = lazy(() => import('./pages/StudentRewards'));
+const StudentSupport = lazy(() => import('./pages/StudentSupport'));
 import { Home } from './pages/Home';
 import { Services } from './pages/Services';
 import { About } from './pages/About';
@@ -26,8 +34,8 @@ import { ZellePaymentProcessing } from './pages/ZellePaymentProcessing';
 import { SplitPaymentRedirectSuccessStyle } from './pages/SplitPaymentRedirectSuccessStyle';
 import { VisaServiceTerms } from './pages/VisaServiceTerms';
 import { SellerLogin } from './pages/SellerLogin';
-import { ForgotPassword } from './pages/ForgotPassword';
-import { ResetPassword } from './pages/ResetPassword';
+import ForgotPassword from './pages/ForgotPassword';
+import ResetPassword from './pages/ResetPassword';
 import { SellerRegister } from './pages/SellerRegister';
 import { SellerDashboardLayout } from './pages/seller/SellerDashboardLayout';
 import { DashboardOverviewRouter } from './pages/seller/DashboardOverviewRouter';
@@ -41,6 +49,7 @@ import { SellerCommissions } from './pages/seller/SellerCommissions';
 import { SellerFunnel } from './pages/seller/SellerFunnel';
 import { SellerOrders } from './pages/seller/SellerOrders';
 import { SellerLinks } from './pages/seller/SellerLinks';
+import { SellerStudentLinks } from './pages/seller/SellerStudentLinks';
 import { SellerLeads } from './pages/seller/SellerLeads';
 import { SellerOrderDetail } from './pages/SellerOrderDetail';
 import { SellerZelleApprovalPage } from './pages/seller/SellerZelleApprovalPage';
@@ -77,6 +86,10 @@ import { EB2RecurringDetail } from './pages/admin/EB2RecurringDetail';
 import { AdminSyncSales } from './pages/admin/AdminSyncSales';
 import { CreateServiceLink } from './pages/admin/CreateServiceLink';
 import { AdminTracking } from './pages/admin/AdminTracking';
+import { AdminUsers } from './pages/admin/AdminUsers';
+import { AdminCrmCos } from './pages/admin/AdminCrmCos';
+import { AdminCrmTransfer } from './pages/admin/AdminCrmTransfer';
+import { AdminUserDetail } from './pages/admin/AdminUserDetail';
 import { EB3InstallmentCheckout } from './pages/EB3InstallmentCheckout';
 import { NotFound } from './pages/NotFound';
 
@@ -108,6 +121,7 @@ function App() {
 
         {/* Generic Password Recovery Routes */}
         <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/student/forgot-password" element={<ForgotPassword />} />
         <Route path="/reset-password" element={<ResetPassword />} />
 
         {/* Seller Routes */}
@@ -126,6 +140,7 @@ function App() {
           <Route path="funnel" element={<SellerFunnel />} />
           <Route path="orders" element={<SellerOrders />} />
           <Route path="links" element={<SellerLinks />} />
+          <Route path="student-links" element={<SellerStudentLinks />} />
           <Route path="leads" element={<SellerLeads />} />
           <Route path="zelle-approvals" element={<SellerZelleApprovalPage />} />
         </Route>
@@ -171,11 +186,36 @@ function App() {
           <Route path="profile" element={<AdminProfile />} />
           <Route path="send-existing-contracts" element={<SendExistingContracts />} />
           <Route path="links" element={<SellerLinks />} />
+          <Route path="student-links" element={<SellerStudentLinks />} />
           <Route path="create-service" element={<CreateServiceLink />} />
+          <Route path="users" element={<AdminUsers />} />
+          <Route path="users/:profileId" element={<AdminUserDetail />} />
+          <Route path="crm/cos" element={<AdminCrmCos />} />
+          <Route path="crm/transfer" element={<AdminCrmTransfer />} />
           <Route path="tracking" element={<AdminTracking />} />
           <Route path="coupons" element={<CouponManagement />} />
           <Route path="sync-sales" element={<AdminRoute><AdminSyncSales /></AdminRoute>} />
         </Route>
+
+        {/* ── Migma Checkout (URL determina serviço) ────────────── */}
+        <Route path="/student/checkout/:service" element={
+          <Suspense fallback={null}><MigmaCheckout /></Suspense>
+        } />
+
+
+        {/* ── Student Flow ─────────────────────────────────────── */}
+        <Route path="/student/login" element={
+          <Suspense fallback={null}><StudentLogin /></Suspense>
+        } />
+        <Route path="/student/onboarding" element={
+          <Suspense fallback={null}><StudentOnboarding /></Suspense>
+        } />
+        <Route path="/student/rewards" element={
+          <Suspense fallback={null}><StudentRewards /></Suspense>
+        } />
+        <Route path="/student/support" element={
+          <Suspense fallback={null}><StudentSupport /></Suspense>
+        } />
 
         {/* Catch-all 404 Route */}
         <Route path="*" element={<NotFound />} />

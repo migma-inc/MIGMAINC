@@ -93,6 +93,8 @@ export const ZelleApprovalPage = () => {
   const [products, setProducts] = useState<any[]>([]);
 
   const [unifiedApprovals, setUnifiedApprovals] = useState<any[]>([]);
+  const [migmaCheckoutZellePending, setMigmaCheckoutZellePending] = useState<any[]>([]);
+  const [processingMigmaCheckoutId, setProcessingMigmaCheckoutId] = useState<string | null>(null);
 
   useEffect(() => {
     loadOrders();
@@ -142,6 +144,16 @@ export const ZelleApprovalPage = () => {
 
       if (migmaError) console.error('Error loading Migma:', migmaError);
 
+      // 3b. Load MigmaCheckout Zelle pending early — needed to deduplicate migma_payments below
+      const { data: migmaZelleDataEarly } = await supabase
+        .from('migma_checkout_zelle_pending')
+        .select('migma_user_email')
+        .eq('status', 'pending_verification');
+
+      const migmaCheckoutEmails = new Set(
+        (migmaZelleDataEarly || []).map((p: any) => p.migma_user_email?.trim().toLowerCase()).filter(Boolean)
+      );
+
       // 4. Load Products for names
       const { data: productsData } = await supabase
         .from('visa_products')
@@ -154,21 +166,35 @@ export const ZelleApprovalPage = () => {
 
       if (migmaData && migmaData.length > 0) {
         const userIds = [...new Set(migmaData.map(p => p.user_id))];
+        
+        // Busca em 'clients' (tabela padrão do Visa)
         const { data: clientsData } = await supabase
           .from('clients')
           .select('id, full_name, email')
           .in('id', userIds);
 
+        // Busca em 'user_profiles' (tabela padrão do Migma/Matricula)
+        const { data: profilesData } = await supabase
+          .from('user_profiles')
+          .select('user_id, full_name, email')
+          .in('user_id', userIds);
+
         const clientsMap = new Map((clientsData || []).map(c => [c.id, c]));
+        const profilesMap = new Map((profilesData || []).map(p => [p.user_id, p]));
+
         enrichedMigma = migmaData.map(p => {
           const client = clientsMap.get(p.user_id);
-          const email = client?.email || '';
+          const profile = profilesMap.get(p.user_id);
+          
+          const fullName = client?.full_name || profile?.full_name || `User ${p.user_id.substring(0, 8)}`;
+          const email = client?.email || profile?.email || '';
+
           return {
             ...p,
-            client_name: client?.full_name || `User ${p.user_id.substring(0, 8)}`,
+            client_name: fullName,
             client_email: email,
             // Pre-calculate search key to be robust
-            unification_key: `${email.trim().toLowerCase()}_${p.fee_type_global.trim().toLowerCase().replace(/-/g, '_')}`
+            unification_key: `${email.trim().toLowerCase()}_${(p.fee_type_global || '').trim().toLowerCase().replace(/-/g, '_')}`
           };
         });
       }
@@ -362,6 +388,9 @@ export const ZelleApprovalPage = () => {
         // If it has migma status, check it
         if (item.type === 'migma' && (item.status === 'approved' || item.status === 'rejected')) return false;
 
+        // Deduplicate: skip migma_payments records whose email is already in migma_checkout_zelle_pending
+        if (item.type === 'migma' && item.client_email && migmaCheckoutEmails.has(item.client_email.trim().toLowerCase())) return false;
+
         // If it's an order or unified, check payment_status
         const status = item.original_order?.payment_status || item.status;
         return status === 'pending' || status === 'pending_verification';
@@ -378,18 +407,28 @@ export const ZelleApprovalPage = () => {
 
       if (histMigmaPayments.length > 0) {
         const histUserIds = [...new Set(histMigmaPayments.map((p: any) => p.user_id))];
+        
         const { data: histClientsData } = await supabase
           .from('clients')
           .select('id, full_name, email')
           .in('id', histUserIds);
+          
+        const { data: histProfilesData } = await supabase
+          .from('user_profiles')
+          .select('user_id, full_name, email')
+          .in('user_id', histUserIds);
 
         const histClientsMap = new Map((histClientsData || []).map((c: any) => [c.id, c]));
+        const histProfilesMap = new Map((histProfilesData || []).map((p: any) => [p.user_id, p]));
+
         const enrichedHistMigma = histMigmaPayments.map((p: any) => {
           const client = histClientsMap.get(p.user_id);
+          const profile = histProfilesMap.get(p.user_id);
+          
           return {
             ...p,
-            client_name: client?.full_name || `User ${p.user_id?.substring(0, 8)}`,
-            client_email: client?.email || 'N/A',
+            client_name: client?.full_name || profile?.full_name || `User ${p.user_id?.substring(0, 8)}`,
+            client_email: client?.email || profile?.email || 'N/A',
             processed_by_name: adminsMap.get(p.processed_by_user_id || '')
           };
         });
@@ -398,6 +437,36 @@ export const ZelleApprovalPage = () => {
         setHistoryMigma([]);
       }
       setHistoryOrders(enrichedHistOrders);
+
+      // Load MigmaCheckout Zelle pending (selection process fee awaiting admin approval)
+      const { data: migmaZelleData } = await supabase
+        .from('migma_checkout_zelle_pending')
+        .select('*')
+        .eq('status', 'pending_verification')
+        .order('created_at', { ascending: false });
+
+      if (migmaZelleData && migmaZelleData.length > 0) {
+        const userIds = [...new Set(migmaZelleData.map((p: any) => p.migma_user_id))];
+        const { data: profilesData } = await supabase
+          .from('user_profiles')
+          .select('user_id, full_name, email')
+          .in('user_id', userIds);
+
+        const profilesMap = new Map((profilesData || []).map((p: any) => [p.user_id, p]));
+        setMigmaCheckoutZellePending(
+          migmaZelleData.map((p: any) => {
+            const profile = profilesMap.get(p.migma_user_id);
+            return {
+              ...p,
+              // Prioriza dados diretos da tabela, fallback para perfil, fallback final para ID
+              client_name: p.migma_user_name || profile?.full_name || `User ${p.migma_user_id?.substring(0, 8)}`,
+              client_email: p.migma_user_email || profile?.email || 'N/A',
+            };
+          })
+        );
+      } else {
+        setMigmaCheckoutZellePending([]);
+      }
     } catch (err) {
       console.error('Error loadOrders:', err);
       setAlertData({ title: 'Error', message: 'Failed to load approvals', variant: 'error' });
@@ -739,23 +808,88 @@ export const ZelleApprovalPage = () => {
 
       if (pError || !payment) throw new Error('Payment not found');
 
-      // 2. Get client data
-      const { data: client, error: cError } = await supabase
+      // 2. Get client data (Hybrid Search: clients table or user_profiles)
+      let clientRecord: any = null;
+      
+      const { data: clientData } = await supabase
         .from('clients')
         .select('*')
         .eq('id', payment.user_id)
-        .single();
+        .maybeSingle();
 
-      if (cError || !client) throw new Error('Client data not found');
+      if (clientData) {
+        clientRecord = clientData;
+      } else {
+        // Search in user_profiles if not found in clients
+        const { data: profileData } = await supabase
+          .from('user_profiles')
+          .select('*')
+          .eq('user_id', payment.user_id)
+          .maybeSingle();
+        
+        if (profileData) {
+          // Map user_profile columns to the client structure expected by the rest of the flow
+          clientRecord = {
+            id: profileData.user_id,
+            full_name: profileData.full_name,
+            email: profileData.email,
+            phone: profileData.phone || '',
+            country: profileData.country || '',
+            nationality: profileData.nationality || '',
+            // Provide defaults for missing fields in user_profile
+            whatsapp: profileData.phone || '',
+          };
+        }
+      }
 
-      // 3. Get product data
-      const { data: product, error: prodError } = await supabase
+      if (!clientRecord) throw new Error('Client/User profile data not found');
+      const client = clientRecord;
+
+      // 3. Get product data (with slug normalization)
+      const rawSlug = payment.fee_type_global || payment.service_type || 'transfer';
+      const normalizedSlug = (s: string) => {
+        const map: Record<string, string> = {
+          'Change of Status': 'cos-selection-process',
+          'F-1 Transfer': 'transfer-selection-process',
+          'Initial Student Visa': 'initial-selection-process',
+          'Initial': 'initial-selection-process',
+          'COS': 'cos-selection-process',
+          'Transfer': 'transfer-selection-process',
+          'cos': 'cos-selection-process',
+          'transfer': 'transfer-selection-process',
+          'initial': 'initial-selection-process',
+          'migma_selection_process': 'cos-selection-process'
+        };
+        return map[s] || s;
+      };
+
+      const finalSlug = normalizedSlug(rawSlug);
+
+      const { data: product } = await supabase
         .from('visa_products')
         .select('*')
-        .eq('slug', payment.fee_type_global)
-        .single();
+        .eq('slug', finalSlug)
+        .maybeSingle();
 
-      if (prodError || !product) throw new Error('Product data not found');
+      let finalProduct: any = null;
+
+      if (!product) {
+        // Fallback DEFINITIVO: tenta o genérico do migma que SABEMOS que existe
+        const { data: fallbackProduct } = await supabase
+          .from('visa_products')
+          .select('*')
+          .eq('slug', 'cos-selection-process')
+          .maybeSingle();
+        
+        if (!fallbackProduct) {
+          throw new Error(`Product data not found in DB for slug: ${finalSlug}. Please ensure this product exists in visa_products table.`);
+        }
+        
+        console.warn(`[Migma Approval] ⚠️ Product '${finalSlug}' not found. Using fallback: cos-selection-process`);
+        finalProduct = fallbackProduct;
+      } else {
+        finalProduct = product;
+      }
 
       // 4. Try to find existing visa_order or create one
       let orderId = '';
@@ -763,14 +897,14 @@ export const ZelleApprovalPage = () => {
       const { upsellProductSlug, upsellPriceUsd } = getExplicitMigmaUpsell(payment);
       const { matchedServiceRequest, sourceOrder, resolution } = await resolveMigmaOrderLink(
         client.id,
-        product.slug,
+        finalProduct.slug,
         payment.metadata?.service_request_id || null,
       );
 
       if (resolution === 'ambiguous') {
         console.warn('[Migma Approval] Multiple service requests found. Creating isolated Zelle order without reusing an existing case.', {
           client_id: client.id,
-          product_slug: product.slug,
+          product_slug: finalProduct.slug,
           payment_id: id,
         });
       }
@@ -812,10 +946,10 @@ export const ZelleApprovalPage = () => {
             client_nationality: sourceOrder.client_nationality || client.nationality,
             client_observations: sourceOrder.client_observations || null,
             service_request_id: matchedServiceRequest?.id || sourceOrder.service_request_id || null,
-            base_price_usd: sourceOrder.base_price_usd ?? product.base_price_usd,
-            price_per_dependent_usd: sourceOrder.price_per_dependent_usd ?? product.price_per_dependent_usd ?? product.extra_unit_price ?? 0,
-            extra_unit_price_usd: sourceOrder.extra_unit_price_usd ?? product.price_per_dependent_usd ?? product.extra_unit_price ?? 0,
-            extra_unit_label: sourceOrder.extra_unit_label || product.extra_unit_label || 'Additional Dependent',
+            base_price_usd: sourceOrder.base_price_usd ?? finalProduct.base_price_usd,
+            price_per_dependent_usd: sourceOrder.price_per_dependent_usd ?? finalProduct.price_per_dependent_usd ?? finalProduct.extra_unit_price ?? 0,
+            extra_unit_price_usd: sourceOrder.extra_unit_price_usd ?? finalProduct.price_per_dependent_usd ?? finalProduct.extra_unit_price ?? 0,
+            extra_unit_label: sourceOrder.extra_unit_label || finalProduct.extra_unit_label || 'Additional Dependent',
             extra_units: sanitizedExtraUnits,
             dependent_names: preservedDependentNames,
             payment_method: 'zelle',
@@ -838,12 +972,12 @@ export const ZelleApprovalPage = () => {
           .from('visa_orders')
           .insert({
             order_number: orderNumber,
-            product_slug: product.slug,
+            product_slug: finalProduct.slug,
             seller_id: sourceOrder?.seller_id || null,
-            base_price_usd: sourceOrder?.base_price_usd ?? product.base_price_usd,
-            price_per_dependent_usd: sourceOrder?.price_per_dependent_usd ?? product.price_per_dependent_usd ?? product.extra_unit_price ?? 0,
-            extra_unit_price_usd: sourceOrder?.extra_unit_price_usd ?? product.price_per_dependent_usd ?? product.extra_unit_price ?? 0,
-            extra_unit_label: sourceOrder?.extra_unit_label || product.extra_unit_label || 'Additional Dependent',
+            base_price_usd: sourceOrder?.base_price_usd ?? finalProduct.base_price_usd,
+            price_per_dependent_usd: sourceOrder?.price_per_dependent_usd ?? finalProduct.price_per_dependent_usd ?? finalProduct.extra_unit_price ?? 0,
+            extra_unit_price_usd: sourceOrder?.extra_unit_price_usd ?? finalProduct.price_per_dependent_usd ?? finalProduct.extra_unit_price ?? 0,
+            extra_unit_label: sourceOrder?.extra_unit_label || finalProduct.extra_unit_label || 'Additional Dependent',
             extra_units: sanitizedExtraUnits,
             dependent_names: preservedDependentNames,
             total_price_usd: payment.amount,
@@ -898,6 +1032,40 @@ export const ZelleApprovalPage = () => {
         .single();
 
       console.log(`✅ [DEBUG] Migma payment verification - ID: ${id}, New Status: ${verifyData?.status}`);
+      
+      // 5.5 If it's a Migma-related service, notify the Matricula USA backend
+      try {
+        const migmaSlugs = [
+          'selection-process-fee', 
+          'application-fee', 
+          'placement-fee',
+          'cos-selection-process',
+          'transfer-selection-process',
+          'initial-selection-process',
+          'eb2-selection-process',
+          'eb3-selection-process'
+        ];
+        if (migmaSlugs.includes(finalProduct.slug) || (payment.fee_type_global && migmaSlugs.includes(payment.fee_type_global))) {
+          console.log('[Migma Approval] 🚀 Notifying Matricula USA backend...');
+          
+          await supabase.functions.invoke('migma-payment-completed', {
+            body: {
+              user_id: payment.user_id || client.id,
+              fee_type: finalProduct.slug.includes('selection') ? 'selection_process' : finalProduct.slug.replace(/-/g, '_'),
+              amount: payment.amount,
+              payment_method: 'zelle',
+              receipt_url: payment.image_url,
+              service_type: finalProduct.name || payment.fee_type_global,
+              service_request_id: payment.metadata?.service_request_id,
+            },
+          });
+          
+          console.log('[Migma Approval] ✅ Matricula USA notified successfully.');
+        }
+      } catch (notifyError) {
+        console.error('[Migma Approval] ⚠️ Failed to notify Matricula USA backend:', notifyError);
+        // Non-blocking error, we continue with PDF generation
+      }
 
       // 6. Trigger non-critical operations and PDF generation in BACKGROUND
       try {
@@ -943,6 +1111,138 @@ export const ZelleApprovalPage = () => {
       setShowAlert(true);
     } finally {
       setIsProcessing(false);
+    }
+  };
+
+  const approveMigmaCheckoutZelle = async (payment: any) => {
+    setProcessingMigmaCheckoutId(payment.id);
+    try {
+      // 1. Mark local checkout record as approved BEFORE calling processMigmaApproval.
+      // This prevents processMigmaApproval's internal loadOrders() from fetching stale data!
+      const { error: updateErr } = await supabase
+        .from('migma_checkout_zelle_pending')
+        .update({
+          status: 'approved',
+          approved_at: new Date().toISOString(),
+          approved_by: (await supabase.auth.getUser()).data.user?.id,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', payment.id);
+
+      if (updateErr) console.error('[MigmaCheckout Zelle] Failed to update status:', updateErr);
+
+      // 2. Locate the exact duplicate record in migma_payments
+      const { data: migmaPayment } = await supabase
+        .from('migma_payments')
+        .select('id')
+        .eq('user_id', payment.migma_user_id)
+        .in('status', ['pending', 'pending_verification'])
+        .maybeSingle();
+
+      if (migmaPayment) {
+        // Run the main robust approval (creates visa_orders, fires PDFs, etc)
+        // This will call loadOrders() at the end, updating the UI properly!
+        await processMigmaApproval(migmaPayment.id);
+      } else {
+        // Fallback just in case there's no migma_payments mapping
+        const { error: fnErr } = await supabase.functions.invoke('migma-payment-completed', {
+          body: {
+            user_id: payment.migma_user_id,
+            fee_type: 'selection_process',
+            amount: payment.amount,
+            payment_method: 'zelle',
+            receipt_url: payment.receipt_url,
+            service_type: payment.service_type || 'transfer',
+            service_request_id: payment.service_request_id || undefined,
+            zelle_payment_id: payment.n8n_payment_id || undefined,
+          },
+        });
+
+        if (fnErr) throw new Error(fnErr.message || 'Failed to call migma-payment-completed');
+
+        // Also ensure any hanging visa_orders in manual_pending for this user are marked as approved!
+        const { data: visaOrders } = await supabase
+          .from('visa_orders')
+          .select('id')
+          .eq('user_id', payment.migma_user_id)
+          .eq('payment_status', 'manual_pending')
+          .order('created_at', { ascending: false })
+          .limit(1);
+
+        if (visaOrders && visaOrders.length > 0) {
+          const orderId = visaOrders[0].id;
+          await supabase
+            .from('visa_orders')
+            .update({ 
+               payment_status: 'approved',
+               paid_at: new Date().toISOString()
+            })
+            .eq('id', orderId);
+
+          // Disparar funções de PDFs para a ordem aprovada via fallback
+          supabase.functions.invoke('generate-visa-contract-pdf', { body: { order_id: orderId } }).catch(e => console.error('Fallback PDF error:', e));
+          supabase.functions.invoke('generate-annex-pdf', { body: { order_id: orderId } }).catch(e => console.error('Fallback Annex error:', e));
+          supabase.functions.invoke('generate-invoice-pdf', { body: { order_id: orderId } }).catch(e => console.error('Fallback Invoice error:', e));
+        }
+
+        // Since processMigmaApproval wasn't called, we must manually alert and reload
+        setAlertData({ title: 'Success', message: `Zelle approved — ${payment.client_name} marked as paid!`, variant: 'success' });
+        setShowAlert(true);
+        await loadOrders();
+      }
+    } catch (err) {
+      console.error('[MigmaCheckout Zelle] Approval error:', err);
+      // Don't show generic error if processMigmaApproval already showed it
+      if (!(err instanceof Error) || err.message !== 'Failed to approve payment') {
+        setAlertData({ title: 'Error', message: err instanceof Error ? err.message : 'Failed to approve', variant: 'error' });
+        setShowAlert(true);
+      }
+    } finally {
+      setProcessingMigmaCheckoutId(null);
+    }
+  };
+
+  const rejectMigmaCheckoutZelle = async (payment: any) => {
+    setProcessingMigmaCheckoutId(payment.id);
+    try {
+      // 1. Mark local checkout record as rejected
+      await supabase
+        .from('migma_checkout_zelle_pending')
+        .update({
+          status: 'rejected',
+          admin_notes: 'Rejected by admin',
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', payment.id);
+
+      // 2. Reject corresponding migma_payments as well so it doesn't stay stuck
+      const { data: migmaPayment } = await supabase
+        .from('migma_payments')
+        .select('id')
+        .eq('user_id', payment.migma_user_id)
+        .in('status', ['pending', 'pending_verification'])
+        .maybeSingle();
+
+      if (migmaPayment) {
+        // Run edge function process-zelle-rejection for the migma payment duplicate
+        await supabase.functions.invoke('process-zelle-rejection', {
+          body: {
+            id: migmaPayment.id,
+            type: 'migma_payment',
+            rejection_reason: 'Rejeitado via lista secundária (Migma Checkout)',
+            processed_by_user_id: (await supabase.auth.getUser()).data.user?.id
+          }
+        });
+      }
+
+      setAlertData({ title: 'Rejected', message: `Payment from ${payment.client_name} rejected.`, variant: 'success' });
+      setShowAlert(true);
+      await loadOrders();
+    } catch (err) {
+      setAlertData({ title: 'Error', message: err instanceof Error ? err.message : 'Failed to reject', variant: 'error' });
+      setShowAlert(true);
+    } finally {
+      setProcessingMigmaCheckoutId(null);
     }
   };
 
@@ -1290,6 +1590,108 @@ export const ZelleApprovalPage = () => {
             </div>
           )}
         </section>
+
+        {/* SECTION: MIGMA CHECKOUT — SELECTION PROCESS FEE (ZELLE PENDING) */}
+        {migmaCheckoutZellePending.length > 0 && (
+          <section className="pt-8 border-t border-amber-500/20">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="bg-amber-500/10 p-2 rounded-lg border border-amber-500/20">
+                <Clock className="w-5 h-5 text-amber-400 animate-pulse" />
+              </div>
+              <div>
+                <h2 className="text-xl font-bold text-white">Migma Checkout — Selection Fee (Zelle)</h2>
+                <p className="text-xs text-gray-500 mt-0.5">Comprovantes Zelle da taxa de processo seletivo aguardando aprovação</p>
+              </div>
+              <Badge className="bg-amber-500/20 text-amber-300 border-amber-500/40 ml-auto">
+                {migmaCheckoutZellePending.length} pendente{migmaCheckoutZellePending.length !== 1 ? 's' : ''}
+              </Badge>
+            </div>
+
+            <div className="space-y-4">
+              {migmaCheckoutZellePending.map((payment: any) => (
+                <Card
+                  key={payment.id}
+                  className="bg-gradient-to-br from-amber-500/5 via-black to-black border border-amber-500/30 overflow-hidden"
+                >
+                  <CardHeader className="pb-3 border-b border-white/5">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                      <div className="flex-1 min-w-0">
+                        <span className="text-[10px] text-gray-500 uppercase tracking-widest block mb-1">
+                          {new Date(payment.created_at).toLocaleDateString('pt-BR')} · Selection Process Fee
+                        </span>
+                        <CardTitle className="text-base sm:text-lg text-white">
+                          {payment.client_name}
+                        </CardTitle>
+                        <p className="text-xs text-gray-400 mt-0.5">{payment.client_email}</p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {payment.n8n_confidence != null && (
+                          <Badge className={`${payment.n8n_confidence >= 0.7 ? 'bg-green-500/20 text-green-300 border-green-500/50' : 'bg-yellow-500/20 text-yellow-300 border-yellow-500/50'} flex items-center gap-1`}>
+                            <Brain className="w-3 h-3" />
+                            {Math.round(payment.n8n_confidence * 100)}%
+                          </Badge>
+                        )}
+                        <Badge className="bg-amber-500/20 text-amber-300 border-amber-500/40">
+                          Pending Review
+                        </Badge>
+                      </div>
+                    </div>
+                  </CardHeader>
+
+                  <CardContent className="space-y-4 pt-4">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs bg-black/20 p-4 rounded-xl border border-white/5">
+                      <div>
+                        <span className="text-gray-500 block uppercase font-bold tracking-wider mb-1">Amount</span>
+                        <span className="text-amber-300 font-bold text-lg">US$ {Number(payment.amount).toFixed(2)}</span>
+                      </div>
+                      <div>
+                        <span className="text-gray-500 block uppercase font-bold tracking-wider mb-1">Service</span>
+                        <span className="text-white font-medium">{payment.service_type || 'transfer'}</span>
+                      </div>
+                      <div>
+                        <span className="text-gray-500 block uppercase font-bold tracking-wider mb-1">Submitted</span>
+                        <span className="text-white">{new Date(payment.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-wrap gap-2">
+                      {payment.receipt_url && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="text-xs border-gold-medium/40 bg-gold-medium/10 text-gold-light hover:bg-gold-medium/20 hover:border-gold-medium/60"
+                          onClick={() => { setSelectedZelleUrl(payment.receipt_url); setSelectedZelleTitle(`Zelle Receipt — ${payment.client_name}`); }}
+                        >
+                          <Eye className="w-3.5 h-3.5 mr-1.5" /> View Receipt
+                        </Button>
+                      )}
+                      <Button
+                        size="sm"
+                        className="text-xs bg-green-600 hover:bg-green-700 text-white ml-auto"
+                        disabled={processingMigmaCheckoutId === payment.id}
+                        onClick={() => approveMigmaCheckoutZelle(payment)}
+                      >
+                        {processingMigmaCheckoutId === payment.id
+                          ? <><Clock className="w-3.5 h-3.5 mr-1.5 animate-spin" /> Processing...</>
+                          : <><CheckCircle className="w-3.5 h-3.5 mr-1.5" /> Approve Payment</>
+                        }
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="text-xs border-red-500/30 text-red-400 hover:bg-red-500/10"
+                        disabled={processingMigmaCheckoutId === payment.id}
+                        onClick={() => rejectMigmaCheckoutZelle(payment)}
+                      >
+                        <XCircle className="w-3.5 h-3.5 mr-1.5" /> Reject
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </section>
+        )}
 
         {/* SECTION: HISTORY */}
         <section className="pt-8 border-t border-white/5">

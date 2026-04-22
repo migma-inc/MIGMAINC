@@ -4,7 +4,7 @@
 
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
-import { appendServiceRequestEvent } from "../shared/service-request-operational.ts";
+import { appendServiceRequestEvent, transitionServiceRequestStage } from "../shared/service-request-operational.ts";
 
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
 const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -265,7 +265,8 @@ async function sendClientWebhook(order: any, supabase: any, isUpsell: boolean = 
     (order.client_email && (
       order.client_email.includes("@uorak") ||
       order.client_email.toLowerCase() === "victtinho.ribeiro@gmail.com" ||
-      order.client_email.toLowerCase() === "victuribdev@gmail.com"
+      order.client_email.toLowerCase() === "victuribdev@gmail.com" ||
+      order.client_email.toLowerCase() === "nemerfrancisco@gmail.com"
     ));
 
   const webhookUrls = isTestUser
@@ -314,7 +315,7 @@ async function sendClientWebhook(order: any, supabase: any, isUpsell: boolean = 
     // Fetch product pricing details
     const { data: product } = await supabase
       .from('visa_products')
-      .select('name, base_price_usd, price_per_dependent_usd')
+      .select('id, name, base_price_usd, price_per_dependent_usd')
       .eq('slug', productSlug)
       .single();
 
@@ -354,6 +355,7 @@ async function sendClientWebhook(order: any, supabase: any, isUpsell: boolean = 
     const mainPayload: ClientWebhookPayload = {
       order_id: order.id,
       service_request_id: order.service_request_id || '',
+      visa_produt_id: product?.id || '',
       servico: serviceName,
       plano_servico: productSlug,
       nome_completo_cliente_principal: order.client_name,
@@ -380,6 +382,7 @@ async function sendClientWebhook(order: any, supabase: any, isUpsell: boolean = 
         const depPayload: ClientWebhookPayload = {
           order_id: order.id,
           service_request_id: order.service_request_id || '',
+          visa_produt_id: product?.id || '',
           tipo: "dependente",
           nome_completo_cliente_principal: order.client_name,
           nome_completo_dependente: depName,
@@ -544,6 +547,62 @@ Deno.serve(async (req) => {
     }
 
     console.log(`[EDGE FUNCTION] ${approvalType} approved successfully in DB`);
+
+    // --- Operational stage: persist contract_approved event + transition stage ---
+    if (order.service_request_id) {
+      try {
+        const { data: sr, error: srFetchError } = await supabase
+          .from('service_requests')
+          .select('id, service_id, service_type, workflow_stage, stage_entered_at, case_status, status_i20, status_sevis, transfer_form_status, updated_at, created_at')
+          .eq('id', order.service_request_id)
+          .single();
+
+        if (!srFetchError && sr) {
+          await appendServiceRequestEvent(
+            supabase,
+            sr.id,
+            'contract_approved',
+            'user',
+            {
+              approval_type: approvalType,
+              order_id: order.id,
+              order_number: order.order_number,
+              reviewed_by,
+            },
+          );
+
+          // Transition to document_review for main contract approvals when
+          // the case is still in its initial stage. Annex-only products
+          // (scholarship / i20-control) also count as a main approval gate.
+          const isAnnexOnly = order.product_slug?.endsWith('-scholarship') || order.product_slug?.endsWith('-i20-control');
+          const isMainApproval = approvalType === 'contract' || (approvalType === 'annex' && isAnnexOnly);
+          const currentStage = sr.workflow_stage;
+          const eligibleForTransition = !currentStage || currentStage === 'case_created' || currentStage === 'awaiting_client_data';
+
+          if (isMainApproval && eligibleForTransition) {
+            await transitionServiceRequestStage(
+              supabase,
+              sr,
+              'document_review',
+              'user',
+              'contract_approved',
+              { approval_type: approvalType, order_id: order.id },
+            );
+          } else {
+            // For non-transitioning approvals, still bump updated_at so the
+            // CRM hub reflects the latest activity.
+            await supabase
+              .from('service_requests')
+              .update({ updated_at: new Date().toISOString() })
+              .eq('id', sr.id);
+          }
+        }
+      } catch (opErr) {
+        // Non-critical: operational audit must not block the contract approval flow.
+        console.error('[EDGE FUNCTION] Non-critical: operational stage update failed after contract approval', opErr);
+      }
+    }
+    // --- End operational stage block ---
 
     scheduleBackgroundTask((async () => {
       let freshOrder: any = null;

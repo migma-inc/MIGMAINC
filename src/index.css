@@ -25,6 +25,31 @@
   background: rgba(206, 159, 72, 0.5);
 }
 
+/* Kanban board — scrollbar horizontal visível no desktop */
+.kanban-scroll::-webkit-scrollbar {
+  height: 4px;
+}
+
+.kanban-scroll::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 10px;
+}
+
+.kanban-scroll::-webkit-scrollbar-thumb {
+  background: rgba(206, 159, 72, 0.4);
+  border-radius: 10px;
+}
+
+.kanban-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(206, 159, 72, 0.65);
+}
+
+/* Firefox */
+.kanban-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(206, 159, 72, 0.4) transparent;
+}
+
 @layer base {
 
   :root {
@@ -334,23 +359,44 @@
     }
   }
 
-  /* Custom overrides for react-international-phone to match Migma UI */
+  /* Custom overrides for react-international-phone to match Migma Dark UI */
   .react-international-phone-container {
-    --react-international-phone-border-color: #e2e8f0;
-    --react-international-phone-dropdown-item-background-color: #ffffff;
-    --react-international-phone-dropdown-item-text-color: #000000;
-    --react-international-phone-background-color: #ffffff;
-    --react-international-phone-text-color: #000000;
+    --react-international-phone-height: 46px;
+    --react-international-phone-background-color: #1a1a1a;
+    --react-international-phone-text-color: #ffffff;
+    --react-international-phone-border-color: rgba(255, 255, 255, 0.1);
+    --react-international-phone-dropdown-item-background-color: #1a1a1a;
+    --react-international-phone-dropdown-item-text-color: #ffffff;
+    --react-international-phone-dropdown-item-background-color--active: #2a2a2a;
+    --react-international-phone-dropdown-item-background-color--hover: #2a2a2a;
+    --react-international-phone-dropdown-z-index: 9999;
   }
 
   .react-international-phone-input {
     width: 100% !important;
-    border: 1px solid #e2e8f0 !important;
+    border: none !important;
+    background-color: transparent !important;
+    color: #ffffff !important;
     font-family: inherit !important;
   }
 
   .react-international-phone-country-selector-button {
-    border: 1px solid #e2e8f0 !important;
-    border-right: none !important;
+    background-color: transparent !important;
+    border: none !important;
+    padding-left: 12px !important;
+    padding-right: 8px !important;
+  }
+
+  /* Force hover state on list items */
+  .react-international-phone-country-selector-dropdown__list-item:hover,
+  .react-international-phone-country-selector-dropdown__list-item--active,
+  .react-international-phone-country-selector-dropdown__list-item--selected {
+    background-color: #2a2a2a !important;
+    color: #ffffff !important;
+  }
+
+  .react-international-phone-country-selector-dropdown__list-item {
+     background-color: #1a1a1a !important;
+     color: #ffffff !important;
   }
 }

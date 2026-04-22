@@ -5,7 +5,31 @@
       "mcp__supabase__execute_sql",
       "Bash(xargs grep:*)",
       "Bash(grep -E \"\\\\.\\(ts|tsx|css|scss|json\\)$\")",
-      "mcp__supabase__list_tables"
+      "mcp__supabase__list_tables",
+      "Bash(rtk gain:*)",
+      "Bash(C:/Users/victurib/.local/bin/rtk.exe gain:*)",
+      "Bash(C:/Users/victurib/.local/bin/rtk.exe git:*)",
+      "Bash(find:*)",
+      "Bash(git checkout:*)",
+      "Bash(git add:*)",
+      "Bash(git rm:*)",
+      "Bash(rtk git:*)",
+      "Bash(rtk tsc:*)",
+      "Bash(rtk next:*)",
+      "Bash(npm run:*)",
+      "Bash(node:*)",
+      "Bash(grep:*)",
+      "Bash(supabase:*)",
+      "Bash(psql:*)",
+      "Bash(cmdkey /list)",
+      "Bash(powershell -Command ':*)",
+      "Bash(powershell:*)",
+      "Bash(rtk grep:*)",
+      "Bash(python3 -c \" import sys, json for line in sys.stdin: try: obj = json.loads\\(line\\) role = obj.get\\('role',''\\) if role == 'user': content = obj.get\\('content',''\\) if isinstance\\(content, list\\): for c in content: if isinstance\\(c, dict\\) and c.get\\('type'\\) == 'text': txt = c.get\\('text',''\\).strip\\(\\) if txt and not txt.startswith\\('<'\\): print\\(f'USER: {txt[:300]}'\\) print\\('---'\\) elif isinstance\\(content, str\\) and content.strip\\(\\) and not content.strip\\(\\).startswith\\('<'\\): print\\(f'USER: {content.strip\\(\\)[:300]}'\\) print\\('---'\\) except: pass \")",
+      "Bash(python3:*)",
+      "Bash(rtk ls:*)",
+      "Bash(ls -lah /c/Users/victurib/Migma/migma-lp/supabase/migrations/*v11*)",
+      "Bash(ls -lah /c/Users/victurib/Migma/migma-lp/supabase/migrations/*institution*)"
     ]
   }
 }

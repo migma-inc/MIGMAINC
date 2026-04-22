@@ -1,11 +1,35 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
+import {
+  appendServiceRequestEvent,
+  ensureOperationalCaseInitialized,
+  syncMigmaUserProfile,
+} from "../shared/service-request-operational.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS, GET",
 };
+
+function getSupabaseConfig() {
+  const supabaseUrl =
+    Deno.env.get("MIGMA_REMOTE_URL") ||
+    Deno.env.get("REMOTE_SUPABASE_URL") ||
+    Deno.env.get("SUPABASE_URL") ||
+    "";
+  const supabaseServiceKey =
+    Deno.env.get("MIGMA_REMOTE_SERVICE_ROLE_KEY") ||
+    Deno.env.get("REMOTE_SUPABASE_SERVICE_ROLE_KEY") ||
+    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ||
+    "";
+
+  if (!supabaseUrl || !supabaseServiceKey) {
+    throw new Error("Missing Supabase runtime configuration");
+  }
+
+  return { supabaseUrl, supabaseServiceKey };
+}
 
 interface ParcelowWebhookEvent {
   event: string;
@@ -78,6 +102,25 @@ async function processSplitPaymentWebhook(
   if (bothPartsPaid) {
     console.log("[Split Webhook] 🎉 AMBAS AS PARTES PAGAS! Finalizando pedido...");
     updateData.overall_status = 'fully_completed';
+
+    // Migma split: finalizar imediatamente antes do UPDATE para evitar race conditions
+    if (splitPayment.source === 'migma') {
+      console.log("[Split Webhook] 🎓 Migma split detectado — chamando migma-payment-completed...");
+      const { error: migmaPayErr } = await supabase.functions.invoke("migma-payment-completed", {
+        body: {
+          user_id: splitPayment.migma_user_id,
+          fee_type: "selection_process",
+          amount: parseFloat(splitPayment.total_amount_usd),
+          payment_method: "parcelow",
+          service_type: splitPayment.migma_service_type || "transfer",
+        },
+      });
+      if (migmaPayErr) {
+        console.error("[Split Webhook] ❌ migma-payment-completed falhou:", migmaPayErr);
+      } else {
+        console.log("[Split Webhook] ✅ Migma selection_process fee processado!");
+      }
+    }
   } else {
     console.log(`[Split Webhook] ⏳ Apenas Part ${partNumber} paga. Aguardando Part ${isPart1 ? 2 : 1}...`);
     updateData.overall_status = 'part1_completed';
@@ -97,8 +140,8 @@ async function processSplitPaymentWebhook(
   console.log("[Split Webhook] ✅ Split payment atualizado com sucesso");
 
   // Se ambas as partes foram pagas, processar como pedido completo
-  if (bothPartsPaid) {
-    console.log("[Split Webhook] 📄 Gerando contratos e documentos...");
+  if (bothPartsPaid && splitPayment.source !== 'migma') {
+    console.log("[Split Webhook] 📄 Gerando contratos e documentos (visa)...");
 
     // Buscar o registro atualizado do split para calcular os totais consolidados
     const { data: latestSplit, error: fetchSplitError } = await supabase
@@ -148,9 +191,59 @@ async function processSplitPaymentWebhook(
       })
       .eq("id", mainOrder.id);
 
+    if (mainOrder.service_request_id) {
+      await supabase
+        .from("payments")
+        .update({ status: "paid", updated_at: new Date().toISOString() })
+        .eq("service_request_id", mainOrder.service_request_id)
+        .eq("external_payment_id", mainOrder.id);
+
+      await supabase
+        .from("service_requests")
+        .update({ status: "paid", updated_at: new Date().toISOString() })
+        .eq("id", mainOrder.service_request_id);
+
+      await ensureOperationalCaseInitialized(
+        supabase,
+        mainOrder.service_request_id,
+        "gateway",
+        {
+          provider: "parcelow",
+          parcelow_order_id: parcelowOrder.id,
+          order_id: mainOrder.id,
+          split_payment_id: splitPayment.id,
+        },
+      );
+
+      await appendServiceRequestEvent(
+        supabase,
+        mainOrder.service_request_id,
+        "payment_confirmed",
+        "gateway",
+        {
+          provider: "parcelow",
+          order_id: mainOrder.id,
+          order_number: mainOrder.order_number,
+          parcelow_order_id: parcelowOrder.id,
+          split_payment_id: splitPayment.id,
+        },
+      );
+
+      await syncMigmaUserProfile(supabase, {
+        email: mainOrder.client_email,
+        fullName: mainOrder.client_name || null,
+        phone: mainOrder.client_whatsapp || null,
+        productSlug: mainOrder.product_slug || null,
+        paymentMethod: mainOrder.payment_method || null,
+        totalPriceUsd: mainOrder.total_price_usd ?? null,
+      });
+
+    }
+
     // 🔍 Test User Detection
     const isTestUser = mainOrder.client_email?.toLowerCase() === 'victuribdev@gmail.com' ||
       mainOrder.client_email?.toLowerCase() === 'victtinho.ribeiro@gmail.com' ||
+      mainOrder.client_email?.toLowerCase() === 'nemerfrancisco@gmail.com' ||
       mainOrder.client_name?.toLowerCase().includes('paulo victor') ||
       mainOrder.client_name?.toLowerCase().includes('paulo víctor');
 
@@ -429,9 +522,10 @@ async function processSplitPaymentWebhook(
 
     console.log("[Split Webhook] ✅ Fluxo de split payment totalmente concluído!");
   } else {
-    if (isPart1) {
+    if (isPart1 && splitPayment.source !== 'migma') {
+      // Email de P2 é específico do fluxo visa — migma trata por outro canal
       try {
-        console.log("[Split Webhook] Sending part 2 checkout email after part 1 confirmation...");
+        console.log("[Split Webhook] Sending part 2 checkout email after part 1 confirmation (visa)...");
         const { data: emailResult, error: emailError } = await supabase.functions.invoke(
           "send-split-part2-payment-email",
           {
@@ -473,9 +567,15 @@ async function processParcelowWebhookEvent(event: ParcelowWebhookEvent, supabase
     .maybeSingle();
 
   if (splitPayment) {
-    console.log("[Parcelow Webhook] 🎯 Split payment detectado! ID:", splitPayment.id);
+    console.log("[Parcelow Webhook] 🎯 Split payment detectado! ID:", splitPayment.id, "Source:", splitPayment.source);
 
-    // Buscar a order principal ligada ao split
+    // Migma splits não têm visa_orders — processar diretamente sem mainOrder
+    if (splitPayment.source === 'migma') {
+      await processSplitPaymentWebhook(eventType, parcelowOrder, splitPayment, null, supabase);
+      return;
+    }
+
+    // Buscar a order principal ligada ao split (somente para visa)
     const { data: mainOrder } = await supabase
       .from("visa_orders")
       .select("*")
@@ -500,6 +600,94 @@ async function processParcelowWebhookEvent(event: ParcelowWebhookEvent, supabase
     .eq("parcelow_order_id", parcelowOrder.id.toString());
 
   if (orderError || !orders || orders.length === 0) {
+    // ── V11 PLACEMENT FEE: verificar via referência ──
+    const ref = parcelowOrder.reference || "";
+    if (ref.includes("-APP-")) {
+      const appIdShort = ref.split("-APP-")[1]?.slice(0, 8);
+      console.log(`[Parcelow Webhook] 🎓 V11 App Referência detectada: ${appIdShort}`);
+      
+      if (appIdShort && (eventType === "event_order_paid" || eventType === "event_order_confirmed")) {
+        const { data: appV11 } = await supabase
+          .from("institution_applications")
+          .select("id, profile_id, status, institution_scholarships(placement_fee_usd)")
+          .filter("id", "ilike", `${appIdShort}%`)
+          .maybeSingle();
+
+        if (appV11) {
+          console.log(`[Parcelow Webhook] ✅ Aplicação V11 encontrada: ${appV11.id}`);
+          const { error: payErr } = await supabase.functions.invoke("migma-payment-completed", {
+            body: {
+              user_id: appV11.profile_id,
+              fee_type: "placement_fee",
+              amount: appV11.institution_scholarships?.placement_fee_usd || 0,
+              payment_method: "parcelow",
+              service_type: "v11-onboarding",
+              application_id: appV11.id,
+              parcelow_order_id: parcelowOrder.id.toString(),
+            },
+          });
+          if (!payErr) return; // Sucesso, para aqui
+        }
+      }
+    }
+
+    // ── MIGMA CHECKOUT: verificar migma_parcelow_pending ──────────────────────
+    console.log(`[Parcelow Webhook] 🔍 Buscando na migma_parcelow_pending por ID: ${parcelowOrder.id}`);
+    const { data: migmaPending, error: migmaErr } = await supabase
+      .from("migma_parcelow_pending")
+      .select("*")
+      .eq("parcelow_order_id", parcelowOrder.id.toString())
+      .maybeSingle();
+
+    if (migmaErr) {
+      console.error("[Parcelow Webhook] ❌ Erro ao buscar na migma_parcelow_pending:", migmaErr);
+    }
+
+    if (migmaPending) {
+      console.log(`[Parcelow Webhook] ✅ Registro Migma encontrado! ID=${migmaPending.id} Usuário=${migmaPending.migma_user_id}`);
+
+      if ((eventType === "event_order_paid" || eventType === "event_order_confirmed") && !migmaPending.migma_payment_completed) {
+        // 1. Chama migma-payment-completed primeiro para registrar no Matricula USA
+        console.log(`[Parcelow Webhook] 🚀 Invocando migma-payment-completed para usuário ${migmaPending.migma_user_id} (Evento: ${eventType})`);
+        const { error: payErr } = await supabase.functions.invoke("migma-payment-completed", {
+          body: {
+            user_id: migmaPending.migma_user_id,
+            fee_type: "selection_process",
+            amount: migmaPending.amount,
+            payment_method: "parcelow",
+            service_type: migmaPending.service_type,
+            service_request_id: migmaPending.service_request_id || undefined,
+            parcelow_order_id: parcelowOrder.id.toString(),
+          },
+        });
+
+        if (payErr) {
+          console.error("[Parcelow Webhook] ❌ migma-payment-completed falhou:", payErr);
+        } else {
+          console.log("[Parcelow Webhook] ✅ Migma selection_process fee processado com sucesso!");
+          
+          // 2. SÓ AGORA marca o pagamento como concluído na tabela de controle
+          await supabase
+            .from("migma_parcelow_pending")
+            .update({ 
+              status: "paid", 
+              migma_payment_completed: true, 
+              updated_at: new Date().toISOString() 
+            })
+            .eq("id", migmaPending.id);
+        }
+      }
+ else if (eventType === "event_order_declined" || eventType === "event_order_canceled" || eventType === "event_order_expired") {
+        await supabase
+          .from("migma_parcelow_pending")
+          .update({ status: "failed", updated_at: new Date().toISOString() })
+          .eq("id", migmaPending.id);
+        console.log(`[Parcelow Webhook] Migma pending marcado como failed (${eventType})`);
+      }
+      return;
+    }
+    // ─────────────────────────────────────────────────────────────────────────
+
     console.warn("[Parcelow Webhook] Order não encontrada em nenhuma das tabelas");
     return;
   }
@@ -576,6 +764,76 @@ async function processParcelowWebhookEvent(event: ParcelowWebhookEvent, supabase
 
       await supabase.from("service_requests").update({ status: "paid", updated_at: new Date().toISOString() })
         .eq("id", mainOrder.service_request_id);
+
+      await ensureOperationalCaseInitialized(
+        supabase,
+        mainOrder.service_request_id,
+        "gateway",
+        {
+          provider: "parcelow",
+          parcelow_order_id: parcelowOrder.id,
+          order_id: mainOrder.id,
+        },
+      );
+
+      await appendServiceRequestEvent(
+        supabase,
+        mainOrder.service_request_id,
+        "payment_confirmed",
+        "gateway",
+        {
+          provider: "parcelow",
+          order_id: mainOrder.id,
+          order_number: mainOrder.order_number,
+          parcelow_order_id: parcelowOrder.id,
+        },
+      );
+
+      // Sync MIGMA CRM profile
+      await syncMigmaUserProfile(supabase, {
+        email: mainOrder.client_email,
+        fullName: mainOrder.client_name || null,
+        phone: mainOrder.client_whatsapp || null,
+        productSlug: mainOrder.product_slug || null,
+        paymentMethod: mainOrder.payment_method || null,
+        totalPriceUsd: mainOrder.total_price_usd ?? null,
+      });
+
+    }
+
+    // 🎯 Migma: mark selection process fee as paid in user_profiles
+    // (only for orders not found in migma_parcelow_pending — those go through migma-payment-completed)
+    if (mainOrder.product_slug?.includes("selection-process") && mainOrder.client_email) {
+      try {
+        const { data: migmaProfile } = await supabase
+          .from("user_profiles")
+          .select("user_id, has_paid_selection_process_fee")
+          .eq("email", mainOrder.client_email)
+          .maybeSingle();
+
+        if (migmaProfile?.user_id && !migmaProfile.has_paid_selection_process_fee) {
+          const { error: paidErr } = await supabase
+            .from("user_profiles")
+            .update({
+              has_paid_selection_process_fee: true,
+              onboarding_current_step: "selection_survey",
+              selection_process_fee_payment_method: "parcelow",
+            })
+            .eq("user_id", migmaProfile.user_id);
+
+          if (paidErr) {
+            console.error(`[parcelow-webhook] ❌ has_paid_selection_process_fee update falhou: ${paidErr.message}`);
+          } else {
+            console.log(`[parcelow-webhook] ✅ has_paid_selection_process_fee=true para user ${migmaProfile.user_id} (${mainOrder.client_email})`);
+          }
+        } else if (migmaProfile?.has_paid_selection_process_fee) {
+          console.log(`[parcelow-webhook] ℹ️ has_paid_selection_process_fee já era true para ${mainOrder.client_email}`);
+        } else {
+          console.log(`[parcelow-webhook] ℹ️ Nenhum user_profile encontrado para ${mainOrder.client_email} — não é usuário Migma`);
+        }
+      } catch (migmaErr: any) {
+        console.error(`[parcelow-webhook] ❌ Erro ao atualizar perfil Migma: ${migmaErr.message}`);
+      }
     }
 
     if (mainOrder.seller_id) {
@@ -809,7 +1067,8 @@ Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
   try {
     const event = await req.json();
-    const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+    const { supabaseUrl, supabaseServiceKey } = getSupabaseConfig();
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
     await processParcelowWebhookEvent(event, supabase);
     return new Response(JSON.stringify({ received: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
   } catch (error: any) {

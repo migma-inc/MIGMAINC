@@ -44,7 +44,7 @@ interface TrackingJourney {
   steps: TrackingStep[];
   paid_count: number;
   total_steps: number;
-  slugs: { slug: string; paid_at: string | null; created_at: string; status: string }[];
+  slugs: { slug: string; paid_at: string | null; created_at: string; status: string; contract_status: string | null }[];
 }
 
 const JOURNEY_CONFIG: Record<string, {
@@ -150,7 +150,7 @@ export function AdminTracking() {
 
       const { data: orders, error } = await supabase
         .from('visa_orders')
-        .select('client_email, client_name, product_slug, seller_id, paid_at, created_at, payment_status')
+        .select('client_email, client_name, product_slug, seller_id, paid_at, created_at, payment_status, contract_approval_status')
         .in('payment_status', ['completed', 'pending', 'manual_pending', 'processing'])
         .order('created_at', { ascending: false });
 
@@ -174,7 +174,7 @@ export function AdminTracking() {
         client_name: string;
         client_email: string;
         seller_id: string;
-        slugs: { slug: string; paid_at: string | null; created_at: string; status: string }[];
+        slugs: { slug: string; paid_at: string | null; created_at: string; status: string; contract_status: string | null }[];
         last_activity: string;
         last_paid_at: string | null;
       }> = {};
@@ -197,10 +197,11 @@ export function AdminTracking() {
         }
 
         grouped[key].slugs.push({
-          slug: order.product_slug,
+          slug: order.product_slug || '',
           paid_at: order.paid_at,
           created_at: order.created_at,
-          status: order.payment_status,
+          status: order.payment_status || '',
+          contract_status: order.contract_approval_status || null,
         });
 
         const orderDate = order.paid_at ?? order.created_at;
@@ -597,6 +598,9 @@ export function AdminTracking() {
                             <div className="flex flex-col gap-1.5">
                               <Badge className={cn("w-fit text-[9px] font-black uppercase rounded-sm border-none", status.className)}>
                                 {status.label}
+                                {journey.slugs.some(s => s.contract_status === 'pending') && (
+                                  <Timer className="w-2.5 h-2.5 ml-1.5 animate-pulse text-white" />
+                                )}
                               </Badge>
                               <span className="text-[10px] text-gray-400 font-medium uppercase tracking-tighter">{journey.journey_name}</span>
                             </div>

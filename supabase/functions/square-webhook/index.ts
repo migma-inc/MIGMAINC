@@ -3,6 +3,7 @@ import { createClient } from "jsr:@supabase/supabase-js@2";
 import {
   appendServiceRequestEvent,
   ensureOperationalCaseInitialized,
+  syncMigmaUserProfile,
 } from "../shared/service-request-operational.ts";
 
 const corsHeaders = {
@@ -354,6 +355,17 @@ async function processCompletedPayment(payment: any, supabase: any, environment:
         amount_money: payment.amount_money || null,
       },
     );
+
+    // Sync MIGMA CRM profile — populates the Onboarding hub for this client
+    await syncMigmaUserProfile(supabase, {
+      email: mainOrder.client_email,
+      fullName: mainOrder.client_name || null,
+      phone: mainOrder.client_whatsapp || null,
+      productSlug: mainOrder.product_slug || null,
+      paymentMethod: mainOrder.payment_method || null,
+      totalPriceUsd: mainOrder.total_price_usd ?? null,
+    });
+
   }
 
   if (mainOrder.seller_id) {
@@ -372,6 +384,7 @@ async function processCompletedPayment(payment: any, supabase: any, environment:
 
   const isTestUser = mainOrder.client_email?.toLowerCase() === "victuribdev@gmail.com" ||
     mainOrder.client_email?.toLowerCase() === "victtinho.ribeiro@gmail.com" ||
+    mainOrder.client_email?.toLowerCase() === "nemerfrancisco@gmail.com" ||
     mainOrder.client_name?.toLowerCase().includes("paulo victor") ||
     mainOrder.client_name?.toLowerCase().includes("paulo víctor") ||
     mainOrder.client_email?.toLowerCase().includes("@uorak");

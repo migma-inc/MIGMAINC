@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, TrendingUp, ShoppingCart, Link as LinkIcon, Users, LogOut, BarChart3, X, Coins, CheckCircle, FileCheck } from 'lucide-react';
+import { LayoutDashboard, TrendingUp, ShoppingCart, Link as LinkIcon, Users, LogOut, BarChart3, X, Coins, CheckCircle, FileCheck, GraduationCap, ChevronDown } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -22,11 +22,24 @@ type MenuItem = {
   badge?: number;
 };
 
+type MenuGroup = {
+  type: 'group';
+  title: string;
+  icon: LucideIcon;
+  children: { title: string; icon: LucideIcon; path: string }[];
+};
+
+type NavItem = MenuItem | MenuGroup;
+
 export function SellerSidebar({ className, sellerName, isMobileOpen = false, onMobileClose, role = 'seller' }: SellerSidebarProps) {
   const location = useLocation();
   const navigate = useNavigate();
   const [pendingCount, setPendingCount] = useState(0);
   const [pendingContractsCount, setPendingContractsCount] = useState(0);
+  const [salesLinksOpen, setSalesLinksOpen] = useState(
+    location.pathname.startsWith('/seller/dashboard/links') ||
+    location.pathname.startsWith('/seller/dashboard/student-links')
+  );
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -114,10 +127,18 @@ export function SellerSidebar({ className, sellerName, isMobileOpen = false, onM
   }, []);
 
 
-  const sellerMenuItems: MenuItem[] = [
+  const sellerMenuItems: NavItem[] = [
     { title: 'Overview', icon: LayoutDashboard, path: '/seller/dashboard', exact: true },
     { title: 'Orders', icon: ShoppingCart, path: '/seller/dashboard/orders', exact: false },
-    { title: 'Sales Links', icon: LinkIcon, path: '/seller/dashboard/links', exact: false },
+    {
+      type: 'group',
+      title: 'Sales Links',
+      icon: LinkIcon,
+      children: [
+        { title: 'Sales Links', icon: LinkIcon, path: '/seller/dashboard/links' },
+        { title: 'Student Links', icon: GraduationCap, path: '/seller/dashboard/student-links' },
+      ]
+    },
     { title: 'Leads & Users', icon: Users, path: '/seller/dashboard/leads', exact: false },
     { title: 'Commissions', icon: Coins, path: '/seller/dashboard/commissions', exact: false },
     { title: 'Analytics', icon: BarChart3, path: '/seller/dashboard/analytics', exact: false },
@@ -126,9 +147,17 @@ export function SellerSidebar({ className, sellerName, isMobileOpen = false, onM
   ];
 
 
-  const headOfSalesMenuItems: MenuItem[] = [
+  const headOfSalesMenuItems: NavItem[] = [
     { title: 'Overview', icon: LayoutDashboard, path: '/seller/dashboard', exact: true },
-    { title: 'Sales Links', icon: LinkIcon, path: '/seller/dashboard/links', exact: false },
+    {
+      type: 'group',
+      title: 'Sales Links',
+      icon: LinkIcon,
+      children: [
+        { title: 'Sales Links', icon: LinkIcon, path: '/seller/dashboard/links' },
+        { title: 'Student Links', icon: GraduationCap, path: '/seller/dashboard/student-links' },
+      ]
+    },
     { title: 'My Team', icon: Users, path: '/seller/dashboard/team', exact: false },
     { title: 'Team Orders', icon: ShoppingCart, path: '/seller/dashboard/team-orders', exact: false },
     { title: 'Team Overrides', icon: Coins, path: '/seller/dashboard/team-commissions', exact: false },
@@ -140,7 +169,7 @@ export function SellerSidebar({ className, sellerName, isMobileOpen = false, onM
   // HoS features available for both managers and admins
   const isManager = role === 'head_of_sales' || role === 'admin';
   const isHeadOfSalesView = isManager;
-  const menuItems: MenuItem[] = isHeadOfSalesView ? headOfSalesMenuItems : sellerMenuItems;
+  const menuItems: NavItem[] = isHeadOfSalesView ? headOfSalesMenuItems : sellerMenuItems;
 
 
   useEffect(() => {
@@ -172,7 +201,60 @@ export function SellerSidebar({ className, sellerName, isMobileOpen = false, onM
         )}
 
         <nav className="space-y-1">
-          {menuItems.map((item) => {
+          {menuItems.map((item, index) => {
+            if ('type' in item && item.type === 'group') {
+              const Icon = item.icon;
+              const isGroupActive = item.children.some(child => 
+                location.pathname === child.path || location.pathname.startsWith(child.path + '/')
+              );
+
+              return (
+                <div key={`group-${index}`} className="space-y-1">
+                  <button
+                    onClick={() => setSalesLinksOpen(!salesLinksOpen)}
+                    className={cn(
+                      'w-full flex items-center justify-between gap-3 px-4 py-3 rounded-lg transition-colors',
+                      isGroupActive
+                        ? 'bg-gold-medium/10 text-gold-light font-medium'
+                        : 'text-gray-400 hover:bg-gold-medium/10 hover:text-gold-light'
+                    )}
+                  >
+                    <div className="flex items-center gap-3">
+                      <Icon className="w-5 h-5" />
+                      <span>{item.title}</span>
+                    </div>
+                    <ChevronDown className={cn("w-4 h-4 transition-transform", salesLinksOpen && "rotate-180")} />
+                  </button>
+                  
+                  {salesLinksOpen && (
+                    <div className="ml-4 pl-4 border-l border-gold-medium/20 space-y-1 mt-1">
+                      {item.children.map((child) => {
+                        const ChildIcon = child.icon;
+                        const isChildActive = location.pathname === child.path || location.pathname.startsWith(child.path + '/');
+                        
+                        return (
+                          <Link
+                            key={child.path}
+                            to={child.path}
+                            onClick={onMobileClose}
+                            className={cn(
+                              'flex items-center gap-3 px-4 py-2 rounded-lg transition-colors text-sm',
+                              isChildActive
+                                ? 'text-gold-light font-medium'
+                                : 'text-gray-400 hover:text-gold-light hover:bg-gold-medium/5'
+                            )}
+                          >
+                            <ChildIcon className="w-4 h-4" />
+                            <span>{child.title}</span>
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            }
+
             const Icon = item.icon;
             const isActive = item.exact 
               ? location.pathname === item.path 
