@@ -81,8 +81,8 @@ const StudentOnboarding: React.FC = () => {
 
   const VALID_STEPS: OnboardingStep[] = [
     'selection_fee', 'selection_survey',
-    'scholarship_selection', 'documents_upload',
-    'payment', 'placement_fee', 'my_applications', 'acceptance_letter',
+    'scholarship_selection', 'placement_fee',
+    'documents_upload', 'payment', 'my_applications', 'acceptance_letter',
   ];
 
   // Sincronizar URL -> State na carga inicial
