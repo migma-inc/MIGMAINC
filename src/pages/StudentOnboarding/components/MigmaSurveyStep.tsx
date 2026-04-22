@@ -101,7 +101,11 @@ export const MigmaSurveyStep: React.FC<ExtendedStepProps> = ({ onNext, contractA
     });
   }, [sectionQuestions, answers]);
 
-  const scrollTop = () => topRef.current?.scrollIntoView({ behavior: 'smooth' });
+  const isFirstRender = useRef(true);
+  useEffect(() => {
+    if (isFirstRender.current) { isFirstRender.current = false; return; }
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [currentSectionIdx]);
 
   const handleAnswer = (questionId: string, value: string | string[]) => {
     setAnswers(prev => ({ ...prev, [questionId]: value }));
@@ -110,7 +114,6 @@ export const MigmaSurveyStep: React.FC<ExtendedStepProps> = ({ onNext, contractA
   const handleNext = () => {
     if (currentSectionIdx < sections.length - 1) {
       setCurrentSectionIdx(i => i + 1);
-      scrollTop();
     } else {
       handleSubmit();
     }
@@ -119,7 +122,6 @@ export const MigmaSurveyStep: React.FC<ExtendedStepProps> = ({ onNext, contractA
   const handleBack = () => {
     if (currentSectionIdx > 0) {
       setCurrentSectionIdx(i => i - 1);
-      scrollTop();
     }
   };
 
@@ -204,7 +206,7 @@ export const MigmaSurveyStep: React.FC<ExtendedStepProps> = ({ onNext, contractA
 
       setSurveyCompletedAt(now);
       setCompleted(true);
-      scrollTop();
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (err: any) {
       console.error('[MigmaSurveyStep] submit error', err);
       setError(t('student_onboarding.survey.error_save'));
