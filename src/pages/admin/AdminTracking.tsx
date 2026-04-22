@@ -10,6 +10,8 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
+
+const isLocal = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
 import { 
   Popover, 
   PopoverContent, 
@@ -148,11 +150,17 @@ export function AdminTracking() {
     try {
       setLoading(true);
 
-      const { data: orders, error } = await supabase
+      let query = supabase
         .from('visa_orders')
         .select('client_email, client_name, product_slug, seller_id, paid_at, created_at, payment_status')
         .in('payment_status', ['completed', 'pending', 'manual_pending', 'processing'])
         .order('created_at', { ascending: false });
+
+      if (!isLocal) {
+        query = query.not('client_email', 'ilike', '%@uorak.com');
+      }
+
+      const { data: orders, error } = await query;
 
       if (error || !orders) {
         console.error('[Tracking] Error fetching orders:', error);

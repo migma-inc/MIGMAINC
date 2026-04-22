@@ -110,7 +110,9 @@ export const ZelleApprovalPage = () => {
         .eq('is_hidden', false)
         .order('created_at', { ascending: false });
 
-      if (!isLocal) ordersQuery = ordersQuery.eq('is_test', false);
+      if (!isLocal) {
+        ordersQuery = ordersQuery.eq('is_test', false).not('client_email', 'ilike', '%@uorak.com');
+      }
 
       const { data: ordersData, error: ordersError } = await ordersQuery;
 
@@ -184,7 +186,9 @@ export const ZelleApprovalPage = () => {
         .order('updated_at', { ascending: false })
         .limit(20);
 
-      if (!isLocal) histQuery = histQuery.eq('is_test', false);
+      if (!isLocal) {
+        histQuery = histQuery.eq('is_test', false).not('client_email', 'ilike', '%@uorak.com');
+      }
 
       const { data: histOrdersData } = await histQuery;
 

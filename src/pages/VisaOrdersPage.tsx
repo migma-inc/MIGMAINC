@@ -690,7 +690,7 @@ export const VisaOrdersPage = () => {
       .select(VISA_ORDERS_SELECT);
 
     if (!isLocal) {
-      query = query.eq('is_test', false);
+      query = query.eq('is_test', false).not('client_email', 'ilike', '%@uorak.com');
     }
 
     if (statusFilter !== 'all') {
