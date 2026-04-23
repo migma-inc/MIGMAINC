@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -98,6 +98,14 @@ export const ZelleApprovalPage = () => {
   const [searchTimeout, setSearchTimeout] = useState<NodeJS.Timeout | null>(null);
   const [historyPage, setHistoryPage] = useState(1);
   const ITEMS_PER_PAGE = 20;
+  const historyRef = useRef<HTMLElement>(null);
+
+  const handlePageChange = (newPage: number) => {
+    setHistoryPage(newPage);
+    if (historyRef.current) {
+      historyRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  };
 
   useEffect(() => {
     loadOrders();
@@ -1336,7 +1344,7 @@ export const ZelleApprovalPage = () => {
         </section>
 
         {/* SECTION: HISTORY */}
-        <section className="pt-8 border-t border-white/5">
+        <section ref={historyRef} className="pt-8 border-t border-white/5">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
             <div className="flex items-center gap-3">
               <div className="bg-white/5 p-2 rounded-lg border border-white/10">
@@ -1492,7 +1500,7 @@ export const ZelleApprovalPage = () => {
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => setHistoryPage(p => Math.max(1, p - 1))}
+                    onClick={() => handlePageChange(Math.max(1, historyPage - 1))}
                     disabled={historyPage === 1}
                     className="bg-white/5 border-white/10 text-white"
                   >
@@ -1504,7 +1512,7 @@ export const ZelleApprovalPage = () => {
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => setHistoryPage(p => Math.min(totalHistoryPages, p + 1))}
+                    onClick={() => handlePageChange(Math.min(totalHistoryPages, historyPage + 1))}
                     disabled={historyPage === totalHistoryPages}
                     className="bg-white/5 border-white/10 text-white"
                   >
