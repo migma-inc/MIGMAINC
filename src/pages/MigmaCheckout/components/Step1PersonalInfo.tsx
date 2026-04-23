@@ -402,8 +402,7 @@ export const Step1PersonalInfo: React.FC<Props> = ({
 
 
             {/* Dependentes */}
-            {!existingUserId && (
-              <div>
+            <div>
                 <label className="text-sm font-medium text-gray-300 mb-1.5 block">
                   <Users className="w-4 h-4 inline mr-1" />
                   {t('migma_checkout.step1.num_dependents', 'Número de Dependentes')} *
@@ -434,7 +433,6 @@ export const Step1PersonalInfo: React.FC<Props> = ({
                 )}
                 {errors.num_dependents && <p className="text-red-400 text-xs mt-1 font-bold uppercase tracking-wider">{errors.num_dependents}</p>}
               </div>
-            )}
           </div>
 
           {/* RIGHT: Resumo */}

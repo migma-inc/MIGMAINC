@@ -90,6 +90,7 @@ export interface PaymentCompletedPayload {
   // Migma checkout extras
   service_type?: string;
   service_request_id?: string;
+  num_dependents?: number;
   finalize_contract_only?: boolean;
 }
 
@@ -173,6 +174,7 @@ export interface StudentParcelowCheckoutPayload {
   payment_method: string;
   service_type: string;
   service_request_id?: string;
+  num_dependents?: number;
   origin?: string;
   cpf?: string;
   card_ownership?: string;
@@ -198,6 +200,7 @@ export interface MigmaSplitParcelowCheckoutPayload {
   payer_info?: any;
   service_type: string;
   service_request_id?: string;
+  num_dependents?: number;
   total_amount: number;
   part1_amount: number;
   part1_method: 'card' | 'pix' | 'ted';

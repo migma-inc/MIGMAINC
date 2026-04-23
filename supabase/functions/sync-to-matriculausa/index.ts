@@ -135,7 +135,25 @@ Deno.serve(async (req) => {
     const placementFeePaid = !!appRow.placement_fee_paid_at;
 
     // Centraliza cálculo de dependentes — usado em user_profiles e application_fee
-    const numDependents = profile.num_dependents ?? 0;
+    let numDependents = profile.num_dependents ?? 0;
+
+    // 🎯 FALLBACK: Se num_dependents for 0, tenta inferir de visa_orders (bug do Step 1 não salvando no perfil)
+    if (numDependents === 0) {
+      console.log(`[SYNC-${executionId}] 🧐 num_dependents é 0 no perfil. Tentando fallback via visa_orders...`);
+      const { data: orderData } = await migma
+        .from("visa_orders")
+        .select("number_of_dependents")
+        .eq("client_email", profile.email)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (orderData?.number_of_dependents) {
+        numDependents = orderData.number_of_dependents;
+        console.log(`[SYNC-${executionId}] 💡 Fallback bem-sucedido! Inferido ${numDependents} dependentes do visa_orders.`);
+      }
+    }
+
     const applicationFeeAmount = 350 + numDependents * 100;
 
     console.log(`[SYNC-${executionId}] 👨‍👩‍👧 Dependentes: ${numDependents} | Application Fee calculada: $${applicationFeeAmount}`);
@@ -295,7 +313,12 @@ Deno.serve(async (req) => {
 
       if (existingScholarship?.id) {
         remoteScholarshipId = existingScholarship.id;
-        console.log(`[SYNC-${executionId}] [PASSO 4] ✅ Bolsa já existe: ${remoteScholarshipId}`);
+        // Update application_fee_amount to ensure it's always correct (was wrong in older syncs)
+        await matricula
+          .from("scholarships")
+          .update({ application_fee_amount: applicationFeeAmount })
+          .eq("id", remoteScholarshipId);
+        console.log(`[SYNC-${executionId}] [PASSO 4] ✅ Bolsa existente atualizada (application_fee=$${applicationFeeAmount}): ${remoteScholarshipId}`);
       } else {
         const degreeLevel = course?.degree_level ?? "graduate";
         const degreeLevelMapped =

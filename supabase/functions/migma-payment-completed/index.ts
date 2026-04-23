@@ -110,6 +110,7 @@ Deno.serve(async (req) => {
       receipt_url,
       service_type,
       service_request_id,
+      num_dependents,
       finalize_contract_only,
     } = body;
 
@@ -170,6 +171,9 @@ Deno.serve(async (req) => {
         // Só atualiza preço se veio um valor real (protege contra sobrescrever com 0)
         if (amountNum > 0) profileUpdate.total_price_usd = amountNum;
         if (service_type) profileUpdate.service_type = service_type;
+        if (num_dependents !== undefined && num_dependents !== null) {
+          profileUpdate.num_dependents = Number(num_dependents);
+        }
 
         const { error: profErr } = await migma
           .from("user_profiles")

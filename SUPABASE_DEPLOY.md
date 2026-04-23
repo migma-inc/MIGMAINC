@@ -1,4 +1,4 @@
-# Supabase Deploy — Placement Fee Multi-Payment
+it # Supabase Deploy — Placement Fee Multi-Payment
 
 Checklist de tudo que precisa ser executado no Supabase (via MCP ou CLI).
 

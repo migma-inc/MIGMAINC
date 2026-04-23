@@ -31,7 +31,8 @@ Deno.serve(async (req) => {
       country,
       nationality,
       service_request_id,
-      payment_metadata
+      payment_metadata,
+      num_dependents
     } = body;
 
     // 🕊️ REGISTRA INTENÇÃO DE PEDIDO (PARA GERAR ORDER_ID)
@@ -70,6 +71,7 @@ Deno.serve(async (req) => {
       user_id: migma_user_id,
       email, full_name, phone, service_type,
       country, nationality,
+      num_dependents: num_dependents || 0,
       student_process_type: service_type,
       source: 'migma',
       migma_seller_id: body.migma_seller_id || null,

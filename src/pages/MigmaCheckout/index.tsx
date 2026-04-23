@@ -37,6 +37,7 @@ interface StripeReturnState {
   totalPrice: number;
   serviceType: string;
   serviceRequestId: string | null;
+  numDependents: number | null;
   step1Data: Step1Data;
 }
 
@@ -584,6 +585,7 @@ const MigmaCheckout: React.FC = () => {
         payment_method: 'stripe',
         service_type: saved.serviceType,
         service_request_id: saved.serviceRequestId || undefined,
+        num_dependents: saved.numDependents ?? undefined,
         ...(matriculaUserId ? { matricula_user_id: matriculaUserId } : {}),
       });
 
@@ -724,6 +726,7 @@ const MigmaCheckout: React.FC = () => {
           totalPrice: total,
           serviceType: service ?? 'transfer',
           serviceRequestId: state.serviceRequestId,
+          numDependents: data.num_dependents,
           step1Data: data,
         };
         localStorage.setItem(STRIPE_LS_KEY, JSON.stringify(stripeState));
@@ -748,6 +751,7 @@ const MigmaCheckout: React.FC = () => {
           cpf: payment.cpf,
           service_type: service ?? 'transfer',
           service_request_id: state.serviceRequestId || undefined,
+          num_dependents: data.num_dependents ?? undefined,
           total_amount: total,
           part1_amount: payment.splitConfig.part1_amount,
           part1_method: payment.splitConfig.part1_method,
@@ -810,6 +814,7 @@ const MigmaCheckout: React.FC = () => {
           payment_method: payment.method,
           service_type: service ?? 'transfer',
           service_request_id: state.serviceRequestId || undefined,
+          num_dependents: data.num_dependents ?? undefined,
           origin: window.location.origin,
           cpf: (payment.method === 'parcelow_card' && payment.cardOwnership === 'third_party')
             ? payment.payerInfo?.cpf
