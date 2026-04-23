@@ -110,7 +110,7 @@ export const Step1PersonalInfo: React.FC<Props> = ({
   const [regUserId, setRegUserId] = useState<string | null>(existingUserId || null);
 
   // Payment state
-  const [method, setMethod] = useState<PaymentMethod>('parcelow_card');
+  const [method, setMethod] = useState<PaymentMethod | null>(null);
   const [showParcelowConfirm, setShowParcelowConfirm] = useState(false);
   const [pendingSubmitPayload, setPendingSubmitPayload] = useState<{
     form: Step1Data; userId: string; total: number; payment: any;
@@ -202,6 +202,9 @@ export const Step1PersonalInfo: React.FC<Props> = ({
     if (!form.terms_accepted) e.terms_accepted = t('migma_checkout.step1.validation_terms', 'Obrigatório aceitar os termos');
     if (!form.data_accepted) e.data_accepted = t('migma_checkout.step1.validation_data', 'Obrigatório autorizar dados');
     if (!form.signature_data_url) e.signature = t('migma_checkout.step1.validation_signature', 'Assinatura é obrigatória');
+    if (!isSplitEnabled && !method) {
+      e.method = t('migma_checkout.step3.validation_method', 'Selecione uma forma de pagamento');
+    }
     if (isSplitEnabled) {
       // Validação split — SplitPaymentSelector só emite config quando válida, mas verificamos por segurança
       if (!activeSplitConfig) {
@@ -260,60 +263,48 @@ export const Step1PersonalInfo: React.FC<Props> = ({
     }
   };
 
-  // Step 1: only creates account (no payment)
+  // Unified Submit: creates account and pays
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validate()) return;
 
-    if (existingUserId) {
-      // Already registered — skip to payment step
-      setRegDone(true);
-      setRegUserId(existingUserId);
-      return;
+    let uid = regUserId || existingUserId;
+
+    if (!uid) {
+      setSaving(true);
+      try {
+        uid = await onRegisterUser(
+          { full_name: form.full_name, email: form.email, phone: form.phone, password: form.password },
+          form.num_dependents,
+          total,
+        );
+        setRegUserId(uid);
+        setRegDone(true);
+      } catch (err: any) {
+        setGlobalError(err.message || t('migma_checkout.step1.error_saving', 'Falha no registro. Tente novamente.'));
+        setSaving(false);
+        return;
+      }
     }
 
-    setSaving(true);
-    try {
-      const uid = await onRegisterUser(
-        { full_name: form.full_name, email: form.email, phone: form.phone, password: form.password },
-        form.num_dependents,
-        total,
-      );
-      setRegUserId(uid);
-      setRegDone(true);
-    } catch (err: any) {
-      setGlobalError(err.message || t('migma_checkout.step1.error_saving', 'Falha no registro. Tente novamente.'));
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  // Step 2: explicit payment initiation (called by user action, never auto)
-  const handlePayNow = async () => {
-    if (!regUserId) return;
+    if (!uid) return;
 
     const payment = {
-      method,
+      method: method!,
       receipt: needsReceipt ? receipt : null,
       cardOwnership: isParcelowCard ? cardOwnership : undefined,
       cpf: isParcelow ? ((isParcelowCard && cardOwnership === 'third_party') ? payerInfo?.cpf : cpf) : undefined,
       payerInfo: (isParcelowCard && cardOwnership === 'third_party') ? payerInfo : undefined,
     };
 
-    // Parcelow e Split: mostrar modal de confirmação antes de criar ordem
     if (isParcelow || isSplitEnabled) {
-      setPendingSubmitPayload({ form, userId: regUserId, total, payment });
+      setPendingSubmitPayload({ form, userId: uid, total, payment });
       setShowParcelowConfirm(true);
+      setSaving(false);
       return;
     }
 
-    // Stripe e Zelle: prosseguir direto
-    await doSubmit(regUserId, form, total, payment);
-  };
-
-  const btnLabel = () => {
-    if (saving) return <><Loader2 className="w-4 h-4 animate-spin" /> {t('migma_checkout.step1.processing', 'Processando...')}</>;
-    return t('migma_checkout.step1.create_account', 'Criar Conta →');
+    await doSubmit(uid, form, total, payment);
   };
 
   const payBtnLabel = () => {
@@ -324,7 +315,7 @@ export const Step1PersonalInfo: React.FC<Props> = ({
     if (method === 'parcelow_card') return `Pagar com Cartão (Parcelow) — $${total} →`;
     if (method === 'parcelow_pix') return `Pagar com PIX (Parcelow) — $${total} →`;
     if (method === 'parcelow_ted') return `Pagar com TED (Parcelow) — $${total} →`;
-    return `Pagar — $${total} →`;
+    return t('migma_checkout.step1.continue_payment', `Continuar Pagamento — $${total} →`);
   };
 
   const parcelowMethodLabel = isSplitEnabled
@@ -552,7 +543,7 @@ export const Step1PersonalInfo: React.FC<Props> = ({
         </div>
 
         {/* ── Seção de Pagamento (PRD v7.0) — mostrada após registro ── */}
-        <div className={`bg-[#111] border border-white/10 rounded-2xl p-6 space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700 delay-300 ${!regDone ? 'opacity-40 pointer-events-none select-none' : ''}`}>
+        <div className="bg-[#111] border border-white/10 rounded-2xl p-6 space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700 delay-300">
           <h3 className="text-white text-base font-black flex items-center gap-2 uppercase tracking-widest border-l-4 border-gold-medium pl-4">
             <DollarSign className="w-5 h-5 text-gold-medium" />
             {t('migma_checkout.step3.payment_method_title', 'Informações de Pagamento')}
@@ -792,28 +783,10 @@ export const Step1PersonalInfo: React.FC<Props> = ({
           </div>
         )}
 
-        {!regDone ? (
-          /* Step 1: cria conta */
-          <button type="submit" disabled={saving || contractLoading}
-            className="w-full py-4 rounded-xl bg-gradient-to-b from-gold-light via-gold-medium to-gold-light text-black font-black uppercase tracking-widest text-sm shadow-lg shadow-gold-medium/20 hover:opacity-90 active:scale-[0.99] transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2">
-            {btnLabel()}
-          </button>
-        ) : (
-          /* Step 2: inicia pagamento explicitamente */
-          <div className="space-y-3">
-            <div className="flex items-center gap-2 text-emerald-400 text-sm bg-emerald-500/10 border border-emerald-500/30 rounded-xl px-4 py-3">
-              <Check className="w-4 h-4 flex-shrink-0" />
-              <span className="font-bold">Conta criada! Agora confirme o pagamento abaixo.</span>
-            </div>
-            <button
-              type="button"
-              disabled={saving}
-              onClick={handlePayNow}
-              className="w-full py-4 rounded-xl bg-gradient-to-b from-gold-light via-gold-medium to-gold-light text-black font-black uppercase tracking-widest text-sm shadow-lg shadow-gold-medium/20 hover:opacity-90 active:scale-[0.99] transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2">
-              {payBtnLabel()}
-            </button>
-          </div>
-        )}
+        <button type="submit" disabled={saving || contractLoading}
+          className="w-full py-4 rounded-xl bg-gradient-to-b from-gold-light via-gold-medium to-gold-light text-black font-black uppercase tracking-widest text-sm shadow-lg shadow-gold-medium/20 hover:opacity-90 active:scale-[0.99] transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2">
+          {payBtnLabel()}
+        </button>
 
         {/* Modal de confirmação para Parcelow — evita criar ordens acidentalmente */}
         {showParcelowConfirm && pendingSubmitPayload && (
