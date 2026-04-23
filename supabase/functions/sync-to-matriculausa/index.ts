@@ -34,15 +34,24 @@ Deno.serve(async (req) => {
   const matriculaUrl = Deno.env.get("MATRICULAUSA_URL");
   const matriculaKey = Deno.env.get("MATRICULAUSA_SERVICE_ROLE");
 
+  const executionId = Date.now().toString().slice(-6);
+
   try {
-    const { application_id } = await req.json();
+    console.log(`[SYNC-${executionId}] 🚀 Iniciando sincronização...`);
+    
+    const body = await req.json();
+    console.log(`[SYNC-${executionId}] 📦 Payload recebido:`, JSON.stringify(body));
+
+    const { application_id } = body;
     if (!application_id) {
+      console.error(`[SYNC-${executionId}] ❌ Erro: application_id ausente no payload`);
       return new Response(JSON.stringify({ error: "application_id required" }), {
         status: 400, headers: { ...CORS, "Content-Type": "application/json" },
       });
     }
 
     // ── Load Migma data ──────────────────────────────────────────────────────
+    console.log(`[SYNC-${executionId}] 🔍 Buscando dados na Migma para app_id: ${application_id}`);
 
     const { data: appRow, error: appErr } = await migma
       .from("institution_applications")
@@ -63,7 +72,11 @@ Deno.serve(async (req) => {
       .eq("id", application_id)
       .single();
 
-    if (appErr || !appRow) throw new Error(`application not found: ${appErr?.message}`);
+    if (appErr || !appRow) {
+      console.error(`[SYNC-${executionId}] ❌ Erro ao buscar institution_applications:`, appErr?.message || "Registro não encontrado");
+      throw new Error(`application not found: ${appErr?.message}`);
+    }
+    console.log(`[SYNC-${executionId}] ✅ Dados da aplicação recuperados. Profile ID: ${appRow.profile_id}`);
 
     const { data: profile, error: profErr } = await migma
       .from("user_profiles")
@@ -76,13 +89,23 @@ Deno.serve(async (req) => {
       .eq("id", appRow.profile_id)
       .single();
 
-    if (profErr || !profile) throw new Error(`profile not found: ${profErr?.message}`);
+    if (profErr || !profile) {
+      console.error(`[SYNC-${executionId}] ❌ Erro ao buscar user_profiles:`, profErr?.message || "Perfil não encontrado");
+      throw new Error(`profile not found: ${profErr?.message}`);
+    }
+    console.log(`[SYNC-${executionId}] ✅ Perfil recuperado: ${profile.email}`);
 
     const { data: identity } = await migma
       .from("user_identity")
       .select("country")
       .eq("user_id", profile.user_id)
       .maybeSingle();
+    
+    if (identity) {
+      console.log(`[SYNC-${executionId}] 📍 Identidade encontrada. País: ${identity.country}`);
+    } else {
+      console.log(`[SYNC-${executionId}] 📍 Nenhuma identidade encontrada para user_id: ${profile.user_id}`);
+    }
 
     // ── Type helpers ─────────────────────────────────────────────────────────
 
@@ -111,12 +134,23 @@ Deno.serve(async (req) => {
 
     const placementFeePaid = !!appRow.placement_fee_paid_at;
 
-    console.log(`[sync-to-matriculausa] Starting sync — profile: ${profile.email} | institution: ${institution?.name} | scholarship: ${scholarshipLevel?.discount_percent}% | placementFeePaid: ${placementFeePaid}`);
+    // Centraliza cálculo de dependentes — usado em user_profiles e application_fee
+    const numDependents = profile.num_dependents ?? 0;
+    const applicationFeeAmount = 350 + numDependents * 100;
+
+    console.log(`[SYNC-${executionId}] 👨‍👩‍👧 Dependentes: ${numDependents} | Application Fee calculada: $${applicationFeeAmount}`);
+
+    console.log(`[SYNC-${executionId}] 📊 Resumo do Sync:
+      Email: ${profile.email}
+      Instituição: ${institution?.name} (Slug: ${institution?.slug})
+      Bolsa: ${scholarshipLevel?.discount_percent}%
+      Placement Fee Pago: ${placementFeePaid}
+      Processo Mapeado: ${mappedProcess}`);
 
     // ── Validate credentials ─────────────────────────────────────────────────
 
     if (!matriculaUrl || !matriculaKey) {
-      console.warn("[sync-to-matriculausa] Missing MatriculaUSA credentials — skipping");
+      console.warn(`[SYNC-${executionId}] ⚠️ Credenciais do MatriculaUSA ausentes (URL ou Key). Pulando sync remoto.`);
       return new Response(JSON.stringify({ success: true, skipped: true, reason: "no_matricula_credentials" }), {
         headers: { ...CORS, "Content-Type": "application/json" },
       });
@@ -125,6 +159,7 @@ Deno.serve(async (req) => {
     const matricula = createClient(matriculaUrl, matriculaKey);
 
     // ── STEP 1: Create or find MatriculaUSA auth user ────────────────────────
+    console.log(`[SYNC-${executionId}] [PASSO 1] Criando/Buscando usuário Auth no MatriculaUSA para: ${profile.email}`);
 
     const { data: authUser, error: authErr } = await matricula.auth.admin.createUser({
       email: profile.email,
@@ -135,31 +170,51 @@ Deno.serve(async (req) => {
 
     let remoteUserId = authUser?.user?.id;
 
-    if (authErr && (authErr.message?.includes("already registered") || (authErr as any).status === 422)) {
-      const { data: existing } = await matricula
-        .from("user_profiles")
-        .select("user_id")
-        .eq("email", profile.email)
-        .maybeSingle();
-      remoteUserId = existing?.user_id;
+    if (authErr) {
+      if (authErr.message?.includes("already registered") || (authErr as any).status === 422) {
+        console.log(`[SYNC-${executionId}] [PASSO 1] Usuário já registrado no Auth. Buscando no user_profiles...`);
+        const { data: existing, error: findErr } = await matricula
+          .from("user_profiles")
+          .select("user_id")
+          .eq("email", profile.email)
+          .maybeSingle();
+        
+        if (findErr) console.error(`[SYNC-${executionId}] [PASSO 1] Erro ao buscar perfil existente:`, findErr.message);
+        remoteUserId = existing?.user_id;
+      } else {
+        console.error(`[SYNC-${executionId}] [PASSO 1] ❌ Erro ao criar usuário Auth:`, authErr.message);
+      }
     }
 
-    if (!remoteUserId) throw new Error("Could not create or find MatriculaUSA auth user");
+    if (!remoteUserId) {
+      console.error(`[SYNC-${executionId}] [PASSO 1] ❌ Falha crítica: remoteUserId não obtido.`);
+      throw new Error("Could not create or find MatriculaUSA auth user");
+    }
+    console.log(`[SYNC-${executionId}] [PASSO 1] ✅ Remote User ID: ${remoteUserId}`);
 
     // Wait for auth propagation
+    console.log(`[SYNC-${executionId}] ⏳ Aguardando propagação do Auth (800ms)...`);
     await new Promise((r) => setTimeout(r, 800));
 
     // Fetch MatriculaUSA user_profiles.id (needed for scholarship_applications.student_id)
-    const { data: remoteProfile } = await matricula
+    console.log(`[SYNC-${executionId}] [PASSO 1b] Buscando ID interno do perfil no MatriculaUSA...`);
+    const { data: remoteProfile, error: remoteProfErr } = await matricula
       .from("user_profiles")
       .select("id")
       .eq("user_id", remoteUserId)
       .maybeSingle();
 
+    if (remoteProfErr) console.error(`[SYNC-${executionId}] [PASSO 1b] Erro ao buscar ID do perfil remoto:`, remoteProfErr.message);
+
     const remoteProfileId = remoteProfile?.id;
-    if (!remoteProfileId) throw new Error("MatriculaUSA user_profiles record not found after auth creation");
+    if (!remoteProfileId) {
+      console.error(`[SYNC-${executionId}] [PASSO 1b] ❌ Erro: Registro user_profiles não encontrado após criação do Auth.`);
+      throw new Error("MatriculaUSA user_profiles record not found after auth creation");
+    }
+    console.log(`[SYNC-${executionId}] [PASSO 1b] ✅ Remote Profile ID: ${remoteProfileId}`);
 
     // ── STEP 2: PATCH user_profiles (basic data + seller/agent) ─────────────
+    console.log(`[SYNC-${executionId}] [PASSO 2] Atualizando dados básicos do perfil no MatriculaUSA...`);
 
     const profilePatch: Record<string, unknown> = {
       full_name: profile.full_name,
@@ -169,13 +224,14 @@ Deno.serve(async (req) => {
       status: "active",
       role: "student",
       source: "migma",
-      dependents: profile.num_dependents || 0,
+      dependents: numDependents,
       placement_fee_flow: true,
       selection_survey_passed: profile.selection_survey_passed ?? false,
       migma_seller_id: profile.migma_seller_id || null,
       migma_agent_id: profile.migma_agent_id || null,
     };
 
+    console.log(`[SYNC-${executionId}] [PASSO 2] Enviando PATCH para /user_profiles?user_id=eq.${remoteUserId}`);
     const step2Res = await fetch(
       `${matriculaUrl}/rest/v1/user_profiles?user_id=eq.${remoteUserId}`,
       {
@@ -191,37 +247,43 @@ Deno.serve(async (req) => {
 
     if (!step2Res.ok) {
       const txt = await step2Res.text();
+      console.error(`[SYNC-${executionId}] [PASSO 2] ❌ Falha no PATCH user_profiles:`, step2Res.status, txt);
       throw new Error(`STEP 2 (user_profiles PATCH) failed: ${step2Res.status} ${txt}`);
     }
-    console.log(`[sync-to-matriculausa] STEP 2 ✅ user_profiles patched`);
+    console.log(`[SYNC-${executionId}] [PASSO 2] ✅ user_profiles atualizado.`);
 
     // ── STEP 3: Lookup university by slug (Caroline/Oikos already exist) ────────
+    console.log(`[SYNC-${executionId}] [PASSO 3] Localizando universidade pelo slug: ${institution?.slug}`);
 
     let remoteUniversityId: string | null = null;
 
     if (institution?.slug) {
-      const { data: existingUniv } = await matricula
+      const { data: existingUniv, error: univErr } = await matricula
         .from("universities")
         .select("id")
         .eq("slug", institution.slug)
         .maybeSingle();
 
+      if (univErr) console.error(`[SYNC-${executionId}] [PASSO 3] Erro ao buscar universidade:`, univErr.message);
+
       remoteUniversityId = existingUniv?.id ?? null;
       if (remoteUniversityId) {
-        console.log(`[sync-to-matriculausa] STEP 3 ✅ university found: ${remoteUniversityId} (${institution.slug})`);
+        console.log(`[SYNC-${executionId}] [PASSO 3] ✅ Universidade encontrada: ${remoteUniversityId}`);
       } else {
-        console.warn(`[sync-to-matriculausa] STEP 3 ⚠️ university not found for slug: ${institution.slug}`);
+        console.warn(`[SYNC-${executionId}] [PASSO 3] ⚠️ Universidade não encontrada para o slug: ${institution.slug}`);
       }
+    } else {
+      console.warn(`[SYNC-${executionId}] [PASSO 3] ⏭️ Pulado: Slug da instituição ausente.`);
     }
 
     // ── STEP 4: Upsert scholarship (is_active=false — private, not in public catalog) ──
+    console.log(`[SYNC-${executionId}] [PASSO 4] Criando/Buscando bolsa privada no MatriculaUSA...`);
 
     let remoteScholarshipId: string | null = null;
 
     if (scholarshipLevel && remoteUniversityId) {
-      // Try to find existing scholarship by (university_id + placement_fee + tuition)
-      // to avoid duplicates on re-sync
-      const { data: existingScholarship } = await matricula
+      console.log(`[SYNC-${executionId}] [PASSO 4] Verificando se já existe bolsa similar (Univ=${remoteUniversityId}, Fee=${scholarshipLevel.placement_fee_usd}, Tuition=${scholarshipLevel.tuition_annual_usd})`);
+      const { data: existingScholarship, error: findScholErr } = await matricula
         .from("scholarships")
         .select("id")
         .eq("university_id", remoteUniversityId)
@@ -229,9 +291,11 @@ Deno.serve(async (req) => {
         .eq("annual_value_with_scholarship", scholarshipLevel.tuition_annual_usd)
         .maybeSingle();
 
+      if (findScholErr) console.error(`[SYNC-${executionId}] [PASSO 4] Erro ao buscar bolsa existente:`, findScholErr.message);
+
       if (existingScholarship?.id) {
         remoteScholarshipId = existingScholarship.id;
-        console.log(`[sync-to-matriculausa] STEP 4 ✅ scholarship found: ${remoteScholarshipId}`);
+        console.log(`[SYNC-${executionId}] [PASSO 4] ✅ Bolsa já existe: ${remoteScholarshipId}`);
       } else {
         const degreeLevel = course?.degree_level ?? "graduate";
         const degreeLevelMapped =
@@ -239,6 +303,7 @@ Deno.serve(async (req) => {
           degreeLevel === "masters"  ? "graduate" :
           degreeLevel === "phd"      ? "doctorate" : "graduate";
 
+        console.log(`[SYNC-${executionId}] [PASSO 4] Criando nova bolsa privada (Degree: ${degreeLevelMapped})...`);
         const { data: newScholarship, error: scholErr } = await matricula
           .from("scholarships")
           .insert({
@@ -249,24 +314,29 @@ Deno.serve(async (req) => {
             field_of_study: course?.course_name ?? null,
             level: degreeLevelMapped,
             placement_fee_amount: scholarshipLevel.placement_fee_usd,
-            application_fee_amount: institution?.application_fee_usd ?? 350,
+            application_fee_amount: applicationFeeAmount,
             annual_value_with_scholarship: scholarshipLevel.tuition_annual_usd,
             original_annual_value: null,
-            is_active: false, // ← PRIVATE: not visible in public catalog
+            amount: 0,           // legacy field — NOT NULL, all recent records use 0
+            deadline: "2099-12-31", // required NOT NULL — far future for Migma scholarships
+            is_active: false,    // ← PRIVATE: not visible in public catalog
           })
           .select("id")
           .single();
 
         if (scholErr) {
-          console.warn(`[sync-to-matriculausa] STEP 4 ⚠️ scholarship insert failed: ${scholErr.message} — continuing without scholarship`);
+          console.warn(`[SYNC-${executionId}] [PASSO 4] ⚠️ Erro ao inserir bolsa:`, scholErr.message, "— Prosseguindo sem bolsa.");
         } else {
           remoteScholarshipId = newScholarship?.id ?? null;
-          console.log(`[sync-to-matriculausa] STEP 4 ✅ scholarship created (private): ${remoteScholarshipId}`);
+          console.log(`[SYNC-${executionId}] [PASSO 4] ✅ Bolsa criada: ${remoteScholarshipId}`);
         }
       }
+    } else {
+      console.warn(`[SYNC-${executionId}] [PASSO 4] ⏭️ Pulado: scholarshipLevel ou remoteUniversityId ausente.`);
     }
 
     // ── STEP 5: Upsert scholarship_applications ──────────────────────────────
+    console.log(`[SYNC-${executionId}] [PASSO 5] Criando/Atualizando aplicação da bolsa no MatriculaUSA...`);
 
     let remoteApplicationId: string | null = null;
 
@@ -287,22 +357,29 @@ Deno.serve(async (req) => {
 
       if (profile.migma_seller_id) applicationPayload.seller_id = profile.migma_seller_id;
 
-      const { data: existingApp } = await matricula
+      console.log(`[SYNC-${executionId}] [PASSO 5] Verificando aplicação existente para Student=${remoteProfileId} e Scholarship=${remoteScholarshipId}`);
+      const { data: existingApp, error: findAppErr } = await matricula
         .from("scholarship_applications")
         .select("id")
         .eq("student_id", remoteProfileId)
         .eq("scholarship_id", remoteScholarshipId)
         .maybeSingle();
 
+      if (findAppErr) console.error(`[SYNC-${executionId}] [PASSO 5] Erro ao buscar aplicação existente:`, findAppErr.message);
+
       if (existingApp?.id) {
-        // Update existing
-        await matricula
+        console.log(`[SYNC-${executionId}] [PASSO 5] Aplicação encontrada: ${existingApp.id}. Atualizando...`);
+        const { error: updAppErr } = await matricula
           .from("scholarship_applications")
           .update(applicationPayload)
           .eq("id", existingApp.id);
+        
+        if (updAppErr) console.error(`[SYNC-${executionId}] [PASSO 5] ❌ Erro ao atualizar aplicação:`, updAppErr.message);
+        
         remoteApplicationId = existingApp.id;
-        console.log(`[sync-to-matriculausa] STEP 5 ✅ scholarship_applications updated: ${remoteApplicationId}`);
+        console.log(`[SYNC-${executionId}] [PASSO 5] ✅ Aplicação atualizada.`);
       } else {
+        console.log(`[SYNC-${executionId}] [PASSO 5] Criando nova aplicação...`);
         const { data: newApp, error: appInsertErr } = await matricula
           .from("scholarship_applications")
           .insert(applicationPayload)
@@ -310,17 +387,18 @@ Deno.serve(async (req) => {
           .single();
 
         if (appInsertErr) {
-          console.warn(`[sync-to-matriculausa] STEP 5 ⚠️ scholarship_applications insert failed: ${appInsertErr.message}`);
+          console.warn(`[SYNC-${executionId}] [PASSO 5] ⚠️ Erro ao inserir aplicação:`, appInsertErr.message);
         } else {
           remoteApplicationId = newApp?.id ?? null;
-          console.log(`[sync-to-matriculausa] STEP 5 ✅ scholarship_applications created: ${remoteApplicationId}`);
+          console.log(`[SYNC-${executionId}] [PASSO 5] ✅ Aplicação criada: ${remoteApplicationId}`);
         }
       }
     } else {
-      console.warn(`[sync-to-matriculausa] STEP 5 ⏭️ skipped — remoteProfileId: ${remoteProfileId} | remoteScholarshipId: ${remoteScholarshipId}`);
+      console.warn(`[SYNC-${executionId}] [PASSO 5] ⏭️ Pulado: remoteProfileId ou remoteScholarshipId ausente.`);
     }
 
     // ── STEP 6: PATCH user_profiles with final pointers ─────────────────────
+    console.log(`[SYNC-${executionId}] [PASSO 6] Vinculando ponteiros finais no perfil (Univ/Bolsa/App)...`);
 
     if (remoteScholarshipId || remoteApplicationId || remoteUniversityId) {
       const finalPatch: Record<string, unknown> = {};
@@ -328,6 +406,7 @@ Deno.serve(async (req) => {
       if (remoteScholarshipId) finalPatch.selected_scholarship_id = remoteScholarshipId;
       if (remoteApplicationId) finalPatch.selected_application_id = remoteApplicationId;
 
+      console.log(`[SYNC-${executionId}] [PASSO 6] Enviando PATCH final para /user_profiles?user_id=eq.${remoteUserId}:`, JSON.stringify(finalPatch));
       const step6Res = await fetch(
         `${matriculaUrl}/rest/v1/user_profiles?user_id=eq.${remoteUserId}`,
         {
@@ -343,24 +422,34 @@ Deno.serve(async (req) => {
 
       if (!step6Res.ok) {
         const txt = await step6Res.text();
-        console.warn(`[sync-to-matriculausa] STEP 6 ⚠️ final pointers PATCH failed: ${step6Res.status} ${txt}`);
+        console.warn(`[SYNC-${executionId}] [PASSO 6] ⚠️ PATCH final falhou:`, step6Res.status, txt);
       } else {
-        console.log(`[sync-to-matriculausa] STEP 6 ✅ user_profiles updated with scholarship/application/university pointers`);
+        console.log(`[SYNC-${executionId}] [PASSO 6] ✅ Perfil atualizado com ponteiros finais.`);
       }
+    } else {
+      console.warn(`[SYNC-${executionId}] [PASSO 6] ⏭️ Pulado: nenhum ponteiro para vincular.`);
     }
 
     // ── STEP 7: Save matricula_user_id back to Migma ─────────────────────────
+    console.log(`[SYNC-${executionId}] [PASSO 7] Salvando matricula_user_id (${remoteUserId}) de volta na Migma...`);
 
-    await migma
+    const { error: lastUpdErr } = await migma
       .from("user_profiles")
       .update({ matricula_user_id: remoteUserId })
       .eq("id", profile.id);
 
-    console.log(`[sync-to-matriculausa] ✅ Sync complete for ${profile.email}`);
+    if (lastUpdErr) {
+      console.error(`[SYNC-${executionId}] [PASSO 7] ❌ Erro ao salvar matricula_user_id na Migma:`, lastUpdErr.message);
+    } else {
+      console.log(`[SYNC-${executionId}] [PASSO 7] ✅ Migma atualizada.`);
+    }
+
+    console.log(`[SYNC-${executionId}] ✨ Sincronização concluída com sucesso para ${profile.email}!`);
 
     return new Response(
       JSON.stringify({
         success: true,
+        execution_id: executionId,
         matricula_user_id: remoteUserId,
         matricula_profile_id: remoteProfileId,
         remote_university_id: remoteUniversityId,
@@ -371,8 +460,10 @@ Deno.serve(async (req) => {
     );
 
   } catch (err: any) {
-    console.error("[sync-to-matriculausa] Erro Fatal:", err);
-    return new Response(JSON.stringify({ error: err.message }), {
+    console.error(`[SYNC-${executionId}] 💥 ERRO CRÍTICO FATAL:`, err.message);
+    if (err.stack) console.error(`[SYNC-${executionId}] 📚 Stack Trace:`, err.stack);
+    
+    return new Response(JSON.stringify({ error: err.message, execution_id: executionId }), {
       status: 500,
       headers: { ...CORS, "Content-Type": "application/json" },
     });
