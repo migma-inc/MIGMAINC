@@ -541,7 +541,7 @@ const MigmaCheckout: React.FC = () => {
     }
   }, [state.step1Completed, state.step2Completed, state.userId, state.totalPrice, state.matriculaUserId, state.currentStep, step1Data, service]);
 
-  const handleStripeReturn = async (_sessionId: string) => {
+  const handleStripeReturn = async (sessionId: string) => {
     setPaymentLoading(true);
     try {
       const raw = localStorage.getItem(STRIPE_LS_KEY);
@@ -550,10 +550,37 @@ const MigmaCheckout: React.FC = () => {
       const saved: StripeReturnState = JSON.parse(raw);
       const { userId, matriculaUserId, totalPrice, step1Data: savedStep1 } = saved;
 
+      // Buscar o valor real cobrado pelo Stripe (gross) para evitar salvar o net amount
+      // O totalPrice do localStorage é o net (sem a taxa do cartão)
+      let grossAmount = totalPrice; // fallback: net amount
+      let feeAmount = 0;
+      if (sessionId) {
+        try {
+          const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
+          const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
+          const res = await fetch(
+            `${supabaseUrl}/functions/v1/migma-student-stripe-checkout?session_id=${encodeURIComponent(sessionId)}`,
+            { headers: { apikey: supabaseAnonKey, Authorization: `Bearer ${supabaseAnonKey}` } }
+          );
+          if (res.ok) {
+            const sessionData = await res.json();
+            if (sessionData?.gross_amount_usd && sessionData.gross_amount_usd > 0) {
+              grossAmount = sessionData.gross_amount_usd;
+              feeAmount = sessionData.fee_amount_usd ?? parseFloat((grossAmount - totalPrice).toFixed(2));
+              console.log(`[MigmaCheckout] Stripe gross=$${grossAmount} | net=$${totalPrice} | fee=$${feeAmount}`);
+            }
+          }
+        } catch (sessionErr) {
+          console.warn('[MigmaCheckout] Não foi possível buscar gross amount do Stripe, usando net como fallback:', sessionErr);
+        }
+      }
+
       await matriculaApi.paymentCompleted({
         user_id: userId,
         fee_type: 'selection_process',
-        amount: totalPrice,
+        amount: grossAmount,
+        net_amount: totalPrice,     // valor líquido real do serviço (ex: $850)
+        fee_amount: feeAmount,       // taxa do cartão repassada ao aluno (ex: $33.45)
         payment_method: 'stripe',
         service_type: saved.serviceType,
         service_request_id: saved.serviceRequestId || undefined,

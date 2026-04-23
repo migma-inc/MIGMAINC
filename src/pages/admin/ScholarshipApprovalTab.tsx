@@ -175,38 +175,57 @@ export function ScholarshipApprovalTab({ detail }: { detail: CaseDetailPage }) {
       const { data: { session } } = await supabase.auth.getSession();
       const adminId = session?.user?.id ?? null;
 
-      // 1. Generate Parcelow checkout link for the placement fee
       const placementFee = app.institution_scholarships.placement_fee_usd;
       const originUrl = window.location.origin;
-
-      const fnRes = await supabase.functions.invoke('migma-parcelow-checkout', {
-        body: {
-          amount: String(placementFee),
-          email: profile.email,
-          full_name: profile.full_name,
-          user_id: profile.user_id,
-          reference_suffix: `-APP-${app.id.slice(0, 8)}`,
-          redirect_success_override: `${originUrl}/student/onboarding?step=placement_fee&success=true`,
-          redirect_failed_override: `${originUrl}/student/onboarding?step=placement_fee&failed=true`,
-          parcelow_environment: originUrl.includes('migmainc.com') ? 'production' : 'staging',
-        },
-      });
-
-      const checkoutUrl: string | null = fnRes.data?.checkout_url ?? fnRes.data?.url_checkout ?? null;
-
-      // 2. Update selected application → approved
       const now = new Date().toISOString();
-      const { error: approveErr } = await supabase
-        .from('institution_applications')
-        .update({
-          status: 'payment_pending',
-          admin_approved_at: now,
-          admin_approved_by: adminId,
-          payment_link_url: checkoutUrl,
-          payment_link_generated_at: checkoutUrl ? now : null,
-        })
-        .eq('id', app.id);
-      if (approveErr) throw approveErr;
+      let checkoutUrl: string | null = null;
+
+      if (placementFee === 0) {
+        // 1a. $0 tier — skip payment gateway, confirm vaga directly
+        const { error: approveErr } = await supabase
+          .from('institution_applications')
+          .update({
+            status: 'payment_confirmed',
+            admin_approved_at: now,
+            admin_approved_by: adminId,
+            placement_fee_paid_at: now,
+          })
+          .eq('id', app.id);
+        if (approveErr) throw approveErr;
+
+        await supabase
+          .from('user_profiles')
+          .update({ is_placement_fee_paid: true })
+          .eq('id', profile.id);
+      } else {
+        // 1b. Generate Parcelow checkout link for the placement fee
+        const fnRes = await supabase.functions.invoke('migma-parcelow-checkout', {
+          body: {
+            amount: String(placementFee),
+            email: profile.email,
+            full_name: profile.full_name,
+            user_id: profile.user_id,
+            reference_suffix: `-APP-${app.id.slice(0, 8)}`,
+            redirect_success_override: `${originUrl}/student/onboarding?step=placement_fee&success=true`,
+            redirect_failed_override: `${originUrl}/student/onboarding?step=placement_fee&failed=true`,
+            parcelow_environment: originUrl.includes('migmainc.com') ? 'production' : 'staging',
+          },
+        });
+        checkoutUrl = fnRes.data?.checkout_url ?? fnRes.data?.url_checkout ?? null;
+
+        // 2. Update selected application → payment_pending
+        const { error: approveErr } = await supabase
+          .from('institution_applications')
+          .update({
+            status: 'payment_pending',
+            admin_approved_at: now,
+            admin_approved_by: adminId,
+            payment_link_url: checkoutUrl,
+            payment_link_generated_at: checkoutUrl ? now : null,
+          })
+          .eq('id', app.id);
+        if (approveErr) throw approveErr;
+      }
 
       // 2b. Sync to MatriculaUSA — Caroline/Oikos only (fire-and-forget)
       const institutionSlug = (app.institutions?.slug ?? '').toLowerCase();
@@ -245,9 +264,16 @@ export function ScholarshipApprovalTab({ detail }: { detail: CaseDetailPage }) {
                   <li><strong>Instituição:</strong> ${instName}</li>
                   ${courseName ? `<li><strong>Curso:</strong> ${courseName}</li>` : ''}
                   <li><strong>Bolsa:</strong> ${discount}% de desconto</li>
-                  <li><strong>Placement Fee:</strong> $${placementFee.toLocaleString()}</li>
+                  <li><strong>Placement Fee:</strong> ${placementFee === 0 ? 'Isento' : `$${placementFee.toLocaleString()}`}</li>
                 </ul>
-                ${checkoutUrl ? `
+                ${placementFee === 0 ? `
+                  <p style="margin-top: 24px; color: #2d6a4f; background: #d8f3dc; padding: 12px 20px; border-radius: 8px; font-weight: bold;">
+                    ✅ Sua vaga está confirmada! Acesse seu portal para continuar o processo.
+                  </p>
+                  <p style="font-size: 12px; color: #666; margin-top: 8px;">
+                    <a href="${originUrl}/student/onboarding">${originUrl}/student/onboarding</a>
+                  </p>
+                ` : checkoutUrl ? `
                   <p style="margin-top: 24px;">
                     <a href="${checkoutUrl}" style="background:#B89E4E;color:#000;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold;">
                       Pagar Placement Fee →
@@ -264,7 +290,10 @@ export function ScholarshipApprovalTab({ detail }: { detail: CaseDetailPage }) {
         });
       }
 
-      setActionMsg('Bolsa aprovada com sucesso! E-mail enviado ao cliente.');
+      setActionMsg(placementFee === 0
+        ? 'Bolsa aprovada e vaga confirmada (Placement Fee isento). E-mail enviado ao cliente.'
+        : 'Bolsa aprovada com sucesso! E-mail enviado ao cliente.'
+      );
       await fetchApplications();
       setSelectedAppId(null);
     } catch (err: any) {

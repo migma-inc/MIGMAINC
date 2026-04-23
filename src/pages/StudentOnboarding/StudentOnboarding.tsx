@@ -81,8 +81,8 @@ const StudentOnboarding: React.FC = () => {
 
   const VALID_STEPS: OnboardingStep[] = [
     'selection_fee', 'selection_survey',
-    'scholarship_selection', 'documents_upload',
-    'payment', 'placement_fee', 'my_applications', 'acceptance_letter',
+    'scholarship_selection', 'placement_fee',
+    'payment', 'documents_upload', 'my_applications', 'acceptance_letter',
   ];
 
   // Sincronizar URL -> State na carga inicial
@@ -119,8 +119,8 @@ const StudentOnboarding: React.FC = () => {
     'selection_survey',
     'scholarship_selection',
     'placement_fee',
-    'documents_upload',
     'payment',
+    'documents_upload',
     'my_applications',
     'acceptance_letter',
   ], []);
@@ -146,9 +146,9 @@ const StudentOnboarding: React.FC = () => {
   if (state.selectionFeePaid) completedSteps.push('selection_fee');
   if (state.selectionSurveyPassed) completedSteps.push('selection_survey');
   if (state.scholarshipsSelected) completedSteps.push('scholarship_selection');
-  if (state.documentsUploaded) completedSteps.push('documents_upload');
-  if (state.applicationFeePaid) completedSteps.push('payment');
   if (state.placementFeePaid) completedSteps.push('placement_fee');
+  if (state.applicationFeePaid) completedSteps.push('payment');
+  if (state.documentsUploaded) completedSteps.push('documents_upload');
 
   if (authLoading || loading) {
     return (

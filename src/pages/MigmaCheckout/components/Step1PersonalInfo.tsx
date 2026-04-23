@@ -105,8 +105,16 @@ export const Step1PersonalInfo: React.FC<Props> = ({
   const [fullContractText, setFullContractText] = useState<string>('');
   const [contractError, setContractError] = useState<string | null>(null);
 
+  // Registration state (separate from payment)
+  const [regDone, setRegDone] = useState(!!existingUserId);
+  const [regUserId, setRegUserId] = useState<string | null>(existingUserId || null);
+
   // Payment state
   const [method, setMethod] = useState<PaymentMethod>('parcelow_card');
+  const [showParcelowConfirm, setShowParcelowConfirm] = useState(false);
+  const [pendingSubmitPayload, setPendingSubmitPayload] = useState<{
+    form: Step1Data; userId: string; total: number; payment: any;
+  } | null>(null);
   const [cardOwnership, setCardOwnership] = useState<'own' | 'third_party'>('own');
   const [cpf, setCpf] = useState('');
   const [payerInfo, setPayerInfo] = useState<PayerInfo | null>(null);
@@ -227,58 +235,104 @@ export const Step1PersonalInfo: React.FC<Props> = ({
     return Object.keys(e).length === 0;
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!validate()) return;
-
+  // Chamado após confirmação no modal (ou diretamente para Stripe/Zelle)
+  const doSubmit = async (userId: string, formData: Step1Data, paymentTotal: number, payment: any) => {
     setSaving(true);
     setGlobalError(null);
     try {
-      let userId = existingUserId;
-      if (!userId) {
-        userId = await onRegisterUser(
-          { full_name: form.full_name, email: form.email, phone: form.phone, password: form.password },
-          form.num_dependents,
-          total,
-        );
-      }
-
-      // Save CPF to profile if it's the user's own card or a PIX/TED
-      const userCpf = (isParcelowCard && cardOwnership === 'own') || needsCpfOnly ? cpf : undefined;
-      if (userCpf) {
-        // await supabase.from('user_profiles').update({ cpf: userCpf }).eq('user_id', userId);
-      }
-
       if (isSplitEnabled && activeSplitConfig) {
-        await onComplete(form, userId!, total, {
-          method: 'parcelow_card', // nominal — index.tsx detecta splitConfig e ignora este campo
+        await onComplete(formData, userId, paymentTotal, {
+          method: 'parcelow_card',
           receipt: null,
           cpf: splitCpf,
           splitConfig: activeSplitConfig,
         });
       } else {
-        await onComplete(form, userId!, total, {
-          method: method!,
-          receipt: needsReceipt ? receipt : null,
-          cardOwnership: isParcelowCard ? cardOwnership : undefined,
-          cpf: isParcelow ? ((isParcelowCard && cardOwnership === 'third_party') ? payerInfo?.cpf : cpf) : undefined,
-          payerInfo: (isParcelowCard && cardOwnership === 'third_party') ? payerInfo : undefined,
-        });
+        await onComplete(formData, userId, paymentTotal, payment);
       }
     } catch (err: any) {
       console.error('[Step1] Error:', err);
       setGlobalError(err.message || t('migma_checkout.step1.error_saving', 'Falha no registro. Tente novamente.'));
     } finally {
       setSaving(false);
+      setShowParcelowConfirm(false);
+      setPendingSubmitPayload(null);
     }
+  };
+
+  // Step 1: only creates account (no payment)
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!validate()) return;
+
+    if (existingUserId) {
+      // Already registered — skip to payment step
+      setRegDone(true);
+      setRegUserId(existingUserId);
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const uid = await onRegisterUser(
+        { full_name: form.full_name, email: form.email, phone: form.phone, password: form.password },
+        form.num_dependents,
+        total,
+      );
+      setRegUserId(uid);
+      setRegDone(true);
+    } catch (err: any) {
+      setGlobalError(err.message || t('migma_checkout.step1.error_saving', 'Falha no registro. Tente novamente.'));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Step 2: explicit payment initiation (called by user action, never auto)
+  const handlePayNow = async () => {
+    if (!regUserId) return;
+
+    const payment = {
+      method,
+      receipt: needsReceipt ? receipt : null,
+      cardOwnership: isParcelowCard ? cardOwnership : undefined,
+      cpf: isParcelow ? ((isParcelowCard && cardOwnership === 'third_party') ? payerInfo?.cpf : cpf) : undefined,
+      payerInfo: (isParcelowCard && cardOwnership === 'third_party') ? payerInfo : undefined,
+    };
+
+    // Parcelow e Split: mostrar modal de confirmação antes de criar ordem
+    if (isParcelow || isSplitEnabled) {
+      setPendingSubmitPayload({ form, userId: regUserId, total, payment });
+      setShowParcelowConfirm(true);
+      return;
+    }
+
+    // Stripe e Zelle: prosseguir direto
+    await doSubmit(regUserId, form, total, payment);
   };
 
   const btnLabel = () => {
     if (saving) return <><Loader2 className="w-4 h-4 animate-spin" /> {t('migma_checkout.step1.processing', 'Processando...')}</>;
-    if (method === 'stripe') return t('migma_checkout.step1.pay_stripe', 'Criar Conta e Pagar com Stripe →');
-    if (method === 'zelle') return t('migma_checkout.step1.pay_zelle', 'Criar Conta e Enviar Comprovante →');
-    return t('migma_checkout.step1.pay_now', { total, defaultValue: `Criar Conta e Pagar — $${total} →` });
+    return t('migma_checkout.step1.create_account', 'Criar Conta →');
   };
+
+  const payBtnLabel = () => {
+    if (saving) return <><Loader2 className="w-4 h-4 animate-spin" /> {t('migma_checkout.step1.processing', 'Processando...')}</>;
+    if (isSplitEnabled) return `Pagar Dividido — $${total} →`;
+    if (method === 'stripe') return `Pagar com Stripe — $${total} →`;
+    if (method === 'zelle') return 'Enviar Comprovante Zelle →';
+    if (method === 'parcelow_card') return `Pagar com Cartão (Parcelow) — $${total} →`;
+    if (method === 'parcelow_pix') return `Pagar com PIX (Parcelow) — $${total} →`;
+    if (method === 'parcelow_ted') return `Pagar com TED (Parcelow) — $${total} →`;
+    return `Pagar — $${total} →`;
+  };
+
+  const parcelowMethodLabel = isSplitEnabled
+    ? 'Pagamento Dividido (Parcelow)'
+    : method === 'parcelow_card' ? 'Cartão de Crédito (Parcelow)'
+    : method === 'parcelow_pix'  ? 'PIX (Parcelow)'
+    : method === 'parcelow_ted'  ? 'TED Bancário (Parcelow)'
+    : '';
 
   return (
     <>
@@ -497,8 +551,8 @@ export const Step1PersonalInfo: React.FC<Props> = ({
           )}
         </div>
 
-        {/* ── Seção de Pagamento (PRD v7.0) ── */}
-        <div className="bg-[#111] border border-white/10 rounded-2xl p-6 space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700 delay-300">
+        {/* ── Seção de Pagamento (PRD v7.0) — mostrada após registro ── */}
+        <div className={`bg-[#111] border border-white/10 rounded-2xl p-6 space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700 delay-300 ${!regDone ? 'opacity-40 pointer-events-none select-none' : ''}`}>
           <h3 className="text-white text-base font-black flex items-center gap-2 uppercase tracking-widest border-l-4 border-gold-medium pl-4">
             <DollarSign className="w-5 h-5 text-gold-medium" />
             {t('migma_checkout.step3.payment_method_title', 'Informações de Pagamento')}
@@ -738,10 +792,80 @@ export const Step1PersonalInfo: React.FC<Props> = ({
           </div>
         )}
 
-        <button type="submit" disabled={saving || contractLoading}
-          className="w-full py-4 rounded-xl bg-gradient-to-b from-gold-light via-gold-medium to-gold-light text-black font-black uppercase tracking-widest text-sm shadow-lg shadow-gold-medium/20 hover:opacity-90 active:scale-[0.99] transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2">
-          {btnLabel()}
-        </button>
+        {!regDone ? (
+          /* Step 1: cria conta */
+          <button type="submit" disabled={saving || contractLoading}
+            className="w-full py-4 rounded-xl bg-gradient-to-b from-gold-light via-gold-medium to-gold-light text-black font-black uppercase tracking-widest text-sm shadow-lg shadow-gold-medium/20 hover:opacity-90 active:scale-[0.99] transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2">
+            {btnLabel()}
+          </button>
+        ) : (
+          /* Step 2: inicia pagamento explicitamente */
+          <div className="space-y-3">
+            <div className="flex items-center gap-2 text-emerald-400 text-sm bg-emerald-500/10 border border-emerald-500/30 rounded-xl px-4 py-3">
+              <Check className="w-4 h-4 flex-shrink-0" />
+              <span className="font-bold">Conta criada! Agora confirme o pagamento abaixo.</span>
+            </div>
+            <button
+              type="button"
+              disabled={saving}
+              onClick={handlePayNow}
+              className="w-full py-4 rounded-xl bg-gradient-to-b from-gold-light via-gold-medium to-gold-light text-black font-black uppercase tracking-widest text-sm shadow-lg shadow-gold-medium/20 hover:opacity-90 active:scale-[0.99] transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2">
+              {payBtnLabel()}
+            </button>
+          </div>
+        )}
+
+        {/* Modal de confirmação para Parcelow — evita criar ordens acidentalmente */}
+        {showParcelowConfirm && pendingSubmitPayload && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm px-4">
+            <div className="bg-[#111] border border-white/10 rounded-2xl p-8 max-w-sm w-full space-y-5 shadow-2xl">
+              <div className="space-y-1">
+                <p className="text-[10px] font-black uppercase tracking-widest text-gold-medium">Confirmar Pagamento</p>
+                <h3 className="text-xl font-black text-white">Tudo certo?</h3>
+              </div>
+              <div className="bg-white/5 border border-white/10 rounded-xl p-4 space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-gray-400">Método</span>
+                  <span className="text-white font-bold">{parcelowMethodLabel}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-400">Valor</span>
+                  <span className="text-white font-bold">${pendingSubmitPayload.total.toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-400">E-mail</span>
+                  <span className="text-white font-bold truncate max-w-[170px]">{pendingSubmitPayload.form.email}</span>
+                </div>
+              </div>
+              <p className="text-xs text-gray-500 leading-relaxed">
+                Ao confirmar, você será redirecionado para a Parcelow para finalizar o pagamento.
+              </p>
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => { setShowParcelowConfirm(false); setPendingSubmitPayload(null); }}
+                  className="flex-1 py-3 rounded-xl border border-white/10 text-gray-300 hover:bg-white/5 font-bold text-sm transition-all"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  disabled={saving}
+                  onClick={() => doSubmit(
+                    pendingSubmitPayload.userId,
+                    pendingSubmitPayload.form,
+                    pendingSubmitPayload.total,
+                    pendingSubmitPayload.payment,
+                  )}
+                  className="flex-1 py-3 rounded-xl bg-gold-medium hover:bg-gold-light text-black font-black text-sm transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                  {saving ? 'Processando...' : 'Confirmar →'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {!existingUserId && (
           <p className="text-center text-sm text-gray-500">

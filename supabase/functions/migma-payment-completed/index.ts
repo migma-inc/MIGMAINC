@@ -104,6 +104,8 @@ Deno.serve(async (req) => {
       user_id,
       fee_type,
       amount,
+      net_amount,   // valor líquido do serviço (ex: $850) — sem a taxa do cartão
+      fee_amount,   // taxa do cartão repassada ao aluno (ex: $33.45)
       payment_method,
       receipt_url,
       service_type,
@@ -113,9 +115,21 @@ Deno.serve(async (req) => {
 
     // Guardar ID do pagamento para resposta final
     const amountNum = Number(amount) || 0;
+    const netAmountNum = Number(net_amount) || null;
+    const feeAmountNum = Number(fee_amount) || null;
+
+    // Construir payment_metadata com decomposição correta de valores
+    // Isso evita que o dashboard use o fallback legacy de 3.5% sobre o gross
+    const paymentMetadata: Record<string, unknown> = {
+      payment_method,
+      completed_at: new Date().toISOString(),
+    };
+    if (feeAmountNum !== null && feeAmountNum > 0) paymentMetadata.fee_amount = feeAmountNum;
+    if (netAmountNum !== null && netAmountNum > 0) paymentMetadata.net_amount_usd = netAmountNum;
+    if (amountNum > 0) paymentMetadata.gross_amount_usd = amountNum;
 
     console.log(
-      `[V15] 📥 user=${user_id} | fee=${fee_type} | amount=${amountNum} | method=${payment_method} | sr=${service_request_id ?? "—"} | finalize_only=${!!finalize_contract_only}`
+      `[V15] 📥 user=${user_id} | fee=${fee_type} | gross=${amountNum} | net=${netAmountNum} | fee_val=${feeAmountNum} | method=${payment_method} | sr=${service_request_id ?? "—"} | finalize_only=${!!finalize_contract_only}`
     );
 
     let paymentRecordId: string | null = null;
@@ -389,6 +403,8 @@ Deno.serve(async (req) => {
                 ? new Date().toISOString()
                 : null;
             if (amountNum > 0) orderUpdate.total_price_usd = amountNum;
+            // Salvar decomposição gross/net/fee no payment_metadata para o dashboard exibir corretamente
+            if (Object.keys(paymentMetadata).length > 2) orderUpdate.payment_metadata = paymentMetadata;
           }
 
           const { error: updateErr } = await migma
@@ -442,6 +458,8 @@ Deno.serve(async (req) => {
             service_request_id: service_request_id ?? null,
             contract_approval_status: "pending",
             annex_approval_status: "pending",
+            // Salvar decomposição gross/net/fee para o dashboard calcular corretamente
+            payment_metadata: Object.keys(paymentMetadata).length > 2 ? paymentMetadata : undefined,
           })
           .select()
           .single();

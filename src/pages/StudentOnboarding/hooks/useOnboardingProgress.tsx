@@ -7,7 +7,7 @@ import type { OnboardingStep, OnboardingState } from '../types';
 const VALID_STEPS: OnboardingStep[] = [
   'selection_fee', 'selection_survey',
   'scholarship_selection', 'placement_fee',
-  'documents_upload', 'payment', 'my_applications', 'acceptance_letter', 'completed'
+  'payment', 'documents_upload', 'my_applications', 'acceptance_letter', 'completed'
 ];
 
 const normalizeLegacyStep = (step: OnboardingStep | string | null | undefined): OnboardingStep | null => {
@@ -237,10 +237,10 @@ export const useOnboardingProgress = () => {
         maxAllowedStep = 'scholarship_selection';
       } else if (!placementFeePaid) {
         maxAllowedStep = 'placement_fee';
-      } else if (!documentsUploaded) {
-        maxAllowedStep = 'documents_upload';
       } else if (!applicationFeePaid) {
         maxAllowedStep = 'payment';
+      } else if (!documentsUploaded) {
+        maxAllowedStep = 'documents_upload';
       } else {
         // Avança para acceptance_letter quando pacote foi enviado ao MatriculaUSA
         const packageReady = v11AppsData?.some((a: any) => a.package_status === 'ready');

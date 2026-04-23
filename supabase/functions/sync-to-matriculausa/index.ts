@@ -54,8 +54,9 @@ Deno.serve(async (req) => {
     const { data: profile, error: profErr } = await migma
       .from("user_profiles")
       .select(`
-        id, user_id, email, full_name, phone, country, nationality,
-        student_process_type, num_dependents, has_paid_selection_process_fee,
+        id, user_id, email, full_name, phone, country,
+        student_process_type, service_type, num_dependents,
+        has_paid_selection_process_fee, selection_survey_passed,
         migma_seller_id, migma_agent_id
       `)
       .eq("id", appRow.profile_id)
@@ -63,10 +64,10 @@ Deno.serve(async (req) => {
 
     if (profErr || !profile) throw new Error(`profile not found: ${profErr?.message}`);
 
-    // 3. Load user_identity (keyed by auth user_id, not profile_id)
+    // 3. Load user_identity to get country (Migma Step 2 saves it here)
     const { data: identity } = await migma
       .from("user_identity")
-      .select("birth_date, marital_status, address_usa")
+      .select("country")
       .eq("user_id", profile.user_id)
       .maybeSingle();
 
@@ -78,7 +79,8 @@ Deno.serve(async (req) => {
       reinstatement: "reinstatement",
       change_of_status: "change_of_status",
     };
-    const mappedProcess = processMapping[profile.student_process_type ?? ""] ?? profile.student_process_type;
+    const rawProcessType = profile.student_process_type ?? profile.service_type ?? "";
+    const mappedProcess = processMapping[rawProcessType] ?? rawProcessType;
 
     const institution = appRow.institutions as { id: string; name: string; slug: string; application_fee_usd: number } | null;
     const scholarship = appRow.institution_scholarships as { placement_fee_usd: number; discount_percent: number; monthly_migma_usd: number } | null;
@@ -118,31 +120,22 @@ Deno.serve(async (req) => {
     // Wait for auth propagation
     await new Promise((r) => setTimeout(r, 800));
 
-    // 7. Build rich payload
+    // 7. Build payload — only fields that exist in MatriculaUSA user_profiles schema
     const remoteProfileData: Record<string, unknown> = {
       full_name: profile.full_name,
       phone: profile.phone || "",
-      country: profile.country || null,
-      nationality: profile.nationality || null,
+      country: identity?.country || profile.country || null,
       student_process_type: mappedProcess,
       status: "active",
       role: "student",
       source: "migma",
       dependents: profile.num_dependents || 0,
       placement_fee_flow: true,
-      // Identity fields
-      birth_date: identity?.birth_date ?? null,
-      marital_status: identity?.marital_status ?? null,
-      address_usa: identity?.address_usa ?? null,
-      // Payment flags
-      selection_process_fee_paid: profile.has_paid_selection_process_fee ?? false,
-      // Scholarship & fee amounts
-      institution_name: institution?.name ?? null,
-      application_fee_usd: institution?.application_fee_usd ?? null,
-      placement_fee_amount: scholarship?.placement_fee_usd ?? null,
-      scholarship_discount: scholarship?.discount_percent ?? null,
-      monthly_migma_usd: scholarship?.monthly_migma_usd ?? null,
+      has_paid_selection_process_fee: profile.has_paid_selection_process_fee ?? false,
+      selection_survey_passed: profile.selection_survey_passed ?? false,
     };
+
+    console.log("[sync-to-matriculausa] Payload to send:", JSON.stringify(remoteProfileData));
 
     // 8. PATCH MatriculaUSA profile
     const patchRes = await fetch(
@@ -158,7 +151,12 @@ Deno.serve(async (req) => {
       }
     );
 
-    console.log(`[sync-to-matriculausa] MatriculaUSA PATCH status: ${patchRes.status}`);
+    const patchText = await patchRes.text();
+    console.log(`[sync-to-matriculausa] MatriculaUSA PATCH status: ${patchRes.status} body: ${patchText}`);
+
+    if (!patchRes.ok) {
+      throw new Error(`MatriculaUSA PATCH failed: ${patchRes.status} ${patchText}`);
+    }
 
     // 9. Store matricula_user_id in Migma
     await migma
