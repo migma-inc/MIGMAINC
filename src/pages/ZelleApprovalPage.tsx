@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { PdfModal } from '@/components/ui/pdf-modal';
 import { ImageModal } from '@/components/ui/image-modal';
-import { CheckCircle, XCircle, Clock, Brain, Eye } from 'lucide-react';
+import { CheckCircle, XCircle, Clock, Brain, Eye, Search } from 'lucide-react';
 import { AlertModal } from '@/components/ui/alert-modal';
 import { Skeleton } from '@/components/ui/skeleton';
 import { getSecureUrl } from '@/lib/storage';
@@ -93,12 +93,27 @@ export const ZelleApprovalPage = () => {
   const [products, setProducts] = useState<any[]>([]);
 
   const [unifiedApprovals, setUnifiedApprovals] = useState<any[]>([]);
+  
+  const [historySearch, setHistorySearch] = useState('');
+  const [searchTimeout, setSearchTimeout] = useState<NodeJS.Timeout | null>(null);
+  const [historyPage, setHistoryPage] = useState(1);
+  const ITEMS_PER_PAGE = 20;
 
   useEffect(() => {
     loadOrders();
   }, []);
 
-  const loadOrders = async () => {
+  const handleHistorySearch = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    setHistorySearch(val);
+    setHistoryPage(1);
+    if (searchTimeout) clearTimeout(searchTimeout);
+    setSearchTimeout(setTimeout(() => {
+      loadOrders(val);
+    }, 600));
+  };
+
+  const loadOrders = async (searchHistory: string = '') => {
     try {
       setLoading(true);
       // 1. Load regular visa_orders
@@ -183,21 +198,43 @@ export const ZelleApprovalPage = () => {
         .eq('payment_method', 'zelle')
         .in('payment_status', ['completed', 'failed'])
         .eq('is_hidden', false)
-        .order('updated_at', { ascending: false })
-        .limit(20);
+        .order('updated_at', { ascending: false });
 
       if (!isLocal) {
         histQuery = histQuery.eq('is_test', false).not('client_email', 'ilike', '%@uorak.com');
       }
 
+      if (searchHistory) {
+        histQuery = histQuery.or(`client_name.ilike.%${searchHistory}%,client_email.ilike.%${searchHistory}%,order_number.ilike.%${searchHistory}%`);
+      } else {
+        histQuery = histQuery.limit(1000);
+      }
+
       const { data: histOrdersData } = await histQuery;
 
-      const { data: histMigmaData } = await supabase
+      let histMigmaQuery = supabase
         .from('migma_payments')
         .select('*')
         .in('status', ['approved', 'rejected'])
-        .order('updated_at', { ascending: false })
-        .limit(20);
+        .order('updated_at', { ascending: false });
+
+      if (searchHistory) {
+        const { data: clients } = await supabase
+          .from('clients')
+          .select('id')
+          .or(`full_name.ilike.%${searchHistory}%,email.ilike.%${searchHistory}%`);
+        const clientIds = clients?.map(c => c.id) || [];
+        
+        if (clientIds.length > 0) {
+          histMigmaQuery = histMigmaQuery.in('user_id', clientIds);
+        } else {
+          histMigmaQuery = histMigmaQuery.ilike('id', `%${searchHistory}%`);
+        }
+      } else {
+        histMigmaQuery = histMigmaQuery.limit(1000);
+      }
+
+      const { data: histMigmaData } = await histMigmaQuery;
 
       const histMigmaPayments = histMigmaData || [];
       const histOrdersPayments = histOrdersData || [];
@@ -650,7 +687,7 @@ export const ZelleApprovalPage = () => {
       }
 
       setShowAlert(true);
-      await loadOrders();
+      await loadOrders(historySearch);
     } catch (error) {
       console.error('Error approving payment:', error);
       setAlertData({
@@ -713,7 +750,7 @@ export const ZelleApprovalPage = () => {
         variant: 'success',
       });
       setShowAlert(true);
-      await loadOrders();
+      await loadOrders(historySearch);
     } catch (error) {
       console.error('Error rejecting payment:', error);
       setAlertData({
@@ -1094,6 +1131,9 @@ export const ZelleApprovalPage = () => {
     });
   })();
 
+  const totalHistoryPages = Math.ceil(allHistory.length / ITEMS_PER_PAGE);
+  const paginatedHistory = allHistory.slice((historyPage - 1) * ITEMS_PER_PAGE, historyPage * ITEMS_PER_PAGE);
+
   return (
     <div className="p-4 sm:p-6 lg:p-8">
       <div className="mb-6 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
@@ -1297,11 +1337,26 @@ export const ZelleApprovalPage = () => {
 
         {/* SECTION: HISTORY */}
         <section className="pt-8 border-t border-white/5">
-          <div className="flex items-center gap-3 mb-6">
-            <div className="bg-white/5 p-2 rounded-lg border border-white/10">
-              <Brain className="w-5 h-5 text-gray-400" />
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
+            <div className="flex items-center gap-3">
+              <div className="bg-white/5 p-2 rounded-lg border border-white/10">
+                <Brain className="w-5 h-5 text-gray-400" />
+              </div>
+              <h2 className="text-xl font-bold text-white">History</h2>
             </div>
-            <h2 className="text-xl font-bold text-white">Recent History</h2>
+            
+            <div className="relative w-full sm:w-72">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <Search className="h-4 w-4 text-gray-400" />
+              </div>
+              <input
+                type="text"
+                placeholder="Search name, email, order..."
+                value={historySearch}
+                onChange={handleHistorySearch}
+                className="w-full bg-white/5 border border-white/10 rounded-lg pl-9 pr-4 py-2 text-sm text-white focus:outline-none focus:border-gold-medium/50 transition-colors"
+              />
+            </div>
           </div>
 
           <div className="grid grid-cols-1 gap-4">
@@ -1316,8 +1371,9 @@ export const ZelleApprovalPage = () => {
                 </CardContent>
               </Card>
             ) : (
-              allHistory.map((item: any) => (
-                <Card key={item.id} className="bg-zinc-900/40 border border-white/5 hover:border-gold-medium/20 transition-all duration-300 group overflow-hidden">
+              <>
+                {paginatedHistory.map((item: any) => (
+                  <Card key={`${item.type}-${item.id}`} className="bg-zinc-900/40 border border-white/5 hover:border-gold-medium/20 transition-all duration-300 group overflow-hidden">
                   <div className="absolute top-0 left-0 w-1 h-full transition-all duration-300 group-hover:w-1.5 bg-zinc-800" />
 
                   <CardHeader className="py-4 px-6">
@@ -1429,8 +1485,35 @@ export const ZelleApprovalPage = () => {
                     </div>
                   )}
                 </Card>
-              ))
-            )}
+              ))}
+
+              {totalHistoryPages > 1 && (
+                <div className="flex justify-center items-center gap-4 mt-6">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setHistoryPage(p => Math.max(1, p - 1))}
+                    disabled={historyPage === 1}
+                    className="bg-white/5 border-white/10 text-white"
+                  >
+                    Previous
+                  </Button>
+                  <span className="text-gray-400 text-sm">
+                    Page {historyPage} of {totalHistoryPages}
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setHistoryPage(p => Math.min(totalHistoryPages, p + 1))}
+                    disabled={historyPage === totalHistoryPages}
+                    className="bg-white/5 border-white/10 text-white"
+                  >
+                    Next
+                  </Button>
+                </div>
+              )}
+            </>
+          )}
           </div>
         </section>
       </div>
