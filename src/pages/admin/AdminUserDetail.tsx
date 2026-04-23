@@ -200,7 +200,7 @@ const TABS: Array<{ id: Tab; label: string }> = [
   { id: 'overview', label: 'Overview' },
   { id: 'journey', label: 'Journey' },
   { id: 'survey', label: 'Survey' },
-  { id: 'scholarship', label: 'Bolsas V11' },
+  { id: 'scholarship', label: 'Bolsas' },
   { id: 'support', label: 'Suporte IA' },
   { id: 'orders', label: 'Orders' },
   { id: 'documents', label: 'Documents' },
@@ -2396,20 +2396,25 @@ export function AdminUserDetail() {
             : tab.id === 'support' ? detail.supportHandoffs.filter(h => h.status !== 'resolved').length || null
             : null;
 
+          const needsAction = tab.id === 'scholarship' && detail.institutionApplication?.status === 'pending_admin_approval';
+
           return (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
               className={cn(
-                'px-5 py-3 text-sm font-bold whitespace-nowrap border-b-2 transition-colors shrink-0',
+                'px-5 py-3 text-sm font-bold whitespace-nowrap border-b-2 transition-colors shrink-0 flex items-center gap-1.5',
                 activeTab === tab.id
                   ? 'border-gold-medium text-gold-light'
                   : 'border-transparent text-gray-500 hover:text-gray-300'
               )}
             >
               {tab.label}
+              {needsAction && (
+                <span className="flex h-2 w-2 rounded-full bg-red-500" />
+              )}
               {count !== null && count > 0 && (
-                <span className="ml-1.5 text-[10px] bg-white/10 text-gray-400 rounded-full px-1.5 py-0.5">
+                <span className="ml-0.5 text-[10px] bg-white/10 text-gray-400 rounded-full px-1.5 py-0.5">
                   {count}
                 </span>
               )}
