@@ -95,7 +95,7 @@ export const ZelleApprovalPage = () => {
   const [unifiedApprovals, setUnifiedApprovals] = useState<any[]>([]);
   
   const [historySearch, setHistorySearch] = useState('');
-  const [searchTimeout, setSearchTimeout] = useState<NodeJS.Timeout | null>(null);
+  const [searchTimeout, setSearchTimeout] = useState<ReturnType<typeof setTimeout> | null>(null);
   const [historyPage, setHistoryPage] = useState(1);
   const ITEMS_PER_PAGE = 20;
   const historyRef = useRef<HTMLElement>(null);
