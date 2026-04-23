@@ -476,43 +476,6 @@ Deno.serve(async (req) => {
         console.error(`[contrato] Falha geral: ${contractErr.message}`);
       }
 
-      // ── BLOCO 3: Sync Matricula USA ────────────────────────────────────────
-      if (!finalize_contract_only && matriculaUrl && matriculaKey) {
-        const { data: p } = await migma
-          .from("user_profiles")
-          .select("matricula_user_id")
-          .eq("user_id", user_id)
-          .maybeSingle();
-
-        const remoteId = p?.matricula_user_id;
-
-        if (remoteId) {
-          const response = await fetch(
-            `${matriculaUrl}/rest/v1/user_profiles?user_id=eq.${remoteId}`,
-            {
-              method: "PATCH",
-              headers: {
-                apikey: matriculaKey,
-                Authorization: `Bearer ${matriculaKey}`,
-                "Content-Type": "application/json",
-              },
-              body: JSON.stringify({
-                has_paid_selection_process_fee: true,
-                selection_process_paid_at: new Date().toISOString(),
-              }),
-            }
-          );
-
-          if (!response.ok) {
-            const txt = await response.text();
-            console.error(`[matricula-usa] PATCH falhou (${response.status}): ${txt}`);
-          } else {
-            console.log(`[matricula-usa] ✅ sincronizado: remoteId=${remoteId}`);
-          }
-        } else {
-          console.warn(`[matricula-usa] matricula_user_id não encontrado para user ${user_id}`);
-        }
-      }
     }
 
     return new Response(

@@ -56,7 +56,7 @@ Deno.serve(async (req) => {
       .select(`
         id, user_id, email, full_name, phone, country,
         student_process_type, service_type, num_dependents,
-        has_paid_selection_process_fee, selection_survey_passed,
+        selection_survey_passed,
         migma_seller_id, migma_agent_id
       `)
       .eq("id", appRow.profile_id)
@@ -131,7 +131,6 @@ Deno.serve(async (req) => {
       source: "migma",
       dependents: profile.num_dependents || 0,
       placement_fee_flow: true,
-      has_paid_selection_process_fee: profile.has_paid_selection_process_fee ?? false,
       selection_survey_passed: profile.selection_survey_passed ?? false,
     };
 

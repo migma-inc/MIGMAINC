@@ -709,7 +709,7 @@ export const Step1PersonalInfo: React.FC<Props> = ({
           </div>
 
           {/* Split Payment — reutiliza SplitPaymentSelector do visa-checkout */}
-          {canUseSplit && (
+          {canUseSplit && isParcelow && (
             <div className="space-y-4 mt-6">
               <SplitPaymentSelector
                 totalAmount={total}
