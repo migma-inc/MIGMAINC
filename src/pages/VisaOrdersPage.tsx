@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { PdfModal } from '@/components/ui/pdf-modal';
-import { FileText, Eye, Download, ChevronDown, EyeOff, Archive, Undo2, Ticket, Search, RefreshCcw } from 'lucide-react';
+import { FileText, Eye, Download, ChevronDown, Archive, Undo2, Ticket, Search, RefreshCcw } from 'lucide-react';
 import { regenerateVisaDocuments } from '@/lib/visa-utils';
 import {
   Popover,
@@ -79,11 +79,10 @@ const isPendingParcelowOrder = (order: VisaOrder) =>
   order.payment_status === 'pending' &&
   (order.parcelow_status === 'Open' || order.parcelow_status === 'Waiting Payment');
 
-const shouldDisplayOrder = (order: VisaOrder, showHidden: boolean) => {
-  const isCancelledOrFailed = order.payment_status === 'cancelled' || order.payment_status === 'failed';
+const shouldDisplayOrder = (order: VisaOrder) => {
+  const isCancelled = order.payment_status === 'cancelled';
 
-  if (showHidden) return true;
-  return !order.is_hidden && !isPendingParcelowOrder(order) && !isCancelledOrFailed;
+  return !order.is_hidden && !isPendingParcelowOrder(order) && !isCancelled;
 };
 
 const getSplitPaymentPartsPaid = (order: VisaOrder) => {
@@ -622,16 +621,8 @@ export const VisaOrdersPage = () => {
   const [orders, setOrders] = useState<VisaOrder[]>([]);
   const [loading, setLoading] = useState(true);
   
-  // Persist showHidden and activeTab in URL
-  const showHidden = searchParams.get('hidden') === 'true';
+  // Persist activeTab in URL
   const activeTab = (searchParams.get('tab') as 'real' | 'signatures') || 'real';
-  const setShowHidden = (val: boolean) => {
-    const newParams = new URLSearchParams(searchParams);
-    if (val) newParams.set('hidden', 'true');
-    else newParams.delete('hidden');
-    newParams.set('page', '1');
-    setSearchParams(newParams, { replace: true });
-  };
   const setActiveTab = (val: 'real' | 'signatures') => {
     const newParams = new URLSearchParams(searchParams);
     newParams.set('tab', val);
@@ -706,6 +697,8 @@ export const VisaOrdersPage = () => {
         query = query.in('payment_status', ['completed', 'paid']);
       } else if (statusFilter === 'pending') {
         query = query.eq('payment_status', 'pending');
+      } else if (statusFilter === 'failed') {
+        query = query.eq('payment_status', 'failed');
       }
     }
 
@@ -832,7 +825,7 @@ export const VisaOrdersPage = () => {
         }
 
         const visibleFilteredOrders = allFilteredOrders
-          .filter(order => shouldDisplayOrder(order, showHidden))
+          .filter(order => shouldDisplayOrder(order))
           .sort((a, b) => {
             const dateA = new Date(a.paid_at ?? a.created_at).getTime();
             const dateB = new Date(b.paid_at ?? b.created_at).getTime();
@@ -875,7 +868,7 @@ export const VisaOrdersPage = () => {
     };
 
     loadData(orders.length === 0);
-  }, [statusFilter, sellerFilter, methodFilter, searchTerm, currentPage, activeTab, showHidden]);
+  }, [statusFilter, sellerFilter, methodFilter, searchTerm, currentPage, activeTab]);
 
   useEffect(() => {
     const totalPages = Math.max(1, Math.ceil(totalCount / itemsPerPage));
@@ -983,7 +976,7 @@ export const VisaOrdersPage = () => {
         from += batchSize;
       }
 
-      const filteredOrders = allFilteredOrders.filter(order => shouldDisplayOrder(order, showHidden));
+      const filteredOrders = allFilteredOrders.filter(order => shouldDisplayOrder(order));
 
       const { exportVisaOrdersToExcel } = await import('@/lib/visaOrdersExport');
       await exportVisaOrdersToExcel(filteredOrders);
@@ -1016,11 +1009,10 @@ export const VisaOrdersPage = () => {
       order.payment_status === 'pending' &&
       (order.parcelow_status === 'Open' || order.parcelow_status === 'Waiting Payment');
 
-    // Filtra para remover cancelados e failed da visualização padrão
-    const isCancelledOrFailed = order.payment_status === 'cancelled' || order.payment_status === 'failed';
+    // Filtra para remover cancelados da visualização padrão
+    const isCancelled = order.payment_status === 'cancelled';
 
-    if (showHidden) return true;
-    return !order.is_hidden && !isPendingParcelow && !isCancelledOrFailed;
+    return !order.is_hidden && !isPendingParcelow && !isCancelled;
   });
 
   const realOrders = activeTab === 'real' ? displayOrders : [];
@@ -1213,18 +1205,6 @@ export const VisaOrdersPage = () => {
             </div>
 
             <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
-              {isLocal && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setShowHidden(!showHidden)}
-                  className={`border-gold-medium/30 bg-black/50 text-gold-light hover:bg-gold-medium/20 text-xs md:text-sm ${showHidden ? 'bg-gold-medium/40' : ''}`}
-                >
-                  {showHidden ? <Eye className="w-4 h-4 mr-2" /> : <EyeOff className="w-4 h-4 mr-2" />}
-                  {showHidden ? 'Show Real Only' : 'Show All'}
-                </Button>
-              )}
-
               <Popover>
                 <PopoverTrigger asChild>
                   <Button
@@ -1321,22 +1301,35 @@ export const VisaOrdersPage = () => {
               >
                 Pending
               </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  const newParams = new URLSearchParams(searchParams);
+                  if (statusFilter === 'failed') newParams.delete('status');
+                  else newParams.set('status', 'failed');
+                  newParams.set('page', '1');
+                  setSearchParams(newParams);
+                }}
+                className={`h-9 border-red-500/30 text-xs font-bold uppercase tracking-wider transition-all ${statusFilter === 'failed'
+                    ? 'bg-red-500 text-white border-red-500 shadow-[0_0_10px_rgba(239,68,68,0.3)]'
+                    : 'bg-black/50 text-red-400 hover:bg-red-500/20'
+                  }`}
+              >
+                Failed
+              </Button>
             </div>
           </TabsList>
 
           <TabsContent value="real">
             <Card className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30">
               <CardHeader>
-                <CardTitle className="text-lg sm:text-xl text-white">
-                  {showHidden ? 'All Orders (Including Hidden)' : 'Real Orders'}
-                </CardTitle>
+                <CardTitle className="text-lg sm:text-xl text-white">Real Orders</CardTitle>
               </CardHeader>
               <CardContent>
                 {realOrders.length === 0 ? (
                   <div className="text-center py-12">
-                    <p className="text-gray-400 text-sm sm:text-base">
-                      {showHidden ? 'No orders found' : 'No real orders found.'}
-                    </p>
+                    <p className="text-gray-400 text-sm sm:text-base">No real orders found.</p>
                   </div>
                 ) : (
                   <OrderTable
