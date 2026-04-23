@@ -1,6 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
-import { PDFDocument, rgb, StandardFonts, PDFFont, PDFPage } from "npm:pdf-lib@^1.17.1";
+import { PDFDocument, rgb, StandardFonts, PDFFont, PDFPage, PDFForm } from "npm:pdf-lib@^1.17.1";
 import { fromFileUrl } from "https://deno.land/std@0.224.0/path/mod.ts";
 
 const CORS = {
@@ -26,11 +26,7 @@ const OIKOS_FORMS = [
   "application_packet",
   "affidavit_of_financial_support",  // conditional on sponsor
   "enrollment_agreement",
-  "statement_of_institutional_purpose",
-  "statement_of_faith",
-  "code_of_conduct",
-  "refund_policy",
-  "agreement_to_complete_mandatory_intensives",
+  "all_statements_and_agreement",
   "termo_responsabilidade_estudante", // internal only
 ] as const;
 
@@ -48,6 +44,7 @@ const FORM_LABELS: Record<string, string> = {
   statement_of_institutional_purpose:         "Statement of Institutional Purpose",
   scholarship_support_compliance_agreement:   "Scholarship Support & Compliance Agreement",
   enrollment_agreement:                       "Enrollment Agreement",
+  all_statements_and_agreement:               "All Statements and Agreement",
   statement_of_faith:                         "Statement of Faith",
   code_of_conduct:                            "Code of Conduct",
   refund_policy:                              "Refund Policy",
@@ -58,6 +55,9 @@ const FORM_LABELS: Record<string, string> = {
 
 const OIKOS_APPLICATION_PACKET_TEMPLATE_FILENAME = "1. Application Packet - OIKOS (1).pdf";
 const OIKOS_VERIFICATION_OF_FINANCIAL_TEMPLATE_FILENAME = "5. Verification of Financial  (1).pdf";
+const OIKOS_ALL_STATEMENTS_AND_AGREEMENT_TEMPLATE_FILENAME = "All Statement and agreement  (1).pdf";
+const CAROLINE_LETTER_OF_RECOMMENDATION_TEMPLATE_FILENAME = "Caroline Form Letter of Recommendation (1).pdf";
+const CAROLINE_AFFIDAVIT_OF_FINANCIAL_SUPPORT_TEMPLATE_FILENAME = "Caroline_Affidavit of Financial Support_2024 (1).pdf";
 
 type PacketDegreeProgram =
   | "ba_biblical_studies"
@@ -88,7 +88,7 @@ interface PacketTextField {
   top: number;
   maxWidth: number;
   source: string;
-  align?: "left" | "right";
+  align?: "left" | "right" | "center";
   transform?: "year2digits_or_suffix" | "year4digits_or_suffix" | "year2digits" | "year4digits" | "phone_area_code" | "phone_local_number";
   width?: number;
   height?: number;
@@ -138,10 +138,12 @@ interface OverlayTextField {
   top: number;
   maxWidth: number;
   source: string;
-  align?: "left" | "right";
-  transform?: "student_display_name";
+  align?: "left" | "right" | "center";
+  transform?: "student_display_name" | "date_mm" | "date_dd" | "date_yyyy";
   optional?: boolean;
   format?: "MM/DD/YYYY";
+  fontSize?: number;
+  minFontSize?: number;
 }
 
 interface OikosApplicationPacketData {
@@ -265,6 +267,123 @@ interface OikosVerificationFinancialData {
     officerTitle?: string;
   };
 }
+
+interface CarolineAffidavitOfFinancialSupportData {
+  student: {
+    lastName?: string;
+    firstName?: string;
+    middleName?: string;
+    dateOfBirth?: string;
+  };
+  sponsor: {
+    name?: string;
+    telephone?: string;
+    address?: string;
+    city?: string;
+    state?: string;
+    zip?: string;
+    relationship?: string;
+    employer?: string;
+    title?: string;
+    years?: string;
+    income?: string;
+  };
+  financial: {
+    annualProjectedTuitionExpense?: string;
+    annualSupportAmount?: string;
+  };
+}
+
+interface OikosAllStatementsAgreementData {
+  student: {
+    fullName?: string;
+  };
+  meta: {
+    currentDate?: string;
+  };
+  christianFaith: {
+    name?: string;
+    date?: string;
+    statement?: string;
+  };
+}
+
+interface CarolineLetterOfRecommendationData {
+  applicant: {
+    fullName?: string;
+    addressLine1?: string;
+    city?: string;
+    state?: string;
+    zip?: string;
+  };
+  recommender: {
+    name?: string;
+    email?: string;
+    telephone?: string;
+    date?: string;
+    institution?: string;
+    position?: string;
+    address?: string;
+    city?: string;
+    state?: string;
+    zip?: string;
+  };
+}
+
+const CAROLINE_LETTER_OF_RECOMMENDATION_V1: {
+  text: Record<string, OverlayTextField>;
+} = {
+  text: {
+    applicant_name: { page: 0, x: 162, top: 164, maxWidth: 400, fontSize: 10, source: "applicant.fullName" },
+    applicant_address: { page: 0, x: 112, top: 194, maxWidth: 500, fontSize: 10, source: "applicant.addressLine1" },
+    applicant_city: { page: 0, x: 285, top: 194, maxWidth: 110, fontSize: 10, align: "center", source: "applicant.city" },
+    applicant_state: { page: 0, x: 395, top: 194, maxWidth: 40, fontSize: 10, align: "center", source: "applicant.state" },
+    applicant_zip: { page: 0, x: 470, top: 194, maxWidth: 60, fontSize: 10, align: "center", source: "applicant.zip" },
+    recommender_name: { page: 0, x: 135, top: 548, maxWidth: 220, fontSize: 10, source: "recommender.name" },
+    recommender_email: { page: 0, x: 355, top: 548, maxWidth: 215, fontSize: 10, source: "recommender.email" },
+    recommender_date_mm: { page: 0, x: 150, top: 561, maxWidth: 28, fontSize: 10, source: "recommender.date", transform: "date_mm", optional: true },
+    recommender_date_dd: { page: 0, x: 183, top: 561, maxWidth: 28, fontSize: 10, source: "recommender.date", transform: "date_dd", optional: true },
+    recommender_date_yyyy: { page: 0, x: 255, top: 561, maxWidth: 52, fontSize: 10, source: "recommender.date", transform: "date_yyyy", optional: true },
+    recommender_institution: { page: 0, x: 205, top: 586, maxWidth: 220, fontSize: 8, minFontSize: 7, source: "recommender.institution", optional: true },
+    recommender_position: { page: 0, x: 410, top: 586, maxWidth: 170, fontSize: 8, minFontSize: 7, source: "recommender.position" },
+    recommender_address: { page: 0, x: 145, top: 606, maxWidth: 135, fontSize: 7, minFontSize: 6, source: "recommender.address", optional: true },
+    recommender_telephone: { page: 0, x: 430, top: 606, maxWidth: 150, fontSize: 9, minFontSize: 8, source: "recommender.telephone" },
+    recommender_city: { page: 0, x: 240, top: 606, maxWidth: 120, fontSize: 7, minFontSize: 6, align: "center", source: "recommender.city", optional: true },
+    recommender_state: { page: 0, x: 310, top: 606, maxWidth: 40, fontSize: 7, minFontSize: 6, align: "center", source: "recommender.state", optional: true },
+    recommender_zip: { page: 0, x: 330, top: 606, maxWidth: 55, fontSize: 7, minFontSize: 6, align: "center", source: "recommender.zip", optional: true },
+  },
+};
+
+const CAROLINE_AFFIDAVIT_OF_FINANCIAL_SUPPORT_V1: {
+  text: Record<string, OverlayTextField>;
+} = {
+  text: {
+    student_last_name: { page: 0, x: 100, top: 195, maxWidth: 110, fontSize: 10, align: "center", source: "student.lastName" },
+    student_first_name: { page: 0, x: 274, top: 196, maxWidth: 110, fontSize: 10, align: "center", source: "student.firstName" },
+    student_middle_name: { page: 0, x: 420, top: 196, maxWidth: 90, fontSize: 10, align: "center", source: "student.middleName" },
+    student_date_of_birth: { page: 0, x: 100, top: 235, maxWidth: 130, fontSize: 10, align: "center", source: "student.dateOfBirth", format: "MM/DD/YYYY" },
+
+    sponsor_name: { page: 0, x: 100, top: 280, maxWidth: 210, fontSize: 10, source: "sponsor.name" },
+    sponsor_telephone: { page: 0, x: 326, top: 278, maxWidth: 150, fontSize: 10, source: "sponsor.telephone" },
+    sponsor_address: { page: 0, x: 100, top: 322, maxWidth: 220, fontSize: 8, minFontSize: 7, source: "sponsor.address" },
+    sponsor_city: { page: 0, x: 300, top: 319, maxWidth: 90, fontSize: 10, source: "sponsor.city" },
+    sponsor_state: { page: 0, x: 433, top: 319, maxWidth: 45, fontSize: 10, source: "sponsor.state" },
+    sponsor_zip: { page: 0, x: 500, top: 318, maxWidth: 70, fontSize: 10, source: "sponsor.zip" },
+
+    annual_projected_tuition_expense: { page: 0, x: 105, top: 401, maxWidth: 70, fontSize: 10, source: "financial.annualProjectedTuitionExpense" },
+
+    sponsor_name_2: { page: 0, x: 100, top: 429, maxWidth: 210, fontSize: 10, source: "sponsor.name" },
+    sponsor_relationship: { page: 0, x: 383, top: 428, maxWidth: 120, fontSize: 10, source: "sponsor.relationship" },
+    sponsor_employer: { page: 0, x: 100, top: 471, maxWidth: 205, fontSize: 9, minFontSize: 8, source: "sponsor.employer", optional: true },
+    sponsor_title: { page: 0, x: 382, top: 469, maxWidth: 180, fontSize: 9, minFontSize: 8, source: "sponsor.title", optional: true },
+    sponsor_years: { page: 0, x: 100, top: 511, maxWidth: 40, fontSize: 10, source: "sponsor.years", optional: true },
+    sponsor_income: { page: 0, x: 315, top: 510, maxWidth: 100, fontSize: 10, source: "sponsor.income", optional: true },
+
+    sponsor_name_inline: { page: 0, x: 104, top: 551, maxWidth: 150, fontSize: 9, minFontSize: 8, source: "sponsor.name" },
+    student_name_inline: { page: 0, x: 100, top: 580, maxWidth: 150, fontSize: 9, minFontSize: 8, source: "student.firstName", transform: "student_display_name" },
+    annual_support_amount: { page: 0, x: 239, top: 606, maxWidth: 70, fontSize: 10, source: "financial.annualSupportAmount" },
+  },
+};
 
 const OIKOS_APPLICATION_PACKET_V1: {
   acroForm: Record<string, PacketTextField>;
@@ -446,28 +565,19 @@ const OIKOS_VERIFICATION_OF_FINANCIAL_V1: {
     student_date_of_birth: { page: 0, x: 403, top: 170, maxWidth: 115, source: "student.dateOfBirth", format: "MM/DD/YYYY" },
     student_address: { page: 0, x: 115, top: 198, maxWidth: 140, source: "student.address" },
     student_city: { page: 0, x: 280, top: 198, maxWidth: 80, source: "student.city" },
-    student_state: { page: 0, x: 385, top: 198, maxWidth: 30, source: "student.state" },
-    student_zip: { page: 0, x: 425, top: 198, maxWidth: 50, source: "student.zip" },
-    annual_projected_tuition_expense: { page: 0, x: 360, top: 303, maxWidth: 72, source: "financial.annualProjectedTuitionExpense" },
-    sponsor_name: { page: 0, x: 62, top: 354, maxWidth: 205, source: "sponsor.name" },
-    sponsor_relationship: { page: 0, x: 286, top: 354, maxWidth: 72, source: "sponsor.relationship" },
-    sponsor_telephone: { page: 0, x: 378, top: 354, maxWidth: 110, source: "sponsor.telephone" },
-    sponsor_address: { page: 0, x: 62, top: 400, maxWidth: 180, source: "sponsor.address" },
-    sponsor_city: { page: 0, x: 267, top: 400, maxWidth: 92, source: "sponsor.city" },
-    sponsor_state: { page: 0, x: 354, top: 400, maxWidth: 42, source: "sponsor.state" },
-    sponsor_zip: { page: 0, x: 406, top: 400, maxWidth: 52, source: "sponsor.zip" },
-    sponsor_name_inline: { page: 0, x: 80, top: 442, maxWidth: 120, source: "sponsor.name" },
-    student_name_inline: { page: 0, x: 326, top: 442, maxWidth: 110, source: "student.firstName", transform: "student_display_name" },
-    annual_support_amount: { page: 0, x: 370, top: 465, maxWidth: 85, source: "financial.annualSupportAmount" },
-    sponsor_signature_text: { page: 0, x: 113, top: 518, maxWidth: 185, source: "sponsor.signatureText", optional: true },
-    sponsor_signature_date: { page: 0, x: 386, top: 518, maxWidth: 86, source: "sponsor.signatureDate", format: "MM/DD/YYYY", optional: true },
-    sponsor_oath_signature_text: { page: 0, x: 160, top: 663, maxWidth: 190, source: "notary.sponsorOathSignatureText", optional: true },
-    subscribed_day: { page: 0, x: 273, top: 707, maxWidth: 34, source: "notary.subscribedDay", optional: true },
-    subscribed_month: { page: 0, x: 355, top: 707, maxWidth: 84, source: "notary.subscribedMonth", optional: true },
-    subscribed_location: { page: 0, x: 65, top: 728, maxWidth: 170, source: "notary.subscribedLocation", optional: true },
-    commission_expires_on: { page: 0, x: 333, top: 728, maxWidth: 165, source: "notary.commissionExpiresOn", optional: true },
-    officer_signature_text: { page: 0, x: 62, top: 783, maxWidth: 205, source: "notary.officerSignatureText", optional: true },
-    officer_title: { page: 0, x: 307, top: 783, maxWidth: 115, source: "notary.officerTitle", optional: true },
+    student_state: { page: 0, x: 385, top: 198, maxWidth: 80, fontSize: 10, minFontSize: 5, source: "student.state" },
+    student_zip: { page: 0, x: 468, top: 198, maxWidth: 65, source: "student.zip" },
+    sponsor_name: { page: 0, x: 65, top: 320, maxWidth: 205, source: "sponsor.name" },
+    sponsor_relationship: { page: 0, x: 325, top: 320, maxWidth: 72, source: "sponsor.relationship" },
+    sponsor_telephone: { page: 0, x: 435, top: 320, maxWidth: 110, source: "sponsor.telephone" },
+    sponsor_address: { page: 0, x: 58, top: 354, maxWidth: 180, source: "sponsor.address" },
+    sponsor_city: { page: 0, x: 280, top: 354, maxWidth: 92, source: "sponsor.city" },
+    sponsor_state: { page: 0, x: 395, top: 354, maxWidth: 42, source: "sponsor.state" },
+    sponsor_zip: { page: 0, x: 455, top: 354, maxWidth: 65, source: "sponsor.zip" },
+    sponsor_name_inline: { page: 0, x: 80, top: 400, maxWidth: 120, source: "sponsor.name" },
+    student_name_inline: { page: 0, x: 365, top: 400, maxWidth: 110, source: "student.firstName", transform: "student_display_name" },
+    annual_support_amount: { page: 0, x: 375, top: 418, maxWidth: 85, source: "financial.annualSupportAmount" },
+    annual_projected_tuition_expense: { page: 0, x: 435, top: 272, maxWidth: 100, source: "financial.annualProjectedTuitionExpense" },
   },
 };
 
@@ -486,21 +596,69 @@ interface SupplementalData {
     relationship?: string;
     phone?: string;
     address?: string;
+    city?: string;
+    state?: string;
+    zip?: string;
     employer?: string;
     position?: string;
     years_employed?: number;
     annual_income_usd?: string;
     committed_amount_usd?: number;
+    signature_text?: string;
+    signature_date?: string;
+  };
+  notary?: {
+    sponsor_oath_signature_text?: string;
+    subscribed_day?: string;
+    subscribed_month?: string;
+    subscribed_location?: string;
+    commission_expires_on?: string;
+    officer_signature_text?: string;
+    officer_title?: string;
   };
   work_experience?: Array<{ company?: string; period?: string; position?: string }>;
-  recommenders?: Array<{ name?: string; position?: string; contact?: string }>;
+  recommenders?: Array<{
+    name?: string;
+    position?: string;
+    contact?: string;
+    email?: string;
+    telephone?: string;
+    date?: string;
+    institution?: string;
+    address?: string;
+    city?: string;
+    state?: string;
+    zip?: string;
+  }>;
   preferred_start_term?: string;
 }
 
 interface Payload {
-  application_id: string;
+  application_id?: string;
   supplemental_data?: SupplementalData;
   debug_env?: boolean;
+  local_test?: {
+    enabled?: boolean;
+    form_types?: string[];
+    institution?: Record<string, any>;
+    scholarship?: Record<string, any> | null;
+    course?: Record<string, any> | null;
+    survey?: Record<string, any> | null;
+    profile?: Record<string, any>;
+    identity?: Record<string, any>;
+    supplemental_data?: SupplementalData;
+    return_resolved_form_data?: boolean;
+  };
+}
+
+function uint8ToBase64(bytes: Uint8Array): string {
+  let binary = "";
+  const chunkSize = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    const chunk = bytes.subarray(i, i + chunkSize);
+    binary += String.fromCharCode(...chunk);
+  }
+  return btoa(binary);
 }
 
 function getValueAtPath(data: Record<string, any>, path: string): unknown {
@@ -522,10 +680,10 @@ function truncateToWidth(font: PDFFont, text: string, size: number, maxWidth: nu
   if (font.widthOfTextAtSize(text, size) <= maxWidth) return text;
 
   let output = text;
-  while (output.length > 0 && font.widthOfTextAtSize(`${output}...`, size) > maxWidth) {
+  while (output.length > 0 && font.widthOfTextAtSize(output, size) > maxWidth) {
     output = output.slice(0, -1);
   }
-  return output ? `${output}...` : "";
+  return output;
 }
 
 function wrapTextToWidth(font: PDFFont, text: string, size: number, maxWidth: number): string[] {
@@ -967,13 +1125,119 @@ function buildOikosVerificationFinancialData(
       relationship: supplemental.sponsor?.relationship,
       telephone: supplemental.sponsor?.phone,
       address: supplemental.sponsor?.address,
-      city: undefined,
-      state: undefined,
-      zip: undefined,
-      signatureDate: undefined,
-      signatureText: undefined,
+      city: supplemental.sponsor?.city,
+      state: supplemental.sponsor?.state,
+      zip: supplemental.sponsor?.zip,
+      signatureText: supplemental.sponsor?.signature_text,
+      signatureDate: supplemental.sponsor?.signature_date,
     },
-    notary: {},
+    notary: {
+      sponsorOathSignatureText: supplemental.notary?.sponsor_oath_signature_text,
+      subscribedDay: supplemental.notary?.subscribed_day,
+      subscribedMonth: supplemental.notary?.subscribed_month,
+      subscribedLocation: supplemental.notary?.subscribed_location,
+      commissionExpiresOn: supplemental.notary?.commission_expires_on,
+      officerSignatureText: supplemental.notary?.officer_signature_text,
+      officerTitle: supplemental.notary?.officer_title,
+    },
+  };
+}
+
+function buildOikosAllStatementsAgreementData(
+  profile: Record<string, any>,
+  survey: Record<string, any> | null,
+): OikosAllStatementsAgreementData {
+  const answers = (survey?.answers ?? {}) as Record<string, any>;
+  const splitName = splitFullName(profile.full_name);
+  const currentDate = maybeFormatDate(new Date().toISOString());
+  const fullName = compact(
+    compact(profile.full_name) || joinNonEmpty([splitName.firstName, splitName.middleName, splitName.lastName]),
+  ) || undefined;
+  const christianFaithStatement = compact(answers.christian_faith_statement ?? answers.faith_statement) || undefined;
+
+  return {
+    student: {
+      fullName,
+    },
+    meta: {
+      currentDate,
+    },
+    christianFaith: {
+      name: fullName,
+      date: currentDate,
+      statement: christianFaithStatement,
+    },
+  };
+}
+
+function buildCarolineLetterOfRecommendationData(
+  profile: Record<string, any>,
+  supplemental: SupplementalData,
+  identity: Record<string, any> | null,
+): CarolineLetterOfRecommendationData {
+  const recommender = supplemental.recommenders?.[0];
+  const contact = compact(recommender?.contact);
+  const recommenderEmail = compact(recommender?.email) || (isProbablyEmail(contact) ? contact : undefined);
+  const recommenderTelephone = compact(recommender?.telephone) || (!recommenderEmail && looksLikePhone(contact) ? contact : undefined);
+
+  return {
+    applicant: {
+      fullName: compact(profile.full_name) || undefined,
+      addressLine1: compact(identity?.address) || undefined,
+      city: compact(identity?.city) || undefined,
+      state: compact(identity?.state) || undefined,
+      zip: compact(identity?.zip_code) || undefined,
+    },
+    recommender: {
+      name: safeName(recommender?.name) || undefined,
+      email: recommenderEmail,
+      telephone: recommenderTelephone,
+      date: compact(recommender?.date) || undefined,
+      institution: compact(recommender?.institution) || undefined,
+      position: compact(recommender?.position) || undefined,
+      address: compact(recommender?.address) || undefined,
+      city: compact(recommender?.city) || undefined,
+      state: compact(recommender?.state) || undefined,
+      zip: compact(recommender?.zip) || undefined,
+    },
+  };
+}
+
+function buildCarolineAffidavitOfFinancialSupportData(
+  profile: Record<string, any>,
+  scholarship: Record<string, any> | null,
+  supplemental: SupplementalData,
+  identity: Record<string, any> | null,
+): CarolineAffidavitOfFinancialSupportData {
+  const splitName = splitFullName(profile.full_name);
+  const tuitionExpense = formatMoneyValue(scholarship?.tuition_annual_usd);
+  const supportAmount = formatMoneyValue(supplemental.sponsor?.committed_amount_usd ?? scholarship?.tuition_annual_usd);
+  const income = formatMoneyValue(supplemental.sponsor?.annual_income_usd);
+
+  return {
+    student: {
+      lastName: splitName.lastName,
+      firstName: splitName.firstName,
+      middleName: splitName.middleName,
+      dateOfBirth: identity?.birth_date ?? undefined,
+    },
+    sponsor: {
+      name: supplemental.sponsor?.full_name,
+      telephone: supplemental.sponsor?.phone,
+      address: supplemental.sponsor?.address,
+      city: supplemental.sponsor?.city,
+      state: supplemental.sponsor?.state,
+      zip: supplemental.sponsor?.zip,
+      relationship: supplemental.sponsor?.relationship,
+      employer: supplemental.sponsor?.employer,
+      title: supplemental.sponsor?.position,
+      years: supplemental.sponsor?.years_employed != null ? String(supplemental.sponsor.years_employed) : undefined,
+      income,
+    },
+    financial: {
+      annualProjectedTuitionExpense: tuitionExpense,
+      annualSupportAmount: supportAmount,
+    },
   };
 }
 
@@ -989,6 +1253,14 @@ function buildFormData(
 ): Record<string, any> {
   if (formType === "application_packet") {
     return buildOikosApplicationPacketData(profile, course, survey, supplemental, identity);
+  }
+
+  if (formType === "all_statements_and_agreement") {
+    return buildOikosAllStatementsAgreementData(profile, survey);
+  }
+
+  if (formType === "letter_of_recommendation") {
+    return buildCarolineLetterOfRecommendationData(profile, supplemental, identity);
   }
 
   // §11.3 field mapping — user_identity is source of truth for personal data
@@ -1035,6 +1307,9 @@ function buildFormData(
       };
 
     case "affidavit_of_financial_support":
+      if ((institution.slug ?? institution.name ?? "").toLowerCase().includes("caroline")) {
+        return buildCarolineAffidavitOfFinancialSupportData(profile, scholarship, supplemental, identity);
+      }
       return {
         ...base,
         has_sponsor: supplemental.has_sponsor,
@@ -1199,6 +1474,7 @@ function drawPacketTextField(
 
   let x = field.x + paddingLeft;
   if (field.align === "right") x = field.x + boxWidth - paddingRight - textWidth;
+  if (field.align === "center") x = field.x + paddingLeft + Math.max(0, (usableWidth - textWidth) / 2);
 
   let y = topToPdfY(page, field.top, drawSize) + (field.baselineOffset ?? 0);
   if (field.valign === "middle") {
@@ -1326,6 +1602,15 @@ function resolveOverlayTextValue(
     value = maybeFormatDate(value) ?? value;
   }
 
+  if (field.transform === "date_mm" || field.transform === "date_dd" || field.transform === "date_yyyy") {
+    const formatted = maybeFormatDate(value) ?? value;
+    const match = formatted.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+    if (!match) return "";
+    if (field.transform === "date_mm") return match[1];
+    if (field.transform === "date_dd") return match[2];
+    return match[3];
+  }
+
   return value;
 }
 
@@ -1360,6 +1645,118 @@ async function generateOikosVerificationFinancialPdf(
       maxWidth: field.maxWidth,
       source: field.source,
       align: field.align,
+      fontSize: field.fontSize,
+      minFontSize: field.minFontSize,
+    });
+  }
+
+  return await doc.save();
+}
+
+function setAcroTextField(form: PDFForm, fieldName: string, value: string | undefined) {
+  if (!value) return;
+  try {
+    form.getTextField(fieldName).setText(value);
+  } catch (error) {
+    console.warn("[generate-institution-forms] acro_text_field_missing", { fieldName, error });
+  }
+}
+
+async function generateOikosAllStatementsAgreementPdf(
+  formData: OikosAllStatementsAgreementData,
+): Promise<Uint8Array> {
+  const templateBytes = await loadPdfTemplate(OIKOS_ALL_STATEMENTS_AND_AGREEMENT_TEMPLATE_FILENAME);
+  const doc = await PDFDocument.load(templateBytes);
+  const form = doc.getForm();
+  const font = await doc.embedFont(StandardFonts.Helvetica);
+
+  const fullName = formData.student.fullName;
+  const currentDate = formData.meta.currentDate;
+  const christianFaithName = formData.christianFaith.name ?? fullName;
+  const christianFaithDate = formData.christianFaith.date ?? currentDate;
+
+  setAcroTextField(form, "Name", fullName);
+  setAcroTextField(form, "Date", currentDate);
+  setAcroTextField(form, "Name 1", fullName);
+  setAcroTextField(form, "Name 2", currentDate);
+  setAcroTextField(form, "Name_2", fullName);
+  setAcroTextField(form, "Date_2", currentDate);
+  setAcroTextField(form, "Text7", currentDate);
+  setAcroTextField(form, "Text8", fullName);
+  setAcroTextField(form, "Text10", fullName);
+  setAcroTextField(form, "Text11", currentDate);
+  setAcroTextField(form, "Text13", christianFaithName);
+  setAcroTextField(form, "Text14", christianFaithDate);
+  setAcroTextField(form, "Text16", formData.christianFaith.statement);
+
+  // Signature-related fields stay blank by design.
+  form.updateFieldAppearances(font);
+  form.flatten();
+  return await doc.save();
+}
+
+async function generateCarolineLetterOfRecommendationPdf(
+  formData: CarolineLetterOfRecommendationData,
+): Promise<Uint8Array> {
+  const templateBytes = await loadPdfTemplate(CAROLINE_LETTER_OF_RECOMMENDATION_TEMPLATE_FILENAME);
+  const doc = await PDFDocument.load(templateBytes);
+  const page = doc.getPages()[0];
+  const font = await doc.embedFont(StandardFonts.Helvetica);
+
+  for (const field of Object.values(CAROLINE_LETTER_OF_RECOMMENDATION_V1.text)) {
+    const value = resolveOverlayTextValue(formData as unknown as Record<string, any>, field);
+    if (!value) {
+      if (field.optional) {
+        console.info("[generate-institution-forms] template_optional_field_blank", {
+          formType: "letter_of_recommendation",
+          field: field.source,
+        });
+      }
+      continue;
+    }
+    drawPacketTextField(page, font, value, {
+      page: field.page,
+      x: field.x,
+      top: field.top,
+      maxWidth: field.maxWidth,
+      source: field.source,
+      align: field.align,
+      fontSize: field.fontSize,
+      minFontSize: field.minFontSize,
+    });
+  }
+
+  return await doc.save();
+}
+
+async function generateCarolineAffidavitOfFinancialSupportPdf(
+  formData: CarolineAffidavitOfFinancialSupportData,
+): Promise<Uint8Array> {
+  const templateBytes = await loadPdfTemplate(CAROLINE_AFFIDAVIT_OF_FINANCIAL_SUPPORT_TEMPLATE_FILENAME);
+  const doc = await PDFDocument.load(templateBytes);
+  const page = doc.getPages()[0];
+  const font = await doc.embedFont(StandardFonts.Helvetica);
+
+  for (const field of Object.values(CAROLINE_AFFIDAVIT_OF_FINANCIAL_SUPPORT_V1.text)) {
+    const value = resolveOverlayTextValue(formData as unknown as Record<string, any>, field);
+    if (!value) {
+      if (field.optional) {
+        console.info("[generate-institution-forms] template_optional_field_blank", {
+          formType: "affidavit_of_financial_support",
+          field: field.source,
+        });
+      }
+      continue;
+    }
+    drawPacketTextField(page, font, value, {
+      page: field.page,
+      x: field.x,
+      top: field.top,
+      maxWidth: field.maxWidth,
+      source: field.source,
+      align: field.align,
+      fontSize: field.fontSize,
+      minFontSize: field.minFontSize,
     });
   }
 
@@ -1449,6 +1846,18 @@ async function generateFormPdf(
 
   if (formType === "affidavit_of_financial_support" && institutionSlug?.includes("oikos")) {
     return await generateOikosVerificationFinancialPdf(formData as OikosVerificationFinancialData);
+  }
+
+  if (formType === "affidavit_of_financial_support" && institutionSlug?.includes("caroline")) {
+    return await generateCarolineAffidavitOfFinancialSupportPdf(formData as CarolineAffidavitOfFinancialSupportData);
+  }
+
+  if (formType === "all_statements_and_agreement" && institutionSlug?.includes("oikos")) {
+    return await generateOikosAllStatementsAgreementPdf(formData as OikosAllStatementsAgreementData);
+  }
+
+  if (formType === "letter_of_recommendation" && institutionSlug?.includes("caroline")) {
+    return await generateCarolineLetterOfRecommendationPdf(formData as CarolineLetterOfRecommendationData);
   }
 
   const doc = await PDFDocument.create();
@@ -1755,7 +2164,8 @@ Deno.serve(async (req) => {
   const supabase = createClient(supabaseUrl, supabaseKey);
 
   try {
-    const { application_id, supplemental_data = {}, debug_env = false }: Payload = await req.json();
+    const { application_id, supplemental_data = {}, debug_env = false, local_test }: Payload = await req.json();
+    const isLocalTest = local_test?.enabled === true;
 
     if (debug_env) {
       return new Response(
@@ -1775,79 +2185,142 @@ Deno.serve(async (req) => {
       );
     }
 
-    if (!application_id) {
-      return new Response(JSON.stringify({ error: "application_id is required" }), { status: 400, headers: CORS });
-    }
+    let app: Record<string, any> | null = null;
+    let institution: Record<string, any>;
+    let scholarship: Record<string, any> | null = null;
+    let course: Record<string, any> | null = null;
+    let survey: Record<string, any> | null = null;
+    let resolvedProfile: Record<string, any>;
+    let resolvedIdentity: Record<string, any> | null;
+    let resolvedSupplemental: SupplementalData;
+    let profileIdForStorage = "local-test-profile";
 
-    // ── 1. Fetch application + institution + scholarship + course ────────────
-    const { data: app, error: appErr } = await supabase
-      .from("institution_applications")
-      .select(`
-        id, profile_id, institution_id, scholarship_level_id, status,
-        placement_fee_paid_at, supplemental_data,
-        institutions (id, name, slug, city, state, modality, cpt_opt, accepts_cos, accepts_transfer),
-        institution_scholarships (id, scholarship_level, placement_fee_usd, discount_percent,
-          tuition_annual_usd, monthly_migma_usd, installments_total,
-          institution_courses (id, course_name, degree_level, area, duration_months))
-      `)
-      .eq("id", application_id)
-      .single();
+    if (isLocalTest) {
+      institution = {
+        id: "local-test-institution",
+        name: local_test?.institution?.name ?? "Local Test Institution",
+        slug: local_test?.institution?.slug ?? "local-test-institution",
+        city: local_test?.institution?.city ?? null,
+        state: local_test?.institution?.state ?? null,
+        modality: local_test?.institution?.modality ?? null,
+        cpt_opt: local_test?.institution?.cpt_opt ?? null,
+        accepts_cos: local_test?.institution?.accepts_cos ?? null,
+        accepts_transfer: local_test?.institution?.accepts_transfer ?? null,
+      };
+      scholarship = local_test?.scholarship ?? null;
+      course = local_test?.course ?? scholarship?.institution_courses ?? null;
+      if (scholarship && !scholarship.institution_courses && course) {
+        scholarship = { ...scholarship, institution_courses: course };
+      }
+      survey = local_test?.survey ?? null;
+      resolvedProfile = {
+        id: "local-test-profile",
+        user_id: "local-test-user",
+        full_name: null,
+        email: null,
+        phone: null,
+        whatsapp: null,
+        num_dependents: null,
+        student_process_type: null,
+        service_type: null,
+        signature_url: null,
+        ...(local_test?.profile ?? {}),
+      };
+      resolvedIdentity = {
+        birth_date: null,
+        nationality: null,
+        marital_status: null,
+        address: null,
+        city: null,
+        state: null,
+        zip_code: null,
+        country: null,
+        ...(local_test?.identity ?? {}),
+      };
+      resolvedSupplemental = {
+        ...(local_test?.supplemental_data ?? {}),
+      };
+      profileIdForStorage = resolvedProfile.id ?? profileIdForStorage;
+    } else {
+      if (!application_id) {
+        return new Response(JSON.stringify({ error: "application_id is required" }), { status: 400, headers: CORS });
+      }
 
-    if (appErr || !app) {
-      return new Response(JSON.stringify({ error: "Application not found", detail: appErr?.message }), { status: 404, headers: CORS });
-    }
-
-    if (app.status !== "payment_confirmed") {
-      return new Response(
-        JSON.stringify({ error: "Forms can only be generated after placement fee is confirmed", current_status: app.status }),
-        { status: 422, headers: CORS }
-      );
-    }
-
-    // ── 2. Fetch user profile ────────────────────────────────────────────────
-    const { data: profile, error: profileErr } = await supabase
-      .from("user_profiles")
-      .select("id, user_id, full_name, email, phone, whatsapp, num_dependents, student_process_type, service_type, signature_url")
-      .eq("id", app.profile_id)
-      .single();
-
-    if (profileErr || !profile) {
-      return new Response(JSON.stringify({ error: "Profile not found" }), { status: 404, headers: CORS });
-    }
-
-    // ── 3. Fetch survey answers ──────────────────────────────────────────────
-    const { data: survey } = await supabase
-      .from("selection_survey_responses")
-      .select("answers, academic_formation, english_level")
-      .eq("profile_id", app.profile_id)
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
-    // ── 3b. Fetch user_identity — user_id = auth user ID (user_profiles.user_id, not .id)
-    const { data: identity } = await supabase
-      .from("user_identity")
-      .select("birth_date, nationality, marital_status, address, city, state, zip_code, country")
-      .eq("user_id", profile.user_id)
-      .maybeSingle();
-
-    // ── 4. Resolve supplemental data (payload takes precedence over DB) ──────
-    const resolvedSupplemental: SupplementalData = {
-      ...(app.supplemental_data ?? {}),
-      ...supplemental_data,
-    };
-
-    // Persist if new supplemental data was provided
-    if (Object.keys(supplemental_data).length > 0) {
-      await supabase
+      // ── 1. Fetch application + institution + scholarship + course ──────────
+      const { data: remoteApp, error: appErr } = await supabase
         .from("institution_applications")
-        .update({ supplemental_data: resolvedSupplemental })
-        .eq("id", application_id);
-    }
+        .select(`
+          id, profile_id, institution_id, scholarship_level_id, status,
+          placement_fee_paid_at, supplemental_data,
+          institutions (id, name, slug, city, state, modality, cpt_opt, accepts_cos, accepts_transfer),
+          institution_scholarships (id, scholarship_level, placement_fee_usd, discount_percent,
+            tuition_annual_usd, monthly_migma_usd, installments_total,
+            institution_courses (id, course_name, degree_level, area, duration_months))
+        `)
+        .eq("id", application_id)
+        .single();
 
-    const institution  = app.institutions as any;
-    const scholarship  = app.institution_scholarships as any ?? null;
-    const course       = scholarship?.institution_courses ?? null;
+      if (appErr || !remoteApp) {
+        return new Response(JSON.stringify({ error: "Application not found", detail: appErr?.message }), { status: 404, headers: CORS });
+      }
+      app = remoteApp as Record<string, any>;
+
+      if (app.status !== "payment_confirmed") {
+        return new Response(
+          JSON.stringify({ error: "Forms can only be generated after placement fee is confirmed", current_status: app.status }),
+          { status: 422, headers: CORS }
+        );
+      }
+
+      // ── 2. Fetch user profile ──────────────────────────────────────────────
+      const { data: profile, error: profileErr } = await supabase
+        .from("user_profiles")
+        .select("id, user_id, full_name, email, phone, whatsapp, num_dependents, student_process_type, service_type, signature_url")
+        .eq("id", app.profile_id)
+        .single();
+
+      if (profileErr || !profile) {
+        return new Response(JSON.stringify({ error: "Profile not found" }), { status: 404, headers: CORS });
+      }
+
+      // ── 3. Fetch survey answers ────────────────────────────────────────────
+      const { data: remoteSurvey } = await supabase
+        .from("selection_survey_responses")
+        .select("answers, academic_formation, english_level")
+        .eq("profile_id", app.profile_id)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      // ── 3b. Fetch user_identity — user_id = auth user ID ──────────────────
+      const { data: identity } = await supabase
+        .from("user_identity")
+        .select("birth_date, nationality, marital_status, address, city, state, zip_code, country")
+        .eq("user_id", profile.user_id)
+        .maybeSingle();
+
+      // ── 4. Resolve supplemental data (payload takes precedence over DB) ───
+      resolvedSupplemental = {
+        ...(app.supplemental_data ?? {}),
+        ...supplemental_data,
+      };
+
+      resolvedProfile = profile;
+      resolvedIdentity = identity ?? null;
+      survey = remoteSurvey ?? null;
+
+      if (Object.keys(supplemental_data).length > 0) {
+        await supabase
+          .from("institution_applications")
+          .update({ supplemental_data: resolvedSupplemental })
+          .eq("id", application_id);
+      }
+
+      institution = app.institutions as Record<string, any>;
+      scholarship = app.institution_scholarships as Record<string, any> ?? null;
+      course = scholarship?.institution_courses ?? null;
+      profileIdForStorage = app.profile_id ?? profileIdForStorage;
+    }
 
     // ── 5. Determine form set by institution slug/name ───────────────────────
     const slug = (institution.slug ?? institution.name ?? "").toLowerCase();
@@ -1860,30 +2333,47 @@ Deno.serve(async (req) => {
       : ["application_for_admission", "i20_request_form", "termo_responsabilidade_estudante"];
 
     // Filter out financial support form if no sponsor
-    const finalFormList = formList.filter((ft) => {
+    let finalFormList = formList.filter((ft) => {
       if (ft === "affidavit_of_financial_support") return resolvedSupplemental.has_sponsor === true;
       return true;
     });
 
-    console.log(`[generate-institution-forms] Institution: ${institution.name} | Forms: ${finalFormList.length} | User: ${profile.full_name}`);
+    if (isLocalTest && Array.isArray(local_test?.form_types) && local_test.form_types.length > 0) {
+      finalFormList = [...new Set(local_test.form_types)];
+    }
+
+    console.log(`[generate-institution-forms] Institution: ${institution.name} | Forms: ${finalFormList.length} | User: ${resolvedProfile.full_name}${isLocalTest ? " | local_test" : ""}`);
 
     // ── 6. Mark as generating ────────────────────────────────────────────────
-    await supabase
-      .from("institution_applications")
-      .update({ forms_status: "generating" })
-      .eq("id", application_id);
+    if (!isLocalTest && app && application_id) {
+      await supabase
+        .from("institution_applications")
+        .update({ forms_status: "generating" })
+        .eq("id", application_id);
+    }
 
     // ── 7. Generate + upload PDFs ────────────────────────────────────────────
     const generatedFormIds: string[] = [];
+    const localGeneratedPdfs: Array<{ form_type: string; file_name: string; base64: string; resolved_form_data?: Record<string, any> }> = [];
     const now = new Date().toISOString();
 
     for (const formType of finalFormList) {
       const formData = formType === "affidavit_of_financial_support" && isOikos
-        ? buildOikosVerificationFinancialData(profile, scholarship, resolvedSupplemental, identity)
-        : buildFormData(formType, profile, institution, scholarship, course, survey, resolvedSupplemental, identity);
-      const pdfBytes  = await generateFormPdf(formType, formData, institution.name, profile.full_name ?? "", slug);
+        ? buildOikosVerificationFinancialData(resolvedProfile, scholarship, resolvedSupplemental, resolvedIdentity)
+        : buildFormData(formType, resolvedProfile, institution, scholarship, course, survey, resolvedSupplemental, resolvedIdentity);
+      const pdfBytes  = await generateFormPdf(formType, formData, institution.name, resolvedProfile.full_name ?? "", slug);
 
-      const storagePath = `${app.profile_id}/${application_id}/${formType}.pdf`;
+      if (isLocalTest) {
+        localGeneratedPdfs.push({
+          form_type: formType,
+          file_name: `${formType}.pdf`,
+          base64: uint8ToBase64(pdfBytes),
+          resolved_form_data: local_test?.return_resolved_form_data ? formData : undefined,
+        });
+        continue;
+      }
+
+      const storagePath = `${profileIdForStorage}/${application_id}/${formType}.pdf`;
 
       const { error: uploadErr } = await supabase.storage
         .from("institution-forms")
@@ -1906,7 +2396,7 @@ Deno.serve(async (req) => {
         .from("institution_forms")
         .upsert({
           institution_id: institution.id,
-          profile_id:     app.profile_id,
+          profile_id:     profileIdForStorage,
           application_id: application_id,
           form_type:      formType,
           template_url:   publicUrlData.publicUrl,
@@ -1926,30 +2416,36 @@ Deno.serve(async (req) => {
     }
 
     // ── 8. Update application status ─────────────────────────────────────────
-    await supabase
-      .from("institution_applications")
-      .update({ forms_status: "generated", forms_generated_at: now })
-      .eq("id", application_id);
+    if (!isLocalTest && application_id) {
+      await supabase
+        .from("institution_applications")
+        .update({ forms_status: "generated", forms_generated_at: now })
+        .eq("id", application_id);
+    }
 
     // ── 9. Notify client ──────────────────────────────────────────────────────
-    await supabase.functions.invoke("migma-notify", {
-      body: {
-        trigger: "forms_generated",
-        user_id: app.profile_id,
-        data: { app_url: `${Deno.env.get("APP_BASE_URL") ?? "https://migmainc.com"}/student/forms` },
-      },
-    });
+    if (!isLocalTest && app) {
+      await supabase.functions.invoke("migma-notify", {
+        body: {
+          trigger: "forms_generated",
+          user_id: app.profile_id,
+          data: { app_url: `${Deno.env.get("APP_BASE_URL") ?? "https://migmainc.com"}/student/forms` },
+        },
+      });
+    }
 
-    console.log(`[generate-institution-forms] Done. ${generatedFormIds.length}/${finalFormList.length} forms generated.`);
+    console.log(`[generate-institution-forms] Done. ${(isLocalTest ? localGeneratedPdfs.length : generatedFormIds.length)}/${finalFormList.length} forms generated.`);
 
     return new Response(
       JSON.stringify({
         success: true,
         institution: institution.name,
-        forms_generated: generatedFormIds.length,
+        local_test: isLocalTest,
+        forms_generated: isLocalTest ? localGeneratedPdfs.length : generatedFormIds.length,
         forms_total: finalFormList.length,
         form_types: finalFormList,
-        form_ids: generatedFormIds,
+        form_ids: isLocalTest ? [] : generatedFormIds,
+        pdfs: isLocalTest ? localGeneratedPdfs : undefined,
       }),
       { status: 200, headers: { ...CORS, "Content-Type": "application/json" } }
     );

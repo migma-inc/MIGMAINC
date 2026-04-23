@@ -18,6 +18,7 @@ const FORM_ORDER: Record<string, string> = {
   statement_of_institutional_purpose:         "06_Statement_of_Institutional_Purpose",
   scholarship_support_compliance_agreement:   "07_Scholarship_Support_Compliance_Agreement",
   enrollment_agreement:                       "05_Enrollment_Agreement",
+  all_statements_and_agreement:               "06_All_Statements_and_Agreement",
   statement_of_faith:                         "06_Statement_of_Faith",
   code_of_conduct:                            "07_Code_of_Conduct",
   refund_policy:                              "08_Refund_Policy",
