@@ -28,3 +28,16 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Supabase CLI state
+supabase/.temp/
+supabase/.gitignore
+supabase/config.toml
+
+# Temp test outputs
+tmp-*.pdf
+tmp-*.log
+
+# Internal docs / reports
+RELATORIO_TECNICO_*.md
+CHECKLIST_*.md
