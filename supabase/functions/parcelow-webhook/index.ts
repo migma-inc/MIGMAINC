@@ -121,6 +121,24 @@ async function processSplitPaymentWebhook(
         console.log("[Split Webhook] ✅ Migma selection_process fee processado!");
       }
     }
+
+    // Placement fee split: confirmar pagamento na institution_applications
+    if (splitPayment.source === 'placement_fee') {
+      console.log("[Split Webhook] 🏛️ Placement fee split — atualizando institution_applications...");
+      const applicationId = splitPayment.application_id || splitPayment.order_id;
+      const { error: appErr } = await supabase
+        .from("institution_applications")
+        .update({
+          status: 'payment_confirmed',
+          placement_fee_paid_at: new Date().toISOString(),
+        })
+        .eq("id", applicationId);
+      if (appErr) {
+        console.error("[Split Webhook] ❌ Erro ao confirmar placement fee:", appErr.message);
+      } else {
+        console.log("[Split Webhook] ✅ Placement fee confirmado para application:", applicationId);
+      }
+    }
   } else {
     console.log(`[Split Webhook] ⏳ Apenas Part ${partNumber} paga. Aguardando Part ${isPart1 ? 2 : 1}...`);
     updateData.overall_status = 'part1_completed';

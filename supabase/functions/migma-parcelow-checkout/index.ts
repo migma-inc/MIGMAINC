@@ -110,13 +110,20 @@ Deno.serve(async (req: Request) => {
 
     console.log(`[migma-parcelow-checkout] Criando checkout [${serviceSlug}] para ${body.email} valor=${body.amount}`);
 
+    // Parcelow exige email único por cliente.
+    // Usamos um email interno @pagamento.migmainc.com para evitar conflitos entre pedidos
+    // e não expor emails com alias estranhos (+xxx) no checkout do cliente.
+    const emailPrefix = (body.email.split('@')[0] || 'aluno').toLowerCase().replace(/[^a-z0-9]/g, '');
+    const refSuffix = finalRef.replace(/[^a-zA-Z0-9]/g, '').slice(-8).toLowerCase();
+    const parcelowEmail = `${emailPrefix}-${refSuffix}@pagamento.migmainc.com`;
+
     const orderData = {
       reference: finalRef,
       partner_reference: body.user_id || "migma_guest",
       client: {
         cpf: body.cpf?.replace(/\D/g, ''),
         name: body.full_name,
-        email: body.email,
+        email: parcelowEmail,
         phone: body.phone?.replace(/\D/g, '') || "11999999999",
         cep: "01310900", address_street: "Avenida Paulista", address_number: 1000, address_neighborhood: "Bela Vista", address_city: "São Paulo", address_state: "SP"
       },

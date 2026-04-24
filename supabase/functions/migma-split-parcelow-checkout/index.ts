@@ -66,21 +66,25 @@ Deno.serve(async (req: Request) => {
     console.log(`[migma-split] Iniciando split para ${email} — Total: $${total} | P1: $${p1} (${part1_method}) | P2: $${p2} (${part2_method})`);
 
     // --- 1. Criar registro split_payments ANTES de chamar Parcelow ---
+    const isPlacementFee = service_type === 'placement_fee';
+    const splitInsertData: any = {
+      order_id: isPlacementFee ? null : finalOrderId,
+      application_id: isPlacementFee ? finalOrderId : null,
+      migma_user_id: user_id,
+      source: isPlacementFee ? 'placement_fee' : 'migma',
+      migma_service_type: serviceSlug,
+      total_amount_usd: total,
+      split_count: 2,
+      part1_amount_usd: p1,
+      part1_payment_method: part1_method,
+      part2_amount_usd: p2,
+      part2_payment_method: part2_method,
+      overall_status: 'pending',
+    };
+
     const { data: splitRecord, error: splitInsertErr } = await supabase
       .from("split_payments")
-      .insert({
-        order_id: null,
-        migma_user_id: user_id,
-        source: 'migma',
-        migma_service_type: serviceSlug,
-        total_amount_usd: total,
-        split_count: 2,
-        part1_amount_usd: p1,
-        part1_payment_method: part1_method,
-        part2_amount_usd: p2,
-        part2_payment_method: part2_method,
-        overall_status: 'pending',
-      })
+      .insert(splitInsertData)
       .select("id")
       .single();
 
@@ -100,90 +104,46 @@ Deno.serve(async (req: Request) => {
     // Mapear método split → método parcelow
     const methodMap: Record<string, string> = { card: 'parcelow_card', pix: 'parcelow_pix', ted: 'parcelow_ted' };
 
-    // --- 2. Criar Parte 1 no Parcelow (sequencial: se falhar, não cria P2) ---
-    console.log(`[migma-split] Criando P1 via migma-parcelow-checkout...`);
-    const { data: p1Result, error: p1InvokeErr } = await supabase.functions.invoke(
-      "migma-parcelow-checkout",
-      {
-        body: {
-          user_id,
-          order_id: finalOrderId,
-          reference_suffix: "-P1",
-          email,
-          full_name,
-          phone,
-          cpf,
-          payer_info,
-          amount: p1,
-          payment_method: methodMap[part1_method],
-          service_type,
-          service_request_id,
-          redirect_success_override: p1SuccessUrl,
-          redirect_failed_override: failedUrl,
-          is_split_part: true,
-        },
-      }
-    );
+    const sharedBody = { user_id, order_id: finalOrderId, email, full_name, phone, cpf, payer_info, service_type, service_request_id, is_split_part: true };
 
-    if (p1InvokeErr || p1Result?.error) {
-      console.error("[migma-split] ❌ Erro ao criar P1:", p1InvokeErr || p1Result?.error);
-      // Limpar split_payments criado
+    // --- 2. Criar P1 e P2 em paralelo ---
+    console.log(`[migma-split] Criando P1 e P2 em paralelo...`);
+    const [p1Res, p2Res] = await Promise.all([
+      supabase.functions.invoke("migma-parcelow-checkout", {
+        body: { ...sharedBody, reference_suffix: "-P1", amount: p1, payment_method: methodMap[part1_method], redirect_success_override: p1SuccessUrl, redirect_failed_override: failedUrl },
+      }),
+      supabase.functions.invoke("migma-parcelow-checkout", {
+        body: { ...sharedBody, reference_suffix: "-P2", amount: p2, payment_method: methodMap[part2_method], redirect_success_override: p2SuccessUrl, redirect_failed_override: failedUrl },
+      }),
+    ]);
+
+    const { data: p1Result, error: p1InvokeErr } = p1Res;
+    const { data: p2Result, error: p2InvokeErr } = p2Res;
+
+    if (p1InvokeErr || p1Result?.error || p2InvokeErr || p2Result?.error) {
+      const errMsg = p1InvokeErr?.message || p1Result?.error || p2InvokeErr?.message || p2Result?.error;
+      console.error("[migma-split] ❌ Erro ao criar pedidos Parcelow:", errMsg);
       await supabase.from("split_payments").delete().eq("id", splitPaymentId);
-      return new Response(JSON.stringify({ error: `Erro ao criar Parte 1: ${p1InvokeErr?.message || p1Result?.error}` }), { status: 500, headers: corsHeaders });
+      return new Response(JSON.stringify({ error: `Erro ao criar pedidos: ${errMsg}` }), { status: 500, headers: corsHeaders });
     }
 
     const p1CheckoutUrl = p1Result?.checkout_url || p1Result?.url_checkout || p1Result?.url;
     const p1ParcelowId  = p1Result?.parcelow_id?.toString() || p1Result?.id?.toString();
+    const p2CheckoutUrl = p2Result?.checkout_url || p2Result?.url_checkout || p2Result?.url;
+    const p2ParcelowId  = p2Result?.parcelow_id?.toString() || p2Result?.id?.toString();
 
     if (!p1CheckoutUrl || !p1ParcelowId) {
       console.error("[migma-split] ❌ P1 sem URL ou ID:", JSON.stringify(p1Result));
       await supabase.from("split_payments").delete().eq("id", splitPaymentId);
       return new Response(JSON.stringify({ error: "Parte 1 não retornou URL de pagamento" }), { status: 500, headers: corsHeaders });
     }
-
-    console.log(`[migma-split] ✅ P1 criado: ID=${p1ParcelowId}`);
-
-    // --- 3. Criar Parte 2 no Parcelow ---
-    console.log(`[migma-split] Criando P2 via migma-parcelow-checkout...`);
-    const { data: p2Result, error: p2InvokeErr } = await supabase.functions.invoke(
-      "migma-parcelow-checkout",
-      {
-        body: {
-          user_id,
-          order_id: finalOrderId,
-          reference_suffix: "-P2",
-          email,
-          full_name,
-          phone,
-          cpf,
-          payer_info,
-          amount: p2,
-          payment_method: methodMap[part2_method],
-          service_type,
-          service_request_id,
-          redirect_success_override: p2SuccessUrl,
-          redirect_failed_override: failedUrl,
-          is_split_part: true,
-        },
-      }
-    );
-
-    if (p2InvokeErr || p2Result?.error) {
-      console.error("[migma-split] ❌ Erro ao criar P2:", p2InvokeErr || p2Result?.error);
-      await supabase.from("split_payments").delete().eq("id", splitPaymentId);
-      return new Response(JSON.stringify({ error: `Erro ao criar Parte 2: ${p2InvokeErr?.message || p2Result?.error}` }), { status: 500, headers: corsHeaders });
-    }
-
-    const p2CheckoutUrl = p2Result?.checkout_url || p2Result?.url_checkout || p2Result?.url;
-    const p2ParcelowId  = p2Result?.parcelow_id?.toString() || p2Result?.id?.toString();
-
     if (!p2CheckoutUrl || !p2ParcelowId) {
       console.error("[migma-split] ❌ P2 sem URL ou ID:", JSON.stringify(p2Result));
       await supabase.from("split_payments").delete().eq("id", splitPaymentId);
       return new Response(JSON.stringify({ error: "Parte 2 não retornou URL de pagamento" }), { status: 500, headers: corsHeaders });
     }
 
-    console.log(`[migma-split] ✅ P2 criado: ID=${p2ParcelowId}`);
+    console.log(`[migma-split] ✅ P1=${p1ParcelowId} P2=${p2ParcelowId}`);
 
     // --- 4. Persistir IDs e URLs no split_payments ---
     const { error: updateErr } = await supabase

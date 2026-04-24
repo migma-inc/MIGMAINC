@@ -114,11 +114,16 @@ Deno.serve(async (req) => {
       city: string; state: string; modality: string; application_fee_usd: number;
     } | null;
 
-    const scholarshipLevel = appRow.institution_scholarships as {
+    // institution_scholarships may come as array (one-to-many via PostgREST) — normalize to single object
+    const rawScholarship = appRow.institution_scholarships;
+    const scholarshipLevel = (Array.isArray(rawScholarship) ? rawScholarship[0] : rawScholarship) as {
       id: string; placement_fee_usd: number; discount_percent: number;
       tuition_annual_usd: number; monthly_migma_usd: number; installments_total: number;
       institution_courses: { course_name: string; degree_level: string } | null;
     } | null;
+
+    console.log(`[SYNC-${executionId}] 🎓 scholarshipLevel raw:`, JSON.stringify(rawScholarship));
+    console.log(`[SYNC-${executionId}] 🎓 placement_fee_usd lido: $${scholarshipLevel?.placement_fee_usd}`);
 
     const course = scholarshipLevel?.institution_courses ?? null;
 
@@ -294,39 +299,42 @@ Deno.serve(async (req) => {
       console.warn(`[SYNC-${executionId}] [PASSO 3] ⏭️ Pulado: Slug da instituição ausente.`);
     }
 
-    // ── STEP 4: Upsert scholarship (is_active=false — private, not in public catalog) ──
-    console.log(`[SYNC-${executionId}] [PASSO 4] Criando/Buscando bolsa privada no MatriculaUSA...`);
+    // ── STEP 4: Upsert scholarship per-student (is_active=false — private, not in public catalog) ──
+    // Each student gets their own private scholarship so application_fee_amount can differ per student.
+    // Dedup strategy: check scholarship_applications by student_id first — if exists, reuse that scholarship.
+    console.log(`[SYNC-${executionId}] [PASSO 4] Criando/Buscando bolsa privada por-aluno no MatriculaUSA...`);
 
     let remoteScholarshipId: string | null = null;
 
-    if (scholarshipLevel && remoteUniversityId) {
-      console.log(`[SYNC-${executionId}] [PASSO 4] Verificando se já existe bolsa similar (Univ=${remoteUniversityId}, Fee=${scholarshipLevel.placement_fee_usd}, Tuition=${scholarshipLevel.tuition_annual_usd})`);
-      const { data: existingScholarship, error: findScholErr } = await matricula
-        .from("scholarships")
-        .select("id")
-        .eq("university_id", remoteUniversityId)
-        .eq("placement_fee_amount", scholarshipLevel.placement_fee_usd)
-        .eq("annual_value_with_scholarship", scholarshipLevel.tuition_annual_usd)
+    if (scholarshipLevel && remoteUniversityId && remoteProfileId) {
+      // First: check if this student already has an application → reuse that scholarship
+      console.log(`[SYNC-${executionId}] [PASSO 4] Verificando se aluno (${remoteProfileId}) já tem aplicação existente...`);
+      const { data: existingApp, error: existingAppErr } = await matricula
+        .from("scholarship_applications")
+        .select("id, scholarship_id")
+        .eq("student_id", remoteProfileId)
         .maybeSingle();
 
-      if (findScholErr) console.error(`[SYNC-${executionId}] [PASSO 4] Erro ao buscar bolsa existente:`, findScholErr.message);
+      if (existingAppErr) console.error(`[SYNC-${executionId}] [PASSO 4] Erro ao buscar aplicação do aluno:`, existingAppErr.message);
 
-      if (existingScholarship?.id) {
-        remoteScholarshipId = existingScholarship.id;
-        // Update application_fee_amount to ensure it's always correct (was wrong in older syncs)
-        await matricula
+      if (existingApp?.scholarship_id) {
+        remoteScholarshipId = existingApp.scholarship_id;
+        // Safe to update fee here — this scholarship belongs exclusively to this student
+        const { error: updateFeeErr } = await matricula
           .from("scholarships")
           .update({ application_fee_amount: applicationFeeAmount })
           .eq("id", remoteScholarshipId);
-        console.log(`[SYNC-${executionId}] [PASSO 4] ✅ Bolsa existente atualizada (application_fee=$${applicationFeeAmount}): ${remoteScholarshipId}`);
+        if (updateFeeErr) console.warn(`[SYNC-${executionId}] [PASSO 4] ⚠️ Erro ao atualizar application_fee da bolsa:`, updateFeeErr.message);
+        console.log(`[SYNC-${executionId}] [PASSO 4] ✅ Bolsa existente do aluno encontrada e fee atualizado ($${applicationFeeAmount}): ${remoteScholarshipId}`);
       } else {
+        // No existing application → create new per-student private scholarship
         const degreeLevel = course?.degree_level ?? "graduate";
         const degreeLevelMapped =
           degreeLevel === "bachelor" ? "undergraduate" :
           degreeLevel === "masters"  ? "graduate" :
           degreeLevel === "phd"      ? "doctorate" : "graduate";
 
-        console.log(`[SYNC-${executionId}] [PASSO 4] Criando nova bolsa privada (Degree: ${degreeLevelMapped})...`);
+        console.log(`[SYNC-${executionId}] [PASSO 4] Criando nova bolsa privada por-aluno (Degree: ${degreeLevelMapped}, Fee: $${applicationFeeAmount})...`);
         const { data: newScholarship, error: scholErr } = await matricula
           .from("scholarships")
           .insert({
@@ -337,7 +345,7 @@ Deno.serve(async (req) => {
             field_of_study: course?.course_name ?? null,
             level: degreeLevelMapped,
             placement_fee_amount: scholarshipLevel.placement_fee_usd,
-            application_fee_amount: applicationFeeAmount,
+            application_fee_amount: applicationFeeAmount, // per-student: $350 + (num_dependents × $100)
             annual_value_with_scholarship: scholarshipLevel.tuition_annual_usd,
             original_annual_value: null,
             amount: 0,           // legacy field — NOT NULL, all recent records use 0
@@ -355,7 +363,7 @@ Deno.serve(async (req) => {
         }
       }
     } else {
-      console.warn(`[SYNC-${executionId}] [PASSO 4] ⏭️ Pulado: scholarshipLevel ou remoteUniversityId ausente.`);
+      console.warn(`[SYNC-${executionId}] [PASSO 4] ⏭️ Pulado: scholarshipLevel, remoteUniversityId ou remoteProfileId ausente.`);
     }
 
     // ── STEP 5: Upsert scholarship_applications ──────────────────────────────
@@ -375,6 +383,7 @@ Deno.serve(async (req) => {
         is_application_fee_paid: false,
         is_scholarship_fee_paid: false,
         payment_status: placementFeePaid ? "paid" : "pending",
+        // application_fee_amount lives in scholarships (per-student private scholarship), NOT in scholarship_applications
         notes: `Migma sync | scholarship_level_id: ${scholarshipLevel?.id} | placement_fee: $${scholarshipLevel?.placement_fee_usd} | discount: ${scholarshipLevel?.discount_percent}%`,
       };
 
