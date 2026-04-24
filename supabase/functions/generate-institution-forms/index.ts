@@ -56,8 +56,14 @@ const FORM_LABELS: Record<string, string> = {
 const OIKOS_APPLICATION_PACKET_TEMPLATE_FILENAME = "1. Application Packet - OIKOS (1).pdf";
 const OIKOS_VERIFICATION_OF_FINANCIAL_TEMPLATE_FILENAME = "5. Verification of Financial  (1).pdf";
 const OIKOS_ALL_STATEMENTS_AND_AGREEMENT_TEMPLATE_FILENAME = "All Statement and agreement  (1).pdf";
+const OIKOS_ENROLLMENT_AGREEMENT_TEMPLATE_FILENAME = "Enrollment Agreement (1).pdf";
 const CAROLINE_LETTER_OF_RECOMMENDATION_TEMPLATE_FILENAME = "Caroline Form Letter of Recommendation (1).pdf";
 const CAROLINE_AFFIDAVIT_OF_FINANCIAL_SUPPORT_TEMPLATE_FILENAME = "Caroline_Affidavit of Financial Support_2024 (1).pdf";
+const CAROLINE_APPLICATION_FORM_TEMPLATE_FILENAME = "Caroline_Form_Application_2024 (1).pdf";
+const CAROLINE_I20_REQUEST_FORM_TEMPLATE_FILENAME = "CU_Form_I-20 Request_2024 (1).pdf";
+const CAROLINE_STATEMENT_OF_INSTITUTIONAL_PURPOSE_TEMPLATE_FILENAME = "CU_Form_Statement of Institutional Purpose_2024 (1).pdf";
+const CAROLINE_TUITION_REFUND_POLICY_TEMPLATE_FILENAME = "CU_Form_Tuition Refund_2024 (1).pdf";
+const CAROLINE_SCHOLARSHIP_SUPPORT_AND_COMPLIANCE_AGREEMENT_TEMPLATE_FILENAME = "SCHOLARSHIP SUPPORT AND COMPLIANCE AGREEMENT (2).pdf";
 
 type PacketDegreeProgram =
   | "ba_biblical_studies"
@@ -98,6 +104,7 @@ interface PacketTextField {
   paddingLeft?: number;
   paddingRight?: number;
   baselineOffset?: number;
+  shrinkTopPerPoint?: number;
   renderWhen?: {
     path: string;
     equals: unknown;
@@ -142,34 +149,31 @@ interface OverlayTextField {
   transform?: "student_display_name" | "date_mm" | "date_dd" | "date_yyyy";
   optional?: boolean;
   format?: "MM/DD/YYYY";
+  width?: number;
+  height?: number;
   fontSize?: number;
   minFontSize?: number;
+  valign?: "baseline" | "middle";
+  paddingLeft?: number;
+  paddingRight?: number;
+  baselineOffset?: number;
+  shrinkTopPerPoint?: number;
 }
 
 interface OikosApplicationPacketData {
   applicant: {
-    koreanName?: string;
-    firstName?: string;
-    middleName?: string;
-    lastName?: string;
-    fullName?: string;
+    fullNameEnglish?: string;
     dateOfBirth?: string;
     gender?: "M" | "F";
-    placeOfBirth?: string;
-    ssn?: string;
-    driversLicenseNumber?: string;
-    driversLicenseState?: string;
-    email?: string;
-    phoneDay?: string;
-    phoneNight?: string;
-    visaStatus?: string;
-    alienRegistrationNumber?: string;
     usCitizen?: boolean;
+    placeOfBirth?: string;
+    email?: string;
+    phone?: string;
     countryOfCitizenship?: string;
     permanentAddress?: string;
     currentAddress?: string;
   };
-  maritalStatus?: string;
+  maritalStatus?: "single" | "married";
   admission: {
     startSemester?: "spring" | "summer" | "fall";
     startYear?: string;
@@ -183,27 +187,20 @@ interface OikosApplicationPacketData {
   personalReferences?: Array<Record<string, string | undefined>>;
   academicBackground?: Array<Record<string, string | undefined>>;
   workMinistryExperience?: Array<Record<string, string | undefined>>;
-  discoverySource?: {
-    internet?: boolean;
-    yahoo?: boolean;
-    google?: boolean;
-    oikosWebsite?: boolean;
-    postedFlyer?: boolean;
-    personalReferral?: boolean;
-    other?: boolean;
-    otherText?: string;
-  };
-  signature?: {
-    applicantSignatureText?: string;
-    applicantDate?: string;
-  };
   i20?: {
+    lastName?: string;
+    firstName?: string;
+    middleName?: string;
+    dateOfBirth?: string;
+    placeOfBirth?: string;
+    countryOfCitizenship?: string;
     requestType?: "new_student" | "change_of_status" | "transfer_student";
     foreignAddress?: string;
     usAddress?: string;
     dependents?: Array<Record<string, string | undefined>>;
   };
   recommendation?: {
+    applicantName?: string;
     applicantAddressLine?: string;
     applicantCityStateZip?: string;
     applicantTelephone?: string;
@@ -212,20 +209,6 @@ interface OikosApplicationPacketData {
     name?: string;
     date?: string;
     statement?: string;
-  };
-  derived?: {
-    applicantDisplayName?: string;
-    applicantPassportLastName?: string;
-    applicantPassportFirstName?: string;
-    applicantPassportMiddleName?: string;
-    applicantCityStateZip?: string;
-    applicantPrimaryPhone?: string;
-    applicantDayPhone?: string;
-    applicantNightPhone?: string;
-    applicantSignatureText?: string;
-    christianFaithName?: string;
-    christianFaithDate?: string;
-    christianFaithStatement?: string;
   };
   personalReferencesNormalized?: Array<Record<string, string | undefined>>;
   academicBackgroundNormalized?: Array<Record<string, string | undefined>>;
@@ -308,6 +291,31 @@ interface OikosAllStatementsAgreementData {
   };
 }
 
+interface OikosEnrollmentAgreementData {
+  student: {
+    enrollmentType?: "new_student" | "reentry_student";
+    firstName?: string;
+    middleName?: string;
+    lastName?: string;
+    dateOfBirth?: string;
+    homePhone?: string;
+    cellPhone?: string;
+    address?: string;
+    city?: string;
+    state?: string;
+    zip?: string;
+    email?: string;
+  };
+  program: {
+    name?: string;
+    totalCreditHours?: string;
+    agreementStartDate?: string;
+    scheduledCompletionDate?: string;
+    programStartDate?: string;
+    programCompletionDate?: string;
+  };
+}
+
 interface CarolineLetterOfRecommendationData {
   applicant: {
     fullName?: string;
@@ -327,6 +335,28 @@ interface CarolineLetterOfRecommendationData {
     city?: string;
     state?: string;
     zip?: string;
+  };
+}
+
+interface CarolineStatementOfInstitutionalPurposeData {
+  student: {
+    fullName?: string;
+    degreeProgram?: string;
+    currentDate?: string;
+  };
+}
+
+interface CarolineTuitionRefundPolicyData {
+  student: {
+    fullName?: string;
+    degreeProgram?: string;
+    dateOfBirth?: string;
+  };
+}
+
+interface CarolineScholarshipSupportComplianceAgreementData {
+  agency: {
+    name?: string;
   };
 }
 
@@ -385,8 +415,286 @@ const CAROLINE_AFFIDAVIT_OF_FINANCIAL_SUPPORT_V1: {
   },
 };
 
+const CAROLINE_APPLICATION_FORM_V1: {
+  text: Record<string, OverlayTextField>;
+  checkboxes: Record<string, PacketCheckboxField>;
+} = {
+  text: {
+    // Page 0 — Personal info
+    student_last_name:      { page: 0, x: 69,   top: 174, maxWidth: 100, fontSize: 10, source: "student.lastName" },
+    student_first_name:     { page: 0, x: 178,  top: 173, maxWidth: 95,  fontSize: 10, source: "student.firstName" },
+    student_middle_name:    { page: 0, x: 279,  top: 172, maxWidth: 90,  fontSize: 10, source: "student.middleName", optional: true },
+    dob_month:              { page: 0, x: 438,  top: 173, maxWidth: 30,  fontSize: 10, source: "student.dateOfBirth", transform: "date_mm" },
+    dob_day:                { page: 0, x: 484,  top: 172, maxWidth: 30,  fontSize: 10, source: "student.dateOfBirth", transform: "date_dd" },
+    dob_year:               { page: 0, x: 527,  top: 174, maxWidth: 40,  fontSize: 10, source: "student.dateOfBirth", transform: "date_yyyy" },
+    address:                { page: 0, x: 82,   top: 222, maxWidth: 255, fontSize: 10, source: "student.address", optional: true },
+    address_city:           { page: 0, x: 355,  top: 222, maxWidth: 70,  fontSize: 10, source: "student.city", optional: true },
+    address_state:          { page: 0, x: 443,  top: 222, maxWidth: 40,  fontSize: 10, source: "student.state", optional: true },
+    address_zip:            { page: 0, x: 497,  top: 220, maxWidth: 55,  fontSize: 10, source: "student.zip", optional: true },
+    phone:                  { page: 0, x: 137,  top: 259, maxWidth: 140, fontSize: 10, source: "student.phone", optional: true },
+    email:                  { page: 0, x: 297,  top: 260, maxWidth: 200, fontSize: 10, source: "student.email" },
+    country_of_citizenship: { page: 0, x: 458,  top: 314, maxWidth: 110, fontSize: 10, source: "student.countryOfCitizenship", optional: true },
+    visa_status:            { page: 0, x: 144,  top: 346, maxWidth: 200, fontSize: 10, source: "student.visaStatus", optional: true },
+    spring_year:            { page: 0, x: 161,  top: 407, maxWidth: 35,  fontSize: 10, source: "student.preferredYear", optional: true },
+    summer_year:            { page: 0, x: 301,  top: 408, maxWidth: 35,  fontSize: 10, source: "student.preferredYear", optional: true },
+    fall_year:              { page: 0, x: 423,  top: 407, maxWidth: 35,  fontSize: 10, source: "student.preferredYear", optional: true },
+    emergency_name:         { page: 0, x: 67,   top: 593, maxWidth: 175, fontSize: 10, source: "emergency.name", optional: true },
+    emergency_phone:        { page: 0, x: 263,  top: 592, maxWidth: 155, fontSize: 10, source: "emergency.phone", optional: true },
+    emergency_relationship: { page: 0, x: 442,  top: 592, maxWidth: 120, fontSize: 10, source: "emergency.relationship", optional: true },
+    emergency_address:      { page: 0, x: 80,   top: 627, maxWidth: 255, fontSize: 10, source: "emergency.address", optional: true },
+    emergency_city:         { page: 0, x: 358,  top: 628, maxWidth: 55,  fontSize: 10, source: "emergency.city", optional: true },
+    emergency_state:        { page: 0, x: 429,  top: 627, maxWidth: 45,  fontSize: 10, source: "emergency.state", optional: true },
+    emergency_zip:          { page: 0, x: 493,  top: 627, maxWidth: 55,  fontSize: 10, source: "emergency.zip", optional: true },
+
+    // Page 1 — Family dependents (up to 4 rows)
+    family_name_0:         { page: 1, x: 43,   top: 141, maxWidth: 140, fontSize: 10, source: "dependents.0.name", optional: true },
+    family_relation_0:     { page: 1, x: 197,  top: 142, maxWidth: 90,  fontSize: 10, source: "dependents.0.relationship", optional: true },
+    family_gender_0:       { page: 1, x: 297,  top: 142, maxWidth: 65,  fontSize: 10, source: "dependents.0.gender", optional: true },
+    family_dob_0:          { page: 1, x: 376,  top: 141, maxWidth: 75,  fontSize: 10, source: "dependents.0.dateOfBirth", optional: true },
+    family_country_0:      { page: 1, x: 465,  top: 142, maxWidth: 100, fontSize: 10, source: "dependents.0.countryOfCitizenship", optional: true },
+    family_name_1:         { page: 1, x: 43,   top: 164, maxWidth: 140, fontSize: 10, source: "dependents.1.name", optional: true },
+    family_relation_1:     { page: 1, x: 196,  top: 163, maxWidth: 90,  fontSize: 10, source: "dependents.1.relationship", optional: true },
+    family_gender_1:       { page: 1, x: 296,  top: 165, maxWidth: 65,  fontSize: 10, source: "dependents.1.gender", optional: true },
+    family_dob_1:          { page: 1, x: 376,  top: 165, maxWidth: 75,  fontSize: 10, source: "dependents.1.dateOfBirth", optional: true },
+    family_country_1:      { page: 1, x: 464,  top: 165, maxWidth: 100, fontSize: 10, source: "dependents.1.countryOfCitizenship", optional: true },
+    family_name_2:         { page: 1, x: 41,   top: 187, maxWidth: 140, fontSize: 10, source: "dependents.2.name", optional: true },
+    family_relation_2:     { page: 1, x: 195,  top: 188, maxWidth: 90,  fontSize: 10, source: "dependents.2.relationship", optional: true },
+    family_gender_2:       { page: 1, x: 297,  top: 185, maxWidth: 65,  fontSize: 10, source: "dependents.2.gender", optional: true },
+    family_dob_2:          { page: 1, x: 375,  top: 185, maxWidth: 75,  fontSize: 10, source: "dependents.2.dateOfBirth", optional: true },
+    family_country_2:      { page: 1, x: 463,  top: 186, maxWidth: 100, fontSize: 10, source: "dependents.2.countryOfCitizenship", optional: true },
+    family_name_3:         { page: 1, x: 43,   top: 209, maxWidth: 140, fontSize: 10, source: "dependents.3.name", optional: true },
+    family_relation_3:     { page: 1, x: 195,  top: 209, maxWidth: 90,  fontSize: 10, source: "dependents.3.relationship", optional: true },
+    family_gender_3:       { page: 1, x: 295,  top: 208, maxWidth: 65,  fontSize: 10, source: "dependents.3.gender", optional: true },
+    family_dob_3:          { page: 1, x: 377,  top: 208, maxWidth: 75,  fontSize: 10, source: "dependents.3.dateOfBirth", optional: true },
+    family_country_3:      { page: 1, x: 466,  top: 209, maxWidth: 100, fontSize: 10, source: "dependents.3.countryOfCitizenship", optional: true },
+
+    // Page 1 — Academic background (up to 4 schools)
+    school_name_0:     { page: 1, x: 42,  top: 304, maxWidth: 145, fontSize: 10, source: "academic.0.schoolName", optional: true },
+    school_location_0: { page: 1, x: 201, top: 304, maxWidth: 170, fontSize: 10, source: "academic.0.location", optional: true },
+    school_duration_0: { page: 1, x: 385, top: 302, maxWidth: 65,  fontSize: 10, source: "academic.0.duration", optional: true },
+    school_degree_0:   { page: 1, x: 461, top: 303, maxWidth: 95,  fontSize: 10, source: "academic.0.degree", optional: true },
+    school_name_1:     { page: 1, x: 42,  top: 327, maxWidth: 145, fontSize: 10, source: "academic.1.schoolName", optional: true },
+    school_location_1: { page: 1, x: 200, top: 326, maxWidth: 170, fontSize: 10, source: "academic.1.location", optional: true },
+    school_duration_1: { page: 1, x: 385, top: 325, maxWidth: 65,  fontSize: 10, source: "academic.1.duration", optional: true },
+    school_degree_1:   { page: 1, x: 463, top: 326, maxWidth: 95,  fontSize: 10, source: "academic.1.degree", optional: true },
+    school_name_2:     { page: 1, x: 41,  top: 352, maxWidth: 145, fontSize: 10, source: "academic.2.schoolName", optional: true },
+    school_location_2: { page: 1, x: 200, top: 350, maxWidth: 170, fontSize: 10, source: "academic.2.location", optional: true },
+    school_duration_2: { page: 1, x: 386, top: 349, maxWidth: 65,  fontSize: 10, source: "academic.2.duration", optional: true },
+    school_degree_2:   { page: 1, x: 462, top: 350, maxWidth: 95,  fontSize: 10, source: "academic.2.degree", optional: true },
+    school_name_3:     { page: 1, x: 42,  top: 374, maxWidth: 145, fontSize: 10, source: "academic.3.schoolName", optional: true },
+    school_location_3: { page: 1, x: 199, top: 373, maxWidth: 170, fontSize: 10, source: "academic.3.location", optional: true },
+    school_duration_3: { page: 1, x: 387, top: 372, maxWidth: 65,  fontSize: 10, source: "academic.3.duration", optional: true },
+    school_degree_3:   { page: 1, x: 461, top: 372, maxWidth: 95,  fontSize: 10, source: "academic.3.degree", optional: true },
+
+    // Page 1 — Work / ministry experience (up to 3 rows)
+    work_duration_0:  { page: 1, x: 118, top: 437, maxWidth: 115, fontSize: 9, minFontSize: 8, source: "work.0.duration", optional: true },
+    work_position_0:  { page: 1, x: 249, top: 436, maxWidth: 315, fontSize: 9, minFontSize: 8, source: "work.0.position", optional: true },
+    work_duration_1:  { page: 1, x: 118, top: 474, maxWidth: 115, fontSize: 9, minFontSize: 8, source: "work.1.duration", optional: true },
+    work_position_1:  { page: 1, x: 250, top: 472, maxWidth: 315, fontSize: 9, minFontSize: 8, source: "work.1.position", optional: true },
+    work_duration_2:  { page: 1, x: 117, top: 509, maxWidth: 115, fontSize: 9, minFontSize: 8, source: "work.2.duration", optional: true },
+    work_position_2:  { page: 1, x: 250, top: 510, maxWidth: 315, fontSize: 9, minFontSize: 8, source: "work.2.position", optional: true },
+
+    // Page 1 — Recommenders (up to 2)
+    recommender_name_0:     { page: 1, x: 102, top: 546, maxWidth: 130, fontSize: 7, minFontSize: 6, source: "recommenders.0.name", optional: true },
+    recommender_position_0: { page: 1, x: 250, top: 546, maxWidth: 190, fontSize: 9, minFontSize: 8, source: "recommenders.0.position", optional: true },
+    recommender_contact_0:  { page: 1, x: 455, top: 545, maxWidth: 110, fontSize: 9, minFontSize: 8, source: "recommenders.0.contact", optional: true },
+    recommender_name_1:     { page: 1, x: 101, top: 564, maxWidth: 130, fontSize: 7, minFontSize: 6, source: "recommenders.1.name", optional: true },
+    recommender_position_1: { page: 1, x: 250, top: 564, maxWidth: 190, fontSize: 9, minFontSize: 8, source: "recommenders.1.position", optional: true },
+    recommender_contact_1:  { page: 1, x: 456, top: 564, maxWidth: 110, fontSize: 9, minFontSize: 8, source: "recommenders.1.contact", optional: true },
+  },
+  checkboxes: {
+    // Page 0
+    gender_m:        { page: 0, x: 525, top: 269, source: "student.gender",          equals: "m" },
+    gender_f:        { page: 0, x: 556, top: 268, source: "student.gender",          equals: "f" },
+    us_citizen_yes:  { page: 0, x: 237, top: 320, source: "student.isUsCitizen",     equals: true },
+    us_citizen_no:   { page: 0, x: 267, top: 322, source: "student.isUsCitizen",     equals: false },
+    semester_spring: { page: 0, x: 57,  top: 412, source: "student.preferredSemester", equals: "spring" },
+    semester_summer: { page: 0, x: 199, top: 414, source: "student.preferredSemester", equals: "summer" },
+    semester_fall:   { page: 0, x: 340, top: 414, source: "student.preferredSemester", equals: "fall" },
+    degree_bba:      { page: 0, x: 60,  top: 470, source: "student.degreeProgram",   equals: "bba" },
+    degree_mba:      { page: 0, x: 59,  top: 485, source: "student.degreeProgram",   equals: "mba" },
+    degree_mcis:     { page: 0, x: 59,  top: 500, source: "student.degreeProgram",   equals: "mcis" },
+    degree_mphil:    { page: 0, x: 60,  top: 515, source: "student.degreeProgram",   equals: "mphil" },
+    degree_dba:      { page: 0, x: 59,  top: 530, source: "student.degreeProgram",   equals: "dba" },
+    degree_dphil:    { page: 0, x: 60,  top: 546, source: "student.degreeProgram",   equals: "dphil" },
+    // Page 1
+    marital_single:   { page: 1, x: 121, top: 92, source: "student.maritalStatus",     equals: "single" },
+    marital_married:  { page: 1, x: 162, top: 91, source: "student.maritalStatus",     equals: "married" },
+    hs_diploma_yes:   { page: 1, x: 131, top: 260, source: "student.hasHighSchoolDiploma", equals: true },
+    hs_diploma_no:    { page: 1, x: 161, top: 261, source: "student.hasHighSchoolDiploma", equals: false },
+  },
+};
+
+const CAROLINE_I20_REQUEST_FORM_V1: {
+  text: Record<string, OverlayTextField>;
+  checkboxes: Record<string, PacketCheckboxField>;
+} = {
+  text: {
+    last_name:              { page: 0, x: 122.5, top: 133.5, maxWidth: 225, fontSize: 10, source: "student.lastName" },
+    first_name:             { page: 0, x: 363.5, top: 134.5, maxWidth: 115, fontSize: 10, source: "student.firstName" },
+    middle_name:            { page: 0, x: 493.5, top: 132.5, maxWidth: 80,  fontSize: 10, source: "student.middleName", optional: true },
+    date_of_birth:          { page: 0, x: 156.5, top: 176.0, maxWidth: 120, fontSize: 10, source: "student.dateOfBirth", format: "MM/DD/YYYY" },
+    place_of_birth:         { page: 0, x: 430.0, top: 174.5, maxWidth: 145, fontSize: 10, source: "student.placeOfBirth", optional: true },
+    country_of_citizenship: { page: 0, x: 203.5, top: 215.0, maxWidth: 370, fontSize: 10, source: "student.countryOfCitizenship", optional: true },
+    foreign_address:        { page: 0, x: 170.5, top: 257.5, maxWidth: 400, fontSize: 9,  minFontSize: 8, source: "student.foreignAddress", optional: true },
+    us_address:             { page: 0, x: 158.5, top: 296.5, maxWidth: 415, fontSize: 9,  minFontSize: 8, source: "student.usAddress", optional: true },
+
+    // Dependents — 6 rows
+    dep_name_0:         { page: 0, x: 83.5,  top: 556.5, maxWidth: 115, fontSize: 9, minFontSize: 7, source: "dependents.0.name", optional: true },
+    dep_relation_0:     { page: 0, x: 211.0, top: 554.5, maxWidth: 52,  fontSize: 9, minFontSize: 7, source: "dependents.0.relationship", optional: true },
+    dep_gender_0:       { page: 0, x: 272.0, top: 554.0, maxWidth: 30,  fontSize: 9, minFontSize: 7, source: "dependents.0.gender", optional: true },
+    dep_dob_0:          { page: 0, x: 309.5, top: 555.0, maxWidth: 60,  fontSize: 9, minFontSize: 7, source: "dependents.0.dateOfBirth", optional: true },
+    dep_pob_0:          { page: 0, x: 377.0, top: 553.5, maxWidth: 60,  fontSize: 9, minFontSize: 7, source: "dependents.0.placeOfBirth", optional: true },
+    dep_country_0:      { page: 0, x: 447.5, top: 553.5, maxWidth: 120, fontSize: 9, minFontSize: 7, source: "dependents.0.countryOfCitizenship", optional: true },
+
+    dep_name_1:         { page: 0, x: 83.0,  top: 581.0, maxWidth: 115, fontSize: 9, minFontSize: 7, source: "dependents.1.name", optional: true },
+    dep_relation_1:     { page: 0, x: 210.5, top: 580.5, maxWidth: 52,  fontSize: 9, minFontSize: 7, source: "dependents.1.relationship", optional: true },
+    dep_gender_1:       { page: 0, x: 270.5, top: 581.0, maxWidth: 30,  fontSize: 9, minFontSize: 7, source: "dependents.1.gender", optional: true },
+    dep_dob_1:          { page: 0, x: 313.5, top: 581.5, maxWidth: 60,  fontSize: 9, minFontSize: 7, source: "dependents.1.dateOfBirth", optional: true },
+    dep_pob_1:          { page: 0, x: 379.0, top: 579.0, maxWidth: 60,  fontSize: 9, minFontSize: 7, source: "dependents.1.placeOfBirth", optional: true },
+    dep_country_1:      { page: 0, x: 447.5, top: 581.0, maxWidth: 120, fontSize: 9, minFontSize: 7, source: "dependents.1.countryOfCitizenship", optional: true },
+
+    dep_name_2:         { page: 0, x: 82.0,  top: 605.5, maxWidth: 115, fontSize: 9, minFontSize: 7, source: "dependents.2.name", optional: true },
+    dep_relation_2:     { page: 0, x: 208.0, top: 605.0, maxWidth: 52,  fontSize: 9, minFontSize: 7, source: "dependents.2.relationship", optional: true },
+    dep_gender_2:       { page: 0, x: 269.0, top: 604.5, maxWidth: 30,  fontSize: 9, minFontSize: 7, source: "dependents.2.gender", optional: true },
+    dep_dob_2:          { page: 0, x: 314.5, top: 606.5, maxWidth: 60,  fontSize: 9, minFontSize: 7, source: "dependents.2.dateOfBirth", optional: true },
+    dep_pob_2:          { page: 0, x: 381.0, top: 605.5, maxWidth: 60,  fontSize: 9, minFontSize: 7, source: "dependents.2.placeOfBirth", optional: true },
+    dep_country_2:      { page: 0, x: 448.5, top: 605.5, maxWidth: 120, fontSize: 9, minFontSize: 7, source: "dependents.2.countryOfCitizenship", optional: true },
+
+    dep_name_3:         { page: 0, x: 82.5,  top: 630.0, maxWidth: 115, fontSize: 9, minFontSize: 7, source: "dependents.3.name", optional: true },
+    dep_relation_3:     { page: 0, x: 208.0, top: 631.0, maxWidth: 52,  fontSize: 9, minFontSize: 7, source: "dependents.3.relationship", optional: true },
+    dep_gender_3:       { page: 0, x: 271.0, top: 631.0, maxWidth: 30,  fontSize: 9, minFontSize: 7, source: "dependents.3.gender", optional: true },
+    dep_dob_3:          { page: 0, x: 313.5, top: 630.5, maxWidth: 60,  fontSize: 9, minFontSize: 7, source: "dependents.3.dateOfBirth", optional: true },
+    dep_pob_3:          { page: 0, x: 380.5, top: 632.0, maxWidth: 60,  fontSize: 9, minFontSize: 7, source: "dependents.3.placeOfBirth", optional: true },
+    dep_country_3:      { page: 0, x: 448.0, top: 632.5, maxWidth: 120, fontSize: 9, minFontSize: 7, source: "dependents.3.countryOfCitizenship", optional: true },
+
+    dep_name_4:         { page: 0, x: 83.0,  top: 658.0, maxWidth: 115, fontSize: 9, minFontSize: 7, source: "dependents.4.name", optional: true },
+    dep_relation_4:     { page: 0, x: 209.5, top: 656.5, maxWidth: 52,  fontSize: 9, minFontSize: 7, source: "dependents.4.relationship", optional: true },
+    dep_gender_4:       { page: 0, x: 271.0, top: 657.5, maxWidth: 30,  fontSize: 9, minFontSize: 7, source: "dependents.4.gender", optional: true },
+    dep_dob_4:          { page: 0, x: 313.0, top: 658.5, maxWidth: 60,  fontSize: 9, minFontSize: 7, source: "dependents.4.dateOfBirth", optional: true },
+    dep_pob_4:          { page: 0, x: 381.0, top: 659.0, maxWidth: 60,  fontSize: 9, minFontSize: 7, source: "dependents.4.placeOfBirth", optional: true },
+    dep_country_4:      { page: 0, x: 448.5, top: 661.0, maxWidth: 120, fontSize: 9, minFontSize: 7, source: "dependents.4.countryOfCitizenship", optional: true },
+
+    dep_name_5:         { page: 0, x: 83.0,  top: 683.0, maxWidth: 115, fontSize: 9, minFontSize: 7, source: "dependents.5.name", optional: true },
+    dep_relation_5:     { page: 0, x: 209.0, top: 681.5, maxWidth: 52,  fontSize: 9, minFontSize: 7, source: "dependents.5.relationship", optional: true },
+    dep_gender_5:       { page: 0, x: 270.5, top: 684.0, maxWidth: 30,  fontSize: 9, minFontSize: 7, source: "dependents.5.gender", optional: true },
+    dep_dob_5:          { page: 0, x: 313.5, top: 685.0, maxWidth: 60,  fontSize: 9, minFontSize: 7, source: "dependents.5.dateOfBirth", optional: true },
+    dep_pob_5:          { page: 0, x: 381.0, top: 684.5, maxWidth: 60,  fontSize: 9, minFontSize: 7, source: "dependents.5.placeOfBirth", optional: true },
+    dep_country_5:      { page: 0, x: 446.0, top: 685.0, maxWidth: 120, fontSize: 9, minFontSize: 7, source: "dependents.5.countryOfCitizenship", optional: true },
+  },
+  checkboxes: {
+    request_new_student: { page: 0, x: 275.5, top: 326.0, source: "student.requestType", equals: "new_student" },
+    request_cos:         { page: 0, x: 432.0, top: 326.0, source: "student.requestType", equals: "cos" },
+    request_transfer:    { page: 0, x: 529.0, top: 326.0, source: "student.requestType", equals: "transfer" },
+    degree_bba:          { page: 0, x: 95.0,  top: 385.5, source: "student.degreeProgram", equals: "bba" },
+    degree_mba:          { page: 0, x: 96.0,  top: 404.0, source: "student.degreeProgram", equals: "mba" },
+    degree_mcis:         { page: 0, x: 95.5,  top: 422.0, source: "student.degreeProgram", equals: "mcis" },
+    degree_mphil:        { page: 0, x: 96.0,  top: 439.5, source: "student.degreeProgram", equals: "mphil" },
+    degree_dba:          { page: 0, x: 95.5,  top: 459.0, source: "student.degreeProgram", equals: "dba" },
+    degree_dphil:        { page: 0, x: 96.0,  top: 476.5, source: "student.degreeProgram", equals: "dphil" },
+  },
+};
+
+const CAROLINE_STATEMENT_OF_INSTITUTIONAL_PURPOSE_V1: {
+  text: Record<string, OverlayTextField>;
+  checkboxes: Record<string, PacketCheckboxField>;
+} = {
+  text: {
+    student_name:   { page: 0, x: 152.0, top: 640.5, maxWidth: 228, fontSize: 10, source: "student.fullName" },
+    degree_program: { page: 0, x: 152.0, top: 654.0, maxWidth: 188, fontSize: 10, source: "student.degreeProgram" },
+    date_mm:        { page: 0, x: 397.5, top: 668.5, maxWidth: 24, fontSize: 10, source: "student.currentDate", transform: "date_mm", optional: true },
+    date_dd:        { page: 0, x: 451.5, top: 667.0, maxWidth: 24, fontSize: 10, source: "student.currentDate", transform: "date_dd", optional: true },
+    date_yyyy:      { page: 0, x: 500.5, top: 668.0, maxWidth: 42, fontSize: 10, source: "student.currentDate", transform: "date_yyyy", optional: true },
+  },
+  checkboxes: {},
+};
+
+const CAROLINE_TUITION_REFUND_POLICY_V1: {
+  text: Record<string, OverlayTextField>;
+  checkboxes: Record<string, PacketCheckboxField>;
+} = {
+  text: {
+    student_name:   { page: 0, x: 107.0, top: 120.0, maxWidth: 240, fontSize: 10, source: "student.fullName" },
+    degree_program: { page: 0, x: 155.0, top: 142.0, maxWidth: 260, fontSize: 10, source: "student.degreeProgram" },
+    date_of_birth:  { page: 0, x: 140.0, top: 164.0, maxWidth: 180, fontSize: 10, source: "student.dateOfBirth", format: "MM/DD/YYYY", optional: true },
+  },
+  checkboxes: {},
+};
+
+const CAROLINE_SCHOLARSHIP_SUPPORT_AND_COMPLIANCE_AGREEMENT_V1: {
+  text: Record<string, OverlayTextField>;
+  checkboxes: Record<string, PacketCheckboxField>;
+} = {
+  text: {
+    agency_name: { page: 0, x: 277.0, top: 133.5, maxWidth: 120, fontSize: 10, source: "agency.name" },
+  },
+  checkboxes: {},
+};
+
+const OIKOS_ENROLLMENT_AGREEMENT_V1: {
+  text: Record<string, OverlayTextField>;
+  checkboxes: Record<string, PacketCheckboxField>;
+} = {
+  text: {
+    applicant_first_name:         { page: 0, x: 217.0, top: 138.5, maxWidth: 78, fontSize: 10, source: "student.firstName", optional: true },
+    applicant_middle_name:        { page: 0, x: 347.0, top: 138.0, maxWidth: 74, fontSize: 10, source: "student.middleName", optional: true },
+    applicant_last_name:          { page: 0, x: 217.5, top: 149.0, maxWidth: 78, fontSize: 10, source: "student.lastName", optional: true },
+    dob_mm:                       { page: 0, x: 309.5, top: 162.5, maxWidth: 16, fontSize: 10, source: "student.dateOfBirth", transform: "date_mm", optional: true },
+    dob_dd:                       { page: 0, x: 331.0, top: 162.0, maxWidth: 16, fontSize: 10, source: "student.dateOfBirth", transform: "date_dd", optional: true },
+    dob_yyyy:                     { page: 0, x: 361.0, top: 161.0, maxWidth: 30, fontSize: 10, source: "student.dateOfBirth", transform: "date_yyyy", optional: true },
+    home_phone:                   { page: 0, x: 189.0, top: 176.5, maxWidth: 66, fontSize: 10, source: "student.homePhone", optional: true },
+    cell_phone:                   { page: 0, x: 451.0, top: 176.5, maxWidth: 72, fontSize: 10, source: "student.cellPhone", optional: true },
+    address:                      { page: 0, x: 142.5, top: 188.5, maxWidth: 105, fontSize: 10, source: "student.address", optional: true },
+    city:                         { page: 0, x: 277.5, top: 189.0, maxWidth: 104, fontSize: 10, source: "student.city", optional: true },
+    state:                        { page: 0, x: 417.0, top: 188.5, maxWidth: 28, fontSize: 10, source: "student.state", optional: true },
+    zip:                          { page: 0, x: 483.0, top: 188.0, maxWidth: 36, fontSize: 10, source: "student.zip", optional: true },
+    email:                        { page: 0, x: 121.0, top: 201.0, maxWidth: 198, fontSize: 10, source: "student.email", optional: true },
+    program_name:                 { page: 0, x: 123.0, top: 227.5, maxWidth: 140, fontSize: 10, source: "program.name", optional: true },
+    total_credit_hours:           { page: 0, x: 404.5, top: 227.0, maxWidth: 46, fontSize: 10, source: "program.totalCreditHours", optional: true },
+    agreement_start_date:         { page: 0, x: 264.5, top: 240.5, maxWidth: 68, fontSize: 10, source: "program.agreementStartDate", format: "MM/DD/YYYY", optional: true },
+    scheduled_completion_date:    { page: 0, x: 463.5, top: 241.0, maxWidth: 66, fontSize: 10, source: "program.scheduledCompletionDate", format: "MM/DD/YYYY", optional: true },
+    program_start_date:           { page: 0, x: 170.5, top: 253.0, maxWidth: 70, fontSize: 10, source: "program.programStartDate", format: "MM/DD/YYYY", optional: true },
+    program_completion_date:      { page: 0, x: 425.5, top: 252.5, maxWidth: 90, fontSize: 10, source: "program.programCompletionDate", format: "MM/DD/YYYY", optional: true },
+  },
+  checkboxes: {
+    new_student:    { page: 0, x: 153.0, top: 127.0, source: "student.enrollmentType", equals: "new_student" },
+    reentry_student:{ page: 0, x: 256.5, top: 126.0, source: "student.enrollmentType", equals: "reentry_student" },
+  },
+};
+
+const OIKOS_ALL_STATEMENTS_AND_AGREEMENT_V1: {
+  text: Record<string, OverlayTextField>;
+  multiline: Record<string, PacketMultilineField>;
+} = {
+  text: {
+    page1_student_name: { page: 0, x: 364.5, top: 478.5, maxWidth: 170, fontSize: 10, source: "student.fullName", optional: true },
+    page1_current_date: { page: 0, x: 364.5, top: 508.0, maxWidth: 128, fontSize: 10, source: "meta.currentDate", format: "MM/DD/YYYY", optional: true },
+    page2_student_name: { page: 1, x: 328.0, top: 699.5, maxWidth: 170, fontSize: 10, source: "student.fullName", optional: true },
+    page2_current_date: { page: 1, x: 328.5, top: 717.5, maxWidth: 128, fontSize: 10, source: "meta.currentDate", format: "MM/DD/YYYY", optional: true },
+    page3_student_name: { page: 2, x: 112.0, top: 443.5, maxWidth: 170, fontSize: 10, source: "student.fullName", optional: true },
+    page3_current_date: { page: 2, x: 108.0, top: 471.0, maxWidth: 128, fontSize: 10, source: "meta.currentDate", format: "MM/DD/YYYY", optional: true },
+    page4_current_date: { page: 3, x: 77.5, top: 698.5, maxWidth: 128, fontSize: 10, source: "meta.currentDate", format: "MM/DD/YYYY", optional: true },
+    page4_student_name: { page: 3, x: 255.0, top: 700.5, maxWidth: 170, fontSize: 10, source: "student.fullName", optional: true },
+    page5_student_name: { page: 4, x: 80.0, top: 694.5, maxWidth: 170, width: 182, height: 16, fontSize: 6.5, minFontSize: 4, valign: "middle", baselineOffset: -1, shrinkTopPerPoint: 1, source: "student.fullName", optional: true },
+    page5_current_date: { page: 4, x: 230.0, top: 698.5, maxWidth: 128, fontSize: 10, source: "meta.currentDate", format: "MM/DD/YYYY", optional: true },
+    page6_student_name: { page: 5, x: 111.0, top: 166.0, maxWidth: 200, fontSize: 10, source: "christianFaith.name", optional: true },
+    page6_current_date: { page: 5, x: 423.5, top: 166.5, maxWidth: 128, fontSize: 10, source: "christianFaith.date", format: "MM/DD/YYYY", optional: true },
+  },
+  multiline: {
+    christian_faith_statement: {
+      page: 5,
+      x: 75.5,
+      top: 213.0,
+      width: 462,
+      height: 450,
+      source: "christianFaith.statement",
+      lineHeight: 14,
+      fontSize: 11,
+    },
+  },
+};
+
 const OIKOS_APPLICATION_PACKET_V1: {
-  acroForm: Record<string, PacketTextField>;
   overlay: {
     text: Record<string, PacketTextField>;
     checkboxes: Record<string, PacketCheckboxField>;
@@ -394,88 +702,66 @@ const OIKOS_APPLICATION_PACKET_V1: {
     multiline: Record<string, PacketMultilineField>;
   };
 } = {
-  acroForm: {
-    christian_faith_name: { page: 4, x: 0, top: 0, maxWidth: 0, source: "christianFaith.name" },
-    christian_faith_date: { page: 4, x: 0, top: 0, maxWidth: 0, source: "christianFaith.date" },
-    christian_faith_statement: { page: 4, x: 0, top: 0, maxWidth: 0, source: "christianFaith.statement" },
-  },
   overlay: {
     text: {
-      applicant_korean_name: { page: 0, x: 112, top: 183, maxWidth: 128, source: "applicant.koreanName" },
-      applicant_english_name: { page: 0, x: 320, top: 172, maxWidth: 140, width: 170, height: 16, fontSize: 10, minFontSize: 8, valign: "middle", baselineOffset: -1, source: "derived.applicantDisplayName" },
-      applicant_ssn: { page: 0, x: 141, top: 206, maxWidth: 82, source: "applicant.ssn" },
-      applicant_drivers_license_number: { page: 0, x: 338, top: 206, maxWidth: 70, source: "applicant.driversLicenseNumber" },
-      applicant_drivers_license_state: { page: 0, x: 473, top: 206, maxWidth: 52, source: "applicant.driversLicenseState" },
-      applicant_permanent_address: { page: 0, x: 180, top: 217, maxWidth: 345, width: 360, height: 16, fontSize: 10, minFontSize: 8, valign: "middle", baselineOffset: -1, source: "applicant.permanentAddress" },
-      applicant_current_address: { page: 0, x: 160, top: 240, maxWidth: 360, width: 372, height: 16, fontSize: 10, minFontSize: 8, valign: "middle", baselineOffset: -1, source: "applicant.currentAddress" },
-      applicant_phone_day_area:   { page: 0, x: 133, top: 283, maxWidth: 38,  fontSize: 10, baselineOffset: 12, source: "applicant.phoneDay",   transform: "phone_area_code"   },
-      applicant_phone_day_number: { page: 0, x: 180, top: 283, maxWidth: 100, fontSize: 10, baselineOffset: 12, source: "applicant.phoneDay",   transform: "phone_local_number" },
-      applicant_phone_night_area:   { page: 0, x: 302, top: 283, maxWidth: 38,  fontSize: 10, baselineOffset: 12, source: "applicant.phoneNight", transform: "phone_area_code"   },
-      applicant_phone_night_number: { page: 0, x: 345, top: 283, maxWidth: 100, fontSize: 10, baselineOffset: 12, source: "applicant.phoneNight", transform: "phone_local_number" },
-      applicant_email: { page: 0, x: 160, top: 286, maxWidth: 210, width: 220, height: 16, fontSize: 10, minFontSize: 8, valign: "middle", baselineOffset: -1, source: "applicant.email" },
-      applicant_dob: { page: 0, x: 130, top: 309, maxWidth: 88, width: 92, height: 16, fontSize: 10, minFontSize: 8, valign: "middle", baselineOffset: -1, source: "applicant.dateOfBirth" },
-      applicant_place_of_birth: { page: 0, x: 463, top: 315, maxWidth: 96, source: "applicant.placeOfBirth" },
-      applicant_country_of_citizenship: { page: 0, x: 472, top: 354, maxWidth: 110, width: 116, height: 16, fontSize: 10, minFontSize: 8, valign: "middle", baselineOffset: -1, source: "applicant.countryOfCitizenship" },
-      applicant_visa_status: { page: 0, x: 110, top: 377, maxWidth: 110, width: 118, height: 16, fontSize: 10, minFontSize: 8, valign: "middle", baselineOffset: -1, source: "applicant.visaStatus" },
-      applicant_alien_registration_number: { page: 0, x: 408, top: 389, maxWidth: 112, source: "applicant.alienRegistrationNumber" },
-      start_year_spring: { page: 0, x: 151, top: 452, maxWidth: 20, baselineOffset: 11, source: "admission.startYear", transform: "year2digits", renderWhen: { path: "admission.startSemester", equals: "spring" } },
-      start_year_fall: { page: 0, x: 268, top: 452, maxWidth: 20, baselineOffset: 11, source: "admission.startYear", transform: "year2digits", renderWhen: { path: "admission.startSemester", equals: "fall" } },
-      start_year_summer: { page: 0, x: 404, top: 452, maxWidth: 30, baselineOffset: 11, source: "admission.startYear", transform: "year4digits", renderWhen: { path: "admission.startSemester", equals: "summer" } },
-      emergency_contact_name: { page: 0, x: 100, top: 633, maxWidth: 150, width: 160, height: 16, fontSize: 10, minFontSize: 8, valign: "middle", baselineOffset: -1, source: "emergencyContact.name" },
-      emergency_contact_phone: { page: 0, x: 392, top: 633, maxWidth: 150, width: 160, height: 16, fontSize: 10, minFontSize: 8, valign: "middle", baselineOffset: -1, source: "emergencyContact.phone" },
-      emergency_contact_address: { page: 0, x: 94, top: 654, maxWidth: 390, width: 410, height: 16, fontSize: 10, minFontSize: 8, valign: "middle", baselineOffset: -1, source: "emergencyContact.address" },
-      found_other_text: { page: 1, x: 278, top: 593, maxWidth: 245, source: "discoverySource.otherText" },
-      applicant_signature_text: { page: 1, x: 150, top: 647, maxWidth: 255, width: 270, height: 16, fontSize: 10, minFontSize: 8, valign: "middle", baselineOffset: -1, source: "derived.applicantSignatureText" },
-      applicant_signature_date: { page: 1, x: 520, top: 647, maxWidth: 86, width: 86, height: 16, fontSize: 10, minFontSize: 8, valign: "middle", baselineOffset: -1, source: "signature.applicantDate", align: "right" },
-      i20_last_name: { page: 2, x: 112, top: 183, maxWidth: 116, width: 122, height: 16, fontSize: 10, minFontSize: 8, valign: "middle", baselineOffset: -1, source: "derived.applicantPassportLastName" },
-      i20_first_name: { page: 2, x: 302, top: 183, maxWidth: 122, width: 128, height: 16, fontSize: 10, minFontSize: 8, valign: "middle", baselineOffset: -1, source: "derived.applicantPassportFirstName" },
-      i20_middle_name: { page: 2, x: 486, top: 183, maxWidth: 88, width: 90, height: 16, fontSize: 10, minFontSize: 8, valign: "middle", baselineOffset: -1, source: "derived.applicantPassportMiddleName" },
-      i20_dob: { page: 2, x: 138, top: 236, maxWidth: 112, width: 116, height: 16, fontSize: 10, minFontSize: 8, valign: "middle", baselineOffset: -1, source: "applicant.dateOfBirth" },
-      i20_place_of_birth: { page: 2, x: 423, top: 236, maxWidth: 145, width: 148, height: 16, fontSize: 10, minFontSize: 8, valign: "middle", baselineOffset: -1, source: "applicant.placeOfBirth" },
-      i20_country_of_citizenship: { page: 2, x: 176, top: 272, maxWidth: 360, width: 370, height: 16, fontSize: 10, minFontSize: 8, valign: "middle", baselineOffset: -1, source: "applicant.countryOfCitizenship" },
-      i20_foreign_address: { page: 2, x: 148, top: 308, maxWidth: 395, width: 404, height: 16, fontSize: 10, minFontSize: 8, valign: "middle", baselineOffset: -1, source: "i20.foreignAddress" },
-      i20_us_address: { page: 2, x: 132, top: 344, maxWidth: 408, width: 418, height: 16, fontSize: 10, minFontSize: 8, valign: "middle", baselineOffset: -1, source: "i20.usAddress" },
-      recommendation_applicant_name: { page: 3, x: 136, top: 146, maxWidth: 250, source: "derived.applicantDisplayName" },
-      recommendation_applicant_address: { page: 3, x: 82, top: 172, maxWidth: 485, source: "recommendation.applicantAddressLine" },
-      recommendation_city_state_zip: { page: 3, x: 164, top: 199, maxWidth: 215, source: "recommendation.applicantCityStateZip" },
-      recommendation_applicant_phone: { page: 3, x: 458, top: 193, maxWidth: 96, width: 100, height: 16, fontSize: 10, minFontSize: 8, valign: "middle", baselineOffset: -1, source: "derived.applicantPrimaryPhone" },
+      applicant_english_name: { page: 0, x: 317.5, top: 174.0, maxWidth: 140, width: 170, height: 16, fontSize: 10, minFontSize: 8, valign: "middle", baselineOffset: -1, source: "applicant.fullNameEnglish" },
+      applicant_permanent_address: { page: 0, x: 172.5, top: 219.0, maxWidth: 350, width: 360, height: 16, fontSize: 10, minFontSize: 8, valign: "middle", baselineOffset: -1, source: "applicant.permanentAddress" },
+      applicant_current_address: { page: 0, x: 165.0, top: 241.5, maxWidth: 355, width: 365, height: 16, fontSize: 10, minFontSize: 8, valign: "middle", baselineOffset: -1, source: "applicant.currentAddress" },
+      applicant_phone: { page: 0, x: 157.0, top: 266.0, maxWidth: 250, width: 260, height: 16, fontSize: 10, minFontSize: 8, valign: "middle", baselineOffset: -1, source: "applicant.phone" },
+      applicant_email: { page: 0, x: 110.5, top: 288.5, maxWidth: 190, width: 198, height: 16, fontSize: 10, minFontSize: 8, valign: "middle", baselineOffset: -1, source: "applicant.email" },
+      applicant_dob: { page: 0, x: 101.5, top: 312.5, maxWidth: 88, width: 92, height: 16, fontSize: 10, minFontSize: 8, valign: "middle", baselineOffset: -1, source: "applicant.dateOfBirth" },
+      applicant_place_of_birth: { page: 0, x: 405.5, top: 312.0, maxWidth: 115, width: 120, height: 16, fontSize: 10, minFontSize: 8, valign: "middle", baselineOffset: -1, source: "applicant.placeOfBirth" },
+      applicant_country_of_citizenship: { page: 0, x: 412.5, top: 357.0, maxWidth: 110, width: 116, height: 16, fontSize: 10, minFontSize: 8, valign: "middle", baselineOffset: -1, source: "applicant.countryOfCitizenship" },
+      start_year_spring: { page: 0, x: 143.5, top: 450.0, maxWidth: 18, fontSize: 10, baselineOffset: 11, source: "admission.startYear", transform: "year2digits", renderWhen: { path: "admission.startSemester", equals: "spring" } },
+      start_year_fall: { page: 0, x: 246.5, top: 450.0, maxWidth: 18, fontSize: 10, baselineOffset: 11, source: "admission.startYear", transform: "year2digits", renderWhen: { path: "admission.startSemester", equals: "fall" } },
+      start_year_summer: { page: 0, x: 365.0, top: 450.0, maxWidth: 18, fontSize: 10, baselineOffset: 11, source: "admission.startYear", transform: "year2digits", renderWhen: { path: "admission.startSemester", equals: "summer" } },
+      emergency_contact_name: { page: 0, x: 69.0, top: 635.5, maxWidth: 150, width: 160, height: 16, fontSize: 10, minFontSize: 8, valign: "middle", baselineOffset: -1, source: "emergencyContact.name" },
+      emergency_contact_phone: { page: 0, x: 318.0, top: 636.5, maxWidth: 150, width: 160, height: 16, fontSize: 10, minFontSize: 8, valign: "middle", baselineOffset: -1, source: "emergencyContact.phone" },
+      emergency_contact_address: { page: 0, x: 79.5, top: 656.0, maxWidth: 395, width: 405, height: 16, fontSize: 10, minFontSize: 8, valign: "middle", baselineOffset: -1, source: "emergencyContact.address" },
+      i20_last_name: { page: 2, x: 148.0, top: 183.0, maxWidth: 96, width: 102, height: 16, fontSize: 10, minFontSize: 8, valign: "middle", baselineOffset: -1, source: "i20.lastName" },
+      i20_first_name: { page: 2, x: 255.0, top: 184.5, maxWidth: 112, width: 118, height: 16, fontSize: 10, minFontSize: 8, valign: "middle", baselineOffset: -1, source: "i20.firstName" },
+      i20_middle_name: { page: 2, x: 377.0, top: 184.5, maxWidth: 112, width: 118, height: 16, fontSize: 10, minFontSize: 8, valign: "middle", baselineOffset: -1, source: "i20.middleName" },
+      i20_dob: { page: 2, x: 103.0, top: 236.0, maxWidth: 112, width: 116, height: 16, fontSize: 10, minFontSize: 8, valign: "middle", baselineOffset: -1, source: "i20.dateOfBirth" },
+      i20_place_of_birth: { page: 2, x: 307.0, top: 237.5, maxWidth: 208, width: 214, height: 16, fontSize: 10, minFontSize: 8, valign: "middle", baselineOffset: -1, source: "i20.placeOfBirth" },
+      i20_country_of_citizenship: { page: 2, x: 142.0, top: 273.5, maxWidth: 360, width: 370, height: 16, fontSize: 10, minFontSize: 8, valign: "middle", baselineOffset: -1, source: "i20.countryOfCitizenship" },
+      i20_foreign_address: { page: 2, x: 118.0, top: 310.0, maxWidth: 398, width: 406, height: 16, fontSize: 10, minFontSize: 8, valign: "middle", baselineOffset: -1, source: "i20.foreignAddress" },
+      i20_us_address: { page: 2, x: 106.0, top: 345.5, maxWidth: 415, width: 423, height: 16, fontSize: 10, minFontSize: 8, valign: "middle", baselineOffset: -1, source: "i20.usAddress" },
+      recommendation_applicant_name: { page: 3, x: 137.0, top: 139.0, maxWidth: 430, width: 438, height: 16, fontSize: 10, minFontSize: 8, valign: "middle", baselineOffset: -1, source: "recommendation.applicantName" },
+      recommendation_applicant_address: { page: 3, x: 84.5, top: 165.0, maxWidth: 485, width: 492, height: 16, fontSize: 10, minFontSize: 8, valign: "middle", baselineOffset: -1, source: "recommendation.applicantAddressLine" },
+      recommendation_city_state_zip: { page: 3, x: 112.0, top: 193.0, maxWidth: 278, width: 286, height: 16, fontSize: 10, minFontSize: 8, valign: "middle", baselineOffset: -1, source: "recommendation.applicantCityStateZip" },
+      recommendation_applicant_phone: { page: 3, x: 41.5, top: 207.5, maxWidth: 120, width: 126, height: 16, fontSize: 10, minFontSize: 8, valign: "middle", baselineOffset: -1, source: "recommendation.applicantTelephone" },
+      christian_faith_name: { page: 4, x: 104.0, top: 165.0, maxWidth: 142, width: 150, height: 16, fontSize: 10, minFontSize: 8, valign: "middle", baselineOffset: -1, source: "christianFaith.name" },
+      christian_faith_date: { page: 4, x: 416.5, top: 163.5, maxWidth: 138, width: 142, height: 16, fontSize: 10, minFontSize: 8, valign: "middle", baselineOffset: -1, source: "christianFaith.date" },
     },
     checkboxes: {
-      applicant_gender_m: { page: 0, x: 257, top: 319, source: "applicant.gender", equals: "M" },
-      applicant_gender_f: { page: 0, x: 279, top: 319, source: "applicant.gender", equals: "F" },
-      applicant_us_citizen_yes: { page: 0, x: 186, top: 365, source: "applicant.usCitizen", equals: true },
-      applicant_us_citizen_no: { page: 0, x: 214, top: 365, source: "applicant.usCitizen", equals: false },
-      start_semester_spring: { page: 0, x: 57, top: 445, source: "admission.startSemester", equals: "spring" },
-      start_semester_fall: { page: 0, x: 170, top: 445, source: "admission.startSemester", equals: "fall" },
-      start_semester_summer: { page: 0, x: 272, top: 445, source: "admission.startSemester", equals: "summer" },
-      degree_ba_biblical_studies: { page: 0, x: 57, top: 514, source: "admission.degreeProgram", equals: "ba_biblical_studies" },
-      degree_bm: { page: 0, x: 185, top: 514, source: "admission.degreeProgram", equals: "bm" },
-      degree_baba: { page: 0, x: 316, top: 514, source: "admission.degreeProgram", equals: "baba" },
-      degree_mdiv: { page: 0, x: 57, top: 553, source: "admission.degreeProgram", equals: "mdiv" },
-      degree_mm: { page: 0, x: 184, top: 553, source: "admission.degreeProgram", equals: "mm" },
-      degree_mba: { page: 0, x: 316, top: 553, source: "admission.degreeProgram", equals: "mba" },
-      degree_dmin: { page: 0, x: 57, top: 593, source: "admission.degreeProgram", equals: "dmin" },
-      degree_dma: { page: 0, x: 186, top: 593, source: "admission.degreeProgram", equals: "dma" },
-      degree_dba: { page: 0, x: 322, top: 593, source: "admission.degreeProgram", equals: "dba" },
-      marital_single: { page: 1, x: 142, top: 43, source: "maritalStatus", equals: "single" },
-      marital_married: { page: 1, x: 202, top: 43, source: "maritalStatus", equals: "married" },
-      found_internet: { page: 1, x: 44, top: 570, source: "discoverySource.internet", equals: true },
-      found_yahoo: { page: 1, x: 115, top: 570, source: "discoverySource.yahoo", equals: true },
-      found_google: { page: 1, x: 167, top: 570, source: "discoverySource.google", equals: true },
-      found_oikos_website: { page: 1, x: 230, top: 570, source: "discoverySource.oikosWebsite", equals: true },
-      found_posted_flyer: { page: 1, x: 363, top: 570, source: "discoverySource.postedFlyer", equals: true },
-      found_personal_referral: { page: 1, x: 44, top: 590, source: "discoverySource.personalReferral", equals: true },
-      found_other: { page: 1, x: 172, top: 590, source: "discoverySource.other", equals: true },
-      i20_request_new_student: { page: 2, x: 109, top: 390, source: "i20.requestType", equals: "new_student" },
-      i20_request_change_of_status: { page: 2, x: 197, top: 390, source: "i20.requestType", equals: "change_of_status" },
-      i20_request_transfer_student: { page: 2, x: 357, top: 390, source: "i20.requestType", equals: "transfer_student" },
-      i20_program_ba_biblical_studies: { page: 2, x: 37, top: 462, source: "admission.degreeProgram", equals: "ba_biblical_studies" },
-      i20_program_bm: { page: 2, x: 184, top: 462, source: "admission.degreeProgram", equals: "bm" },
-      i20_program_baba: { page: 2, x: 320, top: 463, source: "admission.degreeProgram", equals: "baba" },
-      i20_program_mdiv: { page: 2, x: 37, top: 503, source: "admission.degreeProgram", equals: "mdiv" },
-      i20_program_mm: { page: 2, x: 186, top: 503, source: "admission.degreeProgram", equals: "mm" },
-      i20_program_mba: { page: 2, x: 320, top: 504, source: "admission.degreeProgram", equals: "mba" },
-      i20_program_dmin: { page: 2, x: 37, top: 536, source: "admission.degreeProgram", equals: "dmin" },
+      applicant_gender_m: { page: 0, x: 260.5, top: 316.5, source: "applicant.gender", equals: "M" },
+      applicant_gender_f: { page: 0, x: 283.0, top: 316.5, source: "applicant.gender", equals: "F" },
+      applicant_us_citizen_yes: { page: 0, x: 190.0, top: 362.0, source: "applicant.usCitizen", equals: true },
+      applicant_us_citizen_no: { page: 0, x: 217.5, top: 362.0, source: "applicant.usCitizen", equals: false },
+      marital_single: { page: 1, x: 142.5, top: 40.0, source: "maritalStatus", equals: "single" },
+      marital_married: { page: 1, x: 203.5, top: 40.0, source: "maritalStatus", equals: "married" },
+      start_semester_spring: { page: 0, x: 61.0, top: 443.0, source: "admission.startSemester", equals: "spring" },
+      start_semester_fall: { page: 0, x: 173.0, top: 444.0, source: "admission.startSemester", equals: "fall" },
+      start_semester_summer: { page: 0, x: 275.0, top: 443.0, source: "admission.startSemester", equals: "summer" },
+      degree_ba_biblical_studies: { page: 0, x: 61.5, top: 512.0, source: "admission.degreeProgram", equals: "ba_biblical_studies" },
+      degree_bm: { page: 0, x: 189.0, top: 511.5, source: "admission.degreeProgram", equals: "bm" },
+      degree_baba: { page: 0, x: 318.5, top: 512.5, source: "admission.degreeProgram", equals: "baba" },
+      degree_mdiv: { page: 0, x: 61.0, top: 550.5, source: "admission.degreeProgram", equals: "mdiv" },
+      degree_mm: { page: 0, x: 187.5, top: 551.0, source: "admission.degreeProgram", equals: "mm" },
+      degree_mba: { page: 0, x: 320.0, top: 550.5, source: "admission.degreeProgram", equals: "mba" },
+      degree_dmin: { page: 0, x: 61.5, top: 591.0, source: "admission.degreeProgram", equals: "dmin" },
+      degree_dma: { page: 0, x: 190.0, top: 592.0, source: "admission.degreeProgram", equals: "dma" },
+      degree_dba: { page: 0, x: 325.5, top: 591.5, source: "admission.degreeProgram", equals: "dba" },
+      i20_request_new_student: { page: 2, x: 113.0, top: 388.5, source: "i20.requestType", equals: "new_student" },
+      i20_request_change_of_status: { page: 2, x: 200.5, top: 389.0, source: "i20.requestType", equals: "change_of_status" },
+      i20_request_transfer_student: { page: 2, x: 361.0, top: 389.0, source: "i20.requestType", equals: "transfer_student" },
+      i20_program_ba_biblical_studies: { page: 2, x: 41.0, top: 462.0, source: "admission.degreeProgram", equals: "ba_biblical_studies" },
+      i20_program_bm: { page: 2, x: 187.5, top: 460.0, source: "admission.degreeProgram", equals: "bm" },
+      i20_program_baba: { page: 2, x: 323.0, top: 461.5, source: "admission.degreeProgram", equals: "baba" },
+      i20_program_mdiv: { page: 2, x: 41.0, top: 502.5, source: "admission.degreeProgram", equals: "mdiv" },
+      i20_program_mm: { page: 2, x: 189.0, top: 502.0, source: "admission.degreeProgram", equals: "mm" },
+      i20_program_mba: { page: 2, x: 323.5, top: 503.0, source: "admission.degreeProgram", equals: "mba" },
+      i20_program_dmin: { page: 2, x: 41.0, top: 535.0, source: "admission.degreeProgram", equals: "dmin" },
     },
     grids: {
       personalReferences: {
@@ -483,25 +769,21 @@ const OIKOS_APPLICATION_PACKET_V1: {
         maxRows: 4,
         source: "personalReferences",
         columns: [
-          { key: "name", x: 44, maxWidth: 126 },
-          { key: "relationship", x: 183, maxWidth: 72 },
-          { key: "gender", x: 264, maxWidth: 50 },
-          { key: "contactNumber", x: 327, maxWidth: 106 },
-          { key: "countryOfCitizenship", x: 444, maxWidth: 130 },
+          { key: "name", x: 47.5, maxWidth: 122 },
+          { key: "relationship", x: 183.0, maxWidth: 72 },
+          { key: "contactNumber", x: 333.5, maxWidth: 106 },
         ],
-        rowTops: [126, 153, 180, 207],
+        rowTops: [119.0, 144.0, 173.5, 203.0],
       },
       academicBackground: {
         page: 1,
         maxRows: 4,
         source: "academicBackground",
         columns: [
-          { key: "schoolName", x: 44, maxWidth: 88 },
-          { key: "location", x: 148, maxWidth: 185 },
-          { key: "duration", x: 346, maxWidth: 110 },
-          { key: "degreeDiploma", x: 472, maxWidth: 98 },
+          { key: "schoolName", x: 47.5, maxWidth: 88 },
+          { key: "degreeDiploma", x: 472.0, maxWidth: 98 },
         ],
-        rowTops: [289, 317, 344, 371],
+        rowTops: [282.0, 311.0, 338.5, 364.0],
       },
       workMinistryExperience: {
         page: 1,
@@ -509,19 +791,19 @@ const OIKOS_APPLICATION_PACKET_V1: {
         source: "workMinistryExperience",
         rows: [
           {
-            companyOrChurch: { x: 194, top: 415, maxWidth: 235 },
-            duration: { x: 120, top: 435, maxWidth: 64 },
-            position: { x: 258, top: 435, maxWidth: 170 },
+            companyOrChurch: { x: 201.0, top: 409.0, maxWidth: 228 },
+            duration: { x: 123.0, top: 423.5, maxWidth: 64 },
+            position: { x: 263.0, top: 423.5, maxWidth: 168 },
           },
           {
-            companyOrChurch: { x: 194, top: 455, maxWidth: 235 },
-            duration: { x: 120, top: 475, maxWidth: 64 },
-            position: { x: 258, top: 475, maxWidth: 170 },
+            companyOrChurch: { x: 200.5, top: 445.0, maxWidth: 228 },
+            duration: { x: 120.5, top: 464.0, maxWidth: 64 },
+            position: { x: 260.5, top: 464.0, maxWidth: 168 },
           },
           {
-            companyOrChurch: { x: 194, top: 495, maxWidth: 235 },
-            duration: { x: 120, top: 515, maxWidth: 64 },
-            position: { x: 258, top: 515, maxWidth: 170 },
+            companyOrChurch: { x: 199.0, top: 485.0, maxWidth: 228 },
+            duration: { x: 121.0, top: 504.0, maxWidth: 64 },
+            position: { x: 259.0, top: 503.0, maxWidth: 168 },
           },
         ],
       },
@@ -530,23 +812,23 @@ const OIKOS_APPLICATION_PACKET_V1: {
         maxRows: 6,
         source: "i20.dependents",
         columns: [
-          { key: "name", x: 38, maxWidth: 102 },
-          { key: "relationship", x: 148, maxWidth: 58 },
-          { key: "sex", x: 217, maxWidth: 22 },
-          { key: "dateOfBirth", x: 251, maxWidth: 74 },
-          { key: "placeOfBirth", x: 338, maxWidth: 96 },
-          { key: "countryOfCitizenship", x: 447, maxWidth: 98 },
+          { key: "name", x: 37.5, maxWidth: 104 },
+          { key: "relationship", x: 150.5, maxWidth: 58 },
+          { key: "sex", x: 218.0, maxWidth: 22 },
+          { key: "dateOfBirth", x: 250.5, maxWidth: 78 },
+          { key: "placeOfBirth", x: 338.0, maxWidth: 98 },
+          { key: "countryOfCitizenship", x: 448.0, maxWidth: 98 },
         ],
-        rowTops: [626, 645, 663, 682, 700, 719],
+        rowTops: [623.5, 641.0, 661.5, 682.0, 700.0, 717.5],
       },
     },
     multiline: {
       christian_faith_statement: {
         page: 4,
-        x: 58,
-        top: 190,
-        width: 490,
-        height: 405,
+        x: 88.5,
+        top: 207.5,
+        width: 455,
+        height: 382,
         source: "christianFaith.statement",
         lineHeight: 14,
         fontSize: 11,
@@ -972,7 +1254,7 @@ function buildOikosApplicationPacketData(
   const answers = (survey?.answers ?? {}) as Record<string, any>;
   const splitName = splitFullName(profile.full_name);
   const preferredStart = parsePreferredStart(supplemental.preferred_start_term);
-  const usAddress = joinAddress([identity?.address, identity?.city, identity?.state, identity?.zip_code]);
+  const currentAddress = joinAddress([identity?.address, identity?.city, identity?.state, identity?.zip_code]);
   const foreignAddress = supplemental.emergency_contact?.address;
   const birthCity = asString(answers.birthplace_city);
   const birthCountry = asString(answers.birthplace_country);
@@ -987,29 +1269,23 @@ function buildOikosApplicationPacketData(
   const signatureDate = maybeFormatDate(new Date().toISOString());
   const applicantDateOfBirth = maybeFormatDate(identity?.birth_date);
   const applicantPhone = asString(profile.phone ?? profile.whatsapp) || undefined;
-  const applicantFullName = compact(profile.full_name) || undefined;
   const requestType = profile.service_type === "transfer"
     ? "transfer_student"
     : profile.service_type === "cos"
     ? "change_of_status"
     : "new_student";
-  const applicantDisplayName = compact(
+  const applicantFullName = compact(
     compact(profile.full_name) || joinNonEmpty([splitName.firstName, splitName.middleName, splitName.lastName]),
-  );
-  const applicantPrimaryPhone = looksLikePhone(profile.phone ?? profile.whatsapp) ? asString(profile.phone ?? profile.whatsapp) : undefined;
+  ) || undefined;
   const cityStateZip = joinNonEmpty([identity?.city, identity?.state, identity?.zip_code], ", ");
   const personalReferencesNormalized = (supplemental.recommenders ?? []).slice(0, 4).map((ref) => ({
-      name: compact(ref.name) || undefined,
+    name: compact(ref.name) || undefined,
     relationship: compact(ref.position) || undefined,
-    gender: undefined,
     contactNumber: looksLikePhone(ref.contact) ? compact(ref.contact) : undefined,
-    countryOfCitizenship: undefined,
   }));
   const academicBackgroundNormalized = survey?.academic_formation
     ? [{
         schoolName: compact(survey.academic_formation) || undefined,
-        location: undefined,
-        duration: undefined,
         degreeDiploma: compact(survey.academic_formation) || undefined,
       }]
     : [];
@@ -1017,21 +1293,16 @@ function buildOikosApplicationPacketData(
 
   return {
     applicant: {
-      firstName: splitName.firstName,
-      middleName: splitName.middleName,
-      lastName: splitName.lastName,
-      fullName: applicantDisplayName || undefined,
+      fullNameEnglish: applicantFullName,
       dateOfBirth: applicantDateOfBirth,
       gender: asString(answers.gender).toUpperCase() === "F" ? "F" : asString(answers.gender).toUpperCase() === "M" ? "M" : undefined,
+      usCitizen: nationality?.toLowerCase().includes("united states") || nationality?.toLowerCase() === "usa",
       placeOfBirth,
       email: asString(profile.email) || undefined,
-      phoneDay: applicantPrimaryPhone,
-      phoneNight: applicantPrimaryPhone,
-      visaStatus: profile.service_type === "cos" ? "Change of Status" : profile.service_type === "transfer" ? "Transfer" : undefined,
-      usCitizen: nationality?.toLowerCase().includes("united states") || nationality?.toLowerCase() === "usa",
+      phone: applicantPhone,
       countryOfCitizenship: nationality,
       permanentAddress: foreignAddress,
-      currentAddress: usAddress,
+      currentAddress,
     },
     maritalStatus,
     admission: {
@@ -1051,43 +1322,28 @@ function buildOikosApplicationPacketData(
       duration: item.period,
       position: item.position,
     })),
-    discoverySource: {
-      internet: true,
-      google: true,
-    },
-    signature: {
-      applicantSignatureText: undefined,
-      applicantDate: signatureDate,
-    },
     i20: {
+      lastName: splitName.lastName,
+      firstName: splitName.firstName,
+      middleName: splitName.middleName,
+      dateOfBirth: applicantDateOfBirth,
+      placeOfBirth,
+      countryOfCitizenship: nationality,
       requestType,
       foreignAddress,
-      usAddress,
+      usAddress: currentAddress,
       dependents: [],
     },
     recommendation: {
-      applicantAddressLine: usAddress ?? foreignAddress,
+      applicantName: applicantFullName,
+      applicantAddressLine: currentAddress ?? foreignAddress,
       applicantCityStateZip: cityStateZip || undefined,
-      applicantTelephone: applicantPrimaryPhone,
+      applicantTelephone: applicantPhone,
     },
     christianFaith: {
-      name: applicantDisplayName || undefined,
+      name: applicantFullName,
       date: signatureDate,
       statement: christianFaithStatement,
-    },
-    derived: {
-      applicantDisplayName: applicantDisplayName || undefined,
-      applicantPassportLastName: compact(splitName.lastName) || undefined,
-      applicantPassportFirstName: compact(splitName.firstName) || undefined,
-      applicantPassportMiddleName: compact(splitName.middleName) || undefined,
-      applicantCityStateZip: cityStateZip || undefined,
-      applicantPrimaryPhone,
-      applicantDayPhone: applicantPrimaryPhone,
-      applicantNightPhone: applicantPrimaryPhone,
-      applicantSignatureText: undefined,
-      christianFaithName: applicantDisplayName || undefined,
-      christianFaithDate: signatureDate,
-      christianFaithStatement,
     },
     personalReferencesNormalized,
     academicBackgroundNormalized,
@@ -1170,6 +1426,75 @@ function buildOikosAllStatementsAgreementData(
   };
 }
 
+function addMonthsToDate(base: Date, months: number): Date {
+  const date = new Date(base.getTime());
+  date.setUTCMonth(date.getUTCMonth() + months);
+  return date;
+}
+
+function preferredStartToDate(preferredStart?: string): string | undefined {
+  const parsed = parsePreferredStart(preferredStart);
+  if (!parsed.startSemester || !parsed.startYear) return undefined;
+  const month = parsed.startSemester === "spring" ? 1 : parsed.startSemester === "summer" ? 6 : 8;
+  return maybeFormatDate(new Date(Date.UTC(Number(parsed.startYear), month, 1)).toISOString());
+}
+
+function normalizeEnrollmentPhone(value: string | undefined): string | undefined {
+  const raw = compact(value);
+  if (!raw) return undefined;
+  const normalizedDigits = raw.replace(/\D/g, "");
+  const usDigits = normalizedDigits.startsWith("1") && normalizedDigits.length === 11
+    ? normalizedDigits.slice(1)
+    : normalizedDigits;
+  return usDigits || undefined;
+}
+
+function buildOikosEnrollmentAgreementData(
+  profile: Record<string, any>,
+  course: Record<string, any> | null,
+  survey: Record<string, any> | null,
+  supplemental: SupplementalData,
+  identity: Record<string, any> | null,
+): OikosEnrollmentAgreementData {
+  const splitName = splitFullName(profile.full_name);
+  const primaryPhone = looksLikePhone(profile.phone ?? profile.whatsapp) ? asString(profile.phone ?? profile.whatsapp) : undefined;
+  const homePhone = normalizeEnrollmentPhone(primaryPhone);
+  const cellPhone = normalizeEnrollmentPhone(primaryPhone);
+  const startDate = preferredStartToDate(supplemental.preferred_start_term);
+  const durationMonths = Number(course?.duration_months ?? 0);
+  const completionDate = startDate && durationMonths > 0
+    ? maybeFormatDate(addMonthsToDate(new Date(`${startDate.slice(6, 10)}-${startDate.slice(0, 2)}-${startDate.slice(3, 5)}T00:00:00Z`), durationMonths).toISOString())
+    : undefined;
+  const totalCreditHours = asString((course as Record<string, any> | null)?.credit_hours)
+    || asString((survey?.answers ?? {}).credit_hours)
+    || undefined;
+
+  return {
+    student: {
+      enrollmentType: "new_student",
+      firstName: splitName.firstName,
+      middleName: splitName.middleName,
+      lastName: splitName.lastName,
+      dateOfBirth: maybeFormatDate(identity?.birth_date),
+      homePhone,
+      cellPhone,
+      address: compact(identity?.address) || undefined,
+      city: compact(identity?.city) || undefined,
+      state: compact(identity?.state) || undefined,
+      zip: compact(identity?.zip_code) || undefined,
+      email: compact(profile.email) || undefined,
+    },
+    program: {
+      name: compact(course?.course_name) || compact(course?.degree_level) || undefined,
+      totalCreditHours,
+      agreementStartDate: startDate,
+      scheduledCompletionDate: completionDate,
+      programStartDate: startDate,
+      programCompletionDate: completionDate,
+    },
+  };
+}
+
 function buildCarolineLetterOfRecommendationData(
   profile: Record<string, any>,
   supplemental: SupplementalData,
@@ -1241,6 +1566,159 @@ function buildCarolineAffidavitOfFinancialSupportData(
   };
 }
 
+function inferCarolineDegreeProgram(course: Record<string, any> | null): string | undefined {
+  const degree = asString(course?.degree_level).toLowerCase();
+  const name = asString(course?.course_name).toLowerCase();
+  if (degree.startsWith("bachelor") || name.includes("bba")) return "bba";
+  if (name.includes("computer") || name.includes("information system")) return "mcis";
+  if (name.includes("philosophy") && degree.startsWith("doctor")) return "dphil";
+  if (name.includes("philosophy")) return "mphil";
+  if (degree.startsWith("doctor")) return "dba";
+  if (degree.startsWith("master")) return "mba";
+  return undefined;
+}
+
+function buildCarolineApplicationFormData(
+  profile: Record<string, any>,
+  course: Record<string, any> | null,
+  survey: Record<string, any> | null,
+  supplemental: SupplementalData,
+  identity: Record<string, any> | null,
+): Record<string, any> {
+  const splitName = splitFullName(profile.full_name);
+  const preferredStart = parsePreferredStart(supplemental.preferred_start_term);
+  const answers = (survey?.answers ?? {}) as Record<string, any>;
+  const nationality = asString(identity?.nationality ?? identity?.country) || undefined;
+  const isUsCitizen = nationality?.toLowerCase().includes("united states") || nationality?.toLowerCase() === "usa" || false;
+  const maritalRaw = asString(identity?.marital_status).toLowerCase();
+  const maritalStatus = maritalRaw.includes("married") ? "married" : maritalRaw.includes("single") ? "single" : undefined;
+  const gender = asString(answers.gender).toUpperCase();
+
+  return {
+    student: {
+      firstName: splitName.firstName,
+      lastName: splitName.lastName,
+      middleName: splitName.middleName,
+      dateOfBirth: maybeFormatDate(identity?.birth_date),
+      address: compact(identity?.address) || undefined,
+      city: compact(identity?.city) || undefined,
+      state: compact(identity?.state) || undefined,
+      zip: compact(identity?.zip_code) || undefined,
+      phone: compact(profile.phone ?? profile.whatsapp) || undefined,
+      email: compact(profile.email) || undefined,
+      gender: gender === "M" || gender === "F" ? gender.toLowerCase() : undefined,
+      isUsCitizen,
+      countryOfCitizenship: isUsCitizen ? undefined : nationality,
+      visaStatus: profile.service_type === "cos" ? "F-1 (COS)" : profile.service_type === "transfer" ? "F-1 (Transfer)" : undefined,
+      maritalStatus,
+      hasHighSchoolDiploma: true,
+      preferredSemester: preferredStart.startSemester,
+      preferredYear: preferredStart.startYear,
+      degreeProgram: inferCarolineDegreeProgram(course),
+    },
+    emergency: {
+      name: compact(supplemental.emergency_contact?.name) || undefined,
+      phone: compact(supplemental.emergency_contact?.phone) || undefined,
+      relationship: compact(supplemental.emergency_contact?.relationship) || undefined,
+      address: compact(supplemental.emergency_contact?.address) || undefined,
+      city: undefined,
+      state: undefined,
+      zip: undefined,
+    },
+    dependents: [],
+    academic: survey?.academic_formation
+      ? [{ schoolName: compact(survey.academic_formation) || undefined, location: undefined, duration: undefined, degree: compact(survey.academic_formation) || undefined }]
+      : [],
+    work: (supplemental.work_experience ?? []).slice(0, 3).map((item) => ({
+      duration: compact(item.period) || undefined,
+      position: compact(item.position) || undefined,
+    })),
+    recommenders: (supplemental.recommenders ?? []).slice(0, 2).map((r) => ({
+      name: compact(r.name) || undefined,
+      position: compact(r.position) || undefined,
+      contact: compact(r.contact ?? r.email ?? r.telephone) || undefined,
+    })),
+  };
+}
+
+function buildCarolineI20RequestFormData(
+  profile: Record<string, any>,
+  course: Record<string, any> | null,
+  supplemental: SupplementalData,
+  identity: Record<string, any> | null,
+): Record<string, any> {
+  const splitName = splitFullName(profile.full_name);
+  const nationality = asString(identity?.nationality ?? identity?.country) || undefined;
+  const isUsCitizen = nationality?.toLowerCase().includes("united states") || nationality?.toLowerCase() === "usa" || false;
+  const requestType = profile.service_type === "cos" ? "cos" : profile.service_type === "transfer" ? "transfer" : "new_student";
+  const usAddress = joinAddress([identity?.address, identity?.city, identity?.state, identity?.zip_code]);
+  const foreignAddress = compact(supplemental.emergency_contact?.address) || undefined;
+
+  return {
+    student: {
+      firstName: splitName.firstName,
+      lastName: splitName.lastName,
+      middleName: splitName.middleName,
+      dateOfBirth: maybeFormatDate(identity?.birth_date),
+      placeOfBirth: isUsCitizen ? undefined : nationality,
+      countryOfCitizenship: isUsCitizen ? undefined : nationality,
+      foreignAddress,
+      usAddress,
+      requestType,
+      degreeProgram: inferCarolineDegreeProgram(course),
+    },
+    dependents: [],
+  };
+}
+
+function buildCarolineStatementOfInstitutionalPurposeData(
+  profile: Record<string, any>,
+  course: Record<string, any> | null,
+): CarolineStatementOfInstitutionalPurposeData {
+  const splitName = splitFullName(profile.full_name);
+  const fullName = compact(
+    compact(profile.full_name) || joinNonEmpty([splitName.firstName, splitName.middleName, splitName.lastName]),
+  ) || undefined;
+  const degreeProgram = compact(course?.course_name) || compact(course?.degree_level) || undefined;
+  const signatureDate = maybeFormatDate(new Date().toISOString());
+
+  return {
+    student: {
+      fullName,
+      degreeProgram,
+      currentDate: signatureDate,
+    },
+  };
+}
+
+function buildCarolineTuitionRefundPolicyData(
+  profile: Record<string, any>,
+  course: Record<string, any> | null,
+  identity: Record<string, any> | null,
+): CarolineTuitionRefundPolicyData {
+  const splitName = splitFullName(profile.full_name);
+  const fullName = compact(
+    compact(profile.full_name) || joinNonEmpty([splitName.firstName, splitName.middleName, splitName.lastName]),
+  ) || undefined;
+  const degreeProgram = compact(course?.course_name) || compact(course?.degree_level) || undefined;
+
+  return {
+    student: {
+      fullName,
+      degreeProgram,
+      dateOfBirth: maybeFormatDate(identity?.birth_date),
+    },
+  };
+}
+
+function buildCarolineScholarshipSupportComplianceAgreementData(): CarolineScholarshipSupportComplianceAgreementData {
+  return {
+    agency: {
+      name: "MIGMA INC",
+    },
+  };
+}
+
 function buildFormData(
   formType: string,
   profile: Record<string, any>,
@@ -1292,9 +1770,27 @@ function buildFormData(
 
   switch (formType) {
     case "application_for_admission":
+      if ((institution.slug ?? institution.name ?? "").toLowerCase().includes("caroline")) {
+        return buildCarolineApplicationFormData(profile, course, survey, supplemental, identity);
+      }
       return { ...base, institution_name: institution.name, institution_city: institution.city };
 
     case "i20_request_form":
+      if ((institution.slug ?? institution.name ?? "").toLowerCase().includes("caroline")) {
+        return buildCarolineI20RequestFormData(profile, course, supplemental, identity);
+      }
+      return { ...base, institution_name: institution.name };
+
+    case "statement_of_institutional_purpose":
+      if ((institution.slug ?? institution.name ?? "").toLowerCase().includes("caroline")) {
+        return buildCarolineStatementOfInstitutionalPurposeData(profile, course);
+      }
+      return { ...base, institution_name: institution.name };
+
+    case "tuition_refund_policy":
+      if ((institution.slug ?? institution.name ?? "").toLowerCase().includes("caroline")) {
+        return buildCarolineTuitionRefundPolicyData(profile, course, identity);
+      }
       return { ...base, institution_name: institution.name };
 
     case "letter_of_recommendation":
@@ -1318,6 +1814,9 @@ function buildFormData(
       };
 
     case "scholarship_support_compliance_agreement":
+      if ((institution.slug ?? institution.name ?? "").toLowerCase().includes("caroline")) {
+        return buildCarolineScholarshipSupportComplianceAgreementData();
+      }
       return {
         ...base,
         agency: "MIGMA INC",   // §11.3 — always forced
@@ -1329,6 +1828,9 @@ function buildFormData(
       };
 
     case "enrollment_agreement":
+      if ((institution.slug ?? institution.name ?? "").toLowerCase().includes("oikos")) {
+        return buildOikosEnrollmentAgreementData(profile, course, survey, supplemental, identity);
+      }
       return {
         ...base,
         institution_name: institution.name,
@@ -1471,14 +1973,15 @@ function drawPacketTextField(
 
   const textWidth = font.widthOfTextAtSize(text, drawSize);
   const textHeight = font.heightAtSize(drawSize);
+  const effectiveTop = field.top - ((field.shrinkTopPerPoint ?? 0) * (baseSize - drawSize));
 
   let x = field.x + paddingLeft;
   if (field.align === "right") x = field.x + boxWidth - paddingRight - textWidth;
   if (field.align === "center") x = field.x + paddingLeft + Math.max(0, (usableWidth - textWidth) / 2);
 
-  let y = topToPdfY(page, field.top, drawSize) + (field.baselineOffset ?? 0);
+  let y = topToPdfY(page, effectiveTop, drawSize) + (field.baselineOffset ?? 0);
   if (field.valign === "middle") {
-    y = page.getHeight() - field.top - ((boxHeight - textHeight) / 2) - textHeight + (field.baselineOffset ?? 0);
+    y = page.getHeight() - effectiveTop - ((boxHeight - textHeight) / 2) - textHeight + (field.baselineOffset ?? 0);
   }
 
   page.drawText(text, {
@@ -1667,31 +2170,37 @@ async function generateOikosAllStatementsAgreementPdf(
 ): Promise<Uint8Array> {
   const templateBytes = await loadPdfTemplate(OIKOS_ALL_STATEMENTS_AND_AGREEMENT_TEMPLATE_FILENAME);
   const doc = await PDFDocument.load(templateBytes);
-  const form = doc.getForm();
+  const pages = doc.getPages();
   const font = await doc.embedFont(StandardFonts.Helvetica);
 
-  const fullName = formData.student.fullName;
-  const currentDate = formData.meta.currentDate;
-  const christianFaithName = formData.christianFaith.name ?? fullName;
-  const christianFaithDate = formData.christianFaith.date ?? currentDate;
+  for (const field of Object.values(OIKOS_ALL_STATEMENTS_AND_AGREEMENT_V1.text)) {
+    const value = resolveOverlayTextValue(formData as unknown as Record<string, any>, field);
+    if (!value) continue;
+    drawPacketTextField(pages[field.page], font, value, {
+      page: field.page,
+      x: field.x,
+      top: field.top,
+      maxWidth: field.maxWidth,
+      source: field.source,
+      align: field.align,
+      width: field.width,
+      height: field.height,
+      fontSize: field.fontSize,
+      minFontSize: field.minFontSize,
+      valign: field.valign,
+      paddingLeft: field.paddingLeft,
+      paddingRight: field.paddingRight,
+      baselineOffset: field.baselineOffset,
+      shrinkTopPerPoint: field.shrinkTopPerPoint,
+    });
+  }
 
-  setAcroTextField(form, "Name", fullName);
-  setAcroTextField(form, "Date", currentDate);
-  setAcroTextField(form, "Name 1", fullName);
-  setAcroTextField(form, "Name 2", currentDate);
-  setAcroTextField(form, "Name_2", fullName);
-  setAcroTextField(form, "Date_2", currentDate);
-  setAcroTextField(form, "Text7", currentDate);
-  setAcroTextField(form, "Text8", fullName);
-  setAcroTextField(form, "Text10", fullName);
-  setAcroTextField(form, "Text11", currentDate);
-  setAcroTextField(form, "Text13", christianFaithName);
-  setAcroTextField(form, "Text14", christianFaithDate);
-  setAcroTextField(form, "Text16", formData.christianFaith.statement);
+  for (const field of Object.values(OIKOS_ALL_STATEMENTS_AND_AGREEMENT_V1.multiline)) {
+    const value = asString(getValueAtPath(formData as unknown as Record<string, any>, field.source));
+    if (!value) continue;
+    drawPacketMultiline(pages[field.page], font, value, field);
+  }
 
-  // Signature-related fields stay blank by design.
-  form.updateFieldAppearances(font);
-  form.flatten();
   return await doc.save();
 }
 
@@ -1763,6 +2272,214 @@ async function generateCarolineAffidavitOfFinancialSupportPdf(
   return await doc.save();
 }
 
+async function generateCarolineApplicationFormPdf(
+  formData: Record<string, any>,
+): Promise<Uint8Array> {
+  const templateBytes = await loadPdfTemplate(CAROLINE_APPLICATION_FORM_TEMPLATE_FILENAME);
+  const doc = await PDFDocument.load(templateBytes);
+  const pages = doc.getPages();
+  const font = await doc.embedFont(StandardFonts.Helvetica);
+
+  for (const field of Object.values(CAROLINE_APPLICATION_FORM_V1.text)) {
+    const value = resolveOverlayTextValue(formData, field);
+    if (!value) {
+      if (field.optional) continue;
+      console.info("[generate-institution-forms] caroline_app_form_field_blank", { field: field.source });
+      continue;
+    }
+    drawPacketTextField(pages[field.page], font, value, {
+      page: field.page,
+      x: field.x,
+      top: field.top,
+      maxWidth: field.maxWidth,
+      source: field.source,
+      align: field.align,
+      fontSize: field.fontSize,
+      minFontSize: field.minFontSize,
+    });
+  }
+
+  for (const field of Object.values(CAROLINE_APPLICATION_FORM_V1.checkboxes)) {
+    const current = normalizeCheckboxValue(getValueAtPath(formData, field.source));
+    const expected = normalizeCheckboxValue(field.equals);
+    if (current === expected) {
+      drawPacketCheckbox(pages[field.page], font, field.x, field.top);
+    }
+  }
+
+  return await doc.save();
+}
+
+async function generateCarolineI20RequestFormPdf(
+  formData: Record<string, any>,
+): Promise<Uint8Array> {
+  const templateBytes = await loadPdfTemplate(CAROLINE_I20_REQUEST_FORM_TEMPLATE_FILENAME);
+  const doc = await PDFDocument.load(templateBytes);
+  const pages = doc.getPages();
+  const font = await doc.embedFont(StandardFonts.Helvetica);
+
+  for (const field of Object.values(CAROLINE_I20_REQUEST_FORM_V1.text)) {
+    const value = resolveOverlayTextValue(formData, field);
+    if (!value) continue;
+    drawPacketTextField(pages[field.page], font, value, {
+      page: field.page,
+      x: field.x,
+      top: field.top,
+      maxWidth: field.maxWidth,
+      source: field.source,
+      align: field.align,
+      fontSize: field.fontSize,
+      minFontSize: field.minFontSize,
+    });
+  }
+
+  for (const field of Object.values(CAROLINE_I20_REQUEST_FORM_V1.checkboxes)) {
+    const current = normalizeCheckboxValue(getValueAtPath(formData, field.source));
+    const expected = normalizeCheckboxValue(field.equals);
+    if (current === expected) {
+      drawPacketCheckbox(pages[field.page], font, field.x, field.top);
+    }
+  }
+
+  return await doc.save();
+}
+
+async function generateCarolineStatementOfInstitutionalPurposePdf(
+  formData: Record<string, any>,
+): Promise<Uint8Array> {
+  const templateBytes = await loadPdfTemplate(CAROLINE_STATEMENT_OF_INSTITUTIONAL_PURPOSE_TEMPLATE_FILENAME);
+  const doc = await PDFDocument.load(templateBytes);
+  const pages = doc.getPages();
+  const font = await doc.embedFont(StandardFonts.Helvetica);
+
+  for (const field of Object.values(CAROLINE_STATEMENT_OF_INSTITUTIONAL_PURPOSE_V1.text)) {
+    const value = resolveOverlayTextValue(formData, field);
+    if (!value) continue;
+    drawPacketTextField(pages[field.page], font, value, {
+      page: field.page,
+      x: field.x,
+      top: field.top,
+      maxWidth: field.maxWidth,
+      source: field.source,
+      align: field.align,
+      fontSize: field.fontSize,
+      minFontSize: field.minFontSize,
+    });
+  }
+
+  for (const field of Object.values(CAROLINE_STATEMENT_OF_INSTITUTIONAL_PURPOSE_V1.checkboxes)) {
+    const current = normalizeCheckboxValue(getValueAtPath(formData, field.source));
+    const expected = normalizeCheckboxValue(field.equals);
+    if (current === expected) {
+      drawPacketCheckbox(pages[field.page], font, field.x, field.top);
+    }
+  }
+
+  return await doc.save();
+}
+
+async function generateCarolineTuitionRefundPolicyPdf(
+  formData: Record<string, any>,
+): Promise<Uint8Array> {
+  const templateBytes = await loadPdfTemplate(CAROLINE_TUITION_REFUND_POLICY_TEMPLATE_FILENAME);
+  const doc = await PDFDocument.load(templateBytes);
+  const pages = doc.getPages();
+  const font = await doc.embedFont(StandardFonts.Helvetica);
+
+  for (const field of Object.values(CAROLINE_TUITION_REFUND_POLICY_V1.text)) {
+    const value = resolveOverlayTextValue(formData, field);
+    if (!value) continue;
+    drawPacketTextField(pages[field.page], font, value, {
+      page: field.page,
+      x: field.x,
+      top: field.top,
+      maxWidth: field.maxWidth,
+      source: field.source,
+      align: field.align,
+      fontSize: field.fontSize,
+      minFontSize: field.minFontSize,
+    });
+  }
+
+  for (const field of Object.values(CAROLINE_TUITION_REFUND_POLICY_V1.checkboxes)) {
+    const current = normalizeCheckboxValue(getValueAtPath(formData, field.source));
+    const expected = normalizeCheckboxValue(field.equals);
+    if (current === expected) {
+      drawPacketCheckbox(pages[field.page], font, field.x, field.top);
+    }
+  }
+
+  return await doc.save();
+}
+
+async function generateCarolineScholarshipSupportComplianceAgreementPdf(
+  formData: Record<string, any>,
+): Promise<Uint8Array> {
+  const templateBytes = await loadPdfTemplate(CAROLINE_SCHOLARSHIP_SUPPORT_AND_COMPLIANCE_AGREEMENT_TEMPLATE_FILENAME);
+  const doc = await PDFDocument.load(templateBytes);
+  const pages = doc.getPages();
+  const font = await doc.embedFont(StandardFonts.Helvetica);
+
+  for (const field of Object.values(CAROLINE_SCHOLARSHIP_SUPPORT_AND_COMPLIANCE_AGREEMENT_V1.text)) {
+    const value = resolveOverlayTextValue(formData, field);
+    if (!value) continue;
+    drawPacketTextField(pages[field.page], font, value, {
+      page: field.page,
+      x: field.x,
+      top: field.top,
+      maxWidth: field.maxWidth,
+      source: field.source,
+      align: field.align,
+      fontSize: field.fontSize,
+      minFontSize: field.minFontSize,
+    });
+  }
+
+  for (const field of Object.values(CAROLINE_SCHOLARSHIP_SUPPORT_AND_COMPLIANCE_AGREEMENT_V1.checkboxes)) {
+    const current = normalizeCheckboxValue(getValueAtPath(formData, field.source));
+    const expected = normalizeCheckboxValue(field.equals);
+    if (current === expected) {
+      drawPacketCheckbox(pages[field.page], font, field.x, field.top);
+    }
+  }
+
+  return await doc.save();
+}
+
+async function generateOikosEnrollmentAgreementPdf(
+  formData: Record<string, any>,
+): Promise<Uint8Array> {
+  const templateBytes = await loadPdfTemplate(OIKOS_ENROLLMENT_AGREEMENT_TEMPLATE_FILENAME);
+  const doc = await PDFDocument.load(templateBytes);
+  const pages = doc.getPages();
+  const font = await doc.embedFont(StandardFonts.Helvetica);
+
+  for (const field of Object.values(OIKOS_ENROLLMENT_AGREEMENT_V1.text)) {
+    const value = resolveOverlayTextValue(formData, field);
+    if (!value) continue;
+    drawPacketTextField(pages[field.page], font, value, {
+      page: field.page,
+      x: field.x,
+      top: field.top,
+      maxWidth: field.maxWidth,
+      source: field.source,
+      align: field.align,
+      fontSize: field.fontSize,
+      minFontSize: field.minFontSize,
+    });
+  }
+
+  for (const field of Object.values(OIKOS_ENROLLMENT_AGREEMENT_V1.checkboxes)) {
+    const current = normalizeCheckboxValue(getValueAtPath(formData, field.source));
+    const expected = normalizeCheckboxValue(field.equals);
+    if (current === expected) {
+      drawPacketCheckbox(pages[field.page], font, field.x, field.top);
+    }
+  }
+
+  return await doc.save();
+}
+
 async function generateOikosApplicationPacketPdf(
   formData: OikosApplicationPacketData,
 ): Promise<Uint8Array> {
@@ -1792,40 +2509,10 @@ async function generateOikosApplicationPacketPdf(
     drawPacketGrid(pages[grid.page], font, rows as Array<Record<string, any>>, grid);
   }
 
-  let acroFormFilled = false;
-  try {
-    const form = doc.getForm();
-    form.getTextField("Text13").setText(asString(getValueAtPath(formData as unknown as Record<string, any>, "derived.christianFaithName")));
-    form.getTextField("Text14").setText(asString(getValueAtPath(formData as unknown as Record<string, any>, "derived.christianFaithDate")));
-    form.getTextField("Text16").setText(asString(getValueAtPath(formData as unknown as Record<string, any>, "derived.christianFaithStatement")));
-    form.updateFieldAppearances(font);
-    form.flatten();
-    acroFormFilled = true;
-  } catch (error) {
-    console.warn("[generate-institution-forms] packet_acroform_fallback", error);
-  }
-
-  if (!acroFormFilled) {
-    const fallbackName = asString(getValueAtPath(formData as unknown as Record<string, any>, "derived.christianFaithName"));
-    const fallbackDate = asString(getValueAtPath(formData as unknown as Record<string, any>, "derived.christianFaithDate"));
-    const fallbackStatement = asString(getValueAtPath(formData as unknown as Record<string, any>, "derived.christianFaithStatement"));
-    const page = pages[4];
-
-    if (fallbackName) {
-      page.drawText(
-        truncateToWidth(font, fallbackName, 10, 142),
-        { x: 104, y: topToPdfY(page, 160, 10), size: 10, font, color: rgb(0, 0, 0), maxWidth: 142 },
-      );
-    }
-    if (fallbackDate) {
-      page.drawText(
-        truncateToWidth(font, fallbackDate, 10, 138),
-        { x: 415, y: topToPdfY(page, 160, 10), size: 10, font, color: rgb(0, 0, 0), maxWidth: 138 },
-      );
-    }
-    if (fallbackStatement) {
-      drawPacketMultiline(page, font, fallbackStatement, OIKOS_APPLICATION_PACKET_V1.overlay.multiline.christian_faith_statement);
-    }
+  for (const field of Object.values(OIKOS_APPLICATION_PACKET_V1.overlay.multiline)) {
+    const value = asString(getValueAtPath(formData as unknown as Record<string, any>, field.source));
+    if (!value) continue;
+    drawPacketMultiline(pages[field.page], font, value, field);
   }
 
   return await doc.save();
@@ -1856,8 +2543,32 @@ async function generateFormPdf(
     return await generateOikosAllStatementsAgreementPdf(formData as OikosAllStatementsAgreementData);
   }
 
+  if (formType === "enrollment_agreement" && institutionSlug?.includes("oikos")) {
+    return await generateOikosEnrollmentAgreementPdf(formData as OikosEnrollmentAgreementData);
+  }
+
   if (formType === "letter_of_recommendation" && institutionSlug?.includes("caroline")) {
     return await generateCarolineLetterOfRecommendationPdf(formData as CarolineLetterOfRecommendationData);
+  }
+
+  if (formType === "application_for_admission" && institutionSlug?.includes("caroline")) {
+    return await generateCarolineApplicationFormPdf(formData);
+  }
+
+  if (formType === "i20_request_form" && institutionSlug?.includes("caroline")) {
+    return await generateCarolineI20RequestFormPdf(formData);
+  }
+
+  if (formType === "statement_of_institutional_purpose" && institutionSlug?.includes("caroline")) {
+    return await generateCarolineStatementOfInstitutionalPurposePdf(formData);
+  }
+
+  if (formType === "tuition_refund_policy" && institutionSlug?.includes("caroline")) {
+    return await generateCarolineTuitionRefundPolicyPdf(formData);
+  }
+
+  if (formType === "scholarship_support_compliance_agreement" && institutionSlug?.includes("caroline")) {
+    return await generateCarolineScholarshipSupportComplianceAgreementPdf(formData);
   }
 
   const doc = await PDFDocument.create();
