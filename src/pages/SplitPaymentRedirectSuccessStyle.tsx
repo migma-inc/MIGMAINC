@@ -82,6 +82,8 @@ export const SplitPaymentRedirectSuccessStyle = () => {
                 if (split.source === 'migma') {
                     const service = split.migma_service_type || 'transfer';
                     navigate(`/student/checkout/${service}?success=true`);
+                } else if (split.source === 'placement_fee') {
+                    navigate(`/student/onboarding?step=placement_fee&success=true&application_id=${split.application_id}`);
                 } else {
                     navigate(`/checkout/success?order_id=${split.order_id}&method=parcelow_split`);
                 }
@@ -104,6 +106,32 @@ export const SplitPaymentRedirectSuccessStyle = () => {
         if (split.part1_payment_status === 'completed' && split.part2_payment_status !== 'completed') {
             setIsPolling(false);
             setLoading(false);
+
+            // Proteção anti-loop: se a URL da P2 for a mesma da P1, o checkout já foi pago
+            // e Parcelow vai redirecionar de volta para P1 success URL → loop infinito.
+            if (
+                split.part2_parcelow_checkout_url &&
+                split.part2_parcelow_checkout_url === split.part1_parcelow_checkout_url
+            ) {
+                console.error('[SplitRedirect] ⚠️ part2_parcelow_checkout_url = part1_parcelow_checkout_url. Dados corrompidos!');
+                setError(
+                    'Erro interno: o link do segundo pagamento está incorreto. Entre em contato com suporte para resolver. (SPLIT-URL-CONFLICT)'
+                );
+                return;
+            }
+
+            // Se o Parcelow order ID da P2 for o mesmo da P1, mesma situação
+            if (
+                split.part2_parcelow_order_id &&
+                split.part2_parcelow_order_id === split.part1_parcelow_order_id
+            ) {
+                console.error('[SplitRedirect] ⚠️ part2_parcelow_order_id = part1_parcelow_order_id. Dados corrompidos!');
+                setError(
+                    'Erro interno: o pedido do segundo pagamento está incorreto. Entre em contato com suporte. (SPLIT-ORDER-CONFLICT)'
+                );
+                return;
+            }
+
             startCountdown(split.part2_parcelow_checkout_url, 10);
             return;
         }

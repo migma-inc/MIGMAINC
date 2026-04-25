@@ -77,6 +77,15 @@ export const PlacementFeeStep: React.FC<StepProps> = ({ onNext }) => {
     }
   }, []);
 
+  // Auto-avançar para a próxima etapa quando pagamento confirmado via redirect de split payment
+  const isPaidForAutoAdvance = applications.length > 0 && applications.some(a => a.status === 'payment_confirmed');
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('success') !== 'true' || !isPaidForAutoAdvance) return;
+    const timer = setTimeout(() => onNext(), 2500);
+    return () => clearTimeout(timer);
+  }, [isPaidForAutoAdvance, onNext]);
+
   const fetchApplications = useCallback(async () => {
     if (!userProfile?.id) return;
     try {

@@ -279,6 +279,8 @@ export const VisaOrderDetailPage = () => {
         return <Badge className="bg-green-500/20 text-green-300 border-green-500/50">Paid</Badge>;
       case 'pending':
         return <Badge className="bg-yellow-500/20 text-yellow-300 border-yellow-500/50">Pending</Badge>;
+      case 'partially_paid':
+        return <Badge className="bg-blue-500/20 text-blue-300 border-blue-500/50 uppercase text-[10px] font-bold tracking-wider">Partial Payment</Badge>;
       case 'manual_pending':
         return (
           <Badge className="bg-amber-500/20 text-amber-200 border-amber-500/50 animate-pulse whitespace-nowrap">

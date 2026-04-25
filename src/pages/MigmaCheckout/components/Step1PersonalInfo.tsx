@@ -73,7 +73,7 @@ interface Props {
     },
   ) => Promise<void>;
   onRegisterUser: (
-    data: Pick<Step1Data, 'full_name' | 'email' | 'phone' | 'password'>,
+    data: Pick<Step1Data, 'full_name' | 'email' | 'phone'>,
     numDependents?: number | null,
     total?: number,
   ) => Promise<string>;
@@ -91,7 +91,7 @@ export const Step1PersonalInfo: React.FC<Props> = ({
 }) => {
   const { t } = useTranslation();
   const [form, setForm] = useState<Step1Data>(initialData || {
-    full_name: '', email: '', phone: '', password: '', confirm_password: '',
+    full_name: '', email: '', phone: '',
     num_dependents: null, terms_accepted: false, data_accepted: false,
     signature_data_url: null,
   });
@@ -111,10 +111,6 @@ export const Step1PersonalInfo: React.FC<Props> = ({
 
   // Payment state
   const [method, setMethod] = useState<PaymentMethod | null>(null);
-  const [showParcelowConfirm, setShowParcelowConfirm] = useState(false);
-  const [pendingSubmitPayload, setPendingSubmitPayload] = useState<{
-    form: Step1Data; userId: string; total: number; payment: any;
-  } | null>(null);
   const [cardOwnership, setCardOwnership] = useState<'own' | 'third_party'>('own');
   const [cpf, setCpf] = useState('');
   const [payerInfo, setPayerInfo] = useState<PayerInfo | null>(null);
@@ -206,29 +202,37 @@ export const Step1PersonalInfo: React.FC<Props> = ({
       e.method = t('migma_checkout.step3.validation_method', 'Selecione uma forma de pagamento');
     }
     if (isSplitEnabled) {
-      // Validação split — SplitPaymentSelector só emite config quando válida, mas verificamos por segurança
       if (!activeSplitConfig) {
         e.split_amount = 'Configure os valores e métodos de cada parte antes de continuar';
       }
-      if (!splitCpf) {
-        e.cpf = t('migma_checkout.step3.validation_cpf_required', 'O CPF é obrigatório para pagamentos via Parcelow');
-      } else if (!validateCPF(splitCpf)) {
-        e.cpf = t('migma_checkout.step3.validation_cpf_invalid', 'CPF inválido. Verifique os números preenchidos');
+      // Se for cartão próprio no split, validamos o splitCpf
+      if (cardOwnership === 'own') {
+        if (!splitCpf) {
+          e.cpf = t('migma_checkout.step3.validation_cpf_required', 'O CPF é obrigatório para pagamentos via Parcelow');
+        } else if (!validateCPF(splitCpf)) {
+          e.cpf = t('migma_checkout.step3.validation_cpf_invalid', 'CPF inválido. Verifique os números preenchidos');
+        }
       }
-    } else if (isParcelow) {
-      // Validação Parcelow normal (4.5 PRD v7.0)
-      const cpfToValidate = (isParcelowCard && cardOwnership === 'third_party') ? (payerInfo?.cpf || '') : cpf;
+    }
 
-      if (!cpfToValidate) {
-        e.cpf = t('migma_checkout.step3.validation_cpf_required', 'O CPF é obrigatório para pagamentos via Parcelow');
-      } else if (!validateCPF(cpfToValidate)) {
-        e.cpf = t('migma_checkout.step3.validation_cpf_invalid', 'CPF inválido. Verifique os números preenchidos');
-      }
-
-      if (isParcelowCard && cardOwnership === 'third_party') {
+    if (isParcelow || isSplitEnabled) {
+      // Validação do titular (terceiros) ou CPF do cliente (próprio sem split)
+      if (cardOwnership === 'third_party') {
         if (!payerInfo?.name) e.payer_name = t('migma_checkout.step3.validation_payer_name', 'Nome do titular é obrigatório');
         if (!payerInfo?.email) e.payer_email = t('migma_checkout.step3.validation_payer_email', 'E-mail do titular é obrigatório');
         if (!payerInfo?.phone) e.payer_phone = t('migma_checkout.step3.validation_payer_phone', 'WhatsApp do titular é obrigatório');
+        if (!payerInfo?.cpf) {
+          e.cpf = t('migma_checkout.step3.validation_cpf_required', 'O CPF do titular é obrigatório');
+        } else if (!validateCPF(payerInfo.cpf)) {
+          e.cpf = t('migma_checkout.step3.validation_cpf_invalid', 'CPF do titular inválido');
+        }
+      } else if (!isSplitEnabled) {
+        // Apenas no modo normal (sem split) validamos o CPF base
+        if (!cpf) {
+          e.cpf = t('migma_checkout.step3.validation_cpf_required', 'O CPF é obrigatório para pagamentos via Parcelow');
+        } else if (!validateCPF(cpf)) {
+          e.cpf = t('migma_checkout.step3.validation_cpf_invalid', 'CPF inválido. Verifique os números preenchidos');
+        }
       }
     }
 
@@ -245,9 +249,8 @@ export const Step1PersonalInfo: React.FC<Props> = ({
     try {
       if (isSplitEnabled && activeSplitConfig) {
         await onComplete(formData, userId, paymentTotal, {
-          method: 'parcelow_card',
-          receipt: null,
-          cpf: splitCpf,
+          ...payment,
+          cpf: cardOwnership === 'third_party' ? payerInfo?.cpf : splitCpf,
           splitConfig: activeSplitConfig,
         });
       } else {
@@ -258,8 +261,6 @@ export const Step1PersonalInfo: React.FC<Props> = ({
       setGlobalError(err.message || t('migma_checkout.step1.error_saving', 'Falha no registro. Tente novamente.'));
     } finally {
       setSaving(false);
-      setShowParcelowConfirm(false);
-      setPendingSubmitPayload(null);
     }
   };
 
@@ -274,7 +275,7 @@ export const Step1PersonalInfo: React.FC<Props> = ({
       setSaving(true);
       try {
         uid = await onRegisterUser(
-          { full_name: form.full_name, email: form.email, phone: form.phone, password: form.password },
+          { full_name: form.full_name, email: form.email, phone: form.phone },
           form.num_dependents,
           total,
         );
@@ -297,13 +298,6 @@ export const Step1PersonalInfo: React.FC<Props> = ({
       payerInfo: (isParcelowCard && cardOwnership === 'third_party') ? payerInfo : undefined,
     };
 
-    if (isParcelow || isSplitEnabled) {
-      setPendingSubmitPayload({ form, userId: uid, total, payment });
-      setShowParcelowConfirm(true);
-      setSaving(false);
-      return;
-    }
-
     await doSubmit(uid, form, total, payment);
   };
 
@@ -317,13 +311,6 @@ export const Step1PersonalInfo: React.FC<Props> = ({
     if (method === 'parcelow_ted') return `Pagar com TED (Parcelow) — $${total} →`;
     return t('migma_checkout.step1.continue_payment', `Continuar Pagamento — $${total} →`);
   };
-
-  const parcelowMethodLabel = isSplitEnabled
-    ? 'Pagamento Dividido (Parcelow)'
-    : method === 'parcelow_card' ? 'Cartão de Crédito (Parcelow)'
-    : method === 'parcelow_pix'  ? 'PIX (Parcelow)'
-    : method === 'parcelow_ted'  ? 'TED Bancário (Parcelow)'
-    : '';
 
   return (
     <>
@@ -714,8 +701,8 @@ export const Step1PersonalInfo: React.FC<Props> = ({
                 onSplitChange={(config) => setActiveSplitConfig(config as SplitPaymentConfig | null)}
               />
 
-              {/* CPF — exibido quando split está ativo */}
-              {isSplitEnabled && (
+              {/* CPF — exibido quando split está ativo e é cartão próprio ou outro método Parcelow (PIX/TED) */}
+              {isSplitEnabled && cardOwnership === 'own' && (
                 <div className="bg-zinc-900/40 border border-gold-medium/20 rounded-lg p-4 space-y-3 animate-in fade-in slide-in-from-top-2 duration-300">
                   <div className="flex items-center gap-2">
                     <FileText className="w-4 h-4 text-gold-medium" />
@@ -786,57 +773,7 @@ export const Step1PersonalInfo: React.FC<Props> = ({
           {payBtnLabel()}
         </button>
 
-        {/* Modal de confirmação para Parcelow — evita criar ordens acidentalmente */}
-        {showParcelowConfirm && pendingSubmitPayload && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm px-4">
-            <div className="bg-[#111] border border-white/10 rounded-2xl p-8 max-w-sm w-full space-y-5 shadow-2xl">
-              <div className="space-y-1">
-                <p className="text-[10px] font-black uppercase tracking-widest text-gold-medium">Confirmar Pagamento</p>
-                <h3 className="text-xl font-black text-white">Tudo certo?</h3>
-              </div>
-              <div className="bg-white/5 border border-white/10 rounded-xl p-4 space-y-2 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-gray-400">Método</span>
-                  <span className="text-white font-bold">{parcelowMethodLabel}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-400">Valor</span>
-                  <span className="text-white font-bold">${pendingSubmitPayload.total.toLocaleString()}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-400">E-mail</span>
-                  <span className="text-white font-bold truncate max-w-[170px]">{pendingSubmitPayload.form.email}</span>
-                </div>
-              </div>
-              <p className="text-xs text-gray-500 leading-relaxed">
-                Ao confirmar, você será redirecionado para a Parcelow para finalizar o pagamento.
-              </p>
-              <div className="flex gap-3">
-                <button
-                  type="button"
-                  onClick={() => { setShowParcelowConfirm(false); setPendingSubmitPayload(null); }}
-                  className="flex-1 py-3 rounded-xl border border-white/10 text-gray-300 hover:bg-white/5 font-bold text-sm transition-all"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="button"
-                  disabled={saving}
-                  onClick={() => doSubmit(
-                    pendingSubmitPayload.userId,
-                    pendingSubmitPayload.form,
-                    pendingSubmitPayload.total,
-                    pendingSubmitPayload.payment,
-                  )}
-                  className="flex-1 py-3 rounded-xl bg-gold-medium hover:bg-gold-light text-black font-black text-sm transition-all disabled:opacity-50 flex items-center justify-center gap-2"
-                >
-                  {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-                  {saving ? 'Processando...' : 'Confirmar →'}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
+
 
         {!existingUserId && (
           <p className="text-center text-sm text-gray-500">

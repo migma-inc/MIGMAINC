@@ -122,7 +122,7 @@ async function processSplitPaymentWebhook(
       }
     }
 
-    // Placement fee split: confirmar pagamento na institution_applications
+    // Placement fee split: confirmar pagamento na institution_applications + user_profiles
     if (splitPayment.source === 'placement_fee') {
       console.log("[Split Webhook] 🏛️ Placement fee split — atualizando institution_applications...");
       const applicationId = splitPayment.application_id || splitPayment.order_id;
@@ -137,6 +137,23 @@ async function processSplitPaymentWebhook(
         console.error("[Split Webhook] ❌ Erro ao confirmar placement fee:", appErr.message);
       } else {
         console.log("[Split Webhook] ✅ Placement fee confirmado para application:", applicationId);
+      }
+
+      // Marcar is_placement_fee_paid = true no user_profiles para avançar o onboarding
+      const { error: profErr } = await supabase.functions.invoke("migma-payment-completed", {
+        body: {
+          user_id: splitPayment.migma_user_id,
+          fee_type: "placement_fee",
+          amount: parseFloat(splitPayment.total_amount_usd),
+          payment_method: "parcelow",
+          service_type: "placement_fee",
+          application_id: applicationId,
+        },
+      });
+      if (profErr) {
+        console.error("[Split Webhook] ❌ migma-payment-completed (placement_fee) falhou:", profErr);
+      } else {
+        console.log("[Split Webhook] ✅ user_profiles.is_placement_fee_paid = true para user:", splitPayment.migma_user_id);
       }
     }
   } else {
@@ -157,8 +174,67 @@ async function processSplitPaymentWebhook(
 
   console.log("[Split Webhook] ✅ Split payment atualizado com sucesso");
 
-  // Se ambas as partes foram pagas, processar como pedido completo
-  if (bothPartsPaid && splitPayment.source !== 'migma') {
+  // 🆕 VISIBILIDADE: Se for Parte 1 de Migma/Placement Fee, criar registro em visa_orders para o Admin ver
+  if (isPart1 && !bothPartsPaid && (splitPayment.source === 'migma' || splitPayment.source === 'placement_fee')) {
+    try {
+      console.log("[Split Webhook] 👻 Criando registro visual em visa_orders (1/2 pago)...");
+      
+      const { data: profile } = await supabase
+        .from("user_profiles")
+        .select("full_name, email, phone, country, nationality")
+        .eq("user_id", splitPayment.migma_user_id)
+        .single();
+
+      const orderNumber = `MIG-SPLIT-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${splitPayment.id.slice(0, 4)}`;
+
+      const { data: existingOrder } = await supabase
+        .from("visa_orders")
+        .select("id")
+        .eq("split_payment_id", splitPayment.id)
+        .maybeSingle();
+
+      const productMapping: Record<string, string> = {
+        'cos': 'cos-selection-process',
+        'initial': 'initial-selection-process',
+        'transfer': 'transfer-selection-process',
+        'placement_fee': 'placement-fee'
+      };
+      const resolvedSlug = productMapping[splitPayment.migma_service_type] || splitPayment.migma_service_type || 'migma-onboarding';
+
+      const orderPayload = {
+        order_number: orderNumber,
+        product_slug: splitPayment.source === 'placement_fee' ? 'placement-fee' : resolvedSlug,
+        base_price_usd: splitPayment.total_amount_usd,
+        price_per_dependent_usd: 0,
+        total_price_usd: splitPayment.total_amount_usd,
+        client_name: profile?.full_name || "Migma Student",
+        client_email: profile?.email || "",
+        client_whatsapp: profile?.phone || "",
+        client_country: profile?.country || "",
+        payment_method: "parcelow_split",
+        payment_status: "partially_paid", 
+        is_split_payment: true,
+        split_payment_id: splitPayment.id,
+        payment_metadata: {
+           part1: updateData.part1_payment_metadata,
+           overall_status: 'part1_completed'
+        }
+      };
+
+      if (!existingOrder) {
+        await supabase.from("visa_orders").insert(orderPayload);
+      } else {
+        await supabase.from("visa_orders").update(orderPayload).eq("id", existingOrder.id);
+      }
+      
+      console.log("[Split Webhook] ✅ Registro visual criado/atualizado em visa_orders");
+    } catch (visErr) {
+      console.error("[Split Webhook] ⚠️ Falha ao criar registro visual:", visErr);
+    }
+  }
+
+  // Se ambas as partes foram pagas, processar como pedido completo (somente visa)
+  if (bothPartsPaid && splitPayment.source !== 'migma' && splitPayment.source !== 'placement_fee') {
     console.log("[Split Webhook] 📄 Gerando contratos e documentos (visa)...");
 
     // Buscar o registro atualizado do split para calcular os totais consolidados
@@ -540,8 +616,8 @@ async function processSplitPaymentWebhook(
 
     console.log("[Split Webhook] ✅ Fluxo de split payment totalmente concluído!");
   } else {
-    if (isPart1 && splitPayment.source !== 'migma') {
-      // Email de P2 é específico do fluxo visa — migma trata por outro canal
+    if (isPart1 && splitPayment.source !== 'migma' && splitPayment.source !== 'placement_fee') {
+      // Email de P2 é específico do fluxo visa — migma e placement_fee tratam por outro canal
       try {
         console.log("[Split Webhook] Sending part 2 checkout email after part 1 confirmation (visa)...");
         const { data: emailResult, error: emailError } = await supabase.functions.invoke(
@@ -587,8 +663,8 @@ async function processParcelowWebhookEvent(event: ParcelowWebhookEvent, supabase
   if (splitPayment) {
     console.log("[Parcelow Webhook] 🎯 Split payment detectado! ID:", splitPayment.id, "Source:", splitPayment.source);
 
-    // Migma splits não têm visa_orders — processar diretamente sem mainOrder
-    if (splitPayment.source === 'migma') {
+    // Migma e placement_fee splits não têm visa_orders — processar diretamente sem mainOrder
+    if (splitPayment.source === 'migma' || splitPayment.source === 'placement_fee') {
       await processSplitPaymentWebhook(eventType, parcelowOrder, splitPayment, null, supabase);
       return;
     }

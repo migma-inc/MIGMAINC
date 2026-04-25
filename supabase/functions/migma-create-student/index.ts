@@ -20,6 +20,7 @@ Deno.serve(async (req) => {
   const migmaKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
   const migma = createClient(migmaUrl, migmaKey);
 
+  const debug_logs: string[] = [];
   try {
     const body = await req.json();
     const {
@@ -35,12 +36,12 @@ Deno.serve(async (req) => {
       num_dependents
     } = body;
 
-    // 🕊️ REGISTRA INTENÇÃO DE PEDIDO (PARA GERAR ORDER_ID)
-    // Fallback: se a tabela service_requests não tiver o service_request_id (fluxo Migma checkout),
-    // gera um UUID local para não bloquear o fluxo.
+    debug_logs.push(`Body recebido para: ${email}`);
+
+    // 🕊️ REGISTRA INTENÇÃO DE PEDIDO
     let orderId: string | null = null;
     if (service_request_id) {
-      console.log(`[migma-create-student] Gerando intenção de pedido para SR: ${service_request_id}`);
+      debug_logs.push(`Gerando intenção de pedido para SR: ${service_request_id}`);
       const { data: rpcData, error: rpcErr } = await migma.rpc('register_visa_order_intent', {
         p_service_request_id: service_request_id,
         p_coupon_code: payment_metadata?.coupon_code || null,
@@ -51,39 +52,134 @@ Deno.serve(async (req) => {
       });
 
       if (rpcErr) {
-        // FK violation (service_request_id não existe em service_requests) é esperado no fluxo
-        // Migma checkout — gera UUID de fallback para uso no Parcelow
-        console.warn(`[migma-create-student] register_visa_order_intent falhou (usando fallback UUID):`, rpcErr.code, rpcErr.message);
-        orderId = crypto.randomUUID();
+        debug_logs.push(`RPC register_visa_order_intent falhou: ${rpcErr.message}`);
+        orderId = null;
       } else {
         orderId = rpcData;
-        console.log(`[migma-create-student] Order ID gerado: ${orderId}`);
+        debug_logs.push(`Order ID gerado via RPC: ${orderId}`);
       }
     } else {
-      // Sem service_request_id (ex: Migma checkout Step 1 inicial) — gera UUID direto
-      orderId = crypto.randomUUID();
+      orderId = null;
+      debug_logs.push(`Order ID nulo (sem service_request_id)`);
     }
 
-    console.log(`[migma-create-student] Registrando ${email} (${service_type}).`);
+    // 0. 🔐 GARANTE USER_ID (GET OR CREATE)
+    let userId = migma_user_id;
+    
+    if (!userId) {
+      debug_logs.push(`Buscando perfil para: ${email}`);
+      const { data: existingProfile, error: profileErr } = await migma
+        .from("user_profiles")
+        .select("user_id")
+        .eq("email", email)
+        .maybeSingle();
+      
+      if (profileErr) debug_logs.push(`Erro ao buscar perfil: ${profileErr.message}`);
+
+      if (existingProfile?.user_id) {
+        userId = existingProfile.user_id;
+        debug_logs.push(`Usuário encontrado via perfil: ${userId}`);
+      } else {
+        debug_logs.push(`Tentando criar usuário no Auth...`);
+        const { data: newUser, error: createErr } = await migma.auth.admin.createUser({
+          email,
+          email_confirm: true,
+          user_metadata: { full_name, phone, source: 'migma' }
+        });
+        
+        if (createErr) {
+          debug_logs.push(`Erro ao criar usuário: ${createErr.message}`);
+          if (createErr.message.toLowerCase().includes("already registered") || createErr.message.toLowerCase().includes("already exists")) {
+             debug_logs.push(`Usuário já existe. Buscando ID via RPC...`);
+             const { data: existingId, error: rpcGetErr } = await migma.rpc('get_user_id_by_email', { p_email: email });
+             
+             if (rpcGetErr) throw new Error(`Erro RPC get_user_id: ${rpcGetErr.message}`);
+
+             if (existingId) {
+               userId = existingId;
+               debug_logs.push(`ID recuperado via RPC: ${userId}`);
+             } else {
+               throw new Error("Usuário consta como registrado mas o ID não foi encontrado.");
+             }
+          } else {
+            throw createErr;
+          }
+        } else {
+          userId = newUser.user.id;
+          debug_logs.push(`Novo usuário criado no Auth: ${userId}`);
+        }
+      }
+    }
+
+    if (!userId) throw new Error("User ID não definido.");
 
     // 1. Salva Local na Migma
-    await migma.from("user_profiles").upsert({
-      user_id: migma_user_id,
-      email, full_name, phone, service_type,
+    debug_logs.push(`Upserting user_profile para ${userId}`);
+    
+    // Limpeza para satisfazer a constraint user_profiles_student_process_type_check
+    let mappedProcessType = null;
+    if (service_type) {
+      const s = service_type.toLowerCase();
+      if (s.includes('cos')) mappedProcessType = 'change_of_status';
+      else if (s.includes('transfer')) mappedProcessType = 'transfer';
+      else if (s.includes('initial')) mappedProcessType = 'initial';
+    }
+
+    const { error: upsertErr } = await migma.from("user_profiles").upsert({
+      user_id: userId,
+      email, full_name, phone, 
+      service_type, // Mantém o original para referência
       country, nationality,
       num_dependents: num_dependents || 0,
-      student_process_type: service_type,
+      student_process_type: mappedProcessType, // Usa o valor mapeado/limpo
       source: 'migma',
       migma_seller_id: body.migma_seller_id || null,
       migma_agent_id: body.migma_agent_id || null
-    });
+    }, { onConflict: 'user_id' });
 
-    return new Response(JSON.stringify({ 
-      success: true, 
-      order_id: orderId 
+    if (upsertErr) {
+      debug_logs.push(`Erro upsert perfil: ${upsertErr.message}`);
+      throw upsertErr;
+    }
+
+    // Gerar magic link token para login silencioso no checkout (sem precisar checar email)
+    let sessionToken: string | null = null;
+    try {
+      const { data: linkData, error: linkErr } = await migma.auth.admin.generateLink({
+        type: 'magiclink',
+        email,
+      });
+      if (linkErr) {
+        debug_logs.push(`Aviso: generateLink falhou (${linkErr.message}) — login manual necessário`);
+      } else {
+        sessionToken = linkData?.properties?.hashed_token || null;
+        debug_logs.push(`Magic link token gerado para login silencioso`);
+      }
+    } catch (linkEx: any) {
+      debug_logs.push(`Aviso: generateLink exception (${linkEx.message})`);
+    }
+
+    debug_logs.push(`Finalizado com sucesso.`);
+    return new Response(JSON.stringify({
+      success: true,
+      user_id: userId,
+      order_id: orderId,
+      session_token: sessionToken,
+      debug_logs
     }), { headers: { ...CORS, "Content-Type": "application/json" } });
+
   } catch (err: any) {
     console.error("[migma-create-student] Erro Fatal:", err);
-    return new Response(JSON.stringify({ error: err.message }), { status: 500, headers: { ...CORS, "Content-Type": "application/json" } });
+    const errorResponse = {
+      success: false,
+      error: err.message || "Erro desconhecido",
+      debug_logs,
+      details: typeof err === 'object' ? JSON.parse(JSON.stringify(err, Object.getOwnPropertyNames(err))) : err
+    };
+    
+    return new Response(JSON.stringify(errorResponse), { 
+      status: 400, 
+      headers: { ...CORS, "Content-Type": "application/json" } 
+    });
   }
 });

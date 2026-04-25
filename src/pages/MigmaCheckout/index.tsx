@@ -51,7 +51,7 @@ const MigmaCheckout: React.FC = () => {
   const [searchParams] = useSearchParams();
   const config = service ? getServiceConfig(service) : null;
   const { region, loading: regionLoading } = useIPDetection();
-  const { refreshProfile } = useStudentAuth();
+  const { refreshProfile, user: studentAuthUser } = useStudentAuth();
 
   const [state, setState] = useState<ExtendedState>({
     currentStep: 1,
@@ -206,7 +206,7 @@ const MigmaCheckout: React.FC = () => {
                 full_name: profile.full_name || '',
                 email: profile.email || '',
                 phone: profile.phone || '',
-                password: '', confirm_password: '', num_dependents: null,
+                num_dependents: null,
                 terms_accepted: true, data_accepted: true,
                 signature_data_url: profile.signature_url || null,
               });
@@ -227,6 +227,18 @@ const MigmaCheckout: React.FC = () => {
 
         console.log(`[MigmaCheckout] ⏳ Aguardando webhook (tentativa ${i + 1}/3)...`);
         await new Promise(r => setTimeout(r, 2000));
+      }
+
+      // Fallback: usuário de split payment não tem sessão ativa (conta criada mas não fez login).
+      // Recuperar userId do draft salvo antes do redirect.
+      if (!finalUserId && draftRaw) {
+        try {
+          const draft = JSON.parse(draftRaw);
+          if (draft?.state?.userId) {
+            finalUserId = draft.state.userId;
+            console.log('[MigmaCheckout] 🔑 userId recuperado do draft (sem sessão):', finalUserId);
+          }
+        } catch {}
       }
 
       // Se após 3 tentativas ainda não confirmou no banco, forçamos o avanço
@@ -337,11 +349,6 @@ const MigmaCheckout: React.FC = () => {
           full_name: resolvedName,
           email: profile.email || session.user.email || '',
           phone: profile.phone || '',
-          password: '',
-          confirm_password: '',
-          num_dependents: null,
-          terms_accepted: true,
-          data_accepted: true,
           signature_data_url: profile.signature_url || null
         });
 
@@ -400,11 +407,6 @@ const MigmaCheckout: React.FC = () => {
           full_name: resolvedName,
           email: profile.email || session.user.email || '',
           phone: profile.phone || '',
-          password: '',
-          confirm_password: '',
-          num_dependents: null,
-          terms_accepted: true,
-          data_accepted: true,
           signature_data_url: profile.signature_url || null
         });
 
@@ -514,11 +516,6 @@ const MigmaCheckout: React.FC = () => {
         full_name: profile?.full_name || session.user.user_metadata?.full_name || '',
         email: profile?.email || session.user.email || '',
         phone: profile?.phone || session.user.user_metadata?.phone || '',
-        password: '',
-        confirm_password: '',
-        num_dependents: null,
-        terms_accepted: false,
-        data_accepted: false,
         signature_data_url: profile?.signature_url || null
       });
     }
@@ -610,35 +607,12 @@ const MigmaCheckout: React.FC = () => {
   };
 
   const handleRegisterUser = async (
-    data: Pick<Step1Data, 'full_name' | 'email' | 'phone' | 'password'>,
+    data: Pick<Step1Data, 'full_name' | 'email' | 'phone'>,
     numDependents?: number | null,
     total?: number,
   ): Promise<string> => {
     const email = data.email.trim();
-    // Como agora usamos OTP no portal do aluno, geramos uma senha aleatória forte
-    // para o cadastro inicial, visto que o signUp do Supabase exige uma senha.
-    const password = data.password || crypto.randomUUID() + 'Migma!@';
     const phoneClean = data.phone.replace(/\D/g, '');
-
-    const { data: authData, error: authErr } = await supabase.auth.signUp({
-      email,
-      password,
-      options: { data: { full_name: data.full_name.trim(), phone: phoneClean, source: 'migma' } },
-    });
-
-    let userId: string;
-    if (authErr) {
-      if (authErr.message.includes('already registered')) {
-        const { data: signInData, error: signInErr } = await supabase.auth.signInWithPassword({ email, password });
-        if (signInErr) throw new Error('Usuário já cadastrado, mas a senha está incorreta.');
-        userId = signInData.user!.id;
-      } else {
-        throw new Error(authErr.message);
-      }
-    } else {
-      if (!authData.user?.id) throw new Error('Falha ao registrar usuário.');
-      userId = authData.user.id;
-    }
 
     const sellerId = searchParams.get('ref') || searchParams.get('seller_id') || getSellerRef();
     const agentId = searchParams.get('agent') || searchParams.get('agent_id');
@@ -650,10 +624,9 @@ const MigmaCheckout: React.FC = () => {
     };
     const finalServiceType = service ? (slugMap[service] || service) : 'transfer-selection-process';
 
-    // Chama createStudent de forma síncrona para garantir order_id antes do Parcelow
+    // Chama createStudent — a Edge Function agora lida com Get-or-Create User via Service Role
     try {
       const res = await matriculaApi.createStudent({
-        migma_user_id: userId,
         email,
         full_name: data.full_name.trim(),
         phone: phoneClean,
@@ -662,17 +635,43 @@ const MigmaCheckout: React.FC = () => {
         total_price: total,
         migma_seller_id: sellerId || undefined,
         migma_agent_id: agentId || undefined,
-        // Sem service_request_id — evita FK violation
+        migma_user_id: studentAuthUser?.id || undefined,
       });
+
+      if (!res?.user_id) {
+        throw new Error(res?.error || 'Falha ao processar registro do aluno.');
+      }
+
       if (res?.order_id) {
         orderIdRef.current = res.order_id;
-        setState(prev => ({ ...prev, orderId: res.order_id! }));
+        setState(prev => ({ ...prev, orderId: res.order_id!, userId: res.user_id }));
+      } else {
+        setState(prev => ({ ...prev, userId: res.user_id }));
       }
-    } catch (err) {
-      console.warn('[MigmaCheckout] createStudent failed (non-blocking):', err);
-    }
 
-    return userId;
+      // Login silencioso: usar o token gerado pelo servidor para criar sessão sem email
+      if (res?.session_token) {
+        try {
+          const { error: otpErr } = await supabase.auth.verifyOtp({
+            token_hash: res.session_token,
+            type: 'magiclink',
+          });
+          if (otpErr) {
+            console.warn('[MigmaCheckout] verifyOtp falhou (não-crítico):', otpErr.message);
+          } else {
+            console.log('[MigmaCheckout] ✅ Sessão criada via magic link silencioso');
+            await refreshProfile();
+          }
+        } catch (otpEx: any) {
+          console.warn('[MigmaCheckout] verifyOtp exception (não-crítico):', otpEx.message);
+        }
+      }
+
+      return res.user_id;
+    } catch (err: any) {
+      console.error('[MigmaCheckout] createStudent failed:', err);
+      throw new Error(err.message || 'Erro ao registrar usuário. Verifique seus dados.');
+    }
   };
 
   const handleStep1Complete = async (
@@ -782,6 +781,8 @@ const MigmaCheckout: React.FC = () => {
           step2Data: null,
         }));
 
+        await supabase.from('user_profiles').update({ payment_submitted_at: new Date().toISOString() }).eq('user_id', userId);
+        
         setProcessMessage('Redirecionando para a Parcelow (Parte 1)...');
         setProgress(100);
         window.location.href = splitResult.part1_checkout_url;
@@ -995,16 +996,12 @@ const MigmaCheckout: React.FC = () => {
         await refreshProfile();
       }
 
-      if (step1Data) {
-        await matriculaApi.createStudent({
-          migma_user_id: effectiveUserId,
-          email: step1Data.email,
-          full_name: step1Data.full_name,
-          phone: step1Data.phone.replace(/\D/g, ''),
-          country: data.country,
-          nationality: data.nationality,
-          service_type: service ?? 'transfer',
-        });
+      // Atualiza country/nationality no perfil (substitui chamada a migma-create-student que gerava token desnecessário)
+      if (data.country || data.nationality) {
+        await supabase.from('user_profiles').update({
+          country: data.country || null,
+          nationality: data.nationality || null,
+        }).eq('user_id', effectiveUserId);
       }
 
       // DISPARAR FINALIZAÇÃO DE CONTRATO (BACKEND - SEM AGUARDAR)

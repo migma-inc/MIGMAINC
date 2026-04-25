@@ -13,6 +13,7 @@ Deno.serve(async (req: Request) => {
   const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
   const supabase = createClient(supabaseUrl, supabaseKey);
 
+  const debug_logs: string[] = [];
   try {
     const body = await req.json();
 
@@ -34,17 +35,22 @@ Deno.serve(async (req: Request) => {
       origin,
     } = body;
 
+    debug_logs.push(`Iniciando split para: ${email}`);
+
     // --- Validação ---
     if (!user_id || !email || !full_name) {
-      return new Response(JSON.stringify({ error: "user_id, email e full_name são obrigatórios" }), { status: 400, headers: corsHeaders });
+      debug_logs.push(`Erro: user_id, email ou full_name ausentes`);
+      return new Response(JSON.stringify({ error: "user_id, email e full_name são obrigatórios", debug_logs }), { status: 400, headers: corsHeaders });
     }
     if (!total_amount || !part1_amount || !part1_method || !part2_amount || !part2_method) {
-      return new Response(JSON.stringify({ error: "Configuração de split incompleta" }), { status: 400, headers: corsHeaders });
+      debug_logs.push(`Erro: Configuração de split incompleta`);
+      return new Response(JSON.stringify({ error: "Configuração de split incompleta", debug_logs }), { status: 400, headers: corsHeaders });
     }
 
     const validMethods = ['card', 'pix', 'ted'];
     if (!validMethods.includes(part1_method) || !validMethods.includes(part2_method)) {
-      return new Response(JSON.stringify({ error: `Métodos inválidos. Usar: ${validMethods.join(', ')}` }), { status: 400, headers: corsHeaders });
+      debug_logs.push(`Erro: Métodos inválidos: ${part1_method}, ${part2_method}`);
+      return new Response(JSON.stringify({ error: `Métodos inválidos. Usar: ${validMethods.join(', ')}`, debug_logs }), { status: 400, headers: corsHeaders });
     }
 
     const p1 = parseFloat(part1_amount);
@@ -52,23 +58,33 @@ Deno.serve(async (req: Request) => {
     const total = parseFloat(total_amount);
 
     if (p1 <= 0 || p2 <= 0) {
-      return new Response(JSON.stringify({ error: "Valores de cada parte devem ser maiores que zero" }), { status: 400, headers: corsHeaders });
+      debug_logs.push(`Erro: Valores devem ser > 0 (P1=${p1}, P2=${p2})`);
+      return new Response(JSON.stringify({ error: "Valores de cada parte devem ser maiores que zero", debug_logs }), { status: 400, headers: corsHeaders });
     }
     // Tolerância de R$0.01 para ponto flutuante
     if (Math.abs(p1 + p2 - total) > 0.01) {
-      return new Response(JSON.stringify({ error: `Soma das partes (${p1 + p2}) deve ser igual ao total (${total})` }), { status: 400, headers: corsHeaders });
+      debug_logs.push(`Erro: Soma das partes (${p1+p2}) != Total (${total})`);
+      return new Response(JSON.stringify({ error: `Soma das partes (${p1 + p2}) deve ser igual ao total (${total})`, debug_logs }), { status: 400, headers: corsHeaders });
     }
 
     const originUrl = origin || req.headers.get("origin") || "https://migmainc.com";
     const serviceSlug = (service_type || 'transfer').replace('-selection-process', '');
-    const finalOrderId = order_id || `MIG-SPLIT-${Date.now()}`;
+    
+    // IMPORTANTE: Garantir que order_id seja um UUID se for passado, ou gerar um válido.
+    // A tabela split_payments.order_id é do tipo UUID.
+    let finalOrderId = order_id;
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!finalOrderId || !uuidRegex.test(finalOrderId)) {
+       debug_logs.push(`Order ID ausente ou inválido (${finalOrderId}). Usando NULL como fallback para evitar violação de FK.`);
+       finalOrderId = null;
+    }
 
-    console.log(`[migma-split] Iniciando split para ${email} — Total: $${total} | P1: $${p1} (${part1_method}) | P2: $${p2} (${part2_method})`);
+    debug_logs.push(`Configurando inserção split_payments...`);
 
     // --- 1. Criar registro split_payments ANTES de chamar Parcelow ---
     const isPlacementFee = service_type === 'placement_fee';
     const splitInsertData: any = {
-      order_id: isPlacementFee ? null : finalOrderId,
+      order_id: null, // Sempre null — migma e placement_fee não têm FK em visa_orders
       application_id: isPlacementFee ? finalOrderId : null,
       migma_user_id: user_id,
       source: isPlacementFee ? 'placement_fee' : 'migma',
@@ -89,12 +105,17 @@ Deno.serve(async (req: Request) => {
       .single();
 
     if (splitInsertErr || !splitRecord) {
-      console.error("[migma-split] ❌ Erro ao criar split_payments:", splitInsertErr);
-      return new Response(JSON.stringify({ error: "Erro ao inicializar split payment" }), { status: 500, headers: corsHeaders });
+      debug_logs.push(`Erro ao criar split_payments: ${splitInsertErr?.message} code=${splitInsertErr?.code}`);
+      return new Response(JSON.stringify({
+        success: false,
+        error: "Erro ao inicializar split payment",
+        details: splitInsertErr,
+        debug_logs
+      }), { status: 200, headers: corsHeaders });
     }
 
     const splitPaymentId = splitRecord.id;
-    console.log(`[migma-split] ✅ split_payments criado: ${splitPaymentId}`);
+    debug_logs.push(`✅ split_payments criado: ${splitPaymentId}`);
 
     // URLs de redirect para cada parte (embutem split_payment_id)
     const p1SuccessUrl = `${originUrl}/checkout/split-payment/redirect?split_payment_id=${splitPaymentId}&split_return=1&part=1`;
@@ -104,27 +125,44 @@ Deno.serve(async (req: Request) => {
     // Mapear método split → método parcelow
     const methodMap: Record<string, string> = { card: 'parcelow_card', pix: 'parcelow_pix', ted: 'parcelow_ted' };
 
+    // partner_reference deve ser único por parte para evitar deduplicação pela Parcelow
     const sharedBody = { user_id, order_id: finalOrderId, email, full_name, phone, cpf, payer_info, service_type, service_request_id, is_split_part: true };
 
-    // --- 2. Criar P1 e P2 em paralelo ---
-    console.log(`[migma-split] Criando P1 e P2 em paralelo...`);
-    const [p1Res, p2Res] = await Promise.all([
-      supabase.functions.invoke("migma-parcelow-checkout", {
-        body: { ...sharedBody, reference_suffix: "-P1", amount: p1, payment_method: methodMap[part1_method], redirect_success_override: p1SuccessUrl, redirect_failed_override: failedUrl },
-      }),
-      supabase.functions.invoke("migma-parcelow-checkout", {
-        body: { ...sharedBody, reference_suffix: "-P2", amount: p2, payment_method: methodMap[part2_method], redirect_success_override: p2SuccessUrl, redirect_failed_override: failedUrl },
-      }),
-    ]);
+    // --- 2. Criar P1 PRIMEIRO, depois P2 (sequencial para evitar deduplicação Parcelow) ---
+    debug_logs.push(`Criando P1 via migma-parcelow-checkout...`);
+    const p1Res = await supabase.functions.invoke("migma-parcelow-checkout", {
+      body: {
+        ...sharedBody,
+        reference_suffix: "-P1",
+        partner_reference_override: `${user_id}-P1`,
+        amount: p1,
+        payment_method: methodMap[part1_method],
+        redirect_success_override: p1SuccessUrl,
+        redirect_failed_override: failedUrl,
+      },
+    });
+
+    debug_logs.push(`Criando P2 via migma-parcelow-checkout...`);
+    const p2Res = await supabase.functions.invoke("migma-parcelow-checkout", {
+      body: {
+        ...sharedBody,
+        reference_suffix: "-P2",
+        partner_reference_override: `${user_id}-P2`,
+        amount: p2,
+        payment_method: methodMap[part2_method],
+        redirect_success_override: p2SuccessUrl,
+        redirect_failed_override: failedUrl,
+      },
+    });
 
     const { data: p1Result, error: p1InvokeErr } = p1Res;
     const { data: p2Result, error: p2InvokeErr } = p2Res;
 
     if (p1InvokeErr || p1Result?.error || p2InvokeErr || p2Result?.error) {
       const errMsg = p1InvokeErr?.message || p1Result?.error || p2InvokeErr?.message || p2Result?.error;
-      console.error("[migma-split] ❌ Erro ao criar pedidos Parcelow:", errMsg);
+      debug_logs.push(`Erro ao criar pedidos: ${errMsg}`);
       await supabase.from("split_payments").delete().eq("id", splitPaymentId);
-      return new Response(JSON.stringify({ error: `Erro ao criar pedidos: ${errMsg}` }), { status: 500, headers: corsHeaders });
+      return new Response(JSON.stringify({ success: false, error: `Erro ao criar pedidos: ${errMsg}`, debug_logs }), { status: 200, headers: corsHeaders });
     }
 
     const p1CheckoutUrl = p1Result?.checkout_url || p1Result?.url_checkout || p1Result?.url;
@@ -133,17 +171,17 @@ Deno.serve(async (req: Request) => {
     const p2ParcelowId  = p2Result?.parcelow_id?.toString() || p2Result?.id?.toString();
 
     if (!p1CheckoutUrl || !p1ParcelowId) {
-      console.error("[migma-split] ❌ P1 sem URL ou ID:", JSON.stringify(p1Result));
+      debug_logs.push(`Parte 1 falhou em retornar URL/ID`);
       await supabase.from("split_payments").delete().eq("id", splitPaymentId);
-      return new Response(JSON.stringify({ error: "Parte 1 não retornou URL de pagamento" }), { status: 500, headers: corsHeaders });
+      return new Response(JSON.stringify({ success: false, error: "Parte 1 não retornou URL de pagamento", debug_p1: p1Result, debug_logs }), { status: 200, headers: corsHeaders });
     }
     if (!p2CheckoutUrl || !p2ParcelowId) {
-      console.error("[migma-split] ❌ P2 sem URL ou ID:", JSON.stringify(p2Result));
+      debug_logs.push(`Parte 2 falhou em retornar URL/ID`);
       await supabase.from("split_payments").delete().eq("id", splitPaymentId);
-      return new Response(JSON.stringify({ error: "Parte 2 não retornou URL de pagamento" }), { status: 500, headers: corsHeaders });
+      return new Response(JSON.stringify({ success: false, error: "Parte 2 não retornou URL de pagamento", debug_p2: p2Result, debug_logs }), { status: 200, headers: corsHeaders });
     }
 
-    console.log(`[migma-split] ✅ P1=${p1ParcelowId} P2=${p2ParcelowId}`);
+    debug_logs.push(`🎉 P1 e P2 gerados com sucesso. Atualizando split_payments...`);
 
     // --- 4. Persistir IDs e URLs no split_payments ---
     const { error: updateErr } = await supabase
@@ -158,24 +196,28 @@ Deno.serve(async (req: Request) => {
       .eq("id", splitPaymentId);
 
     if (updateErr) {
-      console.error("[migma-split] ⚠️ Erro ao atualizar split_payments com URLs:", updateErr);
-      // Não é fatal — IDs e URLs já foram criados no Parcelow
+      debug_logs.push(`Aviso: Erro ao persistir URLs no banco: ${updateErr.message}`);
     }
 
-    console.log(`[migma-split] 🎉 Split criado com sucesso! Redirecionando para P1: ${p1CheckoutUrl}`);
-
+    debug_logs.push(`Processo concluído.`);
     return new Response(
       JSON.stringify({
         success: true,
         split_payment_id: splitPaymentId,
         part1_checkout_url: p1CheckoutUrl,
         part2_checkout_url: p2CheckoutUrl,
+        debug_logs
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
 
   } catch (err: any) {
-    console.error("[migma-split] Erro Fatal:", err.message);
-    return new Response(JSON.stringify({ error: err.message }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    console.error("[migma-split] Erro Fatal:", err);
+    return new Response(JSON.stringify({
+      success: false,
+      error: err.message,
+      debug_logs,
+      details: typeof err === 'object' ? JSON.parse(JSON.stringify(err, Object.getOwnPropertyNames(err))) : err
+    }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
   }
 });
