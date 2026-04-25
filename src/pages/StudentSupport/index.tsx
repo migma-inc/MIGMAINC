@@ -1,11 +1,12 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Send, Loader2, MessageCircle, Bot, UserCheck, CheckCircle } from 'lucide-react';
+import { ArrowLeft, Send, Loader2, MessageCircle, Bot, UserCheck, CheckCircle, Calendar } from 'lucide-react';
 import { useStudentAuth } from '../../contexts/StudentAuthContext';
 import { supabase } from '../../lib/supabase';
 
-const N8N_WEBHOOK_URL = import.meta.env.VITE_N8N_WEBHOOK_URL as string | undefined;
+const N8N_WEBHOOK_URL = (import.meta.env.VITE_SUPPORT_N8N_WEBHOOK_URL || import.meta.env.VITE_N8N_WEBHOOK_URL) as string | undefined;
 const FUNCTIONS_URL = import.meta.env.VITE_FUNCTIONS_BASE_URL as string | undefined;
+const SUPPORT_CALENDLY_URL = import.meta.env.VITE_SUPPORT_CALENDLY_URL as string | undefined;
 
 interface Message {
   id: string;
@@ -18,6 +19,8 @@ interface Message {
 interface HandoffRecord {
   id: string;
   status: 'pending' | 'in_progress' | 'resolved';
+  meeting_url: string | null;
+  meeting_requested_at: string | null;
   resolved_note: string | null;
   resolved_at: string | null;
   created_at: string;
@@ -30,9 +33,13 @@ const WELCOME_MESSAGE: Message = {
   created_at: new Date().toISOString(),
 };
 
-const StudentSupport: React.FC = () => {
+interface StudentSupportPanelProps {
+  embedded?: boolean;
+  onBack?: () => void;
+}
+
+export const StudentSupportPanel: React.FC<StudentSupportPanelProps> = ({ embedded = false, onBack }) => {
   const { user, userProfile } = useStudentAuth();
-  const navigate = useNavigate();
 
   const [messages, setMessages] = useState<Message[]>([WELCOME_MESSAGE]);
   const [input, setInput] = useState('');
@@ -40,13 +47,10 @@ const StudentSupport: React.FC = () => {
   const [historyLoaded, setHistoryLoaded] = useState(false);
   const [handedOff, setHandedOff] = useState(false);
   const [handoffCreatedAt, setHandoffCreatedAt] = useState<string | null>(null);
+  const [handoffMeetingUrl, setHandoffMeetingUrl] = useState<string | null>(null);
   const [resolvedHandoff, setResolvedHandoff] = useState<HandoffRecord | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
-
-  useEffect(() => {
-    if (!user) navigate('/student/login');
-  }, [user, navigate]);
 
   useEffect(() => {
     if (!userProfile?.id) return;
@@ -61,7 +65,7 @@ const StudentSupport: React.FC = () => {
           .limit(300),
         supabase
           .from('support_handoffs')
-          .select('id, status, resolved_note, resolved_at, created_at')
+          .select('id, status, meeting_url, meeting_requested_at, resolved_note, resolved_at, created_at')
           .eq('profile_id', userProfile.id)
           .order('created_at', { ascending: false })
           .limit(5),
@@ -80,6 +84,7 @@ const StudentSupport: React.FC = () => {
         if (active) {
           setHandedOff(true);
           setHandoffCreatedAt(active.created_at);
+          setHandoffMeetingUrl(active.meeting_url);
         } else if (resolved) {
           // Mostra card pós-resolução apenas se não há mensagem do aluno após o resolved_at
           const resolvedAt = resolved.resolved_at ? new Date(resolved.resolved_at).getTime() : 0;
@@ -109,6 +114,15 @@ const StudentSupport: React.FC = () => {
     [userProfile?.id],
   );
 
+  const buildSupportMeetingUrl = useCallback(() => {
+    const base = SUPPORT_CALENDLY_URL || `${window.location.origin}/book-a-call`;
+    const url = new URL(base, window.location.origin);
+    url.searchParams.set('source', 'support_handoff');
+    url.searchParams.set('profile_id', userProfile?.id ?? '');
+    if (user?.email) url.searchParams.set('email', user.email);
+    return url.toString();
+  }, [user?.email, userProfile?.id]);
+
   const createHandoff = useCallback(
     async (reason: string, lastAiMessage: string) => {
       if (!userProfile?.id || handedOff) return;
@@ -117,21 +131,31 @@ const StudentSupport: React.FC = () => {
       const systemMsg: Message = {
         id: crypto.randomUUID(),
         role: 'system',
-        content: 'Atendimento humano solicitado. Um especialista da Equipe Migma entrará em contato em breve pelo WhatsApp ou e-mail cadastrado.',
+        content: 'Atendimento humano solicitado. Um especialista da Equipe Migma vai acompanhar seu caso. Você também pode agendar uma conversa pelo link que apareceu abaixo.',
         created_at: new Date().toISOString(),
         is_handoff: true,
       };
       setMessages((prev) => [...prev, systemMsg]);
       await saveMessage('system', systemMsg.content);
 
+      const meetingUrl = buildSupportMeetingUrl();
       const { data } = await supabase
         .from('support_handoffs')
-        .insert({ profile_id: userProfile.id, triggered_by: 'ai_escalation', reason, last_ai_message: lastAiMessage, status: 'pending' })
-        .select('created_at')
+        .insert({
+          profile_id: userProfile.id,
+          triggered_by: 'ai_escalation',
+          reason,
+          last_ai_message: lastAiMessage,
+          status: 'pending',
+          meeting_url: meetingUrl,
+          meeting_requested_at: new Date().toISOString(),
+        })
+        .select('created_at, meeting_url')
         .single();
 
       setHandedOff(true);
       setHandoffCreatedAt(data?.created_at ?? new Date().toISOString());
+      setHandoffMeetingUrl(data?.meeting_url ?? meetingUrl);
 
       try {
         const notifyUrl = FUNCTIONS_URL
@@ -146,12 +170,12 @@ const StudentSupport: React.FC = () => {
           },
           body: JSON.stringify({
             trigger: 'admin_support_handoff',
-            data: { client_name: userProfile.full_name ?? 'Aluno', client_id: userProfile.id, reason, last_message: lastAiMessage },
+            data: { client_name: userProfile.full_name ?? 'Aluno', client_id: userProfile.id, reason, last_message: lastAiMessage, meeting_url: meetingUrl },
           }),
         });
       } catch { /* best-effort */ }
     },
-    [userProfile, handedOff, saveMessage],
+    [userProfile, handedOff, saveMessage, buildSupportMeetingUrl],
   );
 
   const sendMessage = useCallback(async () => {
@@ -221,20 +245,22 @@ const StudentSupport: React.FC = () => {
 
   if (!user || !historyLoaded) {
     return (
-      <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center">
+      <div className={`${embedded ? 'min-h-[520px]' : 'min-h-screen'} bg-[#0a0a0a] flex items-center justify-center`}>
         <Loader2 className="w-8 h-8 text-[#CE9F48] animate-spin" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#0a0a0a] flex flex-col">
+    <div className={`${embedded ? 'h-[calc(100vh-132px)] min-h-[620px] rounded-lg border border-white/10 overflow-hidden' : 'min-h-screen'} bg-[#0a0a0a] flex flex-col`}>
       {/* Header */}
-      <header className="sticky top-0 z-10 bg-[#0a0a0a]/90 backdrop-blur border-b border-white/5 px-4 py-3">
+      <header className="shrink-0 bg-[#0a0a0a]/90 backdrop-blur border-b border-white/5 px-4 py-3">
         <div className="max-w-2xl mx-auto flex items-center gap-3">
-          <button onClick={() => navigate(-1)} className="p-2 rounded-lg text-white/50 hover:text-white hover:bg-white/5 transition-colors">
-            <ArrowLeft className="w-5 h-5" />
-          </button>
+          {!embedded && onBack && (
+            <button onClick={onBack} className="p-2 rounded-lg text-white/50 hover:text-white hover:bg-white/5 transition-colors">
+              <ArrowLeft className="w-5 h-5" />
+            </button>
+          )}
           <div className="flex items-center gap-3 flex-1">
             <div className={`w-9 h-9 rounded-full flex items-center justify-center border ${handedOff ? 'bg-blue-500/15 border-blue-500/30' : 'bg-[#CE9F48]/15 border-[#CE9F48]/30'}`}>
               {handedOff ? <UserCheck className="w-5 h-5 text-blue-400" /> : <Bot className="w-5 h-5 text-[#CE9F48]" />}
@@ -266,6 +292,17 @@ const StudentSupport: React.FC = () => {
                 <p className="text-blue-300/60 text-xs mt-0.5">
                   Solicitado às {new Date(handoffCreatedAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })} · Nossa equipe entrará em contato pelo WhatsApp ou e-mail cadastrado.
                 </p>
+                {handoffMeetingUrl && (
+                  <a
+                    href={handoffMeetingUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mt-3 inline-flex items-center gap-2 rounded-lg border border-blue-500/30 bg-blue-500/10 px-3 py-2 text-xs font-bold text-blue-200 hover:bg-blue-500/20"
+                  >
+                    <Calendar className="h-3.5 w-3.5" />
+                    Agendar conversa
+                  </a>
+                )}
               </div>
             </div>
           )}
@@ -292,8 +329,19 @@ const StudentSupport: React.FC = () => {
       <footer className="sticky bottom-0 bg-[#0a0a0a]/95 backdrop-blur border-t border-white/5 px-4 py-4">
         <div className="max-w-2xl mx-auto">
           {handedOff ? (
-            <div className="text-center text-white/30 text-sm py-2">
-              Conversa transferida para um atendente. Aguarde o contato da equipe.
+            <div className="flex flex-col items-center gap-3 text-center text-white/40 text-sm py-2">
+              <span>Conversa transferida para um atendente. Aguarde o contato da equipe.</span>
+              {handoffMeetingUrl && (
+                <a
+                  href={handoffMeetingUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 rounded-lg border border-blue-500/30 bg-blue-500/10 px-3 py-2 text-xs font-bold text-blue-200 hover:bg-blue-500/20"
+                >
+                  <Calendar className="h-3.5 w-3.5" />
+                  Agendar conversa
+                </a>
+              )}
             </div>
           ) : (
             <>
@@ -325,6 +373,17 @@ const StudentSupport: React.FC = () => {
       </footer>
     </div>
   );
+};
+
+const StudentSupport: React.FC = () => {
+  const { user, loading } = useStudentAuth();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!loading && !user) navigate('/student/login');
+  }, [loading, user, navigate]);
+
+  return <StudentSupportPanel onBack={() => navigate(-1)} />;
 };
 
 // ── Sub-components ────────────────────────────────────────────────────────────

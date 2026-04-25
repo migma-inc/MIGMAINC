@@ -12,4 +12,7 @@ export interface BookACallSubmission {
     confirmation_accepted: boolean;
     ip_address: string | null;
     created_at: string;
+    referral_code: string | null;
+    referral_link_id: string | null;
+    status: 'novo' | 'em_contato' | 'fechado' | 'descartado';
 }

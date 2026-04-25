@@ -635,8 +635,26 @@ export async function loadCaseDetail(serviceRequestIds: string[]): Promise<{
   ]);
 
   return {
-    events: (eventsResult.data ?? []) as any,
-    followups: (followupsResult.data ?? []) as any,
+    events: (eventsResult.data ?? []) as Array<{
+      id: string;
+      service_request_id: string;
+      event_type: string;
+      event_source: string;
+      payload_json: Record<string, unknown>;
+      created_at: string;
+    }>,
+    followups: (followupsResult.data ?? []) as Array<{
+      id: string;
+      service_request_id: string;
+      followup_type: string;
+      status: string;
+      due_at: string | null;
+      resolved_at: string | null;
+      owner_user_id: string | null;
+      notes: string | null;
+      created_at: string;
+      updated_at: string;
+    }>,
     error: eventsResult.error?.message ?? followupsResult.error?.message ?? null,
   };
 }
@@ -833,12 +851,27 @@ export interface CrmInstitutionApplication {
   institution_id: string;
   scholarship_level_id: string | null;
   status: string;
+  forms_status: string | null;
   package_status: string | null;
+  package_storage_url: string | null;
+  package_sent_at: string | null;
   acceptance_letter_url: string | null;
   placement_fee_installments: number | null;
   placement_fee_2nd_installment_paid_at: string | null;
   created_at: string;
   institutions: { name: string } | null;
+}
+
+export interface CrmInstitutionForm {
+  id: string;
+  profile_id: string;
+  application_id: string;
+  form_type: string;
+  template_url: string | null;
+  signed_url: string | null;
+  signed_at: string | null;
+  generated_at: string | null;
+  signature_metadata_json: Record<string, unknown> | null;
 }
 
 export interface CrmRecurringCharge {
@@ -884,6 +917,8 @@ export interface CaseDetailPage {
   userIdentity: CrmUserIdentity | null;
   /** Application V11 mais recente (bolsa universitária) */
   institutionApplication: CrmInstitutionApplication | null;
+  /** Formulários V11 gerados para o pacote MatriculaUSA */
+  institutionForms: CrmInstitutionForm[];
   /** Charge de billing recorrente ativo/suspenso, se existir */
   recurringCharge: CrmRecurringCharge | null;
   /** Handoffs de suporte (transferência para humano) */
@@ -900,6 +935,8 @@ export interface CrmSupportHandoff {
   last_ai_message: string | null;
   assigned_to: string | null;
   status: 'pending' | 'in_progress' | 'resolved';
+  meeting_url: string | null;
+  meeting_requested_at: string | null;
   resolved_at: string | null;
   resolved_note: string | null;
   created_at: string;
@@ -991,7 +1028,7 @@ export async function loadDetailPage(profileId: string): Promise<{
   const srId = primaryRequest?.id ?? null;
   const srIds = serviceRequests.map((sr) => sr.id);
 
-  const [historyResult, eventsResult, followupsResult, messagesResult, srDocumentsResult, identityResult, surveyResult, studentDocsResult, globalDocsResult, userIdentityResult, institutionAppResult, recurringChargeResult, supportHandoffsResult, supportChatResult] = await Promise.all([
+  const [historyResult, eventsResult, followupsResult, messagesResult, srDocumentsResult, identityResult, surveyResult, studentDocsResult, globalDocsResult, userIdentityResult, institutionAppResult, institutionFormsResult, recurringChargeResult, supportHandoffsResult, supportChatResult] = await Promise.all([
     srId
       ? supabase
           .from('service_request_stage_history')
@@ -1091,12 +1128,19 @@ export async function loadDetailPage(profileId: string): Promise<{
     // Application V11 mais recente
     supabase
       .from('institution_applications')
-      .select('id, profile_id, institution_id, scholarship_level_id, status, package_status, acceptance_letter_url, placement_fee_installments, placement_fee_2nd_installment_paid_at, created_at, institutions(name)')
+      .select('id, profile_id, institution_id, scholarship_level_id, status, forms_status, package_status, package_storage_url, package_sent_at, acceptance_letter_url, placement_fee_installments, placement_fee_2nd_installment_paid_at, created_at, institutions(name)')
       .eq('profile_id', profileId)
       .in('status', ['payment_confirmed', 'approved', 'pending_admin_approval'])
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle(),
+
+    // Formulários V11 gerados para assinatura e montagem do pacote MatriculaUSA
+    supabase
+      .from('institution_forms')
+      .select('id, profile_id, application_id, form_type, template_url, signed_url, signed_at, generated_at, signature_metadata_json')
+      .eq('profile_id', profileId)
+      .order('generated_at', { ascending: true }),
 
     // Charge de billing recorrente ativo/suspenso
     supabase
@@ -1111,7 +1155,7 @@ export async function loadDetailPage(profileId: string): Promise<{
     // Handoffs de suporte
     supabase
       .from('support_handoffs')
-      .select('id, profile_id, triggered_by, reason, last_ai_message, assigned_to, status, resolved_at, resolved_note, created_at')
+      .select('id, profile_id, triggered_by, reason, last_ai_message, assigned_to, status, meeting_url, meeting_requested_at, resolved_at, resolved_note, created_at')
       .eq('profile_id', profileId)
       .order('created_at', { ascending: false }),
 
@@ -1143,6 +1187,7 @@ export async function loadDetailPage(profileId: string): Promise<{
       globalDocumentRequests: (globalDocsResult.data ?? []) as CrmGlobalDocumentRequest[],
       userIdentity: (userIdentityResult.data ?? null) as CrmUserIdentity | null,
       institutionApplication: (institutionAppResult.data ?? null) as CrmInstitutionApplication | null,
+      institutionForms: (institutionFormsResult.data ?? []) as CrmInstitutionForm[],
       recurringCharge: (recurringChargeResult.data ?? null) as CrmRecurringCharge | null,
       supportHandoffs: (supportHandoffsResult.data ?? []) as CrmSupportHandoff[],
       supportChatMessages: (supportChatResult.data ?? []) as CrmSupportChatMessage[],
