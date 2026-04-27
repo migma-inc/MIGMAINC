@@ -140,7 +140,7 @@ export const OrderSummary: React.FC<OrderSummaryProps> = ({
                             </div>
                         )}
 
-                        {(paymentMethod === 'card' || paymentMethod === 'pix' || paymentMethod === 'square_card') && (
+                        {(paymentMethod === 'card' || paymentMethod === 'pix' /* || paymentMethod === 'square_card' */) && (
                             <div className="bg-blue-500/5 border border-blue-500/20 rounded-md p-2 mt-2">
                                 <p className="text-[10px] sm:text-xs text-blue-200/70 leading-relaxed italic text-center">
                                     {t('checkout.stripe_fee_notice', '* Processing and management fees included in the total.')}
@@ -174,11 +174,11 @@ export const OrderSummary: React.FC<OrderSummaryProps> = ({
                                             <DollarSign className="w-5 h-5 flex-shrink-0" />
                                             <span>{t('checkout.confirm_zelle_payment', 'Confirm Zelle Payment')}</span>
                                         </>
-                                    ) : paymentMethod === 'square_card' ? (
+                                    /* ) : paymentMethod === 'square_card' ? (
                                         <>
                                             <CreditCard className="w-5 h-5 flex-shrink-0" />
                                             <span>{t('checkout.pay_with_square', 'Pay with Square')}</span>
-                                        </>
+                                        </> */
                                     ) : paymentMethod === 'manual' ? (
                                         <>
                                             <CheckCircle className="w-5 h-5 flex-shrink-0" />
