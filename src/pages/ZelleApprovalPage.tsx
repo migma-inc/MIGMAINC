@@ -159,10 +159,14 @@ export const ZelleApprovalPage = () => {
       }
 
       // 3. Load pending Migma payments (external receipts)
-      const { data: migmaData, error: migmaError } = await supabase
+      let migmaQuery = supabase
         .from('migma_payments')
         .select('*')
-        .in('status', ['pending', 'pending_verification'])
+        .in('status', ['pending', 'pending_verification']);
+
+      if (!isLocal) migmaQuery = migmaQuery.eq('is_test', false);
+
+      const { data: migmaData, error: migmaError } = await migmaQuery
         .order('updated_at', { ascending: false });
 
       if (migmaError) console.error('Error loading Migma:', migmaError);
@@ -223,8 +227,11 @@ export const ZelleApprovalPage = () => {
       let histMigmaQuery = supabase
         .from('migma_payments')
         .select('*')
-        .in('status', ['approved', 'rejected'])
-        .order('updated_at', { ascending: false });
+        .in('status', ['approved', 'rejected']);
+
+      if (!isLocal) histMigmaQuery = histMigmaQuery.eq('is_test', false);
+
+      histMigmaQuery = histMigmaQuery.order('updated_at', { ascending: false });
 
       if (searchHistory) {
         const { data: clients } = await supabase
