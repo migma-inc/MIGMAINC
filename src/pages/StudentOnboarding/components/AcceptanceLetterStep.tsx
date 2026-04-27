@@ -154,7 +154,7 @@ export const AcceptanceLetterStep: React.FC<StepProps> = () => {
               </div>
             </div>
             <button
-              onClick={() => navigate('/student/rewards')}
+              onClick={() => navigate('/student/dashboard/rewards')}
               className="shrink-0 px-4 py-2 bg-yellow-400 hover:bg-yellow-300 text-black font-bold rounded-xl text-xs transition-colors"
             >
               Ver Rewards

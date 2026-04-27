@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   Activity,
@@ -9,9 +9,11 @@ import {
   DollarSign,
   FileText,
   Image,
+  Download,
   Loader2,
   Mail,
   MapPin,
+  Package,
   PauseCircle,
   Phone,
   PlayCircle,
@@ -79,6 +81,20 @@ function fmtDate(iso: string | null | undefined) {
   return new Date(iso).toLocaleString('en-US', {
     month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit',
   });
+}
+
+function errorMessage(error: unknown) {
+  return error instanceof Error ? error.message : 'Erro inesperado';
+}
+
+function metadataString(metadata: Record<string, unknown> | null | undefined, key: string) {
+  const value = metadata?.[key];
+  return typeof value === 'string' ? value : null;
+}
+
+function metadataNumber(metadata: Record<string, unknown> | null | undefined, key: string) {
+  const value = metadata?.[key];
+  return typeof value === 'number' ? value : null;
 }
 
 function timeAgo(iso: string | null | undefined) {
@@ -697,6 +713,8 @@ function DocumentsTab({
   profileUserId,
   adminId,
   onRefresh,
+  institutionApplication,
+  institutionForms,
   files,
   srDocuments,
   studentDocuments,
@@ -707,6 +725,8 @@ function DocumentsTab({
   profileUserId: string | null;
   adminId: string | null;
   onRefresh: () => Promise<void>;
+  institutionApplication: CaseDetailPage['institutionApplication'];
+  institutionForms: CaseDetailPage['institutionForms'];
   files: CrmIdentityFile[];
   srDocuments: CrmDocument[];
   studentDocuments: CaseDetailPage['studentDocuments'];
@@ -732,6 +752,9 @@ function DocumentsTab({
   } | null>(null);
   const [rejectionReason, setRejectionReason] = useState('');
   const [modalRejecting, setModalRejecting] = useState(false);
+  const [generatingForms, setGeneratingForms] = useState(false);
+  const [buildingPackage, setBuildingPackage] = useState(false);
+  const [matriculaMsg, setMatriculaMsg] = useState<{ text: string; ok: boolean } | null>(null);
 
   function openModal(
     url: string,
@@ -751,9 +774,46 @@ function DocumentsTab({
     return url.split('?')[0].toLowerCase().endsWith('.pdf');
   }
 
-  const openReviewDialog = (scope: 'student' | 'global', decision: 'approve' | 'reject') => {
-    setReviewDialog({ scope, decision });
-    setRejectionReason('');
+  const runGenerateForms = async () => {
+    if (!institutionApplication) return;
+
+    setGeneratingForms(true);
+    setMatriculaMsg(null);
+    try {
+      const res = await supabase.functions.invoke('generate-institution-forms', {
+        body: { application_id: institutionApplication.id },
+      });
+      if (res.error) throw new Error(res.error.message);
+      const generated = res.data?.forms_generated ?? res.data?.forms?.length ?? '?';
+      setMatriculaMsg({ text: `${generated} formulários gerados com sucesso.`, ok: true });
+      await onRefresh();
+    } catch (e) {
+      setMatriculaMsg({ text: `Erro ao gerar PDFs: ${errorMessage(e)}`, ok: false });
+    } finally {
+      setGeneratingForms(false);
+    }
+  };
+
+  const runBuildPackage = async () => {
+    if (!institutionApplication) return;
+
+    setBuildingPackage(true);
+    setMatriculaMsg(null);
+    try {
+      const res = await supabase.functions.invoke('package-matriculausa', {
+        body: { application_id: institutionApplication.id },
+      });
+      if (res.error) throw new Error(res.error.message);
+      setMatriculaMsg({
+        text: `Pacote gerado. ${res.data?.forms_added ?? 0} formulários + ${res.data?.docs_added ?? 0} documentos.`,
+        ok: true,
+      });
+      await onRefresh();
+    } catch (e) {
+      setMatriculaMsg({ text: `Erro ao montar pacote: ${errorMessage(e)}`, ok: false });
+    } finally {
+      setBuildingPackage(false);
+    }
   };
 
   const runReview = async () => {
@@ -847,7 +907,7 @@ function DocumentsTab({
     })();
   }, [files, studentDocuments, globalDocumentRequests]);
 
-  const hasAnything = files.length > 0 || srDocuments.length > 0 || studentDocuments.length > 0 || globalDocumentRequests.length > 0 || orderDocuments.length > 0;
+  const hasAnything = !!institutionApplication || institutionForms.length > 0 || files.length > 0 || srDocuments.length > 0 || studentDocuments.length > 0 || globalDocumentRequests.length > 0 || orderDocuments.length > 0;
   if (!hasAnything) {
     return <EmptyState icon={Image} message="No documents found for this case." />;
   }
@@ -879,6 +939,183 @@ function DocumentsTab({
 
   return (
     <div className="space-y-8">
+      {/* MatriculaUSA package operations */}
+      {(institutionApplication || institutionForms.length > 0) && (
+        <Card className="bg-black/30 border border-white/10">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-black uppercase tracking-widest text-gray-300 flex items-center gap-2">
+              <Package className="w-4 h-4 text-gold-medium" />
+              Formulários e Pacote MatriculaUSA
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-5">
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
+              <div className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3">
+                <p className="text-[10px] font-black uppercase tracking-widest text-gray-500">Application</p>
+                <p className="mt-1 text-sm font-bold text-white">{toLabel(institutionApplication?.status)}</p>
+              </div>
+              <div className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3">
+                <p className="text-[10px] font-black uppercase tracking-widest text-gray-500">PDFs</p>
+                <p className="mt-1 text-sm font-bold text-white">
+                  {institutionApplication?.forms_status ? toLabel(institutionApplication.forms_status) : `${institutionForms.length} gerado(s)`}
+                </p>
+              </div>
+              <div className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3">
+                <p className="text-[10px] font-black uppercase tracking-widest text-gray-500">Assinados</p>
+                <p className="mt-1 text-sm font-bold text-white">
+                  {institutionForms.filter((form) => !!form.signed_url || !!form.signed_at).length} / {institutionForms.length}
+                </p>
+              </div>
+              <div className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3">
+                <p className="text-[10px] font-black uppercase tracking-widest text-gray-500">Lidos</p>
+                <p className="mt-1 text-sm font-bold text-white">
+                  {institutionForms.filter((form) => !!metadataString(form.signature_metadata_json, 'pdf_opened_at')).length} / {institutionForms.length}
+                </p>
+              </div>
+              <div className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3">
+                <p className="text-[10px] font-black uppercase tracking-widest text-gray-500">Pacote</p>
+                <p className="mt-1 text-sm font-bold text-white">{toLabel(institutionApplication?.package_status)}</p>
+              </div>
+            </div>
+
+            <div className="flex flex-col lg:flex-row gap-3">
+              <Button
+                size="sm"
+                disabled={!institutionApplication || generatingForms}
+                onClick={runGenerateForms}
+                className="bg-gold-medium/10 border border-gold-medium/20 text-gold-medium hover:bg-gold-medium/20 text-xs font-black"
+                variant="outline"
+              >
+                {generatingForms
+                  ? <><Loader2 className="w-3.5 h-3.5 mr-2 animate-spin" />Gerando PDFs...</>
+                  : <><FileText className="w-3.5 h-3.5 mr-2" />{institutionApplication?.forms_status === 'generated' ? 'Regenerar PDFs' : 'Gerar PDFs'}</>}
+              </Button>
+              <Button
+                size="sm"
+                disabled={!institutionApplication || buildingPackage || institutionForms.length === 0}
+                onClick={runBuildPackage}
+                className="bg-blue-500/10 border border-blue-500/20 text-blue-300 hover:bg-blue-500/20 text-xs font-black"
+                variant="outline"
+              >
+                {buildingPackage
+                  ? <><Loader2 className="w-3.5 h-3.5 mr-2 animate-spin" />Montando pacote...</>
+                  : <><Package className="w-3.5 h-3.5 mr-2" />{institutionApplication?.package_status === 'ready' ? 'Remontar Pacote' : 'Montar Pacote'}</>}
+              </Button>
+              {institutionApplication?.package_storage_url && (
+                <a
+                  href={institutionApplication.package_storage_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex h-9 items-center justify-center rounded-md border border-emerald-500/20 bg-emerald-500/10 px-3 text-xs font-black uppercase tracking-wide text-emerald-300 hover:bg-emerald-500/20"
+                >
+                  <Download className="w-3.5 h-3.5 mr-2" />
+                  Baixar ZIP
+                </a>
+              )}
+            </div>
+
+            {matriculaMsg && (
+              <div className={cn(
+                'rounded-xl border px-4 py-3 text-xs font-bold',
+                matriculaMsg.ok
+                  ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-300'
+                  : 'bg-red-500/10 border-red-500/20 text-red-300'
+              )}>
+                {matriculaMsg.text}
+              </div>
+            )}
+
+            {institutionForms.length > 0 && (
+              <div>
+                <div className="text-xs text-gray-500 uppercase tracking-widest font-bold mb-3">Formulários Gerados</div>
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+                  {institutionForms.map((form) => {
+                    const signedUrl = form.signed_url;
+                    const originalUrl = form.template_url;
+                    const signed = !!signedUrl || !!form.signed_at;
+                    const openedAt = metadataString(form.signature_metadata_json, 'pdf_opened_at');
+                    const lastOpenedAt = metadataString(form.signature_metadata_json, 'last_pdf_opened_at') ?? openedAt;
+                    const openCount = metadataNumber(form.signature_metadata_json, 'pdf_open_count');
+                    const confirmedAt = metadataString(form.signature_metadata_json, 'signer_confirmed_at') ?? form.signed_at;
+                    const signatureCapture = metadataString(form.signature_metadata_json, 'signature_capture');
+                    return (
+                      <div key={form.id} className="rounded-xl border border-white/10 bg-white/[0.03] p-4 space-y-3">
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <p className="text-sm font-bold text-white">{toLabel(form.form_type)}</p>
+                            <p className="mt-1 text-[10px] text-gray-500">Gerado em {fmtDate(form.generated_at)}</p>
+                          </div>
+                          <div className="flex flex-col items-end gap-1">
+                            <Badge className={cn(
+                              'text-[9px] font-black uppercase border rounded-sm',
+                              signed ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-amber-500/10 text-amber-400 border-amber-500/20'
+                            )}>
+                              {signed ? 'Assinado' : 'Pendente'}
+                            </Badge>
+                            <Badge className={cn(
+                              'text-[9px] font-black uppercase border rounded-sm',
+                              openedAt ? 'bg-blue-500/10 text-blue-300 border-blue-500/20' : 'bg-white/5 text-gray-500 border-white/10'
+                            )}>
+                              {openedAt ? 'PDF lido' : 'Não lido'}
+                            </Badge>
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-1 gap-1.5 text-[10px] text-gray-500">
+                          <div className="flex items-center justify-between gap-3">
+                            <span>Primeira leitura</span>
+                            <span className={openedAt ? 'text-blue-300' : 'text-gray-600'}>{fmtDate(openedAt)}</span>
+                          </div>
+                          <div className="flex items-center justify-between gap-3">
+                            <span>Última abertura</span>
+                            <span className={lastOpenedAt ? 'text-blue-300' : 'text-gray-600'}>
+                              {lastOpenedAt ? `${fmtDate(lastOpenedAt)}${openCount ? ` · ${openCount}x` : ''}` : '—'}
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between gap-3">
+                            <span>Confirmação assinatura</span>
+                            <span className={confirmedAt ? 'text-emerald-300' : 'text-gray-600'}>{fmtDate(confirmedAt)}</span>
+                          </div>
+                          {signatureCapture && (
+                            <div className="flex items-center justify-between gap-3">
+                              <span>Modo</span>
+                              <span className="text-gray-300">{toLabel(signatureCapture)}</span>
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          {originalUrl && (
+                            <a
+                              href={originalUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center rounded-md border border-white/10 bg-white/5 px-2.5 py-1.5 text-[10px] font-black uppercase tracking-wide text-gray-300 hover:bg-white/10"
+                            >
+                              <FileText className="w-3 h-3 mr-1.5" />
+                              Original
+                            </a>
+                          )}
+                          {signedUrl && (
+                            <a
+                              href={signedUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center rounded-md border border-emerald-500/20 bg-emerald-500/10 px-2.5 py-1.5 text-[10px] font-black uppercase tracking-wide text-emerald-300 hover:bg-emerald-500/20"
+                            >
+                              <CheckCircle2 className="w-3 h-3 mr-1.5" />
+                              Assinado
+                            </a>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
       {/* Visa order documents */}
       {orderDocuments.length > 0 && (
         <div>
@@ -1804,7 +2041,7 @@ interface JourneyMilestone {
 function buildJourneyMilestones(
   detail: CaseDetailPage,
 ): JourneyMilestone[] {
-  const { profile, visaOrders, serviceRequests, stageHistory, studentDocuments, globalDocumentRequests } = detail;
+  const { profile, visaOrders, serviceRequests, stageHistory, studentDocuments } = detail;
   const milestones: JourneyMilestone[] = [];
 
   // 1. Account created
@@ -2104,6 +2341,17 @@ function SupportTab({
                 </div>
               )}
 
+              {h.meeting_url && (
+                <a
+                  href={h.meeting_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center rounded-lg border border-blue-500/20 bg-blue-500/10 px-3 py-1.5 text-xs font-bold text-blue-300 hover:bg-blue-500/20"
+                >
+                  Link de agendamento humano
+                </a>
+              )}
+
               {/* Nota de resolução — expande ao clicar Resolver */}
               {h.status === 'in_progress' && resolvingId === h.id && (
                 <div className="space-y-2 pt-1 border-t border-white/10">
@@ -2215,7 +2463,7 @@ export function AdminUserDetail() {
     });
   }, []);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     if (!profileId) return;
     setLoading(true);
     setError(null);
@@ -2227,9 +2475,10 @@ export function AdminUserDetail() {
       setOwnerInput(data.primaryRequest?.owner_user_id ?? '');
     }
     setLoading(false);
-  };
+  }, [profileId]);
 
-  useEffect(() => { load(); }, [profileId]);
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => { void load(); }, [load]);
 
   // Mutations
   async function handleAssign() {
@@ -2387,7 +2636,7 @@ export function AdminUserDetail() {
         {TABS.map((tab) => {
           const count =
             tab.id === 'orders' ? detail.visaOrders.length
-            : tab.id === 'documents' ? detail.identityFiles.length + detail.srDocuments.length + detail.globalDocumentRequests.length + orderDocuments.length
+            : tab.id === 'documents' ? detail.identityFiles.length + detail.srDocuments.length + detail.studentDocuments.length + detail.globalDocumentRequests.length + detail.institutionForms.length + orderDocuments.length
             : tab.id === 'timeline' ? detail.events.length + detail.stageHistory.length
             : tab.id === 'messages' ? detail.messages.length
             : tab.id === 'followups' ? detail.followups.length
@@ -2447,6 +2696,8 @@ export function AdminUserDetail() {
             profileUserId={detail.profile.user_id}
             adminId={currentAdminId}
             onRefresh={load}
+            institutionApplication={detail.institutionApplication}
+            institutionForms={detail.institutionForms}
             files={detail.identityFiles}
             srDocuments={detail.srDocuments}
             studentDocuments={detail.studentDocuments}

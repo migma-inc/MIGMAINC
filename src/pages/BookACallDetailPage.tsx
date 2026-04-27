@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, type ElementType } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import type { BookACallSubmission } from '@/types/book-a-call';
@@ -15,41 +15,134 @@ import {
   MessageSquare,
   Activity,
   ShieldCheck,
-  BarChart
+  BarChart,
+  Gift,
+  CheckCircle2,
+  RotateCcw,
+  Loader2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { format } from 'date-fns';
 
+const STATUS_LABELS: Record<BookACallSubmission['status'], string> = {
+  novo: 'Novo',
+  em_contato: 'Em contato',
+  fechado: 'Fechado',
+  descartado: 'Descartado',
+};
+
+const STATUS_COLORS: Record<BookACallSubmission['status'], string> = {
+  novo: 'border-blue-500/30 bg-blue-500/10 text-blue-300',
+  em_contato: 'border-yellow-500/30 bg-yellow-500/10 text-yellow-300',
+  fechado: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300',
+  descartado: 'border-red-500/30 bg-red-500/10 text-red-300',
+};
+
 export function BookACallDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [lead, setLead] = useState<BookACallSubmission | null>(null);
   const [loading, setLoading] = useState(true);
+  const [actionLoading, setActionLoading] = useState(false);
+  const [actionMsg, setActionMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
-  useEffect(() => {
-    const fetchLead = async () => {
-      if (!id) return;
-      try {
-        setLoading(true);
-        const { data, error } = await supabase
-          .from('book_a_call_submissions')
-          .select('*')
-          .eq('id', id)
-          .single();
+  const fetchLead = useCallback(async () => {
+    if (!id) return;
+    try {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from('book_a_call_submissions')
+        .select('*')
+        .eq('id', id)
+        .single();
 
-        if (error) throw error;
-        setLead(data);
-      } catch (err) {
-        console.error('Error fetching lead details:', err);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchLead();
+      if (error) throw error;
+      setLead(data as BookACallSubmission);
+    } catch (err) {
+      console.error('Error fetching lead details:', err);
+    } finally {
+      setLoading(false);
+    }
   }, [id]);
+
+  useEffect(() => { void fetchLead(); }, [fetchLead]);
+
+  const handleCreditClosure = async () => {
+    if (!lead) return;
+    setActionLoading(true);
+    setActionMsg(null);
+    try {
+      const { data, error } = await supabase.rpc('credit_referral_closure', {
+        p_submission_id: lead.id,
+      });
+
+      if (error) throw error;
+
+      const result = data as {
+        closures_count: number;
+        goal_reached: boolean;
+        profile_id: string | null;
+        already_closed: boolean;
+      };
+
+      if (result.already_closed) {
+        setActionMsg({ type: 'success', text: 'Lead já estava marcado como fechado. Contador não alterado.' });
+      } else if (result.goal_reached) {
+        setActionMsg({ type: 'success', text: `Fechamento creditado! Meta de 10 atingida — tuition reduzida a $3,800/ano. Notificação enviada ao aluno.` });
+        if (result.profile_id) {
+          void supabase.functions.invoke('migma-notify', {
+            body: {
+              trigger: 'referral_goal_reached',
+              user_id: result.profile_id,
+              data: { closures_count: result.closures_count },
+            },
+          });
+        }
+      } else {
+        setActionMsg({ type: 'success', text: `Fechamento creditado. Contador do indicador: ${result.closures_count}/10.` });
+        if (result.profile_id) {
+          void supabase.functions.invoke('migma-notify', {
+            body: {
+              trigger: 'new_referral_closed',
+              user_id: result.profile_id,
+              data: {
+                referral_name: lead.contact_name,
+                closures_count: result.closures_count,
+              },
+            },
+          });
+        }
+      }
+
+      await fetchLead();
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Erro ao creditar fechamento.';
+      setActionMsg({ type: 'error', text: msg });
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleRevertClosure = async () => {
+    if (!lead) return;
+    setActionLoading(true);
+    setActionMsg(null);
+    try {
+      const { error } = await supabase.rpc('revert_referral_closure', {
+        p_submission_id: lead.id,
+      });
+      if (error) throw error;
+      setActionMsg({ type: 'success', text: 'Fechamento revertido.' });
+      await fetchLead();
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Erro ao reverter fechamento.';
+      setActionMsg({ type: 'error', text: msg });
+    } finally {
+      setActionLoading(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -87,6 +180,8 @@ export function BookACallDetailPage() {
     );
   }
 
+  const isClosed = lead.status === 'fechado';
+
   return (
     <div className="p-4 sm:p-6 lg:p-8 space-y-6 animate-in fade-in duration-500">
       {/* Nav Header */}
@@ -99,10 +194,16 @@ export function BookACallDetailPage() {
           <ChevronLeft className="w-4 h-4 mr-2 group-hover:-translate-x-1 transition-transform" />
           Back to Central
         </Button>
-        <div className="flex gap-2">
-          <Badge className="bg-gold-medium/20 text-gold-light border-gold-medium/30">
-            New Partnership Lead
+        <div className="flex gap-2 flex-wrap justify-end">
+          <Badge className={STATUS_COLORS[lead.status]}>
+            {STATUS_LABELS[lead.status]}
           </Badge>
+          {lead.referral_code && (
+            <Badge className="border-[#CE9F48]/30 bg-[#CE9F48]/10 text-[#CE9F48] flex items-center gap-1">
+              <Gift className="w-3 h-3" />
+              Indicação: {lead.referral_code}
+            </Badge>
+          )}
           {lead.confirmation_accepted && (
             <Badge className="bg-green-500/10 text-green-400 border-green-500/20 flex items-center gap-1">
               <ShieldCheck className="w-3 h-3" />
@@ -111,6 +212,17 @@ export function BookACallDetailPage() {
           )}
         </div>
       </div>
+
+      {/* Action feedback */}
+      {actionMsg && (
+        <div className={`rounded-lg border px-4 py-3 text-sm ${
+          actionMsg.type === 'success'
+            ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-300'
+            : 'border-red-500/20 bg-red-500/10 text-red-300'
+        }`}>
+          {actionMsg.text}
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Main Info Card */}
@@ -194,6 +306,28 @@ export function BookACallDetailPage() {
             </CardContent>
           </Card>
 
+          {/* Referral Card */}
+          {lead.referral_code && (
+            <Card className="border-[#CE9F48]/20 bg-[#CE9F48]/5">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm font-bold text-[#CE9F48] flex items-center gap-2">
+                  <Gift className="w-4 h-4" />
+                  Indicação
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="p-3 bg-white/5 rounded-lg space-y-1">
+                  <p className="text-[10px] text-gray-500 uppercase font-bold">Código</p>
+                  <p className="text-sm text-white font-mono font-bold">{lead.referral_code}</p>
+                </div>
+                <div className="p-3 bg-white/5 rounded-lg space-y-1">
+                  <p className="text-[10px] text-gray-500 uppercase font-bold">Status do Lead</p>
+                  <Badge className={STATUS_COLORS[lead.status]}>{STATUS_LABELS[lead.status]}</Badge>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           <Card className="bg-gold-medium/10 border-gold-medium/20">
             <CardHeader>
               <CardTitle className="text-sm font-bold text-gold-light">Quick Actions</CardTitle>
@@ -207,6 +341,51 @@ export function BookACallDetailPage() {
               </Button>
             </CardContent>
           </Card>
+
+          {/* Closure Actions */}
+          {lead.referral_code && (
+            <Card className={isClosed ? 'border-emerald-500/20 bg-emerald-500/5' : 'border-white/10 bg-black/40'}>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm font-bold uppercase tracking-widest text-gray-400">
+                  Programa de Indicação
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {isClosed ? (
+                  <>
+                    <div className="flex items-center gap-2 text-sm text-emerald-300">
+                      <CheckCircle2 className="w-4 h-4" />
+                      Fechamento creditado ao indicador
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="w-full border-white/10 text-gray-400 hover:text-white text-xs"
+                      onClick={handleRevertClosure}
+                      disabled={actionLoading}
+                    >
+                      {actionLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-2" /> : <RotateCcw className="w-3.5 h-3.5 mr-2" />}
+                      Reverter fechamento
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-xs text-gray-500 leading-relaxed">
+                      Ao marcar como fechado, o contador do aluno indicador é incrementado em +1.
+                    </p>
+                    <Button
+                      className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs"
+                      onClick={handleCreditClosure}
+                      disabled={actionLoading}
+                    >
+                      {actionLoading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <CheckCircle2 className="w-4 h-4 mr-2" />}
+                      Marcar como Fechado
+                    </Button>
+                  </>
+                )}
+              </CardContent>
+            </Card>
+          )}
         </div>
       </div>
     </div>
@@ -219,7 +398,7 @@ function DetailItem({
   value,
   isLink = false
 }: {
-  icon: any,
+  icon: ElementType,
   label: string,
   value: string,
   isLink?: boolean

@@ -8,6 +8,7 @@ const StudentLogin = lazy(() => import('./pages/StudentLogin'));
 const MigmaCheckout = lazy(() => import('./pages/MigmaCheckout'));
 const StudentRewards = lazy(() => import('./pages/StudentRewards'));
 const StudentSupport = lazy(() => import('./pages/StudentSupport'));
+const StudentDashboard = lazy(() => import('./pages/StudentDashboard/StudentDashboard'));
 import { Home } from './pages/Home';
 import { Services } from './pages/Services';
 import { About } from './pages/About';
@@ -209,6 +210,12 @@ function App() {
         } />
         <Route path="/student/onboarding" element={
           <Suspense fallback={null}><StudentOnboarding /></Suspense>
+        } />
+        <Route path="/student/dashboard" element={
+          <Suspense fallback={null}><StudentDashboard /></Suspense>
+        } />
+        <Route path="/student/dashboard/:tab" element={
+          <Suspense fallback={null}><StudentDashboard /></Suspense>
         } />
         <Route path="/student/rewards" element={
           <Suspense fallback={null}><StudentRewards /></Suspense>

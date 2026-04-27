@@ -111,10 +111,10 @@ const StudentLogin: React.FC = () => {
           const service = profile?.service_type || 'transfer';
           navigate(`/student/checkout/${service}`);
         } else {
-          navigate('/student/onboarding');
+          navigate('/student/dashboard');
         }
       } else {
-        navigate('/student/onboarding');
+        navigate('/student/dashboard');
       }
     } catch (err: any) {
       console.error('[Login] Erro ao verificar código:', err);

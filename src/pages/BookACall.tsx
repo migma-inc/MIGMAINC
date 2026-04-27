@@ -16,6 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { supabase } from '@/lib/supabase';
 
 const STORAGE_KEY = 'migma_book_a_call_form';
+const REFERRAL_STORAGE_KEY = 'migma_referral_code';
 
 const bookACallSchema = z.object({
     companyName: z.string().min(2, "Company name is required"),
@@ -72,6 +73,13 @@ const loadSavedFormData = (): Partial<BookACallFormData> => {
 export const BookACall = () => {
     const navigate = useNavigate();
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [referralCode, setReferralCode] = useState<string | null>(() => {
+        try {
+            return localStorage.getItem(REFERRAL_STORAGE_KEY);
+        } catch {
+            return null;
+        }
+    });
 
     const form = useForm<BookACallFormData>({
         resolver: zodResolver(bookACallSchema),
@@ -86,6 +94,21 @@ export const BookACall = () => {
     
     // Watch all form values to save to localStorage
     const formValues = watch();
+
+    useEffect(() => {
+        const params = new URLSearchParams(window.location.search);
+        const ref = params.get('ref')?.trim();
+        if (!ref) return;
+
+        setReferralCode(ref);
+        try {
+            localStorage.setItem(REFERRAL_STORAGE_KEY, ref);
+        } catch {
+            // non-critical
+        }
+
+        void supabase.rpc('increment_referral_click', { p_unique_code: ref });
+    }, []);
     
     // Save form data to localStorage whenever it changes
     useEffect(() => {
@@ -111,6 +134,13 @@ export const BookACall = () => {
         setIsSubmitting(true);
         try {
             const ipAddress = await getClientIP();
+            let referralLinkId: string | null = null;
+
+            if (referralCode) {
+                const { data: resolvedReferralId } = await supabase
+                    .rpc('resolve_referral_link_id', { p_unique_code: referralCode });
+                referralLinkId = resolvedReferralId ?? null;
+            }
 
             const submissionData = {
                 company_name: data.companyName,
@@ -124,6 +154,8 @@ export const BookACall = () => {
                 challenges: data.challenges || null,
                 confirmation_accepted: data.confirmation,
                 ip_address: ipAddress || null,
+                referral_code: referralCode,
+                referral_link_id: referralLinkId,
             };
 
             const { error } = await supabase
