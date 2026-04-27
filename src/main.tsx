@@ -51,6 +51,11 @@ function createCircularFavicon() {
 // Initialize circular favicon
 createCircularFavicon();
 
+// Initialize theme based on user preference or default to dark
+const savedTheme = localStorage.getItem('theme');
+const shouldUseDark = savedTheme ? savedTheme === 'dark' : true;
+document.documentElement.classList.toggle('dark', shouldUseDark);
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <StudentAuthProvider>

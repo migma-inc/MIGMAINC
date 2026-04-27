@@ -86,7 +86,6 @@ export const StudentSupportPanel: React.FC<StudentSupportPanelProps> = ({ embedd
           setHandoffCreatedAt(active.created_at);
           setHandoffMeetingUrl(active.meeting_url);
         } else if (resolved) {
-          // Mostra card pós-resolução apenas se não há mensagem do aluno após o resolved_at
           const resolvedAt = resolved.resolved_at ? new Date(resolved.resolved_at).getTime() : 0;
           const hasPostResolutionMessage = (chatData ?? []).some(
             (m: { role: string; created_at: string }) =>
@@ -127,7 +126,6 @@ export const StudentSupportPanel: React.FC<StudentSupportPanelProps> = ({ embedd
     async (reason: string, lastAiMessage: string) => {
       if (!userProfile?.id || handedOff) return;
 
-      // Marco visual no chat
       const systemMsg: Message = {
         id: crypto.randomUUID(),
         role: 'system',
@@ -182,7 +180,6 @@ export const StudentSupportPanel: React.FC<StudentSupportPanelProps> = ({ embedd
     const text = input.trim();
     if (!text || sending || handedOff) return;
 
-    // Ao enviar após resolução, limpa o card de resolução
     if (resolvedHandoff) setResolvedHandoff(null);
 
     setInput('');
@@ -245,29 +242,28 @@ export const StudentSupportPanel: React.FC<StudentSupportPanelProps> = ({ embedd
 
   if (!user || !historyLoaded) {
     return (
-      <div className={`${embedded ? 'min-h-[520px]' : 'min-h-screen'} bg-[#0a0a0a] flex items-center justify-center`}>
-        <Loader2 className="w-8 h-8 text-[#CE9F48] animate-spin" />
+      <div className={`${embedded ? 'min-h-[520px]' : 'min-h-screen'} bg-[#f7f4ee] dark:bg-[#0a0a0a] flex items-center justify-center`}>
+        <Loader2 className="w-8 h-8 text-[#9a6a16] dark:text-[#CE9F48] animate-spin" />
       </div>
     );
   }
 
   return (
-    <div className={`${embedded ? 'h-[calc(100vh-132px)] min-h-[620px] rounded-lg border border-white/10 overflow-hidden' : 'min-h-screen'} bg-[#0a0a0a] flex flex-col`}>
-      {/* Header */}
-      <header className="shrink-0 bg-[#0a0a0a]/90 backdrop-blur border-b border-white/5 px-4 py-3">
+    <div className={`${embedded ? 'h-[calc(100vh-132px)] min-h-[620px] rounded-lg border border-[#e3d5bd] dark:border-white/10 overflow-hidden' : 'min-h-screen'} bg-[#f7f4ee] dark:bg-[#0a0a0a] flex flex-col text-[#1f1a14] dark:text-white`}>
+      <header className="shrink-0 bg-white/80 dark:bg-[#0a0a0a]/90 backdrop-blur border-b border-[#e3d5bd] dark:border-white/5 px-4 py-3">
         <div className="max-w-2xl mx-auto flex items-center gap-3">
           {!embedded && onBack && (
-            <button onClick={onBack} className="p-2 rounded-lg text-white/50 hover:text-white hover:bg-white/5 transition-colors">
+            <button onClick={onBack} className="p-2 rounded-lg text-[#6f6251] dark:text-white/50 hover:bg-[#f3ead9] dark:hover:bg-white/5 transition-colors">
               <ArrowLeft className="w-5 h-5" />
             </button>
           )}
           <div className="flex items-center gap-3 flex-1">
             <div className={`w-9 h-9 rounded-full flex items-center justify-center border ${handedOff ? 'bg-blue-500/15 border-blue-500/30' : 'bg-[#CE9F48]/15 border-[#CE9F48]/30'}`}>
-              {handedOff ? <UserCheck className="w-5 h-5 text-blue-400" /> : <Bot className="w-5 h-5 text-[#CE9F48]" />}
+              {handedOff ? <UserCheck className="w-5 h-5 text-blue-400" /> : <Bot className="w-5 h-5 text-[#9a6a16] dark:text-[#CE9F48]" />}
             </div>
             <div>
-              <p className="text-sm font-semibold text-white leading-none">Equipe Migma</p>
-              <p className={`text-xs mt-0.5 ${handedOff ? 'text-blue-400' : 'text-green-400'}`}>
+              <p className="text-sm font-semibold text-[#1f1a14] dark:text-white leading-none">Equipe Migma</p>
+              <p className={`text-xs mt-0.5 ${handedOff ? 'text-blue-600 dark:text-blue-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
                 {handedOff ? 'Aguardando atendente' : 'Online agora'}
               </p>
             </div>
@@ -276,20 +272,18 @@ export const StudentSupportPanel: React.FC<StudentSupportPanelProps> = ({ embedd
         </div>
       </header>
 
-      {/* Messages */}
       <main className="flex-1 overflow-y-auto px-4 py-6">
         <div className="max-w-2xl mx-auto space-y-4">
           {messages.map((msg) => <MessageBubble key={msg.id} message={msg} />)}
 
           {sending && <TypingIndicator />}
 
-          {/* Banner aguardando atendente */}
           {handedOff && handoffCreatedAt && (
-            <div className="flex items-start gap-3 bg-blue-500/10 border border-blue-500/20 rounded-2xl px-4 py-3 text-sm text-blue-300">
+            <div className="flex items-start gap-3 bg-blue-500/10 border border-blue-500/20 rounded-2xl px-4 py-3 text-sm text-blue-700 dark:text-blue-300">
               <UserCheck className="w-4 h-4 flex-shrink-0 mt-0.5" />
               <div>
                 <p className="font-medium">Aguardando atendente humano</p>
-                <p className="text-blue-300/60 text-xs mt-0.5">
+                <p className="text-blue-600/60 dark:text-blue-300/60 text-xs mt-0.5">
                   Solicitado às {new Date(handoffCreatedAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })} · Nossa equipe entrará em contato pelo WhatsApp ou e-mail cadastrado.
                 </p>
                 {handoffMeetingUrl && (
@@ -297,7 +291,7 @@ export const StudentSupportPanel: React.FC<StudentSupportPanelProps> = ({ embedd
                     href={handoffMeetingUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="mt-3 inline-flex items-center gap-2 rounded-lg border border-blue-500/30 bg-blue-500/10 px-3 py-2 text-xs font-bold text-blue-200 hover:bg-blue-500/20"
+                    className="mt-3 inline-flex items-center gap-2 rounded-lg border border-blue-600/30 bg-blue-50 dark:border-blue-500/30 dark:bg-blue-500/10 px-3 py-2 text-xs font-bold text-blue-700 dark:text-blue-200 hover:bg-blue-100 dark:hover:bg-blue-500/20"
                   >
                     <Calendar className="h-3.5 w-3.5" />
                     Agendar conversa
@@ -307,16 +301,15 @@ export const StudentSupportPanel: React.FC<StudentSupportPanelProps> = ({ embedd
             </div>
           )}
 
-          {/* Card pós-resolução */}
           {resolvedHandoff && !handedOff && (
-            <div className="flex items-start gap-3 bg-green-500/10 border border-green-500/20 rounded-2xl px-4 py-3 text-sm text-green-300">
+            <div className="flex items-start gap-3 bg-emerald-500/10 border border-emerald-500/20 rounded-2xl px-4 py-3 text-sm text-emerald-700 dark:text-emerald-300">
               <CheckCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
               <div>
                 <p className="font-medium">Atendimento encerrado</p>
                 {resolvedHandoff.resolved_note && (
-                  <p className="text-green-300/80 text-xs mt-1">"{resolvedHandoff.resolved_note}"</p>
+                  <p className="text-emerald-600/80 dark:text-emerald-300/80 text-xs mt-1">"{resolvedHandoff.resolved_note}"</p>
                 )}
-                <p className="text-green-300/50 text-xs mt-1">Pode continuar enviando mensagens normalmente.</p>
+                <p className="text-emerald-600/50 dark:text-emerald-300/50 text-xs mt-1">Pode continuar enviando mensagens normalmente.</p>
               </div>
             </div>
           )}
@@ -325,18 +318,17 @@ export const StudentSupportPanel: React.FC<StudentSupportPanelProps> = ({ embedd
         </div>
       </main>
 
-      {/* Input */}
-      <footer className="sticky bottom-0 bg-[#0a0a0a]/95 backdrop-blur border-t border-white/5 px-4 py-4">
+      <footer className="sticky bottom-0 bg-white/95 dark:bg-[#0a0a0a]/95 backdrop-blur border-t border-[#e3d5bd] dark:border-white/5 px-4 py-4">
         <div className="max-w-2xl mx-auto">
           {handedOff ? (
-            <div className="flex flex-col items-center gap-3 text-center text-white/40 text-sm py-2">
+            <div className="flex flex-col items-center gap-3 text-center text-[#8a7b66] dark:text-white/40 text-sm py-2">
               <span>Conversa transferida para um atendente. Aguarde o contato da equipe.</span>
               {handoffMeetingUrl && (
                 <a
                   href={handoffMeetingUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 rounded-lg border border-blue-500/30 bg-blue-500/10 px-3 py-2 text-xs font-bold text-blue-200 hover:bg-blue-500/20"
+                  className="inline-flex items-center gap-2 rounded-lg border border-blue-600/30 bg-blue-50 dark:border-blue-500/30 dark:bg-blue-500/10 px-3 py-2 text-xs font-bold text-blue-700 dark:text-blue-200 hover:bg-blue-100 dark:hover:bg-blue-500/20"
                 >
                   <Calendar className="h-3.5 w-3.5" />
                   Agendar conversa
@@ -345,7 +337,7 @@ export const StudentSupportPanel: React.FC<StudentSupportPanelProps> = ({ embedd
             </div>
           ) : (
             <>
-              <div className="flex items-end gap-3 bg-white/5 border border-white/10 rounded-2xl px-4 py-3 focus-within:border-[#CE9F48]/50 transition-colors">
+              <div className="flex items-end gap-3 bg-[#f3ead9] dark:bg-white/5 border border-[#e3d5bd] dark:border-white/10 rounded-2xl px-4 py-3 focus-within:border-[#CE9F48]/50 transition-colors">
                 <textarea
                   ref={inputRef}
                   value={input}
@@ -353,7 +345,7 @@ export const StudentSupportPanel: React.FC<StudentSupportPanelProps> = ({ embedd
                   onKeyDown={handleKeyDown}
                   placeholder="Escreva sua dúvida..."
                   rows={1}
-                  className="flex-1 bg-transparent text-white placeholder-white/30 text-sm resize-none outline-none max-h-32 leading-relaxed"
+                  className="flex-1 bg-transparent text-[#1f1a14] dark:text-white placeholder-[#8a7b66] dark:placeholder-white/30 text-sm resize-none outline-none max-h-32 leading-relaxed"
                   style={{ height: 'auto' }}
                   onInput={(e) => { const t = e.currentTarget; t.style.height = 'auto'; t.style.height = `${Math.min(t.scrollHeight, 128)}px`; }}
                   disabled={sending}
@@ -366,7 +358,7 @@ export const StudentSupportPanel: React.FC<StudentSupportPanelProps> = ({ embedd
                   {sending ? <Loader2 className="w-4 h-4 text-black animate-spin" /> : <Send className="w-4 h-4 text-black" />}
                 </button>
               </div>
-              <p className="text-center text-white/20 text-xs mt-2">Enter para enviar · Shift+Enter para nova linha</p>
+              <p className="text-center text-[#8a7b66] dark:text-white/20 text-xs mt-2">Enter para enviar · Shift+Enter para nova linha</p>
             </>
           )}
         </div>
@@ -386,13 +378,11 @@ const StudentSupport: React.FC = () => {
   return <StudentSupportPanel onBack={() => navigate(-1)} />;
 };
 
-// ── Sub-components ────────────────────────────────────────────────────────────
-
 const MessageBubble: React.FC<{ message: Message }> = ({ message }) => {
   if (message.role === 'system') {
     return (
       <div className="flex justify-center">
-        <div className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-full px-4 py-1.5 text-xs text-white/40">
+        <div className="flex items-center gap-2 bg-[#f3ead9] dark:bg-white/5 border border-[#e3d5bd] dark:border-white/10 rounded-full px-4 py-1.5 text-xs text-[#8a7b66] dark:text-white/40">
           {message.is_handoff && <UserCheck className="w-3 h-3 text-blue-400 flex-shrink-0" />}
           {message.content}
         </div>
@@ -405,12 +395,12 @@ const MessageBubble: React.FC<{ message: Message }> = ({ message }) => {
     <div className={`flex gap-3 ${isUser ? 'flex-row-reverse' : 'flex-row'}`}>
       {!isUser && (
         <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center mt-1 border ${message.is_handoff ? 'bg-blue-500/15 border-blue-500/30' : 'bg-[#CE9F48]/15 border-[#CE9F48]/30'}`}>
-          {message.is_handoff ? <UserCheck className="w-4 h-4 text-blue-400" /> : <MessageCircle className="w-4 h-4 text-[#CE9F48]" />}
+          {message.is_handoff ? <UserCheck className="w-4 h-4 text-blue-400" /> : <MessageCircle className="w-4 h-4 text-[#9a6a16] dark:text-[#CE9F48]" />}
         </div>
       )}
-      <div className={`max-w-[80%] rounded-2xl px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap ${isUser ? 'bg-[#CE9F48] text-black rounded-tr-sm font-medium' : 'bg-white/8 border border-white/10 text-white/90 rounded-tl-sm'}`}>
+      <div className={`max-w-[80%] rounded-2xl px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap ${isUser ? 'bg-[#CE9F48] text-black rounded-tr-sm font-medium' : 'bg-[#f3ead9] dark:bg-white/5 border border-[#e3d5bd] dark:border-white/10 text-[#1f1a14] dark:text-white/90 rounded-tl-sm'}`}>
         {message.content}
-        <div className={`text-xs mt-1.5 ${isUser ? 'text-black/50' : 'text-white/25'}`}>
+        <div className={`text-xs mt-1.5 ${isUser ? 'text-black/50' : 'text-[#8a7b66] dark:text-white/25'}`}>
           {new Date(message.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
         </div>
       </div>
@@ -421,9 +411,9 @@ const MessageBubble: React.FC<{ message: Message }> = ({ message }) => {
 const TypingIndicator: React.FC = () => (
   <div className="flex gap-3">
     <div className="flex-shrink-0 w-8 h-8 rounded-full bg-[#CE9F48]/15 border border-[#CE9F48]/30 flex items-center justify-center">
-      <MessageCircle className="w-4 h-4 text-[#CE9F48]" />
+      <MessageCircle className="w-4 h-4 text-[#9a6a16] dark:text-[#CE9F48]" />
     </div>
-    <div className="bg-white/8 border border-white/10 rounded-2xl rounded-tl-sm px-4 py-3">
+    <div className="bg-[#f3ead9] dark:bg-white/5 border border-[#e3d5bd] dark:border-white/10 rounded-2xl rounded-tl-sm px-4 py-3">
       <div className="flex gap-1.5 items-center h-4">
         {[0, 1, 2].map((i) => (
           <span key={i} className="w-1.5 h-1.5 rounded-full bg-[#CE9F48]/60 animate-bounce" style={{ animationDelay: `${i * 150}ms` }} />

@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import {
   ArrowLeft,
   Calendar,
@@ -44,7 +45,7 @@ interface CalendlyEvent {
 
 const PRODUCTION_BASE_URL = 'https://migmainc.com';
 const GOAL = 10;
-const REDUCED_TUITION = '$3,800/ano';
+const REDUCED_TUITION = '$3,800';
 
 function getReferralBaseUrl() {
   if (typeof window === 'undefined') return PRODUCTION_BASE_URL;
@@ -59,9 +60,9 @@ function generateCode(name: string): string {
   return `${prefix}${rand}`;
 }
 
-function formatDate(value: string | null | undefined) {
-  if (!value) return 'Ainda não';
-  return new Date(value).toLocaleDateString('pt-BR', {
+function formatDate(value: string | null | undefined, t: (key: string) => string, locale: string) {
+  if (!value) return t('student_dashboard.rewards.not_yet');
+  return new Date(value).toLocaleDateString(locale, {
     day: '2-digit',
     month: 'short',
     year: 'numeric',
@@ -75,6 +76,7 @@ interface StudentRewardsPanelProps {
 
 export const StudentRewardsPanel: React.FC<StudentRewardsPanelProps> = ({ embedded = false, onBack }) => {
   const { user, userProfile } = useStudentAuth();
+  const { t, i18n } = useTranslation();
   const [referral, setReferral] = useState<ReferralLink | null>(null);
   const [events, setEvents] = useState<CalendlyEvent[]>([]);
   const [loading, setLoading] = useState(true);
@@ -126,11 +128,11 @@ export const StudentRewardsPanel: React.FC<StudentRewardsPanelProps> = ({ embedd
 
       setEvents((calendlyEvents ?? []) as CalendlyEvent[]);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro ao carregar programa de indicação.');
+      setError(err instanceof Error ? err.message : t('student_dashboard.rewards.error_load'));
     } finally {
       setLoading(false);
     }
-  }, [userProfile?.email, userProfile?.full_name, userProfile?.id]);
+  }, [t, userProfile?.email, userProfile?.full_name, userProfile?.id]);
 
   useEffect(() => {
     if (!user) return;
@@ -146,13 +148,13 @@ export const StudentRewardsPanel: React.FC<StudentRewardsPanelProps> = ({ embedd
   }, [referral]);
 
   const shareText = referralUrl
-    ? `Quero te indicar a Migma para estudar nos EUA. Agende uma conversa aqui: ${referralUrl}`
+    ? t('student_dashboard.rewards.share_text', { url: referralUrl })
     : '';
   const whatsappUrl = referralUrl
     ? `https://wa.me/?text=${encodeURIComponent(shareText)}`
     : '';
   const emailUrl = referralUrl
-    ? `mailto:?subject=${encodeURIComponent('Indicação Migma')}&body=${encodeURIComponent(shareText)}`
+    ? `mailto:?subject=${encodeURIComponent(t('student_dashboard.rewards.title'))}&body=${encodeURIComponent(shareText)}`
     : '';
 
   const handleCopy = async () => {
@@ -171,37 +173,37 @@ export const StudentRewardsPanel: React.FC<StudentRewardsPanelProps> = ({ embedd
 
   if (loading) {
     return (
-      <div className={cn(embedded ? 'min-h-[520px]' : 'min-h-screen', 'flex items-center justify-center bg-[#0a0a0a]')}>
-        <Loader2 className="h-8 w-8 animate-spin text-[#CE9F48]" />
+      <div className={cn(embedded ? 'min-h-[520px]' : 'min-h-screen', 'flex items-center justify-center bg-[#f7f4ee] dark:bg-[#0a0a0a]')}>
+        <Loader2 className="h-8 w-8 animate-spin text-[#9a6a16] dark:text-[#CE9F48]" />
       </div>
     );
   }
 
   return (
-    <div className={cn(embedded ? '' : 'min-h-screen', 'bg-[#0a0a0a] px-4 py-8 text-white')}>
+    <div className={cn(embedded ? '' : 'min-h-screen', 'bg-[#f7f4ee] dark:bg-[#0a0a0a] px-4 py-8 text-[#1f1a14] dark:text-white')}>
       <div className="mx-auto max-w-6xl space-y-6">
         {!embedded && onBack && (
           <button
             onClick={onBack}
-            className="flex items-center gap-2 text-sm text-gray-400 transition-colors hover:text-white"
+            className="flex items-center gap-2 text-sm text-[#6f6251] dark:text-gray-400 transition-colors hover:text-[#1f1a14] dark:hover:text-white"
           >
             <ArrowLeft className="h-4 w-4" />
-            Voltar
+            {t('student_dashboard.rewards.btn_back')}
           </button>
         )}
 
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-lg border border-[#CE9F48]/20 bg-[#CE9F48]/10">
-              <Gift className="h-5 w-5 text-[#CE9F48]" />
+              <Gift className="h-5 w-5 text-[#9a6a16] dark:text-[#CE9F48]" />
             </div>
-            <h1 className="text-2xl font-black tracking-tight">Programa de Indicação</h1>
-            <p className="mt-1 text-sm text-gray-500">
-              Compartilhe seu link, acompanhe agendamentos e veja suas indicações fechadas.
+            <h1 className="text-2xl font-black tracking-tight">{t('student_dashboard.rewards.title')}</h1>
+            <p className="mt-1 text-sm text-[#8a7b66] dark:text-gray-500">
+              {t('student_dashboard.rewards.subtitle')}
             </p>
           </div>
-          <Badge className={goalReached ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300' : 'border-[#CE9F48]/30 bg-[#CE9F48]/10 text-[#CE9F48]'}>
-            {goalReached ? 'Meta atingida' : `${remaining} fechamento(s) restantes`}
+          <Badge className={goalReached ? 'border-emerald-600/30 bg-emerald-50 text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300' : 'border-amber-600/30 bg-amber-50 text-amber-700 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300'}>
+            {goalReached ? t('student_dashboard.rewards.badge_goal_reached') : t('student_dashboard.rewards.badge_remaining', { remaining })}
           </Badge>
         </div>
 
@@ -212,83 +214,83 @@ export const StudentRewardsPanel: React.FC<StudentRewardsPanelProps> = ({ embedd
         )}
 
         <section className="grid gap-4 md:grid-cols-3">
-          <MetricCard icon={Trophy} label="Fechamentos" value={`${closures}/${GOAL}`} tone={goalReached ? 'green' : 'gold'} />
-          <MetricCard icon={Users} label="Cliques no link" value={String(clicks)} tone="blue" />
-          <MetricCard icon={Calendar} label="Reuniões agendadas" value={String(scheduled)} tone="purple" />
+          <MetricCard icon={Trophy} label={t('student_dashboard.rewards.kpi_closures')} value={`${closures}/${GOAL}`} tone={goalReached ? 'green' : 'gold'} />
+          <MetricCard icon={Users} label={t('student_dashboard.rewards.kpi_clicks')} value={String(clicks)} tone="blue" />
+          <MetricCard icon={Calendar} label={t('student_dashboard.rewards.kpi_meetings')} value={String(scheduled)} tone="purple" />
         </section>
 
-        <Card className="border-white/10 bg-[#111] text-white">
+        <Card className="border-[#e3d5bd] dark:border-white/10 bg-white dark:bg-[#111] text-[#1f1a14] dark:text-white">
           <CardContent className="p-6">
             <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr] lg:items-center">
               <div>
                 <div className="mb-4 flex items-center justify-between gap-4">
                   <div>
-                    <h2 className="text-sm font-black uppercase tracking-widest text-gray-300">Progresso da Meta</h2>
-                    <p className="mt-1 text-xs text-gray-500">10 indicações fechadas reduzem sua tuition para {REDUCED_TUITION}.</p>
+                    <h2 className="text-sm font-black uppercase tracking-widest text-[#4b4032] dark:text-gray-300">{t('student_dashboard.rewards.progress_title')}</h2>
+                    <p className="mt-1 text-xs text-[#8a7b66] dark:text-gray-500">{t('student_dashboard.rewards.progress_desc', { tuition: REDUCED_TUITION })}</p>
                   </div>
-                  <span className="text-3xl font-black text-[#CE9F48]">{Math.round(progress)}%</span>
+                  <span className="text-3xl font-black text-[#9a6a16] dark:text-[#CE9F48]">{Math.round(progress)}%</span>
                 </div>
-                <Progress value={progress} className="h-3 bg-white/10" />
+                <Progress value={progress} className="h-3 bg-[#eadbbf] dark:bg-white/10" />
                 {goalReached && referral?.goal_reached_at ? (
                   <div className="mt-4 flex items-center gap-2 rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-300">
                     <CheckCircle2 className="h-4 w-4 shrink-0" />
                     <span>
-                      Meta atingida em {formatDate(referral.goal_reached_at)}. Tuition reduzida para{' '}
+                      {t('student_dashboard.rewards.progress_reached_date', { date: formatDate(referral.goal_reached_at, t, i18n.language) })}{' '}
                       <strong>{REDUCED_TUITION}</strong>.
                     </span>
                   </div>
                 ) : (
-                  <p className="mt-4 text-sm text-gray-400">
+                  <p className="mt-4 text-sm text-[#6f6251] dark:text-gray-400">
                     {goalReached
-                      ? `Meta atingida. Sua tuition fica elegível para ${REDUCED_TUITION}.`
-                      : `Faltam ${remaining} indicação(ões) fechadas para atingir o benefício.`}
+                      ? t('student_dashboard.rewards.progress_reached', { tuition: REDUCED_TUITION })
+                      : t('student_dashboard.rewards.progress_missing', { remaining })}
                   </p>
                 )}
               </div>
 
-              <div className="rounded-lg border border-white/10 bg-white/[0.03] p-4">
-                <p className="text-[10px] font-black uppercase tracking-widest text-gray-500">Código único</p>
-                <p className="mt-1 font-mono text-lg font-black text-white">{referral?.unique_code ?? '—'}</p>
-                <p className="mt-3 text-xs leading-relaxed text-gray-500">
-                  O link leva para a página de agendamento e mantém o código do indicador no lead.
+              <div className="rounded-lg border border-[#e3d5bd] dark:border-white/10 bg-white/70 dark:bg-white/[0.03] p-4">
+                <p className="text-[10px] font-black uppercase tracking-widest text-[#8a7b66] dark:text-gray-500">{t('student_dashboard.rewards.code_title')}</p>
+                <p className="mt-1 font-mono text-lg font-black text-[#1f1a14] dark:text-white">{referral?.unique_code ?? '—'}</p>
+                <p className="mt-3 text-xs leading-relaxed text-[#8a7b66] dark:text-gray-500">
+                  {t('student_dashboard.rewards.code_desc')}
                 </p>
               </div>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="border-white/10 bg-[#111] text-white">
+        <Card className="border-[#e3d5bd] dark:border-white/10 bg-white dark:bg-[#111] text-[#1f1a14] dark:text-white">
           <CardContent className="p-6">
             <div className="mb-4 flex items-center gap-2">
-              <Users className="h-5 w-5 text-[#CE9F48]" />
-              <h2 className="text-sm font-black uppercase tracking-widest text-gray-300">Seu link de indicação</h2>
+              <Users className="h-5 w-5 text-[#9a6a16] dark:text-[#CE9F48]" />
+              <h2 className="text-sm font-black uppercase tracking-widest text-[#4b4032] dark:text-gray-300">{t('student_dashboard.rewards.link_title')}</h2>
             </div>
 
             <div className="flex flex-col gap-3 lg:flex-row">
-              <div className="min-w-0 flex-1 rounded-lg border border-white/10 bg-white/[0.04] px-4 py-3 font-mono text-sm text-gray-300">
+              <div className="min-w-0 flex-1 rounded-lg border border-[#e3d5bd] dark:border-white/10 bg-white/[0.04] px-4 py-3 font-mono text-sm text-[#4b4032] dark:text-gray-300">
                 <span className="block truncate">{referralUrl}</span>
               </div>
               <div className="flex flex-wrap gap-2">
                 <Button onClick={handleCopy} className="bg-[#CE9F48] text-black hover:bg-[#b8892f]">
                   {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-                  {copied ? 'Copiado' : 'Copiar'}
+                  {copied ? t('student_dashboard.rewards.btn_copied') : t('student_dashboard.rewards.btn_copy')}
                 </Button>
-                <Button variant="outline" asChild className="border-white/10 bg-white/5 text-white hover:bg-white/10">
+                <Button variant="outline" asChild className="border-[#e3d5bd] dark:border-white/10 bg-[#f3ead9] dark:bg-white/5 text-[#1f1a14] dark:text-white hover:bg-[#eadbbf] dark:hover:bg-white/10">
                   <a href={whatsappUrl} target="_blank" rel="noopener noreferrer">
                     <MessageCircle className="h-4 w-4" />
-                    WhatsApp
+                    {t('student_dashboard.rewards.btn_whatsapp')}
                   </a>
                 </Button>
-                <Button variant="outline" asChild className="border-white/10 bg-white/5 text-white hover:bg-white/10">
+                <Button variant="outline" asChild className="border-[#e3d5bd] dark:border-white/10 bg-[#f3ead9] dark:bg-white/5 text-[#1f1a14] dark:text-white hover:bg-[#eadbbf] dark:hover:bg-white/10">
                   <a href={emailUrl}>
                     <Mail className="h-4 w-4" />
-                    Email
+                    {t('student_dashboard.rewards.btn_email')}
                   </a>
                 </Button>
-                <Button variant="outline" asChild className="border-white/10 bg-white/5 text-white hover:bg-white/10">
+                <Button variant="outline" asChild className="border-[#e3d5bd] dark:border-white/10 bg-[#f3ead9] dark:bg-white/5 text-[#1f1a14] dark:text-white hover:bg-[#eadbbf] dark:hover:bg-white/10">
                   <a href={referralUrl} target="_blank" rel="noopener noreferrer">
                     <ExternalLink className="h-4 w-4" />
-                    Abrir
+                    {t('student_dashboard.rewards.btn_open')}
                   </a>
                 </Button>
               </div>
@@ -297,56 +299,56 @@ export const StudentRewardsPanel: React.FC<StudentRewardsPanelProps> = ({ embedd
         </Card>
 
         <div className="grid gap-4 lg:grid-cols-[0.9fr_1.1fr]">
-          <Card className="border-white/10 bg-[#111] text-white">
+          <Card className="border-[#e3d5bd] dark:border-white/10 bg-white dark:bg-[#111] text-[#1f1a14] dark:text-white">
             <CardContent className="p-6">
-              <h2 className="mb-4 text-sm font-black uppercase tracking-widest text-gray-300">Como funciona</h2>
+              <h2 className="mb-4 text-sm font-black uppercase tracking-widest text-[#4b4032] dark:text-gray-300">{t('student_dashboard.rewards.how_title')}</h2>
               <div className="space-y-4">
                 {[
-                  'Compartilhe seu link com amigos que querem estudar nos EUA.',
-                  'O lead agenda uma reunião e o sistema preserva seu código de indicação.',
-                  'Quando o CRM marca o lead como fechado, seu contador sobe em tempo real.',
-                  `Com ${GOAL} fechamentos, sua tuition fica elegível para ${REDUCED_TUITION}.`,
+                  t('student_dashboard.rewards.how_step1'),
+                  t('student_dashboard.rewards.how_step2'),
+                  t('student_dashboard.rewards.how_step3'),
+                  t('student_dashboard.rewards.how_step4', { goal: GOAL, tuition: REDUCED_TUITION }),
                 ].map((step, index) => (
                   <div key={step} className="flex gap-3">
-                    <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-[#CE9F48]/20 bg-[#CE9F48]/10 text-xs font-black text-[#CE9F48]">
+                    <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-[#CE9F48]/20 bg-[#CE9F48]/10 text-xs font-black text-[#9a6a16] dark:text-[#CE9F48]">
                       {index + 1}
                     </span>
-                    <p className="text-sm leading-relaxed text-gray-400">{step}</p>
+                    <p className="text-sm leading-relaxed text-[#6f6251] dark:text-gray-400">{step}</p>
                   </div>
                 ))}
               </div>
             </CardContent>
           </Card>
 
-          <Card className="border-white/10 bg-[#111] text-white">
+          <Card className="border-[#e3d5bd] dark:border-white/10 bg-white dark:bg-[#111] text-[#1f1a14] dark:text-white">
             <CardContent className="p-6">
               <div className="mb-4 flex items-center justify-between gap-3">
-                <h2 className="text-sm font-black uppercase tracking-widest text-gray-300">Agendamentos recentes</h2>
-                <Badge className="border-white/10 bg-white/5 text-gray-300">{events.length}</Badge>
+                <h2 className="text-sm font-black uppercase tracking-widest text-[#4b4032] dark:text-gray-300">{t('student_dashboard.rewards.meetings_title')}</h2>
+                <Badge className="border-[#e3d5bd] dark:border-white/10 bg-[#f3ead9] dark:bg-white/5 text-[#4b4032] dark:text-gray-300">{events.length}</Badge>
               </div>
 
               {events.length === 0 ? (
-                <div className="flex min-h-[180px] flex-col items-center justify-center rounded-lg border border-dashed border-white/10 bg-white/[0.02] text-center">
-                  <Calendar className="mb-3 h-8 w-8 text-gray-600" />
-                  <p className="text-sm font-bold text-gray-300">Nenhuma reunião registrada ainda</p>
-                  <p className="mt-1 max-w-sm text-xs text-gray-500">Quando alguém agendar usando seu link, o registro aparecerá aqui.</p>
+                <div className="flex min-h-[180px] flex-col items-center justify-center rounded-lg border border-dashed border-[#e3d5bd] dark:border-white/10 bg-white/[0.02] text-center">
+                  <Calendar className="mb-3 h-8 w-8 text-[#6f6251] dark:text-gray-600" />
+                  <p className="text-sm font-bold text-[#4b4032] dark:text-gray-300">{t('student_dashboard.rewards.meetings_empty_title')}</p>
+                  <p className="mt-1 max-w-sm text-xs text-[#8a7b66] dark:text-gray-500">{t('student_dashboard.rewards.meetings_empty_desc')}</p>
                 </div>
               ) : (
                 <div className="space-y-3">
                   {events.map(event => (
-                    <div key={event.id} className="rounded-lg border border-white/10 bg-white/[0.03] px-4 py-3">
+                    <div key={event.id} className="rounded-lg border border-[#e3d5bd] dark:border-white/10 bg-white/70 dark:bg-white/[0.03] px-4 py-3">
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
-                          <p className="truncate text-sm font-bold text-white">{event.invitee_name || event.invitee_email || 'Lead indicado'}</p>
-                          <p className="mt-1 truncate text-xs text-gray-500">{event.invitee_email || event.event_type || 'Calendly'}</p>
+                          <p className="truncate text-sm font-bold text-[#1f1a14] dark:text-white">{event.invitee_name || event.invitee_email || t('student_dashboard.rewards.meetings_lead_placeholder')}</p>
+                          <p className="mt-1 truncate text-xs text-[#8a7b66] dark:text-gray-500">{event.invitee_email || event.event_type || 'Calendly'}</p>
                         </div>
-                        <Badge className="border-blue-500/20 bg-blue-500/10 text-blue-300">
-                          Agendado
+                        <Badge className="border-blue-600/30 bg-blue-50 text-blue-700 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-300">
+                          {t('student_dashboard.rewards.badge_scheduled')}
                         </Badge>
                       </div>
-                      <div className="mt-3 flex items-center gap-2 text-xs text-gray-500">
+                      <div className="mt-3 flex items-center gap-2 text-xs text-[#8a7b66] dark:text-gray-500">
                         <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
-                        {formatDate(event.scheduled_at ?? event.created_at)}
+                        {formatDate(event.scheduled_at ?? event.created_at, t, i18n.language)}
                       </div>
                     </div>
                   ))}
@@ -372,17 +374,17 @@ function MetricCard({
   tone: 'gold' | 'green' | 'blue' | 'purple';
 }) {
   const tones = {
-    gold: 'border-[#CE9F48]/20 bg-[#CE9F48]/10 text-[#CE9F48]',
-    green: 'border-emerald-500/20 bg-emerald-500/10 text-emerald-300',
-    blue: 'border-blue-500/20 bg-blue-500/10 text-blue-300',
-    purple: 'border-violet-500/20 bg-violet-500/10 text-violet-300',
+    gold: 'border-amber-600/30 bg-amber-50 text-amber-700 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300',
+    green: 'border-emerald-600/30 bg-emerald-50 text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300',
+    blue: 'border-blue-600/30 bg-blue-50 text-blue-700 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-300',
+    purple: 'border-violet-600/30 bg-violet-50 text-violet-700 dark:border-violet-500/30 dark:bg-violet-500/10 dark:text-violet-300',
   };
 
   return (
-    <Card className="border-white/10 bg-[#111] text-white">
+    <Card className="border-[#e3d5bd] dark:border-white/10 bg-white dark:bg-[#111] text-[#1f1a14] dark:text-white">
       <CardContent className="flex items-center justify-between gap-4 p-5">
         <div>
-          <p className="text-[10px] font-black uppercase tracking-widest text-gray-500">{label}</p>
+          <p className="text-[10px] font-black uppercase tracking-widest text-[#8a7b66] dark:text-gray-500">{label}</p>
           <p className="mt-2 text-2xl font-black">{value}</p>
         </div>
         <div className={cn('flex h-11 w-11 items-center justify-center rounded-lg border', tones[tone])}>
