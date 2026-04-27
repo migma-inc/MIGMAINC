@@ -708,7 +708,8 @@ export const VisaOrdersPage = () => {
     }
 
     if (methodFilter !== 'all') {
-      query = query.ilike('payment_method', `%${methodFilter}%`);
+      const methodSearchValue = methodFilter === 'infinitepay' ? 'infinite' : methodFilter;
+      query = query.ilike('payment_method', `%${methodSearchValue}%`);
     }
 
     const normalizedSearch = search.trim().toLowerCase();
@@ -1183,6 +1184,7 @@ export const VisaOrdersPage = () => {
                   <SelectItem value="parcelow">Parcelow</SelectItem>
                   <SelectItem value="stripe">Stripe</SelectItem>
                   <SelectItem value="square">Square</SelectItem>
+                  <SelectItem value="infinitepay">InfinitePay</SelectItem>
                   <SelectItem value="zelle">Zelle</SelectItem>
                 </SelectContent>
               </Select>
