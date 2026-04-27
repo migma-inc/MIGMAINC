@@ -191,10 +191,13 @@ export function CreateServiceLink() {
 
     try {
       if (editingProduct) {
+        const slug = generateSlug(formData.name);
+
         // UPDATE
         const { error } = await supabase
           .from('visa_products')
           .update({
+            slug,
             name: formData.name,
             description: formData.description || null,
             base_price_usd: Number(formData.base_price_usd),
@@ -209,6 +212,20 @@ export function CreateServiceLink() {
           .eq('id', editingProduct.id);
 
         if (error) throw error;
+
+        if (slug !== editingProduct.slug) {
+          const { error: templateError } = await supabase
+            .from('contract_templates')
+            .update({
+              product_slug: slug,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('template_type', 'visa_service')
+            .eq('product_slug', editingProduct.slug);
+
+          if (templateError) throw templateError;
+        }
+
         invalidateGenerateLinksCache();
       } else {
         // INSERT
@@ -340,7 +357,7 @@ export function CreateServiceLink() {
                       className="bg-black/50 border-white/10 text-white h-10 focus:border-gold-medium/50 transition-all"
                       required
                     />
-                    {!editingProduct && formData.name && (
+                    {formData.name && (
                       <p className="text-xs text-gray-500 font-mono">Slug: {generateSlug(formData.name)}</p>
                     )}
                   </div>
@@ -393,7 +410,7 @@ export function CreateServiceLink() {
                     <Settings className="w-4 h-4 text-gold-medium shrink-0" />
                     <p className="text-xs text-gray-400">
                       {editingProduct
-                        ? 'The slug will not change when editing.'
+                        ? 'Slug is updated from the service name when editing.'
                         : 'Slug is auto-generated from the name. All new links are active by default.'}
                     </p>
                   </div>
