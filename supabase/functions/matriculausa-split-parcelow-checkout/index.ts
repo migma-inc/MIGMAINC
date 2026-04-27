@@ -189,6 +189,14 @@ Deno.serve(async (req: Request) => {
 
     const parcelowClient = new ParcelowClient(parcelowClientId, parcelowClientSecret, parcelowEnv);
 
+    // ── 0. Validar tipo de aplicação ──────────────────────────────────────────
+    let applicationType: 'legacy' | 'institution' = 'legacy';
+    const { data: legacyApp } = await supabase.from('scholarship_applications').select('id').eq('id', scholarship_application_id).maybeSingle();
+    if (!legacyApp) {
+      const { data: v11App } = await supabase.from('institution_applications').select('id').eq('id', scholarship_application_id).maybeSingle();
+      if (v11App) applicationType = 'institution';
+    }
+
     // ── 1. Criar registro split_payments ──────────────────────────────────────
     const { data: splitRecord, error: splitErr } = await supabase
       .from("split_payments")
@@ -205,6 +213,7 @@ Deno.serve(async (req: Request) => {
         part2_amount_usd: p2,
         part2_payment_method: part2_method.replace("parcelow_", ""),
         overall_status: "pending",
+        // Usamos metadata para saber se é V11 no webhook se necessário, ou prefixo na referência
       })
       .select("id")
       .single();
@@ -213,19 +222,19 @@ Deno.serve(async (req: Request) => {
       throw new Error(`Erro ao criar split_payments: ${splitErr?.message}`);
     }
     const splitPaymentId = splitRecord.id;
-    debug_logs.push(`✅ split_payments criado: ${splitPaymentId}`);
+    debug_logs.push(`✅ split_payments criado: ${splitPaymentId} (type=${applicationType})`);
 
     const p1SuccessUrl = `${originUrl}/checkout/split-payment/redirect?split_payment_id=${splitPaymentId}&split_return=1&part=1`;
     const p2SuccessUrl = `${originUrl}/checkout/split-payment/redirect?split_payment_id=${splitPaymentId}&split_return=1&part=2`;
     const failedUrl = `${originUrl}/student/onboarding?step=payment&af_return=failed`;
     const notifyUrl = `${supabaseUrl}/functions/v1/parcelow-webhook`;
 
-    const appIdShort = scholarship_application_id.slice(0, 8);
+    const refPrefix = applicationType === 'legacy' ? 'MATRICULAUSA-AF-APP-' : 'MATRICULAUSA-AF-V11-';
 
     // ── 2. Criar P1 ───────────────────────────────────────────────────────────
     debug_logs.push("Criando P1 via Parcelow MatriculaUSA...");
     const p1Order = buildParcelowOrder({
-      reference: `MATRICULAUSA-AF-APP-${scholarship_application_id}-P1`,
+      reference: `${refPrefix}${scholarship_application_id}-P1`,
       partnerReference: `${user_id}-AF-P1`,
       cpf: cpf || "00000000000",
       name: full_name,
@@ -250,7 +259,7 @@ Deno.serve(async (req: Request) => {
     // ── 3. Criar P2 ───────────────────────────────────────────────────────────
     debug_logs.push("Criando P2 via Parcelow MatriculaUSA...");
     const p2Order = buildParcelowOrder({
-      reference: `MATRICULAUSA-AF-APP-${scholarship_application_id}-P2`,
+      reference: `${refPrefix}${scholarship_application_id}-P2`,
       partnerReference: `${user_id}-AF-P2`,
       cpf: cpf || "00000000000",
       name: full_name,

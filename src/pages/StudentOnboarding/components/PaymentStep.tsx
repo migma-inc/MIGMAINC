@@ -25,15 +25,10 @@ const MATRICULAUSA_ZELLE_EMAIL = 'pay@matriculausa.com';
 interface ApplicationWithScholarship {
   id: string;
   is_application_fee_paid: boolean;
-  scholarship_id: string;
-  scholarships: {
-    id: string;
-    title?: string;
-    name?: string;
-    application_fee_amount: number | null;
-    annual_value_with_scholarship?: number;
-    universities: { name: string } | null;
-  } | null;
+  type: 'legacy' | 'v11';
+  fee_amount: number;
+  scholarship_name: string;
+  university_name: string;
 }
 
 type PaymentMethod = 'stripe' | 'parcelow_card' | 'parcelow_pix' | 'parcelow_ted' | 'zelle';
@@ -91,16 +86,37 @@ export const PaymentStep: React.FC<StepProps> = ({ onNext }) => {
   const fetchApplications = useCallback(async () => {
     if (!userProfile?.id) return;
     try {
-      const { data } = await supabase
-        .from('scholarship_applications')
+      setLoading(true);
+      
+      // Consultamos apenas as aplicações V11, pois as tabelas legacy foram removidas do banco
+      const { data, error } = await supabase
+        .from('institution_applications')
         .select(`
-          id, is_application_fee_paid, scholarship_id,
-          scholarships(id, title, name, application_fee_amount, annual_value_with_scholarship, universities(name))
+          id, status,
+          institutions(name, application_fee_usd)
         `)
-        .eq('student_id', userProfile.id);
-      setApplications((data as unknown as ApplicationWithScholarship[]) || []);
+        .eq('profile_id', userProfile.id);
+
+      if (error) {
+        console.error('[PaymentStep] Error fetching applications:', error);
+        throw error;
+      }
+
+      const numDependents = userProfile?.num_dependents || 0;
+      const migmaFee = 350 + (numDependents * 100);
+
+      const normalizedV11: ApplicationWithScholarship[] = (data || []).map((app: any) => ({
+        id: app.id,
+        is_application_fee_paid: false,
+        type: 'v11',
+        fee_amount: migmaFee, // Migma Rule: $350 base + $100 per dependent
+        scholarship_name: 'University Application',
+        university_name: app.institutions?.name || '',
+      }));
+
+      setApplications(normalizedV11);
     } catch (err) {
-      console.error('[PaymentStep]', err);
+      console.error('[PaymentStep] fetchApplications error:', err);
     } finally {
       setLoading(false);
     }
@@ -113,12 +129,11 @@ export const PaymentStep: React.FC<StepProps> = ({ onNext }) => {
 
   const alreadyPaid = userProfile?.is_application_fee_paid || applications.some(a => a.is_application_fee_paid);
   const firstApp = applications[0];
-  const scholarship = firstApp?.scholarships;
-  const applicationFee = scholarship?.application_fee_amount ?? 400;
+  const applicationFee = firstApp?.fee_amount ?? 400;
   const cardAmount = calculateCardAmountWithFees(applicationFee);
   const pixTotal = calculatePIXTotalWithIOF(applicationFee, exchangeRate);
-  const scholarshipName = scholarship?.title || scholarship?.name || 'Selected Scholarship';
-  const universityName = scholarship?.universities?.name || '';
+  const scholarshipName = firstApp?.scholarship_name || 'Selected Scholarship';
+  const universityName = firstApp?.university_name || '';
 
   const needsCpf = !!selectedMethod && ['parcelow_card', 'parcelow_pix', 'parcelow_ted'].includes(selectedMethod);
   const canPay = !!selectedMethod && selectedMethod !== 'zelle' &&
@@ -234,6 +249,30 @@ export const PaymentStep: React.FC<StepProps> = ({ onNext }) => {
     );
   }
 
+  if (!firstApp) {
+    return (
+      <div className="space-y-8 pb-12 max-w-2xl mx-auto px-4">
+        <div className="border border-red-500/20 bg-red-500/5 rounded-3xl p-10 text-center">
+          <div className="w-20 h-20 bg-red-500/10 rounded-full flex items-center justify-center mx-auto mb-6 border border-red-500/20">
+            <AlertCircle className="w-10 h-10 text-red-400" />
+          </div>
+          <h3 className="text-2xl font-black text-white mb-3 uppercase tracking-tight">
+            Nenhuma universidade selecionada
+          </h3>
+          <p className="text-gray-400 text-sm leading-relaxed max-w-sm mx-auto mb-8">
+            Você ainda não escolheu uma universidade ou bolsa. Por favor, volte ao passo anterior para selecionar uma antes de prosseguir com o pagamento.
+          </p>
+          <button
+            onClick={() => window.location.href = '?step=scholarship'}
+            className="w-full bg-white/10 hover:bg-white/20 text-white py-4 px-8 rounded-2xl font-black uppercase tracking-widest transition-all"
+          >
+            Voltar para Seleção
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   if (zelleSubmitted) {
     return (
       <div className="space-y-8 pb-12 max-w-2xl mx-auto px-4">
@@ -276,7 +315,7 @@ export const PaymentStep: React.FC<StepProps> = ({ onNext }) => {
       <div className="bg-white/[0.04] border border-white/10 rounded-3xl overflow-hidden">
 
         {/* Scholarship info row */}
-        {scholarship && (
+        {firstApp && (
           <div className="p-5 flex items-center gap-4">
             <div className="w-14 h-14 rounded-2xl bg-white/10 border border-white/10 flex items-center justify-center shrink-0">
               <Building className="w-6 h-6 text-gray-400" />
@@ -289,6 +328,15 @@ export const PaymentStep: React.FC<StepProps> = ({ onNext }) => {
                 <Building className="w-3 h-3 shrink-0" />
                 {universityName}
               </p>
+              {userProfile?.num_dependents ? (
+                <p className="text-[10px] text-gold-medium/80 font-bold mt-1 uppercase tracking-wider">
+                  Inclui {userProfile.num_dependents} dependente{userProfile.num_dependents > 1 ? 's' : ''} (+$100 cada)
+                </p>
+              ) : (
+                <p className="text-[10px] text-gray-600 font-bold mt-1 uppercase tracking-wider">
+                  Individual (Sem dependentes)
+                </p>
+              )}
             </div>
             <div className="text-right shrink-0 ml-2">
               <p className="text-[9px] font-black uppercase tracking-widest text-gray-500 mb-0.5">Taxa de Matrícula</p>

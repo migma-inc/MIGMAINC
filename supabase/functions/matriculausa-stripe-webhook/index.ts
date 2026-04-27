@@ -22,7 +22,9 @@ async function syncApplicationFeeToMatriculaUSA(
   matriculausaClient: any,
   matriculaUserId: string | null,
   email: string,
-  paymentMethod: string
+  paymentMethod: string,
+  amountUsd: number,
+  transactionId: string
 ) {
   let matriculaProfileId: string | null = null;
 
@@ -45,24 +47,54 @@ async function syncApplicationFeeToMatriculaUSA(
   }
 
   if (!matriculaProfileId) {
-    console.warn("[Sync MatriculaUSA] Perfil não encontrado no MatriculaUSA");
+    console.warn("[Sync MatriculaUSA] Perfil não encontrado no MatriculaUSA para sync financeiro");
     return;
   }
 
-  const { error: syncErr } = await matriculausaClient
+  // 1. Registro Financeiro (Auditoria)
+  const { error: payErr } = await matriculausaClient
+    .from("payments")
+    .insert({
+      student_id: matriculaProfileId,
+      payment_type: 'application_fee',
+      amount_charged: amountUsd,
+      status: 'succeeded',
+      stripe_payment_intent_id: transactionId,
+    });
+
+  if (payErr) {
+    console.warn("[Sync MatriculaUSA] Erro ao inserir registro em public.payments:", payErr.message);
+  }
+
+  // 2. Atualização da Aplicação
+  const { error: appErr } = await matriculausaClient
     .from("scholarship_applications")
     .update({
       is_application_fee_paid: true,
       application_fee_payment_method: paymentMethod,
-      application_fee_paid_at: new Date().toISOString(),
+      paid_at: new Date().toISOString(),
+      source: 'migma',
     })
     .eq("student_id", matriculaProfileId)
     .eq("source", "migma");
 
-  if (syncErr) {
-    console.warn("[Sync MatriculaUSA] Erro ao atualizar scholarship_applications:", syncErr.message);
+  if (appErr) {
+    console.warn("[Sync MatriculaUSA] Erro ao atualizar scholarship_applications:", appErr.message);
+  }
+
+  // 3. Atualização do Perfil
+  const { error: profErr } = await matriculausaClient
+    .from("user_profiles")
+    .update({
+      is_application_fee_paid: true,
+      application_fee_paid_at: new Date().toISOString(),
+    })
+    .eq("id", matriculaProfileId);
+
+  if (profErr) {
+    console.warn("[Sync MatriculaUSA] Erro ao atualizar user_profiles:", profErr.message);
   } else {
-    console.log("[Sync MatriculaUSA] ✅ is_application_fee_paid = true no MatriculaUSA para student:", matriculaProfileId);
+    console.log("[Sync MatriculaUSA] ✅ Sincronização completa realizada no MatriculaUSA para student:", matriculaProfileId);
   }
 }
 
@@ -91,36 +123,42 @@ Deno.serve(async (req) => {
     }
 
     const rawBody = await req.text();
-    const webhookSecrets = getAllWebhookSecrets();
-
-    if (webhookSecrets.length === 0) {
-      throw new Error("No MATRICULAUSA_STRIPE_WEBHOOK_SECRET_TEST or _PROD configured");
+    
+    // Detectar ambiente via livemode no body antes de validar
+    let isLive = false;
+    try {
+      const bodyJson = JSON.parse(rawBody);
+      isLive = bodyJson.livemode === true;
+    } catch (_) {
+      // Se falhar o parse, o constructEventAsync pegará o erro depois
     }
 
-    // Tentar verificar com cada secret até um funcionar
-    let event: Stripe.Event | null = null;
-    let verifiedEnv: "prod" | "test" | null = null;
+    const env = isLive ? "prod" : "test";
+    const secret = Deno.env.get(`MATRICULAUSA_STRIPE_WEBHOOK_SECRET_${env.toUpperCase()}`);
+    const stripeKey = Deno.env.get(`MATRICULAUSA_STRIPE_SECRET_KEY_${env.toUpperCase()}`);
 
-    for (const { env, secret } of webhookSecrets) {
-      try {
-        const stripeKey = env === "prod"
-          ? (Deno.env.get("MATRICULAUSA_STRIPE_SECRET_KEY_PROD") || "")
-          : (Deno.env.get("MATRICULAUSA_STRIPE_SECRET_KEY_TEST") || "");
-        const stripe = new Stripe(stripeKey, { apiVersion: "2024-12-18.acacia" as any });
-        event = stripe.webhooks.constructEvent(rawBody, sig, secret);
-        verifiedEnv = env;
-        break;
-      } catch (_) {
-        // Tentar próximo secret
-      }
+    console.log(`[matriculausa-stripe-webhook] Evento detectado: ${env.toUpperCase()} (livemode=${isLive})`);
+
+    if (!secret || !stripeKey) {
+      console.error(`[matriculausa-stripe-webhook] Chaves para ambiente ${env.toUpperCase()} não configuradas`);
+      return new Response(JSON.stringify({ error: `Environment ${env} not configured` }), {
+        status: 500, headers: { ...CORS, "Content-Type": "application/json" },
+      });
     }
 
-    if (!event || !verifiedEnv) {
-      console.warn("[matriculausa-stripe-webhook] Assinatura inválida com todos os secrets configurados");
-      return new Response(JSON.stringify({ error: "Invalid signature" }), {
+    let event: Stripe.Event;
+    try {
+      const stripe = new Stripe(stripeKey, { apiVersion: "2024-12-18.acacia" as any });
+      event = await stripe.webhooks.constructEventAsync(rawBody, sig, secret);
+      console.log(`[matriculausa-stripe-webhook] ✅ Assinatura validada com sucesso (${env})`);
+    } catch (err: any) {
+      console.error(`[matriculausa-stripe-webhook] ❌ Falha na validação (${env}): ${err.message}`);
+      return new Response(JSON.stringify({ error: "Invalid signature", details: err.message }), {
         status: 400, headers: { ...CORS, "Content-Type": "application/json" },
       });
     }
+
+    const verifiedEnv = env;
 
     console.log(`[matriculausa-stripe-webhook] Evento verificado: ${event.type} (env=${verifiedEnv})`);
 
@@ -159,16 +197,22 @@ Deno.serve(async (req) => {
 
     const profileId = sessionRecord?.profile_id;
 
-    // 1. Atualizar scholarship_applications
-    const { error: appErr } = await supabase
-      .from("scholarship_applications")
-      .update({ is_application_fee_paid: true })
-      .eq("id", scholarshipApplicationId);
+    // 1. Atualizar scholarship_applications (Apenas se for legacy)
+    const applicationType = session.metadata?.application_type || 'legacy';
+    
+    if (applicationType === 'legacy') {
+      const { error: appErr } = await supabase
+        .from("scholarship_applications")
+        .update({ is_application_fee_paid: true })
+        .eq("id", scholarshipApplicationId);
 
-    if (appErr) {
-      console.error("[matriculausa-stripe-webhook] Erro ao atualizar scholarship_applications:", appErr.message);
+      if (appErr) {
+        console.error("[matriculausa-stripe-webhook] Erro ao atualizar scholarship_applications:", appErr.message);
+      } else {
+        console.log("[matriculausa-stripe-webhook] ✅ scholarship_applications.is_application_fee_paid = true");
+      }
     } else {
-      console.log("[matriculausa-stripe-webhook] ✅ scholarship_applications.is_application_fee_paid = true");
+      console.log("[matriculausa-stripe-webhook] Skipping scholarship_applications update (V11 flow)");
     }
 
     // 2. Atualizar user_profiles via profile_id
@@ -227,7 +271,9 @@ Deno.serve(async (req) => {
             matriculausaClient,
             migmaProfile.matricula_user_id,
             migmaProfile.email,
-            "stripe"
+            "stripe",
+            (session.amount_total || 0) / 100,
+            session.id
           );
         } else {
           console.warn("[matriculausa-stripe-webhook] Perfil Migma não encontrado para sync MatriculaUSA");

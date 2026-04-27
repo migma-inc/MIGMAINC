@@ -171,16 +171,10 @@ export const useOnboardingProgress = () => {
         contractApproved = !!orderData;
       }
 
-      const [{ data: appsData }, { data: v11AppsData }] = await Promise.all([
-        supabase
-          .from('scholarship_applications')
-          .select('id, scholarship_id, student_process_type, is_application_fee_paid')
-          .eq('student_id', studentId),
-        supabase
-          .from('institution_applications')
-          .select('id, status, institution_id, scholarship_level_id, package_status')
-          .eq('profile_id', studentId)
-      ]);
+      const { data: v11AppsData } = await supabase
+        .from('institution_applications')
+        .select('id, status, institution_id, scholarship_level_id, package_status')
+        .eq('profile_id', studentId);
 
       // Cart de bolsas / Seleção realizada
       let scholarshipsSelected = false;
@@ -189,18 +183,16 @@ export const useOnboardingProgress = () => {
         await applicationStore.fetchCart(user.id);
         const currentCart = useCartStore.getState().cart;
         
-        const hasLegacyApps = appsData && appsData.length > 0;
         const hasV11Apps = v11AppsData && v11AppsData.length > 0;
         
         scholarshipsSelected = !!(
           currentCart.length > 0 ||
-          hasLegacyApps ||
           hasV11Apps ||
           !!freshProfile.selected_scholarship_id
         );
 
         scholarshipsApproved = hasV11Apps && v11AppsData!.some(a => 
-          ['approved', 'payment_pending', 'payment_confirmed'].includes(a.status)
+          ['approved', 'payment_pending', 'payment_confirmed', 'accepted'].includes(a.status)
         );
       }
 
@@ -209,7 +201,7 @@ export const useOnboardingProgress = () => {
 
       const documentsUploaded = freshProfile.documents_uploaded || false;
       const documentsApproved = freshProfile.documents_status === 'approved';
-      const applicationFeePaid = (appsData?.some((a: any) => a.is_application_fee_paid)) || freshProfile.is_application_fee_paid || false;
+      const applicationFeePaid = freshProfile.is_application_fee_paid || false;
 
       // Migma: placement_fee_flow sempre true
       const isNewFlowUser = true;

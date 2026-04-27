@@ -135,30 +135,53 @@ Deno.serve(async (req) => {
     // ── 2. Carregar profile e verificar ownership ─────────────────────────────
     const { data: myProfile } = await supabase
       .from("user_profiles")
-      .select("id, email, full_name, phone")
+      .select("id, email, full_name, phone, num_dependents")
       .eq("user_id", user.id)
       .maybeSingle();
 
     if (!myProfile?.id) return jsonError("Student profile not found", 404);
 
-    const { data: app, error: appErr } = await supabase
+    const numDependents = myProfile.num_dependents || 0;
+    // Migma Rule: $350 base + $100 per dependent
+    let applicationFee = 350 + (numDependents * 100);
+    let applicationType: 'legacy' | 'institution' = 'legacy';
+    let applicationFound = false;
+
+    // Tentar scholarship_applications (Legacy)
+    const { data: legacyApp } = await supabase
       .from("scholarship_applications")
-      .select("id, student_id, is_application_fee_paid, scholarships(application_fee_amount, title, name)")
+      .select("id, student_id, is_application_fee_paid")
       .eq("id", scholarship_application_id)
       .maybeSingle();
 
-    if (appErr || !app) return jsonError("Application not found", 404);
-    if (app.student_id !== myProfile.id) return jsonError("Forbidden", 403);
-    if (app.is_application_fee_paid) return jsonError("Application fee already paid");
+    if (legacyApp) {
+      if (legacyApp.student_id !== myProfile.id) return jsonError("Forbidden", 403);
+      if (legacyApp.is_application_fee_paid) return jsonError("Application fee already paid");
+      applicationType = 'legacy';
+      applicationFound = true;
+    } else {
+      // Tentar institution_applications (V11)
+      const { data: v11App } = await supabase
+        .from("institution_applications")
+        .select("id, profile_id, status")
+        .eq("id", scholarship_application_id)
+        .maybeSingle();
 
-    const scholarship = app.scholarships as { application_fee_amount: number | null; title?: string; name?: string } | null;
-    const applicationFee = scholarship?.application_fee_amount ?? 400;
+      if (v11App) {
+        if (v11App.profile_id !== myProfile.id) return jsonError("Forbidden", 403);
+        applicationType = 'institution';
+        applicationFound = true;
+      }
+    }
+
+    if (!applicationFound) return jsonError("Application not found", 404);
+
     const siteUrl = (origin || "https://migmainc.com").replace(/\/$/, "");
     const returnBase = `${siteUrl}/student/onboarding?step=payment`;
 
     console.log(
       `[create-application-fee-checkout] user=${user.id} app=${scholarship_application_id}` +
-      ` method=${payment_method} amount=${applicationFee}`
+      ` type=${applicationType} method=${payment_method} amount=${applicationFee}`
     );
 
     // ── 3. Stripe (MatriculaUSA keys) ─────────────────────────────────────────
@@ -193,6 +216,7 @@ Deno.serve(async (req) => {
         customer_email: myProfile.email,
         metadata: {
           fee_type: "application_fee",
+          application_type: applicationType,
           scholarship_application_id,
           user_id: user.id,
           full_name: myProfile.full_name || "",
@@ -202,7 +226,7 @@ Deno.serve(async (req) => {
 
       await supabase.from("application_fee_stripe_sessions").insert({
         stripe_session_id: session.id,
-        scholarship_application_id,
+        scholarship_application_id: applicationType === 'legacy' ? scholarship_application_id : null,
         profile_id: myProfile.id,
         amount_usd: applicationFee,
       });
@@ -229,7 +253,9 @@ Deno.serve(async (req) => {
     const parcelowClient = new ParcelowClient(parcelowClientId, parcelowClientSecret, parcelowEnv);
 
     // Reference: parcelow-webhook detecta MATRICULAUSA-AF-APP- e usa slice(0,8) ILIKE
-    const reference = `MATRICULAUSA-AF-APP-${scholarship_application_id}`;
+    const reference = applicationType === 'legacy'
+      ? `MATRICULAUSA-AF-APP-${scholarship_application_id}`
+      : `MATRICULAUSA-AF-V11-${scholarship_application_id}`;
 
     const orderData = {
       reference,
