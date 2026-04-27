@@ -293,7 +293,27 @@ Deno.serve(async (req) => {
       if (remoteUniversityId) {
         console.log(`[SYNC-${executionId}] [PASSO 3] ✅ Universidade encontrada: ${remoteUniversityId}`);
       } else {
-        console.warn(`[SYNC-${executionId}] [PASSO 3] ⚠️ Universidade não encontrada para o slug: ${institution.slug}`);
+        // Universidade não existe no MatriculaUSA — criar automaticamente com dados da Migma
+        console.warn(`[SYNC-${executionId}] [PASSO 3] ⚠️ Universidade não encontrada para o slug: ${institution.slug}. Tentando criar...`);
+        const { data: newUniv, error: createUnivErr } = await matricula
+          .from("universities")
+          .insert({
+            name: institution.name,
+            slug: institution.slug,
+            city: institution.city || null,
+            state: institution.state || null,
+            country: "US",
+            modality: institution.modality || "presential",
+          })
+          .select("id")
+          .single();
+
+        if (createUnivErr) {
+          console.error(`[SYNC-${executionId}] [PASSO 3] ❌ Falha ao criar universidade:`, createUnivErr.message);
+        } else {
+          remoteUniversityId = newUniv?.id ?? null;
+          console.log(`[SYNC-${executionId}] [PASSO 3] ✅ Universidade criada no MatriculaUSA: ${remoteUniversityId}`);
+        }
       }
     } else {
       console.warn(`[SYNC-${executionId}] [PASSO 3] ⏭️ Pulado: Slug da instituição ausente.`);
@@ -306,8 +326,9 @@ Deno.serve(async (req) => {
 
     let remoteScholarshipId: string | null = null;
 
-    if (scholarshipLevel && remoteUniversityId && remoteProfileId) {
-      // First: check if this student already has an application → reuse that scholarship
+    if (remoteProfileId) {
+      // First: check if this student already has an application → reuse that scholarship.
+      // This check runs regardless of remoteUniversityId so existing students are never blocked.
       console.log(`[SYNC-${executionId}] [PASSO 4] Verificando se aluno (${remoteProfileId}) já tem aplicação existente...`);
       const { data: existingApp, error: existingAppErr } = await matricula
         .from("scholarship_applications")
@@ -319,15 +340,15 @@ Deno.serve(async (req) => {
 
       if (existingApp?.scholarship_id) {
         remoteScholarshipId = existingApp.scholarship_id;
-        // Safe to update fee here — this scholarship belongs exclusively to this student
+        // Safe to update fee — this scholarship belongs exclusively to this student
         const { error: updateFeeErr } = await matricula
           .from("scholarships")
           .update({ application_fee_amount: applicationFeeAmount })
           .eq("id", remoteScholarshipId);
         if (updateFeeErr) console.warn(`[SYNC-${executionId}] [PASSO 4] ⚠️ Erro ao atualizar application_fee da bolsa:`, updateFeeErr.message);
         console.log(`[SYNC-${executionId}] [PASSO 4] ✅ Bolsa existente do aluno encontrada e fee atualizado ($${applicationFeeAmount}): ${remoteScholarshipId}`);
-      } else {
-        // No existing application → create new per-student private scholarship
+      } else if (scholarshipLevel && remoteUniversityId) {
+        // No existing application and university found → create new per-student private scholarship
         const degreeLevel = course?.degree_level ?? "graduate";
         const degreeLevelMapped =
           degreeLevel === "bachelor" ? "undergraduate" :
@@ -361,9 +382,11 @@ Deno.serve(async (req) => {
           remoteScholarshipId = newScholarship?.id ?? null;
           console.log(`[SYNC-${executionId}] [PASSO 4] ✅ Bolsa criada: ${remoteScholarshipId}`);
         }
+      } else {
+        console.warn(`[SYNC-${executionId}] [PASSO 4] ⏭️ Pulado: sem aplicação existente e sem universidade disponível para criar bolsa nova.`);
       }
     } else {
-      console.warn(`[SYNC-${executionId}] [PASSO 4] ⏭️ Pulado: scholarshipLevel, remoteUniversityId ou remoteProfileId ausente.`);
+      console.warn(`[SYNC-${executionId}] [PASSO 4] ⏭️ Pulado: remoteProfileId ausente.`);
     }
 
     // ── STEP 5: Upsert scholarship_applications ──────────────────────────────

@@ -116,11 +116,14 @@ Deno.serve(async (req) => {
 
     // ── 1. Parse e validar input ──────────────────────────────────────────────
     const body = await req.json();
-    const { scholarship_application_id, payment_method, cpf, origin } = body as {
+    const { scholarship_application_id, payment_method, cpf, origin, payer_name, payer_email, payer_phone } = body as {
       scholarship_application_id?: string;
       payment_method?: string;
       cpf?: string;
       origin?: string;
+      payer_name?: string;
+      payer_email?: string;
+      payer_phone?: string;
     };
 
     if (!scholarship_application_id || !payment_method) {
@@ -262,9 +265,9 @@ Deno.serve(async (req) => {
       partner_reference: user.id,
       client: {
         cpf: (cpf || "00000000000").replace(/\D/g, ""),
-        name: myProfile.full_name,
-        email: myProfile.email,
-        phone: (myProfile.phone || "11999999999").replace(/\D/g, ""),
+        name: payer_name || myProfile.full_name,
+        email: payer_email || myProfile.email,
+        phone: (payer_phone || myProfile.phone || "11999999999").replace(/\D/g, ""),
         cep: "01310900",
         address_street: "Avenida Paulista",
         address_number: 1000,

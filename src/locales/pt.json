@@ -480,9 +480,9 @@
             "waiting_approval": "Aguardando Aprovação",
             "processing_desc": "Recebemos seu comprovante de pagamento e ele está sendo verificado pela nossa equipe financeira.",
             "time_notice": "Este processo pode levar até 48 horas úteis.",
-            "paid_title": "Bem-vindo à Migma!",
-            "payment_confirmed": "Pagamento Confirmado!",
-            "payment_confirmed_desc": "Sua Taxa do Processo Seletivo de $400 foi recebida. Vamos continuar sua jornada para estudar nos EUA.",
+            "paid_title": "Taxa de Matrícula Paga!",
+            "payment_confirmed": "Taxa de Matrícula Paga!",
+            "payment_confirmed_desc": "Sua taxa de matrícula foi confirmada. Vamos continuar sua jornada para estudar nos EUA.",
             "payment_required": "Pagamento Necessário",
             "pending_fee": "Taxa Seletiva Pendente",
             "pending_fee_desc": "A Taxa do Processo Seletivo de $400 ainda não foi confirmada. Por favor, complete o pagamento para continuar.",
@@ -689,20 +689,6 @@
             "instruction_details": "Clique em qualquer card para ver detalhes e escolher as opções disponíveis",
             "instruction_limit": "Selecione até 4 universidades simultaneamente",
             "instruction_continue": "Clique em Continuar após selecionar ao menos uma"
-        },
-        "payment": {
-            "step_label": "Etapa 7",
-            "title": "Taxa de Matrícula",
-            "subtitle": "Pague a taxa de matrícula para enviar sua candidatura à bolsa.",
-            "paid_title": "Taxa de Matrícula Paga!",
-            "paid_desc": "Sua taxa de matrícula foi confirmada.",
-            "continue": "Continuar →",
-            "application_fee_label": "Taxa de Matrícula",
-            "processing_fee": "Taxa de Processamento (Stripe 3,9% + $0,30)",
-            "total": "Total Cobrado",
-            "secure": "Pagamento seguro processado pelo Stripe. Seus dados de cartão nunca são armazenados.",
-            "integration_pending": "A integração de pagamento está sendo configurada.",
-            "contact_advisor": "Entre em contato com seu orientador para concluir este pagamento."
         },
         "placement_fee": {
             "step_label": "Etapa 5",

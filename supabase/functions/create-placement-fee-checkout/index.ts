@@ -117,11 +117,14 @@ Deno.serve(async (req) => {
 
     // ── 1. Parse e validar input ──────────────────────────────────────────────
     const body = await req.json();
-    const { application_id, payment_method, cpf, origin } = body as {
+    const { application_id, payment_method, cpf, origin, payer_name, payer_email, payer_phone } = body as {
       application_id?: string;
       payment_method?: string;
       cpf?: string;
       origin?: string;
+      payer_name?: string;
+      payer_email?: string;
+      payer_phone?: string;
     };
 
     if (!application_id || !payment_method) {
@@ -256,9 +259,9 @@ Deno.serve(async (req) => {
       partner_reference: user.id,
       client: {
         cpf: (cpf || "00000000000").replace(/\D/g, ""),
-        name: profile.full_name,
-        email: profile.email,
-        phone: (profile.phone || "11999999999").replace(/\D/g, ""),
+        name: payer_name || profile.full_name,
+        email: payer_email || profile.email,
+        phone: (payer_phone || profile.phone || "11999999999").replace(/\D/g, ""),
         // Endereço genérico — Parcelow exige mas não usa para USD
         cep: "01310900",
         address_street: "Avenida Paulista",

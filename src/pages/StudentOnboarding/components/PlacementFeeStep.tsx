@@ -62,9 +62,12 @@ export const PlacementFeeStep: React.FC<StepProps> = ({ onNext }) => {
   const [zelleUploading, setZelleUploading] = useState(false);
   const [zelleSubmitted, setZelleSubmitted] = useState(false);
   const [confirmingZero, setConfirmingZero] = useState(false);
-  const [couponOpen, setCouponOpen] = useState(false);
   const [couponCode, setCouponCode] = useState('');
   const [splitConfig, setSplitConfig] = useState<SplitPaymentConfig | null>(null);
+  const [cardOwnership, setCardOwnership] = useState<'own' | 'third_party'>('own');
+  const [payerName, setPayerName] = useState('');
+  const [payerEmail, setPayerEmail] = useState('');
+  const [payerPhone, setPayerPhone] = useState('');
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -129,7 +132,15 @@ export const PlacementFeeStep: React.FC<StepProps> = ({ onNext }) => {
   const placementFee = scholar?.placement_fee_usd ?? 0;
   const isZeroFee = placementFee === 0 && activeApp?.status !== 'payment_confirmed';
   const needsCpf = !!selectedMethod && ['parcelow_card', 'parcelow_pix', 'parcelow_ted'].includes(selectedMethod);
-  const canPay = !!selectedMethod && selectedMethod !== 'zelle' && (!needsCpf || cpf.replace(/\D/g, '').length >= 11);
+  const isParcelowCard = selectedMethod === 'parcelow_card';
+  const isThirdParty = isParcelowCard && cardOwnership === 'third_party';
+  const canPay = !!selectedMethod && selectedMethod !== 'zelle' && (
+    !needsCpf || (
+      isThirdParty
+        ? cpf.replace(/\D/g, '').length >= 11 && payerName.trim().length > 2 && payerEmail.includes('@') && payerPhone.replace(/\D/g, '').length >= 10
+        : cpf.replace(/\D/g, '').length >= 11
+    )
+  );
   const cardAmount = calculateCardAmountWithFees(placementFee);
 
   const handleConfirmZeroFee = useCallback(async () => {
@@ -167,8 +178,9 @@ export const PlacementFeeStep: React.FC<StepProps> = ({ onNext }) => {
           body: {
             user_id: user.id,
             order_id: activeApp.id,
-            email: userProfile.email,
-            full_name: userProfile.full_name,
+            email: isThirdParty ? payerEmail : userProfile.email,
+            full_name: isThirdParty ? payerName : userProfile.full_name,
+            phone: isThirdParty ? payerPhone : undefined,
             cpf: cpf || undefined,
             service_type: 'placement_fee',
             total_amount: placementFee,
@@ -194,6 +206,11 @@ export const PlacementFeeStep: React.FC<StepProps> = ({ onNext }) => {
           payment_method: selectedMethod,
           cpf: cpf || undefined,
           origin: window.location.origin,
+          ...(isThirdParty && {
+            payer_name: payerName,
+            payer_email: payerEmail,
+            payer_phone: payerPhone,
+          }),
         },
       });
       if (error) throw error;
@@ -556,21 +573,91 @@ export const PlacementFeeStep: React.FC<StepProps> = ({ onNext }) => {
               <div className="text-right shrink-0">
                 <p className={`font-black text-lg ${selectedMethod === 'zelle' ? 'text-gold-medium' : 'text-white'}`}>
                   ${placementFee.toLocaleString()}.00
-                </p>
                 <p className="text-[9px] text-gray-500 font-black uppercase tracking-widest">Sem taxas</p>
               </div>
             </button>
 
-            {/* CPF for Parcelow */}
-            {needsCpf && (
-              <input
-                value={cpf}
-                onChange={e => setCpf(e.target.value)}
-                placeholder="CPF (apenas números)"
-                maxLength={14}
-                className="w-full bg-white/5 border border-white/10 focus:border-gold-medium/50 rounded-xl px-4 py-3 text-white text-sm placeholder-gray-600 outline-none transition-colors"
-              />
-            )}
+            {/* Parcelow Card — seleção de titular */}
+          {isParcelowCard && (
+            <div className="space-y-3 p-4 bg-white/[0.03] border border-white/10 rounded-2xl">
+              <p className="text-xs font-black uppercase tracking-widest text-gray-400">O cartão que você vai usar é seu ou de outra pessoa?</p>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => { setCardOwnership('own'); setPayerName(''); setPayerEmail(''); setPayerPhone(''); }}
+                  className={`flex-1 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all border ${
+                    cardOwnership === 'own'
+                      ? 'bg-gold-medium/20 border-gold-medium/50 text-gold-light shadow-lg shadow-gold-medium/10'
+                      : 'bg-white/5 border-white/10 text-gray-400 hover:border-white/20'
+                  }`}
+                >
+                  Meu Cartão
+                </button>
+                <button
+                  onClick={() => setCardOwnership('third_party')}
+                  className={`flex-1 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all border ${
+                    cardOwnership === 'third_party'
+                      ? 'bg-gold-medium/20 border-gold-medium/50 text-gold-light shadow-lg shadow-gold-medium/10'
+                      : 'bg-white/5 border-white/10 text-gray-400 hover:border-white/20'
+                  }`}
+                >
+                  Cartão de Terceiro
+                </button>
+              </div>
+
+              {cardOwnership === 'own' && (
+                <input
+                  value={cpf}
+                  onChange={e => setCpf(e.target.value)}
+                  placeholder="Seu CPF (apenas números)"
+                  maxLength={14}
+                  className="w-full bg-white/5 border border-white/10 focus:border-gold-medium/50 rounded-xl px-4 py-3 text-white text-sm placeholder-gray-600 outline-none transition-colors"
+                />
+              )}
+
+              {cardOwnership === 'third_party' && (
+                <div className="space-y-2">
+                  <p className="text-[10px] text-amber-400/80 font-bold uppercase tracking-wider">Dados do Titular do Cartão</p>
+                  <input
+                    value={payerName}
+                    onChange={e => setPayerName(e.target.value.toUpperCase())}
+                    placeholder="Nome completo do titular"
+                    className="w-full bg-white/5 border border-white/10 focus:border-gold-medium/50 rounded-xl px-4 py-3 text-white text-sm placeholder-gray-600 outline-none transition-colors"
+                  />
+                  <input
+                    value={cpf}
+                    onChange={e => setCpf(e.target.value)}
+                    placeholder="CPF do titular (apenas números)"
+                    maxLength={14}
+                    className="w-full bg-white/5 border border-white/10 focus:border-gold-medium/50 rounded-xl px-4 py-3 text-white text-sm placeholder-gray-600 outline-none transition-colors"
+                  />
+                  <input
+                    value={payerEmail}
+                    onChange={e => setPayerEmail(e.target.value)}
+                    placeholder="E-mail do titular"
+                    type="email"
+                    className="w-full bg-white/5 border border-white/10 focus:border-gold-medium/50 rounded-xl px-4 py-3 text-white text-sm placeholder-gray-600 outline-none transition-colors"
+                  />
+                  <input
+                    value={payerPhone}
+                    onChange={e => setPayerPhone(e.target.value)}
+                    placeholder="WhatsApp do titular (com DDD)"
+                    className="w-full bg-white/5 border border-white/10 focus:border-gold-medium/50 rounded-xl px-4 py-3 text-white text-sm placeholder-gray-600 outline-none transition-colors"
+                  />
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* CPF para PIX / TED */}
+          {(selectedMethod === 'parcelow_pix' || selectedMethod === 'parcelow_ted') && (
+            <input
+              value={cpf}
+              onChange={e => setCpf(e.target.value)}
+              placeholder="CPF (apenas números)"
+              maxLength={14}
+              className="w-full bg-white/5 border border-white/10 focus:border-gold-medium/50 rounded-xl px-4 py-3 text-white text-sm placeholder-gray-600 outline-none transition-colors"
+            />
+          )}
 
             {/* Split payment selector — só para Parcelow */}
             {needsCpf && (

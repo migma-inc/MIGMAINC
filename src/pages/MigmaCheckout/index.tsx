@@ -741,13 +741,16 @@ const MigmaCheckout: React.FC = () => {
         setProcessMessage('Configurando pagamento dividido...');
 
         const finalOrderId = orderIdRef.current ?? orderId ?? crypto.randomUUID();
+        const isThirdParty = payment.cardOwnership === 'third_party';
 
         const splitResult = await matriculaApi.migmaSplitParcelowCheckout({
           user_id: userId,
           order_id: finalOrderId,
-          email: data.email,
-          full_name: data.full_name,
+          email: isThirdParty ? payment.payerInfo?.email : data.email,
+          full_name: isThirdParty ? payment.payerInfo?.name : data.full_name,
+          phone: isThirdParty ? payment.payerInfo?.phone : data.phone,
           cpf: payment.cpf,
+          payer_info: payment.payerInfo,
           service_type: service ?? 'transfer',
           service_request_id: state.serviceRequestId || undefined,
           num_dependents: data.num_dependents ?? undefined,
@@ -806,18 +809,21 @@ const MigmaCheckout: React.FC = () => {
             : payment.cpf,
         });
 
+        const isThirdParty = payment.cardOwnership === 'third_party';
+
         const parcelowResult = await matriculaApi.migmaParcelowCheckout({
           amount: total,
           user_id: userId,
           order_id: finalOrderId,
-          email: data.email,
-          full_name: data.full_name,
+          email: isThirdParty ? payment.payerInfo?.email : data.email,
+          full_name: isThirdParty ? payment.payerInfo?.name : data.full_name,
+          phone: isThirdParty ? payment.payerInfo?.phone : data.phone,
           payment_method: payment.method,
           service_type: service ?? 'transfer',
           service_request_id: state.serviceRequestId || undefined,
           num_dependents: data.num_dependents ?? undefined,
           origin: window.location.origin,
-          cpf: (payment.method === 'parcelow_card' && payment.cardOwnership === 'third_party')
+          cpf: (payment.method === 'parcelow_card' && isThirdParty)
             ? payment.payerInfo?.cpf
             : payment.cpf,
           card_ownership: payment.cardOwnership,

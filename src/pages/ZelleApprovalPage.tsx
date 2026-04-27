@@ -13,6 +13,7 @@ import { getSecureUrl } from '@/lib/storage';
 import { getExplicitMigmaUpsell, getOrderAddonLabel, resolveMigmaOrderLink } from '@/lib/migma-zelle-linking';
 
 const isLocal = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+const isProduction = typeof window !== 'undefined' && (window.location.hostname === 'migmainc.com' || window.location.hostname === 'www.migmainc.com');
 
 interface ZelleOrder {
   id: string;
@@ -403,6 +404,9 @@ export const ZelleApprovalPage = () => {
         // Deduplicate: skip migma_payments records whose email is already in migma_checkout_zelle_pending
         if (item.type === 'migma' && item.client_email && migmaCheckoutEmails.has(item.client_email.trim().toLowerCase())) return false;
 
+        // NEW: Filter out Migma-specific payments (MIG- prefix or migma type) if in production
+        if (isProduction && (item.type === 'migma' || item.order_number?.startsWith('MIG-'))) return false;
+
         // If it's an order or unified, check payment_status
         const status = item.original_order?.payment_status || item.status;
         return status === 'pending' || status === 'pending_verification';
@@ -461,7 +465,7 @@ export const ZelleApprovalPage = () => {
 
       const { data: migmaZelleData } = await migmaZelleQuery;
 
-      if (migmaZelleData && migmaZelleData.length > 0) {
+      if (migmaZelleData && migmaZelleData.length > 0 && !isProduction) {
         const userIds = [...new Set(migmaZelleData.map((p: any) => p.migma_user_id))];
         const { data: profilesData } = await supabase
           .from('user_profiles')
