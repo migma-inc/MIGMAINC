@@ -468,8 +468,8 @@
             "survey": "Processo Seletivo",
             "scholarship": "Universidade",
             "documents": "Documentos",
-            "placement_fee": "Taxa de Bolsa",
-            "payment": "Taxa de Inscrição",
+            "placement_fee": "Taxa de Colocação",
+            "payment": "Taxa de Matrícula",
             "my_applications": "Dashboard",
             "counter": "Etapa {{current}} de {{total}}"
         },

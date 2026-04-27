@@ -37,6 +37,54 @@ interface ParcelowWebhookEvent {
   data?: any;
 }
 
+async function syncApplicationFeeToMatriculaUSA(
+  matriculausaClient: any,
+  matriculaUserId: string | null,
+  email: string,
+  paymentMethod: string
+) {
+  let matriculaProfileId: string | null = null;
+
+  if (matriculaUserId) {
+    const { data: mp } = await matriculausaClient
+      .from("user_profiles")
+      .select("id")
+      .eq("user_id", matriculaUserId)
+      .maybeSingle();
+    matriculaProfileId = mp?.id || null;
+  }
+
+  if (!matriculaProfileId && email) {
+    const { data: mp } = await matriculausaClient
+      .from("user_profiles")
+      .select("id")
+      .eq("email", email)
+      .maybeSingle();
+    matriculaProfileId = mp?.id || null;
+  }
+
+  if (!matriculaProfileId) {
+    console.warn("[Sync MatriculaUSA] Perfil não encontrado no MatriculaUSA");
+    return;
+  }
+
+  const { error: syncErr } = await matriculausaClient
+    .from("scholarship_applications")
+    .update({
+      is_application_fee_paid: true,
+      application_fee_payment_method: paymentMethod,
+      application_fee_paid_at: new Date().toISOString(),
+    })
+    .eq("student_id", matriculaProfileId)
+    .eq("source", "migma");
+
+  if (syncErr) {
+    console.warn("[Sync MatriculaUSA] Erro ao atualizar scholarship_applications:", syncErr.message);
+  } else {
+    console.log("[Sync MatriculaUSA] ✅ is_application_fee_paid = true no MatriculaUSA para student:", matriculaProfileId);
+  }
+}
+
 // 🆕 FUNÇÃO PARA PROCESSAR SPLIT PAYMENT WEBHOOK
 async function processSplitPaymentWebhook(
   eventType: string,
@@ -119,6 +167,63 @@ async function processSplitPaymentWebhook(
         console.error("[Split Webhook] ❌ migma-payment-completed falhou:", migmaPayErr);
       } else {
         console.log("[Split Webhook] ✅ Migma selection_process fee processado!");
+      }
+    }
+
+    // Application fee split (MatriculaUSA): confirmar pagamento na scholarship_applications + user_profiles
+    if (splitPayment.source === 'application_fee') {
+      console.log("[Split Webhook] 🎓 Application fee split — atualizando scholarship_applications...");
+      const scholarshipApplicationId = splitPayment.application_id;
+      if (scholarshipApplicationId) {
+        const { error: appErr } = await supabase
+          .from("scholarship_applications")
+          .update({ is_application_fee_paid: true })
+          .eq("id", scholarshipApplicationId);
+
+        if (appErr) {
+          console.error("[Split Webhook] ❌ Erro ao confirmar application fee:", appErr.message);
+        } else {
+          console.log("[Split Webhook] ✅ is_application_fee_paid = true para scholarship_application:", scholarshipApplicationId);
+        }
+
+        // Atualizar user_profiles via student_id
+        const { data: appData } = await supabase
+          .from("scholarship_applications")
+          .select("student_id")
+          .eq("id", scholarshipApplicationId)
+          .maybeSingle();
+
+        if (appData?.student_id) {
+          await supabase
+            .from("user_profiles")
+            .update({ is_application_fee_paid: true })
+            .eq("id", appData.student_id);
+          console.log("[Split Webhook] ✅ user_profiles.is_application_fee_paid = true para student:", appData.student_id);
+
+          // Sync to MatriculaUSA DB
+          try {
+            const matriculausaUrl = Deno.env.get("MATRICULAUSA_URL");
+            const matriculausaKey = Deno.env.get("MATRICULAUSA_SERVICE_ROLE");
+            if (matriculausaUrl && matriculausaKey) {
+              const matriculausaClient = createClient(matriculausaUrl, matriculausaKey);
+              const { data: migmaProfile } = await supabase
+                .from("user_profiles")
+                .select("matricula_user_id, email")
+                .eq("id", appData.student_id)
+                .maybeSingle();
+              if (migmaProfile) {
+                await syncApplicationFeeToMatriculaUSA(
+                  matriculausaClient,
+                  migmaProfile.matricula_user_id,
+                  migmaProfile.email,
+                  "parcelow"
+                );
+              }
+            }
+          } catch (syncErr: any) {
+            console.warn("[Split Webhook] Sync MatriculaUSA falhou (não crítico):", syncErr.message);
+          }
+        }
       }
     }
 
@@ -663,8 +768,8 @@ async function processParcelowWebhookEvent(event: ParcelowWebhookEvent, supabase
   if (splitPayment) {
     console.log("[Parcelow Webhook] 🎯 Split payment detectado! ID:", splitPayment.id, "Source:", splitPayment.source);
 
-    // Migma e placement_fee splits não têm visa_orders — processar diretamente sem mainOrder
-    if (splitPayment.source === 'migma' || splitPayment.source === 'placement_fee') {
+    // Migma, placement_fee e application_fee splits não têm visa_orders — processar diretamente sem mainOrder
+    if (splitPayment.source === 'migma' || splitPayment.source === 'placement_fee' || splitPayment.source === 'application_fee') {
       await processSplitPaymentWebhook(eventType, parcelowOrder, splitPayment, null, supabase);
       return;
     }
@@ -694,8 +799,68 @@ async function processParcelowWebhookEvent(event: ParcelowWebhookEvent, supabase
     .eq("parcelow_order_id", parcelowOrder.id.toString());
 
   if (orderError || !orders || orders.length === 0) {
-    // ── V11 PLACEMENT FEE: verificar via referência ──
+    // ── MATRICULAUSA APPLICATION FEE: verificar via referência ──────────────
     const ref = parcelowOrder.reference || "";
+    if (ref.startsWith("MATRICULAUSA-AF-APP-")) {
+      const appIdShort = ref.split("MATRICULAUSA-AF-APP-")[1]?.slice(0, 8);
+      console.log(`[Parcelow Webhook] 🎓 MatriculaUSA Application Fee detectado: ${appIdShort}`);
+
+      if (appIdShort && (eventType === "event_order_paid" || eventType === "event_order_confirmed")) {
+        const { data: appAF } = await supabase
+          .from("scholarship_applications")
+          .select("id, student_id, is_application_fee_paid")
+          .filter("id", "ilike", `${appIdShort}%`)
+          .maybeSingle();
+
+        if (appAF) {
+          console.log(`[Parcelow Webhook] ✅ scholarship_application encontrada: ${appAF.id}`);
+          if (!appAF.is_application_fee_paid) {
+            await supabase
+              .from("scholarship_applications")
+              .update({ is_application_fee_paid: true })
+              .eq("id", appAF.id);
+
+            await supabase
+              .from("user_profiles")
+              .update({ is_application_fee_paid: true })
+              .eq("id", appAF.student_id);
+
+            console.log("[Parcelow Webhook] ✅ is_application_fee_paid = true em scholarship_applications e user_profiles");
+
+            // Sync to MatriculaUSA DB
+            try {
+              const matriculausaUrl = Deno.env.get("MATRICULAUSA_URL");
+              const matriculausaKey = Deno.env.get("MATRICULAUSA_SERVICE_ROLE");
+              if (matriculausaUrl && matriculausaKey) {
+                const matriculausaClient = createClient(matriculausaUrl, matriculausaKey);
+                const { data: migmaProfile } = await supabase
+                  .from("user_profiles")
+                  .select("matricula_user_id, email")
+                  .eq("id", appAF.student_id)
+                  .maybeSingle();
+                if (migmaProfile) {
+                  await syncApplicationFeeToMatriculaUSA(
+                    matriculausaClient,
+                    migmaProfile.matricula_user_id,
+                    migmaProfile.email,
+                    "parcelow"
+                  );
+                }
+              }
+            } catch (syncErr: any) {
+              console.warn("[Parcelow Webhook] Sync MatriculaUSA falhou (não crítico):", syncErr.message);
+            }
+          } else {
+            console.log("[Parcelow Webhook] ℹ️ is_application_fee_paid já era true");
+          }
+        } else {
+          console.warn(`[Parcelow Webhook] ⚠️ scholarship_application não encontrada para ref=${ref}`);
+        }
+      }
+      return;
+    }
+
+    // ── V11 PLACEMENT FEE: verificar via referência ──
     if (ref.includes("-APP-")) {
       const appIdShort = ref.split("-APP-")[1]?.slice(0, 8);
       console.log(`[Parcelow Webhook] 🎓 V11 App Referência detectada: ${appIdShort}`);

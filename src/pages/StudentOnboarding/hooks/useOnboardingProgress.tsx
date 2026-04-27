@@ -214,7 +214,8 @@ export const useOnboardingProgress = () => {
       // Migma: placement_fee_flow sempre true
       const isNewFlowUser = true;
       const scholarshipFeePaid = !!freshProfile.is_scholarship_fee_paid;
-      const placementFeePaid = !!freshProfile.is_placement_fee_paid;
+      const placementFeePaid = !!freshProfile.is_placement_fee_paid ||
+        !!(v11AppsData?.some((a: any) => a.status === 'payment_confirmed'));
       const reinstatementFeePaid = !!freshProfile.has_paid_reinstatement_package;
       const onboardingCompleted = !!freshProfile.onboarding_completed;
       const isTransferInactive = freshProfile.student_process_type === 'transfer' && freshProfile.visa_transfer_active === false;

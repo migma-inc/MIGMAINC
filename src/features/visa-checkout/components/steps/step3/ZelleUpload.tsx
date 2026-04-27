@@ -8,16 +8,17 @@ interface ZelleUploadProps {
     onFileSelect: (file: File) => void;
     currentFile: File | null;
     onClear: () => void;
+    recipientEmail?: string;
 }
 
-export const ZelleUpload: React.FC<ZelleUploadProps> = ({ onFileSelect, currentFile, onClear }) => {
+export const ZelleUpload: React.FC<ZelleUploadProps> = ({ onFileSelect, currentFile, onClear, recipientEmail = 'adm@migmainc.com' }) => {
     const { t } = useTranslation();
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [isDragOver, setIsDragOver] = useState(false);
     const [copied, setCopied] = useState(false);
 
     const handleCopyEmail = () => {
-        copyToClipboard('adm@migmainc.com');
+        copyToClipboard(recipientEmail);
         setCopied(true);
         setTimeout(() => setCopied(false), 2000);
     };
@@ -72,7 +73,7 @@ export const ZelleUpload: React.FC<ZelleUploadProps> = ({ onFileSelect, currentF
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-black/40 p-4 rounded-lg border border-white/5">
                         <div>
                             <p className="text-[10px] uppercase font-bold text-gray-400 tracking-widest mb-1">{t('checkout.zelle.recipient_email', 'Recipient Email')}</p>
-                            <p className="text-xl font-mono font-bold text-gold-light select-all">adm@migmainc.com</p>
+                            <p className="text-xl font-mono font-bold text-gold-light select-all">{recipientEmail}</p>
                         </div>
                         <button
                             onClick={handleCopyEmail}

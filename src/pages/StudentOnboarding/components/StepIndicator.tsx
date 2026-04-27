@@ -17,7 +17,6 @@ const STEP_ALIAS: Partial<Record<OnboardingStep, OnboardingStep>> = {
   reinstatement_fee: 'placement_fee',
   completed: 'my_applications',
   wait_room: 'selection_survey',
-  payment: 'my_applications'
 };
 
 interface StepIndicatorProps {
