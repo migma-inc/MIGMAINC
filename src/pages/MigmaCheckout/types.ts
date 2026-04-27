@@ -44,8 +44,6 @@ export interface Step1Data {
   full_name: string;
   email: string;
   phone: string;
-  password?: string;
-  confirm_password?: string;
   num_dependents: number | null;
   terms_accepted: boolean;
   data_accepted: boolean;

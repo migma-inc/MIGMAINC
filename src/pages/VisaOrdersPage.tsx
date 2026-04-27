@@ -211,7 +211,8 @@ const OrderTable = ({
                 </td>
                 <td className="py-3 px-4 text-sm text-gray-400">{(order.seller_id && sellersMap[order.seller_id]) || order.seller_id || '-'}</td>
                 <td className={`py-3 px-4 text-sm font-bold ${isSignatureOnly ? 'text-blue-400' : 'text-gold-light'}`}>
-                  <div>${totalPrice.toFixed(2)}</div>
+                  <div>${order.payment_status === 'partially_paid' ? (totalPrice / 2).toFixed(2) : totalPrice.toFixed(2)}</div>
+                  {order.payment_status === 'partially_paid' && <div className="text-[10px] text-gray-500 font-normal">of ${totalPrice.toFixed(2)} total</div>}
                   {!isSignatureOnly && (
                     <div className="text-[10px] font-normal mt-0.5 flex flex-col gap-0.5">
                       {feeAmount > 0 ? (
@@ -235,7 +236,7 @@ const OrderTable = ({
                 </td>
                 {!isSignatureOnly && (
                   <td className="py-3 px-4 text-sm text-white font-semibold">
-                    ${netAmount.toFixed(2)}
+                    ${order.payment_status === 'partially_paid' ? (netAmount / 2).toFixed(2) : netAmount.toFixed(2)}
                   </td>
                 )}
                 <td className="py-3 px-4">
@@ -351,7 +352,7 @@ const OrderTable = ({
                     {!order.annex_pdf_url && !order.contract_pdf_url && !(order.payment_metadata as any)?.invoice_pdf_url && (
                       <div className="flex flex-col gap-2">
                         <span className="text-amber-500/70 text-[10px] font-medium italic">
-                          {order.payment_method === 'manual' ? 'Awaiting Approval' : 'Generating...'}
+                          {order.payment_status === 'partially_paid' ? 'Awaiting Part 2' : order.payment_method === 'manual' ? 'Awaiting Approval' : 'Generating...'}
                         </span>
                         {(order.payment_status === 'completed' || order.payment_status === 'paid') && order.payment_method !== 'manual' && (
                           <Button
@@ -694,7 +695,7 @@ export const VisaOrdersPage = () => {
 
     if (statusFilter !== 'all') {
       if (statusFilter === 'completed') {
-        query = query.in('payment_status', ['completed', 'paid']);
+        query = query.in('payment_status', ['completed', 'paid', 'partially_paid']);
       } else if (statusFilter === 'pending') {
         query = query.eq('payment_status', 'pending');
       } else if (statusFilter === 'failed') {
@@ -1040,6 +1041,8 @@ export const VisaOrdersPage = () => {
         return <Badge className="bg-green-500/20 text-green-300 border-green-500/50">Completed</Badge>;
       case 'pending':
         return <Badge className="bg-yellow-500/20 text-yellow-300 border-yellow-500/50">Pending</Badge>;
+      case 'partially_paid':
+        return <Badge className="bg-blue-500/20 text-blue-300 border-blue-500/50 uppercase text-[10px] font-bold tracking-wider">Partial Payment</Badge>;
       case 'manual_pending':
         return (
           <Badge className="bg-amber-500/20 text-amber-200 border-amber-500/50 animate-pulse whitespace-nowrap">

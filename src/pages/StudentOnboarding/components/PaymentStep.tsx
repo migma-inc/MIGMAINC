@@ -1,9 +1,11 @@
 /**
  * Etapa — Application Fee (Taxa de Matrícula).
+ * Usa exclusivamente as keys do projeto MatriculaUSA (MATRICULAUSA_*).
+ * Zelle: pay@matriculausa.com
  */
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import {
-  CheckCircle, Building, Shield, Loader2,
+  CheckCircle, Building, Shield, Loader2, AlertCircle, Upload, Clock,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useStudentAuth } from '../../../contexts/StudentAuthContext';
@@ -13,21 +15,23 @@ import {
   getExchangeRate,
   calculatePIXTotalWithIOF,
 } from '../../../utils/stripeFeeCalculator';
+import { ZelleUpload } from '../../../features/visa-checkout/components/steps/step3/ZelleUpload';
+import { SplitPaymentSelector, type SplitPaymentConfig } from '../../../features/visa-checkout/components/steps/step3/SplitPaymentSelector';
+import { processZellePaymentWithN8n } from '../../../lib/zelle-n8n-integration';
 import type { StepProps } from '../types';
+
+const MATRICULAUSA_ZELLE_EMAIL = 'pay@matriculausa.com';
 
 interface ApplicationWithScholarship {
   id: string;
   is_application_fee_paid: boolean;
-  scholarship_id: string;
-  scholarships: {
-    id: string;
-    title?: string;
-    name?: string;
-    application_fee_amount: number | null;
-    annual_value_with_scholarship?: number;
-    universities: { name: string } | null;
-  } | null;
+  type: 'legacy' | 'v11';
+  fee_amount: number;
+  scholarship_name: string;
+  university_name: string;
 }
+
+type PaymentMethod = 'stripe' | 'parcelow_card' | 'parcelow_pix' | 'parcelow_ted' | 'zelle';
 
 // ─── Icon components ───────────────────────────────────────────────────────────
 const StripeIcon: React.FC<{ className?: string }> = ({ className }) => (
@@ -36,16 +40,10 @@ const StripeIcon: React.FC<{ className?: string }> = ({ className }) => (
   </svg>
 );
 
-const PixIcon: React.FC<{ className?: string }> = ({ className }) => (
-  <svg className={className} viewBox="0 0 24 24" fill="currentColor">
-    <path d="M14.25 2.26c-.98-.98-2.56-.98-3.54 0L8.87 4.1a.42.42 0 0 1-.59 0L6.54 2.36a.42.42 0 0 0-.59 0L4.22 4.09a.42.42 0 0 0 0 .59l1.74 1.74a.42.42 0 0 1 0 .59L4.22 8.74a.42.42 0 0 0 0 .59l1.73 1.73c.16.16.43.16.59 0l1.74-1.74a.42.42 0 0 1 .59 0l1.84 1.84c.98.98 2.56.98 3.54 0l4.62-4.62a2.5 2.5 0 0 0 0-3.54l-4.62-4.74zm4.53 10.15-4.62 4.62c-.98.98-2.56.98-3.54 0l-1.84-1.84a.42.42 0 0 0-.59 0l-1.74 1.74a.42.42 0 0 1-.59 0L4.63 15.2a.42.42 0 0 1 0-.59l1.74-1.74a.42.42 0 0 0 0-.59l-1.74-1.74a.42.42 0 0 1 0-.59l1.73-1.73a.42.42 0 0 1 .59 0l1.74 1.74a.42.42 0 0 0 .59 0l1.84-1.84a2.5 2.5 0 0 1 3.54 0l4.62 4.62a2.5 2.5 0 0 1 0 3.57z" />
-  </svg>
-);
-
 const ParcelowIcon: React.FC<{ className?: string }> = ({ className }) => (
-  <svg className={className} viewBox="0 0 24 24" fill="none">
-    <rect width="24" height="24" rx="6" fill="currentColor" fillOpacity="0.15" />
-    <text x="12" y="17" textAnchor="middle" fill="currentColor" fontSize="13" fontWeight="900">P</text>
+  <svg className={className} viewBox="0 0 24 24" fill="currentColor">
+    <rect x="2" y="2" width="20" height="20" rx="5" />
+    <text x="12" y="16" textAnchor="middle" fill="white" fontSize="10" fontWeight="bold">P</text>
   </svg>
 );
 
@@ -58,27 +56,67 @@ const ZelleIcon: React.FC<{ className?: string }> = ({ className }) => (
 // ─── Componente ───────────────────────────────────────────────────────────────
 export const PaymentStep: React.FC<StepProps> = ({ onNext }) => {
   const { t } = useTranslation();
-  const { userProfile } = useStudentAuth();
+  const { userProfile, user } = useStudentAuth();
   const [applications, setApplications] = useState<ApplicationWithScholarship[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedMethod, setSelectedMethod] = useState<string | null>(null);
+  const [selectedMethod, setSelectedMethod] = useState<PaymentMethod | null>(null);
+  const [cpf, setCpf] = useState('');
+  const [processing, setProcessing] = useState(false);
+  const [paymentError, setPaymentError] = useState<string | null>(null);
+  const [zelleFile, setZelleFile] = useState<File | null>(null);
+  const [zelleUploading, setZelleUploading] = useState(false);
+  const [zelleSubmitted, setZelleSubmitted] = useState(false);
   const [couponOpen, setCouponOpen] = useState(false);
   const [couponCode, setCouponCode] = useState('');
   const [exchangeRate, setExchangeRate] = useState(5.6);
+  const [splitConfig, setSplitConfig] = useState<SplitPaymentConfig | null>(null);
+
+  // Limpar params af_return ao montar (após redirect do Stripe)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('af_return')) {
+      localStorage.removeItem('af_draft');
+      const newParams = new URLSearchParams(window.location.search);
+      newParams.delete('af_return');
+      newParams.delete('session_id');
+      window.history.replaceState({}, '', `?${newParams.toString()}`);
+    }
+  }, []);
 
   const fetchApplications = useCallback(async () => {
     if (!userProfile?.id) return;
     try {
-      const { data } = await supabase
-        .from('scholarship_applications')
+      setLoading(true);
+      
+      // Consultamos apenas as aplicações V11, pois as tabelas legacy foram removidas do banco
+      const { data, error } = await supabase
+        .from('institution_applications')
         .select(`
-          id, is_application_fee_paid, scholarship_id,
-          scholarships(id, title, name, application_fee_amount, annual_value_with_scholarship, universities(name))
+          id, status,
+          institutions(name, application_fee_usd)
         `)
-        .eq('student_id', userProfile.id);
-      setApplications((data as unknown as ApplicationWithScholarship[]) || []);
+        .eq('profile_id', userProfile.id);
+
+      if (error) {
+        console.error('[PaymentStep] Error fetching applications:', error);
+        throw error;
+      }
+
+      const numDependents = userProfile?.num_dependents || 0;
+      const migmaFee = 350 + (numDependents * 100);
+
+      const normalizedV11: ApplicationWithScholarship[] = (data || []).map((app: any) => ({
+        id: app.id,
+        is_application_fee_paid: false,
+        type: 'v11',
+        fee_amount: migmaFee, // Migma Rule: $350 base + $100 per dependent
+        scholarship_name: 'University Application',
+        university_name: app.institutions?.name || '',
+      }));
+
+      setApplications(normalizedV11);
     } catch (err) {
-      console.error('[PaymentStep]', err);
+      console.error('[PaymentStep] fetchApplications error:', err);
     } finally {
       setLoading(false);
     }
@@ -91,12 +129,95 @@ export const PaymentStep: React.FC<StepProps> = ({ onNext }) => {
 
   const alreadyPaid = userProfile?.is_application_fee_paid || applications.some(a => a.is_application_fee_paid);
   const firstApp = applications[0];
-  const scholarship = firstApp?.scholarships;
-  const applicationFee = scholarship?.application_fee_amount ?? 400;
+  const applicationFee = firstApp?.fee_amount ?? 400;
   const cardAmount = calculateCardAmountWithFees(applicationFee);
   const pixTotal = calculatePIXTotalWithIOF(applicationFee, exchangeRate);
-  const scholarshipName = scholarship?.title || scholarship?.name || 'Selected Scholarship';
-  const universityName = scholarship?.universities?.name || '';
+  const scholarshipName = firstApp?.scholarship_name || 'Selected Scholarship';
+  const universityName = firstApp?.university_name || '';
+
+  const needsCpf = !!selectedMethod && ['parcelow_card', 'parcelow_pix', 'parcelow_ted'].includes(selectedMethod);
+  const canPay = !!selectedMethod && selectedMethod !== 'zelle' &&
+    (!needsCpf || cpf.replace(/\D/g, '').length >= 11);
+
+  const handleProcessPayment = useCallback(async () => {
+    if (!selectedMethod || !firstApp || !userProfile?.id || !user?.id) return;
+    setPaymentError(null);
+    setProcessing(true);
+
+    try {
+      // ── Split payment (Parcelow MatriculaUSA) ────────────────────────────────
+      if (splitConfig?.enabled) {
+        const methodMap: Record<string, string> = {
+          parcelow_card: 'parcelow_card',
+          parcelow_pix: 'parcelow_pix',
+          parcelow_ted: 'parcelow_ted',
+        };
+        const { data, error } = await supabase.functions.invoke('matriculausa-split-parcelow-checkout', {
+          body: {
+            user_id: user.id,
+            scholarship_application_id: firstApp.id,
+            email: userProfile.email,
+            full_name: userProfile.full_name,
+            cpf: cpf || undefined,
+            total_amount: applicationFee,
+            part1_amount: splitConfig.part1_amount,
+            part1_method: methodMap[selectedMethod] ?? splitConfig.part1_method,
+            part2_amount: splitConfig.part2_amount,
+            part2_method: splitConfig.part2_method,
+            origin: window.location.origin,
+          },
+        });
+        if (error) throw error;
+        if (!data?.part1_checkout_url) throw new Error('URL do split não recebida');
+        if (data?.split_payment_id) sessionStorage.setItem('last_split_payment_id', data.split_payment_id);
+        window.location.href = data.part1_checkout_url;
+        return;
+      }
+
+      // ── Pagamento normal (Stripe ou Parcelow MatriculaUSA) ───────────────────
+      localStorage.setItem('af_draft', JSON.stringify({ applicationId: firstApp.id, method: selectedMethod }));
+      const { data, error } = await supabase.functions.invoke('create-application-fee-checkout', {
+        body: {
+          scholarship_application_id: firstApp.id,
+          payment_method: selectedMethod,
+          cpf: cpf || undefined,
+          origin: window.location.origin,
+        },
+      });
+      if (error) throw error;
+      if (!data?.checkout_url) throw new Error('Checkout URL não recebida');
+      window.location.href = data.checkout_url;
+    } catch (err: any) {
+      console.error('[PaymentStep] handleProcessPayment:', err);
+      setPaymentError(err.message || 'Erro ao processar pagamento. Tente novamente.');
+      setProcessing(false);
+    }
+  }, [selectedMethod, cpf, splitConfig, applicationFee, firstApp, userProfile, user]);
+
+  const handleZelleUpload = useCallback(async () => {
+    if (!zelleFile || !firstApp || !userProfile?.id || !user?.id) return;
+    setZelleUploading(true);
+    setPaymentError(null);
+    try {
+      const n8nResult = await processZellePaymentWithN8n(zelleFile, applicationFee, 'application-fee', user.id);
+      const { error: insertErr } = await supabase.from('application_fee_zelle_pending').insert({
+        scholarship_application_id: firstApp.id,
+        profile_id: userProfile.id,
+        migma_user_id: user.id,
+        amount_usd: applicationFee,
+        receipt_url: n8nResult.imageUrl,
+        n8n_payment_id: n8nResult.paymentId,
+        n8n_response: n8nResult.n8nResponse,
+      });
+      if (insertErr) throw insertErr;
+      setZelleSubmitted(true);
+    } catch (err: any) {
+      console.error('[PaymentStep] handleZelleUpload:', err);
+      setPaymentError('Erro ao enviar comprovante. Tente novamente.');
+    } finally {
+      setZelleUploading(false);
+    }
+  }, [zelleFile, firstApp, userProfile?.id, user?.id, applicationFee]);
 
   if (loading) {
     return (
@@ -128,6 +249,49 @@ export const PaymentStep: React.FC<StepProps> = ({ onNext }) => {
     );
   }
 
+  if (!firstApp) {
+    return (
+      <div className="space-y-8 pb-12 max-w-2xl mx-auto px-4">
+        <div className="border border-red-500/20 bg-red-500/5 rounded-3xl p-10 text-center">
+          <div className="w-20 h-20 bg-red-500/10 rounded-full flex items-center justify-center mx-auto mb-6 border border-red-500/20">
+            <AlertCircle className="w-10 h-10 text-red-400" />
+          </div>
+          <h3 className="text-2xl font-black text-white mb-3 uppercase tracking-tight">
+            Nenhuma universidade selecionada
+          </h3>
+          <p className="text-gray-400 text-sm leading-relaxed max-w-sm mx-auto mb-8">
+            Você ainda não escolheu uma universidade ou bolsa. Por favor, volte ao passo anterior para selecionar uma antes de prosseguir com o pagamento.
+          </p>
+          <button
+            onClick={() => window.location.href = '?step=scholarship'}
+            className="w-full bg-white/10 hover:bg-white/20 text-white py-4 px-8 rounded-2xl font-black uppercase tracking-widest transition-all"
+          >
+            Voltar para Seleção
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (zelleSubmitted) {
+    return (
+      <div className="space-y-8 pb-12 max-w-2xl mx-auto px-4">
+        <div className="border border-amber-500/20 bg-amber-500/5 rounded-3xl p-10 text-center">
+          <div className="w-20 h-20 bg-amber-500/10 rounded-full flex items-center justify-center mx-auto mb-6 border border-amber-500/20">
+            <Clock className="w-10 h-10 text-amber-400" />
+          </div>
+          <h3 className="text-2xl font-black text-white mb-3 uppercase tracking-tight">
+            Comprovante Enviado
+          </h3>
+          <p className="text-gray-400 text-sm leading-relaxed max-w-sm mx-auto">
+            Nosso time irá confirmar seu pagamento Zelle em até <strong>24h úteis</strong>.
+            Você receberá uma notificação quando confirmado.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6 pb-12 max-w-2xl mx-auto px-4">
 
@@ -151,7 +315,7 @@ export const PaymentStep: React.FC<StepProps> = ({ onNext }) => {
       <div className="bg-white/[0.04] border border-white/10 rounded-3xl overflow-hidden">
 
         {/* Scholarship info row */}
-        {scholarship && (
+        {firstApp && (
           <div className="p-5 flex items-center gap-4">
             <div className="w-14 h-14 rounded-2xl bg-white/10 border border-white/10 flex items-center justify-center shrink-0">
               <Building className="w-6 h-6 text-gray-400" />
@@ -164,6 +328,15 @@ export const PaymentStep: React.FC<StepProps> = ({ onNext }) => {
                 <Building className="w-3 h-3 shrink-0" />
                 {universityName}
               </p>
+              {userProfile?.num_dependents ? (
+                <p className="text-[10px] text-gold-medium/80 font-bold mt-1 uppercase tracking-wider">
+                  Inclui {userProfile.num_dependents} dependente{userProfile.num_dependents > 1 ? 's' : ''} (+$100 cada)
+                </p>
+              ) : (
+                <p className="text-[10px] text-gray-600 font-bold mt-1 uppercase tracking-wider">
+                  Individual (Sem dependentes)
+                </p>
+              )}
             </div>
             <div className="text-right shrink-0 ml-2">
               <p className="text-[9px] font-black uppercase tracking-widest text-gray-500 mb-0.5">Taxa de Matrícula</p>
@@ -210,9 +383,9 @@ export const PaymentStep: React.FC<StepProps> = ({ onNext }) => {
         {/* Payment methods */}
         <div className="p-5 space-y-3">
 
-          {/* Cartão de Crédito — Stripe */}
+          {/* Cartão de Crédito — Stripe MatriculaUSA */}
           <button
-            onClick={() => setSelectedMethod('stripe')}
+            onClick={() => { setSelectedMethod('stripe'); setPaymentError(null); }}
             className={`w-full flex items-center gap-4 p-4 rounded-2xl border transition-all text-left ${
               selectedMethod === 'stripe'
                 ? 'border-gold-medium/50 bg-gold-medium/5'
@@ -237,38 +410,11 @@ export const PaymentStep: React.FC<StepProps> = ({ onNext }) => {
             </div>
           </button>
 
-          {/* PIX */}
+          {/* Parcelow — Cartão */}
           <button
-            onClick={() => setSelectedMethod('pix')}
+            onClick={() => { setSelectedMethod('parcelow_card'); setPaymentError(null); }}
             className={`w-full flex items-center gap-4 p-4 rounded-2xl border transition-all text-left ${
-              selectedMethod === 'pix'
-                ? 'border-gold-medium/50 bg-gold-medium/5'
-                : 'border-white/10 bg-white/[0.02] hover:border-white/20'
-            }`}
-          >
-            <div className="w-10 h-10 rounded-xl bg-emerald-500/15 flex items-center justify-center shrink-0">
-              <PixIcon className="w-5 h-5 text-emerald-400" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className={`font-black text-sm uppercase tracking-wide ${selectedMethod === 'pix' ? 'text-white' : 'text-gray-200'}`}>
-                PIX
-              </p>
-              <p className="text-[10px] text-gray-600 uppercase tracking-wider font-bold mt-0.5">
-                * Podem incluir taxas de processamento
-              </p>
-            </div>
-            <div className="text-right shrink-0">
-              <p className={`font-black text-lg ${selectedMethod === 'pix' ? 'text-gold-medium' : 'text-white'}`}>
-                R$ {pixTotal.totalWithIOF.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-              </p>
-            </div>
-          </button>
-
-          {/* Parcelow */}
-          <button
-            onClick={() => setSelectedMethod('parcelow')}
-            className={`w-full flex items-center gap-4 p-4 rounded-2xl border transition-all text-left ${
-              selectedMethod === 'parcelow'
+              selectedMethod === 'parcelow_card'
                 ? 'border-gold-medium/50 bg-gold-medium/5'
                 : 'border-white/10 bg-white/[0.02] hover:border-white/20'
             }`}
@@ -277,24 +423,78 @@ export const PaymentStep: React.FC<StepProps> = ({ onNext }) => {
               <ParcelowIcon className="w-5 h-5 text-[#6060dd]" />
             </div>
             <div className="flex-1 min-w-0">
-              <p className={`font-black text-sm uppercase tracking-wide ${selectedMethod === 'parcelow' ? 'text-white' : 'text-gray-200'}`}>
-                Parcelow
+              <p className={`font-black text-sm uppercase tracking-wide ${selectedMethod === 'parcelow_card' ? 'text-white' : 'text-gray-200'}`}>
+                Parcelow — Cartão
               </p>
               <p className="text-[10px] text-gray-600 uppercase tracking-wider font-bold mt-0.5">
                 * Podem incluir taxas de operadora e processamento da plataforma
               </p>
             </div>
             <div className="text-right shrink-0">
-              <p className={`font-black text-lg ${selectedMethod === 'parcelow' ? 'text-gold-medium' : 'text-white'}`}>
+              <p className={`font-black text-lg ${selectedMethod === 'parcelow_card' ? 'text-gold-medium' : 'text-white'}`}>
                 ${applicationFee.toLocaleString()}.00
               </p>
               <p className="text-[9px] text-gray-500 font-black uppercase tracking-widest">Em até 12x</p>
             </div>
           </button>
 
-          {/* Zelle */}
+          {/* Parcelow — PIX */}
           <button
-            onClick={() => setSelectedMethod('zelle')}
+            onClick={() => { setSelectedMethod('parcelow_pix'); setPaymentError(null); }}
+            className={`w-full flex items-center gap-4 p-4 rounded-2xl border transition-all text-left ${
+              selectedMethod === 'parcelow_pix'
+                ? 'border-gold-medium/50 bg-gold-medium/5'
+                : 'border-white/10 bg-white/[0.02] hover:border-white/20'
+            }`}
+          >
+            <div className="w-10 h-10 rounded-xl bg-[#1a1a4e]/60 border border-[#4040aa]/30 flex items-center justify-center shrink-0">
+              <ParcelowIcon className="w-5 h-5 text-[#6060dd]" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className={`font-black text-sm uppercase tracking-wide ${selectedMethod === 'parcelow_pix' ? 'text-white' : 'text-gray-200'}`}>
+                Parcelow — PIX
+              </p>
+              <p className="text-[10px] text-gray-600 uppercase tracking-wider font-bold mt-0.5">
+                Via Parcelow · Podem incluir taxas
+              </p>
+            </div>
+            <div className="text-right shrink-0">
+              <p className={`font-black text-lg ${selectedMethod === 'parcelow_pix' ? 'text-gold-medium' : 'text-white'}`}>
+                ${applicationFee.toLocaleString()}.00
+              </p>
+            </div>
+          </button>
+
+          {/* Parcelow — TED */}
+          <button
+            onClick={() => { setSelectedMethod('parcelow_ted'); setPaymentError(null); }}
+            className={`w-full flex items-center gap-4 p-4 rounded-2xl border transition-all text-left ${
+              selectedMethod === 'parcelow_ted'
+                ? 'border-gold-medium/50 bg-gold-medium/5'
+                : 'border-white/10 bg-white/[0.02] hover:border-white/20'
+            }`}
+          >
+            <div className="w-10 h-10 rounded-xl bg-[#1a1a4e]/60 border border-[#4040aa]/30 flex items-center justify-center shrink-0">
+              <ParcelowIcon className="w-5 h-5 text-[#6060dd]" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className={`font-black text-sm uppercase tracking-wide ${selectedMethod === 'parcelow_ted' ? 'text-white' : 'text-gray-200'}`}>
+                Parcelow — TED
+              </p>
+              <p className="text-[10px] text-gray-600 uppercase tracking-wider font-bold mt-0.5">
+                Via Parcelow · Podem incluir taxas
+              </p>
+            </div>
+            <div className="text-right shrink-0">
+              <p className={`font-black text-lg ${selectedMethod === 'parcelow_ted' ? 'text-gold-medium' : 'text-white'}`}>
+                ${applicationFee.toLocaleString()}.00
+              </p>
+            </div>
+          </button>
+
+          {/* Zelle — pay@matriculausa.com */}
+          <button
+            onClick={() => { setSelectedMethod('zelle'); setPaymentError(null); }}
             className={`w-full flex items-center gap-4 p-4 rounded-2xl border transition-all text-left ${
               selectedMethod === 'zelle'
                 ? 'border-gold-medium/50 bg-gold-medium/5'
@@ -320,14 +520,64 @@ export const PaymentStep: React.FC<StepProps> = ({ onNext }) => {
             </div>
           </button>
 
+          {/* CPF para Parcelow */}
+          {needsCpf && (
+            <input
+              value={cpf}
+              onChange={e => setCpf(e.target.value)}
+              placeholder="CPF (apenas números)"
+              maxLength={14}
+              className="w-full bg-white/5 border border-white/10 focus:border-gold-medium/50 rounded-xl px-4 py-3 text-white text-sm placeholder-gray-600 outline-none transition-colors"
+            />
+          )}
+
+          {/* Split payment selector — Parcelow */}
+          {needsCpf && (
+            <SplitPaymentSelector
+              totalAmount={applicationFee}
+              onSplitChange={setSplitConfig}
+              disabled={processing}
+            />
+          )}
+
+          {/* Zelle upload — MatriculaUSA */}
+          {selectedMethod === 'zelle' && (
+            <div className="space-y-3">
+              <ZelleUpload
+                onFileSelect={file => { setZelleFile(file); setPaymentError(null); }}
+                currentFile={zelleFile}
+                onClear={() => setZelleFile(null)}
+                recipientEmail={MATRICULAUSA_ZELLE_EMAIL}
+              />
+              <button
+                onClick={handleZelleUpload}
+                disabled={!zelleFile || zelleUploading}
+                className="flex items-center justify-center gap-2 w-full bg-gold-medium hover:bg-gold-light disabled:opacity-50 text-black py-3 rounded-2xl font-black uppercase tracking-widest text-sm transition-all"
+              >
+                {zelleUploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+                {zelleUploading ? 'Enviando e Validando...' : 'Enviar Comprovante'}
+              </button>
+            </div>
+          )}
+
+          {/* Error */}
+          {paymentError && (
+            <div className="flex items-start gap-2 p-3 bg-red-500/10 border border-red-500/20 rounded-xl">
+              <AlertCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+              <p className="text-xs text-red-300">{paymentError}</p>
+            </div>
+          )}
+
           {/* CTA */}
-          {selectedMethod && (
+          {selectedMethod && selectedMethod !== 'zelle' && (
             <>
               <button
-                onClick={() => {/* integração a implementar */}}
-                className="flex items-center justify-center gap-2 w-full bg-gold-medium hover:bg-gold-light text-black py-4 rounded-2xl font-black uppercase tracking-widest transition-all shadow-xl shadow-gold-medium/10 mt-2"
+                onClick={handleProcessPayment}
+                disabled={!canPay || processing}
+                className="flex items-center justify-center gap-2 w-full bg-gold-medium hover:bg-gold-light disabled:opacity-50 text-black py-4 rounded-2xl font-black uppercase tracking-widest transition-all shadow-xl shadow-gold-medium/10 mt-2"
               >
-                {t('student_onboarding.payment.contact_advisor')}
+                {processing && <Loader2 className="w-5 h-5 animate-spin" />}
+                {processing ? 'Redirecionando...' : `Pagar $${applicationFee.toLocaleString()}.00`}
               </button>
               <p className="text-[10px] text-center text-gray-600 font-bold uppercase tracking-tighter">
                 🔒 Pagamento 100% Seguro e Criptografado

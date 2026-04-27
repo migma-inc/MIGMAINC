@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useSearchParams, Link, useNavigate } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import { Card, CardContent } from '@/components/ui/card';
@@ -20,9 +20,48 @@ export const CheckoutSuccess = () => {
   const [loading, setLoading] = useState(true);
   const [redirectCountdown, setRedirectCountdown] = useState(10);
   const [isRedirecting, setIsRedirecting] = useState(false);
+  const [userProfile, setUserProfile] = useState<any>(null);
+
+  // Detectar se é um aluno Migma
+  const isMigmaStudent = useMemo(() => {
+    if (splitPayment?.source === 'migma' || splitPayment?.source === 'placement_fee') return true;
+    if (order?.source === 'migma') return true;
+    if (userProfile?.source === 'migma') return true;
+    // Fallback: se o email do perfil termina em @pagamento.migmainc.com (gerado pelo migma-parcelow-checkout)
+    if (userProfile?.email?.includes('@pagamento.migmainc.com')) return true;
+    return false;
+  }, [splitPayment, order, userProfile]);
+
+  // Redirecionamento automático para Onboarding se for estudante Migma
+  useEffect(() => {
+    if (isMigmaStudent && !loading && !isRedirecting) {
+      // Se for split payment e já estiver totalmente completo, ou se for pagamento único completo
+      const isComplete = splitPayment 
+        ? splitPayment.overall_status === 'fully_completed'
+        : (order?.payment_status === 'completed' || userProfile?.has_paid_selection_process_fee);
+
+      if (isComplete) {
+        const timer = setTimeout(() => {
+          console.log('[CheckoutSuccess] Redirecionando estudante Migma para Onboarding...');
+          navigate('/student/onboarding');
+        }, 5000);
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [isMigmaStudent, splitPayment, order, userProfile, loading, isRedirecting]);
 
   useEffect(() => {
-    const loadOrder = async () => {
+    const loadData = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user) {
+        const { data: profile } = await supabase
+          .from('user_profiles')
+          .select('*')
+          .eq('user_id', session.user.id)
+          .maybeSingle();
+        setUserProfile(profile);
+      }
+
       if (!sessionId && !orderId) {
         setLoading(false);
         return;
@@ -93,8 +132,8 @@ export const CheckoutSuccess = () => {
       }
     };
 
-    loadOrder();
-  }, [sessionId, orderId]);
+    loadData();
+  }, [sessionId, orderId, supabase]);
 
   // Lógica de redirecionamento automático para Parte 2
   useEffect(() => {
@@ -321,13 +360,22 @@ export const CheckoutSuccess = () => {
               )}
             </div>
 
-            <div className="pt-4 border-t border-white/5">
-              <Link to="/">
-                <Button variant="ghost" className="text-gold-light font-bold hover:bg-gold-light/10">
-                  {t('checkout.back_to_home', 'Back to Homepage')}
-                  <ArrowRight className="w-4 h-4 ml-2" />
-                </Button>
-              </Link>
+            <div className="pt-4 border-t border-white/5 flex flex-col sm:flex-row gap-4 justify-center">
+              {isMigmaStudent ? (
+                <Link to="/student/onboarding">
+                  <Button className="bg-gold-medium hover:bg-gold-light text-black font-bold px-8 py-6 rounded-xl shadow-lg shadow-gold-medium/20">
+                    {t('checkout.go_to_onboarding', 'Continuar para Onboarding')}
+                    <ArrowRight className="w-4 h-4 ml-2" />
+                  </Button>
+                </Link>
+              ) : (
+                <Link to="/">
+                  <Button variant="ghost" className="text-gold-light font-bold hover:bg-gold-light/10">
+                    {t('checkout.back_to_home', 'Back to Homepage')}
+                    <ArrowRight className="w-4 h-4 ml-2" />
+                  </Button>
+                </Link>
+              )}
             </div>
           </div>
         </CardContent>

@@ -10,6 +10,8 @@ import { AlertModal } from '@/components/ui/alert-modal';
 import { getSecureUrl } from '@/lib/storage';
 import { getExplicitMigmaUpsell, getOrderAddonLabel, resolveMigmaOrderLink } from '@/lib/migma-zelle-linking';
 
+const isLocal = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+
 interface ZelleOrder {
     id: string;
     order_number: string;
@@ -151,13 +153,17 @@ export const SellerZelleApprovalPage = () => {
 
     const loadOrders = async (currentSellerId: string) => {
         try {
-            const { data: ordersData, error: ordersError } = await supabase
+            let ordersQuery = supabase
                 .from('visa_orders')
                 .select('*')
                 .eq('payment_method', 'zelle')
                 .in('payment_status', ['pending', 'completed']) // Fetch both to allow deduplication/unification
                 .eq('seller_id', currentSellerId)
-                .eq('is_hidden', false)
+                .eq('is_hidden', false);
+
+            if (!isLocal) ordersQuery = ordersQuery.eq('is_test', false);
+
+            const { data: ordersData, error: ordersError } = await ordersQuery
                 .order('created_at', { ascending: false });
 
             if (ordersError) throw ordersError;
@@ -193,11 +199,15 @@ export const SellerZelleApprovalPage = () => {
 
             let enrichedMigma: MigmaPayment[] = [];
             if (sellerClientIds.length > 0) {
-                const { data: migmaData, error: migmaError } = await supabase
+                let migmaQuery = supabase
                     .from('migma_payments')
                     .select('*')
                     .in('user_id', sellerClientIds)
-                    .in('status', ['pending', 'pending_verification'])
+                    .in('status', ['pending', 'pending_verification']);
+
+                if (!isLocal) migmaQuery = migmaQuery.eq('is_test', false);
+
+                const { data: migmaData, error: migmaError } = await migmaQuery
                     .order('updated_at', { ascending: false });
 
                 if (migmaError) console.error('Error loading Migma:', migmaError);
@@ -332,23 +342,31 @@ export const SellerZelleApprovalPage = () => {
 
             setUnifiedApprovals(finalPending);
 
-            const { data: histOrdersData } = await supabase
+            let histQuery = supabase
                 .from('visa_orders')
                 .select('*')
                 .eq('payment_method', 'zelle')
                 .eq('seller_id', currentSellerId)
                 .in('payment_status', ['completed', 'failed'])
-                .eq('is_hidden', false)
+                .eq('is_hidden', false);
+
+            if (!isLocal) histQuery = histQuery.eq('is_test', false);
+
+            const { data: histOrdersData } = await histQuery
                 .order('updated_at', { ascending: false })
                 .limit(20);
             setHistoryOrders(histOrdersData || []);
 
             if (sellerClientIds.length > 0) {
-                const { data: histMigmaData } = await supabase
+                let histMigmaQuery = supabase
                     .from('migma_payments')
                     .select('*')
                     .in('user_id', sellerClientIds)
-                    .in('status', ['approved', 'rejected'])
+                    .in('status', ['approved', 'rejected']);
+
+                if (!isLocal) histMigmaQuery = histMigmaQuery.eq('is_test', false);
+
+                const { data: histMigmaData } = await histMigmaQuery
                     .order('updated_at', { ascending: false })
                     .limit(20);
 

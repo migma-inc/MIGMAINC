@@ -73,14 +73,24 @@ export const SplitPaymentRedirectFlow = () => {
     };
 
     const handleSplitState = (split: any) => {
+        console.log('[SplitRedirect] Handling state:', {
+            overall: split.overall_status,
+            p1: split.part1_payment_status,
+            p2: split.part2_payment_status,
+            isReturn: isSplitReturn,
+            returnedPart
+        });
+
         if (split.overall_status === 'fully_completed') {
             setIsPolling(false);
             setLoading(false);
             setTimeout(() => {
                 if (split.source === 'migma') {
-                    // Migma split: redirecionar ao checkout do aluno que verifica o flag de pagamento
                     const service = split.migma_service_type || 'transfer';
                     navigate(`/student/checkout/${service}?success=true`);
+                } else if (split.source === 'placement_fee') {
+                    // Para placement fee, redirecionar de volta para o onboarding do estudante
+                    navigate(`/student/onboarding?step=placement_fee&success=true&application_id=${split.application_id}`);
                 } else {
                     navigate(`/checkout/success?order_id=${split.order_id}&method=parcelow_split`);
                 }
@@ -88,28 +98,51 @@ export const SplitPaymentRedirectFlow = () => {
             return;
         }
 
-        if (isSplitReturn && returnedPart === '1' && split.part1_payment_status !== 'completed') {
+        // Se voltamos da primeira parte ou se o checkout da P1 foi aberto recentemente, 
+        // mas o webhook ainda não confirmou, vamos aguardar (polling)
+        // Isso evita o loop de redirecionar o usuário de volta para uma página que ele acabou de pagar
+        if (split.part1_payment_status !== 'completed' && (isSplitReturn && returnedPart === '1')) {
+            console.log('[SplitRedirect] Part 1 pending after return. Starting polling...');
             setLoading(false);
             setIsPolling(true);
+            // O useEffect do polling cuidará do restante
             return;
         }
 
-        if (isSplitReturn && returnedPart === '2' && split.part2_payment_status !== 'completed') {
-            setLoading(false);
-            setIsPolling(true);
-            return;
-        }
-
+        // Se a parte 1 estiver completa e a 2 pendente, redirecionar para a parte 2
         if (split.part1_payment_status === 'completed' && split.part2_payment_status !== 'completed') {
             setIsPolling(false);
             setLoading(false);
+
+            // Se voltamos da P2 mas ela ainda está pendente, pollar em vez de redirecionar de novo
+            if (isSplitReturn && returnedPart === '2') {
+                console.log('[SplitRedirect] Part 2 pending after return. Polling...');
+                setIsPolling(true);
+                return;
+            }
+
+            // Proteção anti-loop: se a URL da P2 for a mesma da P1 (dado corrompido no DB),
+            // redirecionar para P1 causa loop infinito pois P1 já está pago.
+            if (
+                split.part2_parcelow_checkout_url &&
+                (split.part2_parcelow_checkout_url === split.part1_parcelow_checkout_url ||
+                 split.part2_parcelow_order_id === split.part1_parcelow_order_id)
+            ) {
+                console.error('[SplitRedirect] ⚠️ P2 URL/OrderID = P1. Dados corrompidos. Parando loop.');
+                setError('Erro interno: o link do segundo pagamento está incorreto. Entre em contato com suporte. (SPLIT-URL-CONFLICT)');
+                return;
+            }
+
+            console.log('[SplitRedirect] Redirecting to Part 2...');
             startCountdown(split.part2_parcelow_checkout_url, 10);
             return;
         }
 
+        // Se a parte 1 NÃO está completa e NÃO é um retorno, então redirecionamos para a parte 1
         if (split.part1_payment_status !== 'completed') {
             setIsPolling(false);
             setLoading(false);
+            console.log('[SplitRedirect] Redirecting to Part 1...');
             startCountdown(split.part1_parcelow_checkout_url, 3);
             return;
         }

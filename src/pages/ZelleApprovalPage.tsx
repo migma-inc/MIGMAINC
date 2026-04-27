@@ -136,19 +136,27 @@ export const ZelleApprovalPage = () => {
       }
 
       // 3. Load pending Migma payments (external receipts)
-      const { data: migmaData, error: migmaError } = await supabase
+      let migmaQuery = supabase
         .from('migma_payments')
         .select('*')
-        .in('status', ['pending', 'pending_verification'])
+        .in('status', ['pending', 'pending_verification']);
+
+      if (!isLocal) migmaQuery = migmaQuery.eq('is_test', false);
+
+      const { data: migmaData, error: migmaError } = await migmaQuery
         .order('updated_at', { ascending: false });
 
       if (migmaError) console.error('Error loading Migma:', migmaError);
 
       // 3b. Load MigmaCheckout Zelle pending early — needed to deduplicate migma_payments below
-      const { data: migmaZelleDataEarly } = await supabase
+      let migmaZelleEarlyQuery = supabase
         .from('migma_checkout_zelle_pending')
         .select('migma_user_email')
         .eq('status', 'pending_verification');
+
+      if (!isLocal) migmaZelleEarlyQuery = migmaZelleEarlyQuery.eq('is_test', false);
+
+      const { data: migmaZelleDataEarly } = await migmaZelleEarlyQuery;
 
       const migmaCheckoutEmails = new Set(
         (migmaZelleDataEarly || []).map((p: any) => p.migma_user_email?.trim().toLowerCase()).filter(Boolean)
@@ -214,12 +222,16 @@ export const ZelleApprovalPage = () => {
 
       const { data: histOrdersData } = await histQuery;
 
-      const { data: histMigmaData } = await supabase
+      let histMigmaQuery = supabase
         .from('migma_payments')
         .select('*')
         .in('status', ['approved', 'rejected'])
         .order('updated_at', { ascending: false })
         .limit(20);
+
+      if (!isLocal) histMigmaQuery = histMigmaQuery.eq('is_test', false);
+
+      const { data: histMigmaData } = await histMigmaQuery;
 
       const histMigmaPayments = histMigmaData || [];
       const histOrdersPayments = histOrdersData || [];
@@ -439,11 +451,15 @@ export const ZelleApprovalPage = () => {
       setHistoryOrders(enrichedHistOrders);
 
       // Load MigmaCheckout Zelle pending (selection process fee awaiting admin approval)
-      const { data: migmaZelleData } = await supabase
+      let migmaZelleQuery = supabase
         .from('migma_checkout_zelle_pending')
         .select('*')
         .eq('status', 'pending_verification')
         .order('created_at', { ascending: false });
+
+      if (!isLocal) migmaZelleQuery = migmaZelleQuery.eq('is_test', false);
+
+      const { data: migmaZelleData } = await migmaZelleQuery;
 
       if (migmaZelleData && migmaZelleData.length > 0) {
         const userIds = [...new Set(migmaZelleData.map((p: any) => p.migma_user_id))];

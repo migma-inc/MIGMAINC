@@ -75,9 +75,13 @@ export const WaitingApprovalStep: React.FC<StepProps> = () => {
     try {
       const [appsRes, notifRes, docsRes] = await Promise.all([
         supabase
-          .from('scholarship_applications')
-          .select(`id, status, created_at, scholarship_id, scholarships(id, title, name, universities(name))`)
-          .eq('student_id', userProfile.id)
+          .from('institution_applications')
+          .select(`
+            id, status, created_at,
+            institutions ( name ),
+            institution_scholarships ( scholarship_level )
+          `)
+          .eq('profile_id', userProfile.id)
           .order('created_at', { ascending: false }),
         supabase
           .from('student_notifications')
@@ -92,7 +96,20 @@ export const WaitingApprovalStep: React.FC<StepProps> = () => {
           .order('requested_at', { ascending: false }),
       ]);
 
-      setApplications((appsRes.data as unknown as Application[]) || []);
+      // Mapeia os dados do V11 para a interface esperada pelo componente
+      const mappedApps = (appsRes.data || []).map((app: any) => ({
+        id: app.id,
+        status: app.status,
+        created_at: app.created_at,
+        scholarship_id: '', // Não usado no V11 desta forma
+        scholarships: {
+          id: '',
+          name: app.institution_scholarships?.scholarship_level || 'Bolsa de Estudos',
+          universities: { name: app.institutions?.name || 'Universidade' }
+        }
+      }));
+
+      setApplications(mappedApps as unknown as Application[]);
       setNotifications(notifRes.data || []);
       setDocumentRequests((docsRes.data as DocumentRequest[]) || []);
       setLastRefresh(new Date());

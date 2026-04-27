@@ -119,7 +119,7 @@ Deno.serve(async (req: Request) => {
 
     const orderData = {
       reference: finalRef,
-      partner_reference: body.user_id || "migma_guest",
+      partner_reference: body.partner_reference_override || body.user_id || "migma_guest",
       client: {
         cpf: body.cpf?.replace(/\D/g, ''),
         name: body.full_name,
