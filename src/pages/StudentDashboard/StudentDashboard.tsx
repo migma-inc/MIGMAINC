@@ -1807,7 +1807,7 @@ function formatArrayOrText(value: string[] | string | null | undefined) {
 const StudentDashboard = () => {
   const navigate = useNavigate();
   const { tab } = useParams<{ tab: string }>();
-  const { userProfile, signOut } = useStudentAuth();
+  const { user, userProfile, loading: authLoading, signOut } = useStudentAuth();
   const { t } = useTranslation();
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(() =>
@@ -1822,6 +1822,12 @@ const StudentDashboard = () => {
     loading,
     refresh,
   } = useStudentDashboard();
+
+  useEffect(() => {
+    if (!authLoading && !user) {
+      navigate('/student/login', { replace: true });
+    }
+  }, [authLoading, navigate, user]);
 
   useEffect(() => {
     const isDark = document.documentElement.classList.contains('dark') || localStorage.getItem('theme') === 'dark';
@@ -1842,13 +1848,20 @@ const StudentDashboard = () => {
     });
   };
 
-  if (loading) {
+  const handleSignOut = async () => {
+    await signOut();
+    navigate('/student/login', { replace: true });
+  };
+
+  if (authLoading || loading) {
     return (
       <div className="flex h-screen items-center justify-center bg-white dark:bg-black">
         <Loader2 className="h-8 w-8 animate-spin text-[#9a6a16] dark:text-[#CE9F48]" />
       </div>
     );
   }
+
+  if (!user || !userProfile) return null;
 
   const nextAction = getNextAction(userProfile, activeApplication, t);
   const progress = getProgress(userProfile, activeApplication);
@@ -1969,7 +1982,7 @@ const StudentDashboard = () => {
 
           <div className="mt-auto space-y-2 pt-6 border-t border-[#f3ead9] dark:border-white/5">
             <button
-              onClick={() => signOut()}
+              onClick={() => void handleSignOut()}
               className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm font-bold text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10"
             >
               <LogOut className="h-5 w-5 shrink-0" />

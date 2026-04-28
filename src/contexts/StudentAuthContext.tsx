@@ -191,10 +191,13 @@ export function StudentAuthProvider({ children }: { children: ReactNode }) {
   }, [isVerifying]);
 
   const signOut = useCallback(async () => {
-    await supabase.auth.signOut();
     setUser(null);
     setSession(null);
     setUserProfile(null);
+    const { error } = await supabase.auth.signOut({ scope: 'local' });
+    if (error) {
+      console.error('[StudentAuth] Erro ao sair:', error.message);
+    }
   }, []);
 
   return (
