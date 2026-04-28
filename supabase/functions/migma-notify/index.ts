@@ -325,14 +325,14 @@ function buildTemplate(
 
     // ── 14 ────────────────────────────────────────────────────────────────────
     case "referral_goal_reached": return {
-      subject: "Parabéns! Você atingiu 10 indicações — tuition reduzida",
+      subject: "Parabéns! Você atingiu 10 indicações — mensalidade Migma zerada",
       emailHtml: emailWrapper("Meta de indicações atingida!", `
         <p>Olá, ${highlight(firstName)}!</p>
         <p>🏆 Incrível! Você atingiu a meta de <strong>10 indicações</strong> fechadas!</p>
-        <p>Como prometido, sua tuition Migma foi <strong>reduzida automaticamente</strong>. O desconto já está aplicado na sua conta.</p>
+        <p>Como prometido, sua mensalidade Migma foi <strong>zerada automaticamente</strong>. O benefício já está aplicado na sua conta.</p>
         ${btn("Ver minha conta", `${dash}/student/rewards`)}
       `),
-      whatsapp: `🏆 *Migma* — Meta atingida!\n\nParabéns ${firstName}! Você fechou 10 indicações e sua tuition foi reduzida automaticamente. Veja: ${dash}/student/rewards`,
+      whatsapp: `🏆 *Migma* — Meta atingida!\n\nParabéns ${firstName}! Você fechou 10 indicações e sua mensalidade Migma foi zerada automaticamente. Veja: ${dash}/student/rewards`,
     };
 
     // ── 15 ────────────────────────────────────────────────────────────────────
@@ -341,7 +341,7 @@ function buildTemplate(
       emailHtml: emailWrapper("Nova indicação fechada", `
         <p>Olá, ${highlight(firstName)}!</p>
         <p>Sua indicação <strong>${data.referral_name ?? "recente"}</strong> foi convertida em cliente Migma!</p>
-        <p>Você tem agora <strong>${data.closures_count ?? "?"} indicação(ões)</strong> no total. Continue indicando para zerar sua tuition!</p>
+        <p>Você tem agora <strong>${data.closures_count ?? "?"} indicação(ões)</strong> no total. Continue indicando para zerar sua mensalidade Migma!</p>
         ${btn("Ver meu painel de rewards", `${dash}/student/rewards`)}
       `),
       whatsapp: `🎯 *Migma* — Indicação fechada!\n\nOlá ${firstName}, ${data.referral_name ?? "sua indicação"} acaba de virar cliente! Total: *${data.closures_count ?? "?"}* indicações. Veja: ${dash}/student/rewards`,

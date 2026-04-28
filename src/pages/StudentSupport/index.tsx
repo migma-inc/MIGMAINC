@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Send, Loader2, MessageCircle, Bot, UserCheck, CheckCircle, Calendar } from 'lucide-react';
+import { ArrowLeft, Send, Loader2, MessageCircle, UserCheck, CheckCircle, Calendar } from 'lucide-react';
 import { useStudentAuth } from '../../contexts/StudentAuthContext';
 import { supabase } from '../../lib/supabase';
 
@@ -215,7 +215,7 @@ export const StudentSupportPanel: React.FC<StudentSupportPanelProps> = ({ embedd
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
       const json = await res.json();
-      const reply: string = json.response ?? json.message ?? json.output ?? json.text ?? 'Sem resposta do assistente.';
+      const reply: string = json.response ?? json.message ?? json.output ?? json.text ?? 'Sem resposta da Equipe Migma.';
       const escalate: boolean = json.escalate === true;
       const escalateReason: string = json.reason ?? json.escalate_reason ?? '';
 
@@ -259,7 +259,7 @@ export const StudentSupportPanel: React.FC<StudentSupportPanelProps> = ({ embedd
           )}
           <div className="flex items-center gap-3 flex-1">
             <div className={`w-9 h-9 rounded-full flex items-center justify-center border ${handedOff ? 'bg-blue-500/15 border-blue-500/30' : 'bg-[#CE9F48]/15 border-[#CE9F48]/30'}`}>
-              {handedOff ? <UserCheck className="w-5 h-5 text-blue-400" /> : <Bot className="w-5 h-5 text-[#9a6a16] dark:text-[#CE9F48]" />}
+              {handedOff ? <UserCheck className="w-5 h-5 text-blue-400" /> : <MessageCircle className="w-5 h-5 text-[#9a6a16] dark:text-[#CE9F48]" />}
             </div>
             <div>
               <p className="text-sm font-semibold text-[#1f1a14] dark:text-white leading-none">Equipe Migma</p>

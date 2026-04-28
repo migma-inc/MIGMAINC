@@ -139,11 +139,50 @@ export const StudentRewardsPanel: React.FC<StudentRewardsPanelProps> = ({ embedd
     void fetchOrCreateReferral();
   }, [user, fetchOrCreateReferral]);
 
+  useEffect(() => {
+    if (!userProfile?.id) return;
+
+    const channel = supabase
+      .channel(`student-rewards-${userProfile.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'referral_links',
+          filter: `profile_id=eq.${userProfile.id}`,
+        },
+        () => {
+          void fetchOrCreateReferral();
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'calendly_events',
+          filter: `owner_profile_id=eq.${userProfile.id}`,
+        },
+        () => {
+          void fetchOrCreateReferral();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [fetchOrCreateReferral, userProfile?.id]);
+
   const referralUrl = useMemo(() => {
     if (!referral) return '';
     const url = new URL('/book-a-call', getReferralBaseUrl());
     url.searchParams.set('ref', referral.unique_code);
     url.searchParams.set('utm_source', 'migma_referral');
+    url.searchParams.set('utm_medium', 'student_rewards');
+    url.searchParams.set('utm_campaign', 'referral_program');
+    url.searchParams.set('utm_content', referral.unique_code);
     return url.toString();
   }, [referral]);
 
