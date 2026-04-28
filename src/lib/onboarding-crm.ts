@@ -54,6 +54,8 @@ export interface CrmProfile {
   identity_verified: boolean | null;
   updated_at: string | null;
   created_at: string | null;
+  // Mentor assignment
+  mentor_id: string | null;
 }
 
 export interface CrmServiceRequest {

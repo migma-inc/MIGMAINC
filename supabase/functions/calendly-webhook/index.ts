@@ -51,55 +51,21 @@ Deno.serve(async (req) => {
 
     console.log(`[calendly-webhook] unique_code=${uniqueCode} invitee=${inviteeEmail}`);
 
-    // Find referral_link by unique_code
+    // Find referral_link by unique_code. Booking creates attribution/meeting history only;
+    // closure credit must happen later from the CRM/admin flow.
     let ownerProfileId: string | null = null;
     let resolvedCode: string | null = uniqueCode;
 
     if (uniqueCode) {
       const { data: refLink } = await supabase
         .from("referral_links")
-        .select("id, profile_id, closures_count")
+        .select("id, profile_id")
         .eq("unique_code", uniqueCode)
         .maybeSingle();
 
       if (refLink) {
         ownerProfileId = refLink.profile_id;
-
-        // Increment closures_count
-        const newCount = (refLink.closures_count ?? 0) + 1;
-        await supabase
-          .from("referral_links")
-          .update({ closures_count: newCount })
-          .eq("id", refLink.id);
-
-        console.log(`[calendly-webhook] closures_count updated to ${newCount} for profile ${ownerProfileId}`);
-
-        // TODO (Fase 9): if newCount >= 10 → call Square subscription cancellation
-        // await supabase.functions.invoke("cancel-square-subscription", {
-        //   body: { profile_id: ownerProfileId }
-        // });
-
-        // Notify client via migma-notify (when env secrets configured)
-        if (newCount >= 10) {
-          await supabase.functions.invoke("migma-notify", {
-            body: {
-              trigger: "referral_goal_reached",
-              user_id: ownerProfileId,
-              data: { closures_count: newCount },
-            },
-          }).catch(() => {}); // stub — migma-notify may be inactive
-        } else {
-          await supabase.functions.invoke("migma-notify", {
-            body: {
-              trigger: "new_referral_closed",
-              user_id: ownerProfileId,
-              data: {
-                referral_name: inviteeName ?? "Indicação",
-                closures_count: newCount,
-              },
-            },
-          }).catch(() => {}); // stub
-        }
+        console.log(`[calendly-webhook] booking attributed to profile ${ownerProfileId}`);
       } else {
         console.warn(`[calendly-webhook] No referral_link found for code=${uniqueCode}`);
         resolvedCode = null;

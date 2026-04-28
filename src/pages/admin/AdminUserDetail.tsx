@@ -206,6 +206,61 @@ function SectionCard({ title, icon: Icon, children }: { title: string; icon: Rea
   );
 }
 
+function MentorAssignSection({ profileId, currentMentorId }: { profileId: string; currentMentorId: string | null }) {
+  const [mentors, setMentors] = useState<{ id: string; full_name: string | null }[]>([]);
+  const [selected, setSelected] = useState(currentMentorId ?? '');
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+
+  useEffect(() => {
+    void supabase
+      .from('referral_mentors')
+      .select('profile_id, display_name')
+      .eq('active', true)
+      .order('display_name', { ascending: true })
+      .then(({ data }) => {
+        if (data) {
+          setMentors(data.map((m) => ({ id: m.profile_id, full_name: m.display_name })));
+        }
+      });
+  }, []);
+
+  const handleSave = async () => {
+    setSaving(true);
+    setMsg(null);
+    const { error } = await supabase
+      .from('user_profiles')
+      .update({ mentor_id: selected || null })
+      .eq('id', profileId);
+    setSaving(false);
+    setMsg(error ? `Erro: ${error.message}` : 'Mentor salvo.');
+  };
+
+  return (
+    <div className="space-y-2">
+      <select
+        value={selected}
+        onChange={(e) => setSelected(e.target.value)}
+        className="w-full rounded-md border border-white/10 bg-white text-black text-sm px-3 py-2"
+      >
+        <option value="">— Sem mentor atribuído —</option>
+        {mentors.map((m) => (
+          <option key={m.id} value={m.id}>{m.full_name ?? m.id}</option>
+        ))}
+      </select>
+      <div className="flex items-center gap-2">
+        <Button size="sm" onClick={handleSave} disabled={saving} className="bg-gold-medium text-black hover:bg-gold-light font-bold">
+          {saving ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Salvar'}
+        </Button>
+        {msg && <span className={`text-xs ${msg.startsWith('Erro') ? 'text-red-400' : 'text-green-400'}`}>{msg}</span>}
+      </div>
+      {mentors.length === 0 && (
+        <p className="text-xs text-gray-500">Nenhum mentor ativo. Configure a URL de agenda em Admin Profile para criar o mentor.</p>
+      )}
+    </div>
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Tabs
 // ---------------------------------------------------------------------------
@@ -277,6 +332,10 @@ function OverviewTab({
             <InfoRow label="Registered" value={fmtDate(profile.created_at)} />
             <InfoRow label="Total Paid" value={formatCurrency(profile.total_price_usd)} />
             <InfoRow label="Status" value={toLabel(profile.status)} />
+          </div>
+          <div className="mt-4 pt-4 border-t border-white/5">
+            <p className="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-2">Mentor de Indicação</p>
+            <MentorAssignSection profileId={profile.id} currentMentorId={profile.mentor_id} />
           </div>
         </SectionCard>
 

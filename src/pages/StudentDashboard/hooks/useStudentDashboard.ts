@@ -108,7 +108,18 @@ export function useStudentDashboard() {
   const [error, setError] = useState<string | null>(null);
 
   const fetchDashboard = useCallback(async () => {
-    if (!profileId || !userId) return;
+    if (!profileId || !userId) {
+      setData({
+        applications: [],
+        documents: [],
+        forms: [],
+        identity: null,
+        studentDocuments: [],
+        surveyResponse: null,
+      });
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     setError(null);
 

@@ -44,3 +44,7 @@ tmp-*.log
 # Internal docs / reports
 RELATORIO_TECNICO_*.md
 CHECKLIST_*.md
+
+
+# Pasta antiga do git
+.git_disabled/

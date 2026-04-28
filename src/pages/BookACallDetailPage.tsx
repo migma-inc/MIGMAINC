@@ -83,20 +83,25 @@ export function BookACallDetailPage() {
       const result = data as {
         closures_count: number;
         goal_reached: boolean;
+        goal_reached_now?: boolean;
         profile_id: string | null;
         already_closed: boolean;
+        exempted_charges?: number;
       };
 
       if (result.already_closed) {
         setActionMsg({ type: 'success', text: 'Lead já estava marcado como fechado. Contador não alterado.' });
-      } else if (result.goal_reached) {
-        setActionMsg({ type: 'success', text: `Fechamento creditado! Meta de 10 atingida — tuition reduzida a $3,800/ano. Notificação enviada ao aluno.` });
+      } else if (result.goal_reached_now) {
+        setActionMsg({ type: 'success', text: `Fechamento creditado! Meta de 10 atingida — mensalidade Migma zerada e referência de tuition ajustada para $3,800/ano. Notificação enviada ao aluno.` });
         if (result.profile_id) {
           void supabase.functions.invoke('migma-notify', {
             body: {
               trigger: 'referral_goal_reached',
               user_id: result.profile_id,
-              data: { closures_count: result.closures_count },
+              data: {
+                closures_count: result.closures_count,
+                exempted_charges: result.exempted_charges ?? 0,
+              },
             },
           });
         }
