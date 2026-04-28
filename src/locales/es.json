@@ -1277,7 +1277,11 @@
       "meetings_empty_title": "No hay reuniones registradas todavía",
       "meetings_empty_desc": "Cuando alguien agende usando tu enlace, el registro aparecerá aquí.",
       "meetings_lead_placeholder": "Lead referido",
-      "badge_scheduled": "Agendado"
+      "badge_scheduled": "Agendado",
+      "badge_closed": "Cerrado",
+      "celebration_title": "¡Lo lograste! ¡Meta alcanzada!",
+      "celebration_desc": "Tu cuota mensual de Migma ha sido eximida y tu matrícula de referencia ahora es {{tuition}}/año. ¡Felicidades!",
+      "celebration_dismiss": "Cerrar"
     },
     "profile": {
       "title": "Perfil del Estudiante",

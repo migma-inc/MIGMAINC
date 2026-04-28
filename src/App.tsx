@@ -15,6 +15,8 @@ import { About } from './pages/About';
 import { Contact } from './pages/Contact';
 import { BookACall } from './pages/BookACall';
 import { BookACallThankYou } from './pages/BookACallThankYou';
+import { ReferralLandingPage } from './pages/ReferralLandingPage';
+import { ReferralThankYouPage } from './pages/ReferralThankYouPage';
 import { PrivacyPolicy } from './pages/PrivacyPolicy';
 import { WebsiteTerms } from './pages/WebsiteTerms';
 import { Cookies } from './pages/Cookies';
@@ -91,6 +93,7 @@ import { AdminUsers } from './pages/admin/AdminUsers';
 import { AdminCrmCos } from './pages/admin/AdminCrmCos';
 import { AdminCrmTransfer } from './pages/admin/AdminCrmTransfer';
 import { AdminUserDetail } from './pages/admin/AdminUserDetail';
+import { AdminReferralLeads } from './pages/admin/AdminReferralLeads';
 import { EB3InstallmentCheckout } from './pages/EB3InstallmentCheckout';
 import { NotFound } from './pages/NotFound';
 
@@ -105,6 +108,8 @@ function App() {
         <Route path="/support/ticket" element={<SupportTicket />} />
         <Route path="/book-a-call" element={<BookACall />} />
         <Route path="/book-a-call/thank-you" element={<BookACallThankYou />} />
+        <Route path="/indicacao" element={<ReferralLandingPage />} />
+        <Route path="/indicacao/obrigado" element={<ReferralThankYouPage />} />
         <Route path="/legal/privacy-policy" element={<PrivacyPolicy />} />
         <Route path="/legal/website-terms" element={<WebsiteTerms />} />
         <Route path="/legal/cookies" element={<Cookies />} />
@@ -193,6 +198,7 @@ function App() {
           <Route path="users/:profileId" element={<AdminUserDetail />} />
           <Route path="crm/cos" element={<AdminCrmCos />} />
           <Route path="crm/transfer" element={<AdminCrmTransfer />} />
+          <Route path="crm/referral-leads" element={<AdminReferralLeads />} />
           <Route path="tracking" element={<AdminTracking />} />
           <Route path="coupons" element={<CouponManagement />} />
           <Route path="sync-sales" element={<AdminRoute><AdminSyncSales /></AdminRoute>} />

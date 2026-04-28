@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
@@ -33,14 +33,15 @@ interface ReferralLink {
   created_at: string;
 }
 
-interface CalendlyEvent {
+interface ReferralLeadEntry {
   id: string;
-  unique_code: string | null;
-  invitee_name: string | null;
-  invitee_email: string | null;
-  event_type: string | null;
-  scheduled_at: string | null;
   created_at: string;
+  full_name: string;
+  email: string;
+  phone: string;
+  status: string;
+  meet_url: string | null;
+  country: string | null;
 }
 
 const PRODUCTION_BASE_URL = 'https://migmainc.com';
@@ -78,10 +79,12 @@ export const StudentRewardsPanel: React.FC<StudentRewardsPanelProps> = ({ embedd
   const { user, userProfile } = useStudentAuth();
   const { t, i18n } = useTranslation();
   const [referral, setReferral] = useState<ReferralLink | null>(null);
-  const [events, setEvents] = useState<CalendlyEvent[]>([]);
+  const [leads, setLeads] = useState<ReferralLeadEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showCelebration, setShowCelebration] = useState(false);
+  const prevGoalRef = useRef(false);
 
   const fetchOrCreateReferral = useCallback(async () => {
     if (!userProfile?.id) return;
@@ -119,14 +122,14 @@ export const StudentRewardsPanel: React.FC<StudentRewardsPanelProps> = ({ embedd
 
       setReferral(currentReferral);
 
-      const { data: calendlyEvents } = await supabase
-        .from('calendly_events')
-        .select('id, unique_code, invitee_name, invitee_email, event_type, scheduled_at, created_at')
-        .eq('owner_profile_id', userProfile.id)
+      const { data: leadData } = await supabase
+        .from('referral_leads')
+        .select('id, created_at, full_name, email, phone, status, meet_url, country')
+        .eq('referral_link_id', currentReferral.id)
         .order('created_at', { ascending: false })
-        .limit(8);
+        .limit(20);
 
-      setEvents((calendlyEvents ?? []) as CalendlyEvent[]);
+      setLeads((leadData ?? []) as ReferralLeadEntry[]);
     } catch (err) {
       setError(err instanceof Error ? err.message : t('student_dashboard.rewards.error_load'));
     } finally {
@@ -140,44 +143,26 @@ export const StudentRewardsPanel: React.FC<StudentRewardsPanelProps> = ({ embedd
   }, [user, fetchOrCreateReferral]);
 
   useEffect(() => {
-    if (!userProfile?.id) return;
+    if (!userProfile?.id || !referral?.id) return;
 
     const channel = supabase
       .channel(`student-rewards-${userProfile.id}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'referral_links',
-          filter: `profile_id=eq.${userProfile.id}`,
-        },
-        () => {
-          void fetchOrCreateReferral();
-        }
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'calendly_events',
-          filter: `owner_profile_id=eq.${userProfile.id}`,
-        },
-        () => {
-          void fetchOrCreateReferral();
-        }
-      )
+      .on('postgres_changes', {
+        event: '*', schema: 'public', table: 'referral_links',
+        filter: `profile_id=eq.${userProfile.id}`,
+      }, () => { void fetchOrCreateReferral(); })
+      .on('postgres_changes', {
+        event: '*', schema: 'public', table: 'referral_leads',
+        filter: `referral_link_id=eq.${referral.id}`,
+      }, () => { void fetchOrCreateReferral(); })
       .subscribe();
 
-    return () => {
-      void supabase.removeChannel(channel);
-    };
-  }, [fetchOrCreateReferral, userProfile?.id]);
+    return () => { void supabase.removeChannel(channel); };
+  }, [fetchOrCreateReferral, userProfile?.id, referral?.id]);
 
   const referralUrl = useMemo(() => {
     if (!referral) return '';
-    const url = new URL('/book-a-call', getReferralBaseUrl());
+    const url = new URL('/indicacao', getReferralBaseUrl());
     url.searchParams.set('ref', referral.unique_code);
     url.searchParams.set('utm_source', 'migma_referral');
     url.searchParams.set('utm_medium', 'student_rewards');
@@ -205,10 +190,16 @@ export const StudentRewardsPanel: React.FC<StudentRewardsPanelProps> = ({ embedd
 
   const closures = referral?.closures_count ?? 0;
   const clicks = referral?.clicks ?? 0;
-  const scheduled = events.length;
   const remaining = Math.max(GOAL - closures, 0);
   const progress = Math.min((closures / GOAL) * 100, 100);
   const goalReached = closures >= GOAL;
+
+  useEffect(() => {
+    if (goalReached && !prevGoalRef.current) {
+      setShowCelebration(true);
+    }
+    prevGoalRef.current = goalReached;
+  }, [goalReached]);
 
   if (loading) {
     return (
@@ -252,10 +243,35 @@ export const StudentRewardsPanel: React.FC<StudentRewardsPanelProps> = ({ embedd
           </div>
         )}
 
+        {/* Celebration banner */}
+        {showCelebration && (
+          <div className="relative overflow-hidden rounded-xl border-2 border-amber-400/60 bg-gradient-to-r from-amber-500/20 via-yellow-400/10 to-amber-500/20 px-6 py-5">
+            <div className="relative z-10 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-center gap-4">
+                <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full border-2 border-amber-400/60 bg-amber-500/20 text-3xl">
+                  🏆
+                </div>
+                <div>
+                  <p className="text-lg font-black text-amber-300">{t('student_dashboard.rewards.celebration_title')}</p>
+                  <p className="text-sm text-amber-200/80">{t('student_dashboard.rewards.celebration_desc', { tuition: REDUCED_TUITION })}</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowCelebration(false)}
+                className="self-end text-xs text-amber-400/60 hover:text-amber-300 sm:self-auto"
+              >
+                {t('student_dashboard.rewards.celebration_dismiss')}
+              </button>
+            </div>
+            {/* decorative shimmer */}
+            <div className="pointer-events-none absolute inset-0 animate-pulse bg-gradient-to-r from-transparent via-amber-400/5 to-transparent" />
+          </div>
+        )}
+
         <section className="grid gap-4 md:grid-cols-3">
           <MetricCard icon={Trophy} label={t('student_dashboard.rewards.kpi_closures')} value={`${closures}/${GOAL}`} tone={goalReached ? 'green' : 'gold'} />
           <MetricCard icon={Users} label={t('student_dashboard.rewards.kpi_clicks')} value={String(clicks)} tone="blue" />
-          <MetricCard icon={Calendar} label={t('student_dashboard.rewards.kpi_meetings')} value={String(scheduled)} tone="purple" />
+          <MetricCard icon={Calendar} label={t('student_dashboard.rewards.kpi_meetings')} value={String(leads.length)} tone="purple" />
         </section>
 
         <Card className="border-[#e3d5bd] dark:border-white/10 bg-white dark:bg-[#111] text-[#1f1a14] dark:text-white">
@@ -363,10 +379,10 @@ export const StudentRewardsPanel: React.FC<StudentRewardsPanelProps> = ({ embedd
             <CardContent className="p-6">
               <div className="mb-4 flex items-center justify-between gap-3">
                 <h2 className="text-sm font-black uppercase tracking-widest text-[#4b4032] dark:text-gray-300">{t('student_dashboard.rewards.meetings_title')}</h2>
-                <Badge className="border-[#e3d5bd] dark:border-white/10 bg-[#f3ead9] dark:bg-white/5 text-[#4b4032] dark:text-gray-300">{events.length}</Badge>
+                <Badge className="border-[#e3d5bd] dark:border-white/10 bg-[#f3ead9] dark:bg-white/5 text-[#4b4032] dark:text-gray-300">{leads.length}</Badge>
               </div>
 
-              {events.length === 0 ? (
+              {leads.length === 0 ? (
                 <div className="flex min-h-[180px] flex-col items-center justify-center rounded-lg border border-dashed border-[#e3d5bd] dark:border-white/10 bg-white/[0.02] text-center">
                   <Calendar className="mb-3 h-8 w-8 text-[#6f6251] dark:text-gray-600" />
                   <p className="text-sm font-bold text-[#4b4032] dark:text-gray-300">{t('student_dashboard.rewards.meetings_empty_title')}</p>
@@ -374,23 +390,46 @@ export const StudentRewardsPanel: React.FC<StudentRewardsPanelProps> = ({ embedd
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {events.map(event => (
-                    <div key={event.id} className="rounded-lg border border-[#e3d5bd] dark:border-white/10 bg-white/70 dark:bg-white/[0.03] px-4 py-3">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <p className="truncate text-sm font-bold text-[#1f1a14] dark:text-white">{event.invitee_name || event.invitee_email || t('student_dashboard.rewards.meetings_lead_placeholder')}</p>
-                          <p className="mt-1 truncate text-xs text-[#8a7b66] dark:text-gray-500">{event.invitee_email || event.event_type || 'Calendly'}</p>
+                  {leads.map(lead => {
+                    const isClosed = lead.status === 'fechado';
+                    return (
+                      <div key={lead.id} className="rounded-lg border border-[#e3d5bd] dark:border-white/10 bg-white/70 dark:bg-white/[0.03] px-4 py-3">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-bold text-[#1f1a14] dark:text-white">{lead.full_name}</p>
+                            <p className="mt-1 truncate text-xs text-[#8a7b66] dark:text-gray-500">{lead.email}</p>
+                          </div>
+                          {isClosed ? (
+                            <Badge className="border-emerald-600/30 bg-emerald-50 text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300 shrink-0">
+                              ✓ {t('student_dashboard.rewards.badge_closed')}
+                            </Badge>
+                          ) : (
+                            <Badge className="border-blue-600/30 bg-blue-50 text-blue-700 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-300 shrink-0">
+                              {t('student_dashboard.rewards.badge_scheduled')}
+                            </Badge>
+                          )}
                         </div>
-                        <Badge className="border-blue-600/30 bg-blue-50 text-blue-700 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-300">
-                          {t('student_dashboard.rewards.badge_scheduled')}
-                        </Badge>
+                        <div className="mt-3 flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2 text-xs text-[#8a7b66] dark:text-gray-500">
+                            <CheckCircle2 className={`h-3.5 w-3.5 ${isClosed ? 'text-emerald-400' : 'text-blue-400'}`} />
+                            {formatDate(lead.created_at, t, i18n.language)}
+                            {lead.country && <span className="text-[#8a7b66] dark:text-gray-600">· {lead.country}</span>}
+                          </div>
+                          {lead.meet_url && (
+                            <a
+                              href={lead.meet_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-center gap-1 text-xs text-blue-500 hover:text-blue-400"
+                            >
+                              <ExternalLink className="h-3 w-3" />
+                              Meet
+                            </a>
+                          )}
+                        </div>
                       </div>
-                      <div className="mt-3 flex items-center gap-2 text-xs text-[#8a7b66] dark:text-gray-500">
-                        <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
-                        {formatDate(event.scheduled_at ?? event.created_at, t, i18n.language)}
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </CardContent>

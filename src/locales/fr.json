@@ -1052,7 +1052,11 @@
       "meetings_empty_title": "Aucun rendez-vous enregistré pour le moment",
       "meetings_empty_desc": "Lorsqu'une personne planifie avec votre lien, l'enregistrement apparaîtra ici.",
       "meetings_lead_placeholder": "Lead parrainé",
-      "badge_scheduled": "Programmé"
+      "badge_scheduled": "Programmé",
+      "badge_closed": "Fermé",
+      "celebration_title": "Objectif atteint !",
+      "celebration_desc": "Votre frais mensuel Migma est annulé et votre frais de scolarité de référence est maintenant {{tuition}}/an. Félicitations !",
+      "celebration_dismiss": "Fermer"
     },
     "status": {
       "pending_admin_approval": "En attente d'approbation",

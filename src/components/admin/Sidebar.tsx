@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
-import { FileText, ClipboardList, LayoutDashboard, Phone, ShoppingCart, DollarSign, UserCircle2, UserRound, Mail, FileCode, Calendar, X, Activity, Ticket, LinkIcon, ChevronDown, ChevronRight, GraduationCap, UserPlus, Crown, Plus, Users } from 'lucide-react';
+import { FileText, ClipboardList, LayoutDashboard, Phone, ShoppingCart, DollarSign, UserCircle2, UserRound, Mail, FileCode, Calendar, X, Activity, Ticket, LinkIcon, ChevronDown, ChevronRight, GraduationCap, UserPlus, Crown, Plus, Users, UserCheck } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
@@ -63,6 +63,10 @@ export function Sidebar({ className, isMobileOpen = false, onMobileClose }: Side
     location.pathname.includes('/dashboard/crm')
   );
 
+  useEffect(() => {
+    if (location.pathname.includes('/dashboard/crm')) setIsCrmOpen(true);
+  }, [location.pathname]);
+
   const [counts, setCounts] = useState<{
     applications: number;
     partnerContracts: number;
@@ -71,6 +75,7 @@ export function Sidebar({ className, isMobileOpen = false, onMobileClose }: Side
     orphanSales: number;
     tracking: number;
     users: number;
+    referralLeads: number;
   }>({
     applications: 0,
     partnerContracts: 0,
@@ -78,7 +83,8 @@ export function Sidebar({ className, isMobileOpen = false, onMobileClose }: Side
     zelle: 0,
     orphanSales: 0,
     tracking: 0,
-    users: 0
+    users: 0,
+    referralLeads: 0,
   });
 
   const loadCounts = async () => {
@@ -161,6 +167,11 @@ export function Sidebar({ className, isMobileOpen = false, onMobileClose }: Side
         .select('*', { count: 'exact', head: true })
         .eq('source', 'migma');
 
+      const { count: referralLeadsCount } = await supabase
+        .from('referral_leads')
+        .select('*', { count: 'exact', head: true })
+        .eq('status', 'scheduled');
+
       setCounts({
         applications: appCount || 0,
         partnerContracts: partnerCount || 0,
@@ -168,7 +179,8 @@ export function Sidebar({ className, isMobileOpen = false, onMobileClose }: Side
         zelle: unifiedPendingKeys.size,
         orphanSales: orphanCount || 0,
         tracking: 0,
-        users: usersCount || 0
+        users: usersCount || 0,
+        referralLeads: referralLeadsCount || 0,
       });
     } catch (err) {
       console.error('Error loading sidebar counts:', err);
@@ -282,6 +294,26 @@ export function Sidebar({ className, isMobileOpen = false, onMobileClose }: Side
               >
                 <UserRound className="w-4 h-4" />
                 <span>Transfer</span>
+              </Link>
+              <Link
+                to="/dashboard/crm/referral-leads"
+                onClick={onMobileClose}
+                className={cn(
+                  'flex items-center justify-between gap-3 px-4 py-2 rounded-lg text-sm transition-colors',
+                  location.pathname === '/dashboard/crm/referral-leads'
+                    ? 'text-gold-light font-medium'
+                    : 'text-gray-500 hover:text-gold-light'
+                )}
+              >
+                <div className="flex items-center gap-3">
+                  <UserCheck className="w-4 h-4" />
+                  <span>Referral Leads</span>
+                </div>
+                {counts.referralLeads > 0 && (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold min-w-[1.25rem] text-center bg-gold-medium/20 text-gold-light">
+                    {counts.referralLeads}
+                  </span>
+                )}
               </Link>
             </div>
           )}

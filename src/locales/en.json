@@ -1052,7 +1052,11 @@
       "meetings_empty_title": "No meetings registered yet",
       "meetings_empty_desc": "When someone schedules using your link, the record will appear here.",
       "meetings_lead_placeholder": "Referred lead",
-      "badge_scheduled": "Scheduled"
+      "badge_scheduled": "Scheduled",
+      "badge_closed": "Closed",
+      "celebration_title": "You did it! Goal Reached!",
+      "celebration_desc": "Your Migma monthly fee is waived and your tuition reference is now {{tuition}}/year. Congratulations!",
+      "celebration_dismiss": "Dismiss"
     },
     "status": {
       "pending_admin_approval": "Awaiting approval",

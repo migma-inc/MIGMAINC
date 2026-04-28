@@ -951,7 +951,11 @@
       "meetings_empty_title": "Nenhuma reunião registrada ainda",
       "meetings_empty_desc": "Quando alguém agendar usando seu link, o registro aparecerá aqui.",
       "meetings_lead_placeholder": "Lead indicado",
-      "badge_scheduled": "Agendado"
+      "badge_scheduled": "Agendado",
+      "badge_closed": "Fechado",
+      "celebration_title": "Você conseguiu! Meta atingida!",
+      "celebration_desc": "Sua mensalidade Migma foi zerada e sua tuition de referência agora é {{tuition}}/ano. Parabéns!",
+      "celebration_dismiss": "Fechar"
     },
     "profile": {
       "title": "Perfil do Estudante",
