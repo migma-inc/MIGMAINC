@@ -1,9 +1,12 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import SignaturePad from 'signature_pad';
+import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
+import { PdfSignatureViewer, type SignaturePlacement } from '@/components/ui/pdf-signature-viewer';
 import {
-  ArrowUpRight, Award, Bell, CheckCircle2, ClipboardList, Clock, FileSignature,
-  BookOpen, Calendar, Download, Eye, FileText, Gift, Globe, GraduationCap, HelpCircle, Home, Loader2, LogOut, Mail, MapPin, Menu, MessageCircle, PenLine, Phone, Search, Target, Upload, User, Moon, Sun, X
+  AlertCircle, ArrowUpRight, Award, CheckCircle2, ClipboardList, Clock, FileSignature,
+  BookOpen, Calendar, Download, Eye, FileText, Gift, Globe, GraduationCap, HelpCircle, Home, Loader2, LogOut, Mail, MapPin, Menu, MessageCircle, PenLine, Phone, Search, Target, Timer, Upload, User, Moon, Sun, X
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -13,6 +16,7 @@ import { LanguageSelector } from '@/components/LanguageSelector';
 import { cn } from '@/lib/utils';
 import { useStudentAuth } from '@/contexts/StudentAuthContext';
 import { supabase } from '@/lib/supabase';
+import { getSecureUrl } from '@/lib/storage';
 import { PdfModal } from '@/components/ui/pdf-modal';
 import { StudentSupportPanel } from '@/pages/StudentSupport';
 import { StudentRewardsPanel } from '@/pages/StudentRewards';
@@ -50,6 +54,9 @@ const TABS_CONFIG: Array<{ id: StudentDashboardTab; key: string; icon: React.Com
 const isDashboardTab = (value: string | undefined): value is StudentDashboardTab =>
   !!value && TABS_CONFIG.some(tab => tab.id === value);
 
+// Document types that only apply to Transfer students (spec 11.5 / 14.1)
+const TRANSFER_ONLY_DOC_TYPES = new Set(['current_i20']);
+
 const getStatusText = (t: any): Record<string, string> => ({
   pending: t('student_dashboard.status.pending'),
   submitted: t('student_dashboard.status.submitted'),
@@ -82,6 +89,126 @@ function badgeClass(status: string) {
 function formatDate(value: string | null | undefined, fallback: string = '-') {
   if (!value) return fallback;
   return new Date(value).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' });
+}
+
+function isPdfUrl(value: string | null | undefined) {
+  if (!value) return false;
+  return value.split('?')[0].toLowerCase().endsWith('.pdf');
+}
+
+async function sha256Hex(buffer: ArrayBuffer): Promise<string> {
+  const hash = await crypto.subtle.digest('SHA-256', buffer);
+  return Array.from(new Uint8Array(hash))
+    .map(b => b.toString(16).padStart(2, '0'))
+    .join('');
+}
+
+const SIGNATURE_PLACEMENTS: Record<string, SignaturePlacement> = {
+  enrollment_agreement:                    { pageIndex:  0, x: 60,  y: 80,  width: 220, height: 55 },
+  affidavit_of_financial_support:          { pageIndex:  0, x: 60,  y: 80,  width: 220, height: 55 },
+  all_statements_and_agreement:            { pageIndex:  0, x: 60,  y: 80,  width: 220, height: 55 },
+  i20_request_form:                        { pageIndex:  0, x: 120, y: 80,  width: 180, height: 50 },
+  tuition_refund_policy:                   { pageIndex:  0, x: 90,  y: 80,  width: 200, height: 55 },
+  scholarship_support_compliance_agreement:{ pageIndex: -1, x: 90,  y: 80,  width: 200, height: 55 },
+  application_for_admission:               { pageIndex: -1, x: 60,  y: 80,  width: 220, height: 55 },
+  statement_of_institutional_purpose:      { pageIndex:  0, x: 60,  y: 40,  width: 220, height: 55 },
+  letter_of_recommendation:               { pageIndex:  0, x: 60,  y: 80,  width: 220, height: 55 },
+  application_packet:                      { pageIndex:  0, x: 60,  y: 80,  width: 220, height: 55 },
+};
+
+const SIGNATURE_PLACEMENT_FALLBACK: SignaturePlacement = { pageIndex: -1, x: 0, y: 74, width: 210, height: 55 };
+
+function getSignaturePlacement(formType: string, totalPages: number): SignaturePlacement {
+  const mapped = SIGNATURE_PLACEMENTS[formType];
+  if (mapped) return mapped;
+  return { ...SIGNATURE_PLACEMENT_FALLBACK, pageIndex: totalPages - 1 };
+}
+
+async function createSignedPdfBlob({
+  templateUrl,
+  signatureBlob,
+  signerName,
+  signedAt,
+  formType,
+  placement,
+}: {
+  templateUrl: string;
+  signatureBlob: Blob;
+  signerName: string | null | undefined;
+  signedAt: string;
+  formType: string;
+  placement?: SignaturePlacement;
+}): Promise<{ blob: Blob; templateBytes: ArrayBuffer; signatureBytes: ArrayBuffer; signedBytes: ArrayBuffer }> {
+  const secureTemplateUrl = await getSecureUrl(templateUrl);
+  if (!secureTemplateUrl) throw new Error('URL segura do PDF original nao encontrada.');
+  const [templateBytes, signatureBytes] = await Promise.all([
+    fetch(secureTemplateUrl).then(response => {
+      if (!response.ok) throw new Error('Erro ao carregar PDF original para assinatura.');
+      return response.arrayBuffer();
+    }),
+    signatureBlob.arrayBuffer(),
+  ]);
+
+  const pdfDoc = await PDFDocument.load(templateBytes);
+  const signatureImage = await pdfDoc.embedPng(signatureBytes);
+  const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
+  const pages = pdfDoc.getPages();
+
+  const resolved = placement ?? getSignaturePlacement(formType, pages.length);
+  const pageIndex = resolved.pageIndex === -1
+    ? pages.length - 1
+    : Math.min(Math.max(resolved.pageIndex, 0), pages.length - 1);
+  const page = pages[pageIndex];
+  const { width: pageWidth } = page.getSize();
+
+  const signatureWidth = Math.min(resolved.width, pageWidth - 96);
+  const signatureHeight = signatureWidth / Math.max(signatureImage.width / signatureImage.height, 2.8);
+  const x = resolved.x;
+  const y = resolved.y;
+
+  page.drawImage(signatureImage, {
+    x,
+    y,
+    width: signatureWidth,
+    height: signatureHeight,
+  });
+  page.drawLine({
+    start: { x, y: y - 5 },
+    end: { x: x + signatureWidth, y: y - 5 },
+    thickness: 0.7,
+    color: rgb(0.18, 0.16, 0.13),
+  });
+  page.drawText(signerName || 'Aluno MIGMA', {
+    x,
+    y: y - 19,
+    size: 8,
+    font,
+    color: rgb(0.25, 0.23, 0.2),
+  });
+  page.drawText(`Assinado via MIGMA em ${new Date(signedAt).toLocaleString('pt-BR')} - ${formType}`, {
+    x,
+    y: y - 31,
+    size: 6.5,
+    font,
+    color: rgb(0.42, 0.38, 0.32),
+  });
+
+  pdfDoc.setTitle(`${formType} - assinado`);
+  pdfDoc.setSubject('Documento assinado eletronicamente pelo Student Dashboard MIGMA');
+  pdfDoc.setProducer('MIGMA Student Dashboard');
+  pdfDoc.setModificationDate(new Date(signedAt));
+
+  const signedUint8 = await pdfDoc.save();
+  const signedBytes = signedUint8.buffer.slice(
+    signedUint8.byteOffset,
+    signedUint8.byteOffset + signedUint8.byteLength,
+  ) as ArrayBuffer;
+  return {
+    blob: new Blob([signedBytes], { type: 'application/pdf' }),
+    templateBytes,
+    signatureBytes,
+    signedBytes,
+  };
 }
 
 function getProgress(profile: any, app: DashboardApplication | null) {
@@ -130,6 +257,83 @@ function getNextAction(profile: any, app: DashboardApplication | null, t: (key: 
   return { label: t(`${na}.view_letter`), href: '/student/onboarding?step=acceptance_letter' };
 }
 
+function DeadlineCountdown() {
+  const { userProfile } = useStudentAuth();
+
+  const deadline = useMemo(() => {
+    const svc = userProfile?.service_type ?? userProfile?.student_process_type;
+    if (svc === 'transfer' && userProfile?.transfer_deadline_date) {
+      const target = new Date(userProfile.transfer_deadline_date);
+      const today = new Date(); today.setHours(0, 0, 0, 0); target.setHours(0, 0, 0, 0);
+      const days = Math.ceil((target.getTime() - today.getTime()) / 86_400_000);
+      return { type: 'transfer' as const, label: 'Prazo de Transferência', days, date: target.toLocaleDateString('pt-BR') };
+    }
+    if (svc === 'cos' && userProfile?.cos_i94_expiry_date) {
+      const target = new Date(userProfile.cos_i94_expiry_date);
+      const today = new Date(); today.setHours(0, 0, 0, 0); target.setHours(0, 0, 0, 0);
+      const days = Math.ceil((target.getTime() - today.getTime()) / 86_400_000);
+      return { type: 'cos' as const, label: 'Vencimento do I-94', days, date: target.toLocaleDateString('pt-BR') };
+    }
+    return null;
+  }, [userProfile]);
+
+  if (!deadline) return null;
+
+  const urgency =
+    deadline.days <= 7 ? 'critical' :
+    deadline.days <= 15 ? 'high' :
+    deadline.days <= (deadline.type === 'cos' ? 60 : 30) ? 'medium' : 'ok';
+
+  const colors = {
+    critical: { border: 'border-red-500/30 bg-red-500/10', icon: 'bg-red-500/20 text-red-400', num: 'text-red-400', badge: 'bg-red-500/20 text-red-400 border-red-500/30' },
+    high:     { border: 'border-amber-500/30 bg-amber-500/10', icon: 'bg-amber-500/20 text-amber-400', num: 'text-amber-400', badge: 'bg-amber-500/20 text-amber-400 border-amber-500/30' },
+    medium:   { border: 'border-yellow-500/30 bg-yellow-500/10', icon: 'bg-yellow-500/20 text-yellow-400', num: 'text-yellow-300', badge: '' },
+    ok:       { border: 'border-[#CE9F48]/20 bg-[#CE9F48]/5', icon: 'bg-[#CE9F48]/10 text-[#9a6a16] dark:text-[#CE9F48]', num: 'text-[#1f1a14] dark:text-white', badge: '' },
+  }[urgency];
+
+  return (
+    <div className={`rounded-xl border p-4 ${colors.border}`}>
+      <div className="flex items-center gap-4">
+        <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl ${colors.icon}`}>
+          <Timer className="h-6 w-6" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-xs font-black uppercase tracking-widest text-[#8a7b66] dark:text-gray-500">
+              {deadline.label}
+            </span>
+            {urgency === 'critical' && (
+              <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full border ${colors.badge}`}>URGENTE</span>
+            )}
+            {urgency === 'high' && (
+              <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full border ${colors.badge}`}>ATENÇÃO</span>
+            )}
+          </div>
+          <div className={`text-4xl font-black tabular-nums mt-0.5 ${colors.num}`}>
+            {Math.max(deadline.days, 0)}
+            <span className="text-sm font-medium text-[#8a7b66] dark:text-gray-500 ml-1">
+              {deadline.days === 1 ? 'dia restante' : 'dias restantes'}
+            </span>
+          </div>
+          <p className="text-xs text-[#8a7b66] dark:text-gray-500 mt-0.5">{deadline.date}</p>
+          {deadline.days <= 0 && (
+            <p className="mt-1 text-sm font-semibold text-red-400 flex items-center gap-1">
+              <AlertCircle className="h-4 w-4 shrink-0" />
+              {deadline.type === 'transfer' ? 'Prazo de transferência expirado' : 'Vencimento do I-94 expirado — contate a Migma imediatamente'}
+            </p>
+          )}
+          {deadline.days > 0 && urgency !== 'ok' && (
+            <p className={`mt-1 text-sm font-medium flex items-center gap-1 ${colors.num}`}>
+              <AlertCircle className="h-4 w-4 shrink-0" />
+              {deadline.type === 'transfer' ? 'Seu prazo de transferência está próximo' : 'O vencimento do seu I-94 está próximo — aja com urgência'}
+            </p>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function OverviewTab({
   progress,
   nextAction,
@@ -167,6 +371,7 @@ function OverviewTab({
 
   return (
     <div className="space-y-5">
+      <DeadlineCountdown />
       <section className="relative overflow-hidden rounded-xl border border-[#CE9F48]/20 bg-gradient-to-br from-white dark:from-[#111] via-[#f6ead2] dark:via-[#151515] to-[#ead6a8] dark:to-[#2a2413] p-6 shadow-sm lg:p-8">
         <div className="flex items-center gap-3">
           <div className="flex h-11 w-11 items-center justify-center rounded-lg border border-[#CE9F48]/30 bg-[#CE9F48]/10">
@@ -387,18 +592,27 @@ function ApplicationsTab({
 function DocumentsTab({
   documents,
   studentDocuments,
+  onRefresh,
+  serviceType,
 }: {
   documents: DashboardDocument[];
   studentDocuments: DashboardStudentDocument[];
+  onRefresh: () => Promise<void>;
+  serviceType: string | null | undefined;
 }) {
   const { t } = useTranslation();
-  const navigate = useNavigate();
-  const total = documents.length + studentDocuments.length;
-  const submitted = documents.filter(doc => !!doc.submitted_at || !!doc.submitted_url).length +
+
+  // Filter Transfer-only docs for COS students
+  const visibleDocuments = serviceType === 'cos'
+    ? documents.filter(doc => !TRANSFER_ONLY_DOC_TYPES.has(doc.document_type))
+    : documents;
+
+  const total = visibleDocuments.length + studentDocuments.length;
+  const submitted = visibleDocuments.filter(doc => !!doc.submitted_at || !!doc.submitted_url).length +
     studentDocuments.filter(doc => !!doc.uploaded_at || !!doc.file_url).length;
-  const approved = documents.filter(doc => doc.status === 'approved').length +
+  const approved = visibleDocuments.filter(doc => doc.status === 'approved').length +
     studentDocuments.filter(doc => doc.status === 'approved').length;
-  const rejected = documents.filter(doc => doc.status === 'rejected').length +
+  const rejected = visibleDocuments.filter(doc => doc.status === 'rejected').length +
     studentDocuments.filter(doc => doc.status === 'rejected').length;
 
   if (total === 0) {
@@ -419,10 +633,6 @@ function DocumentsTab({
               <p className="mt-3 max-w-md text-sm leading-relaxed text-[#8a7b66] dark:text-gray-500">
                 {t('student_dashboard.documents.empty_desc')}
               </p>
-              <Button onClick={() => navigate('/student/onboarding?step=documents_upload')} className="mt-7 bg-[#CE9F48] text-black hover:bg-[#b8892f]">
-                {t('student_dashboard.documents.btn_go_to_docs')}
-                <ArrowUpRight className="h-4 w-4" />
-              </Button>
             </div>
           </CardContent>
         </Card>
@@ -432,24 +642,19 @@ function DocumentsTab({
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
-      <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
-        <div>
-          <h2 className="text-2xl font-black tracking-tight">{t('student_dashboard.documents.title')}</h2>
-          <p className="mt-1 text-sm text-[#8a7b66] dark:text-gray-500">{t('student_dashboard.documents.subtitle')}</p>
-        </div>
-        <Button onClick={() => navigate('/student/onboarding?step=documents_upload')} className="bg-[#CE9F48] text-black hover:bg-[#b8892f]">
-          {t('student_dashboard.documents.btn_submit')}
-        </Button>
+      <div>
+        <h2 className="text-2xl font-black tracking-tight">{t('student_dashboard.documents.title')}</h2>
+        <p className="mt-1 text-sm text-[#8a7b66] dark:text-gray-500">{t('student_dashboard.documents.subtitle')}</p>
       </div>
 
       <DocumentKpis total={total} submitted={submitted} approved={approved} rejected={rejected} />
 
       <div className="grid gap-4">
-        {documents.map(doc => (
-          <DocumentRequestCard key={doc.id} document={doc} />
+        {visibleDocuments.map(doc => (
+          <DocumentRequestCard key={doc.id} document={doc} onUploaded={onRefresh} isTransferOnly={TRANSFER_ONLY_DOC_TYPES.has(doc.document_type)} />
         ))}
         {studentDocuments.map(doc => (
-          <StudentDocumentCard key={doc.id} document={doc} />
+          <StudentDocumentCard key={doc.id} document={doc} onUploaded={onRefresh} />
         ))}
       </div>
     </div>
@@ -461,6 +666,7 @@ function FormsTab({ forms, application }: { forms: DashboardForm[]; application:
   const [previewForm, setPreviewForm] = useState<DashboardForm | null>(null);
   const [signingForm, setSigningForm] = useState<DashboardForm | null>(null);
   const visibleForms = forms.filter(form => form.form_type !== 'termo_responsabilidade_estudante');
+  const previewPdfUrl = previewForm ? (isPdfUrl(previewForm.signed_url) ? previewForm.signed_url : previewForm.template_url) : null;
   const generated = visibleForms.length;
   const signed = visibleForms.filter(form => !!form.signed_at).length;
   const pending = Math.max(generated - signed, 0);
@@ -534,11 +740,11 @@ function FormsTab({ forms, application }: { forms: DashboardForm[]; application:
         ))}
       </div>
 
-      {previewForm && (previewForm.signed_url || previewForm.template_url) && (
+      {previewForm && previewPdfUrl && (
         <PdfModal
           isOpen={!!previewForm}
           onClose={() => setPreviewForm(null)}
-          pdfUrl={(previewForm.signed_url || previewForm.template_url)!}
+          pdfUrl={previewPdfUrl}
           title={previewForm.form_type}
         />
       )}
@@ -904,14 +1110,57 @@ function DocumentKpis({ total, submitted, approved, rejected }: { total: number;
   );
 }
 
-function DocumentRequestCard({ document }: { document: DashboardDocument }) {
+function DocumentRequestCard({ document, onUploaded, isTransferOnly }: { document: DashboardDocument; onUploaded: () => Promise<void>; isTransferOnly?: boolean }) {
   const { t } = useTranslation();
+  const { user, userProfile } = useStudentAuth();
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   const submitted = !!document.submitted_at || !!document.submitted_url;
+  const canUpload = document.status !== 'approved';
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !user?.id || !userProfile?.id) return;
+    e.target.value = '';
+
+    setUploading(true);
+    setUploadError(null);
+    try {
+      const ext = file.name.split('.').pop() || 'pdf';
+      const filePath = `${user.id}/global-documents/${document.document_type}_${Date.now()}.${ext}`;
+
+      const { error: storageErr } = await supabase.storage
+        .from('migma-student-documents')
+        .upload(filePath, file, { upsert: true });
+      if (storageErr) throw storageErr;
+
+      const { data: urlData } = supabase.storage.from('migma-student-documents').getPublicUrl(filePath);
+
+      const { error: dbErr } = await supabase
+        .from('global_document_requests')
+        .update({
+          submitted_url: urlData.publicUrl,
+          submitted_at: new Date().toISOString(),
+          status: 'pending',
+        })
+        .eq('id', document.id);
+      if (dbErr) throw dbErr;
+
+      await onUploaded();
+    } catch (err: any) {
+      setUploadError(err.message ?? 'Erro ao enviar arquivo.');
+    } finally {
+      setUploading(false);
+    }
+  };
+
   return (
     <Card className="border-[#e3d5bd] dark:border-white/10 bg-white dark:bg-[#111] text-[#1f1a14] dark:text-white">
       <CardContent className="p-5">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-          <div className="flex gap-4">
+          <div className="flex gap-4 flex-1 min-w-0">
             <div className={cn(
               'flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border',
               document.status === 'approved'
@@ -922,10 +1171,13 @@ function DocumentRequestCard({ document }: { document: DashboardDocument }) {
             )}>
               <FileText className="h-5 w-5" />
             </div>
-            <div>
+            <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
                 <h3 className="font-black capitalize">{documentLabel(document.document_type, t)}</h3>
                 <Badge className={badgeClass(document.status)}>{getStatusText(t)[document.status] ?? document.status}</Badge>
+                {isTransferOnly && (
+                  <span className="text-[10px] font-black uppercase px-1.5 py-0.5 rounded border border-[#CE9F48]/40 bg-[#CE9F48]/10 text-[#9a6a16] dark:text-[#CE9F48]">Transfer</span>
+                )}
               </div>
               <p className="mt-1 text-xs text-[#8a7b66] dark:text-gray-500">
                 {t('student_dashboard.documents.requested_prefix')} {formatDate(document.requested_at)}
@@ -937,11 +1189,41 @@ function DocumentRequestCard({ document }: { document: DashboardDocument }) {
                   {document.rejection_reason}
                 </div>
               )}
+              {uploadError && (
+                <p className="mt-2 text-xs text-red-400">{uploadError}</p>
+              )}
             </div>
           </div>
-          <div className="grid gap-2 text-sm lg:w-56">
-            <DocumentStatusLine label={t('student_dashboard.documents.upload_label')} value={submitted ? t('student_dashboard.status.submitted') : t('student_dashboard.status.pending')} done={submitted} />
-            <DocumentStatusLine label={t('student_dashboard.documents.review_label')} value={document.status === 'approved' ? t('student_dashboard.status.approved') : document.status === 'rejected' ? t('student_dashboard.status.rejected') : t('student_dashboard.status.waiting')} done={document.status === 'approved'} />
+          <div className="flex flex-col gap-3 lg:w-56 lg:shrink-0">
+            <div className="grid gap-2 text-sm">
+              <DocumentStatusLine label={t('student_dashboard.documents.upload_label')} value={submitted ? t('student_dashboard.status.submitted') : t('student_dashboard.status.pending')} done={submitted} />
+              <DocumentStatusLine label={t('student_dashboard.documents.review_label')} value={document.status === 'approved' ? t('student_dashboard.status.approved') : document.status === 'rejected' ? t('student_dashboard.status.rejected') : t('student_dashboard.status.waiting')} done={document.status === 'approved'} />
+            </div>
+            {canUpload && (
+              <>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+                  className="hidden"
+                  onChange={handleFileChange}
+                />
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={uploading}
+                  onClick={() => fileInputRef.current?.click()}
+                  className="border-[#CE9F48]/40 text-[#9a6a16] dark:text-[#CE9F48] hover:bg-[#CE9F48]/10"
+                >
+                  {uploading
+                    ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    : <Upload className="h-3.5 w-3.5" />}
+                  <span className="ml-1.5">
+                    {submitted ? 'Reenviar' : 'Enviar'}
+                  </span>
+                </Button>
+              </>
+            )}
           </div>
         </div>
       </CardContent>
@@ -949,18 +1231,70 @@ function DocumentRequestCard({ document }: { document: DashboardDocument }) {
   );
 }
 
-function StudentDocumentCard({ document }: { document: DashboardStudentDocument }) {
+function StudentDocumentCard({ document, onUploaded }: { document: DashboardStudentDocument; onUploaded: () => Promise<void> }) {
   const { t } = useTranslation();
+  const { user } = useStudentAuth();
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   const submitted = !!document.uploaded_at || !!document.file_url;
+  const canUpload = document.status !== 'approved';
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !user?.id) return;
+    e.target.value = '';
+
+    setUploading(true);
+    setUploadError(null);
+    try {
+      const ext = file.name.split('.').pop() || 'pdf';
+      const filePath = `${user.id}/identity/${document.type}_${Date.now()}.${ext}`;
+
+      const { error: storageErr } = await supabase.storage
+        .from('migma-student-documents')
+        .upload(filePath, file, { upsert: true });
+      if (storageErr) throw storageErr;
+
+      const { data: urlData } = supabase.storage.from('migma-student-documents').getPublicUrl(filePath);
+
+      const { error: dbErr } = await supabase
+        .from('student_documents')
+        .update({
+          file_url: urlData.publicUrl,
+          original_filename: file.name,
+          file_size_bytes: file.size,
+          uploaded_at: new Date().toISOString(),
+          status: 'pending',
+        })
+        .eq('id', document.id);
+      if (dbErr) throw dbErr;
+
+      await onUploaded();
+    } catch (err: any) {
+      setUploadError(err.message ?? 'Erro ao enviar arquivo.');
+    } finally {
+      setUploading(false);
+    }
+  };
+
   return (
     <Card className="border-[#e3d5bd] dark:border-white/10 bg-white dark:bg-[#111] text-[#1f1a14] dark:text-white">
       <CardContent className="p-5">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex gap-4">
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-[#CE9F48]/20 bg-[#CE9F48]/10 text-[#9a6a16] dark:text-[#CE9F48]">
+          <div className="flex gap-4 flex-1 min-w-0">
+            <div className={cn(
+              'flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border',
+              document.status === 'approved'
+                ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-400'
+                : document.status === 'rejected'
+                  ? 'border-red-500/20 bg-red-500/10 text-red-300'
+                  : 'border-[#CE9F48]/20 bg-[#CE9F48]/10 text-[#9a6a16] dark:text-[#CE9F48]',
+            )}>
               <FileText className="h-5 w-5" />
             </div>
-            <div>
+            <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
                 <h3 className="font-black capitalize">{documentLabel(document.type, t)}</h3>
                 <Badge className={badgeClass(document.status)}>{getStatusText(t)[document.status] ?? document.status}</Badge>
@@ -973,10 +1307,38 @@ function StudentDocumentCard({ document }: { document: DashboardStudentDocument 
                   {document.rejection_reason}
                 </div>
               )}
+              {uploadError && (
+                <p className="mt-2 text-xs text-red-400">{uploadError}</p>
+              )}
             </div>
           </div>
-          <div className="lg:w-56">
+          <div className="flex flex-col gap-3 lg:w-56 lg:shrink-0">
             <DocumentStatusLine label={t('student_dashboard.documents.upload_label')} value={submitted ? t('student_dashboard.status.submitted') : t('student_dashboard.status.pending')} done={submitted} />
+            {canUpload && (
+              <>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+                  className="hidden"
+                  onChange={handleFileChange}
+                />
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={uploading}
+                  onClick={() => fileInputRef.current?.click()}
+                  className="border-[#CE9F48]/40 text-[#9a6a16] dark:text-[#CE9F48] hover:bg-[#CE9F48]/10"
+                >
+                  {uploading
+                    ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    : <Upload className="h-3.5 w-3.5" />}
+                  <span className="ml-1.5">
+                    {submitted ? 'Reenviar' : 'Enviar'}
+                  </span>
+                </Button>
+              </>
+            )}
           </div>
         </div>
       </CardContent>
@@ -1009,6 +1371,8 @@ function FormsKpis({ generated, signed, pending }: { generated: number; signed: 
 function FormCard({ form, onPreview, onOpenPdf, onSign }: { form: DashboardForm; onPreview: () => void; onOpenPdf: () => void; onSign: () => void }) {
   const { t } = useTranslation();
   const isSigned = !!form.signed_at;
+  const hasSignedPdf = isPdfUrl(form.signed_url);
+  const canSign = !isSigned || !hasSignedPdf;
   return (
     <Card className="border-[#e3d5bd] dark:border-white/10 bg-white dark:bg-[#111] text-[#1f1a14] dark:text-white">
       <CardContent className="p-5">
@@ -1034,7 +1398,7 @@ function FormCard({ form, onPreview, onOpenPdf, onSign }: { form: DashboardForm;
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
-            {(form.template_url || form.signed_url) && (
+            {(form.template_url || hasSignedPdf) && (
               <Button variant="outline" onClick={onPreview} className="border-[#e3d5bd] dark:border-white/10 bg-[#f3ead9] dark:bg-white/5 text-[#1f1a14] dark:text-white hover:bg-[#eadbbf] dark:hover:bg-white/10">
                 <Eye className="h-4 w-4" />
                 {t('student_dashboard.forms.btn_review')}
@@ -1048,9 +1412,9 @@ function FormCard({ form, onPreview, onOpenPdf, onSign }: { form: DashboardForm;
                 </a>
               </Button>
             )}
-            <Button onClick={onSign} disabled={isSigned} className="bg-[#CE9F48] text-black hover:bg-[#b8892f]">
+            <Button onClick={onSign} disabled={!canSign} className="bg-[#CE9F48] text-black hover:bg-[#b8892f]">
               <Upload className="h-4 w-4" />
-              {isSigned ? t('student_dashboard.status.submitted') : t('student_dashboard.forms.btn_send_signed')}
+              {!canSign ? t('student_dashboard.status.submitted') : t('student_dashboard.forms.btn_send_signed')}
             </Button>
           </div>
         </div>
@@ -1062,70 +1426,262 @@ function FormCard({ form, onPreview, onOpenPdf, onSign }: { form: DashboardForm;
 function FormSignatureModal({ form, onClose, onSigned }: { form: DashboardForm; onClose: () => void; onSigned: () => void }) {
   const { t } = useTranslation();
   const { user, userProfile } = useStudentAuth();
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [uploadedUrl, setUploadedUrl] = useState<string | null>(null);
-  const [uploading, setUploading] = useState(false);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const signaturePadRef = useRef<SignaturePad | null>(null);
+  const [hasSignature, setHasSignature] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [signaturePreviewUrl, setSignaturePreviewUrl] = useState<string | null>(null);
+  const [pdfUrl, setPdfUrl] = useState<string | null>(null);
+  const [consentChecked, setConsentChecked] = useState(false);
+  const defaultPlacement = SIGNATURE_PLACEMENTS[form.form_type] ?? getSignaturePlacement(form.form_type, 1);
+  const [placement, setPlacement] = useState<SignaturePlacement>(defaultPlacement);
+  const flowStartedAt = useRef(new Date().toISOString());
 
-  const handleUpload = async () => {
-    if (!selectedFile || !user?.id || !userProfile?.id) return;
-    setUploading(true);
+  useEffect(() => {
+    if (!form.template_url) return;
+    getSecureUrl(form.template_url).then(url => { if (url) setPdfUrl(url); });
+  }, [form.template_url]);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const resizeCanvas = () => {
+      const ratio = Math.max(window.devicePixelRatio || 1, 1);
+      const data = signaturePadRef.current?.isEmpty() ? null : signaturePadRef.current?.toData();
+      const rect = canvas.getBoundingClientRect();
+      canvas.width = Math.max(Math.floor(rect.width * ratio), 1);
+      canvas.height = Math.max(Math.floor(rect.height * ratio), 1);
+      const context = canvas.getContext('2d');
+      context?.scale(ratio, ratio);
+      signaturePadRef.current?.clear();
+      if (data) signaturePadRef.current?.fromData(data);
+    };
+
+    const signaturePad = new SignaturePad(canvas, {
+      backgroundColor: 'rgba(0,0,0,0)',
+      penColor: 'rgb(31, 26, 20)',
+      minWidth: 0.8,
+      maxWidth: 2.4,
+    });
+
+    signaturePad.addEventListener('endStroke', () => {
+      const empty = signaturePad.isEmpty();
+      setHasSignature(!empty);
+      setError(null);
+      if (!empty) {
+        setSignaturePreviewUrl(canvas.toDataURL('image/png'));
+      }
+    });
+
+    signaturePadRef.current = signaturePad;
+    resizeCanvas();
+    window.addEventListener('resize', resizeCanvas);
+
+    return () => {
+      window.removeEventListener('resize', resizeCanvas);
+      signaturePad.off();
+      signaturePadRef.current = null;
+    };
+  }, []);
+
+  const clearSignature = () => {
+    signaturePadRef.current?.clear();
+    setHasSignature(false);
+    setSignaturePreviewUrl(null);
     setError(null);
+  };
 
-    try {
-      const ext = selectedFile.name.split('.').pop()?.toLowerCase() || 'pdf';
-      const filePath = `signed/${user.id}/${form.id}_${Date.now()}.${ext}`;
-
-      const { error: uploadError } = await supabase.storage
-        .from('institution-forms')
-        .upload(filePath, selectedFile, {
-          contentType: selectedFile.type || 'application/pdf',
-        });
-
-      if (uploadError) throw uploadError;
-
-      const { data: publicUrlData } = supabase.storage
-        .from('institution-forms')
-        .getPublicUrl(filePath);
-
-      setUploadedUrl(publicUrlData.publicUrl);
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Erro ao enviar arquivo assinado.');
-    } finally {
-      setUploading(false);
-    }
+  const canvasToBlob = async (canvas: HTMLCanvasElement) => {
+    return new Promise<Blob>((resolve, reject) => {
+      canvas.toBlob(blob => {
+        if (blob) resolve(blob);
+        else reject(new Error('Erro ao preparar a imagem da assinatura.'));
+      }, 'image/png');
+    });
   };
 
   const handleConfirm = async () => {
-    if (!uploadedUrl || !userProfile?.id) return;
+    const canvas = canvasRef.current;
+    const signaturePad = signaturePadRef.current;
+    if (!canvas || !signaturePad || signaturePad.isEmpty()) {
+      setError('Desenhe sua assinatura antes de confirmar.');
+      return;
+    }
+    if (!consentChecked) {
+      setError('Confirme o consentimento antes de assinar.');
+      return;
+    }
+    if (!user?.id || !userProfile?.id) {
+      setError('Sessao do aluno nao encontrada. Entre novamente e tente assinar.');
+      return;
+    }
+    if (!form.template_url) {
+      setError('PDF original nao encontrado para aplicar a assinatura.');
+      return;
+    }
+
     setSaving(true);
     setError(null);
 
     try {
-      const now = new Date().toISOString();
-      const metadata = (form.signature_metadata_json as any) ?? {};
-      const { error: updateError } = await supabase
-        .from('institution_forms')
-        .update({
-          signed_at: now,
-          signed_url: uploadedUrl,
-          signature_metadata_json: {
-            ...metadata,
-            signed_at: now,
-            signer_confirmed_at: now,
-            signer_profile_id: userProfile.id,
-            signer_name: userProfile.full_name,
-            signature_capture: 'external_signed_file_upload',
-            uploaded_signed_url: uploadedUrl,
-            original_filename: selectedFile?.name ?? null,
-            file_size_bytes: selectedFile?.size ?? null,
-            file_type: selectedFile?.type ?? null,
-          },
-        })
-        .eq('id', form.id);
+      const signatureDrawnAt = new Date().toISOString();
+      const ts = Date.now();
+      const signatureBlob = await canvasToBlob(canvas);
+      const signaturePath = `signed/${user.id}/${form.id}_${ts}.png`;
+      const signedPdfPath = `signed/${user.id}/${form.id}_${ts}_signed.pdf`;
 
-      if (updateError) throw updateError;
+      const [
+        { blob: signedPdfBlob, templateBytes, signatureBytes, signedBytes },
+        { data: { session } },
+      ] = await Promise.all([
+        createSignedPdfBlob({
+          templateUrl: form.template_url,
+          signatureBlob,
+          signerName: userProfile.full_name,
+          signedAt: signatureDrawnAt,
+          formType: form.form_type,
+          placement,
+        }),
+        supabase.auth.getSession(),
+      ]);
+
+      const [templateSha256, signatureSha256, signedPdfSha256] = await Promise.all([
+        sha256Hex(templateBytes),
+        sha256Hex(signatureBytes),
+        sha256Hex(signedBytes),
+      ]);
+
+      const accessToken = session?.access_token ?? '';
+      const sessionIdHash = accessToken
+        ? await sha256Hex(new TextEncoder().encode(accessToken).buffer as ArrayBuffer)
+        : null;
+      const authProvider = (session?.user?.app_metadata?.['provider'] as string | undefined) ?? 'unknown';
+      const emailVerified = session?.user?.email_confirmed_at != null;
+      const environment = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+        ? 'development'
+        : 'production';
+
+      const { error: uploadError } = await supabase.storage
+        .from('institution-forms')
+        .upload(signaturePath, signatureBlob, { contentType: 'image/png', upsert: false });
+      if (uploadError) throw uploadError;
+
+      const { error: pdfUploadError } = await supabase.storage
+        .from('institution-forms')
+        .upload(signedPdfPath, signedPdfBlob, { contentType: 'application/pdf', upsert: false });
+      if (pdfUploadError) throw pdfUploadError;
+
+      const { data: sigUrlData } = supabase.storage.from('institution-forms').getPublicUrl(signaturePath);
+      const { data: pdfUrlData } = supabase.storage.from('institution-forms').getPublicUrl(signedPdfPath);
+      const signatureUrl = sigUrlData.publicUrl;
+      const signedPdfUrl = pdfUrlData.publicUrl;
+
+      const confirmedAt = new Date().toISOString();
+      const prevMeta: Record<string, unknown> = form.signature_metadata_json ?? {};
+
+      const CONSENT_TEXT = 'Declaro que li o documento, conferi meus dados e confirmo que esta assinatura eletrônica representa minha assinatura para este formulário.';
+
+      const proofPayload = {
+        proof_version: 'migma-web-signature-v2',
+        environment,
+
+        signer: {
+          user_id: user.id,
+          profile_id: userProfile.id,
+          full_name: userProfile.full_name,
+          email: userProfile.email ?? user.email ?? null,
+          email_verified: emailVerified,
+          auth_provider: authProvider,
+          auth_session_id_hash: sessionIdHash,
+          mfa_verified: false,
+        },
+
+        document: {
+          form_id: form.id,
+          form_type: form.form_type,
+          template_storage_path: form.template_url,
+          template_pdf_sha256: templateSha256,
+          signature_image_sha256: signatureSha256,
+          signed_pdf_storage_path: signedPdfPath,
+          signed_pdf_sha256: signedPdfSha256,
+          signed_pdf_file_size_bytes: signedPdfBlob.size,
+          signed_pdf_url: signedPdfUrl,
+        },
+
+        signature: {
+          capture_method: 'drawn_signature',
+          signature_storage_path: signaturePath,
+          signature_image_url: signatureUrl,
+          signature_file_type: 'image/png',
+          signature_file_size_bytes: signatureBlob.size,
+          signature_drawn_at_client: signatureDrawnAt,
+          signature_confirmed_at_client: confirmedAt,
+          signature_placement: {
+            page_index: placement.pageIndex,
+            x: placement.x,
+            y: placement.y,
+            width: placement.width,
+            height: placement.height,
+          },
+        },
+
+        consent: {
+          statement_version: 'signature-consent-v1',
+          statement_text: CONSENT_TEXT,
+          checkbox_checked: true,
+          confirm_button_label: 'Confirmar e assinar documento',
+          confirmed_at_client: confirmedAt,
+        },
+
+        request: {
+          ip_address_hash: null,
+          user_agent: window.navigator.userAgent,
+          browser_language: window.navigator.language,
+          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+          viewport: {
+            width: window.innerWidth,
+            height: window.innerHeight,
+            device_pixel_ratio: window.devicePixelRatio,
+          },
+          origin: window.location.origin,
+          path: window.location.pathname,
+          request_id: crypto.randomUUID(),
+        },
+
+        audit: {
+          pdf_open_count: typeof prevMeta.pdf_open_count === 'number' ? prevMeta.pdf_open_count : 0,
+          first_pdf_opened_at_client: typeof prevMeta.pdf_opened_at === 'string' ? prevMeta.pdf_opened_at : null,
+          last_pdf_opened_at_client: typeof prevMeta.last_pdf_opened_at === 'string' ? prevMeta.last_pdf_opened_at : null,
+          signature_flow_started_at_client: flowStartedAt.current,
+          proof_created_at_client: confirmedAt,
+          proof_payload_sha256: null as string | null,
+        },
+      };
+
+      // client-side hash antes de enviar (a Edge Function vai recomputar com campos server-side)
+      const payloadBytes = new TextEncoder().encode(JSON.stringify(proofPayload)).buffer as ArrayBuffer;
+      proofPayload.audit.proof_payload_sha256 = await sha256Hex(payloadBytes);
+
+      const { data: { session: fnSession } } = await supabase.auth.getSession();
+      if (!fnSession?.access_token) throw new Error('Sessão expirada. Faça login novamente.');
+
+      const fnRes = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/sign-document`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${fnSession.access_token}`,
+            'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
+          },
+          body: JSON.stringify({ form_id: form.id, proof_payload: proofPayload }),
+        },
+      );
+      const fnData = await fnRes.json() as { ok?: boolean; error?: string };
+      if (!fnRes.ok) throw new Error(fnData?.error ?? `Erro no servidor (${fnRes.status}).`);
+
       onSigned();
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Erro ao salvar assinatura.');
@@ -1136,7 +1692,7 @@ function FormSignatureModal({ form, onClose, onSigned }: { form: DashboardForm; 
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-white/95 dark:bg-black/80 p-4">
-      <div className="w-full max-w-2xl rounded-lg border border-[#e3d5bd] dark:border-white/10 bg-[#fffaf0] dark:bg-[#0f0f0f] p-5 text-[#1f1a14] dark:text-white shadow-2xl">
+      <div className="max-h-[92vh] w-full max-w-3xl overflow-y-auto rounded-lg border border-[#e3d5bd] dark:border-white/10 bg-[#fffaf0] dark:bg-[#0f0f0f] p-5 text-[#1f1a14] dark:text-white shadow-2xl">
         <div className="mb-5 flex items-start justify-between gap-4">
           <div>
             <h3 className="text-lg font-black">{t('student_dashboard.forms.modal_title')}</h3>
@@ -1156,7 +1712,7 @@ function FormSignatureModal({ form, onClose, onSigned }: { form: DashboardForm; 
                 rel="noopener noreferrer"
                 onClick={() => {
                   const now = new Date().toISOString();
-                  const metadata = (form.signature_metadata_json as any) ?? {};
+                  const metadata: Record<string, unknown> = form.signature_metadata_json ?? {};
                   const currentOpenCount = typeof metadata.pdf_open_count === 'number' ? metadata.pdf_open_count : 0;
                   const newMetadata = {
                     ...metadata,
@@ -1176,50 +1732,46 @@ function FormSignatureModal({ form, onClose, onSigned }: { form: DashboardForm; 
             </Button>
           )}
 
-          <label className="block rounded-lg border border-dashed border-[#d8c5a3] dark:border-white/15 bg-white/70 dark:bg-white/[0.03] p-5">
-            <span className="text-sm font-bold">{t('student_dashboard.forms.modal_signed_file')}</span>
-            <span className="mt-1 block text-xs text-[#8a7b66] dark:text-gray-500">
-              {t('student_dashboard.forms.modal_signed_desc')}
-            </span>
-            <input
-              type="file"
-              accept="application/pdf,image/png,image/jpeg,image/jpg"
-              className="mt-4 block w-full text-sm text-[#4b4032] dark:text-gray-300 file:mr-4 file:rounded-md file:border-0 file:bg-[#CE9F48] file:px-4 file:py-2 file:text-sm file:font-bold file:text-black"
-              disabled={uploading || saving || !!uploadedUrl}
-              onChange={event => {
-                setSelectedFile(event.target.files?.[0] ?? null);
-                setUploadedUrl(null);
-                setError(null);
-              }}
+          {pdfUrl && (
+            <PdfSignatureViewer
+              pdfUrl={pdfUrl}
+              placement={placement}
+              signatureDataUrl={signaturePreviewUrl}
+              onPlacementChange={setPlacement}
             />
-          </label>
+          )}
 
-          {selectedFile && !uploadedUrl && (
-            <div className="flex items-center justify-between gap-3 rounded-lg border border-[#e3d5bd] dark:border-white/10 bg-white/70 dark:bg-white/[0.03] px-4 py-3">
-              <div className="min-w-0">
-                <p className="truncate text-sm font-bold">{selectedFile.name}</p>
-                <p className="text-xs text-[#8a7b66] dark:text-gray-500">{Math.ceil(selectedFile.size / 1024)} KB</p>
+          <div className="rounded-lg border border-dashed border-[#d8c5a3] dark:border-white/15 bg-white/70 dark:bg-white/[0.03] p-4">
+            <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-sm font-bold">{t('student_dashboard.forms.modal_draw_signature', { defaultValue: 'Desenhe sua assinatura' })}</p>
+                <p className="mt-1 text-xs text-[#8a7b66] dark:text-gray-500">
+                  {t('student_dashboard.forms.modal_draw_signature_desc', { defaultValue: 'A assinatura sera salva com metadados de comprovacao do portal MIGMA.' })}
+                </p>
               </div>
-              <Button onClick={handleUpload} disabled={uploading} className="bg-[#CE9F48] text-black hover:bg-[#b8892f]">
-                {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
-                {t('student_dashboard.forms.modal_btn_upload')}
+              <Button type="button" variant="outline" onClick={clearSignature} disabled={saving || !hasSignature} className="border-[#e3d5bd] dark:border-white/10 bg-[#f3ead9] dark:bg-white/5 text-[#1f1a14] dark:text-white hover:bg-[#eadbbf] dark:hover:bg-white/10">
+                <X className="h-4 w-4" />
+                {t('student_dashboard.forms.modal_btn_clear_signature', { defaultValue: 'Limpar' })}
               </Button>
             </div>
-          )}
+            <canvas
+              ref={canvasRef}
+              className="h-48 w-full touch-none rounded-md border border-[#e3d5bd] bg-white shadow-inner dark:border-white/10"
+            />
+          </div>
 
-          {uploadedUrl && (
-            <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/10 p-4">
-              <div className="flex items-start gap-3">
-                <CheckCircle2 className="mt-0.5 h-5 w-5 text-emerald-300" />
-                <div>
-                  <p className="text-sm font-bold text-emerald-200">{t('student_dashboard.forms.modal_upload_success')}</p>
-                  <p className="mt-1 text-xs leading-relaxed text-emerald-100/80">
-                    {t('student_dashboard.forms.modal_upload_confirm_desc')}
-                  </p>
-                </div>
-              </div>
-            </div>
-          )}
+          <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-[#CE9F48]/30 bg-[#CE9F48]/10 p-4">
+            <input
+              type="checkbox"
+              checked={consentChecked}
+              onChange={e => setConsentChecked(e.target.checked)}
+              disabled={saving}
+              className="mt-0.5 h-4 w-4 shrink-0 accent-[#CE9F48]"
+            />
+            <span className="text-xs leading-relaxed text-[#4b4032] dark:text-gray-300">
+              Declaro que li o documento, conferi meus dados e confirmo que esta assinatura eletrônica representa minha assinatura para este formulário.
+            </span>
+          </label>
 
         {error && <p className="mt-4 rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-sm text-red-300">{error}</p>}
 
@@ -1227,36 +1779,12 @@ function FormSignatureModal({ form, onClose, onSigned }: { form: DashboardForm; 
           <Button variant="outline" onClick={onClose} disabled={saving} className="border-[#e3d5bd] dark:border-white/10 bg-[#f3ead9] dark:bg-white/5 text-[#1f1a14] dark:text-white hover:bg-[#eadbbf] dark:hover:bg-white/10">
             {t('student_dashboard.forms.modal_btn_cancel')}
           </Button>
-          <Button onClick={handleConfirm} disabled={!uploadedUrl || saving} className="bg-[#CE9F48] text-black hover:bg-[#b8892f]">
+          <Button onClick={handleConfirm} disabled={!hasSignature || !consentChecked || saving} className="bg-[#CE9F48] text-black hover:bg-[#b8892f]">
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <PenLine className="h-4 w-4" />}
-            {t('student_dashboard.forms.modal_btn_confirm')}
+            Confirmar e assinar documento
           </Button>
         </div>
         </div>
-      </div>
-    </div>
-  );
-}
-
-function PlaceholderTab({ title, description }: { title: string; description: string }) {
-  return (
-    <Card className="border-[#e3d5bd] dark:border-white/10 bg-white dark:bg-[#111]">
-      <CardContent className="p-8">
-        <EmptyState title={title} text={description} />
-      </CardContent>
-    </Card>
-  );
-}
-
-function EmptyState({ title, text }: { title: string; text: string }) {
-  return (
-    <div className="flex flex-col items-center justify-center gap-4 py-12 text-center">
-      <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-[#f3ead9] dark:bg-white/5">
-        <FileText className="h-8 w-8 text-[#9a6a16] dark:text-[#CE9F48]" />
-      </div>
-      <div>
-        <h3 className="text-lg font-semibold text-[#1f1a14] dark:text-white">{title}</h3>
-        <p className="mt-1 text-sm text-[#8a7b66] dark:text-gray-400">{text}</p>
       </div>
     </div>
   );
@@ -1292,6 +1820,7 @@ const StudentDashboard = () => {
     data,
     activeApplication,
     loading,
+    refresh,
   } = useStudentDashboard();
 
   useEffect(() => {
@@ -1354,6 +1883,8 @@ const StudentDashboard = () => {
           <DocumentsTab
             documents={data.documents}
             studentDocuments={data.studentDocuments}
+            onRefresh={refresh}
+            serviceType={userProfile?.service_type ?? userProfile?.student_process_type}
           />
         );
       case 'forms':
