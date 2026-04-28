@@ -55,6 +55,8 @@ interface NotifyPayload {
     closures_count?: number;
     client_name?: string;
     client_id?: string;
+    reason?: string;
+    last_message?: string;
     // Billing (Fase 9)
     monthly_usd?: number;
     installments_total?: number;
@@ -66,24 +68,86 @@ interface NotifyPayload {
   };
 }
 
-// ─── Evolution API ────────────────────────────────────────────────────────────
-// Required env vars: EVOLUTION_API_URL, EVOLUTION_API_KEY, EVOLUTION_INSTANCE
+// ─── WhatsApp dispatch ────────────────────────────────────────────────────────
+// Preferred env vars: N8N_WHATSAPP_NOTIFY_URL, N8N_WHATSAPP_NOTIFY_SECRET
+// Legacy fallback env vars: EVOLUTION_API_URL, EVOLUTION_API_KEY, EVOLUTION_INSTANCE
 
-async function sendWhatsApp(phone: string, message: string): Promise<{ sent: boolean; reason?: string }> {
+async function sendWhatsAppViaN8n(args: {
+  trigger: TriggerType;
+  phone: string;
+  email: string;
+  name: string;
+  message: string;
+  data: NotifyPayload["data"];
+  isAdminTrigger: boolean;
+}): Promise<{ sent: boolean; reason?: string; provider?: string }> {
+  const webhookUrl = Deno.env.get("N8N_WHATSAPP_NOTIFY_URL");
+  const webhookSecret = Deno.env.get("N8N_WHATSAPP_NOTIFY_SECRET");
+
+  if (!webhookUrl) return { sent: false, reason: "n8n_not_configured", provider: "n8n" };
+
+  const normalised = args.phone.replace(/\D/g, "");
+  if (normalised.length < 10) {
+    console.warn(`[migma-notify][whatsapp:n8n] Invalid phone: ${args.phone}`);
+    return { sent: false, reason: "invalid_phone", provider: "n8n" };
+  }
+
+  try {
+    const res = await fetch(webhookUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(webhookSecret ? { "x-migma-notify-secret": webhookSecret } : {}),
+      },
+      body: JSON.stringify({
+        trigger: args.trigger,
+        recipient_type: args.isAdminTrigger ? "admin" : "client",
+        recipient: {
+          name: args.name,
+          email: args.email,
+          phone: normalised,
+        },
+        message: {
+          text: args.message,
+        },
+        data: args.data ?? {},
+        meta: {
+          source: "migma-notify",
+          environment: Deno.env.get("APP_ENV") ?? "production",
+          created_at: new Date().toISOString(),
+        },
+      }),
+    });
+
+    if (!res.ok) {
+      const body = await res.text();
+      console.error(`[migma-notify][whatsapp:n8n] Webhook error ${res.status}: ${body}`);
+      return { sent: false, reason: `n8n_${res.status}`, provider: "n8n" };
+    }
+
+    console.log(`[migma-notify][whatsapp:n8n] Dispatched trigger=${args.trigger} to ${normalised}`);
+    return { sent: true, provider: "n8n" };
+  } catch (err: any) {
+    console.error("[migma-notify][whatsapp:n8n] Fetch error:", err.message);
+    return { sent: false, reason: err.message, provider: "n8n" };
+  }
+}
+
+async function sendWhatsAppViaEvolution(phone: string, message: string): Promise<{ sent: boolean; reason?: string; provider?: string }> {
   const apiUrl  = Deno.env.get("EVOLUTION_API_URL");
   const apiKey  = Deno.env.get("EVOLUTION_API_KEY");
   const instance = Deno.env.get("EVOLUTION_INSTANCE");
 
   if (!apiUrl || !apiKey || !instance) {
     console.log(`[migma-notify][whatsapp:stub] Evolution API not configured. Would send to ${phone}: ${message.slice(0, 80)}...`);
-    return { sent: false, reason: "evolution_not_configured" };
+    return { sent: false, reason: "evolution_not_configured", provider: "evolution" };
   }
 
   // Normalise: digits only, ensure country code (min 10 digits)
   const normalised = phone.replace(/\D/g, "");
   if (normalised.length < 10) {
     console.warn(`[migma-notify][whatsapp] Invalid phone: ${phone}`);
-    return { sent: false, reason: "invalid_phone" };
+    return { sent: false, reason: "invalid_phone", provider: "evolution" };
   }
 
   try {
@@ -101,15 +165,29 @@ async function sendWhatsApp(phone: string, message: string): Promise<{ sent: boo
     if (!res.ok) {
       const body = await res.text();
       console.error(`[migma-notify][whatsapp] Evolution API error ${res.status}: ${body}`);
-      return { sent: false, reason: `evolution_${res.status}` };
+      return { sent: false, reason: `evolution_${res.status}`, provider: "evolution" };
     }
     const result = await res.json().catch(() => ({}));
     console.log(`[migma-notify][whatsapp] Sent to ${normalised}, key=${result?.key?.id ?? "?"}`);
-    return { sent: true };
+    return { sent: true, provider: "evolution" };
   } catch (err: any) {
     console.error("[migma-notify][whatsapp] Fetch error:", err.message);
-    return { sent: false, reason: err.message };
+    return { sent: false, reason: err.message, provider: "evolution" };
   }
+}
+
+async function sendWhatsApp(args: {
+  trigger: TriggerType;
+  phone: string;
+  email: string;
+  name: string;
+  message: string;
+  data: NotifyPayload["data"];
+  isAdminTrigger: boolean;
+}): Promise<{ sent: boolean; reason?: string; provider?: string }> {
+  const n8nResult = await sendWhatsAppViaN8n(args);
+  if (n8nResult.sent || n8nResult.reason !== "n8n_not_configured") return n8nResult;
+  return sendWhatsAppViaEvolution(args.phone, args.message);
 }
 
 // ─── Email helper ─────────────────────────────────────────────────────────────
@@ -196,6 +274,22 @@ function buildTemplate(
 ): Template {
   const firstName = name.split(" ")[0];
   const dash = appBaseUrl || "https://migmainc.com";
+  const routes = {
+    studentDashboard: `${dash}/student/dashboard`,
+    studentApplications: `${dash}/student/dashboard/applications`,
+    studentDocuments: `${dash}/student/dashboard/documents`,
+    studentForms: `${dash}/student/dashboard/forms`,
+    studentRewards: `${dash}/student/dashboard/rewards`,
+    studentSupport: `${dash}/student/dashboard/support`,
+    onboarding: `${dash}/student/onboarding`,
+    onboardingSurvey: `${dash}/student/onboarding?step=selection_survey`,
+    onboardingScholarship: `${dash}/student/onboarding?step=scholarship_selection`,
+    onboardingPlacementFee: `${dash}/student/onboarding?step=placement_fee`,
+    onboardingDocumentsUpload: `${dash}/student/onboarding?step=documents_upload`,
+    onboardingPayment: `${dash}/student/onboarding?step=payment`,
+    onboardingMyApplications: `${dash}/student/onboarding?step=my_applications`,
+    adminUser: (profileId?: string) => profileId ? `${dash}/dashboard/users/${profileId}` : `${dash}/dashboard/users`,
+  };
 
   switch (trigger) {
     // ── 01 ────────────────────────────────────────────────────────────────────
@@ -205,9 +299,9 @@ function buildTemplate(
         <p>Olá, ${highlight(firstName)}!</p>
         <p>Seu pagamento da <strong>Taxa do Processo Seletivo</strong> foi confirmado com sucesso.</p>
         <p>O próximo passo é preencher o questionário de perfil para que possamos apresentar sua candidatura às universidades parceiras.</p>
-        ${btn("Acessar minha conta", `${dash}/student`)}
+        ${btn("Preencher questionário", routes.onboardingSurvey)}
       `),
-      whatsapp: `✅ *Migma* — Pagamento confirmado!\n\nOlá ${firstName}, sua taxa do processo seletivo foi recebida. Acesse sua conta e preencha o questionário: ${dash}/student`,
+      whatsapp: `✅ *Migma* — Pagamento confirmado!\n\nOlá ${firstName}, sua taxa do processo seletivo foi recebida. Acesse sua conta e preencha o questionário: ${routes.onboardingSurvey}`,
     };
 
     // ── 02 ────────────────────────────────────────────────────────────────────
@@ -217,9 +311,9 @@ function buildTemplate(
         <p>Olá, ${highlight(firstName)}!</p>
         <p>Recebemos seu questionário. Seu perfil já foi encaminhado para análise das universidades parceiras da Migma.</p>
         <p>Em breve nosso time de admissões entrará em contato com as opções disponíveis para você.</p>
-        ${btn("Acompanhar status", `${dash}/student`)}
+        ${btn("Acompanhar status", routes.studentDashboard)}
       `),
-      whatsapp: `📋 *Migma* — Questionário recebido!\n\nOlá ${firstName}, seu perfil foi enviado para nossas universidades parceiras. Acompanhe: ${dash}/student`,
+      whatsapp: `📋 *Migma* — Questionário recebido!\n\nOlá ${firstName}, seu perfil foi enviado para nossas universidades parceiras. Acompanhe: ${routes.studentDashboard}`,
     };
 
     // ── 03 ────────────────────────────────────────────────────────────────────
@@ -229,9 +323,9 @@ function buildTemplate(
         <p>Olá, ${highlight(firstName)}!</p>
         <p>Boas notícias! Seu contrato foi <strong>aprovado</strong> pelo time Migma.</p>
         <p>Agora você pode acessar sua conta e escolher a universidade ideal para seu perfil.</p>
-        ${btn("Escolher universidade", `${dash}/student`)}
+        ${btn("Escolher universidade", routes.onboardingScholarship)}
       `),
-      whatsapp: `🎉 *Migma* — Contrato aprovado!\n\nOlá ${firstName}, seu contrato foi aprovado! Acesse sua conta para escolher sua universidade: ${dash}/student`,
+      whatsapp: `🎉 *Migma* — Contrato aprovado!\n\nOlá ${firstName}, seu contrato foi aprovado! Acesse sua conta para escolher sua universidade: ${routes.onboardingScholarship}`,
     };
 
     // ── 04 ────────────────────────────────────────────────────────────────────
@@ -254,9 +348,9 @@ function buildTemplate(
         <p>Hi, ${highlight(firstName)}!</p>
         <p>Your <strong>Application Fee</strong> payment has been successfully confirmed.</p>
         <p>Your application is officially registered. Track your progress through the student portal.</p>
-        ${btn("Access my account", `${dash}/student/onboarding?step=documents_upload`)}
+        ${btn("Access my account", routes.onboardingDocumentsUpload)}
       `),
-      whatsapp: `✅ *Migma* — Application Fee Confirmed!\n\nHi ${firstName}, your payment was received and your spot is secured! Track your progress: ${dash}/student`,
+      whatsapp: `✅ *Migma* — Application Fee Confirmed!\n\nHi ${firstName}, your payment was received and your spot is secured! Track your progress: ${routes.onboardingDocumentsUpload}`,
     };
 
     // ── placement_fee_paid ────────────────────────────────────────────────────
@@ -266,9 +360,9 @@ function buildTemplate(
         <p>Olá, ${highlight(firstName)}!</p>
         <p>Seu pagamento do <strong>Placement Fee</strong> foi confirmado.</p>
         <p>O próximo passo é enviar os documentos necessários para o processo. Acesse o portal e faça o upload de cada documento solicitado.</p>
-        ${btn("Enviar documentos", data.app_url ?? `${dash}/student/documents`)}
+        ${btn("Enviar documentos", data.app_url ?? routes.onboardingDocumentsUpload)}
       `),
-      whatsapp: `💳 *Migma* — Placement Fee confirmado!\n\nOlá ${firstName}, pagamento recebido! Agora envie seus documentos: ${data.app_url ?? `${dash}/student/documents`}`,
+      whatsapp: `💳 *Migma* — Placement Fee confirmado!\n\nOlá ${firstName}, pagamento recebido! Agora envie seus documentos: ${data.app_url ?? routes.onboardingDocumentsUpload}`,
     };
 
     // ── 06 ────────────────────────────────────────────────────────────────────
@@ -279,9 +373,9 @@ function buildTemplate(
         <p>The document <strong>${data.document_name ?? "submitted"}</strong> requires a correction.</p>
         ${data.document_reason ? `<p style="background:#1a1a1a;border-left:3px solid #e55;padding:12px 16px;border-radius:4px;color:#ddd;">${data.document_reason}</p>` : ""}
         <p>Please access the portal, fix the document, and resubmit it.</p>
-        ${btn("Resubmit document", data.app_url ?? `${dash}/student/onboarding?step=payment`)}
+        ${btn("Resubmit document", data.app_url ?? routes.studentDocuments)}
       `),
-      whatsapp: `⚠️ *Migma* — Correction Required\n\nHi ${firstName}, the document *${data.document_name ?? "submitted"}* needs an update.\n\n${data.document_reason ? `Reason: ${data.document_reason}\n\n` : ""}Access: ${data.app_url ?? `${dash}/student/onboarding?step=payment`}`,
+      whatsapp: `⚠️ *Migma* — Correction Required\n\nHi ${firstName}, the document *${data.document_name ?? "submitted"}* needs an update.\n\n${data.document_reason ? `Reason: ${data.document_reason}\n\n` : ""}Access: ${data.app_url ?? routes.studentDocuments}`,
     };
 
     // ── 07 ────────────────────────────────────────────────────────────────────
@@ -291,9 +385,9 @@ function buildTemplate(
         <p>Hi, ${highlight(firstName)}!</p>
         <p>All your submitted documents have been <strong>reviewed and approved</strong>. 🎉</p>
         <p>Our team is now processing your application package and coordinating with the university. You will be notified as soon as your acceptance letter is ready.</p>
-        ${btn("Track your application", `${dash}/student/onboarding`)}
+        ${btn("Track your documents", routes.studentDocuments)}
       `),
-      whatsapp: `✅ *Migma* — Documents Approved!\n\nHi ${firstName}, all your documents have been approved! We're now processing your application. We'll notify you when your acceptance letter is ready.\n${dash}/student/onboarding`,
+      whatsapp: `✅ *Migma* — Documents Approved!\n\nHi ${firstName}, all your documents have been approved! We're now processing your application. We'll notify you when your acceptance letter is ready.\n${routes.studentDocuments}`,
     };
 
     // ── 08 ────────────────────────────────────────────────────────────────────
@@ -303,9 +397,9 @@ function buildTemplate(
         <p>Olá, ${highlight(firstName)}!</p>
         <p>Os formulários da sua candidatura foram gerados e estão prontos para assinatura digital.</p>
         <p>Acesse o portal, revise cada formulário e assine. Após a assinatura, o pacote será enviado automaticamente ao MatriculaUSA.</p>
-        ${btn("Assinar formulários", data.app_url ?? `${dash}/student/forms`)}
+        ${btn("Assinar formulários", data.app_url ?? routes.studentForms)}
       `),
-      whatsapp: `📄 *Migma* — Formulários prontos!\n\nOlá ${firstName}, seus formulários estão prontos para assinatura digital. Acesse: ${data.app_url ?? `${dash}/student/forms`}`,
+      whatsapp: `📄 *Migma* — Formulários prontos!\n\nOlá ${firstName}, seus formulários estão prontos para assinatura digital. Acesse: ${data.app_url ?? routes.studentForms}`,
     };
 
     // ── 09 ────────────────────────────────────────────────────────────────────
@@ -315,9 +409,9 @@ function buildTemplate(
         <p>Olá, ${highlight(firstName)}!</p>
         <p>Seu pacote de candidatura foi <strong>enviado ao MatriculaUSA</strong> para processamento.</p>
         <p>A partir daqui, o escritório de admissões irá processar seu I-20 / Carta de Aceite. Assim que pronto, você será notificado.</p>
-        ${btn("Acompanhar status", `${dash}/student`)}
+        ${btn("Acompanhar status", routes.studentApplications)}
       `),
-      whatsapp: `🚀 *Migma* — Pacote enviado!\n\nOlá ${firstName}, seu pacote foi enviado ao MatriculaUSA. Aguarde o processamento do seu I-20. Acompanhe: ${dash}/student`,
+      whatsapp: `🚀 *Migma* — Pacote enviado!\n\nOlá ${firstName}, seu pacote foi enviado ao MatriculaUSA. Aguarde o processamento do seu I-20. Acompanhe: ${routes.studentApplications}`,
     };
 
     // ── 10 ────────────────────────────────────────────────────────────────────
@@ -327,9 +421,9 @@ function buildTemplate(
         <p>Olá, ${highlight(firstName)}!</p>
         <p>O time Migma criou uma nova pendência na sua conta que precisa da sua atenção:</p>
         ${data.task_description ? `<p style="background:#1a1a1a;border-left:3px solid #f5a623;padding:12px 16px;border-radius:4px;color:#ddd;">${data.task_description}</p>` : ""}
-        ${btn("Resolver pendência", `${dash}/student`)}
+        ${btn("Resolver pendência", routes.studentDashboard)}
       `),
-      whatsapp: `🔔 *Migma* — Nova pendência\n\nOlá ${firstName}${data.task_description ? `: ${data.task_description}` : ", há uma pendência na sua conta"}.\n\nAcesse: ${dash}/student`,
+      whatsapp: `🔔 *Migma* — Nova pendência\n\nOlá ${firstName}${data.task_description ? `: ${data.task_description}` : ", há uma pendência na sua conta"}.\n\nAcesse: ${routes.studentDashboard}`,
     };
 
     // ── 11 ────────────────────────────────────────────────────────────────────
@@ -339,9 +433,9 @@ function buildTemplate(
         <p>Olá, ${highlight(firstName)}!</p>
         <p>Atenção: você tem <strong>${data.days_remaining} dia(s)</strong> antes do prazo limite do seu processo de Transfer.</p>
         <p>Certifique-se de que todos os documentos e etapas estão completos para evitar complicações no processo.</p>
-        ${btn("Verificar meu processo", `${dash}/student`)}
+        ${btn("Verificar meu processo", routes.studentDashboard)}
       `),
-      whatsapp: `⏰ *Migma* — Alerta de prazo!\n\nOlá ${firstName}, faltam *${data.days_remaining} dia(s)* para o prazo do seu Transfer. Verifique seu progresso: ${dash}/student`,
+      whatsapp: `⏰ *Migma* — Alerta de prazo!\n\nOlá ${firstName}, faltam *${data.days_remaining} dia(s)* para o prazo do seu Transfer. Verifique seu progresso: ${routes.studentDashboard}`,
     };
 
     // ── 12 ────────────────────────────────────────────────────────────────────
@@ -351,9 +445,9 @@ function buildTemplate(
         <p>Olá, ${highlight(firstName)}!</p>
         <p>Atenção: seu I-94 / prazo de mudança de status (COS) expira em <strong>${data.days_remaining} dia(s)</strong>.</p>
         <p>É fundamental que todas as etapas do processo estejam concluídas antes desta data.</p>
-        ${btn("Verificar meu processo", `${dash}/student`)}
+        ${btn("Verificar meu processo", routes.studentDashboard)}
       `),
-      whatsapp: `⏰ *Migma* — Prazo COS urgente!\n\nOlá ${firstName}, seu I-94 expira em *${data.days_remaining} dia(s)*. Verifique urgentemente: ${dash}/student`,
+      whatsapp: `⏰ *Migma* — Prazo COS urgente!\n\nOlá ${firstName}, seu I-94 expira em *${data.days_remaining} dia(s)*. Verifique urgentemente: ${routes.studentDashboard}`,
     };
 
     // ── 13 ────────────────────────────────────────────────────────────────────
@@ -363,9 +457,9 @@ function buildTemplate(
         <p>Olá, ${highlight(firstName)}!</p>
         <p>Há uma pendência relacionada a <strong>dependentes</strong> na sua conta:</p>
         ${data.task_description ? `<p style="background:#1a1a1a;border-left:3px solid #f5a623;padding:12px 16px;border-radius:4px;color:#ddd;">${data.task_description}</p>` : "<p>Por favor, acesse o portal para verificar os dados ou documentos necessários.</p>"}
-        ${btn("Resolver pendência", `${dash}/student`)}
+        ${btn("Resolver pendência", routes.studentDashboard)}
       `),
-      whatsapp: `👨‍👩‍👧 *Migma* — Pendência de dependente\n\nOlá ${firstName}${data.task_description ? `: ${data.task_description}` : ", há pendência de dados de dependente"}.\n\nAcesse: ${dash}/student`,
+      whatsapp: `👨‍👩‍👧 *Migma* — Pendência de dependente\n\nOlá ${firstName}${data.task_description ? `: ${data.task_description}` : ", há pendência de dados de dependente"}.\n\nAcesse: ${routes.studentDashboard}`,
     };
 
     // ── 14 ────────────────────────────────────────────────────────────────────
@@ -375,9 +469,9 @@ function buildTemplate(
         <p>Olá, ${highlight(firstName)}!</p>
         <p>🏆 Incrível! Você atingiu a meta de <strong>10 indicações</strong> fechadas!</p>
         <p>Como prometido, sua mensalidade Migma foi <strong>zerada automaticamente</strong>. O benefício já está aplicado na sua conta.</p>
-        ${btn("Ver minha conta", `${dash}/student/rewards`)}
+        ${btn("Ver minha conta", routes.studentRewards)}
       `),
-      whatsapp: `🏆 *Migma* — Meta atingida!\n\nParabéns ${firstName}! Você fechou 10 indicações e sua mensalidade Migma foi zerada automaticamente. Veja: ${dash}/student/rewards`,
+      whatsapp: `🏆 *Migma* — Meta atingida!\n\nParabéns ${firstName}! Você fechou 10 indicações e sua mensalidade Migma foi zerada automaticamente. Veja: ${routes.studentRewards}`,
     };
 
     // ── 15 ────────────────────────────────────────────────────────────────────
@@ -387,9 +481,9 @@ function buildTemplate(
         <p>Olá, ${highlight(firstName)}!</p>
         <p>Sua indicação <strong>${data.referral_name ?? "recente"}</strong> foi convertida em cliente Migma!</p>
         <p>Você tem agora <strong>${data.closures_count ?? "?"} indicação(ões)</strong> no total. Continue indicando para zerar sua mensalidade Migma!</p>
-        ${btn("Ver meu painel de rewards", `${dash}/student/rewards`)}
+        ${btn("Ver meu painel de rewards", routes.studentRewards)}
       `),
-      whatsapp: `🎯 *Migma* — Indicação fechada!\n\nOlá ${firstName}, ${data.referral_name ?? "sua indicação"} acaba de virar cliente! Total: *${data.closures_count ?? "?"}* indicações. Veja: ${dash}/student/rewards`,
+      whatsapp: `🎯 *Migma* — Indicação fechada!\n\nOlá ${firstName}, ${data.referral_name ?? "sua indicação"} acaba de virar cliente! Total: *${data.closures_count ?? "?"}* indicações. Veja: ${routes.studentRewards}`,
     };
 
     // ── 16 — ADMIN ────────────────────────────────────────────────────────────
@@ -397,9 +491,9 @@ function buildTemplate(
       subject: `[Admin] Novos documentos para revisão — ${data.client_name ?? "cliente"}`,
       emailHtml: emailWrapper("[Admin] Novos documentos", `
         <p>Novos documentos foram enviados por <strong>${data.client_name ?? "cliente"}</strong> e aguardam revisão.</p>
-        ${data.client_id ? btn("Revisar documentos", `${dash}/admin/users/${data.client_id}`) : ""}
+        ${data.client_id ? btn("Revisar documentos", routes.adminUser(data.client_id)) : ""}
       `),
-      whatsapp: `📥 *Migma Admin* — Novos documentos\n\n${data.client_name ?? "Cliente"} enviou documentos para revisão.\n${data.client_id ? `${dash}/admin/users/${data.client_id}` : dash}`,
+      whatsapp: `📥 *Migma Admin* — Novos documentos\n\n${data.client_name ?? "Cliente"} enviou documentos para revisão.\n${data.client_id ? routes.adminUser(data.client_id) : routes.adminUser()}`,
     };
 
     // ── 17 — ADMIN ────────────────────────────────────────────────────────────
@@ -407,9 +501,9 @@ function buildTemplate(
       subject: `[Admin] Pacote completo — ${data.client_name ?? "cliente"} pronto para MatriculaUSA`,
       emailHtml: emailWrapper("[Admin] Pacote completo", `
         <p>O pacote de <strong>${data.client_name ?? "cliente"}</strong> está completo e pronto para envio ao MatriculaUSA.</p>
-        ${data.client_id ? btn("Ver pacote", `${dash}/admin/users/${data.client_id}`) : ""}
+        ${data.client_id ? btn("Ver pacote", routes.adminUser(data.client_id)) : ""}
       `),
-      whatsapp: `✅ *Migma Admin* — Pacote completo\n\n${data.client_name ?? "Cliente"} tem pacote pronto para MatriculaUSA.\n${data.client_id ? `${dash}/admin/users/${data.client_id}` : dash}`,
+      whatsapp: `✅ *Migma Admin* — Pacote completo\n\n${data.client_name ?? "Cliente"} tem pacote pronto para MatriculaUSA.\n${data.client_id ? routes.adminUser(data.client_id) : routes.adminUser()}`,
     };
 
     // ── 19 — BILLING ──────────────────────────────────────────────────────────
@@ -424,9 +518,9 @@ function buildTemplate(
           <li>Curso: <strong>${data.degree_level ?? "–"}</strong></li>
         </ul>
         <p>Você receberá o link de pagamento todo mês com antecedência. Em caso de dúvidas, fale com o time Migma.</p>
-        ${btn("Acessar minha conta", `${dash}/student`)}
+        ${btn("Acessar minha conta", routes.studentDashboard)}
       `),
-      whatsapp: `💳 *Migma* — Billing ativado!\n\nOlá ${firstName}, sua mensalidade de *US$ ${data.monthly_usd?.toLocaleString("en-US") ?? "–"}* em ${data.installments_total ?? "–"}x foi configurada. Você receberá o link de pagamento mensalmente. Dúvidas: ${dash}/student`,
+      whatsapp: `💳 *Migma* — Billing ativado!\n\nOlá ${firstName}, sua mensalidade de *US$ ${data.monthly_usd?.toLocaleString("en-US") ?? "–"}* em ${data.installments_total ?? "–"}x foi configurada. Você receberá o link de pagamento mensalmente. Dúvidas: ${routes.studentDashboard}`,
     };
 
     // ── 20 — BILLING ──────────────────────────────────────────────────────────
@@ -438,7 +532,7 @@ function buildTemplate(
         <p>Valor: <strong>US$ ${data.monthly_usd?.toLocaleString("en-US") ?? "–"}</strong></p>
         ${data.billing_link
           ? btn("Pagar agora", data.billing_link)
-          : `<p style="color:#888;">Link de pagamento em processamento. Acesse ${dash}/student para mais informações.</p>`}
+          : `<p style="color:#888;">Link de pagamento em processamento. Acesse ${routes.studentDashboard} para mais informações.</p>`}
         <p style="margin-top:20px;color:#888;font-size:13px;">Próxima parcela: ${data.next_billing_date ?? "–"}.</p>
       `),
       whatsapp: `💳 *Migma* — Parcela ${(data.installments_paid ?? 0) + 1}/${data.installments_total ?? "–"} disponível!\n\nOlá ${firstName}, sua mensalidade de *US$ ${data.monthly_usd?.toLocaleString("en-US") ?? "–"}* está pronta para pagamento.\n\n${data.billing_link ? `Pague aqui: ${data.billing_link}` : "Link em breve pelo portal."}`,
@@ -452,9 +546,9 @@ function buildTemplate(
         <p>Seu billing Migma foi <strong>suspenso</strong>.</p>
         ${data.suspend_reason ? `<p style="background:#1a1a1a;border-left:3px solid #e55;padding:12px 16px;border-radius:4px;color:#ddd;">${data.suspend_reason}</p>` : ""}
         <p>Entre em contato com o time Migma para regularizar sua situação e reativar o plano.</p>
-        ${btn("Falar com o time Migma", `${dash}/student`)}
+        ${btn("Falar com o time Migma", routes.studentSupport)}
       `),
-      whatsapp: `⚠️ *Migma* — Billing suspenso\n\nOlá ${firstName}, seu plano de mensalidades foi suspenso.${data.suspend_reason ? `\n\nMotivo: ${data.suspend_reason}` : ""}\n\nEntre em contato: ${dash}/student`,
+      whatsapp: `⚠️ *Migma* — Billing suspenso\n\nOlá ${firstName}, seu plano de mensalidades foi suspenso.${data.suspend_reason ? `\n\nMotivo: ${data.suspend_reason}` : ""}\n\nEntre em contato: ${routes.studentSupport}`,
     };
 
     // ── 18 — ADMIN ────────────────────────────────────────────────────────────
@@ -463,9 +557,9 @@ function buildTemplate(
       emailHtml: emailWrapper("[Admin] Sem universidade compatível", `
         <p>⚠️ <strong>${data.client_name ?? "Cliente"}</strong> não teve match com Caroline University nem Oikos University.</p>
         <p>Intervenção humana necessária para definir alternativa.</p>
-        ${data.client_id ? btn("Ver perfil do cliente", `${dash}/admin/users/${data.client_id}`) : ""}
+        ${data.client_id ? btn("Ver perfil do cliente", routes.adminUser(data.client_id)) : ""}
       `),
-      whatsapp: `⚠️ *Migma Admin* — Sem match universitário\n\n${data.client_name ?? "Cliente"} não tem Caroline/Oikos disponível. Intervenção necessária.\n${data.client_id ? `${dash}/admin/users/${data.client_id}` : dash}`,
+      whatsapp: `⚠️ *Migma Admin* — Sem match universitário\n\n${data.client_name ?? "Cliente"} não tem Caroline/Oikos disponível. Intervenção necessária.\n${data.client_id ? routes.adminUser(data.client_id) : routes.adminUser()}`,
     };
 
     // ── 19 — ADMIN support handoff ────────────────────────────────────────────
@@ -475,9 +569,9 @@ function buildTemplate(
         <p>O agente de IA transferiu <strong>${data.client_name ?? "um aluno"}</strong> para atendimento humano.</p>
         ${data.reason ? `<p><strong>Motivo:</strong> ${data.reason}</p>` : ""}
         ${data.last_message ? `<p><strong>Última mensagem:</strong><br><em>"${data.last_message}"</em></p>` : ""}
-        ${data.client_id ? btn("Abrir conversa", `${dash}/admin/users/${data.client_id}`) : ""}
+        ${data.client_id ? btn("Abrir conversa", routes.adminUser(data.client_id)) : ""}
       `),
-      whatsapp: `🙋 *Migma Suporte* — Transferência solicitada\n\nAluno: ${data.client_name ?? "N/D"}\n${data.reason ? `Motivo: ${data.reason}\n` : ""}${data.client_id ? `${dash}/admin/users/${data.client_id}` : dash}`,
+      whatsapp: `🙋 *Migma Suporte* — Transferência solicitada\n\nAluno: ${data.client_name ?? "N/D"}\n${data.reason ? `Motivo: ${data.reason}\n` : ""}${data.client_id ? routes.adminUser(data.client_id) : routes.adminUser()}`,
     };
 
     default:
@@ -558,9 +652,17 @@ Deno.serve(async (req) => {
     }
 
     // ── Send WhatsApp ────────────────────────────────────────────────────────
-    let whatsappResult: { sent: boolean; reason?: string } = { sent: false, reason: "no_phone" };
+    let whatsappResult: { sent: boolean; reason?: string; provider?: string } = { sent: false, reason: "no_phone" };
     if (recipientPhone) {
-      whatsappResult = await sendWhatsApp(recipientPhone, template.whatsapp);
+      whatsappResult = await sendWhatsApp({
+        trigger,
+        phone: recipientPhone,
+        email: recipientEmail,
+        name: recipientName,
+        message: template.whatsapp,
+        data,
+        isAdminTrigger,
+      });
     } else {
       console.warn(`[migma-notify][whatsapp] No phone for trigger ${trigger} user ${user_id}`);
     }
