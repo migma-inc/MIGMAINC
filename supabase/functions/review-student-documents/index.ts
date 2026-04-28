@@ -225,13 +225,60 @@ Deno.serve(async (req) => {
     }
 
     try {
-      await supabase.functions.invoke("migma-notify", {
-        body: buildNotifyPayload(decision, profile, {
-          rejection_reason: rejection_reason ?? null,
-          scope,
-          document_id: singleDocumentId,
-        }),
+      const appBaseUrl = Deno.env.get("APP_BASE_URL") ?? "https://migmainc.com";
+      const notifyPayload = buildNotifyPayload(decision, profile, {
+        rejection_reason: rejection_reason ?? null,
+        scope,
+        document_id: singleDocumentId,
       });
+
+      // Fix 3: Custom app_url based on scope for rejection
+      if (decision === "reject") {
+        notifyPayload.data = {
+          ...notifyPayload.data,
+          app_url: scope === "global"
+            ? `${appBaseUrl}/student/onboarding?step=documents_upload`
+            : `${appBaseUrl}/student/onboarding?step=payment`,
+        };
+      }
+
+      await supabase.functions.invoke("migma-notify", {
+        body: notifyPayload,
+      });
+
+      // Fix 2: Check if all global docs are approved and notify
+      if (scope === "global" && decision === "approve") {
+        const { data: allDocs } = await supabase
+          .from("global_document_requests")
+          .select("status")
+          .eq("profile_id", profile_id);
+
+        const allApproved = allDocs && allDocs.length > 0 && allDocs.every(d => d.status === "approved");
+
+        if (allApproved) {
+          // Notify Student
+          await supabase.functions.invoke("migma-notify", {
+            body: {
+              trigger: "all_documents_approved",
+              user_id: profile.user_id,
+              data: {
+                client_name: profile.full_name ?? profile.email ?? "Student",
+              },
+            },
+          });
+
+          // Notify Admin
+          await supabase.functions.invoke("migma-notify", {
+            body: {
+              trigger: "admin_package_complete",
+              data: {
+                client_name: profile.full_name ?? profile.email ?? "Student",
+                client_id: profile_id,
+              },
+            },
+          });
+        }
+      }
     } catch (notifyError) {
       console.warn("[review-student-documents] Notification failed:", notifyError);
     }

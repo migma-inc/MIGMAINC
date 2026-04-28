@@ -240,6 +240,22 @@ export const DocumentsUploadStep: React.FC<StepProps> = ({ onNext }) => {
         .update(nextProfileUpdate)
         .eq('user_id', user!.id);
       await updateUserProfile(nextProfileUpdate as any);
+
+      // Fix 1: Admin notification when student uploads all documents
+      try {
+        await supabase.functions.invoke('migma-notify', {
+          body: {
+            trigger: 'admin_new_documents',
+            data: {
+              client_name: userProfile?.full_name ?? userProfile?.email ?? 'Student',
+              client_id: userProfile?.id,
+            },
+          },
+        });
+      } catch (err) {
+        console.warn('[DocumentsUploadStep] Admin notification failed:', err);
+      }
+
       onNext();
     }
   };

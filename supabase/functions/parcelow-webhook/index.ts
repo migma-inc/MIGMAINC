@@ -95,8 +95,7 @@ async function syncApplicationFeeToMatriculaUSA(
       paid_at: new Date().toISOString(),
       source: 'migma',
     })
-    .eq("student_id", matriculaProfileId)
-    .eq("source", "migma");
+    .eq("student_id", matriculaProfileId);
 
   if (appErr) {
     console.warn("[Sync MatriculaUSA] Erro ao atualizar scholarship_applications:", appErr.message);

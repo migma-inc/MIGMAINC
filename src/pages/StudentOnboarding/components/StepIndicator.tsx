@@ -8,8 +8,8 @@ const STEPS: { key: OnboardingStep; labelKey: string }[] = [
   { key: 'selection_survey', labelKey: 'student_onboarding.steps.survey' },
   { key: 'scholarship_selection', labelKey: 'student_onboarding.steps.scholarship' },
   { key: 'placement_fee', labelKey: 'student_onboarding.steps.placement_fee' },
-  { key: 'payment', labelKey: 'student_onboarding.steps.payment' },
   { key: 'documents_upload', labelKey: 'student_onboarding.steps.documents' },
+  { key: 'payment', labelKey: 'student_onboarding.steps.payment' },
 ];
 
 const STEP_ALIAS: Partial<Record<OnboardingStep, OnboardingStep>> = {

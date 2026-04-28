@@ -4,10 +4,11 @@ export type OnboardingStep =
   | 'wait_room'
   | 'scholarship_selection'
   | 'process_type'
+  | 'placement_fee'
   | 'documents_upload'
   | 'payment'
+  | 'dados_complementares'
   | 'scholarship_fee'
-  | 'placement_fee'
   | 'reinstatement_fee'
   | 'my_applications'
   | 'acceptance_letter'
@@ -23,6 +24,7 @@ export interface OnboardingState {
   documentsUploaded: boolean;
   documentsApproved: boolean;
   applicationFeePaid: boolean;
+  complementaryDataSubmitted: boolean;
   scholarshipFeePaid: boolean;
   placementFeePaid: boolean;
   reinstatementFeePaid: boolean;

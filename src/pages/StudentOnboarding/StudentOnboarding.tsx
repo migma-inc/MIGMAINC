@@ -32,6 +32,9 @@ const WaitingApprovalStep = React.lazy(() =>
 const AcceptanceLetterStep = React.lazy(() =>
   import('./components/AcceptanceLetterStep').then(m => ({ default: m.AcceptanceLetterStep }))
 );
+const DadosComplementaresStep = React.lazy(() =>
+  import('./components/DadosComplementaresStep').then(m => ({ default: m.DadosComplementaresStep }))
+);
 
 const normalizeLegacyStep = (step: OnboardingStep | string | null | undefined): OnboardingStep | null => {
   if (!step) return null;
@@ -82,7 +85,8 @@ const StudentOnboarding: React.FC = () => {
   const VALID_STEPS: OnboardingStep[] = [
     'selection_fee', 'selection_survey',
     'scholarship_selection', 'placement_fee',
-    'payment', 'documents_upload', 'my_applications', 'acceptance_letter',
+    'documents_upload', 'payment', 'dados_complementares',
+    'my_applications', 'acceptance_letter',
   ];
 
   // Sincronizar URL -> State na carga inicial
@@ -119,8 +123,9 @@ const StudentOnboarding: React.FC = () => {
     'selection_survey',
     'scholarship_selection',
     'placement_fee',
-    'payment',
     'documents_upload',
+    'payment',
+    'dados_complementares',
     'my_applications',
     'acceptance_letter',
   ], []);
@@ -147,8 +152,9 @@ const StudentOnboarding: React.FC = () => {
   if (state.selectionSurveyPassed) completedSteps.push('selection_survey');
   if (state.scholarshipsSelected) completedSteps.push('scholarship_selection');
   if (state.placementFeePaid) completedSteps.push('placement_fee');
-  if (state.applicationFeePaid) completedSteps.push('payment');
   if (state.documentsUploaded) completedSteps.push('documents_upload');
+  if (state.applicationFeePaid) completedSteps.push('payment');
+  if (state.complementaryDataSubmitted) completedSteps.push('dados_complementares');
 
   if (authLoading || loading) {
     return (
@@ -203,6 +209,7 @@ const StudentOnboarding: React.FC = () => {
           {state.currentStep === 'scholarship_selection' && <UniversitySelectionStep {...stepProps} />}
           {state.currentStep === 'documents_upload' && <DocumentsUploadStep {...stepProps} />}
           {state.currentStep === 'payment' && <PaymentStep {...stepProps} />}
+          {state.currentStep === 'dados_complementares' && <DadosComplementaresStep {...stepProps} />}
           {state.currentStep === 'placement_fee' && <PlacementFeeStep {...stepProps} />}
           {(state.currentStep === 'my_applications' || state.currentStep === 'reinstatement_fee') && (
             <WaitingApprovalStep {...stepProps} />

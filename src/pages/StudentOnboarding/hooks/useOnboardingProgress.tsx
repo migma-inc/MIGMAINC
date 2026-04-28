@@ -7,7 +7,8 @@ import type { OnboardingStep, OnboardingState } from '../types';
 const VALID_STEPS: OnboardingStep[] = [
   'selection_fee', 'selection_survey',
   'scholarship_selection', 'placement_fee',
-  'payment', 'documents_upload', 'my_applications', 'acceptance_letter', 'completed'
+  'documents_upload', 'payment', 'dados_complementares',
+  'my_applications', 'acceptance_letter', 'completed'
 ];
 
 const normalizeLegacyStep = (step: OnboardingStep | string | null | undefined): OnboardingStep | null => {
@@ -75,6 +76,7 @@ export const useOnboardingProgress = () => {
       documentsUploaded: userProfile?.documents_uploaded || false,
       documentsApproved: userProfile?.documents_status === 'approved',
       applicationFeePaid: userProfile?.is_application_fee_paid || false,
+      complementaryDataSubmitted: false,
       scholarshipFeePaid: userProfile?.is_scholarship_fee_paid || false,
       placementFeePaid: userProfile?.is_placement_fee_paid || false,
       reinstatementFeePaid: userProfile?.has_paid_reinstatement_package || false,
@@ -203,6 +205,17 @@ export const useOnboardingProgress = () => {
       const documentsApproved = freshProfile.documents_status === 'approved';
       const applicationFeePaid = freshProfile.is_application_fee_paid || false;
 
+      // Check if complementary data has been submitted
+      let complementaryDataSubmitted = false;
+      if (applicationFeePaid && studentId) {
+        const { data: compData } = await supabase
+          .from('student_complementary_data')
+          .select('id')
+          .eq('profile_id', studentId)
+          .maybeSingle();
+        complementaryDataSubmitted = !!compData;
+      }
+
       // Migma: placement_fee_flow sempre true
       const isNewFlowUser = true;
       const scholarshipFeePaid = !!freshProfile.is_scholarship_fee_paid;
@@ -230,10 +243,12 @@ export const useOnboardingProgress = () => {
         maxAllowedStep = 'scholarship_selection';
       } else if (!placementFeePaid) {
         maxAllowedStep = 'placement_fee';
-      } else if (!applicationFeePaid) {
-        maxAllowedStep = 'payment';
       } else if (!documentsUploaded) {
         maxAllowedStep = 'documents_upload';
+      } else if (!applicationFeePaid) {
+        maxAllowedStep = 'payment';
+      } else if (!complementaryDataSubmitted) {
+        maxAllowedStep = 'dados_complementares';
       } else {
         // Avança para acceptance_letter quando pacote foi enviado ao MatriculaUSA
         const packageReady = v11AppsData?.some((a: any) => a.package_status === 'ready');
@@ -273,6 +288,7 @@ export const useOnboardingProgress = () => {
         documentsUploaded,
         documentsApproved,
         applicationFeePaid,
+        complementaryDataSubmitted,
         scholarshipFeePaid,
         placementFeePaid,
         reinstatementFeePaid,

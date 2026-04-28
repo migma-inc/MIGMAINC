@@ -17,7 +17,7 @@ import {
 } from '../../../utils/stripeFeeCalculator';
 import { ZelleUpload } from '../../../features/visa-checkout/components/steps/step3/ZelleUpload';
 import { SplitPaymentSelector, type SplitPaymentConfig } from '../../../features/visa-checkout/components/steps/step3/SplitPaymentSelector';
-import { processZellePaymentWithN8n } from '../../../lib/zelle-n8n-integration';
+import { uploadZelleReceipt } from '../../../lib/zelle-n8n-integration';
 import type { StepProps } from '../types';
 
 const MATRICULAUSA_ZELLE_EMAIL = 'pay@matriculausa.com';
@@ -66,6 +66,7 @@ export const PaymentStep: React.FC<StepProps> = ({ onNext }) => {
   const [zelleFile, setZelleFile] = useState<File | null>(null);
   const [zelleUploading, setZelleUploading] = useState(false);
   const [zelleSubmitted, setZelleSubmitted] = useState(false);
+  const [rejectionReason, setRejectionReason] = useState<string | null>(null);
   const [couponOpen, setCouponOpen] = useState(false);
   const [couponCode, setCouponCode] = useState('');
   const [exchangeRate, setExchangeRate] = useState(5.6);
@@ -87,16 +88,16 @@ export const PaymentStep: React.FC<StepProps> = ({ onNext }) => {
     }
   }, []);
 
-  const fetchApplications = useCallback(async () => {
+  const fetchApplications = useCallback(async (silent = false) => {
     if (!userProfile?.id) return;
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       
-      // Consultamos apenas as aplicações V11, pois as tabelas legacy foram removidas do banco
+      // Consultamos as aplicações e o status de pagamento
       const { data, error } = await supabase
         .from('institution_applications')
         .select(`
-          id, status,
+          id, status, is_application_fee_paid,
           institutions(name, application_fee_usd)
         `)
         .eq('profile_id', userProfile.id);
@@ -111,20 +112,41 @@ export const PaymentStep: React.FC<StepProps> = ({ onNext }) => {
 
       const normalizedV11: ApplicationWithScholarship[] = (data || []).map((app: any) => ({
         id: app.id,
-        is_application_fee_paid: false,
+        is_application_fee_paid: !!app.is_application_fee_paid,
         type: 'v11',
-        fee_amount: migmaFee, // Migma Rule: $350 base + $100 per dependent
+        fee_amount: migmaFee,
         scholarship_name: 'University Application',
         university_name: app.institutions?.name || '',
       }));
 
       setApplications(normalizedV11);
+
+      // Verificar se já existe um comprovante Zelle pendente ou rejeitado
+      if (!normalizedV11.some(a => a.is_application_fee_paid)) {
+        const { data: zelleRecords, error: zelleErr } = await supabase
+          .from('application_fee_zelle_pending')
+          .select('id, status, rejection_reason')
+          .eq('profile_id', userProfile.id)
+          .order('created_at', { ascending: false })
+          .limit(1);
+        
+        if (!zelleErr && zelleRecords && zelleRecords.length > 0) {
+          const latest = zelleRecords[0];
+          if (latest.status === 'pending_verification') {
+            setZelleSubmitted(true);
+            setRejectionReason(null);
+          } else if (latest.status === 'rejected') {
+            setZelleSubmitted(false);
+            setRejectionReason(latest.rejection_reason);
+          }
+        }
+      }
     } catch (err) {
       console.error('[PaymentStep] fetchApplications error:', err);
     } finally {
       setLoading(false);
     }
-  }, [userProfile?.id]);
+  }, [userProfile?.id, userProfile?.num_dependents]);
 
   useEffect(() => {
     fetchApplications();
@@ -132,6 +154,17 @@ export const PaymentStep: React.FC<StepProps> = ({ onNext }) => {
   }, [fetchApplications]);
 
   const alreadyPaid = userProfile?.is_application_fee_paid || applications.some(a => a.is_application_fee_paid);
+
+  // Polling para atualizar status do Zelle automaticamente
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    if (zelleSubmitted && !alreadyPaid) {
+      interval = setInterval(() => {
+        fetchApplications(true);
+      }, 5000); // Verifica a cada 5 segundos
+    }
+    return () => clearInterval(interval);
+  }, [zelleSubmitted, alreadyPaid, fetchApplications]);
   const firstApp = applications[0];
   const applicationFee = firstApp?.fee_amount ?? 400;
   const cardAmount = calculateCardAmountWithFees(applicationFee);
@@ -216,17 +249,47 @@ export const PaymentStep: React.FC<StepProps> = ({ onNext }) => {
     setZelleUploading(true);
     setPaymentError(null);
     try {
-      const n8nResult = await processZellePaymentWithN8n(zelleFile, applicationFee, 'application-fee', user.id);
+      // 1. Upload to Migma Storage
+      const { imageUrl } = await uploadZelleReceipt(zelleFile, user.id);
+      
+      // 2. Insert into Migma DB (application_fee_zelle_pending)
       const { error: insertErr } = await supabase.from('application_fee_zelle_pending').insert({
-        scholarship_application_id: firstApp.id,
+        institution_application_id: firstApp.id,
         profile_id: userProfile.id,
         migma_user_id: user.id,
         amount_usd: applicationFee,
-        receipt_url: n8nResult.imageUrl,
-        n8n_payment_id: n8nResult.paymentId,
-        n8n_response: n8nResult.n8nResponse,
+        receipt_url: imageUrl,
+        status: 'pending_verification',
       });
       if (insertErr) throw insertErr;
+
+      // 3. POST to MatriculaUSA (New Secure External Insert Endpoint)
+      // This endpoint handles both the DB insert and the n8n trigger securely.
+      const externalInsertUrl = import.meta.env.VITE_MATRICULAUSA_EXTERNAL_ZELLE_INSERT_URL;
+      const webhookSecret = import.meta.env.VITE_MATRICULAUSA_ZELLE_WEBHOOK_SECRET;
+      
+      if (externalInsertUrl) {
+        await fetch(externalInsertUrl, {
+          method: 'POST',
+          headers: { 
+            'Content-Type': 'application/json',
+            'x-migma-webhook-secret': webhookSecret || ''
+          },
+          body: JSON.stringify({
+            amount: applicationFee,
+            screenshot_url: imageUrl,
+            metadata: {
+              source: 'migma',
+              migma_application_id: firstApp.id,
+              migma_profile_id: userProfile.id,
+              migma_user_id: user.id,
+              migma_student_name: userProfile.full_name,
+              migma_student_email: userProfile.email,
+            },
+          }),
+        });
+      }
+
       setZelleSubmitted(true);
     } catch (err: any) {
       console.error('[PaymentStep] handleZelleUpload:', err);
@@ -234,7 +297,7 @@ export const PaymentStep: React.FC<StepProps> = ({ onNext }) => {
     } finally {
       setZelleUploading(false);
     }
-  }, [zelleFile, firstApp, userProfile?.id, user?.id, applicationFee]);
+  }, [zelleFile, firstApp, userProfile, user, applicationFee]);
 
   if (loading) {
     return (
@@ -301,7 +364,7 @@ export const PaymentStep: React.FC<StepProps> = ({ onNext }) => {
             Comprovante Enviado
           </h3>
           <p className="text-gray-400 text-sm leading-relaxed max-w-sm mx-auto">
-            Nosso time irá confirmar seu pagamento Zelle em até <strong>24h úteis</strong>.
+            Seu pagamento está sendo processado e pode levar até <strong>48h úteis</strong>.
             Você receberá uma notificação quando confirmado.
           </p>
         </div>
@@ -394,6 +457,20 @@ export const PaymentStep: React.FC<StepProps> = ({ onNext }) => {
             )}
           </div>
         </div>
+
+        <div className="border-t border-white/8 mx-5" />
+        
+        {/* Rejection Alert */}
+        {rejectionReason && (
+          <div className="m-5 p-4 bg-red-500/10 border border-red-500/20 rounded-2xl flex items-start gap-3">
+            <AlertCircle className="w-5 h-5 text-red-400 shrink-0 mt-0.5" />
+            <div>
+              <p className="text-red-400 font-black text-xs uppercase tracking-widest mb-1">Pagamento Rejeitado</p>
+              <p className="text-gray-400 text-sm leading-relaxed">{rejectionReason}</p>
+              <p className="text-[10px] text-gray-500 mt-2 italic">* Por favor, verifique o motivo e envie o comprovante correto abaixo.</p>
+            </div>
+          </div>
+        )}
 
         <div className="border-t border-white/8 mx-5" />
 
@@ -665,7 +742,7 @@ export const PaymentStep: React.FC<StepProps> = ({ onNext }) => {
                 className="flex items-center justify-center gap-2 w-full bg-gold-medium hover:bg-gold-light disabled:opacity-50 text-black py-4 rounded-2xl font-black uppercase tracking-widest transition-all shadow-xl shadow-gold-medium/10 mt-2"
               >
                 {processing && <Loader2 className="w-5 h-5 animate-spin" />}
-                {processing ? 'Redirecionando...' : `Pagar $${applicationFee.toLocaleString()}.00`}
+                {processing ? 'Redirecionando...' : `Pagar $${(selectedMethod === 'stripe' ? cardAmount : applicationFee).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
               </button>
               <p className="text-[10px] text-center text-gray-600 font-bold uppercase tracking-tighter">
                 🔒 Pagamento 100% Seguro e Criptografado

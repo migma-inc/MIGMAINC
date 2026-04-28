@@ -12,6 +12,7 @@ const CORS = {
 export type TriggerType =
   // Client-facing
   | "selection_fee_paid"
+  | "application_fee_paid"
   | "questionnaire_received"
   | "contract_approved"
   | "scholarship_approved"
@@ -115,36 +116,68 @@ async function sendWhatsApp(phone: string, message: string): Promise<{ sent: boo
 
 function emailWrapper(title: string, body: string): string {
   return `<!DOCTYPE html>
-<html lang="pt-BR">
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>${title}</title></head>
-<body style="margin:0;padding:0;background:#0a0a0a;font-family:'Helvetica Neue',Arial,sans-serif;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="background:#0a0a0a;padding:32px 16px;">
-    <tr><td align="center">
-      <table width="600" cellpadding="0" cellspacing="0" style="background:#111;border-radius:12px;overflow:hidden;max-width:600px;width:100%;">
-        <!-- Header -->
-        <tr><td style="background:#161616;padding:28px 40px;border-bottom:1px solid #222;">
-          <span style="font-size:22px;font-weight:700;color:#fff;letter-spacing:-0.5px;">MIGMA</span>
-          <span style="font-size:22px;font-weight:300;color:#888;"> INC</span>
-        </td></tr>
-        <!-- Body -->
-        <tr><td style="padding:36px 40px;color:#ccc;font-size:15px;line-height:1.7;">
-          ${body}
-        </td></tr>
-        <!-- Footer -->
-        <tr><td style="padding:20px 40px;border-top:1px solid #222;color:#555;font-size:12px;">
-          Migma Inc · Notificação automática · Não responda este email
-        </td></tr>
-      </table>
-    </td></tr>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${title}</title>
+</head>
+<body style="font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;line-height:1.6;color:#e5e7eb;background-color:#000000;margin:0;padding:0;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color:#000000;min-height:100vh;">
+    <tr>
+      <td align="center" style="padding:40px 0;">
+        <table role="presentation" width="600" cellspacing="0" cellpadding="0" style="background-color:#000000;max-width:600px;width:100%;margin:0 auto;">
+
+          <!-- Logo -->
+          <tr>
+            <td align="center" style="padding:40px 20px 30px;background-color:#000000;">
+              <img src="https://migmainc.com/logo2.png" alt="MIGMA" width="180" style="display:block;border:0;outline:none;text-decoration:none;">
+            </td>
+          </tr>
+
+          <!-- Card -->
+          <tr>
+            <td style="padding:0 20px;">
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0"
+                style="background:linear-gradient(145deg,#1a1a1a 0%,#0a0a0a 100%);border:1px solid #CE9F48;border-radius:12px;overflow:hidden;box-shadow:0 4px 20px rgba(206,159,72,0.15);">
+                <tr>
+                  <td style="padding:40px;">
+                    <h2 style="margin:0 0 24px;font-size:24px;font-weight:600;text-align:center;color:#F3E196;background:linear-gradient(180deg,#F3E196 0%,#CE9F48 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">
+                      ${title}
+                    </h2>
+                    <div style="font-size:15px;color:#d1d5db;line-height:1.7;">
+                      ${body}
+                    </div>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td align="center" style="padding:40px 20px;">
+              <p style="margin:0 0 6px;font-size:16px;font-weight:600;color:#CE9F48;font-family:'Times New Roman',serif;letter-spacing:1px;">The MIGMA Team</p>
+              <p style="margin:0;font-size:12px;color:#4b5563;font-style:italic;">Automated notification · Please do not reply to this email</p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
   </table>
-</body></html>`;
+</body>
+</html>`;
 }
 
 function btn(label: string, url: string): string {
-  return `<p style="margin:28px 0 0;"><a href="${url}"
-    style="display:inline-block;background:#fff;color:#000;font-weight:600;font-size:14px;
-    padding:12px 28px;border-radius:8px;text-decoration:none;">${label}</a></p>`;
+  return `<table role="presentation" width="100%" cellspacing="0" cellpadding="0">
+    <tr>
+      <td align="center" style="padding:24px 0 10px;">
+        <a href="${url}" style="display:inline-block;padding:16px 32px;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:15px;font-weight:700;color:#000000;text-decoration:none;background:linear-gradient(180deg,#F3E196 0%,#CE9F48 50%,#F3E196 100%);border-radius:6px;box-shadow:0 4px 12px rgba(206,159,72,0.3);text-transform:uppercase;letter-spacing:0.5px;">${label}</a>
+      </td>
+    </tr>
+  </table>`;
 }
 
 function highlight(text: string): string {
@@ -215,6 +248,18 @@ function buildTemplate(
     };
 
     // ── 05 ────────────────────────────────────────────────────────────────────
+    case "application_fee_paid": return {
+      subject: "Application Fee Confirmed — Your Spot is Secured!",
+      emailHtml: emailWrapper("Application Fee Confirmed", `
+        <p>Hi, ${highlight(firstName)}!</p>
+        <p>Your <strong>Application Fee</strong> payment has been successfully confirmed.</p>
+        <p>Your application is officially registered. Track your progress through the student portal.</p>
+        ${btn("Access my account", `${dash}/student/onboarding?step=documents_upload`)}
+      `),
+      whatsapp: `✅ *Migma* — Application Fee Confirmed!\n\nHi ${firstName}, your payment was received and your spot is secured! Track your progress: ${dash}/student`,
+    };
+
+    // ── placement_fee_paid ────────────────────────────────────────────────────
     case "placement_fee_paid": return {
       subject: "Placement Fee confirmado — envie seus documentos",
       emailHtml: emailWrapper("Placement Fee confirmado", `
@@ -228,27 +273,27 @@ function buildTemplate(
 
     // ── 06 ────────────────────────────────────────────────────────────────────
     case "document_rejected": return {
-      subject: `Documento rejeitado — correção necessária: ${data.document_name ?? "documento"}`,
-      emailHtml: emailWrapper("Documento rejeitado", `
-        <p>Olá, ${highlight(firstName)}!</p>
-        <p>O documento <strong>${data.document_name ?? "enviado"}</strong> precisa ser corrigido.</p>
+      subject: `Document Rejected — Correction Required: ${data.document_name ?? "document"}`,
+      emailHtml: emailWrapper("Document Rejected", `
+        <p>Hi, ${highlight(firstName)}!</p>
+        <p>The document <strong>${data.document_name ?? "submitted"}</strong> requires a correction.</p>
         ${data.document_reason ? `<p style="background:#1a1a1a;border-left:3px solid #e55;padding:12px 16px;border-radius:4px;color:#ddd;">${data.document_reason}</p>` : ""}
-        <p>Acesse o portal, corrija o documento e faça o reenvio.</p>
-        ${btn("Reenviar documento", data.app_url ?? `${dash}/student/documents`)}
+        <p>Please access the portal, fix the document, and resubmit it.</p>
+        ${btn("Resubmit document", data.app_url ?? `${dash}/student/onboarding?step=payment`)}
       `),
-      whatsapp: `⚠️ *Migma* — Correção necessária\n\nOlá ${firstName}, o documento *${data.document_name ?? "enviado"}* precisa de ajuste.\n\n${data.document_reason ? `Motivo: ${data.document_reason}\n\n` : ""}Acesse: ${data.app_url ?? `${dash}/student/documents`}`,
+      whatsapp: `⚠️ *Migma* — Correction Required\n\nHi ${firstName}, the document *${data.document_name ?? "submitted"}* needs an update.\n\n${data.document_reason ? `Reason: ${data.document_reason}\n\n` : ""}Access: ${data.app_url ?? `${dash}/student/onboarding?step=payment`}`,
     };
 
     // ── 07 ────────────────────────────────────────────────────────────────────
     case "all_documents_approved": return {
-      subject: "Documentos aprovados — pague a Application Fee",
-      emailHtml: emailWrapper("Documentos aprovados", `
-        <p>Olá, ${highlight(firstName)}!</p>
-        <p>Todos os seus documentos foram <strong>aprovados</strong>! 🎉</p>
-        <p>O próximo passo é o pagamento da <strong>Application Fee</strong> para concluir a candidatura formal junto à universidade.</p>
-        ${data.payment_link ? btn("Pagar Application Fee", data.payment_link) : btn("Acessar portal", `${dash}/student`)}
+      subject: "All Documents Approved — Your Application is Being Processed",
+      emailHtml: emailWrapper("Documents Approved", `
+        <p>Hi, ${highlight(firstName)}!</p>
+        <p>All your submitted documents have been <strong>reviewed and approved</strong>. 🎉</p>
+        <p>Our team is now processing your application package and coordinating with the university. You will be notified as soon as your acceptance letter is ready.</p>
+        ${btn("Track your application", `${dash}/student/onboarding`)}
       `),
-      whatsapp: `✅ *Migma* — Documentos aprovados!\n\nOlá ${firstName}, todos os documentos foram aprovados! Próximo passo: Application Fee.\n${data.payment_link ?? `${dash}/student`}`,
+      whatsapp: `✅ *Migma* — Documents Approved!\n\nHi ${firstName}, all your documents have been approved! We're now processing your application. We'll notify you when your acceptance letter is ready.\n${dash}/student/onboarding`,
     };
 
     // ── 08 ────────────────────────────────────────────────────────────────────
