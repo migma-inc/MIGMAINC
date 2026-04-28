@@ -912,7 +912,68 @@ async function processParcelowWebhookEvent(event: ParcelowWebhookEvent, supabase
             console.log("[Parcelow Webhook] ℹ️ is_application_fee_paid já era true");
           }
         } else {
-          console.warn(`[Parcelow Webhook] ⚠️ scholarship_application não encontrada para ref=${ref}`);
+          // Fallback: buscar via migma_parcelow_pending (registrado pelo create-application-fee-checkout)
+          console.warn(`[Parcelow Webhook] ⚠️ Aplicação não encontrada via referência. Tentando fallback via migma_parcelow_pending...`);
+          const { data: fallbackPending } = await supabase
+            .from("migma_parcelow_pending")
+            .select("*")
+            .eq("parcelow_order_id", parcelowOrder.id.toString())
+            .maybeSingle();
+
+          if (fallbackPending && (eventType === "event_order_paid" || eventType === "event_order_confirmed") && !fallbackPending.migma_payment_completed) {
+            console.log(`[Parcelow Webhook] 📋 Fallback encontrado: service_type=${fallbackPending.service_type} applicationId=${fallbackPending.service_request_id}`);
+
+            // Atualizar user_profiles
+            await supabase
+              .from("user_profiles")
+              .update({ is_application_fee_paid: true, application_fee_paid_at: new Date().toISOString() })
+              .eq("user_id", fallbackPending.migma_user_id);
+
+            // Para legado, atualizar scholarship_applications também
+            if (fallbackPending.service_type === 'application_fee_legacy' && fallbackPending.service_request_id) {
+              await supabase
+                .from("scholarship_applications")
+                .update({ is_application_fee_paid: true })
+                .eq("id", fallbackPending.service_request_id);
+              console.log(`[Parcelow Webhook] ✅ scholarship_applications atualizado: ${fallbackPending.service_request_id}`);
+            }
+
+            // Marcar como concluído
+            await supabase
+              .from("migma_parcelow_pending")
+              .update({ status: 'paid', migma_payment_completed: true, updated_at: new Date().toISOString() })
+              .eq("id", fallbackPending.id);
+
+            // Sync to MatriculaUSA
+            try {
+              const matriculausaUrl = Deno.env.get("MATRICULAUSA_URL");
+              const matriculausaKey = Deno.env.get("MATRICULAUSA_SERVICE_ROLE");
+              if (matriculausaUrl && matriculausaKey) {
+                const matriculausaClient = createClient(matriculausaUrl, matriculausaKey);
+                const { data: migmaProfile } = await supabase
+                  .from("user_profiles")
+                  .select("matricula_user_id, email")
+                  .eq("user_id", fallbackPending.migma_user_id)
+                  .maybeSingle();
+                if (migmaProfile) {
+                  await syncApplicationFeeToMatriculaUSA(
+                    matriculausaClient,
+                    migmaProfile.matricula_user_id,
+                    migmaProfile.email,
+                    "parcelow",
+                    fallbackPending.amount || 0,
+                    parcelowOrder.id
+                  );
+                }
+              }
+            } catch (syncErr: any) {
+              console.warn("[Parcelow Webhook] Sync MatriculaUSA (fallback) falhou (não crítico):", syncErr.message);
+            }
+
+            console.log(`[Parcelow Webhook] ✅ Application fee confirmada via fallback para user: ${fallbackPending.migma_user_id}`);
+          } else {
+            console.warn(`[Parcelow Webhook] ⚠️ scholarship_application não encontrada para ref=${ref}`);
+          }
         }
       }
       return;
@@ -966,7 +1027,10 @@ async function processParcelowWebhookEvent(event: ParcelowWebhookEvent, supabase
       if ((eventType === "event_order_paid" || eventType === "event_order_confirmed") && !migmaPending.migma_payment_completed) {
         // 1. Chama migma-payment-completed para registrar no Matricula USA
         // Exceto para application_fee, pois não queremos regerar contratos/PDFs
-        if (migmaPending.fee_type !== "application_fee") {
+        const isApplicationFee = migmaPending.fee_type === "application_fee" || 
+                                migmaPending.service_type?.startsWith("application_fee");
+
+        if (!isApplicationFee) {
           console.log(`[Parcelow Webhook] 🚀 Invocando migma-payment-completed para usuário ${migmaPending.migma_user_id} (Evento: ${eventType})`);
           const { error: payErr } = await supabase.functions.invoke("migma-payment-completed", {
             body: {

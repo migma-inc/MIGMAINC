@@ -63,6 +63,7 @@ export const PlacementFeeStep: React.FC<StepProps> = ({ onNext }) => {
   const [zelleSubmitted, setZelleSubmitted] = useState(false);
   const [confirmingZero, setConfirmingZero] = useState(false);
   const [couponCode, setCouponCode] = useState('');
+  const [couponOpen, setCouponOpen] = useState(false);
   const [splitConfig, setSplitConfig] = useState<SplitPaymentConfig | null>(null);
   const [cardOwnership, setCardOwnership] = useState<'own' | 'third_party'>('own');
   const [payerName, setPayerName] = useState('');
@@ -281,7 +282,7 @@ export const PlacementFeeStep: React.FC<StepProps> = ({ onNext }) => {
           <p className="text-gray-400 mb-8 max-w-sm mx-auto">
             {placementFee === 0
               ? <>Sua vaga na <strong>{activeApp?.institutions?.name}</strong> está confirmada com bolsa integral.</>
-              : <>Sua vaga na <strong>{activeApp?.institutions?.name}</strong> está garantida. Nossa equipe entrará em contato para iniciar o processo do I-20.</>
+              : <>Sua vaga na <strong>{activeApp?.institutions?.name}</strong> está garantida.</>
             }
           </p>
           <button
@@ -573,6 +574,7 @@ export const PlacementFeeStep: React.FC<StepProps> = ({ onNext }) => {
               <div className="text-right shrink-0">
                 <p className={`font-black text-lg ${selectedMethod === 'zelle' ? 'text-gold-medium' : 'text-white'}`}>
                   ${placementFee.toLocaleString()}.00
+                </p>
                 <p className="text-[9px] text-gray-500 font-black uppercase tracking-widest">Sem taxas</p>
               </div>
             </button>

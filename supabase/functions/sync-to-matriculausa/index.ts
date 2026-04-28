@@ -139,26 +139,8 @@ Deno.serve(async (req) => {
 
     const placementFeePaid = !!appRow.placement_fee_paid_at;
 
-    // Centraliza cálculo de dependentes — usado em user_profiles e application_fee
-    let numDependents = profile.num_dependents ?? 0;
-
-    // 🎯 FALLBACK: Se num_dependents for 0, tenta inferir de visa_orders (bug do Step 1 não salvando no perfil)
-    if (numDependents === 0) {
-      console.log(`[SYNC-${executionId}] 🧐 num_dependents é 0 no perfil. Tentando fallback via visa_orders...`);
-      const { data: orderData } = await migma
-        .from("visa_orders")
-        .select("number_of_dependents")
-        .eq("client_email", profile.email)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      if (orderData?.number_of_dependents) {
-        numDependents = orderData.number_of_dependents;
-        console.log(`[SYNC-${executionId}] 💡 Fallback bem-sucedido! Inferido ${numDependents} dependentes do visa_orders.`);
-      }
-    }
-
+    // Dependentes lidos diretamente do perfil — fonte única de verdade
+    const numDependents = profile.num_dependents ?? 0;
     const applicationFeeAmount = 350 + numDependents * 100;
 
     console.log(`[SYNC-${executionId}] 👨‍👩‍👧 Dependentes: ${numDependents} | Application Fee calculada: $${applicationFeeAmount}`);
@@ -291,28 +273,24 @@ Deno.serve(async (req) => {
 
       remoteUniversityId = existingUniv?.id ?? null;
       if (remoteUniversityId) {
-        console.log(`[SYNC-${executionId}] [PASSO 3] ✅ Universidade encontrada: ${remoteUniversityId}`);
+        console.log(`[SYNC-${executionId}] [PASSO 3] ✅ Universidade encontrada pelo slug: ${remoteUniversityId}`);
       } else {
-        // Universidade não existe no MatriculaUSA — criar automaticamente com dados da Migma
-        console.warn(`[SYNC-${executionId}] [PASSO 3] ⚠️ Universidade não encontrada para o slug: ${institution.slug}. Tentando criar...`);
-        const { data: newUniv, error: createUnivErr } = await matricula
+        // Slug não coincide (ex: Migma usa 'oikos-university', MatriculaUSA usa 'oikos-university-los-angeles')
+        // Fallback: buscar por nome parcial
+        console.warn(`[SYNC-${executionId}] [PASSO 3] ⚠️ Slug '${institution.slug}' não encontrado. Tentando fallback por nome: '${institution.name}'`);
+        const { data: univByName, error: univByNameErr } = await matricula
           .from("universities")
-          .insert({
-            name: institution.name,
-            slug: institution.slug,
-            city: institution.city || null,
-            state: institution.state || null,
-            country: "US",
-            modality: institution.modality || "presential",
-          })
-          .select("id")
-          .single();
+          .select("id, name, slug")
+          .ilike("name", `%${institution.name}%`)
+          .maybeSingle();
 
-        if (createUnivErr) {
-          console.error(`[SYNC-${executionId}] [PASSO 3] ❌ Falha ao criar universidade:`, createUnivErr.message);
+        if (univByNameErr) console.error(`[SYNC-${executionId}] [PASSO 3] Erro no fallback por nome:`, univByNameErr.message);
+
+        if (univByName?.id) {
+          remoteUniversityId = univByName.id;
+          console.log(`[SYNC-${executionId}] [PASSO 3] ✅ Universidade encontrada pelo nome (slug remoto: '${univByName.slug}'): ${remoteUniversityId}`);
         } else {
-          remoteUniversityId = newUniv?.id ?? null;
-          console.log(`[SYNC-${executionId}] [PASSO 3] ✅ Universidade criada no MatriculaUSA: ${remoteUniversityId}`);
+          console.error(`[SYNC-${executionId}] [PASSO 3] ❌ Universidade não encontrada nem por slug nem por nome. Verifique se '${institution.name}' existe no MatriculaUSA.`);
         }
       }
     } else {
@@ -348,45 +326,82 @@ Deno.serve(async (req) => {
         if (updateFeeErr) console.warn(`[SYNC-${executionId}] [PASSO 4] ⚠️ Erro ao atualizar application_fee da bolsa:`, updateFeeErr.message);
         console.log(`[SYNC-${executionId}] [PASSO 4] ✅ Bolsa existente do aluno encontrada e fee atualizado ($${applicationFeeAmount}): ${remoteScholarshipId}`);
       } else if (scholarshipLevel && remoteUniversityId) {
-        // No existing application and university found → create new per-student private scholarship
+        // No existing application — check for orphaned Migma scholarship (sync partial failure recovery)
         const degreeLevel = course?.degree_level ?? "graduate";
         const degreeLevelMapped =
           degreeLevel === "bachelor" ? "undergraduate" :
           degreeLevel === "masters"  ? "graduate" :
           degreeLevel === "phd"      ? "doctorate" : "graduate";
 
-        console.log(`[SYNC-${executionId}] [PASSO 4] Criando nova bolsa privada por-aluno (Degree: ${degreeLevelMapped}, Fee: $${applicationFeeAmount})...`);
-        const { data: newScholarship, error: scholErr } = await matricula
-          .from("scholarships")
-          .insert({
-            university_id: remoteUniversityId,
-            title: course?.course_name
-              ? `${course.course_name} — ${scholarshipLevel.discount_percent}% Scholarship (Migma)`
-              : `${institution?.name} — ${scholarshipLevel.discount_percent}% Scholarship (Migma)`,
-            field_of_study: course?.course_name ?? null,
-            level: degreeLevelMapped,
-            placement_fee_amount: scholarshipLevel.placement_fee_usd,
-            application_fee_amount: applicationFeeAmount, // per-student: $350 + (num_dependents × $100)
-            annual_value_with_scholarship: scholarshipLevel.tuition_annual_usd,
-            original_annual_value: null,
-            amount: 0,           // legacy field — NOT NULL, all recent records use 0
-            deadline: "2099-12-31", // required NOT NULL — far future for Migma scholarships
-            is_active: false,    // ← PRIVATE: not visible in public catalog
-          })
-          .select("id")
-          .single();
+        const expectedTitle = course?.course_name
+          ? `${course.course_name} — ${scholarshipLevel.discount_percent}% Scholarship (Migma)`
+          : `${institution?.name} — ${scholarshipLevel.discount_percent}% Scholarship (Migma)`;
 
-        if (scholErr) {
-          console.warn(`[SYNC-${executionId}] [PASSO 4] ⚠️ Erro ao inserir bolsa:`, scholErr.message, "— Prosseguindo sem bolsa.");
+        // Try to recover orphaned scholarship from a previous partial sync
+        const { data: orphanedScholarship } = await matricula
+          .from("scholarships")
+          .select("id")
+          .eq("university_id", remoteUniversityId)
+          .eq("title", expectedTitle)
+          .eq("is_active", false)
+          .maybeSingle();
+
+        if (orphanedScholarship?.id) {
+          remoteScholarshipId = orphanedScholarship.id;
+          // Update fee to correct current value
+          await matricula.from("scholarships")
+            .update({ application_fee_amount: applicationFeeAmount })
+            .eq("id", remoteScholarshipId);
+          console.log(`[SYNC-${executionId}] [PASSO 4] ✅ Bolsa órfã recuperada e fee atualizado ($${applicationFeeAmount}): ${remoteScholarshipId}`);
         } else {
-          remoteScholarshipId = newScholarship?.id ?? null;
-          console.log(`[SYNC-${executionId}] [PASSO 4] ✅ Bolsa criada: ${remoteScholarshipId}`);
+          console.log(`[SYNC-${executionId}] [PASSO 4] Criando nova bolsa privada por-aluno (Degree: ${degreeLevelMapped}, Fee: $${applicationFeeAmount})...`);
+          const { data: newScholarship, error: scholErr } = await matricula
+            .from("scholarships")
+            .insert({
+              university_id: remoteUniversityId,
+              title: expectedTitle,
+              field_of_study: course?.course_name ?? null,
+              level: degreeLevelMapped,
+              placement_fee_amount: scholarshipLevel.placement_fee_usd,
+              application_fee_amount: applicationFeeAmount,
+              annual_value_with_scholarship: scholarshipLevel.tuition_annual_usd,
+              original_annual_value: null,
+              amount: 0,
+              deadline: "2099-12-31",
+              is_active: false,
+            })
+            .select("id")
+            .single();
+
+          if (scholErr) {
+            console.warn(`[SYNC-${executionId}] [PASSO 4] ⚠️ Erro ao inserir bolsa:`, scholErr.message, "— Prosseguindo sem bolsa.");
+          } else {
+            remoteScholarshipId = newScholarship?.id ?? null;
+            console.log(`[SYNC-${executionId}] [PASSO 4] ✅ Bolsa criada: ${remoteScholarshipId}`);
+          }
         }
       } else {
         console.warn(`[SYNC-${executionId}] [PASSO 4] ⏭️ Pulado: sem aplicação existente e sem universidade disponível para criar bolsa nova.`);
       }
     } else {
       console.warn(`[SYNC-${executionId}] [PASSO 4] ⏭️ Pulado: remoteProfileId ausente.`);
+    }
+
+    // ── STEP 4.5: Upsert user_fee_overrides com application_fee individual ────
+    // user_fee_overrides.user_id → auth.users.id (remoteUserId)
+    if (remoteUserId) {
+      console.log(`[SYNC-${executionId}] [PASSO 4.5] Atualizando user_fee_overrides: application_fee=$${applicationFeeAmount}...`);
+      const { error: overrideErr } = await matricula
+        .from("user_fee_overrides")
+        .upsert(
+          { user_id: remoteUserId, application_fee: applicationFeeAmount },
+          { onConflict: "user_id" }
+        );
+      if (overrideErr) {
+        console.warn(`[SYNC-${executionId}] [PASSO 4.5] ⚠️ Erro ao upsert user_fee_overrides:`, overrideErr.message);
+      } else {
+        console.log(`[SYNC-${executionId}] [PASSO 4.5] ✅ user_fee_overrides atualizado.`);
+      }
     }
 
     // ── STEP 5: Upsert scholarship_applications ──────────────────────────────
@@ -406,11 +421,12 @@ Deno.serve(async (req) => {
         is_application_fee_paid: false,
         is_scholarship_fee_paid: false,
         payment_status: placementFeePaid ? "paid" : "pending",
-        // application_fee_amount lives in scholarships (per-student private scholarship), NOT in scholarship_applications
         notes: `Migma sync | scholarship_level_id: ${scholarshipLevel?.id} | placement_fee: $${scholarshipLevel?.placement_fee_usd} | discount: ${scholarshipLevel?.discount_percent}%`,
       };
 
-      if (profile.migma_seller_id) applicationPayload.seller_id = profile.migma_seller_id;
+      const isValidUuid = (v: unknown) => typeof v === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v);
+      if (isValidUuid(profile.migma_seller_id)) applicationPayload.seller_id = profile.migma_seller_id;
+      else if (profile.migma_seller_id) console.warn(`[SYNC-${executionId}] [PASSO 5] ⚠️ migma_seller_id inválido (não UUID): "${profile.migma_seller_id}" — ignorado.`);
 
       console.log(`[SYNC-${executionId}] [PASSO 5] Verificando aplicação existente para Student=${remoteProfileId} e Scholarship=${remoteScholarshipId}`);
       const { data: existingApp, error: findAppErr } = await matricula

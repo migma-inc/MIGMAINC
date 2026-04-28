@@ -297,6 +297,25 @@ Deno.serve(async (req) => {
       throw new Error("Parcelow did not return a checkout URL");
     }
 
+    // Registrar em migma_parcelow_pending para fallback no webhook (idêntico ao Stripe usa application_fee_stripe_sessions)
+    const parcelowOrderId = (resData.id || resData.order_id || "").toString();
+    if (parcelowOrderId) {
+      try {
+        await supabase.from("migma_parcelow_pending").insert({
+          migma_user_id: user.id,
+          parcelow_order_id: parcelowOrderId,
+          parcelow_checkout_url: checkoutUrl,
+          amount: applicationFee,
+          service_type: applicationType === 'legacy' ? 'application_fee_legacy' : 'application_fee_v11',
+          service_request_id: scholarship_application_id, // application UUID armazenado aqui
+          status: 'pending',
+        });
+        console.log(`[create-application-fee-checkout] migma_parcelow_pending registrado: parcelowId=${parcelowOrderId}`);
+      } catch (pendingErr: any) {
+        console.warn("[create-application-fee-checkout] migma_parcelow_pending insert falhou (não crítico):", pendingErr.message);
+      }
+    }
+
     console.log(`[create-application-fee-checkout] Parcelow order criado: ref=${reference}`);
     return jsonOk({ checkout_url: checkoutUrl });
 
