@@ -85,6 +85,48 @@ async function upsertIdentityFiles(
   }
 }
 
+async function notifyByAuthUser(
+  migma: ReturnType<typeof createClient>,
+  trigger: "selection_fee_paid" | "placement_fee_paid",
+  authUserId: string,
+  data: Record<string, unknown> = {},
+) {
+  try {
+    const { data: profile, error } = await migma
+      .from("user_profiles")
+      .select("id")
+      .eq("user_id", authUserId)
+      .maybeSingle();
+
+    if (error || !profile?.id) {
+      console.warn(`[migma-payment-completed] notify skipped for ${trigger}: profile not found for auth user ${authUserId}`);
+      return;
+    }
+
+    const notifyRes = await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/migma-notify`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+        "apikey": Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
+      },
+      body: JSON.stringify({
+        trigger,
+        user_id: profile.id,
+        data,
+      }),
+    });
+
+    if (!notifyRes.ok) {
+      console.warn(`[migma-payment-completed] notify ${trigger} failed: ${notifyRes.status} ${await notifyRes.text()}`);
+    } else {
+      console.log(`[migma-payment-completed] ✅ notify ${trigger} dispatched for profile ${profile.id}`);
+    }
+  } catch (err: any) {
+    console.warn(`[migma-payment-completed] notify ${trigger} failed: ${err.message}`);
+  }
+}
+
 // ─── Handler principal ───────────────────────────────────────────────────────
 
 Deno.serve(async (req) => {
@@ -186,6 +228,7 @@ Deno.serve(async (req) => {
           console.log(
             `[user_profiles] ✅ selection_process: paid=true | price=${amountNum > 0 ? amountNum : "preservado"}`
           );
+          await notifyByAuthUser(migma, "selection_fee_paid", user_id);
         }
       }
 
@@ -203,6 +246,7 @@ Deno.serve(async (req) => {
           .eq("user_id", user_id);
 
         if (profErr) console.error(`[user_profiles] update placement_fee falhou: ${profErr.message}`);
+        else await notifyByAuthUser(migma, "placement_fee_paid", user_id);
 
         // 2. Atualizar institution_applications se ID disponível
         if (body.application_id) {

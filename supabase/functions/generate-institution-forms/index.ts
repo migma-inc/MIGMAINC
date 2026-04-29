@@ -3136,13 +3136,25 @@ Deno.serve(async (req) => {
 
     // ── 9. Notify client ──────────────────────────────────────────────────────
     if (!isLocalTest && app) {
-      await supabase.functions.invoke("migma-notify", {
-        body: {
+      const notifyRes = await fetch(`${supabaseUrl}/functions/v1/migma-notify`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${supabaseKey}`,
+          "apikey": supabaseKey,
+        },
+        body: JSON.stringify({
           trigger: "forms_generated",
           user_id: app.profile_id,
-          data: { app_url: `${Deno.env.get("APP_BASE_URL") ?? "https://migmainc.com"}/student/forms` },
-        },
+          data: { app_url: `${Deno.env.get("APP_BASE_URL") ?? "https://migmainc.com"}/student/dashboard/forms` },
+        }),
       });
+
+      if (!notifyRes.ok) {
+        console.error("[generate-institution-forms] migma-notify forms_generated failed:", notifyRes.status, await notifyRes.text());
+      } else {
+        console.log("[generate-institution-forms] ✅ forms_generated notification dispatched for profile", app.profile_id);
+      }
     }
 
     console.log(`[generate-institution-forms] Done. ${(isLocalTest ? localGeneratedPdfs.length : generatedFormIds.length)}/${finalFormList.length} forms generated.`);

@@ -361,6 +361,23 @@ export async function resubmitContractDocuments(
       // Don't fail the whole operation if PDF generation fails
     }
 
+    // Notify admin that client resubmitted documents (fire and forget)
+    try {
+      await supabase.functions.invoke('migma-notify', {
+        body: {
+          trigger: 'admin_contract_resubmitted',
+          data: {
+            client_name: validation.order.client_name ?? validation.order.client_email ?? 'Cliente',
+            client_email: validation.order.client_email,
+            order_number: validation.order.order_number,
+            contract_type: approvalType,
+          },
+        },
+      });
+    } catch (notifyErr) {
+      console.error('[VISA_CONTRACTS] Admin resubmit notification failed:', notifyErr);
+    }
+
     return { success: true };
   } catch (error) {
     console.error('[VISA_CONTRACTS] Exception processing resubmission:', error);

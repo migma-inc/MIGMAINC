@@ -248,53 +248,20 @@ export function ScholarshipApprovalTab({ detail }: { detail: CaseDetailPage }) {
           .in('id', otherIds);
       }
 
-      // 4. Send notification email to student
-      if (profile.email) {
-        const instName = app.institutions?.name ?? 'universidade selecionada';
-        const courseName = app.institutions?.institution_courses?.[0]?.course_name ?? '';
-        const discount = app.institution_scholarships.discount_percent;
-
-        await supabase.functions.invoke('send-email', {
-          body: {
-            to: profile.email,
-            subject: `✅ Sua vaga foi aprovada! — ${instName}`,
-            html: `
-              <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; color: #111;">
-                <h2 style="color: #B89E4E;">🎓 Parabéns, ${profile.full_name?.split(' ')[0] ?? 'aluno(a)'}!</h2>
-                <p>Sua vaga foi aprovada pela equipe Migma.</p>
-                <ul style="background: #f9f9f9; border-left: 4px solid #B89E4E; padding: 16px 24px; border-radius: 4px;">
-                  <li><strong>Instituição:</strong> ${instName}</li>
-                  ${courseName ? `<li><strong>Curso:</strong> ${courseName}</li>` : ''}
-                  <li><strong>Bolsa:</strong> ${discount}% de desconto</li>
-                  <li><strong>Placement Fee:</strong> ${placementFee === 0 ? 'Isento' : `$${placementFee.toLocaleString()}`}</li>
-                </ul>
-                ${placementFee === 0 ? `
-                  <p style="margin-top: 24px; color: #2d6a4f; background: #d8f3dc; padding: 12px 20px; border-radius: 8px; font-weight: bold;">
-                    ✅ Sua vaga está confirmada! Acesse seu portal para continuar o processo.
-                  </p>
-                  <p style="font-size: 12px; color: #666; margin-top: 8px;">
-                    <a href="${originUrl}/student/onboarding">${originUrl}/student/onboarding</a>
-                  </p>
-                ` : checkoutUrl ? `
-                  <p style="margin-top: 24px;">
-                    <a href="${checkoutUrl}" style="background:#B89E4E;color:#000;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold;">
-                      Pagar Placement Fee →
-                    </a>
-                  </p>
-                  <p style="font-size: 12px; color: #666; margin-top: 8px;">
-                    Ou acesse pelo portal: <a href="${originUrl}/student/onboarding">${originUrl}/student/onboarding</a>
-                  </p>
-                ` : `<p>Acesse seu portal para ver o link de pagamento.</p>`}
-                <p style="color:#888;font-size:12px;margin-top:32px;">Migma Inc. — suporte@migmainc.com</p>
-              </div>
-            `,
+      await supabase.functions.invoke('migma-notify', {
+        body: {
+          trigger: 'scholarship_approved',
+          user_id: profile.id,
+          data: {
+            university_name: app.institutions?.name ?? 'universidade selecionada',
+            payment_link: checkoutUrl ?? `${originUrl}/student/onboarding?step=placement_fee`,
           },
-        });
-      }
+        },
+      });
 
       setActionMsg(placementFee === 0
-        ? 'Bolsa aprovada e vaga confirmada (Placement Fee isento). E-mail enviado ao cliente.'
-        : 'Bolsa aprovada com sucesso! E-mail enviado ao cliente.'
+        ? 'Bolsa aprovada e vaga confirmada (Placement Fee isento). Notificação enviada ao cliente.'
+        : 'Bolsa aprovada com sucesso! Notificação enviada ao cliente.'
       );
       await fetchApplications();
       setSelectedAppId(null);

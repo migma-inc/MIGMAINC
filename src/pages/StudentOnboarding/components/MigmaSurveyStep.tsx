@@ -202,6 +202,16 @@ export const MigmaSurveyStep: React.FC<ExtendedStepProps> = ({ onNext, contractA
       await updateUserProfile?.({ selection_survey_passed: true } as any);
       await refreshProfile();
 
+      supabase.functions.invoke('migma-notify', {
+        body: {
+          trigger: 'questionnaire_received',
+          user_id: profileId,
+          data: {},
+        },
+      }).catch(notifyError => {
+        console.warn('[MigmaSurveyStep] questionnaire notification failed:', notifyError);
+      });
+
       setSurveyCompletedAt(now);
       setCompleted(true);
       scrollTop();

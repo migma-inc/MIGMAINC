@@ -14,7 +14,7 @@ type DocumentScope = "student" | "global";
 
 function buildNotifyPayload(
   decision: ReviewDecision,
-  profile: { user_id: string; email: string | null; full_name: string | null },
+  profile: { id: string; email: string | null; full_name: string | null },
   data: { rejection_reason?: string | null; scope: DocumentScope; document_id?: string | null }
 ) {
   const documentName =
@@ -22,26 +22,18 @@ function buildNotifyPayload(
       ? "Post-university documents"
       : "Student onboarding documents";
 
-  return decision === "approve"
-    ? {
-        trigger: data.document_id ? "document_approved" as const : "all_documents_approved" as const,
-        user_id: profile.user_id,
-        data: {
-          client_name: profile.full_name ?? profile.email ?? "Student",
-          document_id: data.document_id ?? undefined,
-          document_name: documentName,
-        },
-      }
-    : {
-        trigger: "document_rejected" as const,
-        user_id: profile.user_id,
-        data: {
-          client_name: profile.full_name ?? profile.email ?? "Student",
-          document_name: documentName,
-          document_id: data.document_id ?? undefined,
-          document_reason: data.rejection_reason ?? undefined,
-        },
-      };
+  if (decision === "approve") return null;
+
+  return {
+    trigger: "document_rejected" as const,
+    user_id: profile.id,
+    data: {
+      client_name: profile.full_name ?? profile.email ?? "Student",
+      document_name: documentName,
+      document_id: data.document_id ?? undefined,
+      document_reason: data.rejection_reason ?? undefined,
+    },
+  };
 }
 
 Deno.serve(async (req) => {
@@ -232,51 +224,71 @@ Deno.serve(async (req) => {
         document_id: singleDocumentId,
       });
 
-      // Fix 3: Custom app_url based on scope for rejection
-      if (decision === "reject") {
+      if (notifyPayload && decision === "reject") {
         notifyPayload.data = {
           ...notifyPayload.data,
-          app_url: scope === "global"
-            ? `${appBaseUrl}/student/onboarding?step=documents_upload`
-            : `${appBaseUrl}/student/onboarding?step=payment`,
+          app_url: `${appBaseUrl}/student/dashboard/documents`,
         };
       }
 
-      await supabase.functions.invoke("migma-notify", {
-        body: notifyPayload,
-      });
+      // supabase.functions.invoke não passa service role key corretamente entre Edge Functions → 401.
+      // Raw fetch com Bearer é o padrão correto para chamadas server-side.
+      const notifyUrl = `${supabaseUrl}/functions/v1/migma-notify`;
+      const notifyHeaders = {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${supabaseServiceKey}`,
+        "apikey": supabaseServiceKey,
+      };
 
-      // Fix 2: Check if all global docs are approved and notify
-      if (scope === "global" && decision === "approve") {
-        const { data: allDocs } = await supabase
-          .from("global_document_requests")
-          .select("status")
-          .eq("profile_id", profile_id);
+      if (notifyPayload) {
+        await fetch(notifyUrl, {
+          method: "POST",
+          headers: notifyHeaders,
+          body: JSON.stringify(notifyPayload),
+        });
+      }
+
+      if (decision === "approve") {
+        const allDocsQuery = scope === "global"
+          ? supabase
+              .from("global_document_requests")
+              .select("status")
+              .eq("profile_id", profile_id)
+          : supabase
+              .from("student_documents")
+              .select("status")
+              .eq("user_id", profile.user_id);
+
+        const { data: allDocs } = await allDocsQuery;
 
         const allApproved = allDocs && allDocs.length > 0 && allDocs.every(d => d.status === "approved");
 
         if (allApproved) {
-          // Notify Student
-          await supabase.functions.invoke("migma-notify", {
-            body: {
+          await fetch(notifyUrl, {
+            method: "POST",
+            headers: notifyHeaders,
+            body: JSON.stringify({
               trigger: "all_documents_approved",
-              user_id: profile.user_id,
+              user_id: profile.id,
               data: {
                 client_name: profile.full_name ?? profile.email ?? "Student",
               },
-            },
+            }),
           });
 
-          // Notify Admin
-          await supabase.functions.invoke("migma-notify", {
-            body: {
-              trigger: "admin_package_complete",
-              data: {
-                client_name: profile.full_name ?? profile.email ?? "Student",
-                client_id: profile_id,
-              },
-            },
-          });
+          if (scope === "global") {
+            await fetch(notifyUrl, {
+              method: "POST",
+              headers: notifyHeaders,
+              body: JSON.stringify({
+                trigger: "admin_package_complete",
+                data: {
+                  client_name: profile.full_name ?? profile.email ?? "Student",
+                  client_id: profile_id,
+                },
+              }),
+            });
+          }
         }
       }
     } catch (notifyError) {

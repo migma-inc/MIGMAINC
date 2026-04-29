@@ -6,7 +6,7 @@ import type { OnboardingStep, OnboardingState } from '../types';
 
 const VALID_STEPS: OnboardingStep[] = [
   'selection_fee', 'selection_survey',
-  'scholarship_selection', 'placement_fee',
+  'wait_room', 'scholarship_selection', 'placement_fee',
   'documents_upload', 'payment', 'dados_complementares',
   'my_applications', 'acceptance_letter', 'completed'
 ];
@@ -15,7 +15,6 @@ const normalizeLegacyStep = (step: OnboardingStep | string | null | undefined): 
   if (!step) return null;
   if (step === 'process_type') return 'documents_upload';
   if (step === 'identity_verification') return 'selection_survey';
-  if (step === 'wait_room') return 'scholarship_selection';
   return step as OnboardingStep;
 };
 
@@ -100,8 +99,8 @@ export const useOnboardingProgress = () => {
         .update({ onboarding_current_step: step })
         .eq('user_id', user.id);
       if (error) throw error;
-    } catch (err: any) {
-      console.error('[OnboardingHook] ❌ Erro ao salvar step:', err?.message);
+    } catch (err: unknown) {
+      console.error('[OnboardingHook] ❌ Erro ao salvar step:', err instanceof Error ? err.message : err);
     } finally {
       setTimeout(() => { isSavingStepRef.current = false; }, 1200);
     }
@@ -131,7 +130,7 @@ export const useOnboardingProgress = () => {
 
     try {
       // Leitura fresca do banco do Matricula USA
-      let { data: freshData, error: profileError } = await supabase
+      const { data: freshData, error: profileError } = await supabase
         .from('user_profiles')
         .select('*')
         .eq('user_id', user.id)
@@ -220,10 +219,9 @@ export const useOnboardingProgress = () => {
       const isNewFlowUser = true;
       const scholarshipFeePaid = !!freshProfile.is_scholarship_fee_paid;
       const placementFeePaid = !!freshProfile.is_placement_fee_paid ||
-        !!(v11AppsData?.some((a: any) => a.status === 'payment_confirmed'));
+        !!(v11AppsData?.some((a) => a.status === 'payment_confirmed'));
       const reinstatementFeePaid = !!freshProfile.has_paid_reinstatement_package;
       const onboardingCompleted = !!freshProfile.onboarding_completed;
-      const isTransferInactive = freshProfile.student_process_type === 'transfer' && freshProfile.visa_transfer_active === false;
 
       // Migma Logic: Se for Migma, precisa ter concluído o Step 3 para sair do selection_fee
       const isMigma = freshProfile.source === 'migma';
@@ -238,6 +236,8 @@ export const useOnboardingProgress = () => {
         maxAllowedStep = 'selection_fee';
       } else if (!selectionSurveyPassed) {
         maxAllowedStep = 'selection_survey';
+      } else if (!contractApproved) {
+        maxAllowedStep = 'wait_room';
       } else if (!scholarshipsSelected || !scholarshipsApproved) {
         // Must have selected AND at least one must be approved to advance
         maxAllowedStep = 'scholarship_selection';
@@ -251,7 +251,7 @@ export const useOnboardingProgress = () => {
         maxAllowedStep = 'dados_complementares';
       } else {
         // Avança para acceptance_letter quando pacote foi enviado ao MatriculaUSA
-        const packageReady = v11AppsData?.some((a: any) => a.package_status === 'ready');
+        const packageReady = v11AppsData?.some((a) => a.package_status === 'ready');
         maxAllowedStep = packageReady ? 'acceptance_letter' : 'my_applications';
       }
 
@@ -260,7 +260,6 @@ export const useOnboardingProgress = () => {
       const savedStep = normalizeLegacyStep(freshProfile.onboarding_current_step as OnboardingStep | null) ?? 'selection_fee';
       const uiIdx = VALID_STEPS.indexOf(uiStep);
       const maxIdx = VALID_STEPS.indexOf(maxAllowedStep);
-      const savedIdx = VALID_STEPS.indexOf(savedStep);
 
       // Always advance to maxAllowedStep — ensures student is pushed forward
       // when a step is completed externally (e.g. admin approves scholarship).

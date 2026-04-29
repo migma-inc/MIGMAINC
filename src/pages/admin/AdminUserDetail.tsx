@@ -623,7 +623,11 @@ function OverviewTab({
 // Tab: Orders
 // ---------------------------------------------------------------------------
 
-function OrdersTab({ orders }: { orders: CrmVisaOrder[] }) {
+function OrdersTab({
+  orders,
+}: {
+  orders: CrmVisaOrder[];
+}) {
   if (orders.length === 0) {
     return <EmptyState icon={DollarSign} message="No orders found for this profile." />;
   }
@@ -695,7 +699,47 @@ function OrdersTab({ orders }: { orders: CrmVisaOrder[] }) {
                   <span className="font-mono text-gray-400 text-[10px]">{order.service_request_id}</span>
                 </div>
               )}
+              <div>
+                <span className="text-gray-500 block uppercase tracking-wider mb-0.5">Terms</span>
+                <span className={cn('font-bold', order.contract_accepted ? 'text-emerald-300' : 'text-red-300')}>
+                  {order.contract_accepted ? 'Accepted' : 'Missing'}
+                </span>
+              </div>
+              <div>
+                <span className="text-gray-500 block uppercase tracking-wider mb-0.5">Identity</span>
+                <span className={cn('font-bold', order.contract_selfie_url ? 'text-amber-300' : 'text-red-300')}>
+                  {order.contract_selfie_url ? 'Pending Review' : 'Missing'}
+                </span>
+              </div>
+              <div>
+                <span className="text-gray-500 block uppercase tracking-wider mb-0.5">Signature</span>
+                <span className={cn('font-bold', order.signature_image_url ? 'text-emerald-300' : 'text-red-300')}>
+                  {order.signature_image_url ? 'Captured' : 'Missing'}
+                </span>
+              </div>
+              {order.ip_address && (
+                <div>
+                  <span className="text-gray-500 block uppercase tracking-wider mb-0.5">Client IP</span>
+                  <span className="font-mono text-gray-400 text-[10px]">{order.ip_address}</span>
+                </div>
+              )}
+              {order.contract_approval_reviewed_at && (
+                <div className="sm:col-span-2">
+                  <span className="text-gray-500 block uppercase tracking-wider mb-0.5">Reviewed</span>
+                  <span className="text-gray-300">
+                    {fmtDate(order.contract_approval_reviewed_at)}
+                    {order.contract_approval_reviewed_by ? ` by ${order.contract_approval_reviewed_by}` : ''}
+                  </span>
+                </div>
+              )}
+              {order.contract_approval_admin_ip && (
+                <div>
+                  <span className="text-gray-500 block uppercase tracking-wider mb-0.5">Admin IP</span>
+                  <span className="font-mono text-gray-400 text-[10px]">{order.contract_approval_admin_ip}</span>
+                </div>
+              )}
             </div>
+
           </CardContent>
         </Card>
       ))}
@@ -718,6 +762,7 @@ type VisaOrderDocument = {
   label: string;
   url: string | null;
   orderNumber: string | null;
+  forceIsPdf?: boolean;
 };
 
 function buildVisaOrderDocuments(orders: CrmVisaOrder[]): VisaOrderDocument[] {
@@ -729,17 +774,26 @@ function buildVisaOrderDocuments(orders: CrmVisaOrder[]): VisaOrderDocument[] {
 
     if (order.contract_document_url) {
       docs.push({
-        id: `${baseId}-contract-document`,
-        label: 'Contract document',
+        id: `${baseId}-document-front`,
+        label: 'Document Front',
         url: order.contract_document_url,
+        orderNumber,
+      });
+    }
+
+    if (order.contract_document_back_url) {
+      docs.push({
+        id: `${baseId}-document-back`,
+        label: 'Document Back',
+        url: order.contract_document_back_url,
         orderNumber,
       });
     }
 
     if (order.contract_selfie_url) {
       docs.push({
-        id: `${baseId}-contract-selfie`,
-        label: 'Contract selfie',
+        id: `${baseId}-selfie`,
+        label: 'Selfie with Document',
         url: order.contract_selfie_url,
         orderNumber,
       });
@@ -748,7 +802,7 @@ function buildVisaOrderDocuments(orders: CrmVisaOrder[]): VisaOrderDocument[] {
     if (order.signature_image_url) {
       docs.push({
         id: `${baseId}-signature`,
-        label: 'Signature image',
+        label: 'Signature',
         url: order.signature_image_url,
         orderNumber,
       });
@@ -757,9 +811,10 @@ function buildVisaOrderDocuments(orders: CrmVisaOrder[]): VisaOrderDocument[] {
     if (order.contract_pdf_url) {
       docs.push({
         id: `${baseId}-contract-pdf`,
-        label: 'Signed contract PDF',
+        label: 'Contract PDF',
         url: order.contract_pdf_url,
         orderNumber,
+        forceIsPdf: true,
       });
     }
 
@@ -953,7 +1008,7 @@ function DocumentsTab({
   };
 
   useEffect(() => {
-    if (files.length === 0 && studentDocuments.length === 0 && globalDocumentRequests.length === 0) { setLoadingUrls(false); return; }
+    if (files.length === 0 && studentDocuments.length === 0 && globalDocumentRequests.length === 0 && orderDocuments.length === 0) { setLoadingUrls(false); return; }
     (async () => {
       const resolved: Record<string, string> = {};
       for (const f of files) {
@@ -970,10 +1025,15 @@ function DocumentsTab({
         const url = await getSecureUrl(doc.submitted_url);
         if (url) resolved[doc.id] = url;
       }
+      for (const doc of orderDocuments) {
+        if (!doc.url) continue;
+        const url = await getSecureUrl(doc.url);
+        if (url) resolved[doc.id] = url;
+      }
       setResolvedUrls(resolved);
       setLoadingUrls(false);
     })();
-  }, [files, studentDocuments, globalDocumentRequests]);
+  }, [files, studentDocuments, globalDocumentRequests, orderDocuments]);
 
   const hasAnything = !!institutionApplication || institutionForms.length > 0 || files.length > 0 || srDocuments.length > 0 || studentDocuments.length > 0 || globalDocumentRequests.length > 0 || orderDocuments.length > 0;
   if (!hasAnything) {
@@ -990,6 +1050,7 @@ function DocumentsTab({
           : studentDocuments.some((doc) => doc.status === 'under_review')
             ? 'under_review'
             : 'pending';
+  const visibleStudentDocuments = studentDocuments;
 
   const globalDocumentOrder: Record<string, number> = {
     current_i20: 1,
@@ -1248,9 +1309,9 @@ function DocumentsTab({
           <div className="text-xs text-gray-500 uppercase tracking-widest font-bold mb-3">Order Documents</div>
           <div className="flex flex-wrap gap-4">
             {orderDocuments.map((doc) => {
-              const url = doc.url;
+              const url = resolvedUrls[doc.id] ?? doc.url;
               const label = doc.label;
-              const pdf = url ? isPdf(url) : false;
+              const pdf = doc.forceIsPdf || (url ? isPdf(url) : false);
               return (
                 <div
                   key={doc.id}
@@ -1394,7 +1455,7 @@ function DocumentsTab({
       )}
 
       {/* Student onboarding documents */}
-      {studentDocuments.length > 0 && (
+      {visibleStudentDocuments.length > 0 && (
         <div>
           <div className="flex items-center justify-between gap-3 mb-3">
             <div className="flex items-center gap-2 flex-wrap">
@@ -1407,21 +1468,29 @@ function DocumentsTab({
             </div>
           </div>
           <div className="flex flex-wrap gap-4">
-            {studentDocuments.map((doc) => {
+            {visibleStudentDocuments.map((doc) => {
               const url = resolvedUrls[doc.id];
               const label = (DOC_TYPE_LABELS[doc.type ?? ''] ?? toLabel(doc.type)) || 'Document';
               const pdf = url ? isPdf(url) : false;
+              const status = doc.status ?? 'pending';
+              const isContractIdentityDoc = CONTRACT_IDENTITY_DOC_TYPES.has(doc.type ?? '');
               return (
                 <div
                   key={doc.id}
                   onClick={() => {
                     if (url) {
-                      openModal(url, label, {
-                        scope: 'student',
-                        documentId: doc.id,
-                        status: doc.status,
-                        rejectionReason: doc.rejection_reason,
-                      });
+                      openModal(
+                        url,
+                        label,
+                        isContractIdentityDoc
+                          ? undefined
+                          : {
+                              scope: 'student',
+                              documentId: doc.id,
+                              status: doc.status,
+                              rejectionReason: doc.rejection_reason,
+                            }
+                      );
                     }
                   }}
                   className="group relative cursor-pointer w-28 h-28 sm:w-32 sm:h-32 rounded-lg overflow-hidden border border-white/20 bg-black/50 hover:border-white transition-all hover:scale-105 duration-300 shadow-lg shadow-black/50"
@@ -1444,8 +1513,8 @@ function DocumentsTab({
                       {label}
                   </div>
                   <div className="absolute top-2 right-2">
-                    <Badge className={cn('text-[8px] font-black uppercase border rounded-sm px-1.5 py-0.5', studentDocBadge(doc.status))}>
-                      {toLabel(doc.status)}
+                    <Badge className={cn('text-[8px] font-black uppercase border rounded-sm px-1.5 py-0.5', studentDocBadge(status))}>
+                      {toLabel(status)}
                     </Badge>
                   </div>
                 </div>
@@ -2053,6 +2122,11 @@ const QUESTION_LABEL: Record<string, string> = Object.fromEntries(
 
 const DOC_TYPE_LABELS: Record<string, string> = {
   passport: 'Passport',
+  passport_back: 'Passport Back',
+  selfie_with_doc: 'Selfie with Document',
+  document_front: 'Document Front',
+  document_back: 'Document Back',
+  selfie_doc: 'Selfie with Document',
   diploma: 'High School / College Diploma',
   transcript: 'Official Transcript',
   proof_of_funds: 'Proof of Funds',
@@ -2061,6 +2135,15 @@ const DOC_TYPE_LABELS: Record<string, string> = {
   visa: 'Current Visa',
   other: 'Other',
 };
+
+const CONTRACT_IDENTITY_DOC_TYPES = new Set([
+  'passport',
+  'passport_back',
+  'selfie_with_doc',
+  'document_front',
+  'document_back',
+  'selfie_doc',
+]);
 
 function studentDocBadge(status: string | null) {
   if (status === 'approved') return 'bg-green-500/20 text-green-300 border-green-500/30';
@@ -2815,7 +2898,11 @@ export function AdminUserDetail() {
             billingMsg={billingMsg}
           />
         )}
-        {activeTab === 'orders' && <OrdersTab orders={detail.visaOrders} />}
+        {activeTab === 'orders' && (
+          <OrdersTab
+            orders={detail.visaOrders}
+          />
+        )}
         {activeTab === 'documents' && (
           <DocumentsTab
             profileId={detail.profile.id}

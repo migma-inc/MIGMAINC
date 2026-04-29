@@ -6,6 +6,7 @@ import type { OnboardingStep } from '../types';
 const STEPS: { key: OnboardingStep; labelKey: string }[] = [
   { key: 'selection_fee', labelKey: 'student_onboarding.steps.selection_fee' },
   { key: 'selection_survey', labelKey: 'student_onboarding.steps.survey' },
+  { key: 'wait_room', labelKey: 'student_onboarding.steps.wait_room' },
   { key: 'scholarship_selection', labelKey: 'student_onboarding.steps.scholarship' },
   { key: 'placement_fee', labelKey: 'student_onboarding.steps.placement_fee' },
   { key: 'documents_upload', labelKey: 'student_onboarding.steps.documents' },
@@ -20,7 +21,6 @@ const STEP_ALIAS: Partial<Record<OnboardingStep, OnboardingStep>> = {
   completed: 'dados_complementares',
   my_applications: 'dados_complementares',
   acceptance_letter: 'dados_complementares',
-  wait_room: 'selection_survey',
 };
 
 interface StepIndicatorProps {

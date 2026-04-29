@@ -14,6 +14,9 @@ const SelectionFeeStep = React.lazy(() =>
 const MigmaSurveyStep = React.lazy(() =>
   import('./components/MigmaSurveyStep').then(m => ({ default: m.MigmaSurveyStep }))
 );
+const WaitRoomStep = React.lazy(() =>
+  import('./components/WaitRoomStep').then(m => ({ default: m.WaitRoomStep }))
+);
 const UniversitySelectionStep = React.lazy(() =>
   import('./components/UniversitySelectionStep').then(m => ({ default: m.UniversitySelectionStep }))
 );
@@ -40,7 +43,6 @@ const normalizeLegacyStep = (step: OnboardingStep | string | null | undefined): 
   if (!step) return null;
   if (step === 'process_type') return 'documents_upload';
   if (step === 'identity_verification') return 'selection_survey';
-  if (step === 'wait_room') return 'scholarship_selection';
   return step as OnboardingStep;
 };
 
@@ -83,7 +85,7 @@ const StudentOnboarding: React.FC = () => {
   }, [authLoading, user, navigate]);
 
   const VALID_STEPS: OnboardingStep[] = [
-    'selection_fee', 'selection_survey',
+    'selection_fee', 'selection_survey', 'wait_room',
     'scholarship_selection', 'placement_fee',
     'documents_upload', 'payment', 'dados_complementares',
     'my_applications', 'acceptance_letter',
@@ -121,6 +123,7 @@ const StudentOnboarding: React.FC = () => {
   const getOrderedSteps = useCallback((): OnboardingStep[] => [
     'selection_fee',
     'selection_survey',
+    'wait_room',
     'scholarship_selection',
     'placement_fee',
     'documents_upload',
@@ -150,6 +153,7 @@ const StudentOnboarding: React.FC = () => {
   const completedSteps: OnboardingStep[] = [];
   if (state.selectionFeePaid) completedSteps.push('selection_fee');
   if (state.selectionSurveyPassed) completedSteps.push('selection_survey');
+  if (state.contractApproved) completedSteps.push('wait_room');
   if (state.scholarshipsSelected) completedSteps.push('scholarship_selection');
   if (state.placementFeePaid) completedSteps.push('placement_fee');
   if (state.documentsUploaded) completedSteps.push('documents_upload');
@@ -206,6 +210,9 @@ const StudentOnboarding: React.FC = () => {
         <Suspense fallback={<StepLoader />}>
           {state.currentStep === 'selection_fee' && <SelectionFeeStep {...stepProps} />}
           {state.currentStep === 'selection_survey' && <MigmaSurveyStep {...stepProps} contractApproved={state.contractApproved} />}
+          {state.currentStep === 'wait_room' && (
+            <WaitRoomStep surveyCompletedAt={state.surveyCompletedAt} checkProgress={checkProgress} />
+          )}
           {state.currentStep === 'scholarship_selection' && <UniversitySelectionStep {...stepProps} />}
           {state.currentStep === 'documents_upload' && <DocumentsUploadStep {...stepProps} />}
           {state.currentStep === 'payment' && <PaymentStep {...stepProps} />}

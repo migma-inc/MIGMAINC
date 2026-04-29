@@ -21,6 +21,10 @@ Deno.serve(async (req) => {
 
   try {
     const { order_id, rejection_reason, reviewed_by, app_url, contract_type } = await req.json();
+    const adminIp = req.headers.get("cf-connecting-ip")
+      ?? req.headers.get("x-forwarded-for")?.split(",")[0]?.trim()
+      ?? req.headers.get("x-real-ip")
+      ?? null;
 
     if (!order_id) {
       return new Response(
@@ -98,6 +102,7 @@ Deno.serve(async (req) => {
       updateData.annex_approval_status = 'rejected';
       updateData.annex_approval_reviewed_by = reviewed_by;
       updateData.annex_approval_reviewed_at = new Date().toISOString();
+      if (adminIp) updateData.annex_approval_admin_ip = adminIp;
       if (rejection_reason) {
         updateData.annex_rejection_reason = rejection_reason;
       }
@@ -105,6 +110,7 @@ Deno.serve(async (req) => {
       updateData.upsell_contract_approval_status = 'rejected';
       updateData.upsell_contract_approval_reviewed_by = reviewed_by;
       updateData.upsell_contract_approval_reviewed_at = new Date().toISOString();
+      if (adminIp) updateData.upsell_contract_approval_admin_ip = adminIp;
       if (rejection_reason) {
         updateData.upsell_contract_rejection_reason = rejection_reason;
       }
@@ -112,6 +118,7 @@ Deno.serve(async (req) => {
       updateData.upsell_annex_approval_status = 'rejected';
       updateData.upsell_annex_approval_reviewed_by = reviewed_by;
       updateData.upsell_annex_approval_reviewed_at = new Date().toISOString();
+      if (adminIp) updateData.upsell_annex_approval_admin_ip = adminIp;
       if (rejection_reason) {
         updateData.upsell_annex_rejection_reason = rejection_reason;
       }
@@ -120,6 +127,7 @@ Deno.serve(async (req) => {
       updateData.contract_approval_status = 'rejected';
       updateData.contract_approval_reviewed_by = reviewed_by;
       updateData.contract_approval_reviewed_at = new Date().toISOString();
+      if (adminIp) updateData.contract_approval_admin_ip = adminIp;
       if (rejection_reason) {
         updateData.contract_rejection_reason = rejection_reason;
       }

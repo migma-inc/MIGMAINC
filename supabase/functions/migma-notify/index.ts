@@ -34,6 +34,7 @@ export type TriggerType =
   | "billing_suspended"
   // Admin-facing
   | "admin_new_documents"
+  | "admin_contract_resubmitted"
   | "admin_package_complete"
   | "admin_no_university_match"
   | "admin_support_handoff";
@@ -44,6 +45,10 @@ interface NotifyPayload {
   trigger: TriggerType;
   user_id?: string;          // required for client triggers
   admin_email?: string;      // override; falls back to ADMIN_NOTIFY_EMAIL env var
+  channels?: {
+    email?: boolean;
+    whatsapp?: boolean;
+  };
   data?: {
     payment_link?: string;
     app_url?: string;
@@ -56,6 +61,10 @@ interface NotifyPayload {
     closures_count?: number;
     client_name?: string;
     client_id?: string;
+    client_email?: string;
+    client_phone?: string;
+    order_number?: string;
+    contract_type?: string;
     reason?: string;
     last_message?: string;
     // Billing (Fase 9)
@@ -512,6 +521,26 @@ function buildTemplate(
       whatsapp: `📥 *Migma Admin* — Novos documentos\n\n${data.client_name ?? "Cliente"} enviou documentos para revisão.\n${data.client_id ? routes.adminUser(data.client_id) : routes.adminUser()}`,
     };
 
+    // ── admin_contract_resubmitted — ADMIN ───────────────────────────────────
+    case "admin_contract_resubmitted": {
+      const contractLabel = data.contract_type === "annex"
+        ? "Annex"
+        : data.contract_type === "upsell_contract"
+          ? "Upsell Contract"
+          : data.contract_type === "upsell_annex"
+            ? "Upsell Annex"
+            : "Contract";
+      return {
+        subject: `[Admin] Documentos reenviados — ${data.client_name ?? "cliente"} | Pedido #${data.order_number ?? "?"}`,
+        emailHtml: emailWrapper("[Admin] Documentos reenviados", `
+          <p><strong>${data.client_name ?? "Cliente"}</strong> resubmeteu os documentos de identidade para o pedido <strong>#${data.order_number ?? "?"}</strong> (${contractLabel}).</p>
+          <p>O contrato voltou para status <em>Pending</em> e aguarda nova revisão.</p>
+          ${data.client_id ? btn("Revisar pedido", routes.adminUser(data.client_id)) : ""}
+        `),
+        whatsapp: `📤 *Migma Admin* — Documentos reenviados\n\n${data.client_name ?? "Cliente"} resubmeteu os docs do pedido *#${data.order_number ?? "?"}* (${contractLabel}).\n\nAguarda revisão.${data.client_id ? `\n${routes.adminUser(data.client_id)}` : ""}`,
+      };
+    }
+
     // ── 17 — ADMIN ────────────────────────────────────────────────────────────
     case "admin_package_complete": return {
       subject: `[Admin] Pacote completo — ${data.client_name ?? "cliente"} pronto para MatriculaUSA`,
@@ -606,10 +635,13 @@ Deno.serve(async (req) => {
 
   const appBaseUrl = Deno.env.get("APP_BASE_URL") ?? "https://migmainc.com";
   const adminNotifyEmail = Deno.env.get("ADMIN_NOTIFY_EMAIL") ?? "";
+  const adminNotifyPhone = Deno.env.get("ADMIN_NOTIFY_PHONE") ?? "";
 
   try {
     const payload: NotifyPayload = await req.json();
     const { trigger, user_id, data = {} } = payload;
+    const sendEmailChannel = payload.channels?.email !== false;
+    const sendWhatsappChannel = payload.channels?.whatsapp !== false;
 
     if (!trigger) {
       return new Response(JSON.stringify({ error: "trigger is required" }), { status: 400, headers: CORS });
@@ -624,14 +656,15 @@ Deno.serve(async (req) => {
 
     if (isAdminTrigger) {
       recipientEmail = payload.admin_email ?? adminNotifyEmail;
+      recipientPhone = adminNotifyPhone;
       recipientName = "Admin";
       if (!recipientEmail) {
         console.warn("[migma-notify] ADMIN_NOTIFY_EMAIL not set — email skipped");
       }
-    } else {
-      if (!user_id) {
-        return new Response(JSON.stringify({ error: "user_id is required for client triggers" }), { status: 400, headers: CORS });
+      if (!recipientPhone) {
+        console.warn("[migma-notify] ADMIN_NOTIFY_PHONE not set — whatsapp skipped");
       }
+    } else if (user_id) {
       const { data: profile, error: profileErr } = await supabase
         .from("user_profiles")
         .select("full_name, email, phone")
@@ -645,6 +678,22 @@ Deno.serve(async (req) => {
       recipientEmail = profile.email ?? "";
       recipientPhone = profile.phone ?? "";
       recipientName = profile.full_name ?? "Cliente";
+    } else if (data.client_email || data.client_phone) {
+      recipientEmail = data.client_email ?? "";
+      recipientPhone = data.client_phone ?? "";
+      recipientName = data.client_name ?? "Cliente";
+    } else {
+      return new Response(JSON.stringify({ error: "user_id or client recipient data is required for client triggers" }), { status: 400, headers: CORS });
+    }
+
+    // ── Resolve client_id from client_email for admin triggers ───────────────
+    if (isAdminTrigger && data.client_email && !data.client_id) {
+      const { data: profile } = await supabase
+        .from("user_profiles")
+        .select("id")
+        .eq("email", data.client_email)
+        .maybeSingle();
+      if (profile?.id) data.client_id = profile.id;
     }
 
     // ── Build template ───────────────────────────────────────────────────────
@@ -652,7 +701,9 @@ Deno.serve(async (req) => {
 
     // ── Send email ───────────────────────────────────────────────────────────
     let emailResult: { success: boolean; error?: string } = { success: false };
-    if (recipientEmail) {
+    if (!sendEmailChannel) {
+      emailResult = { success: true, error: "skipped_by_channel" };
+    } else if (recipientEmail) {
       const { error: invokeErr } = await supabase.functions.invoke("send-email", {
         body: {
           to: recipientEmail,
@@ -669,7 +720,9 @@ Deno.serve(async (req) => {
 
     // ── Send WhatsApp ────────────────────────────────────────────────────────
     let whatsappResult: { sent: boolean; reason?: string; provider?: string } = { sent: false, reason: "no_phone" };
-    if (recipientPhone) {
+    if (!sendWhatsappChannel) {
+      whatsappResult = { sent: true, reason: "skipped_by_channel" };
+    } else if (recipientPhone) {
       whatsappResult = await sendWhatsApp({
         trigger,
         phone: recipientPhone,
