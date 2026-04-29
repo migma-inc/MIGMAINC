@@ -6,7 +6,7 @@ import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
 import { PdfSignatureViewer, type SignaturePlacement } from '@/components/ui/pdf-signature-viewer';
 import {
   AlertCircle, ArrowUpRight, Award, CheckCircle2, ClipboardList, Clock, FileSignature,
-  BookOpen, Calendar, Download, Eye, FileText, Gift, Globe, GraduationCap, HelpCircle, Home, Loader2, LogOut, Mail, MapPin, Menu, MessageCircle, PenLine, Phone, Search, Target, Timer, Upload, User, Moon, Sun, X
+  BookOpen, Calendar, Camera, Download, Eye, FileText, Gift, Globe, GraduationCap, HelpCircle, Home, Loader2, LogOut, Mail, MapPin, Menu, MessageCircle, PenLine, Phone, Search, Target, Timer, Upload, User, Moon, Sun, X
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -103,6 +103,39 @@ async function sha256Hex(buffer: ArrayBuffer): Promise<string> {
     .join('');
 }
 
+const MAX_SIGNATURE_PHOTO_SIZE = 5 * 1024 * 1024;
+const ALLOWED_SIGNATURE_PHOTO_TYPES = new Set(['image/jpeg', 'image/jpg', 'image/png']);
+type SignatureEvidenceKind = 'document_front' | 'document_back' | 'selfie_doc';
+type SignatureEvidenceUpload = {
+  kind: SignatureEvidenceKind;
+  label: string;
+  file: File;
+  path: string;
+  url: string;
+  sha256: string;
+};
+
+const SIGNATURE_EVIDENCE_REQUIREMENTS: Array<{ kind: SignatureEvidenceKind; label: string; description: string; capture?: 'user' | 'environment' }> = [
+  {
+    kind: 'document_front',
+    label: 'Document Front',
+    description: 'Foto da frente do documento.',
+    capture: 'environment',
+  },
+  {
+    kind: 'document_back',
+    label: 'Document Back',
+    description: 'Foto do verso do documento.',
+    capture: 'environment',
+  },
+  {
+    kind: 'selfie_doc',
+    label: 'Selfie with document',
+    description: 'Foto do seu rosto segurando o documento.',
+    capture: 'user',
+  },
+];
+
 const SIGNATURE_PLACEMENTS: Record<string, SignaturePlacement> = {
   enrollment_agreement:                    { pageIndex:  0, x: 60,  y: 80,  width: 220, height: 55 },
   affidavit_of_financial_support:          { pageIndex:  0, x: 60,  y: 80,  width: 220, height: 55 },
@@ -127,6 +160,7 @@ function getSignaturePlacement(formType: string, totalPages: number): SignatureP
 async function createSignedPdfBlob({
   templateUrl,
   signatureBlob,
+  evidenceFiles,
   signerName,
   signedAt,
   formType,
@@ -134,20 +168,23 @@ async function createSignedPdfBlob({
 }: {
   templateUrl: string;
   signatureBlob: Blob;
+  evidenceFiles: Array<{ kind: SignatureEvidenceKind; label: string; file: File }>;
   signerName: string | null | undefined;
   signedAt: string;
   formType: string;
   placement?: SignaturePlacement;
-}): Promise<{ blob: Blob; templateBytes: ArrayBuffer; signatureBytes: ArrayBuffer; signedBytes: ArrayBuffer }> {
+}): Promise<{ blob: Blob; templateBytes: ArrayBuffer; signatureBytes: ArrayBuffer; evidenceBytes: Record<SignatureEvidenceKind, ArrayBuffer>; signedBytes: ArrayBuffer }> {
   const secureTemplateUrl = await getSecureUrl(templateUrl);
   if (!secureTemplateUrl) throw new Error('URL segura do PDF original nao encontrada.');
-  const [templateBytes, signatureBytes] = await Promise.all([
+  const [templateBytes, signatureBytes, evidenceBytePairs] = await Promise.all([
     fetch(secureTemplateUrl).then(response => {
       if (!response.ok) throw new Error('Erro ao carregar PDF original para assinatura.');
       return response.arrayBuffer();
     }),
     signatureBlob.arrayBuffer(),
+    Promise.all(evidenceFiles.map(async evidence => [evidence.kind, await evidence.file.arrayBuffer()] as const)),
   ]);
+  const evidenceBytes = Object.fromEntries(evidenceBytePairs) as Record<SignatureEvidenceKind, ArrayBuffer>;
 
   const pdfDoc = await PDFDocument.load(templateBytes);
   const signatureImage = await pdfDoc.embedPng(signatureBytes);
@@ -193,6 +230,67 @@ async function createSignedPdfBlob({
     color: rgb(0.42, 0.38, 0.32),
   });
 
+  for (const evidence of evidenceFiles) {
+    const evidenceImage = evidence.file.type === 'image/png'
+      ? await pdfDoc.embedPng(evidenceBytes[evidence.kind])
+      : await pdfDoc.embedJpg(evidenceBytes[evidence.kind]);
+    const evidencePage = pdfDoc.addPage([612, 792]);
+    const evidenceMargin = 54;
+    evidencePage.drawText('MIGMA - Evidence of Electronic Signature', {
+      x: evidenceMargin,
+      y: 735,
+      size: 16,
+      font,
+      color: rgb(0.18, 0.16, 0.13),
+    });
+    evidencePage.drawText(`Signer: ${signerName || 'Aluno MIGMA'}`, {
+      x: evidenceMargin,
+      y: 705,
+      size: 10,
+      font,
+      color: rgb(0.25, 0.23, 0.2),
+    });
+    evidencePage.drawText(`Form: ${formType}`, {
+      x: evidenceMargin,
+      y: 688,
+      size: 10,
+      font,
+      color: rgb(0.25, 0.23, 0.2),
+    });
+    evidencePage.drawText(`Signed at: ${new Date(signedAt).toLocaleString('pt-BR')}`, {
+      x: evidenceMargin,
+      y: 671,
+      size: 10,
+      font,
+      color: rgb(0.25, 0.23, 0.2),
+    });
+    evidencePage.drawText(`${evidence.label} submitted by the signer:`, {
+      x: evidenceMargin,
+      y: 640,
+      size: 11,
+      font,
+      color: rgb(0.18, 0.16, 0.13),
+    });
+    const maxPhotoWidth = 420;
+    const maxPhotoHeight = 460;
+    const photoScale = Math.min(maxPhotoWidth / evidenceImage.width, maxPhotoHeight / evidenceImage.height, 1);
+    const photoWidth = evidenceImage.width * photoScale;
+    const photoHeight = evidenceImage.height * photoScale;
+    evidencePage.drawImage(evidenceImage, {
+      x: evidenceMargin,
+      y: 600 - photoHeight,
+      width: photoWidth,
+      height: photoHeight,
+    });
+    evidencePage.drawText('This file is stored as signing evidence together with the signed PDF metadata.', {
+      x: evidenceMargin,
+      y: Math.max(70, 585 - photoHeight),
+      size: 8,
+      font,
+      color: rgb(0.42, 0.38, 0.32),
+    });
+  }
+
   pdfDoc.setTitle(`${formType} - assinado`);
   pdfDoc.setSubject('Documento assinado eletronicamente pelo Student Dashboard MIGMA');
   pdfDoc.setProducer('MIGMA Student Dashboard');
@@ -207,6 +305,7 @@ async function createSignedPdfBlob({
     blob: new Blob([signedBytes], { type: 'application/pdf' }),
     templateBytes,
     signatureBytes,
+    evidenceBytes,
     signedBytes,
   };
 }
@@ -1434,9 +1533,33 @@ function FormSignatureModal({ form, onClose, onSigned }: { form: DashboardForm; 
   const [signaturePreviewUrl, setSignaturePreviewUrl] = useState<string | null>(null);
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [consentChecked, setConsentChecked] = useState(false);
+  const [evidenceFiles, setEvidenceFiles] = useState<Record<SignatureEvidenceKind, File | null>>({
+    document_front: null,
+    document_back: null,
+    selfie_doc: null,
+  });
+  const [evidencePreviews, setEvidencePreviews] = useState<Record<SignatureEvidenceKind, string | null>>({
+    document_front: null,
+    document_back: null,
+    selfie_doc: null,
+  });
   const defaultPlacement = SIGNATURE_PLACEMENTS[form.form_type] ?? getSignaturePlacement(form.form_type, 1);
   const [placement, setPlacement] = useState<SignaturePlacement>(defaultPlacement);
   const flowStartedAt = useRef(new Date().toISOString());
+  const evidencePreviewsRef = useRef(evidencePreviews);
+  const hasAllEvidenceFiles = SIGNATURE_EVIDENCE_REQUIREMENTS.every(requirement => !!evidenceFiles[requirement.kind]);
+
+  useEffect(() => {
+    evidencePreviewsRef.current = evidencePreviews;
+  }, [evidencePreviews]);
+
+  useEffect(() => {
+    return () => {
+      Object.values(evidencePreviewsRef.current).forEach(preview => {
+        if (preview) URL.revokeObjectURL(preview);
+      });
+    };
+  }, []);
 
   useEffect(() => {
     if (!form.template_url) return;
@@ -1502,6 +1625,41 @@ function FormSignatureModal({ form, onClose, onSigned }: { form: DashboardForm; 
     });
   };
 
+  const handleEvidenceSelect = (kind: SignatureEvidenceKind, event: React.ChangeEvent<HTMLInputElement>) => {
+    const selectedFile = event.target.files?.[0];
+    if (!selectedFile) return;
+
+    if (!ALLOWED_SIGNATURE_PHOTO_TYPES.has(selectedFile.type)) {
+      setEvidenceFiles(prev => ({ ...prev, [kind]: null }));
+      setEvidencePreviews(prev => ({ ...prev, [kind]: null }));
+      setError('Envie uma foto em JPG ou PNG.');
+      event.target.value = '';
+      return;
+    }
+
+    if (selectedFile.size > MAX_SIGNATURE_PHOTO_SIZE) {
+      setEvidenceFiles(prev => ({ ...prev, [kind]: null }));
+      setEvidencePreviews(prev => ({ ...prev, [kind]: null }));
+      setError('A foto precisa ter no maximo 5MB.');
+      event.target.value = '';
+      return;
+    }
+
+    const currentPreview = evidencePreviews[kind];
+    if (currentPreview) URL.revokeObjectURL(currentPreview);
+    setEvidenceFiles(prev => ({ ...prev, [kind]: selectedFile }));
+    setEvidencePreviews(prev => ({ ...prev, [kind]: URL.createObjectURL(selectedFile) }));
+    setError(null);
+  };
+
+  const removeEvidenceFile = (kind: SignatureEvidenceKind) => {
+    const currentPreview = evidencePreviews[kind];
+    if (currentPreview) URL.revokeObjectURL(currentPreview);
+    setEvidenceFiles(prev => ({ ...prev, [kind]: null }));
+    setEvidencePreviews(prev => ({ ...prev, [kind]: null }));
+    setError(null);
+  };
+
   const handleConfirm = async () => {
     const canvas = canvasRef.current;
     const signaturePad = signaturePadRef.current;
@@ -1511,6 +1669,10 @@ function FormSignatureModal({ form, onClose, onSigned }: { form: DashboardForm; 
     }
     if (!consentChecked) {
       setError('Confirme o consentimento antes de assinar.');
+      return;
+    }
+    if (!hasAllEvidenceFiles) {
+      setError('Envie Document Front, Document Back e a foto segurando o documento antes de confirmar.');
       return;
     }
     if (!user?.id || !userProfile?.id) {
@@ -1530,15 +1692,24 @@ function FormSignatureModal({ form, onClose, onSigned }: { form: DashboardForm; 
       const ts = Date.now();
       const signatureBlob = await canvasToBlob(canvas);
       const signaturePath = `signed/${user.id}/${form.id}_${ts}.png`;
+      const resolvedEvidenceFiles = SIGNATURE_EVIDENCE_REQUIREMENTS.map(requirement => {
+        const file = evidenceFiles[requirement.kind];
+        if (!file) throw new Error(`Arquivo obrigatório ausente: ${requirement.label}.`);
+        return {
+          ...requirement,
+          file,
+        };
+      });
       const signedPdfPath = `signed/${user.id}/${form.id}_${ts}_signed.pdf`;
 
       const [
-        { blob: signedPdfBlob, templateBytes, signatureBytes, signedBytes },
+        { blob: signedPdfBlob, templateBytes, signatureBytes, evidenceBytes, signedBytes },
         { data: { session } },
       ] = await Promise.all([
         createSignedPdfBlob({
           templateUrl: form.template_url,
           signatureBlob,
+          evidenceFiles: resolvedEvidenceFiles,
           signerName: userProfile.full_name,
           signedAt: signatureDrawnAt,
           formType: form.form_type,
@@ -1552,6 +1723,17 @@ function FormSignatureModal({ form, onClose, onSigned }: { form: DashboardForm; 
         sha256Hex(signatureBytes),
         sha256Hex(signedBytes),
       ]);
+      const evidenceUploads = await Promise.all(resolvedEvidenceFiles.map(async evidence => {
+        const ext = evidence.file.type === 'image/png' ? 'png' : 'jpg';
+        const path = `signed/${user.id}/${form.id}_${ts}_${evidence.kind}.${ext}`;
+        return {
+          kind: evidence.kind,
+          label: evidence.label,
+          file: evidence.file,
+          path,
+          sha256: await sha256Hex(evidenceBytes[evidence.kind]),
+        };
+      }));
 
       const accessToken = session?.access_token ?? '';
       const sessionIdHash = accessToken
@@ -1568,6 +1750,13 @@ function FormSignatureModal({ form, onClose, onSigned }: { form: DashboardForm; 
         .upload(signaturePath, signatureBlob, { contentType: 'image/png', upsert: false });
       if (uploadError) throw uploadError;
 
+      for (const evidence of evidenceUploads) {
+        const { error: evidenceUploadError } = await supabase.storage
+          .from('institution-forms')
+          .upload(evidence.path, evidence.file, { contentType: evidence.file.type, upsert: false });
+        if (evidenceUploadError) throw evidenceUploadError;
+      }
+
       const { error: pdfUploadError } = await supabase.storage
         .from('institution-forms')
         .upload(signedPdfPath, signedPdfBlob, { contentType: 'application/pdf', upsert: false });
@@ -1577,6 +1766,11 @@ function FormSignatureModal({ form, onClose, onSigned }: { form: DashboardForm; 
       const { data: pdfUrlData } = supabase.storage.from('institution-forms').getPublicUrl(signedPdfPath);
       const signatureUrl = sigUrlData.publicUrl;
       const signedPdfUrl = pdfUrlData.publicUrl;
+      const uploadedEvidence = evidenceUploads.map<SignatureEvidenceUpload>(evidence => ({
+        ...evidence,
+        url: supabase.storage.from('institution-forms').getPublicUrl(evidence.path).data.publicUrl,
+      }));
+      const evidenceByKind = Object.fromEntries(uploadedEvidence.map(evidence => [evidence.kind, evidence])) as Record<SignatureEvidenceKind, SignatureEvidenceUpload>;
 
       const confirmedAt = new Date().toISOString();
       const prevMeta: Record<string, unknown> = form.signature_metadata_json ?? {};
@@ -1586,6 +1780,13 @@ function FormSignatureModal({ form, onClose, onSigned }: { form: DashboardForm; 
       const proofPayload = {
         proof_version: 'migma-web-signature-v2',
         environment,
+        signer_confirmed_at: confirmedAt,
+        signature_capture: 'drawn_signature',
+        identity_photo_url: evidenceByKind.selfie_doc.url,
+        identity_photo_sha256: evidenceByKind.selfie_doc.sha256,
+        document_front_url: evidenceByKind.document_front.url,
+        document_back_url: evidenceByKind.document_back.url,
+        selfie_doc_url: evidenceByKind.selfie_doc.url,
 
         signer: {
           user_id: user.id,
@@ -1604,6 +1805,9 @@ function FormSignatureModal({ form, onClose, onSigned }: { form: DashboardForm; 
           template_storage_path: form.template_url,
           template_pdf_sha256: templateSha256,
           signature_image_sha256: signatureSha256,
+          document_front_sha256: evidenceByKind.document_front.sha256,
+          document_back_sha256: evidenceByKind.document_back.sha256,
+          selfie_doc_sha256: evidenceByKind.selfie_doc.sha256,
           signed_pdf_storage_path: signedPdfPath,
           signed_pdf_sha256: signedPdfSha256,
           signed_pdf_file_size_bytes: signedPdfBlob.size,
@@ -1625,6 +1829,35 @@ function FormSignatureModal({ form, onClose, onSigned }: { form: DashboardForm; 
             width: placement.width,
             height: placement.height,
           },
+        },
+
+        identity: {
+          capture_method: 'document_front_back_and_selfie',
+          document_front: {
+            storage_path: evidenceByKind.document_front.path,
+            url: evidenceByKind.document_front.url,
+            file_type: evidenceByKind.document_front.file.type,
+            file_name: evidenceByKind.document_front.file.name,
+            file_size_bytes: evidenceByKind.document_front.file.size,
+            sha256: evidenceByKind.document_front.sha256,
+          },
+          document_back: {
+            storage_path: evidenceByKind.document_back.path,
+            url: evidenceByKind.document_back.url,
+            file_type: evidenceByKind.document_back.file.type,
+            file_name: evidenceByKind.document_back.file.name,
+            file_size_bytes: evidenceByKind.document_back.file.size,
+            sha256: evidenceByKind.document_back.sha256,
+          },
+          selfie_doc: {
+            storage_path: evidenceByKind.selfie_doc.path,
+            url: evidenceByKind.selfie_doc.url,
+            file_type: evidenceByKind.selfie_doc.file.type,
+            file_name: evidenceByKind.selfie_doc.file.name,
+            file_size_bytes: evidenceByKind.selfie_doc.file.size,
+            sha256: evidenceByKind.selfie_doc.sha256,
+          },
+          submitted_at_client: confirmedAt,
         },
 
         consent: {
@@ -1741,6 +1974,85 @@ function FormSignatureModal({ form, onClose, onSigned }: { form: DashboardForm; 
             />
           )}
 
+          <div className="rounded-lg border border-[#d8c5a3] dark:border-white/15 bg-white/70 dark:bg-white/[0.03] p-4">
+            <div className="mb-4">
+              <div>
+                <p className="text-sm font-bold">Identity verification documents</p>
+                <p className="mt-1 text-xs text-[#8a7b66] dark:text-gray-500">
+                  Envie Document Front, Document Back e uma foto segurando o documento. Esses arquivos serao anexados como evidencia da assinatura.
+                </p>
+              </div>
+            </div>
+
+            <div className="mb-4 grid gap-4 md:grid-cols-[140px_1fr] md:items-center">
+              <img
+                src="/helpselfie.png"
+                alt="Exemplo de foto segurando documento"
+                className="h-auto w-32 rounded-md border border-[#CE9F48]/40 object-cover"
+              />
+              <div className="rounded-md border border-dashed border-[#d8c5a3] bg-[#f7efdf] p-4 text-xs text-[#6f6251] dark:border-white/10 dark:bg-white/[0.03] dark:text-gray-400">
+                Use fotos nitidas, com boa luz, sem cortes no documento. Formatos aceitos: JPG ou PNG, ate 5MB cada.
+              </div>
+            </div>
+
+            <div className="grid gap-3 md:grid-cols-3">
+              {SIGNATURE_EVIDENCE_REQUIREMENTS.map(requirement => {
+                const preview = evidencePreviews[requirement.kind];
+                const file = evidenceFiles[requirement.kind];
+
+                return (
+                  <div key={requirement.kind} className="rounded-md border border-[#e3d5bd] bg-[#fffaf0] p-3 dark:border-white/10 dark:bg-white/[0.03]">
+                    <div className="mb-3">
+                      <p className="text-xs font-black uppercase tracking-wide text-[#1f1a14] dark:text-white">{requirement.label}</p>
+                      <p className="mt-1 text-[11px] text-[#8a7b66] dark:text-gray-500">{requirement.description}</p>
+                    </div>
+
+                    {preview ? (
+                      <div className="relative overflow-hidden rounded-md border border-[#CE9F48]/40 bg-black/5 dark:bg-black/30">
+                        <img
+                          src={preview}
+                          alt={requirement.label}
+                          className="mx-auto h-36 w-full object-contain"
+                        />
+                        <Button
+                          type="button"
+                          variant="destructive"
+                          size="icon"
+                          onClick={() => removeEvidenceFile(requirement.kind)}
+                          disabled={saving}
+                          className="absolute right-2 top-2 h-7 w-7"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    ) : (
+                      <Button type="button" variant="outline" disabled={saving} className="h-36 w-full flex-col border-dashed border-[#d8c5a3] bg-[#f7efdf] text-[#1f1a14] hover:bg-[#eadbbf] dark:border-white/10 dark:bg-white/5 dark:text-white dark:hover:bg-white/10" asChild>
+                        <label className="cursor-pointer">
+                          <Camera className="h-6 w-6" />
+                          <span className="mt-2 text-xs font-bold">Upload</span>
+                          <input
+                            type="file"
+                            accept="image/jpeg,image/jpg,image/png"
+                            capture={requirement.capture}
+                            onChange={event => handleEvidenceSelect(requirement.kind, event)}
+                            disabled={saving}
+                            className="hidden"
+                          />
+                        </label>
+                      </Button>
+                    )}
+
+                    {file && (
+                      <p className="mt-2 truncate text-[10px] text-emerald-700 dark:text-emerald-300" title={file.name}>
+                        {file.name}
+                      </p>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
           <div className="rounded-lg border border-dashed border-[#d8c5a3] dark:border-white/15 bg-white/70 dark:bg-white/[0.03] p-4">
             <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <div>
@@ -1779,7 +2091,7 @@ function FormSignatureModal({ form, onClose, onSigned }: { form: DashboardForm; 
           <Button variant="outline" onClick={onClose} disabled={saving} className="border-[#e3d5bd] dark:border-white/10 bg-[#f3ead9] dark:bg-white/5 text-[#1f1a14] dark:text-white hover:bg-[#eadbbf] dark:hover:bg-white/10">
             {t('student_dashboard.forms.modal_btn_cancel')}
           </Button>
-          <Button onClick={handleConfirm} disabled={!hasSignature || !consentChecked || saving} className="bg-[#CE9F48] text-black hover:bg-[#b8892f]">
+          <Button onClick={handleConfirm} disabled={!hasSignature || !hasAllEvidenceFiles || !consentChecked || saving} className="bg-[#CE9F48] text-black hover:bg-[#b8892f]">
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <PenLine className="h-4 w-4" />}
             Confirmar e assinar documento
           </Button>

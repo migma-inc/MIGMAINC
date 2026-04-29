@@ -92,6 +92,15 @@ function metadataString(metadata: Record<string, unknown> | null | undefined, ke
   return typeof value === 'string' ? value : null;
 }
 
+function metadataPathString(metadata: Record<string, unknown> | null | undefined, path: string[]) {
+  let current: unknown = metadata;
+  for (const key of path) {
+    if (!current || typeof current !== 'object') return null;
+    current = (current as Record<string, unknown>)[key];
+  }
+  return typeof current === 'string' ? current : null;
+}
+
 function metadataNumber(metadata: Record<string, unknown> | null | undefined, key: string) {
   const value = metadata?.[key];
   return typeof value === 'number' ? value : null;
@@ -1097,6 +1106,17 @@ function DocumentsTab({
                     const openCount = metadataNumber(form.signature_metadata_json, 'pdf_open_count');
                     const confirmedAt = metadataString(form.signature_metadata_json, 'signer_confirmed_at') ?? form.signed_at;
                     const signatureCapture = metadataString(form.signature_metadata_json, 'signature_capture');
+                    const identityPhotoUrl = metadataPathString(form.signature_metadata_json, ['identity', 'identity_photo_url'])
+                      ?? metadataPathString(form.signature_metadata_json, ['identity', 'selfie_doc', 'url'])
+                      ?? metadataString(form.signature_metadata_json, 'selfie_doc_url')
+                      ?? metadataString(form.signature_metadata_json, 'identity_photo_url');
+                    const identityPhotoHash = metadataPathString(form.signature_metadata_json, ['identity', 'identity_photo_sha256'])
+                      ?? metadataPathString(form.signature_metadata_json, ['identity', 'selfie_doc', 'sha256'])
+                      ?? metadataString(form.signature_metadata_json, 'identity_photo_sha256');
+                    const documentFrontUrl = metadataPathString(form.signature_metadata_json, ['identity', 'document_front', 'url'])
+                      ?? metadataString(form.signature_metadata_json, 'document_front_url');
+                    const documentBackUrl = metadataPathString(form.signature_metadata_json, ['identity', 'document_back', 'url'])
+                      ?? metadataString(form.signature_metadata_json, 'document_back_url');
                     return (
                       <div key={form.id} className="rounded-xl border border-white/10 bg-white/[0.03] p-4 space-y-3">
                         <div className="flex items-start justify-between gap-3">
@@ -1140,6 +1160,20 @@ function DocumentsTab({
                               <span className="text-gray-300">{toLabel(signatureCapture)}</span>
                             </div>
                           )}
+                          {(documentFrontUrl || documentBackUrl || identityPhotoUrl) && (
+                            <div className="flex items-center justify-between gap-3">
+                              <span>Docs identidade</span>
+                              <span className="text-emerald-300">
+                                {[documentFrontUrl, documentBackUrl, identityPhotoUrl].filter(Boolean).length}/3 recebidos
+                              </span>
+                            </div>
+                          )}
+                          {identityPhotoHash && (
+                            <div className="flex items-center justify-between gap-3">
+                              <span>Hash foto</span>
+                              <span className="max-w-[160px] truncate font-mono text-gray-400" title={identityPhotoHash}>{identityPhotoHash}</span>
+                            </div>
+                          )}
                         </div>
                         <div className="flex flex-wrap gap-2">
                           {originalUrl && (
@@ -1162,6 +1196,39 @@ function DocumentsTab({
                             >
                               <CheckCircle2 className="w-3 h-3 mr-1.5" />
                               Assinado
+                            </a>
+                          )}
+                          {identityPhotoUrl && (
+                            <a
+                              href={identityPhotoUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center rounded-md border border-blue-500/20 bg-blue-500/10 px-2.5 py-1.5 text-[10px] font-black uppercase tracking-wide text-blue-300 hover:bg-blue-500/20"
+                            >
+                              <Image className="w-3 h-3 mr-1.5" />
+                              Foto ID
+                            </a>
+                          )}
+                          {documentFrontUrl && (
+                            <a
+                              href={documentFrontUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center rounded-md border border-blue-500/20 bg-blue-500/10 px-2.5 py-1.5 text-[10px] font-black uppercase tracking-wide text-blue-300 hover:bg-blue-500/20"
+                            >
+                              <Image className="w-3 h-3 mr-1.5" />
+                              Doc Front
+                            </a>
+                          )}
+                          {documentBackUrl && (
+                            <a
+                              href={documentBackUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center rounded-md border border-blue-500/20 bg-blue-500/10 px-2.5 py-1.5 text-[10px] font-black uppercase tracking-wide text-blue-300 hover:bg-blue-500/20"
+                            >
+                              <Image className="w-3 h-3 mr-1.5" />
+                              Doc Back
                             </a>
                           )}
                         </div>
