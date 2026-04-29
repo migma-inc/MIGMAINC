@@ -6,10 +6,18 @@
 import React, { useState, useEffect } from 'react';
 import {
   User, Phone, Home, Calendar, Briefcase, Star,
-  Plus, Trash2, ChevronDown, Loader2, CheckCircle, ArrowRight,
+  Plus, Trash2, Loader2, CheckCircle, ArrowRight,
 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { useStudentAuth } from '../../../contexts/StudentAuthContext';
 import { supabase } from '../../../lib/supabase';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '../../../components/ui/select';
 import type { StepProps } from '../types';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -114,11 +122,12 @@ const Field: React.FC<{
 );
 
 const inputCls = "w-full bg-white/5 border border-white/10 text-white rounded-xl px-4 py-3 text-sm placeholder-gray-600 focus:outline-none focus:border-gold-medium/50 transition-colors";
-const selectCls = `${inputCls} appearance-none cursor-pointer`;
+const selectTriggerCls = "w-full bg-white/5 border border-white/10 text-white rounded-xl px-4 h-[46px] text-sm placeholder-gray-600 focus:outline-none focus:ring-1 focus:ring-gold-medium/50 transition-all flex items-center justify-between";
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export const DadosComplementaresStep: React.FC<StepProps> = ({ onNext }) => {
+  const navigate = useNavigate();
   const { user, userProfile } = useStudentAuth();
   const [form, setForm] = useState<FormData>(INITIAL);
   const [loading, setLoading] = useState(true);
@@ -243,7 +252,7 @@ export const DadosComplementaresStep: React.FC<StepProps> = ({ onNext }) => {
         .upsert(payload, { onConflict: 'profile_id' });
 
       if (error) throw error;
-      onNext();
+      navigate('/student/dashboard');
     } catch (err: any) {
       console.error('[DadosComplementaresStep] Save error:', err.message);
       setErrors({ emergency_contact_name: `Save failed: ${err.message}` });
@@ -328,19 +337,25 @@ export const DadosComplementaresStep: React.FC<StepProps> = ({ onNext }) => {
           subtitle="When would you like to start your program?"
         />
         <Field label="Preferred Start Term" required>
-          <div className="relative">
-            <select
-              className={selectCls}
-              value={form.preferred_start_term}
-              onChange={e => set('preferred_start_term', e.target.value)}
-            >
-              <option value="">Select a term...</option>
+          <Select
+            value={form.preferred_start_term}
+            onValueChange={value => set('preferred_start_term', value)}
+          >
+            <SelectTrigger className={selectTriggerCls}>
+              <SelectValue placeholder="Select a term..." />
+            </SelectTrigger>
+            <SelectContent className="bg-[#0a0a0a] border border-white/10 text-white rounded-xl overflow-hidden">
               {START_TERMS.map(t => (
-                <option key={t} value={t}>{t}</option>
+                <SelectItem 
+                  key={t} 
+                  value={t}
+                  className="focus:bg-gold-medium/10 focus:text-gold-medium cursor-pointer py-3"
+                >
+                  {t}
+                </SelectItem>
               ))}
-            </select>
-            <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 pointer-events-none" />
-          </div>
+            </SelectContent>
+          </Select>
           {err('preferred_start_term')}
         </Field>
       </div>

@@ -463,12 +463,14 @@
       "available_in": "Available in"
     },
     "steps": {
+      "selection_fee": "Selection Fee",
       "profile": "Profile",
       "survey": "Survey",
       "scholarship": "University",
       "documents": "Documents",
       "payment": "Application Fee",
       "placement_fee": "Placement Fee",
+      "complementary_data": "Complementary Data",
       "my_applications": "My Applications",
       "counter": "Step {{current}} of {{total}}"
     },
@@ -592,6 +594,8 @@
       "subtitle": "Pay the application fee to submit your scholarship application.",
       "paid_title": "Application Fee Paid!",
       "paid_desc": "Your application fee has been confirmed.",
+      "already_paid_title": "Application Fee Paid!",
+      "already_paid_desc": "Your application fee has been confirmed. You can now proceed to the Dashboard.",
       "continue": "Continue →",
       "application_fee_label": "Application Fee",
       "processing_fee": "Processing Fee (Stripe 3.9% + $0.30)",

@@ -21,6 +21,7 @@ export type TriggerType =
   | "all_documents_approved"
   | "forms_generated"
   | "package_sent_matriculausa"
+  | "acceptance_letter_ready"
   | "new_pending_task"
   | "deadline_alert_transfer"
   | "deadline_alert_cos"
@@ -63,6 +64,7 @@ interface NotifyPayload {
     next_billing_date?: string;
     billing_link?: string;
     suspend_reason?: string;
+    acceptance_letter_url?: string;
   };
 }
 
@@ -321,6 +323,20 @@ function buildTemplate(
     };
 
     // ── 10 ────────────────────────────────────────────────────────────────────
+    case "acceptance_letter_ready": return {
+      subject: "Your Acceptance Letter is Ready — Migma",
+      emailHtml: emailWrapper("Acceptance Letter Ready", `
+        <p>Hi, ${highlight(firstName)}!</p>
+        <p>Great news — your <strong>Acceptance Letter</strong> has been issued and is available for download in your portal.</p>
+        <p>Please access the link below to view and download your documents.</p>
+        ${data.acceptance_letter_url
+          ? btn("Download Acceptance Letter", data.acceptance_letter_url)
+          : btn("View in Portal", `${dash}/student/onboarding?step=acceptance_letter`)}
+      `),
+      whatsapp: `🎓 *Migma* — Acceptance Letter Ready!\n\nHi ${firstName}, your Acceptance Letter has been issued! Access your portal to download it: ${data.acceptance_letter_url ?? `${dash}/student/onboarding?step=acceptance_letter`}`,
+    };
+
+    // ── 11 ────────────────────────────────────────────────────────────────────
     case "new_pending_task": return {
       subject: "Nova pendência — ação necessária na sua conta",
       emailHtml: emailWrapper("Nova pendência", `

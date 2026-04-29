@@ -10,12 +10,16 @@ const STEPS: { key: OnboardingStep; labelKey: string }[] = [
   { key: 'placement_fee', labelKey: 'student_onboarding.steps.placement_fee' },
   { key: 'documents_upload', labelKey: 'student_onboarding.steps.documents' },
   { key: 'payment', labelKey: 'student_onboarding.steps.payment' },
+  { key: 'dados_complementares', labelKey: 'student_onboarding.steps.complementary_data' },
 ];
 
 const STEP_ALIAS: Partial<Record<OnboardingStep, OnboardingStep>> = {
   process_type: 'documents_upload',
   reinstatement_fee: 'placement_fee',
-  completed: 'my_applications',
+  scholarship_fee: 'placement_fee',
+  completed: 'dados_complementares',
+  my_applications: 'dados_complementares',
+  acceptance_letter: 'dados_complementares',
   wait_room: 'selection_survey',
 };
 
