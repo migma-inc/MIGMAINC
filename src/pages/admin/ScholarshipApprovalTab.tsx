@@ -22,6 +22,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/lib/supabase';
+import { getSecureUrl } from '@/lib/storage';
 import type { CaseDetailPage } from '@/lib/onboarding-crm';
 
 // ─────────────────────────────────────────────────────────────
@@ -110,6 +111,8 @@ export function ScholarshipApprovalTab({ detail }: { detail: CaseDetailPage }) {
   const [processing, setProcessing] = useState(false);
   const [actionMsg, setActionMsg] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [resolvedUrls, setResolvedUrls] = useState<Record<string, string>>({});
+  const [backgroundProcessingIds, setBackgroundProcessingIds] = useState<Set<string>>(new Set());
 
   // V11 post-payment states
   const [savingLetterUrl, setSavingLetterUrl] = useState(false);
@@ -150,6 +153,20 @@ export function ScholarshipApprovalTab({ detail }: { detail: CaseDetailPage }) {
     }
   }, [profile.id]);
 
+  useEffect(() => {
+    const resolveAllUrls = async () => {
+      const resolved: Record<string, string> = {};
+      for (const app of applications) {
+        if (app.acceptance_letter_url) {
+          const url = await getSecureUrl(app.acceptance_letter_url);
+          if (url) resolved[app.id] = url;
+        }
+      }
+      setResolvedUrls(resolved);
+    };
+    if (applications.length > 0) resolveAllUrls();
+  }, [applications]);
+
   useEffect(() => { fetchApplications(); }, [fetchApplications]);
 
   // ── Derive overall status ──
@@ -166,17 +183,12 @@ export function ScholarshipApprovalTab({ detail }: { detail: CaseDetailPage }) {
     ? Math.ceil((new Date(deadlineDate).getTime() - Date.now()) / 86_400_000)
     : null;
 
-  // ── Approve handler ──
-  const handleApprove = async () => {
-    const app = applications.find(a => a.id === selectedAppId);
+  // ── Approve handler (Orchestrator) ──
+  const executeApprovalSequence = async (appId: string, adminId: string | null) => {
+    const app = applications.find(a => a.id === appId);
     if (!app || !app.institution_scholarships) return;
 
-    setProcessing(true);
-    setActionMsg(null);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const adminId = session?.user?.id ?? null;
-
       const placementFee = app.institution_scholarships.placement_fee_usd;
       const originUrl = window.location.origin;
       const now = new Date().toISOString();
@@ -192,7 +204,7 @@ export function ScholarshipApprovalTab({ detail }: { detail: CaseDetailPage }) {
             admin_approved_by: adminId,
             placement_fee_paid_at: now,
           })
-          .eq('id', app.id);
+          .eq('id', appId);
         if (approveErr) throw approveErr;
 
         await supabase
@@ -207,7 +219,7 @@ export function ScholarshipApprovalTab({ detail }: { detail: CaseDetailPage }) {
             email: profile.email,
             full_name: profile.full_name,
             user_id: profile.user_id,
-            reference_suffix: `-APP-${app.id.slice(0, 8)}`,
+            reference_suffix: `-APP-${appId.slice(0, 8)}`,
             redirect_success_override: `${originUrl}/student/onboarding?step=placement_fee&success=true`,
             redirect_failed_override: `${originUrl}/student/onboarding?step=placement_fee&failed=true`,
             parcelow_environment: originUrl.includes('migmainc.com') ? 'production' : 'staging',
@@ -225,7 +237,7 @@ export function ScholarshipApprovalTab({ detail }: { detail: CaseDetailPage }) {
             payment_link_url: checkoutUrl,
             payment_link_generated_at: checkoutUrl ? now : null,
           })
-          .eq('id', app.id);
+          .eq('id', appId);
         if (approveErr) throw approveErr;
       }
 
@@ -233,13 +245,13 @@ export function ScholarshipApprovalTab({ detail }: { detail: CaseDetailPage }) {
       const institutionSlug = (app.institutions?.slug ?? '').toLowerCase();
       if (institutionSlug.includes('caroline') || institutionSlug.includes('oikos')) {
         supabase.functions.invoke('sync-to-matriculausa', {
-          body: { application_id: app.id },
+          body: { application_id: appId },
         }).catch(e => console.error('[sync-to-matriculausa]', e));
       }
 
       // 3. Reject all other pending applications for this profile
       const otherIds = applications
-        .filter(a => a.id !== app.id && a.status === 'pending_admin_approval')
+        .filter(a => a.id !== appId && a.status === 'pending_admin_approval')
         .map(a => a.id);
       if (otherIds.length > 0) {
         await supabase
@@ -293,16 +305,46 @@ export function ScholarshipApprovalTab({ detail }: { detail: CaseDetailPage }) {
       }
 
       setActionMsg(placementFee === 0
-        ? 'Bolsa aprovada e vaga confirmada (Placement Fee isento). E-mail enviado ao cliente.'
-        : 'Bolsa aprovada com sucesso! E-mail enviado ao cliente.'
+        ? 'Bolsa aprovada e vaga confirmada (Placement Fee isento).'
+        : 'Bolsa aprovada com sucesso! O aluno foi notificado.'
       );
       await fetchApplications();
-      setSelectedAppId(null);
     } catch (err) {
-      setActionMsg(`Erro: ${errorMessage(err)}`);
+      console.error('[process-approval]', err);
+      setActionMsg(`Erro no processamento: ${errorMessage(err)}`);
+    } finally {
+      setBackgroundProcessingIds(prev => {
+        const next = new Set(prev);
+        next.delete(appId);
+        return next;
+      });
+    }
+  };
+
+  const handleApprove = async () => {
+    const appId = selectedAppId;
+    if (!appId) return;
+
+    setProcessing(true);
+    setActionMsg('Aprovação iniciada em segundo plano. Você pode continuar trabalhando...');
+    
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const adminId = session?.user?.id ?? null;
+
+      // Adicionar aos processados em background
+      setBackgroundProcessingIds(prev => new Set(prev).add(appId));
+
+      // Trigger sequence without awaiting
+      executeApprovalSequence(appId, adminId);
+
+      // UI Instant Feedback
+      setSelectedAppId(null);
+      setShowConfirmDialog(false);
+    } catch (err) {
+      setActionMsg(`Erro ao iniciar aprovação: ${errorMessage(err)}`);
     } finally {
       setProcessing(false);
-      setShowConfirmDialog(false);
     }
   };
 
@@ -513,6 +555,15 @@ export function ScholarshipApprovalTab({ detail }: { detail: CaseDetailPage }) {
                           {st.label}
                         </Badge>
                       </div>
+
+                      {backgroundProcessingIds.has(app.id) && (
+                        <div className="mt-2 flex items-center gap-2 px-3 py-1.5 bg-blue-500/10 border border-blue-500/20 rounded-lg">
+                          <Loader2 className="w-3 h-3 text-blue-400 animate-spin" />
+                          <span className="text-[10px] font-black uppercase tracking-widest text-blue-300">
+                            Processando aprovação em segundo plano...
+                          </span>
+                        </div>
+                      )}
 
                       {scholar && (
                         <div className="flex flex-wrap gap-2 mt-3">
@@ -791,14 +842,20 @@ export function ScholarshipApprovalTab({ detail }: { detail: CaseDetailPage }) {
                   <p className="text-xs text-gray-500">
                     Cole a URL da carta de aceite/I-20 recebida do MatriculaUSA para liberar ao aluno.
                   </p>
-                  {paidApp.acceptance_letter_url && (
-                    <div className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-xl px-3 py-2">
-                      <span className="text-xs text-gray-400 truncate flex-1 font-mono">{paidApp.acceptance_letter_url}</span>
-                      <a href={paidApp.acceptance_letter_url} target="_blank" rel="noopener noreferrer" className="text-emerald-400 hover:text-emerald-300">
-                        <ExternalLink className="w-3.5 h-3.5" />
-                      </a>
-                    </div>
-                  )}
+                    {paidApp.acceptance_letter_url && (
+                      <div className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-xl px-3 py-2">
+                        <span className="text-xs text-gray-400 truncate flex-1 font-mono">{paidApp.acceptance_letter_url}</span>
+                        <a 
+                          href={resolvedUrls[paidApp.id] || '#'} 
+                          target="_blank" 
+                          rel="noopener noreferrer" 
+                          className="text-emerald-400 hover:text-emerald-300"
+                          onClick={(e) => !resolvedUrls[paidApp.id] && e.preventDefault()}
+                        >
+                          <ExternalLink className="w-3.5 h-3.5" />
+                        </a>
+                      </div>
+                    )}
                   <div className="flex gap-2">
                     <input
                       type="url"

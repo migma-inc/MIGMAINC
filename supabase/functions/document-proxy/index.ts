@@ -30,6 +30,13 @@ Deno.serve(async (req) => {
         const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
         const adminClient = createClient(supabaseUrl, supabaseServiceKey);
 
+        const matriculaUrl = Deno.env.get("MATRICULAUSA_URL");
+        const matriculaKey = Deno.env.get("MATRICULAUSA_SERVICE_ROLE");
+        const matriculaAdmin = (matriculaUrl && matriculaKey) ? createClient(matriculaUrl, matriculaKey) : null;
+
+        const project = url.searchParams.get("project") || "migma";
+        const targetClient = (project === "matriculausa" && matriculaAdmin) ? matriculaAdmin : adminClient;
+
         let hasAccess = false;
         let userIdForLog = "anonymous";
 
@@ -99,23 +106,55 @@ Deno.serve(async (req) => {
                                 .maybeSingle();
 
                             if (order) hasAccess = true;
-                            else {
-                                const { data: pApp } = await adminClient
-                                    .from('global_partner_applications')
-                                    .select('id')
-                                    .eq('seller_id', seller.id)
-                                    .eq('id', potentialId)
-                                    .maybeSingle();
-                                if (pApp) hasAccess = true;
+                        }
+                    }
+
+                    // Verificação de Aluno (Migma Institution Applications)
+                    if (!hasAccess) {
+                        const { data: profile } = await adminClient
+                            .from('user_profiles')
+                            .select('id, role')
+                            .eq('user_id', user.id)
+                            .single();
+
+                        if (profile) {
+                            // Check if document belongs to student (path starts with userId)
+                            if (path.startsWith(`${user.id}/`) || path.includes(`/${user.id}/`)) {
+                                hasAccess = true;
+                                console.log(`[PROXY] Access granted to owner via path: ${user.id}`);
+                            } else {
+                                // Check institution applications for this profile
+                                const { data: apps } = await adminClient
+                                    .from('institution_applications')
+                                    .select('acceptance_letter_url, transfer_form_url, transfer_form_filled_url')
+                                    .eq('profile_id', profile.id);
+
+                                if (apps) {
+                                    for (const app of apps) {
+                                        if (
+                                            (app.acceptance_letter_url && app.acceptance_letter_url.includes(path)) ||
+                                            (app.transfer_form_url && app.transfer_form_url.includes(path)) ||
+                                            (app.transfer_form_filled_url && app.transfer_form_filled_url.includes(path))
+                                        ) {
+                                            hasAccess = true;
+                                            console.log(`[PROXY] Access granted to owner via application`);
+                                            break;
+                                        }
+                                    }
+                                }
                             }
                         }
+                    }
+
+                    if (!hasAccess) {
+                        console.log(`[PROXY] Access DENIED for user ${user.id} to bucket=${bucket}, path=${path}`);
                     }
                 }
             }
         }
 
         if (!hasAccess) {
-            console.warn(`[PROXY] Blocked access to ${bucket}/${path}. Token provided: ${!!viewToken}, Auth provided: ${!!authHeader}`);
+            console.warn(`[PROXY] Blocked access to ${bucket}/${path} (Project: ${project}). Token provided: ${!!viewToken}, Auth provided: ${!!authHeader}`);
             return new Response(
                 JSON.stringify({ error: "Forbidden - You do not have access to this document" }),
                 { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -123,14 +162,15 @@ Deno.serve(async (req) => {
         }
 
         // --- DOWNLOAD E STREAM ---
-        const { data, error: downloadError } = await adminClient.storage
+        console.log(`[PROXY] Downloading ${bucket}/${path} from project ${project}...`);
+        const { data, error: downloadError } = await targetClient.storage
             .from(bucket)
             .download(path);
 
         if (downloadError) {
-            console.error(`[PROXY] Download error for ${bucket}/${path}:`, downloadError);
+            console.error(`[PROXY] Download error for ${bucket}/${path} in project ${project}:`, downloadError);
             return new Response(
-                JSON.stringify({ error: "File not found" }),
+                JSON.stringify({ error: "File not found", detail: downloadError }),
                 { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
             );
         }

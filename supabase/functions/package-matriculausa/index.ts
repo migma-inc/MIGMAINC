@@ -295,7 +295,104 @@ quando os endpoints de upload estiverem disponiveis.
       })
       .eq("id", application_id);
 
-    // ── 10. Notify admin ─────────────────────────────────────────────────────
+    // ── 10. Send package to MatriculaUSA automatically ──────────────────────
+    const matriculaUsaFunctionsUrl = Deno.env.get("MATRICULAUSA_FUNCTIONS_URL");
+    const migmaWebhookSecret = Deno.env.get("MIGMA_WEBHOOK_SECRET");
+    const matriculaUsaServiceRole = Deno.env.get("MATRICULAUSA_SERVICE_ROLE");
+
+    if (matriculaUsaFunctionsUrl && migmaWebhookSecret && matriculaUsaServiceRole && downloadUrl) {
+      // Build individual file list to send alongside the ZIP
+      const packageFiles: { name: string; url: string; type: string; category: string }[] = [];
+
+      for (const form of forms) {
+        const fileUrl = form.signed_url ?? form.template_url;
+        if (!fileUrl) continue;
+        const label = FORM_ORDER[form.form_type] ?? form.form_type;
+        packageFiles.push({ name: `${label}.pdf`, url: fileUrl, type: "formulario", category: "formularios" });
+      }
+
+      const SIGNED_URL_TTL = 60 * 60 * 24 * 365 * 10; // 10 years
+
+      if (studentDocs?.length) {
+        for (const doc of studentDocs) {
+          if (!doc.file_url) continue;
+          const ext = doc.original_filename?.split(".").pop() ?? "pdf";
+          const docLabel = (doc.type ?? "documento").replace(/[^a-z0-9_]/gi, "_");
+
+          // Generate signed URL so MatriculaUSA can access private storage
+          let signedUrl = doc.file_url;
+          const storagePath = extractStoragePath(doc.file_url, "migma-student-documents");
+          if (storagePath) {
+            const { data: sd } = await supabase.storage
+              .from("migma-student-documents")
+              .createSignedUrl(storagePath, SIGNED_URL_TTL);
+            if (sd?.signedUrl) signedUrl = sd.signedUrl;
+          }
+
+          packageFiles.push({ name: `${docLabel}.${ext}`, url: signedUrl, type: "documento", category: "documentos" });
+        }
+      }
+
+      if (requestDocs?.length) {
+        for (const doc of requestDocs) {
+          if (!doc.submitted_url) continue;
+          const ext = doc.submitted_url.split(".").pop()?.split("?")[0] ?? "pdf";
+          const docLabel = (doc.document_type ?? "documento").replace(/[^a-z0-9_]/gi, "_");
+
+          // Generate signed URL so MatriculaUSA can access private storage
+          let signedUrl = doc.submitted_url;
+          const storagePath = extractStoragePath(doc.submitted_url, "migma-student-documents");
+          if (storagePath) {
+            const { data: sd } = await supabase.storage
+              .from("migma-student-documents")
+              .createSignedUrl(storagePath, SIGNED_URL_TTL);
+            if (sd?.signedUrl) signedUrl = sd.signedUrl;
+          }
+
+          packageFiles.push({ name: `${docLabel}.${ext}`, url: signedUrl, type: "documento", category: "documentos" });
+        }
+      }
+
+      const zipExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+
+      try {
+        const res = await fetch(`${matriculaUsaFunctionsUrl}/receive-migma-package`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${matriculaUsaServiceRole}`,
+            "x-migma-webhook-secret": migmaWebhookSecret,
+          },
+          body: JSON.stringify({
+            student_email: profile?.email ?? "",
+            student_name: profile?.full_name ?? "",
+            migma_application_id: application_id,
+            zip_url: downloadUrl,
+            zip_expires_at: zipExpiresAt,
+            process_type: profile?.student_process_type ?? null,
+            files: packageFiles,
+          }),
+        });
+
+        if (!res.ok) {
+          console.warn(`[package-matriculausa] MatriculaUSA notify failed: ${res.status} ${await res.text()}`);
+        } else {
+          console.log(`[package-matriculausa] Package sent to MatriculaUSA successfully`);
+          // Update package_status to 'sent'
+          await supabase
+            .from("institution_applications")
+            .update({ package_status: "sent" })
+            .eq("id", application_id);
+        }
+      } catch (notifyErr: any) {
+        // Non-fatal: log and continue
+        console.warn(`[package-matriculausa] Could not reach MatriculaUSA: ${notifyErr.message}`);
+      }
+    } else {
+      console.log("[package-matriculausa] MATRICULAUSA_FUNCTIONS_URL, MIGMA_WEBHOOK_SECRET or MATRICULAUSA_SERVICE_ROLE not set — skipping auto-send");
+    }
+
+    // ── 11. Notify admin ─────────────────────────────────────────────────────
     await supabase.functions.invoke("migma-notify", {
       body: {
         trigger: "admin_package_complete",
@@ -307,7 +404,7 @@ quando os endpoints de upload estiverem disponiveis.
       },
     });
 
-    // ── 11. Notify client ─────────────────────────────────────────────────────
+    // ── 12. Notify client ─────────────────────────────────────────────────────
     await supabase.functions.invoke("migma-notify", {
       body: {
         trigger: "package_sent_matriculausa",

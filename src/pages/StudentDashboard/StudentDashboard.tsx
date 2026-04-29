@@ -5,18 +5,22 @@ import SignaturePad from 'signature_pad';
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
 import { PdfSignatureViewer, type SignaturePlacement } from '@/components/ui/pdf-signature-viewer';
 import {
-  AlertCircle, ArrowUpRight, Award, CheckCircle2, ClipboardList, Clock, FileSignature,
-  BookOpen, Calendar, Camera, Download, Eye, FileText, Gift, Globe, GraduationCap, HelpCircle, Home, Loader2, LogOut, Mail, MapPin, Menu, MessageCircle, PenLine, Phone, Search, Target, Timer, Upload, User, Moon, Sun, X
+  Star, Briefcase, AlertCircle, ArrowUpRight, Award, CheckCircle2, ClipboardList, Clock, FileSignature,
+  BookOpen, Calendar, Camera, Download, Eye, FileText, Gift, Globe, GraduationCap, HelpCircle, Home, Loader2, LogOut, Mail, MapPin, Menu, MessageCircle, PenLine, Phone, Search, Save, Target, Timer, Undo2, Upload, User, Moon, Sun, X
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { LanguageSelector } from '@/components/LanguageSelector';
 import { cn } from '@/lib/utils';
 import { useStudentAuth } from '@/contexts/StudentAuthContext';
 import { supabase } from '@/lib/supabase';
 import { getSecureUrl } from '@/lib/storage';
+import { DocumentViewerModal } from '@/components/DocumentViewerModal';
 import { PdfModal } from '@/components/ui/pdf-modal';
 import { StudentSupportPanel } from '@/pages/StudentSupport';
 import { StudentRewardsPanel } from '@/pages/StudentRewards';
@@ -351,9 +355,9 @@ function getNextAction(profile: any, app: DashboardApplication | null, t: (key: 
   if (!['approved', 'payment_pending', 'payment_confirmed'].includes(app.status)) return { label: t(`${na}.wait_approval`), href: null };
   if (!profile.is_placement_fee_paid && app.status !== 'payment_confirmed') return { label: t(`${na}.pay_placement`), href: '/student/onboarding?step=placement_fee' };
   if (!profile.is_application_fee_paid) return { label: t(`${na}.pay_application`), href: '/student/onboarding?step=payment' };
-  if (!profile.documents_uploaded) return { label: t(`${na}.send_docs`), href: '/student/onboarding?step=documents_upload' };
-  if (!app.acceptance_letter_url) return { label: t(`${na}.track`), href: '/student/onboarding?step=my_applications' };
-  return { label: t(`${na}.view_letter`), href: '/student/onboarding?step=acceptance_letter' };
+  if (!profile.documents_uploaded) return { label: t(`${na}.send_docs`), href: '/student/dashboard/documents' };
+  if (!app.acceptance_letter_url) return { label: t(`${na}.track`), href: '/student/dashboard/documents' };
+  return { label: t(`${na}.view_letter`), href: '/student/dashboard/documents' };
 }
 
 function DeadlineCountdown() {
@@ -444,6 +448,8 @@ function OverviewTab({
   identityComplete,
   academicComplete,
   documentsComplete,
+  onRefresh,
+  openViewer,
 }: {
   progress: number;
   nextAction: { label: string; href: string | null };
@@ -455,6 +461,8 @@ function OverviewTab({
   identityComplete: boolean;
   academicComplete: boolean;
   documentsComplete: boolean;
+  onRefresh: () => Promise<void>;
+  openViewer: (url: string | null, title: string) => void;
 }) {
   const navigate = useNavigate();
   const { userProfile } = useStudentAuth();
@@ -532,6 +540,15 @@ function OverviewTab({
           onClick={() => navigate('/student/dashboard/profile')}
         />
       </div>
+
+      {userProfile?.student_process_type === 'transfer' && application && (
+        <TransferFormOverview
+          application={application}
+          onRefresh={onRefresh}
+          openViewer={openViewer}
+          compact={true}
+        />
+      )}
 
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_420px]">
         <Card className="border-[#e3d5bd] dark:border-white/10 bg-white dark:bg-[#111] text-[#1f1a14] dark:text-white">
@@ -693,11 +710,15 @@ function DocumentsTab({
   studentDocuments,
   onRefresh,
   serviceType,
+  openViewer,
+  application,
 }: {
   documents: DashboardDocument[];
   studentDocuments: DashboardStudentDocument[];
   onRefresh: () => Promise<void>;
   serviceType: string | null | undefined;
+  openViewer: (url: string | null, title: string) => void;
+  application: DashboardApplication | null;
 }) {
   const { t } = useTranslation();
 
@@ -714,7 +735,14 @@ function DocumentsTab({
   const rejected = visibleDocuments.filter(doc => doc.status === 'rejected').length +
     studentDocuments.filter(doc => doc.status === 'rejected').length;
 
-  if (total === 0) {
+  const showAcceptanceLetter = !!application && (
+    !!application.acceptance_letter_url || application.package_status === 'sent' || application.package_status === 'ready'
+  );
+  const showTransferForm = !!application && serviceType === 'transfer' && (
+    !!application.transfer_form_url || !!application.transfer_form_filled_url
+  );
+
+  if (total === 0 && !showAcceptanceLetter && !showTransferForm) {
     return (
       <div className="mx-auto max-w-5xl space-y-6">
         <div>
@@ -748,19 +776,41 @@ function DocumentsTab({
 
       <DocumentKpis total={total} submitted={submitted} approved={approved} rejected={rejected} />
 
-      <div className="grid gap-4">
-        {visibleDocuments.map(doc => (
-          <DocumentRequestCard key={doc.id} document={doc} onUploaded={onRefresh} isTransferOnly={TRANSFER_ONLY_DOC_TYPES.has(doc.document_type)} />
-        ))}
-        {studentDocuments.map(doc => (
-          <StudentDocumentCard key={doc.id} document={doc} onUploaded={onRefresh} />
-        ))}
-      </div>
+      {/* Carta de Aceite e Transfer Form no topo da lista */}
+      {(showAcceptanceLetter || showTransferForm) && (
+        <div className="space-y-4">
+          {showAcceptanceLetter && (
+            <AcceptanceLetterCard application={application!} openViewer={openViewer} />
+          )}
+          {showTransferForm && (
+            <TransferFormOverview application={application!} onRefresh={onRefresh} openViewer={openViewer} />
+          )}
+        </div>
+      )}
+
+      {total > 0 && (
+        <div className="grid gap-4">
+          {visibleDocuments.map(doc => (
+            <DocumentRequestCard key={doc.id} document={doc} onUploaded={onRefresh} isTransferOnly={TRANSFER_ONLY_DOC_TYPES.has(doc.document_type)} openViewer={openViewer} />
+          ))}
+          {studentDocuments.map(doc => (
+            <StudentDocumentCard key={doc.id} document={doc} onUploaded={onRefresh} openViewer={openViewer} />
+          ))}
+        </div>
+      )}
     </div>
   );
 }
 
-function FormsTab({ forms, application }: { forms: DashboardForm[]; application: DashboardApplication | null }) {
+function FormsTab({ 
+  forms, 
+  application,
+  openViewer,
+}: { 
+  forms: DashboardForm[]; 
+  application: DashboardApplication | null;
+  openViewer: (url: string | null, title: string) => void;
+}) {
   const { t } = useTranslation();
   const [previewForm, setPreviewForm] = useState<DashboardForm | null>(null);
   const [signingForm, setSigningForm] = useState<DashboardForm | null>(null);
@@ -831,28 +881,24 @@ function FormsTab({ forms, application }: { forms: DashboardForm[]; application:
             form={form}
             onPreview={() => {
               void markFormPdfOpened(form);
-              setPreviewForm(form);
+              openViewer(previewPdfUrl, form.form_type);
             }}
-            onOpenPdf={() => void markFormPdfOpened(form)}
+            onOpenPdf={() => {
+              void markFormPdfOpened(form);
+              openViewer(form.signed_url || form.template_url, form.form_type);
+            }}
             onSign={() => setSigningForm(form)}
           />
         ))}
       </div>
 
-      {previewForm && previewPdfUrl && (
-        <PdfModal
-          isOpen={!!previewForm}
-          onClose={() => setPreviewForm(null)}
-          pdfUrl={previewPdfUrl}
-          title={previewForm.form_type}
-        />
-      )}
 
       {signingForm && (
         <FormSignatureModal
           form={signingForm}
           onClose={() => setSigningForm(null)}
           onSigned={() => window.location.reload()}
+          openViewer={openViewer}
         />
       )}
     </div>
@@ -1041,6 +1087,353 @@ function ProfileTab({
   );
 }
 
+function SupplementalDataTab({ data, onRefresh }: { data: DashboardComplementaryData | null; onRefresh: () => Promise<void> }) {
+  const { t } = useTranslation();
+  const { userProfile } = useStudentAuth();
+  const [isEditing, setIsEditing] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [formData, setFormData] = useState<Partial<DashboardComplementaryData>>({});
+
+  // Sincronizar dados quando o modo edição é ativado
+  useEffect(() => {
+    if (isEditing && data) {
+      setFormData(data);
+    }
+  }, [isEditing, data]);
+
+  const handleSave = async () => {
+    if (!userProfile?.id) return;
+    setIsSaving(true);
+    try {
+      const { error } = await supabase
+        .from('student_complementary_data')
+        .upsert({
+          profile_id: userProfile.id,
+          ...formData,
+          updated_at: new Date().toISOString(),
+        });
+
+      if (error) throw error;
+      await onRefresh();
+      setIsEditing(false);
+    } catch (err) {
+      console.error('Error saving complementary data:', err);
+      alert('Erro ao salvar dados. Tente novamente.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  if (!data && !isEditing) {
+    return (
+      <div className="mx-auto max-w-6xl space-y-6">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <h2 className="text-2xl font-black tracking-tight">{t('student_dashboard.tabs.supplemental_data')}</h2>
+            <p className="mt-1 text-sm text-[#8a7b66] dark:text-gray-500">Informações adicionais para sua candidatura universitária.</p>
+          </div>
+        </div>
+        <Card className="border-[#e3d5bd] dark:border-white/10 bg-white dark:bg-[#111] text-[#1f1a14] dark:text-white">
+          <CardContent className="p-10">
+            <div className="flex min-h-[260px] flex-col items-center justify-center text-center">
+              <div className="mb-5 flex h-16 w-16 items-center justify-center rounded-lg border border-[#CE9F48]/20 bg-[#CE9F48]/10">
+                <FileSignature className="h-8 w-8 text-[#9a6a16] dark:text-[#CE9F48]" />
+              </div>
+              <h3 className="text-xl font-black">{t('student_dashboard.profile.missing_title')}</h3>
+              <p className="mt-3 max-w-md text-sm leading-relaxed text-[#8a7b66] dark:text-gray-500">
+                Você ainda não preencheu seus dados complementares.
+              </p>
+              <Button onClick={() => setIsEditing(true)} className="mt-6 bg-[#CE9F48] text-black hover:bg-[#b8892f]">
+                Preencher Agora
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (isEditing) {
+    return (
+      <div className="mx-auto max-w-6xl space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-2xl font-black tracking-tight">Editar Dados Complementares</h2>
+            <p className="text-sm text-[#8a7b66] dark:text-gray-500">Atualize suas informações de contato e perfil acadêmico.</p>
+          </div>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => setIsEditing(false)} disabled={isSaving}>
+              <Undo2 className="mr-2 h-4 w-4" /> Cancelar
+            </Button>
+            <Button onClick={handleSave} disabled={isSaving} className="bg-[#CE9F48] text-black hover:bg-[#b8892f]">
+              {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+              Salvar Alterações
+            </Button>
+          </div>
+        </div>
+
+        <div className="grid gap-6 md:grid-cols-2">
+          {/* Contato de Emergência */}
+          <Card className="border-[#e3d5bd] dark:border-white/10 bg-white dark:bg-[#111]">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <Phone className="h-5 w-5 text-[#CE9F48]" /> Contato de Emergência
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid gap-2">
+                <Label>Nome Completo</Label>
+                <Input 
+                  value={formData.emergency_contact_name || ''} 
+                  onChange={e => setFormData({ ...formData, emergency_contact_name: e.target.value })}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label>Parentesco</Label>
+                <Input 
+                  value={formData.emergency_contact_relationship || ''} 
+                  onChange={e => setFormData({ ...formData, emergency_contact_relationship: e.target.value })}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label>WhatsApp / Telefone</Label>
+                <Input 
+                  value={formData.emergency_contact_phone || ''} 
+                  onChange={e => setFormData({ ...formData, emergency_contact_phone: e.target.value })}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label>Endereço Completo</Label>
+                <Textarea 
+                  value={formData.emergency_contact_address || ''} 
+                  onChange={e => setFormData({ ...formData, emergency_contact_address: e.target.value })}
+                />
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Patrocinador Financeiro */}
+          <Card className="border-[#e3d5bd] dark:border-white/10 bg-white dark:bg-[#111]">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <Award className="h-5 w-5 text-[#CE9F48]" /> Patrocinador Financeiro
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid gap-2">
+                <Label>Nome do Patrocinador</Label>
+                <Input 
+                  value={formData.sponsor_name || ''} 
+                  onChange={e => setFormData({ ...formData, sponsor_name: e.target.value })}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label>Parentesco</Label>
+                <Input 
+                  value={formData.sponsor_relationship || ''} 
+                  onChange={e => setFormData({ ...formData, sponsor_relationship: e.target.value })}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label>Empregador / Empresa</Label>
+                <Input 
+                  value={formData.sponsor_employer || ''} 
+                  onChange={e => setFormData({ ...formData, sponsor_employer: e.target.value })}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label>Renda Anual (USD)</Label>
+                <Input 
+                  value={formData.sponsor_annual_income || ''} 
+                  onChange={e => setFormData({ ...formData, sponsor_annual_income: e.target.value })}
+                />
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Recomendantes */}
+          <Card className="md:col-span-2 border-[#e3d5bd] dark:border-white/10 bg-white dark:bg-[#111]">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <PenLine className="h-5 w-5 text-[#CE9F48]" /> Cartas de Recomendação
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="grid gap-6 md:grid-cols-2">
+              <div className="space-y-4 rounded-lg border border-[#e3d5bd]/50 p-4 dark:border-white/5">
+                <h4 className="font-bold text-[#CE9F48]">Recomendante 1</h4>
+                <div className="grid gap-2">
+                  <Label>Nome</Label>
+                  <Input 
+                    value={formData.recommender1_name || ''} 
+                    onChange={e => setFormData({ ...formData, recommender1_name: e.target.value })}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label>Cargo / Relacionamento</Label>
+                  <Input 
+                    value={formData.recommender1_role || ''} 
+                    onChange={e => setFormData({ ...formData, recommender1_role: e.target.value })}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label>Contato (Email/Tel)</Label>
+                  <Input 
+                    value={formData.recommender1_contact || ''} 
+                    onChange={e => setFormData({ ...formData, recommender1_contact: e.target.value })}
+                  />
+                </div>
+              </div>
+              <div className="space-y-4 rounded-lg border border-[#e3d5bd]/50 p-4 dark:border-white/5">
+                <h4 className="font-bold text-[#CE9F48]">Recomendante 2</h4>
+                <div className="grid gap-2">
+                  <Label>Nome</Label>
+                  <Input 
+                    value={formData.recommender2_name || ''} 
+                    onChange={e => setFormData({ ...formData, recommender2_name: e.target.value })}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label>Cargo / Relacionamento</Label>
+                  <Input 
+                    value={formData.recommender2_role || ''} 
+                    onChange={e => setFormData({ ...formData, recommender2_role: e.target.value })}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label>Contato (Email/Tel)</Label>
+                  <Input 
+                    value={formData.recommender2_contact || ''} 
+                    onChange={e => setFormData({ ...formData, recommender2_contact: e.target.value })}
+                  />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+
+  const emergencyRows = [
+    { icon: User, label: "Nome", value: data?.emergency_contact_name },
+    { icon: Phone, label: "Telefone", value: data?.emergency_contact_phone },
+    { icon: Star, label: "Parentesco", value: data?.emergency_contact_relationship },
+    { icon: MapPin, label: "Endereço", value: data?.emergency_contact_address },
+  ];
+
+  const sponsorRows = data?.has_sponsor ? [
+    { icon: User, label: "Nome do Patrocinador", value: data.sponsor_name },
+    { icon: Star, label: "Parentesco", value: data.sponsor_relationship },
+    { icon: Phone, label: "Telefone", value: data.sponsor_phone },
+    { icon: Briefcase, label: "Empregador", value: data.sponsor_employer },
+    { icon: Award, label: "Renda Anual", value: data.sponsor_annual_income },
+    { icon: Home, label: "Valor Comprometido", value: data.sponsor_committed_amount_usd ? `$${data.sponsor_committed_amount_usd}` : null },
+  ] : [];
+
+  const recommenders = [
+    { name: data?.recommender1_name, role: data?.recommender1_role, contact: data?.recommender1_contact },
+    { name: data?.recommender2_name, role: data?.recommender2_role, contact: data?.recommender2_contact },
+  ].filter(r => !!r.name);
+
+  return (
+    <div className="mx-auto max-w-6xl space-y-6">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h2 className="text-2xl font-black tracking-tight">{t('student_dashboard.tabs.supplemental_data')}</h2>
+          <p className="mt-1 text-sm text-[#8a7b66] dark:text-gray-500">Informações adicionais para sua candidatura universitária.</p>
+        </div>
+        <Button onClick={() => setIsEditing(true)} variant="outline" className="border-[#CE9F48] text-[#9a6a16] hover:bg-[#CE9F48]/10 dark:text-[#CE9F48]">
+          <PenLine className="mr-2 h-4 w-4" /> Editar Dados
+        </Button>
+      </div>
+
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+        {/* Card Contato Emergência */}
+        <Card className="border-[#e3d5bd] dark:border-white/10 bg-white dark:bg-[#111]">
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-lg font-bold text-[#1f1a14] dark:text-white">
+              <div className="rounded-md bg-[#CE9F48]/10 p-2">
+                <Phone className="h-5 w-5 text-[#CE9F48]" />
+              </div>
+              Contato de Emergência
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {emergencyRows.map((row, idx) => (
+              <div key={idx} className="flex items-start gap-3">
+                <row.icon className="mt-0.5 h-4 w-4 text-[#8a7b66]" />
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-[#8a7b66]">{row.label}</p>
+                  <p className="text-sm font-medium">{row.value || '—'}</p>
+                </div>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+
+        {/* Card Patrocinador Financeiro */}
+        <Card className="border-[#e3d5bd] dark:border-white/10 bg-white dark:bg-[#111]">
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-lg font-bold text-[#1f1a14] dark:text-white">
+              <div className="rounded-md bg-[#CE9F48]/10 p-2">
+                <Award className="h-5 w-5 text-[#CE9F48]" />
+              </div>
+              Patrocinador Financeiro
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {data?.has_sponsor ? (
+              sponsorRows.map((row, idx) => (
+                <div key={idx} className="flex items-start gap-3">
+                  <row.icon className="mt-0.5 h-4 w-4 text-[#8a7b66]" />
+                  <div>
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-[#8a7b66]">{row.label}</p>
+                    <p className="text-sm font-medium">{row.value || '—'}</p>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="flex flex-col items-center justify-center py-6 text-center">
+                <p className="text-sm text-[#8a7b66]">O próprio estudante é o patrocinador.</p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Card Experiência e Recomendantes */}
+        <Card className="border-[#e3d5bd] dark:border-white/10 bg-white dark:bg-[#111]">
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-lg font-bold text-[#1f1a14] dark:text-white">
+              <div className="rounded-md bg-[#CE9F48]/10 p-2">
+                <PenLine className="h-5 w-5 text-[#CE9F48]" />
+              </div>
+              Recomendantes
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            {recommenders.length > 0 ? (
+              recommenders.map((r, idx) => (
+                <div key={idx} className="space-y-2 rounded-lg border border-[#e3d5bd]/50 p-3 dark:border-white/5">
+                  <div className="flex items-center gap-2">
+                    <Star className="h-4 w-4 text-[#CE9F48]" />
+                    <p className="text-sm font-bold">{r.name}</p>
+                  </div>
+                  <div className="ml-6 space-y-1">
+                    <p className="text-xs text-[#8a7b66]">{r.role}</p>
+                    <p className="text-xs font-medium text-[#1f1a14] dark:text-gray-300">{r.contact}</p>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <p className="py-4 text-center text-sm text-[#8a7b66]">Nenhum recomendante listado.</p>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  );
+}
+
 function ActionCard({ icon: Icon, title, subtitle, metric, onClick }: { icon: any; title: string; subtitle: string; metric: string; onClick: () => void }) {
   return (
     <button onClick={onClick} className="group rounded-lg border border-[#e3d5bd] dark:border-white/10 bg-white dark:bg-[#111] p-4 text-left text-[#1f1a14] dark:text-white transition-colors hover:border-[#CE9F48]/30 hover:bg-[#f8f1e4] dark:hover:bg-[#151515]">
@@ -1197,6 +1590,371 @@ function documentLabel(type: string, t: (key: string, options?: any) => string) 
   });
 }
 
+function TransferFormOverview({
+  application,
+  onRefresh,
+  openViewer,
+  compact = false,
+}: {
+  application: DashboardApplication;
+  onRefresh: () => Promise<void>;
+  openViewer: (url: string | null, title: string) => void;
+  compact?: boolean;
+}) {
+  const { user, userProfile } = useStudentAuth();
+  const navigate = useNavigate();
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [templateUrl, setTemplateUrl] = useState<string | null>(null);
+  const [filledUrl, setFilledUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    const resolveUrls = async () => {
+      if (application.transfer_form_url) {
+        const url = await getSecureUrl(application.transfer_form_url);
+        setTemplateUrl(url);
+      } else {
+        setTemplateUrl(null);
+      }
+
+      if (application.transfer_form_filled_url) {
+        const url = await getSecureUrl(application.transfer_form_filled_url);
+        setFilledUrl(url);
+      } else {
+        setFilledUrl(null);
+      }
+    };
+    resolveUrls();
+  }, [application.transfer_form_url, application.transfer_form_filled_url]);
+
+  const hasTemplate = !!application.transfer_form_url;
+  const hasFilled = !!application.transfer_form_filled_url;
+  const status = application.transfer_form_student_status || 'pending';
+  const adminStatus = application.transfer_form_admin_status || null;
+  const rejectionReason = application.transfer_form_rejection_reason || null;
+  const isDelivered = !!application.transfer_form_delivered_at;
+  const isConcluded = !!application.transfer_concluded_at;
+  const [confirmingDelivery, setConfirmingDelivery] = useState(false);
+
+  const handleConfirmDelivery = async () => {
+    if (!user?.id) return;
+    setConfirmingDelivery(true);
+    try {
+      await supabase
+        .from('institution_applications')
+        .update({ transfer_form_delivered_at: new Date().toISOString() })
+        .eq('id', application.id);
+
+      // Notify admin
+      try {
+        await supabase.functions.invoke('migma-notify', {
+          body: {
+            trigger: 'transfer_form_delivered',
+            data: {
+              client_name: userProfile?.full_name || userProfile?.email || user?.email,
+              client_id: userProfile?.id,
+            },
+          },
+        });
+      } catch (notifyErr) {
+        console.warn('Failed to notify admin (non-fatal):', notifyErr);
+      }
+
+      await onRefresh();
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setConfirmingDelivery(false);
+    }
+  };
+
+  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !user?.id) return;
+    
+    setUploading(true);
+    setError(null);
+
+    try {
+      const ext = file.name.split('.').pop();
+      const path = `${user.id}/transfer-forms/${application.id}_filled_${Date.now()}.${ext}`;
+      
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from('migma-student-documents')
+        .upload(path, file);
+
+      if (uploadError) throw uploadError;
+
+      const TEN_YEARS = 60 * 60 * 24 * 365 * 10;
+      const { data: signedData, error: signedError } = await supabase.storage
+        .from('migma-student-documents')
+        .createSignedUrl(uploadData.path, TEN_YEARS);
+      if (signedError) throw signedError;
+      const publicUrl = signedData.signedUrl;
+
+      const { error: updateError } = await supabase
+        .from('institution_applications')
+        .update({
+          transfer_form_filled_url: publicUrl,
+          transfer_form_student_status: 'received',
+          transfer_form_admin_status: 'pending',
+          transfer_form_rejection_reason: null,
+        })
+        .eq('id', application.id);
+
+      if (updateError) throw updateError;
+
+      // Notificar MatriculaUSA
+      try {
+        await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/notify-matriculausa-transfer-form`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+          },
+          body: JSON.stringify({
+            student_email: userProfile?.email || user?.email,
+            student_name: userProfile?.full_name,
+            filled_form_url: publicUrl,
+            migma_application_id: application.id,
+          })
+        });
+      } catch (notifyErr) {
+        console.error('Failed to notify MatriculaUSA:', notifyErr);
+      }
+
+      await onRefresh();
+    } catch (err: any) {
+      setError(err.message || 'Erro ao fazer upload');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  if (!hasTemplate && status === 'pending') return null;
+
+  return (
+    <Card className="border-[#CE9F48]/30 bg-[#CE9F48]/5 dark:border-[#CE9F48]/20 dark:bg-[#CE9F48]/5 overflow-hidden mb-5">
+      <CardContent className="p-6">
+        <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex gap-4">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-[#CE9F48]/20 text-[#9a6a16] dark:text-[#CE9F48]">
+              <FileSignature className="h-6 w-6" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <h3 className="text-lg font-black text-[#1f1a14] dark:text-white">
+                  Formulário de Transferência
+                </h3>
+                {adminStatus === 'approved' ? (
+                  <Badge className="bg-emerald-100 text-emerald-800 border-emerald-200">Aprovado</Badge>
+                ) : adminStatus === 'rejected' ? (
+                  <Badge className="bg-red-100 text-red-800 border-red-200">Reprovado</Badge>
+                ) : (
+                  <Badge className={badgeClass(status)}>
+                    {status === 'received' ? 'Enviado' : status === 'submitted' ? 'Processado' : 'Pendente'}
+                  </Badge>
+                )}
+              </div>
+              <p className="mt-1 text-sm text-[#8a7b66] dark:text-gray-400 max-w-md">
+                {adminStatus === 'approved'
+                  ? 'Seu formulário foi aprovado. O processo de transferência foi aceito!'
+                  : adminStatus === 'rejected'
+                  ? 'Seu formulário foi reprovado. Por favor, corrija e reenvie.'
+                  : status === 'pending'
+                  ? 'Visualize o modelo abaixo, assine na sua universidade atual e envie o arquivo preenchido.'
+                  : 'Seu formulário foi enviado e está em análise pela nossa equipe.'}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap gap-3">
+            {hasTemplate && (
+              <Button
+                variant="outline"
+                disabled={!templateUrl}
+                onClick={() => openViewer(templateUrl, 'Modelo Transfer Form')}
+                className="border-[#CE9F48]/40 text-[#9a6a16] dark:text-[#CE9F48] hover:bg-[#CE9F48]/10"
+              >
+                <Download className="mr-2 h-4 w-4" />
+                Visualizar Modelo
+              </Button>
+            )}
+
+            {compact ? (
+              <Button
+                onClick={() => navigate('/student/dashboard/documents')}
+                className="bg-[#CE9F48] text-black hover:bg-[#b8892f]"
+              >
+                <Upload className="mr-2 h-4 w-4" />
+                {hasFilled ? 'Gerenciar Formulário' : 'Enviar Preenchido'}
+              </Button>
+            ) : (
+              <>
+                {(status !== 'submitted' || adminStatus === 'rejected') && adminStatus !== 'approved' && (
+                  <>
+                    <input
+                      type="file"
+                      className="hidden"
+                      ref={fileInputRef}
+                      onChange={handleUpload}
+                      accept=".pdf,.jpg,.jpeg,.png"
+                    />
+                    <Button
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={uploading}
+                      className="bg-[#CE9F48] text-black hover:bg-[#b8892f]"
+                    >
+                      {uploading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}
+                      {hasFilled ? 'Reenviar Preenchido' : 'Enviar Preenchido'}
+                    </Button>
+                  </>
+                )}
+
+                {hasFilled && (
+                  <Button
+                    variant="ghost"
+                    disabled={!filledUrl}
+                    onClick={() => openViewer(filledUrl, 'Formulário Enviado')}
+                    className="text-[#8a7b66] dark:text-gray-400"
+                  >
+                    <Eye className="mr-2 h-4 w-4" />
+                    Ver Enviado
+                  </Button>
+                )}
+              </>
+            )}
+          </div>
+        </div>
+        {error && <p className="mt-4 text-sm text-red-500 font-medium">{error}</p>}
+        {adminStatus === 'rejected' && rejectionReason && (
+          <div className="mt-4 rounded-xl border border-red-200 bg-red-50 p-4 dark:border-red-800 dark:bg-red-900/20">
+            <p className="text-sm font-semibold text-red-700 dark:text-red-400 mb-1">Motivo da reprovação:</p>
+            <p className="text-sm text-red-600 dark:text-red-300">{rejectionReason}</p>
+          </div>
+        )}
+
+        {/* TRANSFER CONCLUÍDO banner */}
+        {isConcluded && (
+          <div className="mt-4 rounded-xl border border-emerald-400/40 bg-emerald-500/10 p-5 dark:bg-emerald-900/20">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-emerald-500/20">
+                <CheckCircle2 className="h-5 w-5 text-emerald-500" />
+              </div>
+              <div>
+                <p className="font-black text-emerald-700 dark:text-emerald-400 text-base">TRANSFER CONCLUÍDO</p>
+                <p className="text-sm text-emerald-600 dark:text-emerald-300 mt-0.5">
+                  Transferência concluída! Aguarde contato da universidade sobre o início das aulas.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Confirmação de entrega — só mostra quando aprovado e não concluído */}
+        {!compact && adminStatus === 'approved' && !isConcluded && (
+          <div className="mt-4 rounded-xl border border-[#CE9F48]/30 bg-[#CE9F48]/5 p-4">
+            <p className="text-sm font-semibold text-[#9a6a16] dark:text-[#CE9F48] mb-3">
+              📋 Próximo passo: entregue o Transfer Form à sua escola atual
+            </p>
+            <p className="text-xs text-[#8a7b66] dark:text-gray-400 mb-4">
+              Este formulário deve ser entregue ao DSO (Designated School Official) da sua escola atual para solicitar a liberação do seu SEVIS. Leve pessoalmente ou envie por email conforme orientação da escola.
+            </p>
+            {isDelivered ? (
+              <div className="flex items-center gap-2 text-sm font-semibold text-emerald-600 dark:text-emerald-400">
+                <CheckCircle2 className="h-4 w-4" />
+                Já entreguei o Transfer Form para minha escola atual ✓
+              </div>
+            ) : (
+              <Button
+                onClick={handleConfirmDelivery}
+                disabled={confirmingDelivery}
+                className="bg-[#CE9F48] text-black hover:bg-[#b8892f] text-sm"
+              >
+                {confirmingDelivery ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}
+                Já entreguei o Transfer Form para minha escola atual
+              </Button>
+            )}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function AcceptanceLetterCard({
+  application,
+  openViewer,
+}: {
+  application: DashboardApplication;
+  openViewer: (url: string | null, title: string) => void;
+}) {
+  const [letterUrl, setLetterUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (application.acceptance_letter_url) {
+      getSecureUrl(application.acceptance_letter_url).then(setLetterUrl);
+    } else {
+      setLetterUrl(null);
+    }
+  }, [application.acceptance_letter_url]);
+
+  const hasLetter = !!application.acceptance_letter_url;
+
+  return (
+    <Card className="border-emerald-500/30 bg-emerald-500/5 dark:border-emerald-500/20 dark:bg-emerald-500/5 overflow-hidden">
+      <CardContent className="p-6">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex gap-4">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-emerald-500/20 text-emerald-700 dark:text-emerald-400">
+              <FileText className="h-6 w-6" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="text-lg font-black text-[#1f1a14] dark:text-white">Carta de Aceite</h3>
+                <Badge className={hasLetter ? 'bg-emerald-100 text-emerald-800 border-emerald-200' : 'bg-amber-100 text-amber-800 border-amber-200'}>
+                  {hasLetter ? 'Disponível' : 'Aguardando'}
+                </Badge>
+              </div>
+              <p className="mt-1 text-sm text-[#8a7b66] dark:text-gray-400 max-w-md">
+                {hasLetter
+                  ? 'Sua carta de aceite foi emitida pela universidade. Clique para visualizar ou baixar.'
+                  : 'Seu pacote foi enviado ao MatriculaUSA. A carta de aceite será disponibilizada aqui quando emitida.'}
+              </p>
+            </div>
+          </div>
+
+          {hasLetter && (
+            <div className="flex flex-wrap gap-3">
+              <Button
+                variant="outline"
+                disabled={!letterUrl}
+                onClick={() => openViewer(letterUrl, 'Carta de Aceite')}
+                className="border-emerald-500/40 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/10"
+              >
+                <Eye className="mr-2 h-4 w-4" />
+                Visualizar
+              </Button>
+              {letterUrl && (
+                <a
+                  href={letterUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 rounded-md border border-emerald-500/40 px-4 py-2 text-sm font-medium text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/10 transition-colors"
+                >
+                  <Download className="h-4 w-4" />
+                  Baixar
+                </a>
+              )}
+            </div>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 function DocumentKpis({ total, submitted, approved, rejected }: { total: number; submitted: number; approved: number; rejected: number }) {
   const { t } = useTranslation();
   return (
@@ -1209,7 +1967,17 @@ function DocumentKpis({ total, submitted, approved, rejected }: { total: number;
   );
 }
 
-function DocumentRequestCard({ document, onUploaded, isTransferOnly }: { document: DashboardDocument; onUploaded: () => Promise<void>; isTransferOnly?: boolean }) {
+function DocumentRequestCard({ 
+  document, 
+  onUploaded, 
+  isTransferOnly,
+  openViewer,
+}: { 
+  document: DashboardDocument; 
+  onUploaded: () => Promise<void>; 
+  isTransferOnly?: boolean;
+  openViewer: (url: string | null, title: string) => void;
+}) {
   const { t } = useTranslation();
   const { user, userProfile } = useStudentAuth();
   const [uploading, setUploading] = useState(false);
@@ -1321,6 +2089,20 @@ function DocumentRequestCard({ document, onUploaded, isTransferOnly }: { documen
                     {submitted ? 'Reenviar' : 'Enviar'}
                   </span>
                 </Button>
+                {submitted && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={async () => {
+                      const url = await getSecureUrl(document.submitted_url);
+                      openViewer(url, documentLabel(document.document_type, t));
+                    }}
+                    className="text-[#8a7b66] dark:text-gray-400"
+                  >
+                    <Eye className="h-3.5 w-3.5" />
+                    <span className="ml-1.5">Ver Enviado</span>
+                  </Button>
+                )}
               </>
             )}
           </div>
@@ -1330,7 +2112,15 @@ function DocumentRequestCard({ document, onUploaded, isTransferOnly }: { documen
   );
 }
 
-function StudentDocumentCard({ document, onUploaded }: { document: DashboardStudentDocument; onUploaded: () => Promise<void> }) {
+function StudentDocumentCard({ 
+  document, 
+  onUploaded,
+  openViewer,
+}: { 
+  document: DashboardStudentDocument; 
+  onUploaded: () => Promise<void>; 
+  openViewer: (url: string | null, title: string) => void;
+}) {
   const { t } = useTranslation();
   const { user } = useStudentAuth();
   const [uploading, setUploading] = useState(false);
@@ -1436,6 +2226,20 @@ function StudentDocumentCard({ document, onUploaded }: { document: DashboardStud
                     {submitted ? 'Reenviar' : 'Enviar'}
                   </span>
                 </Button>
+                {submitted && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={async () => {
+                      const url = await getSecureUrl(document.file_url);
+                      openViewer(url, documentLabel(document.type, t));
+                    }}
+                    className="text-[#8a7b66] dark:text-gray-400"
+                  >
+                    <Eye className="h-3.5 w-3.5" />
+                    <span className="ml-1.5">Ver Enviado</span>
+                  </Button>
+                )}
               </>
             )}
           </div>
@@ -1467,7 +2271,17 @@ function FormsKpis({ generated, signed, pending }: { generated: number; signed: 
   );
 }
 
-function FormCard({ form, onPreview, onOpenPdf, onSign }: { form: DashboardForm; onPreview: () => void; onOpenPdf: () => void; onSign: () => void }) {
+function FormCard({ 
+  form, 
+  onPreview, 
+  onOpenPdf, 
+  onSign 
+}: { 
+  form: DashboardForm; 
+  onPreview: () => void; 
+  onOpenPdf: () => void; 
+  onSign: () => void;
+}) {
   const { t } = useTranslation();
   const isSigned = !!form.signed_at;
   const hasSignedPdf = isPdfUrl(form.signed_url);
@@ -1504,11 +2318,13 @@ function FormCard({ form, onPreview, onOpenPdf, onSign }: { form: DashboardForm;
               </Button>
             )}
             {(form.signed_url || form.template_url) && (
-              <Button variant="outline" asChild className="border-[#e3d5bd] dark:border-white/10 bg-[#f3ead9] dark:bg-white/5 text-[#1f1a14] dark:text-white hover:bg-[#eadbbf] dark:hover:bg-white/10">
-                <a href={(form.signed_url || form.template_url)!} target="_blank" rel="noopener noreferrer" onClick={onOpenPdf}>
-                  <Download className="h-4 w-4" />
-                  {t('student_dashboard.forms.btn_open')}
-                </a>
+              <Button 
+                variant="outline" 
+                onClick={onOpenPdf} 
+                className="border-[#e3d5bd] dark:border-white/10 bg-[#f3ead9] dark:bg-white/5 text-[#1f1a14] dark:text-white hover:bg-[#eadbbf] dark:hover:bg-white/10"
+              >
+                <Download className="h-4 w-4" />
+                {t('student_dashboard.forms.btn_open')}
               </Button>
             )}
             <Button onClick={onSign} disabled={!canSign} className="bg-[#CE9F48] text-black hover:bg-[#b8892f]">
@@ -1522,7 +2338,17 @@ function FormCard({ form, onPreview, onOpenPdf, onSign }: { form: DashboardForm;
   );
 }
 
-function FormSignatureModal({ form, onClose, onSigned }: { form: DashboardForm; onClose: () => void; onSigned: () => void }) {
+function FormSignatureModal({ 
+  form, 
+  onClose, 
+  onSigned,
+  openViewer,
+}: { 
+  form: DashboardForm; 
+  onClose: () => void; 
+  onSigned: () => void;
+  openViewer: (url: string | null, title: string) => void;
+}) {
   const { t } = useTranslation();
   const { user, userProfile } = useStudentAuth();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -1938,30 +2764,30 @@ function FormSignatureModal({ form, onClose, onSigned }: { form: DashboardForm; 
 
         <div className="space-y-4">
           {form.template_url && (
-            <Button variant="outline" asChild className="border-[#e3d5bd] dark:border-white/10 bg-[#f3ead9] dark:bg-white/5 text-[#1f1a14] dark:text-white hover:bg-[#eadbbf] dark:hover:bg-white/10">
-              <a
-                href={form.template_url}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={() => {
-                  const now = new Date().toISOString();
-                  const metadata: Record<string, unknown> = form.signature_metadata_json ?? {};
-                  const currentOpenCount = typeof metadata.pdf_open_count === 'number' ? metadata.pdf_open_count : 0;
-                  const newMetadata = {
-                    ...metadata,
-                    pdf_opened_at: typeof metadata.pdf_opened_at === 'string' ? metadata.pdf_opened_at : now,
-                    last_pdf_opened_at: now,
-                    pdf_open_count: currentOpenCount + 1,
-                  };
-                  void supabase
-                    .from('institution_forms')
-                    .update({ signature_metadata_json: newMetadata })
-                    .eq('id', form.id);
-                }}
-              >
-                <Download className="h-4 w-4" />
-                {t('student_dashboard.forms.modal_download_orig')}
-              </a>
+            <Button 
+              variant="outline" 
+              onClick={async () => {
+                const now = new Date().toISOString();
+                const metadata: Record<string, unknown> = form.signature_metadata_json ?? {};
+                const currentOpenCount = typeof metadata.pdf_open_count === 'number' ? metadata.pdf_open_count : 0;
+                const newMetadata = {
+                  ...metadata,
+                  pdf_opened_at: typeof metadata.pdf_opened_at === 'string' ? metadata.pdf_opened_at : now,
+                  last_pdf_opened_at: now,
+                  pdf_open_count: currentOpenCount + 1,
+                };
+                void supabase
+                  .from('institution_forms')
+                  .update({ signature_metadata_json: newMetadata })
+                  .eq('id', form.id);
+                
+                const url = await getSecureUrl(form.template_url);
+                openViewer(url, form.form_type);
+              }}
+              className="border-[#e3d5bd] dark:border-white/10 bg-[#f3ead9] dark:bg-white/5 text-[#1f1a14] dark:text-white hover:bg-[#eadbbf] dark:hover:bg-white/10"
+            >
+              <Download className="h-4 w-4" />
+              {t('student_dashboard.forms.modal_download_orig')}
             </Button>
           )}
 
@@ -2135,6 +2961,17 @@ const StudentDashboard = () => {
     refresh,
   } = useStudentDashboard();
 
+  const [viewerUrl, setViewerUrl] = useState<string | null>(null);
+  const [viewerTitle, setViewerTitle] = useState<string>('');
+  const [isViewerOpen, setIsViewerOpen] = useState(false);
+
+  const openViewer = (url: string | null, title: string) => {
+    if (!url) return;
+    setViewerUrl(url);
+    setViewerTitle(title);
+    setIsViewerOpen(true);
+  };
+
   useEffect(() => {
     if (!authLoading && !user) {
       navigate('/student/login', { replace: true });
@@ -2193,6 +3030,8 @@ const StudentDashboard = () => {
             identityComplete={!!data.identity?.document_number}
             academicComplete={!!data.surveyResponse?.academic_formation}
             documentsComplete={data.documents.length > 0 && data.documents.every(d => d.status === 'approved')}
+            onRefresh={refresh}
+            openViewer={openViewer}
           />
         );
       case 'applications':
@@ -2210,6 +3049,8 @@ const StudentDashboard = () => {
             studentDocuments={data.studentDocuments}
             onRefresh={refresh}
             serviceType={userProfile?.service_type ?? userProfile?.student_process_type}
+            openViewer={openViewer}
+            application={activeApplication ?? null}
           />
         );
       case 'forms':
@@ -2217,6 +3058,7 @@ const StudentDashboard = () => {
           <FormsTab
             forms={data.forms}
             application={activeApplication}
+            openViewer={openViewer}
           />
         );
       case 'rewards':
@@ -2231,6 +3073,8 @@ const StudentDashboard = () => {
             surveyResponse={data.surveyResponse}
           />
         );
+      case 'supplemental-data':
+        return <SupplementalDataTab data={data.complementaryData} onRefresh={refresh} />;
       default:
         return null;
     }
@@ -2238,6 +3082,12 @@ const StudentDashboard = () => {
 
   return (
     <div className="min-h-screen bg-[#f7f4ee] dark:bg-[#0a0a0a] text-[#1f1a14] dark:text-white">
+      <DocumentViewerModal 
+        isOpen={isViewerOpen}
+        onClose={() => setIsViewerOpen(false)}
+        url={viewerUrl}
+        title={viewerTitle}
+      />
       {mobileSidebarOpen && (
         <button
           type="button"

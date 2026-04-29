@@ -858,6 +858,12 @@ export interface CrmInstitutionApplication {
   package_storage_url: string | null;
   package_sent_at: string | null;
   acceptance_letter_url: string | null;
+  transfer_form_url: string | null;
+  transfer_form_filled_url: string | null;
+  transfer_form_student_status: string | null;
+  transfer_form_admin_status: string | null;
+  transfer_form_delivered_at: string | null;
+  transfer_concluded_at: string | null;
   placement_fee_installments: number | null;
   placement_fee_2nd_installment_paid_at: string | null;
   created_at: string;
@@ -1130,7 +1136,7 @@ export async function loadDetailPage(profileId: string): Promise<{
     // Application V11 mais recente
     supabase
       .from('institution_applications')
-      .select('id, profile_id, institution_id, scholarship_level_id, status, forms_status, package_status, package_storage_url, package_sent_at, acceptance_letter_url, placement_fee_installments, placement_fee_2nd_installment_paid_at, created_at, institutions(name)')
+      .select('id, profile_id, institution_id, scholarship_level_id, status, forms_status, package_status, package_storage_url, package_sent_at, acceptance_letter_url, transfer_form_url, transfer_form_filled_url, transfer_form_student_status, transfer_form_admin_status, transfer_form_delivered_at, transfer_concluded_at, placement_fee_installments, placement_fee_2nd_installment_paid_at, created_at, institutions(name)')
       .eq('profile_id', profileId)
       .in('status', ['payment_confirmed', 'approved', 'pending_admin_approval'])
       .order('created_at', { ascending: false })

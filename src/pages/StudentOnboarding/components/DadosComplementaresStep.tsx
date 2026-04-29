@@ -121,8 +121,8 @@ const Field: React.FC<{
   </div>
 );
 
-const inputCls = "w-full bg-white/5 border border-white/10 text-white rounded-xl px-4 py-3 text-sm placeholder-gray-600 focus:outline-none focus:border-gold-medium/50 transition-colors";
-const selectTriggerCls = "w-full bg-white/5 border border-white/10 text-white rounded-xl px-4 h-[46px] text-sm placeholder-gray-600 focus:outline-none focus:ring-1 focus:ring-gold-medium/50 transition-all flex items-center justify-between";
+const inputCls = "w-full bg-white/5 border border-white/10 text-white rounded-xl px-4 py-3 text-sm placeholder-gray-600 focus:outline-none focus:border-gold-medium focus:ring-1 focus:ring-gold-medium/20 transition-all";
+const selectTriggerCls = "w-full bg-white/5 border border-white/10 text-white rounded-xl px-4 h-[46px] text-sm placeholder-gray-600 focus:outline-none focus:border-gold-medium focus:ring-1 focus:ring-gold-medium/20 transition-all flex items-center justify-between";
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 

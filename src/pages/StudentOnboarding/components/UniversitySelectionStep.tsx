@@ -6,7 +6,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   Search, MapPin, Clock,
-  ChevronRight, Loader2, AlertCircle, X, CheckCircle2, AlertTriangle,
+  ChevronRight, Loader2, AlertCircle, X, CheckCircle, CheckCircle2, AlertTriangle,
   DollarSign, Info, Shield
 } from 'lucide-react';
 import { useStudentAuth } from '../../../contexts/StudentAuthContext';
@@ -211,7 +211,36 @@ export const UniversitySelectionStep: React.FC<StepProps> = ({ onNext }) => {
   }
 
   const selectedInst = modalInstId ? institutions.find(i => i.id === modalInstId) : null;
-  const isPendingApproval = existingApps.length > 0 && existingApps.every(a => a.status === 'pending_admin_approval');
+  const isApproved = existingApps.some(a => ['approved', 'payment_pending', 'payment_confirmed', 'accepted'].includes(a.status));
+  const isPendingApproval = !isApproved && existingApps.length > 0 && existingApps.every(a => a.status === 'pending_admin_approval');
+
+  // ── Approved state fallback ──
+  if (isApproved) {
+    return (
+      <div className="max-w-lg mx-auto px-4 py-12 flex flex-col items-center text-center space-y-8">
+        <div className="w-20 h-20 bg-emerald-500/10 border border-emerald-500/20 rounded-3xl flex items-center justify-center relative">
+          <div className="absolute inset-0 bg-emerald-500/10 blur-xl animate-pulse rounded-full" />
+          <CheckCircle className="w-10 h-10 text-emerald-500 relative z-10" />
+        </div>
+
+        <div className="space-y-2">
+          <h3 className="text-3xl font-black text-white uppercase tracking-tight leading-tight">
+            Seleção <span className="text-gold-medium">Aprovada</span>
+          </h3>
+          <p className="text-gray-400 font-medium leading-relaxed">
+            Sua bolsa de estudos foi aprovada pela nossa equipe! Prossiga agora para garantir sua vaga.
+          </p>
+        </div>
+
+        <button
+          onClick={onNext}
+          className="w-full bg-gold-medium hover:bg-gold-dark text-black py-4 rounded-2xl font-black uppercase tracking-widest transition-all shadow-lg shadow-gold-medium/20"
+        >
+          Continuar para Pagamento
+        </button>
+      </div>
+    );
+  }
 
   // ── Awaiting Approval inline view (Spec V11) ──
   if (isPendingApproval) {
@@ -464,13 +493,13 @@ export const UniversitySelectionStep: React.FC<StepProps> = ({ onNext }) => {
               placeholder="Palavra-chave: nome, cidade, curso..."
               value={searchTerm}
               onChange={e => setSearchTerm(e.target.value)}
-              className="w-full pl-11 pr-4 py-3.5 bg-white/5 border border-white/10 rounded-2xl text-white placeholder-gray-600 focus:outline-none focus:border-gold-medium/40 transition-all text-sm"
+              className="w-full pl-11 pr-4 py-3.5 bg-white/5 border border-white/10 rounded-2xl text-white placeholder-gray-600 focus:outline-none focus:border-gold-medium focus:ring-1 focus:ring-gold-medium/20 transition-all text-sm"
             />
           </div>
           <select
             value={universityFilter}
             onChange={e => setUniversityFilter(e.target.value)}
-            className="lg:min-w-[220px] px-4 py-3.5 bg-white/5 border border-white/10 rounded-2xl text-white appearance-none focus:outline-none focus:border-gold-medium/40 hover:bg-white/10 transition-all text-sm"
+            className="migma-select lg:min-w-[220px]"
           >
             <option value="">Todas as Universidades</option>
             {institutions.map(i => (
@@ -484,7 +513,7 @@ export const UniversitySelectionStep: React.FC<StepProps> = ({ onNext }) => {
           <select
             value={levelFilter}
             onChange={e => setLevelFilter(e.target.value)}
-            className="px-4 py-3 bg-white/5 border border-white/10 rounded-2xl text-white appearance-none focus:outline-none focus:border-gold-medium/40 text-xs font-bold"
+            className="migma-select !text-xs !font-bold"
           >
             <option value="">Nível de Estudo</option>
             <option value="Graduação">Graduação</option>
@@ -495,7 +524,7 @@ export const UniversitySelectionStep: React.FC<StepProps> = ({ onNext }) => {
           <select
             value={areaFilter}
             onChange={e => setAreaFilter(e.target.value)}
-            className="px-4 py-3 bg-white/5 border border-white/10 rounded-2xl text-white appearance-none focus:outline-none focus:border-gold-medium/40 text-xs font-bold"
+            className="migma-select !text-xs !font-bold"
           >
             <option value="">Área de Estudo</option>
             {uniqueAreas.map(area => (
@@ -509,7 +538,7 @@ export const UniversitySelectionStep: React.FC<StepProps> = ({ onNext }) => {
               setModalityFilter(e.target.value);
               if (e.target.value !== 'Híbrido') setFrequencyFilter('');
             }}
-            className="px-4 py-3 bg-white/5 border border-white/10 rounded-2xl text-white appearance-none focus:outline-none focus:border-gold-medium/40 text-xs font-bold"
+            className="migma-select !text-xs !font-bold"
           >
             <option value="">Modalidade</option>
             <option value="Híbrido">Híbrido</option>
@@ -521,7 +550,7 @@ export const UniversitySelectionStep: React.FC<StepProps> = ({ onNext }) => {
             <select
               value={frequencyFilter}
               onChange={e => setFrequencyFilter(e.target.value)}
-              className="px-4 py-3 bg-white/5 border border-gold-medium/20 rounded-2xl text-white appearance-none focus:outline-none focus:border-gold-medium/40 text-xs font-bold"
+              className="migma-select !text-xs !font-bold border-gold-medium/20"
             >
               <option value="">Frequência</option>
               <option value="mensal">Mensal</option>
@@ -532,7 +561,7 @@ export const UniversitySelectionStep: React.FC<StepProps> = ({ onNext }) => {
           <select
             value={workAuthFilter}
             onChange={e => setWorkAuthFilter(e.target.value)}
-            className="px-4 py-3 bg-white/5 border border-white/10 rounded-2xl text-white appearance-none focus:outline-none focus:border-gold-medium/40 text-xs font-bold"
+            className="migma-select !text-xs !font-bold"
           >
             <option value="">Permissão de Trabalho</option>
             <option value="OPT">OPT</option>
@@ -557,7 +586,7 @@ export const UniversitySelectionStep: React.FC<StepProps> = ({ onNext }) => {
               placeholder="Tuition mín."
               value={minTuitionFilter}
               onChange={e => setMinTuitionFilter(e.target.value)}
-              className="w-full pl-8 pr-4 py-3 bg-white/5 border border-white/10 rounded-2xl text-white placeholder-gray-600 focus:outline-none focus:border-gold-medium/40 text-sm"
+              className="w-full pl-8 pr-4 py-3 bg-white/5 border border-white/10 rounded-2xl text-white placeholder-gray-600 focus:outline-none focus:border-gold-medium focus:ring-1 focus:ring-gold-medium/20 text-sm"
             />
           </div>
           <div className="relative flex-1">
@@ -567,7 +596,7 @@ export const UniversitySelectionStep: React.FC<StepProps> = ({ onNext }) => {
               placeholder="Tuition máx."
               value={maxTuitionFilter}
               onChange={e => setMaxTuitionFilter(e.target.value)}
-              className="w-full pl-8 pr-4 py-3 bg-white/5 border border-white/10 rounded-2xl text-white placeholder-gray-600 focus:outline-none focus:border-gold-medium/40 text-sm"
+              className="w-full pl-8 pr-4 py-3 bg-white/5 border border-white/10 rounded-2xl text-white placeholder-gray-600 focus:outline-none focus:border-gold-medium focus:ring-1 focus:ring-gold-medium/20 text-sm"
             />
           </div>
         </div>

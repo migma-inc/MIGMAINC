@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Trophy, Mail, Clock } from 'lucide-react';
+import { Trophy, Mail, Clock, CheckCircle } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { CheckoutTopbar } from '../../MigmaCheckout/components/CheckoutTopbar';
 

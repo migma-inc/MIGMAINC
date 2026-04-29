@@ -262,21 +262,28 @@ export const useOnboardingProgress = () => {
       const maxIdx = VALID_STEPS.indexOf(maxAllowedStep);
       const savedIdx = VALID_STEPS.indexOf(savedStep);
 
-      // Always advance to maxAllowedStep — ensures student is pushed forward
-      // when a step is completed externally (e.g. admin approves scholarship).
       let chosenStep: OnboardingStep;
       if (onboardingCompleted) {
         chosenStep = 'completed';
       } else if (uiIdx > maxIdx) {
-        // Student somehow got ahead of what's allowed — push back
+        // Aluno tentou avançar mais do que o permitido — volta para o máximo permitido
         chosenStep = maxAllowedStep;
+      } else if (loading && savedIdx >= 0) {
+        // NA CARGA INICIAL: Move para o ponto mais avançado permitido.
+        // Se o Admin aprovou uma bolsa, o aluno deve ser movido para 'placement_fee' automaticamente.
+        // Se o banco estava em uma step anterior por qualquer motivo, o negócio (maxAllowedStep) prevalece.
+        chosenStep = maxAllowedStep;
+      } else if (uiIdx >= 0) {
+        // Respeita a navegação manual se o step for permitido (igual ou anterior ao máximo)
+        chosenStep = uiStep;
       } else {
-        // Always move to the furthest allowed step
+        // Fallback para o máximo permitido
         chosenStep = maxAllowedStep;
       }
 
       if (currentCheckId !== lastCheckId.current) return;
 
+      setMaxAllowedStep(maxAllowedStep);
       currentStepRef.current = chosenStep;
       setState({
         currentStep: chosenStep,
@@ -299,6 +306,10 @@ export const useOnboardingProgress = () => {
         surveyCompletedAt,
       });
 
+      // SINCRONIZAÇÃO CRÍTICA: Atualiza o ref para que runs subsequentes 
+      // (ex: causados por updates no background) não usem o valor default 'selection_fee'.
+      currentStepRef.current = chosenStep;
+
       if (chosenStep !== savedStep) {
         saveStep(chosenStep);
       }
@@ -309,8 +320,9 @@ export const useOnboardingProgress = () => {
       if (currentCheckId === lastCheckId.current) {
         setLoading(false);
       }
+      return { maxAllowedStep: (maxAllowedStep as OnboardingStep) };
     }
-  }, [user?.id, stableProfile, loading, saveStep]);
+  }, [user?.id, stableProfile, saveStep]);
 
   useEffect(() => {
     checkProgress();
@@ -320,5 +332,7 @@ export const useOnboardingProgress = () => {
     await checkProgress();
   }, [checkProgress]);
 
-  return { state, loading, checkProgress, goToStep, markStepComplete };
+  const [maxAllowedStep, setMaxAllowedStep] = useState<OnboardingStep>('selection_fee');
+
+  return { state, loading, checkProgress, goToStep, markStepComplete, maxAllowedStep };
 };

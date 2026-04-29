@@ -253,7 +253,7 @@ export const UniversitySelectionModal: React.FC<Props> = ({
                 <select
                   value={selectedCourseId || ''}
                   onChange={(e) => setSelectedCourseId(e.target.value)}
-                  className="w-full bg-[#121212] border border-white/10 rounded-xl px-5 py-4 text-white font-bold appearance-none focus:outline-none focus:border-gold-medium/50 transition-all cursor-pointer"
+                  className="migma-select w-full"
                 >
                   {institution.courses.map(course => (
                     <option key={course.id} value={course.id}>

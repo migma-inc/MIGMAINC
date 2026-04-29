@@ -22,6 +22,10 @@ export type TriggerType =
   | "forms_generated"
   | "package_sent_matriculausa"
   | "acceptance_letter_ready"
+  | "transfer_form_approved"
+  | "transfer_form_rejected"
+  | "transfer_form_delivered"
+  | "transfer_completed"
   | "new_pending_task"
   | "deadline_alert_transfer"
   | "deadline_alert_cos"
@@ -57,6 +61,7 @@ interface NotifyPayload {
     client_name?: string;
     client_id?: string;
     reason?: string;
+    rejection_reason?: string;
     last_message?: string;
     // Billing (Fase 9)
     monthly_usd?: number;
@@ -430,6 +435,29 @@ function buildTemplate(
       whatsapp: `🎓 *Migma* — Acceptance Letter Ready!\n\nHi ${firstName}, your Acceptance Letter has been issued! Access your portal to download it: ${data.acceptance_letter_url ?? `${dash}/student/onboarding?step=acceptance_letter`}`,
     };
 
+    case "transfer_form_approved": return {
+      subject: "Transfer Form aprovado — Migma",
+      emailHtml: emailWrapper("Transfer Form Aprovado", `
+        <p>Olá, ${highlight(firstName)}!</p>
+        <p>Ótima notícia — seu <strong>Transfer Form</strong> foi revisado e <strong>aprovado</strong> pela equipe MatriculaUSA.</p>
+        <p>Seu processo de transferência está avançando. Em breve você receberá mais informações.</p>
+        ${btn("Ver meu painel", routes.studentDashboard)}
+      `),
+      whatsapp: `✅ *Migma* — Transfer Form Aprovado!\n\nOlá ${firstName}, seu Transfer Form foi aprovado pela equipe MatriculaUSA! Seu processo de transferência está avançando.\n\nAcesse: ${routes.studentDashboard}`,
+    };
+
+    case "transfer_form_rejected": return {
+      subject: "Transfer Form — correção necessária",
+      emailHtml: emailWrapper("Transfer Form — Correção Necessária", `
+        <p>Olá, ${highlight(firstName)}!</p>
+        <p>Seu <strong>Transfer Form</strong> foi revisado e precisa de correção.</p>
+        ${data.rejection_reason ? `<p style="background:#1a1a1a;border-left:3px solid #e53e3e;padding:12px 16px;border-radius:4px;color:#ddd;"><strong>Motivo:</strong> ${data.rejection_reason}</p>` : ""}
+        <p>Por favor acesse seu painel, corrija o formulário e envie novamente.</p>
+        ${btn("Reenviar Transfer Form", routes.studentDashboard)}
+      `),
+      whatsapp: `⚠️ *Migma* — Transfer Form precisa de correção\n\nOlá ${firstName}, seu Transfer Form precisa ser corrigido.${data.rejection_reason ? `\n\n*Motivo:* ${data.rejection_reason}` : ""}\n\nAcesse para reenviar: ${routes.studentDashboard}`,
+    };
+
     // ── 11 ────────────────────────────────────────────────────────────────────
     case "new_pending_task": return {
       subject: "Nova pendência — ação necessária na sua conta",
@@ -565,6 +593,32 @@ function buildTemplate(
         ${btn("Falar com o time Migma", routes.studentSupport)}
       `),
       whatsapp: `⚠️ *Migma* — Billing suspenso\n\nOlá ${firstName}, seu plano de mensalidades foi suspenso.${data.suspend_reason ? `\n\nMotivo: ${data.suspend_reason}` : ""}\n\nEntre em contato: ${routes.studentSupport}`,
+    };
+
+    // ── transfer_form_delivered — ADMIN ───────────────────────────────────────
+    case "transfer_form_delivered": return {
+      subject: `[Admin] ✅ Aluno confirmou entrega do Transfer Form — ${data.client_name ?? "aluno"}`,
+      emailHtml: emailWrapper("[Admin] Transfer Form entregue à escola", `
+        <p><strong>${data.client_name ?? "O aluno"}</strong> confirmou que entregou o Transfer Form à escola atual.</p>
+        <p>Aguarde a liberação do SEVIS pela escola. Após receber confirmação, marque o processo como <strong>Transfer Concluído</strong> no painel administrativo.</p>
+        ${data.client_id ? btn("Ver perfil do aluno", routes.adminUser(data.client_id)) : ""}
+      `),
+      whatsapp: `✅ *Migma Admin* — Transfer Form entregue\n\n${data.client_name ?? "Aluno"} confirmou entrega do Transfer Form à escola atual. Aguarde liberação do SEVIS.\n${data.client_id ? routes.adminUser(data.client_id) : routes.adminUser()}`,
+    };
+
+    // ── transfer_completed — CLIENT ───────────────────────────────────────────
+    case "transfer_completed": return {
+      subject: "Transferência concluída — parabéns! 🎓",
+      emailHtml: emailWrapper("Transferência Concluída!", `
+        <p>Olá, ${highlight(firstName)}!</p>
+        <p>🎓 <strong>Sua transferência foi concluída com sucesso!</strong></p>
+        <p>Seu novo I-20 foi emitido. Em breve você receberá emails diretamente da universidade com informações sobre orientação, datas e início do programa.</p>
+        <p style="background:#0a1f0a;border-left:3px solid #22c55e;padding:12px 16px;border-radius:4px;color:#bbf7d0;">
+          Aguarde contato da universidade sobre o início das aulas. Bem-vindo(a) à sua nova universidade!
+        </p>
+        ${btn("Ver meu painel", routes.studentDashboard)}
+      `),
+      whatsapp: `🎓 *Migma* — Transferência Concluída!\n\nParabéns, ${firstName}! Sua transferência foi concluída. Seu novo I-20 foi emitido. Aguarde contato da universidade sobre o início das aulas!\n\nAcesse: ${routes.studentDashboard}`,
     };
 
     // ── 18 — ADMIN ────────────────────────────────────────────────────────────

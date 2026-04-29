@@ -6,6 +6,26 @@
 @tailwind components;
 @tailwind utilities;
 
+@layer components {
+  /* Migma Select Styles */
+  .migma-select {
+    @apply appearance-none bg-black border border-white/10 rounded-2xl text-white px-4 py-3.5 focus:outline-none focus:border-gold-medium transition-all text-sm cursor-pointer;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%23CE9F48'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 1rem center;
+    background-size: 1rem;
+    padding-right: 2.5rem;
+  }
+
+  .migma-select:hover {
+    @apply border-gold-medium/40 bg-white/[0.03];
+  }
+
+  .migma-select option {
+    @apply bg-[#0f0f0f] text-white py-2;
+  }
+}
+
 .custom-scrollbar::-webkit-scrollbar {
   width: 6px;
   height: 6px;
