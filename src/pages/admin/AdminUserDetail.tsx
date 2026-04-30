@@ -1191,28 +1191,28 @@ function DocumentsTab({
                           <ExternalLink className="w-3 h-3" />
                           Template enviado
                         </a>
-                        {institutionApplication.transfer_form_filled_url ? (
-                          <div className="space-y-1.5">
-                            <a
-                              href={resolvedUrls[`${institutionApplication.id}-transfer-filled`] || '#'}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              onClick={(e) => !resolvedUrls[`${institutionApplication.id}-transfer-filled`] && e.preventDefault()}
-                              className="inline-flex items-center gap-1.5 text-xs text-emerald-400 font-semibold hover:underline"
-                            >
-                              <ExternalLink className="w-3 h-3" />
-                              Aluno enviou preenchido
-                            </a>
-                            {institutionApplication.transfer_form_delivered_at && (
-                              <p className="text-xs text-emerald-400 font-semibold">
-                                ✅ Entregue à escola em {new Date(institutionApplication.transfer_form_delivered_at).toLocaleDateString('pt-BR')}
-                              </p>
-                            )}
-                          </div>
-                        ) : (
-                          <p className="text-xs text-gray-500">
-                            Status aluno: {institutionApplication.transfer_form_student_status ?? 'pending'}
+                        {institutionApplication.transfer_form_delivered_at && (
+                          <p className="text-xs text-emerald-400 font-semibold">
+                            ✅ Entregue à escola em {new Date(institutionApplication.transfer_form_delivered_at).toLocaleDateString('pt-BR')}
                           </p>
+                        )}
+                        {institutionApplication.transfer_form_filled_url ? (
+                          <a
+                            href={resolvedUrls[`${institutionApplication.id}-transfer-filled`] || '#'}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={(e) => !resolvedUrls[`${institutionApplication.id}-transfer-filled`] && e.preventDefault()}
+                            className="inline-flex items-center gap-1.5 text-xs text-emerald-400 font-semibold hover:underline"
+                          >
+                            <ExternalLink className="w-3 h-3" />
+                            Aluno enviou preenchido
+                          </a>
+                        ) : (
+                          !institutionApplication.transfer_form_delivered_at && (
+                            <p className="text-xs text-gray-500">
+                              Aguardando confirmação do aluno
+                            </p>
+                          )
                         )}
                       </div>
                     ) : (

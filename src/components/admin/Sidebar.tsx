@@ -160,7 +160,8 @@ export function Sidebar({ className, isMobileOpen = false, onMobileClose }: Side
         .from('visa_orders')
         .select('*', { count: 'exact', head: true })
         .eq('payment_status', 'completed')
-        .or('seller_id.is.null,seller_id.eq.""');
+        .or('seller_id.is.null,seller_id.eq.""')
+        .not('client_email', 'ilike', '%@uorak.com');
 
       const { count: usersCount } = await supabase
         .from('user_profiles')

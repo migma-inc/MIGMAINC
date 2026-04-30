@@ -471,7 +471,7 @@ export const PlacementFeeStep: React.FC<StepProps> = ({ onNext }) => {
             </div>
             {installments === 2 && (
               <p className="text-[11px] text-amber-400 leading-relaxed">
-                Você paga <strong>${Math.floor(placementFee / 2).toLocaleString()}</strong> agora e <strong>${Math.ceil(placementFee / 2).toLocaleString()}</strong> após confirmação da Migma.
+                Você paga <strong>${Math.floor(placementFee / 2).toLocaleString()}</strong> agora e <strong>${Math.ceil(placementFee / 2).toLocaleString()}</strong> após a emissão da carta de aceite.
                 A carta de aceite será liberada somente após o pagamento da 2ª parcela.
               </p>
             )}
@@ -769,7 +769,5 @@ export const PlacementFeeStep: React.FC<StepProps> = ({ onNext }) => {
           </div>
         )}
       </div>
-
-    </div>
-  );
+    );
 };

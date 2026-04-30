@@ -94,14 +94,43 @@ async function processSuccessfulSession(session: Stripe.Checkout.Session, supaba
 
       console.log(`[Webhook] 🎓 Placement fee Stripe session detectada: app=${pfSession.application_id}`);
 
+      // Detecta se é 2ª parcela pelo metadata do Stripe
+      const is2ndInstallment = session.metadata?.fee_type === "placement_fee_2nd";
+
       await supabase
         .from("placement_fee_stripe_sessions")
         .update({ status: "completed" })
         .eq("stripe_session_id", session.id);
 
+      if (is2ndInstallment) {
+        // Para a 2ª parcela: apenas grava placement_fee_2nd_installment_paid_at
+        const { error: appErr } = await supabase
+          .from("institution_applications")
+          .update({
+            placement_fee_2nd_installment_paid_at: new Date().toISOString(),
+          })
+          .eq("id", pfSession.application_id);
+
+        if (appErr) {
+          console.error(`[Webhook] ❌ Falhou ao gravar 2ª parcela: ${appErr.message}`);
+        } else {
+          console.log(`[Webhook] ✅ 2ª parcela Placement Fee confirmada: app=${pfSession.application_id}`);
+        }
+        return;
+      }
+
+      // Para a 1ª parcela: busca o auth user_id real antes de chamar migma-payment-completed
+      const { data: profileRow } = await supabase
+        .from("user_profiles")
+        .select("user_id")
+        .eq("id", pfSession.profile_id)
+        .maybeSingle();
+
+      const authUserId = profileRow?.user_id ?? pfSession.profile_id;
+
       const { error: payErr } = await supabase.functions.invoke("migma-payment-completed", {
         body: {
-          user_id: pfSession.profile_id,
+          user_id: authUserId,
           fee_type: "placement_fee",
           amount: pfSession.amount_usd,
           payment_method: "stripe",

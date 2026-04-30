@@ -164,12 +164,22 @@ export const UniversitySelectionStep: React.FC<StepProps> = ({ onNext }) => {
     setMaxTuitionFilter('');
   };
 
-  // ── Confirm → save to DB ──
   const handleConfirm = async () => {
-    if (!userProfile?.id || selections.size === 0) return;
+    if (!userProfile?.id || selections.size === 0 || saving) return;
     setSaving(true);
     try {
-      const rows = Array.from(selections.values()).map(entry => ({
+      // Filter out selections that already have existing applications
+      const newEntries = Array.from(selections.values()).filter(entry => 
+        !existingApps.some(app => app.institution_id === entry.institution.id)
+      );
+
+      if (newEntries.length === 0) {
+        setShowConfirmModal(false);
+        setSaving(false);
+        return;
+      }
+
+      const rows = newEntries.map(entry => ({
         profile_id: userProfile.id,
         institution_id: entry.institution.id,
         scholarship_level_id: entry.scholarshipId,
@@ -181,8 +191,13 @@ export const UniversitySelectionStep: React.FC<StepProps> = ({ onNext }) => {
         .insert(rows);
 
       if (insertError) throw insertError;
+      
+      // Refresh local data to show "In Review" state immediately
+      await fetchData();
+      
       setShowConfirmModal(false);
       onNext();
+
     } catch (err: any) {
       console.error('[UniversitySelectionStep] Save error:', err);
       alert('Erro ao salvar seleção. Tente novamente.');
@@ -452,14 +467,17 @@ export const UniversitySelectionStep: React.FC<StepProps> = ({ onNext }) => {
                 <button
                   onClick={handleConfirm}
                   disabled={saving}
-                  className="w-full flex items-center justify-center gap-2 py-4 bg-gold-medium hover:bg-gold-light disabled:opacity-40 text-black font-black uppercase tracking-widest text-sm rounded-2xl transition-all"
+                  className="w-full flex items-center justify-center gap-2 py-4 bg-gold-medium hover:bg-gold-light disabled:opacity-40 disabled:cursor-not-allowed text-black font-black uppercase tracking-widest text-sm rounded-2xl transition-all shadow-lg shadow-gold-medium/10 active:scale-95"
                 >
                   {saving ? (
-                    <Loader2 className="w-5 h-5 animate-spin" />
+                    <>
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                      <span>Salvando Seleção...</span>
+                    </>
                   ) : (
                     <>
                       <CheckCircle2 className="w-4 h-4" />
-                      Confirmar
+                      Confirmar e Enviar para Análise
                     </>
                   )}
                 </button>

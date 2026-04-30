@@ -5,7 +5,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   Upload, FileText, CheckCircle, Loader2,
-  AlertCircle, ArrowRight,
+  AlertCircle, ArrowRight, X, Languages, ExternalLink,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useStudentAuth } from '../../../contexts/StudentAuthContext';
@@ -332,9 +332,29 @@ export const DocumentsUploadStep: React.FC<StepProps> = ({ onNext }) => {
     <div className="space-y-8 pb-12 max-w-4xl mx-auto px-4">
       <div className="space-y-1">
         <h2 className="text-2xl font-black text-white uppercase tracking-tight">{t('student_onboarding.documents.title')}</h2>
-        <p className="text-sm text-gray-400 font-medium">
-          {t('student_onboarding.documents.subtitle')}
-        </p>
+        <div className="space-y-4">
+          <p className="text-sm text-gray-400 font-medium">
+            {t('student_onboarding.documents.subtitle_main', 'Envie os documentos obrigatórios para continuar.')}
+          </p>
+          
+          <div className="inline-flex items-center gap-2.5 px-4 py-2 bg-gold-medium/10 border border-gold-medium/20 rounded-xl group hover:border-gold-medium/40 transition-all cursor-default">
+            <div className="w-8 h-8 rounded-lg bg-gold-medium/10 flex items-center justify-center">
+              <Languages className="w-4 h-4 text-gold-medium" />
+            </div>
+            <p className="text-sm text-gold-light/90 font-medium">
+              Precisa de tradução certificada? Recomendamos a 
+              <a 
+                href="https://lushamerica.com" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="mx-1.5 text-gold-medium hover:text-gold-light underline decoration-gold-medium/30 hover:decoration-gold-medium transition-all font-bold"
+              >
+                lushamerica.com
+              </a>
+              <ExternalLink className="inline-block w-3 h-3 ml-0.5 opacity-60 group-hover:opacity-100 transition-opacity" />
+            </p>
+          </div>
+        </div>
       </div>
 
       {isLocked && (
@@ -352,12 +372,27 @@ export const DocumentsUploadStep: React.FC<StepProps> = ({ onNext }) => {
         </div>
       ) : (
         <div className="space-y-4">
-          <div className={`border-2 rounded-2xl p-5 transition-all ${passportDoc ? 'border-emerald-500/30 bg-emerald-500/5' : 'border-white/10 bg-white/5'}`}>
+          {/* Passport Card */}
+          <div className={`border-2 rounded-2xl p-5 transition-all duration-300 ${
+            passportDoc 
+              ? 'border-emerald-500/30 bg-emerald-500/5 shadow-lg shadow-emerald-500/5' 
+              : selectedFiles.passport
+                ? 'border-gold-medium/50 bg-gold-medium/10 shadow-xl shadow-gold-medium/10'
+                : 'border-white/10 bg-white/5'
+          }`}>
             <div className="flex items-start gap-4">
-              <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${passportDoc ? 'bg-emerald-500/10' : 'bg-white/10'}`}>
+              <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 transition-colors ${
+                passportDoc 
+                  ? 'bg-emerald-500/10' 
+                  : selectedFiles.passport
+                    ? 'bg-gold-medium/20'
+                    : 'bg-white/10'
+              }`}>
                 {passportDoc
                   ? <CheckCircle className="w-5 h-5 text-emerald-400" />
-                  : <FileText className="w-5 h-5 text-gray-400" />
+                  : selectedFiles.passport
+                    ? <Upload className="w-5 h-5 text-gold-medium animate-bounce" />
+                    : <FileText className="w-5 h-5 text-gray-400" />
                 }
               </div>
               <div className="flex-1">
@@ -366,7 +401,12 @@ export const DocumentsUploadStep: React.FC<StepProps> = ({ onNext }) => {
                   <span className="text-xs text-red-400 font-medium">*</span>
                   {passportDoc && (
                     <span className="text-[10px] font-black uppercase border rounded-sm px-2 py-0.5 bg-emerald-500/10 text-emerald-300 border-emerald-500/20">
-                      Already sent
+                      Já enviado
+                    </span>
+                  )}
+                  {!passportDoc && selectedFiles.passport && (
+                    <span className="text-[10px] font-black uppercase border rounded-sm px-2 py-0.5 bg-gold-medium/20 text-gold-medium border-gold-medium/30 animate-pulse">
+                      Pronto para enviar
                     </span>
                   )}
                 </div>
@@ -375,11 +415,11 @@ export const DocumentsUploadStep: React.FC<StepProps> = ({ onNext }) => {
                 {passportDoc && (
                   <div className="mt-2 flex items-center gap-1.5 text-sm text-emerald-400 font-medium">
                     <CheckCircle className="w-4 h-4" />
-                    {passportDoc.original_filename || 'Passport uploaded'}
+                    {passportDoc.original_filename || 'Passaporte enviado'}
                   </div>
                 )}
 
-                <div className="mt-3 flex items-center gap-3">
+                <div className="mt-4 flex flex-wrap items-center gap-3">
                   <input
                     type="file"
                     ref={el => { fileInputRefs.current.passport = el; }}
@@ -390,16 +430,31 @@ export const DocumentsUploadStep: React.FC<StepProps> = ({ onNext }) => {
                   <button
                     onClick={() => fileInputRefs.current.passport?.click()}
                     disabled={uploadingFiles.passport}
-                    className="flex items-center gap-1.5 text-sm border border-white/10 bg-white/5 rounded-lg px-3 py-1.5 hover:border-white/20 transition-colors font-medium text-gray-300"
+                    className={`flex items-center gap-1.5 text-sm border rounded-lg px-4 py-2 transition-all font-bold uppercase tracking-wider ${
+                      selectedFiles.passport
+                        ? 'border-gold-medium/40 bg-gold-medium/10 text-gold-light hover:bg-gold-medium/20'
+                        : 'border-white/10 bg-white/5 text-gray-300 hover:border-white/20'
+                    }`}
                   >
                     <Upload className="w-4 h-4" />
-                    {passportDoc ? t('student_onboarding.documents.change') : t('student_onboarding.documents.upload')}
+                    {passportDoc || selectedFiles.passport ? t('student_onboarding.documents.change') : t('student_onboarding.documents.upload')}
                   </button>
+                  
                   {selectedFiles.passport && (
-                    <span className="text-sm text-gray-500 truncate max-w-[200px]">
-                      {selectedFiles.passport.name}
-                    </span>
+                    <div className="flex items-center gap-3 bg-white/5 rounded-lg px-3 py-2 border border-white/5">
+                      <span className="text-xs text-gray-400 truncate max-w-[150px] font-medium italic">
+                        {selectedFiles.passport.name}
+                      </span>
+                      <button 
+                        onClick={() => handleFileSelect('passport', null)}
+                        className="text-gray-400 hover:text-red-400 transition-colors p-1"
+                        title="Remover arquivo"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
                   )}
+                  
                   {uploadingFiles.passport && (
                     <Loader2 className="w-4 h-4 animate-spin text-gold-medium" />
                   )}
@@ -410,12 +465,12 @@ export const DocumentsUploadStep: React.FC<StepProps> = ({ onNext }) => {
 
           {DOCUMENT_TYPES.map(doc => {
             const uploaded = getDocStatus(doc.key);
-            const selectedFile = selectedFiles[doc.key];
+            const isSelected = !!selectedFiles[doc.key] && !uploaded;
             const isUploading = uploadingFiles[doc.key];
             const isFunds = doc.key === 'bank_statement';
 
             return (
-              <React.Fragment key={doc.key}>
+              <div key={doc.key} className="space-y-4">
                 {isFunds && (
                   <div className="bg-gold-medium/5 border border-gold-medium/20 rounded-2xl p-6 mb-2">
                     <div className="flex items-start gap-4">
@@ -435,34 +490,54 @@ export const DocumentsUploadStep: React.FC<StepProps> = ({ onNext }) => {
                   </div>
                 )}
                 
-                <div className={`border-2 rounded-2xl p-5 transition-all ${
-                  uploaded ? 'border-emerald-500/30 bg-emerald-500/5' : 'border-white/10 bg-white/5'
+                <div className={`border-2 rounded-2xl p-5 transition-all duration-300 ${
+                  uploaded 
+                    ? 'border-emerald-500/30 bg-emerald-500/5 shadow-lg shadow-emerald-500/5' 
+                    : isSelected
+                      ? 'border-gold-medium/50 bg-gold-medium/10 shadow-xl shadow-gold-medium/10'
+                      : 'border-white/10 bg-white/5'
                 }`}>
                   <div className="flex items-start gap-4">
-                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${
-                      uploaded ? 'bg-emerald-500/10' : 'bg-white/10'
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 transition-colors ${
+                      uploaded 
+                        ? 'bg-emerald-500/10' 
+                        : isSelected
+                          ? 'bg-gold-medium/20'
+                          : 'bg-white/10'
                     }`}>
                       {uploaded
                         ? <CheckCircle className="w-5 h-5 text-emerald-400" />
-                        : <FileText className="w-5 h-5 text-gray-400" />
+                        : isSelected
+                          ? <Upload className="w-5 h-5 text-gold-medium animate-bounce" />
+                          : <FileText className="w-5 h-5 text-gray-400" />
                       }
                     </div>
                     <div className="flex-1">
                       <div className="flex items-center gap-2">
                         <span className="font-bold text-white">{t(doc.labelKey)}</span>
                         {doc.required && <span className="text-xs text-red-400 font-medium">*</span>}
+                        {uploaded && (
+                          <span className="text-[10px] font-black uppercase border rounded-sm px-2 py-0.5 bg-emerald-500/10 text-emerald-300 border-emerald-500/20">
+                            Já enviado
+                          </span>
+                        )}
+                        {isSelected && (
+                          <span className="text-[10px] font-black uppercase border rounded-sm px-2 py-0.5 bg-gold-medium/20 text-gold-medium border-gold-medium/30 animate-pulse">
+                            Pronto para enviar
+                          </span>
+                        )}
                       </div>
                       <p className="text-sm text-gray-500 mt-0.5">{t(doc.descKey)}</p>
 
                       {uploaded && (
                         <div className="mt-2 flex items-center gap-1.5 text-sm text-emerald-400 font-medium">
                           <CheckCircle className="w-4 h-4" />
-                          {uploaded.submitted_url?.split('/').pop() ?? 'Uploaded'}
+                          {uploaded.submitted_url?.split('/').pop() ?? 'Enviado'}
                         </div>
                       )}
 
                       {!isLocked && (
-                        <div className="mt-3 flex items-center gap-3">
+                        <div className="mt-4 flex flex-wrap items-center gap-3">
                           <input
                             type="file"
                             ref={el => { fileInputRefs.current[doc.key] = el; }}
@@ -473,16 +548,31 @@ export const DocumentsUploadStep: React.FC<StepProps> = ({ onNext }) => {
                           <button
                             onClick={() => fileInputRefs.current[doc.key]?.click()}
                             disabled={isUploading}
-                            className="flex items-center gap-1.5 text-sm border border-white/10 bg-white/5 rounded-lg px-3 py-1.5 hover:border-white/20 transition-colors font-medium text-gray-300"
+                            className={`flex items-center gap-1.5 text-sm border rounded-lg px-4 py-2 transition-all font-bold uppercase tracking-wider ${
+                              selectedFiles[doc.key]
+                                ? 'border-gold-medium/40 bg-gold-medium/10 text-gold-light hover:bg-gold-medium/20'
+                                : 'border-white/10 bg-white/5 text-gray-300 hover:border-white/20'
+                            }`}
                           >
                             <Upload className="w-4 h-4" />
-                            {uploaded ? t('student_onboarding.documents.change') : t('student_onboarding.documents.upload')}
+                            {uploaded || selectedFiles[doc.key] ? t('student_onboarding.documents.change') : t('student_onboarding.documents.upload')}
                           </button>
-                          {selectedFile && (
-                            <span className="text-sm text-gray-500 truncate max-w-[200px]">
-                              {selectedFile.name}
-                            </span>
+                          
+                          {selectedFiles[doc.key] && (
+                            <div className="flex items-center gap-3 bg-white/5 rounded-lg px-3 py-2 border border-white/5">
+                              <span className="text-xs text-gray-400 truncate max-w-[150px] font-medium italic">
+                                {selectedFiles[doc.key]!.name}
+                              </span>
+                              <button 
+                                onClick={() => handleFileSelect(doc.key, null)}
+                                className="text-gray-400 hover:text-red-400 transition-colors p-1"
+                                title="Remover arquivo"
+                              >
+                                <X className="w-4 h-4" />
+                              </button>
+                            </div>
                           )}
+
                           {isUploading && (
                             <Loader2 className="w-4 h-4 animate-spin text-gold-medium" />
                           )}
@@ -491,7 +581,7 @@ export const DocumentsUploadStep: React.FC<StepProps> = ({ onNext }) => {
                     </div>
                   </div>
                 </div>
-              </React.Fragment>
+              </div>
             );
           })}
         </div>
@@ -505,23 +595,27 @@ export const DocumentsUploadStep: React.FC<StepProps> = ({ onNext }) => {
       )}
 
       {!isLocked && (
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between pt-6 border-t border-white/5">
           {allRequiredUploaded && (
-            <div className="flex items-center gap-2 text-sm text-emerald-400 font-medium">
+            <div className="flex items-center gap-2 text-sm text-emerald-400 font-bold bg-emerald-500/5 px-4 py-2 rounded-full border border-emerald-500/20">
               <CheckCircle className="w-4 h-4" />
-              All required documents uploaded!
+              Todos os documentos obrigatórios anexados!
             </div>
           )}
           <button
             onClick={allRequiredUploaded ? onNext : handleUploadAll}
             disabled={saving || (Object.values(selectedFiles).every(f => !f) && !allRequiredUploaded)}
-            className="ml-auto flex items-center gap-2 bg-gold-medium hover:bg-gold-dark text-black py-3 px-8 rounded-xl transition-colors font-black uppercase tracking-widest disabled:opacity-40 disabled:cursor-not-allowed"
+            className={`ml-auto flex items-center gap-3 py-4 px-10 rounded-2xl transition-all font-black uppercase tracking-widest disabled:opacity-40 disabled:cursor-not-allowed shadow-xl ${
+              allRequiredUploaded 
+                ? 'bg-emerald-500 hover:bg-emerald-600 text-white shadow-emerald-500/20' 
+                : 'bg-gold-medium hover:bg-gold-dark text-black shadow-gold-medium/20'
+            }`}
           >
             {saving
-              ? <><Loader2 className="w-4 h-4 animate-spin" /> {t('student_onboarding.documents.uploading')}</>
+              ? <><Loader2 className="w-5 h-5 animate-spin" /> {t('student_onboarding.documents.uploading')}</>
               : allRequiredUploaded
-              ? <><ArrowRight className="w-4 h-4" /> {t('student_onboarding.selection_fee.continue')}</>
-              : <><Upload className="w-4 h-4" /> {t('student_onboarding.documents.submit')}</>
+              ? <><ArrowRight className="w-5 h-5" /> Finalizar Envio</>
+              : <><Upload className="w-5 h-5" /> Enviar Documentos Selecionados</>
             }
           </button>
         </div>
