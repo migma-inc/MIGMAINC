@@ -102,7 +102,12 @@ export const AdminReferralLeads = () => {
     setLoading(false);
   }, []);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      void load();
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [load]);
 
   const handleClose = async (lead: ReferralLead) => {
     setActionLoading(lead.id);
@@ -110,13 +115,46 @@ export const AdminReferralLeads = () => {
     if (error) {
       showToast(lead.id, error.message, 'error');
     } else {
-      const result = data as { closures_count: number; goal_reached_now: boolean; already_closed: boolean };
+      const result = data as {
+        closures_count: number;
+        goal_reached_now: boolean;
+        already_closed: boolean;
+        profile_id: string | null;
+        exempted_charges?: number;
+      };
+
+      let notifyError: string | null = null;
+      if (!result.already_closed && result.profile_id) {
+        const { error: notificationError } = await supabase.functions.invoke('migma-notify', {
+          body: result.goal_reached_now
+            ? {
+                trigger: 'referral_goal_reached',
+                user_id: result.profile_id,
+                data: {
+                  closures_count: result.closures_count,
+                  exempted_charges: result.exempted_charges ?? 0,
+                },
+              }
+            : {
+                trigger: 'new_referral_closed',
+                user_id: result.profile_id,
+                data: {
+                  referral_name: lead.full_name,
+                  closures_count: result.closures_count,
+                },
+              },
+        });
+        notifyError = notificationError?.message ?? null;
+      }
+
       const msg = result.already_closed
         ? 'Lead já estava fechado.'
-        : result.goal_reached_now
-          ? `Fechado! 🏆 Meta atingida — ${result.closures_count} indicações fechadas!`
-          : `Fechado! ${result.closures_count}/10 indicações.`;
-      showToast(lead.id, msg, 'success');
+        : notifyError
+          ? `Fechado! ${result.closures_count}/10 indicações. Falha ao notificar: ${notifyError}`
+          : result.goal_reached_now
+            ? `Fechado! 🏆 Meta atingida — ${result.closures_count} indicações fechadas! Notificação enviada.`
+            : `Fechado! ${result.closures_count}/10 indicações. Notificação enviada.`;
+      showToast(lead.id, msg, notifyError ? 'error' : 'success');
       void load();
     }
     setActionLoading(null);

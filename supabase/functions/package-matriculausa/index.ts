@@ -392,19 +392,7 @@ quando os endpoints de upload estiverem disponiveis.
       console.log("[package-matriculausa] MATRICULAUSA_FUNCTIONS_URL, MIGMA_WEBHOOK_SECRET or MATRICULAUSA_SERVICE_ROLE not set — skipping auto-send");
     }
 
-    // ── 11. Notify admin ─────────────────────────────────────────────────────
-    await supabase.functions.invoke("migma-notify", {
-      body: {
-        trigger: "admin_package_complete",
-        data: {
-          client_name: profile?.full_name,
-          client_id:   app.profile_id,
-          app_url:     downloadUrl ?? undefined,
-        },
-      },
-    });
-
-    // ── 12. Notify client ─────────────────────────────────────────────────────
+    // ── 11. Notify client ─────────────────────────────────────────────────────
     await supabase.functions.invoke("migma-notify", {
       body: {
         trigger: "package_sent_matriculausa",

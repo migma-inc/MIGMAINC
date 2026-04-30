@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   Activity,
   AlertCircle,
   ArrowLeft,
+  CalendarDays,
   CheckCircle2,
   Clock3,
   DollarSign,
@@ -285,9 +286,8 @@ const TABS: Array<{ id: Tab; label: string }> = [
   { id: 'support', label: 'Suporte IA' },
   { id: 'orders', label: 'Orders' },
   { id: 'documents', label: 'Documents' },
-  { id: 'timeline', label: 'Timeline' },
   { id: 'messages', label: 'Messages' },
-  { id: 'followups', label: 'Follow-ups' },
+  { id: 'followups', label: 'Pending Tasks' },
 ];
 
 // ---------------------------------------------------------------------------
@@ -853,8 +853,9 @@ function TransferConcludeButton({ applicationId, profileId, onRefresh }: { appli
       });
 
       await onRefresh();
-    } catch (err: any) {
-      alert('Erro: ' + err.message);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      alert('Erro: ' + message);
     } finally {
       setLoading(false);
     }
@@ -1981,13 +1982,14 @@ function TimelineTab({ events, stageHistory }: { events: CrmEvent[]; stageHistor
 }
 
 // ---------------------------------------------------------------------------
-// Tab: Follow-ups
+// Tab: Pending Tasks
 // ---------------------------------------------------------------------------
 
 const FOLLOWUP_TYPES = [
   'document_request',
   'payment_reminder',
   'contract_followup',
+  'dependent_data_or_documents',
   'general_checkin',
   'sevis_release',
   'school_update',
@@ -1997,11 +1999,13 @@ const FOLLOWUP_TYPES = [
 function FollowupsTab({
   followups,
   serviceRequestId,
+  profileId,
   adminId,
   onRefresh,
 }: {
   followups: CrmFollowup[];
   serviceRequestId: string | null;
+  profileId: string;
   adminId: string | null;
   onRefresh: () => void;
 }) {
@@ -2010,6 +2014,13 @@ function FollowupsTab({
   const [resolving, setResolving] = useState<string | null>(null);
   const [errMsg, setErrMsg] = useState<string | null>(null);
   const [form, setForm] = useState({ type: 'general_checkin', notes: '', due_at: '' });
+  const dueDateInputRef = useRef<HTMLInputElement | null>(null);
+
+  function openDueDatePicker() {
+    const input = dueDateInputRef.current as (HTMLInputElement & { showPicker?: () => void }) | null;
+    input?.showPicker?.();
+    input?.focus();
+  }
 
   async function handleCreate() {
     if (!serviceRequestId) return;
@@ -2022,6 +2033,31 @@ function FollowupsTab({
       dueAt: form.due_at || null,
       ownerUserId: adminId,
     });
+    if (!error) {
+      const taskDescription = [
+        toLabel(form.type),
+        form.notes.trim(),
+        form.due_at ? `Prazo: ${new Date(form.due_at).toLocaleString('pt-BR')}` : '',
+      ].filter(Boolean).join(' — ');
+
+      const trigger = form.type === 'dependent_data_or_documents' ? 'dependent_pending' : 'new_pending_task';
+
+      const { error: notifyError } = await supabase.functions.invoke('migma-notify', {
+        body: {
+          trigger,
+          user_id: profileId,
+          data: {
+            task_description: taskDescription || 'Nova pendência criada pelo time Migma.',
+          },
+        },
+      });
+
+      if (notifyError) {
+        setErrMsg(`Follow-up criado, mas falhou ao notificar o cliente: ${notifyError.message}`);
+        setSaving(false);
+        return;
+      }
+    }
     setSaving(false);
     if (error) { setErrMsg(error); return; }
     setCreating(false);
@@ -2046,7 +2082,7 @@ function FollowupsTab({
             onClick={() => setCreating((v) => !v)}
             className="bg-gold-medium hover:bg-gold-dark text-black font-black text-xs"
           >
-            {creating ? 'Cancel' : '+ New Follow-up'}
+            {creating ? 'Cancel' : '+ New Pending Task'}
           </Button>
         </div>
       )}
@@ -2070,12 +2106,24 @@ function FollowupsTab({
               </div>
               <div>
                 <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 block mb-1">Due Date</label>
-                <input
-                  type="datetime-local"
-                  value={form.due_at}
-                  onChange={(e) => setForm((f) => ({ ...f, due_at: e.target.value }))}
-                  className="w-full bg-black/40 border border-white/10 text-white text-xs rounded px-2 py-1.5"
-                />
+                <div className="flex max-w-[240px] overflow-hidden rounded border border-white/10 bg-black/40">
+                  <input
+                    ref={dueDateInputRef}
+                    type="datetime-local"
+                    value={form.due_at}
+                    onClick={openDueDatePicker}
+                    onChange={(e) => setForm((f) => ({ ...f, due_at: e.target.value }))}
+                    className="min-w-0 flex-1 bg-transparent px-2 py-1.5 text-xs text-white outline-none [color-scheme:dark] [&::-webkit-calendar-picker-indicator]:hidden"
+                  />
+                  <button
+                    type="button"
+                    onClick={openDueDatePicker}
+                    className="flex w-9 items-center justify-center border-l border-white/10 text-gray-300 hover:bg-white/10 hover:text-white"
+                    aria-label="Open due date picker"
+                  >
+                    <CalendarDays className="h-4 w-4" />
+                  </button>
+                </div>
               </div>
             </div>
             <div>
@@ -2096,7 +2144,7 @@ function FollowupsTab({
                 disabled={saving}
                 className="bg-gold-medium hover:bg-gold-dark text-black font-black text-xs"
               >
-                {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Save Follow-up'}
+                {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Save Pending Task'}
               </Button>
             </div>
           </CardContent>
@@ -2105,7 +2153,7 @@ function FollowupsTab({
 
       {/* List */}
       {followups.length === 0 && !creating && (
-        <EmptyState icon={Clock3} message="No follow-ups recorded for this case." />
+        <EmptyState icon={Clock3} message="No pending tasks recorded for this case." />
       )}
 
       {followups.map((f) => (
@@ -3070,6 +3118,7 @@ export function AdminUserDetail() {
           <FollowupsTab
             followups={detail.followups}
             serviceRequestId={detail.primaryRequest?.id ?? null}
+            profileId={detail.profile.id}
             adminId={currentAdminId}
             onRefresh={load}
           />

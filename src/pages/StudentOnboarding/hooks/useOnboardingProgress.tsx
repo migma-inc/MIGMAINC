@@ -11,6 +11,9 @@ const VALID_STEPS: OnboardingStep[] = [
   'my_applications', 'acceptance_letter', 'completed'
 ];
 
+const DISABLE_REVIEW_WAIT_ROOM_FOR_TESTS = true;
+const DISABLE_SCHOLARSHIP_APPROVAL_LOCK_FOR_TESTS = true;
+
 const normalizeLegacyStep = (step: OnboardingStep | string | null | undefined): OnboardingStep | null => {
   if (!step) return null;
   if (step === 'process_type') return 'documents_upload';
@@ -88,6 +91,7 @@ export const useOnboardingProgress = () => {
   });
 
   const [loading, setLoading] = useState(true);
+  const [maxAllowedStep, setMaxAllowedStep] = useState<OnboardingStep>('selection_fee');
 
   // Persiste o step no banco do Matricula USA
   const saveStep = useCallback(async (step: OnboardingStep) => {
@@ -127,6 +131,7 @@ export const useOnboardingProgress = () => {
     }
 
     const currentCheckId = ++lastCheckId.current;
+    let computedMaxAllowedStep: OnboardingStep = maxAllowedStep;
 
     try {
       // Leitura fresca do banco do Matricula USA
@@ -227,61 +232,62 @@ export const useOnboardingProgress = () => {
       const migmaCheckoutCompleted = !!freshProfile.migma_checkout_completed_at;
 
       // Calcula o step máximo permitido
-      let maxAllowedStep: OnboardingStep = 'selection_fee';
+      computedMaxAllowedStep = 'selection_fee';
 
       if (isMigma && !migmaCheckoutCompleted) {
-        maxAllowedStep = 'selection_fee';
+        computedMaxAllowedStep = 'selection_fee';
       } else if (!selectionFeePaid) {
-        maxAllowedStep = 'selection_fee';
+        computedMaxAllowedStep = 'selection_fee';
       } else if (!selectionSurveyPassed) {
-        maxAllowedStep = 'selection_survey';
-      } else if (!contractApproved) {
-        maxAllowedStep = 'wait_room';
-      } else if (!scholarshipsSelected || !scholarshipsApproved) {
+        computedMaxAllowedStep = 'selection_survey';
+      } else if (!contractApproved && !DISABLE_REVIEW_WAIT_ROOM_FOR_TESTS) {
+        computedMaxAllowedStep = 'wait_room';
+      } else if (!scholarshipsSelected || (!scholarshipsApproved && !DISABLE_SCHOLARSHIP_APPROVAL_LOCK_FOR_TESTS)) {
         // Must have selected AND at least one must be approved to advance
-        maxAllowedStep = 'scholarship_selection';
+        computedMaxAllowedStep = 'scholarship_selection';
       } else if (!placementFeePaid) {
-        maxAllowedStep = 'placement_fee';
+        computedMaxAllowedStep = 'placement_fee';
       } else if (!documentsUploaded) {
-        maxAllowedStep = 'documents_upload';
+        computedMaxAllowedStep = 'documents_upload';
       } else if (!applicationFeePaid) {
-        maxAllowedStep = 'payment';
+        computedMaxAllowedStep = 'payment';
       } else if (!complementaryDataSubmitted) {
-        maxAllowedStep = 'dados_complementares';
+        computedMaxAllowedStep = 'dados_complementares';
       } else {
         // Avança para acceptance_letter quando pacote foi enviado ao MatriculaUSA
         const packageReady = v11AppsData?.some((a) => a.package_status === 'ready');
-        maxAllowedStep = packageReady ? 'acceptance_letter' : 'my_applications';
+        computedMaxAllowedStep = packageReady ? 'acceptance_letter' : 'my_applications';
       }
 
       // Decisão final do step
       const uiStep = normalizeLegacyStep(currentStepRef.current) ?? 'selection_fee';
       const savedStep = normalizeLegacyStep(freshProfile.onboarding_current_step as OnboardingStep | null) ?? 'selection_fee';
       const uiIdx = VALID_STEPS.indexOf(uiStep);
-      const maxIdx = VALID_STEPS.indexOf(maxAllowedStep);
+      const savedIdx = VALID_STEPS.indexOf(savedStep);
+      const maxIdx = VALID_STEPS.indexOf(computedMaxAllowedStep);
 
       let chosenStep: OnboardingStep;
       if (onboardingCompleted) {
         chosenStep = 'completed';
       } else if (uiIdx > maxIdx) {
         // Aluno tentou avançar mais do que o permitido — volta para o máximo permitido
-        chosenStep = maxAllowedStep;
+        chosenStep = computedMaxAllowedStep;
       } else if (loading && savedIdx >= 0) {
         // NA CARGA INICIAL: Move para o ponto mais avançado permitido.
         // Se o Admin aprovou uma bolsa, o aluno deve ser movido para 'placement_fee' automaticamente.
         // Se o banco estava em uma step anterior por qualquer motivo, o negócio (maxAllowedStep) prevalece.
-        chosenStep = maxAllowedStep;
+        chosenStep = computedMaxAllowedStep;
       } else if (uiIdx >= 0) {
         // Respeita a navegação manual se o step for permitido (igual ou anterior ao máximo)
         chosenStep = uiStep;
       } else {
         // Fallback para o máximo permitido
-        chosenStep = maxAllowedStep;
+        chosenStep = computedMaxAllowedStep;
       }
 
       if (currentCheckId !== lastCheckId.current) return;
 
-      setMaxAllowedStep(maxAllowedStep);
+      setMaxAllowedStep(computedMaxAllowedStep);
       currentStepRef.current = chosenStep;
       setState({
         currentStep: chosenStep,
@@ -318,9 +324,9 @@ export const useOnboardingProgress = () => {
       if (currentCheckId === lastCheckId.current) {
         setLoading(false);
       }
-      return { maxAllowedStep: (maxAllowedStep as OnboardingStep) };
     }
-  }, [user?.id, stableProfile, saveStep]);
+    return { maxAllowedStep: computedMaxAllowedStep };
+  }, [user?.id, stableProfile, saveStep, loading, maxAllowedStep]);
 
   useEffect(() => {
     checkProgress();
@@ -329,8 +335,6 @@ export const useOnboardingProgress = () => {
   const markStepComplete = useCallback(async () => {
     await checkProgress();
   }, [checkProgress]);
-
-  const [maxAllowedStep, setMaxAllowedStep] = useState<OnboardingStep>('selection_fee');
 
   return { state, loading, checkProgress, goToStep, markStepComplete, maxAllowedStep };
 };

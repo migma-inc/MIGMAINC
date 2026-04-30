@@ -258,23 +258,6 @@ Deno.serve(async (req) => {
           if (!approvedNotifyRes.ok) {
             console.error("[review-student-documents] all_documents_approved notification failed:", approvedNotifyRes.status, await approvedNotifyRes.text());
           }
-
-          if (scope === "global") {
-            const adminNotifyRes = await fetch(notifyUrl, {
-              method: "POST",
-              headers: notifyHeaders,
-              body: JSON.stringify({
-                trigger: "admin_package_complete",
-                data: {
-                  client_name: profile.full_name ?? profile.email ?? "Student",
-                  client_id: profile_id,
-                },
-              }),
-            });
-            if (!adminNotifyRes.ok) {
-              console.error("[review-student-documents] admin_package_complete notification failed:", adminNotifyRes.status, await adminNotifyRes.text());
-            }
-          }
         }
       }
     } catch (notifyError) {

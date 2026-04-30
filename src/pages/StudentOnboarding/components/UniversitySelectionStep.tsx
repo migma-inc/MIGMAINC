@@ -15,6 +15,7 @@ import type { StepProps } from '../types';
 import { UniversitySelectionModal, type Institution } from './UniversitySelectionModal';
 
 const MAX_SELECTIONS = 4;
+const DISABLE_SCHOLARSHIP_APPROVAL_LOCK_FOR_TESTS = true;
 
 type SelectionEntry = {
   institution: Institution;
@@ -22,6 +23,14 @@ type SelectionEntry = {
 };
 
 type View = 'list' | 'review';
+type ExistingApplication = {
+  id: string;
+  status: string;
+  institution_id: string;
+  scholarship_level_id: string;
+  institutions: { name: string; city: string; state: string } | null;
+  institution_scholarships: { scholarship_level: string | null; discount_percent: number | null } | null;
+};
 
 export const UniversitySelectionStep: React.FC<StepProps> = ({ onNext }) => {
   const { userProfile } = useStudentAuth();
@@ -50,7 +59,7 @@ export const UniversitySelectionStep: React.FC<StepProps> = ({ onNext }) => {
   // ── View state ──
   const [view, setView] = useState<View>('list');
   const [showConfirmModal, setShowConfirmModal] = useState(false);
-  const [existingApps, setExistingApps] = useState<any[]>([]);
+  const [existingApps, setExistingApps] = useState<ExistingApplication[]>([]);
   const [saving, setSaving] = useState(false);
 
   // ── Fetch ──
@@ -79,14 +88,14 @@ export const UniversitySelectionStep: React.FC<StepProps> = ({ onNext }) => {
             institution_scholarships ( scholarship_level, discount_percent )
           `)
           .eq('profile_id', userProfile.id);
-        setExistingApps(apps || []);
+        setExistingApps((apps || []) as ExistingApplication[]);
       }
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [userProfile?.id]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
@@ -183,7 +192,7 @@ export const UniversitySelectionStep: React.FC<StepProps> = ({ onNext }) => {
       if (insertError) throw insertError;
       setShowConfirmModal(false);
       onNext();
-    } catch (err: any) {
+    } catch (err) {
       console.error('[UniversitySelectionStep] Save error:', err);
       alert('Erro ao salvar seleção. Tente novamente.');
     } finally {
@@ -212,10 +221,11 @@ export const UniversitySelectionStep: React.FC<StepProps> = ({ onNext }) => {
 
   const selectedInst = modalInstId ? institutions.find(i => i.id === modalInstId) : null;
   const isApproved = existingApps.some(a => ['approved', 'payment_pending', 'payment_confirmed', 'accepted'].includes(a.status));
+  const canContinueWithExistingApps = DISABLE_SCHOLARSHIP_APPROVAL_LOCK_FOR_TESTS && existingApps.length > 0;
   const isPendingApproval = !isApproved && existingApps.length > 0 && existingApps.every(a => a.status === 'pending_admin_approval');
 
   // ── Approved state fallback ──
-  if (isApproved) {
+  if (isApproved || canContinueWithExistingApps) {
     return (
       <div className="max-w-lg mx-auto px-4 py-12 flex flex-col items-center text-center space-y-8">
         <div className="w-20 h-20 bg-emerald-500/10 border border-emerald-500/20 rounded-3xl flex items-center justify-center relative">
@@ -225,10 +235,12 @@ export const UniversitySelectionStep: React.FC<StepProps> = ({ onNext }) => {
 
         <div className="space-y-2">
           <h3 className="text-3xl font-black text-white uppercase tracking-tight leading-tight">
-            Seleção <span className="text-gold-medium">Aprovada</span>
+            Seleção <span className="text-gold-medium">{isApproved ? 'Aprovada' : 'Confirmada'}</span>
           </h3>
           <p className="text-gray-400 font-medium leading-relaxed">
-            Sua bolsa de estudos foi aprovada pela nossa equipe! Prossiga agora para garantir sua vaga.
+            {isApproved
+              ? 'Sua bolsa de estudos foi aprovada pela nossa equipe! Prossiga agora para garantir sua vaga.'
+              : 'Sua seleção foi registrada. Para testes, a etapa de aprovação da bolsa está liberada temporariamente.'}
           </p>
         </div>
 

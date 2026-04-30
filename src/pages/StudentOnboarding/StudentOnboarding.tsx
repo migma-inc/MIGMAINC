@@ -52,6 +52,8 @@ const StepLoader = () => (
   </div>
 );
 
+const DISABLE_REVIEW_WAIT_ROOM_FOR_TESTS = true;
+
 const CompletedScreen = () => {
   const { t } = useTranslation();
   return (
@@ -136,11 +138,14 @@ const StudentOnboarding: React.FC = () => {
   const handleNext = useCallback(async () => {
     // Refresh progress from backend
     const res = await checkProgress();
-    const currentMax = (res as any)?.maxAllowedStep || maxAllowedStep;
+    const currentMax = (res as { maxAllowedStep?: OnboardingStep } | void)?.maxAllowedStep || maxAllowedStep;
     
     const steps = getOrderedSteps();
     const currentIndex = steps.indexOf(state.currentStep);
-    const nextStep = steps[currentIndex + 1];
+    let nextStep = steps[currentIndex + 1];
+    if (DISABLE_REVIEW_WAIT_ROOM_FOR_TESTS && state.currentStep === 'selection_survey') {
+      nextStep = 'scholarship_selection';
+    }
     
     // We don't need to manually check maxAllowedStep here because goToStep 
     // will be called, but the next checkProgress cycle would pull them back anyway.
@@ -155,7 +160,7 @@ const StudentOnboarding: React.FC = () => {
         console.warn('[Onboarding] Bloqueando avanço: necessário aprovação ou ação pendente.', { nextStep, maxAllowedStep: currentMax });
       }
     }
-  }, [state.currentStep, goToStep, getOrderedSteps, checkProgress]);
+  }, [state.currentStep, goToStep, getOrderedSteps, checkProgress, maxAllowedStep]);
 
   const handleBack = useCallback(() => {
     const steps = getOrderedSteps();
