@@ -11,6 +11,36 @@ const corsHeaders = {
 
 type ReviewDecision = "approve" | "reject";
 type DocumentScope = "student" | "global";
+type AggregateStatus = "pending" | "under_review" | "approved" | "rejected";
+
+async function getAggregateDocumentStatus(
+  supabase: ReturnType<typeof createClient>,
+  profile: { id: string; user_id: string }
+): Promise<AggregateStatus> {
+  const [{ data: studentDocs, error: studentDocsError }, { data: globalDocs, error: globalDocsError }] = await Promise.all([
+    supabase
+      .from("student_documents")
+      .select("status")
+      .eq("user_id", profile.user_id),
+    supabase
+      .from("global_document_requests")
+      .select("status")
+      .eq("profile_id", profile.id),
+  ]);
+
+  if (studentDocsError) throw new Error(studentDocsError.message);
+  if (globalDocsError) throw new Error(globalDocsError.message);
+
+  const statuses = [
+    ...(studentDocs ?? []).map((doc) => doc.status ?? "pending"),
+    ...(globalDocs ?? []).map((doc) => doc.status ?? "pending"),
+  ];
+
+  if (statuses.length === 0) return "pending";
+  if (statuses.some((status) => status === "rejected")) return "rejected";
+  if (statuses.every((status) => status === "approved")) return "approved";
+  return "under_review";
+}
 
 function buildNotifyPayload(
   decision: ReviewDecision,
@@ -118,72 +148,7 @@ Deno.serve(async (req) => {
         if (docsUpdateError) {
           console.warn("[review-student-documents] Failed to update student_documents:", docsUpdateError.message);
         }
-
-        const { data: studentDocs, error: studentDocsError } = await supabase
-          .from("student_documents")
-          .select("status")
-          .eq("user_id", profile.user_id);
-
-        if (studentDocsError) {
-          return new Response(
-            JSON.stringify({ success: false, error: studentDocsError.message }),
-            { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-          );
-        }
-
-        const statuses = (studentDocs ?? []).map((doc) => doc.status ?? "pending");
-        const aggregateStatus = statuses.length === 0
-          ? "pending"
-          : statuses.some((status) => status === "rejected")
-            ? "rejected"
-            : statuses.every((status) => status === "approved")
-              ? "approved"
-              : "under_review";
-
-        const nextProfileUpdate: Record<string, unknown> = {
-          documents_status: aggregateStatus,
-          documents_uploaded: aggregateStatus === "approved",
-          updated_at: new Date().toISOString(),
-        };
-
-        if (aggregateStatus !== "approved") {
-          nextProfileUpdate.onboarding_current_step = "documents_upload";
-        }
-
-        const { error: profileUpdateError } = await supabase
-          .from("user_profiles")
-          .update(nextProfileUpdate)
-          .eq("id", profile_id);
-
-        if (profileUpdateError) {
-          return new Response(
-            JSON.stringify({ success: false, error: profileUpdateError.message }),
-            { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-          );
-        }
       } else {
-        const nextProfileUpdate: Record<string, unknown> = {
-          documents_status: nextStatus,
-          documents_uploaded: decision === "approve",
-          updated_at: new Date().toISOString(),
-        };
-
-        if (decision === "reject") {
-          nextProfileUpdate.onboarding_current_step = "documents_upload";
-        }
-
-        const { error: profileUpdateError } = await supabase
-          .from("user_profiles")
-          .update(nextProfileUpdate)
-          .eq("id", profile_id);
-
-        if (profileUpdateError) {
-          return new Response(
-            JSON.stringify({ success: false, error: profileUpdateError.message }),
-            { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-          );
-        }
-
         const { error } = await supabase
           .from("student_documents")
           .update({
@@ -216,6 +181,31 @@ Deno.serve(async (req) => {
       }
     }
 
+    const aggregateStatus = await getAggregateDocumentStatus(supabase, profile);
+    const nextProfileUpdate: Record<string, unknown> = {
+      documents_status: aggregateStatus,
+      documents_uploaded: aggregateStatus === "approved" ? true : profile.documents_uploaded,
+      updated_at: new Date().toISOString(),
+    };
+
+    if (aggregateStatus === "approved") {
+      nextProfileUpdate.onboarding_current_step = "payment";
+    } else if (decision === "reject" || aggregateStatus === "rejected") {
+      nextProfileUpdate.onboarding_current_step = "documents_upload";
+    }
+
+    const { error: profileUpdateError } = await supabase
+      .from("user_profiles")
+      .update(nextProfileUpdate)
+      .eq("id", profile_id);
+
+    if (profileUpdateError) {
+      return new Response(
+        JSON.stringify({ success: false, error: profileUpdateError.message }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     try {
       const appBaseUrl = Deno.env.get("APP_BASE_URL") ?? "https://migmainc.com";
       const notifyPayload = buildNotifyPayload(decision, profile, {
@@ -241,30 +231,19 @@ Deno.serve(async (req) => {
       };
 
       if (notifyPayload) {
-        await fetch(notifyUrl, {
+        const notifyRes = await fetch(notifyUrl, {
           method: "POST",
           headers: notifyHeaders,
           body: JSON.stringify(notifyPayload),
         });
+        if (!notifyRes.ok) {
+          console.error("[review-student-documents] document_rejected notification failed:", notifyRes.status, await notifyRes.text());
+        }
       }
 
       if (decision === "approve") {
-        const allDocsQuery = scope === "global"
-          ? supabase
-              .from("global_document_requests")
-              .select("status")
-              .eq("profile_id", profile_id)
-          : supabase
-              .from("student_documents")
-              .select("status")
-              .eq("user_id", profile.user_id);
-
-        const { data: allDocs } = await allDocsQuery;
-
-        const allApproved = allDocs && allDocs.length > 0 && allDocs.every(d => d.status === "approved");
-
-        if (allApproved) {
-          await fetch(notifyUrl, {
+        if (aggregateStatus === "approved") {
+          const approvedNotifyRes = await fetch(notifyUrl, {
             method: "POST",
             headers: notifyHeaders,
             body: JSON.stringify({
@@ -272,12 +251,16 @@ Deno.serve(async (req) => {
               user_id: profile.id,
               data: {
                 client_name: profile.full_name ?? profile.email ?? "Student",
+                app_url: `${appBaseUrl}/student/onboarding?step=payment`,
               },
             }),
           });
+          if (!approvedNotifyRes.ok) {
+            console.error("[review-student-documents] all_documents_approved notification failed:", approvedNotifyRes.status, await approvedNotifyRes.text());
+          }
 
           if (scope === "global") {
-            await fetch(notifyUrl, {
+            const adminNotifyRes = await fetch(notifyUrl, {
               method: "POST",
               headers: notifyHeaders,
               body: JSON.stringify({
@@ -288,6 +271,9 @@ Deno.serve(async (req) => {
                 },
               }),
             });
+            if (!adminNotifyRes.ok) {
+              console.error("[review-student-documents] admin_package_complete notification failed:", adminNotifyRes.status, await adminNotifyRes.text());
+            }
           }
         }
       }
@@ -300,7 +286,7 @@ Deno.serve(async (req) => {
         success: true,
         profile_id,
         scope,
-        documents_status: nextStatus,
+        documents_status: aggregateStatus,
         documents_updated: !docsUpdateError,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }

@@ -391,14 +391,14 @@ function buildTemplate(
 
     // ── 07 ────────────────────────────────────────────────────────────────────
     case "all_documents_approved": return {
-      subject: "All Documents Approved — Your Application is Being Processed",
+      subject: "Documents Approved — Pay Your Application Fee",
       emailHtml: emailWrapper("Documents Approved", `
         <p>Hi, ${highlight(firstName)}!</p>
-        <p>All your submitted documents have been <strong>reviewed and approved</strong>. 🎉</p>
-        <p>Our team is now processing your application package and coordinating with the university. You will be notified as soon as your acceptance letter is ready.</p>
-        ${btn("Track your documents", routes.studentDocuments)}
+        <p>All your submitted documents have been <strong>reviewed and approved</strong>.</p>
+        <p>The next step is to pay your <strong>Application Fee</strong> so we can continue submitting your package to the university.</p>
+        ${btn("Pay Application Fee", data.app_url ?? routes.onboardingPayment)}
       `),
-      whatsapp: `✅ *Migma* — Documents Approved!\n\nHi ${firstName}, all your documents have been approved! We're now processing your application. We'll notify you when your acceptance letter is ready.\n${routes.studentDocuments}`,
+      whatsapp: `✅ *Migma* — Documents Approved!\n\nHi ${firstName}, all your documents have been approved. Next step: pay your Application Fee here:\n${data.app_url ?? routes.onboardingPayment}`,
     };
 
     // ── 08 ────────────────────────────────────────────────────────────────────
@@ -667,7 +667,7 @@ Deno.serve(async (req) => {
     } else if (user_id) {
       const { data: profile, error: profileErr } = await supabase
         .from("user_profiles")
-        .select("full_name, email, phone")
+        .select("full_name, email, phone, whatsapp")
         .eq("id", user_id)
         .single();
 
@@ -676,7 +676,7 @@ Deno.serve(async (req) => {
       }
 
       recipientEmail = profile.email ?? "";
-      recipientPhone = profile.phone ?? "";
+      recipientPhone = profile.phone ?? profile.whatsapp ?? "";
       recipientName = profile.full_name ?? "Cliente";
     } else if (data.client_email || data.client_phone) {
       recipientEmail = data.client_email ?? "";
@@ -704,15 +704,35 @@ Deno.serve(async (req) => {
     if (!sendEmailChannel) {
       emailResult = { success: true, error: "skipped_by_channel" };
     } else if (recipientEmail) {
-      const { error: invokeErr } = await supabase.functions.invoke("send-email", {
-        body: {
-          to: recipientEmail,
-          subject: template.subject,
-          html: template.emailHtml,
-        },
-      });
-      emailResult = invokeErr ? { success: false, error: invokeErr.message } : { success: true };
-      if (invokeErr) console.error("[migma-notify][email] invoke error:", invokeErr.message);
+      try {
+        const emailRes = await fetch(`${supabaseUrl}/functions/v1/send-email`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${supabaseKey}`,
+            "apikey": supabaseKey,
+          },
+          body: JSON.stringify({
+            to: recipientEmail,
+            subject: template.subject,
+            html: template.emailHtml,
+          }),
+        });
+        const emailBody = await emailRes.text();
+        if (!emailRes.ok) {
+          emailResult = { success: false, error: `send-email_${emailRes.status}: ${emailBody}` };
+          console.error("[migma-notify][email] send-email failed:", emailResult.error);
+        } else {
+          const parsed = emailBody ? JSON.parse(emailBody) : {};
+          emailResult = parsed?.error || parsed?.success === false
+            ? { success: false, error: parsed?.error ?? "send-email_failed" }
+            : { success: true };
+        }
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        emailResult = { success: false, error: message };
+        console.error("[migma-notify][email] fetch error:", message);
+      }
     } else {
       emailResult = { success: false, error: "no_email_address" };
       console.warn(`[migma-notify][email] No email for trigger ${trigger}`);

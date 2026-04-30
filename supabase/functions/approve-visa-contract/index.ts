@@ -971,13 +971,26 @@ Deno.serve(async (req) => {
           </html>
         `;
 
-          await supabase.functions.invoke('send-email', {
-            body: {
+          const emailRes = await fetch(`${supabaseUrl}/functions/v1/send-email`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${supabaseServiceKey}`,
+              'apikey': supabaseServiceKey,
+            },
+            body: JSON.stringify({
               to: order.client_email,
               subject: `Document Approved: ${documentName} - Order #${order.order_number}`,
               html: emailHtml,
-            },
+            }),
           });
+
+          const emailBody = await emailRes.text();
+          if (!emailRes.ok) {
+            console.error("[EDGE FUNCTION] Contract approval client email failed:", emailRes.status, emailBody);
+          } else {
+            console.log("[EDGE FUNCTION] Contract approval client email sent:", order.client_email);
+          }
         }
       } catch (tokenEmailError) {
         console.error("[EDGE FUNCTION] Error with token/email (non-critical):", tokenEmailError);
