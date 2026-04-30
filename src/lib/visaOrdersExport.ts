@@ -14,7 +14,7 @@ interface VisaOrder {
     client_email?: string | null;
     total_price_usd: string;
     payment_status: string;
-    payment_method: string;
+    payment_method?: string | null;
     payment_metadata?: { fee_amount?: string | number, total_usd?: string | number, final_amount?: string | number } | null;
     created_at: string;
 }
@@ -100,8 +100,12 @@ export async function exportVisaOrdersToExcel(orders: VisaOrder[]): Promise<void
                 order.payment_status;
 
         // Traduzir/Formatar método
-        const method = order.payment_method === 'manual' ? 'Manual/Seller' :
-            order.payment_method.charAt(0).toUpperCase() + order.payment_method.slice(1);
+        const paymentMethod = order.payment_method?.trim();
+        const method = paymentMethod
+            ? paymentMethod === 'manual'
+                ? 'Manual/Seller'
+                : paymentMethod.charAt(0).toUpperCase() + paymentMethod.slice(1)
+            : 'N/A';
 
         row.values = [
             dateValue,              // Data

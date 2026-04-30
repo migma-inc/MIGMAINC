@@ -129,6 +129,21 @@ function detectJourneyType(slugs: string[]): string | null {
   return null;
 }
 
+function normalizeTrackingContact(order: {
+  client_whatsapp?: string | null;
+  client_email?: string | null;
+  client_name?: string | null;
+}) {
+  const phone = order.client_whatsapp?.replace(/\D/g, '');
+  if (phone) return `phone:${phone}`;
+
+  const email = order.client_email?.toLowerCase().trim();
+  if (email) return `email:${email}`;
+
+  const name = order.client_name?.toLowerCase().trim().replace(/\s+/g, ' ');
+  return name ? `name:${name}` : null;
+}
+
 type TimeRange = '24h' | '7d' | '30d' | 'all';
 
 const TIME_RANGE_MS: Record<Exclude<TimeRange, 'all'>, number> = {
@@ -152,7 +167,7 @@ export function AdminTracking() {
 
       let query = supabase
         .from('visa_orders')
-        .select('client_email, client_name, product_slug, seller_id, paid_at, created_at, payment_status')
+        .select('client_email, client_name, client_whatsapp, product_slug, seller_id, paid_at, created_at, payment_status')
         .in('payment_status', ['completed', 'pending', 'manual_pending', 'processing'])
         .order('created_at', { ascending: false });
 
@@ -188,9 +203,12 @@ export function AdminTracking() {
       }> = {};
 
       for (const order of orders) {
-        const normalizedName = order.client_name?.toLowerCase().trim();
+        const journeyType = detectJourneyType([order.product_slug]);
+        if (!journeyType) continue;
+
         const email = (order.client_email || '').toLowerCase().trim();
-        const key = email || normalizedName;
+        const contactKey = normalizeTrackingContact(order);
+        const key = contactKey ? `${contactKey}:${journeyType}` : null;
         if (!key) continue;
 
         if (!grouped[key]) {
