@@ -58,3 +58,31 @@ Aconteceu 2x hoje.
   ```
 - [ ] Deploy functions: `receive-matriculausa-letter` + `migma-notify`
 - [ ] Item 14.1 (trava financeira 2ª parcela) — adiado pelo usuário
+
+---
+
+## 5. Estabilização do Onboarding e Pagamentos (Sessão Noturna)
+
+### 5.1 Onboarding Flow Stabilization
+- `useOnboardingProgress.tsx` — Corrigida condição de corrida no carregamento inicial. O sistema agora força o redirecionamento para o passo máximo permitido (ex: se bolsa aprovada, pula direto para Placement Fee) em vez de resetar para Step 1 no refresh.
+- `UniversitySelectionStep.tsx` — Adicionado fallback visual para "Seleção Aprovada". Caso o aluno volte manualmente para a etapa de seleção após aprovação, ele verá uma tela de sucesso direcionando-o para o pagamento.
+
+### 5.2 Correção Crítica: Cálculo de Taxa Stripe (Gross-up)
+- **Problema**: O backend usava fórmula aditiva (`* 1.039`), causando perda líquida.
+- **Solução**: Implementada fórmula de divisão (`/ 0.961`) na function `create-placement-fee-checkout`.
+- **UI Sync**: O botão "Pagar" no Onboarding agora reflete dinamicamente o valor total (com taxas) se o método Stripe for selecionado.
+
+### 5.3 Investigação Sistêmica
+- Identificado que o erro de cálculo de taxas está presente em quase todas as funções de checkout do ecossistema:
+    - `create-application-fee-checkout`
+    - `create-visa-checkout-session` (Cartão)
+    - `migma-student-stripe-checkout`
+- Criado plano detalhado em `docs/stripe-fee-fix-plan.md` para execução amanhã.
+
+## Pendências Atualizadas
+
+- [x] **DÍVIDA TÉCNICA**: Sincronizar fórmulas de Gross-up (Parcial: Placement Fee OK)
+- [ ] **CRÍTICO**: Aplicar migration no banco Migma produção (Transfer fields)
+- [ ] **DEPLOY**: Funções `create-application-fee-checkout`, `create-visa-checkout-session` e `migma-student-stripe-checkout` com a nova fórmula.
+- [ ] Item 14.1 (trava financeira 2ª parcela) — adiado pelo usuário
+

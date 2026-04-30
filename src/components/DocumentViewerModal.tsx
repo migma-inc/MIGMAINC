@@ -52,8 +52,6 @@ export function DocumentViewerModal({ isOpen, onClose, url, title }: DocumentVie
 
   if (!url) return null;
 
-  const isPdf = url.includes('.pdf') || url.startsWith('blob:'); // blob might be pdf
-
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogPortal>

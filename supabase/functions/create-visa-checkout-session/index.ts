@@ -280,7 +280,7 @@ Deno.serve(async (req: Request) => {
     } else {
       // Card payment - USD
       const baseCents = Math.round(totalBeforeFees * 100);
-      finalAmount = Math.round(baseCents + (baseCents * CARD_FEE_PERCENTAGE) + CARD_FEE_FIXED);
+      finalAmount = Math.round((baseCents + CARD_FEE_FIXED) / (1 - CARD_FEE_PERCENTAGE));
       currency = "usd";
       feeAmount = (finalAmount / 100) - totalBeforeFees;
     }

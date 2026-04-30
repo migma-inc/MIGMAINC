@@ -100,7 +100,6 @@ export const AcceptanceLetterStep: React.FC<StepProps> = () => {
       if (updateErr) throw updateErr;
 
       // Notify MatriculaUSA
-      const MIGMA_URL = import.meta.env.VITE_SUPABASE_FUNCTIONS_URL as string;
       await supabase.functions.invoke('notify-matriculausa-transfer-form', {
         body: {
           student_email: userProfile.email,

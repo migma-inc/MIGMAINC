@@ -193,9 +193,9 @@ export const useOnboardingProgress = () => {
           !!freshProfile.selected_scholarship_id
         );
 
-        scholarshipsApproved = hasV11Apps && v11AppsData!.some(a => 
+        scholarshipsApproved = !!(hasV11Apps && v11AppsData!.some(a =>
           ['approved', 'payment_pending', 'payment_confirmed', 'accepted'].includes(a.status)
-        );
+        ));
       }
 
       // Tipo de processo
@@ -223,8 +223,6 @@ export const useOnboardingProgress = () => {
         !!(v11AppsData?.some((a: any) => a.status === 'payment_confirmed'));
       const reinstatementFeePaid = !!freshProfile.has_paid_reinstatement_package;
       const onboardingCompleted = !!freshProfile.onboarding_completed;
-      const isTransferInactive = freshProfile.student_process_type === 'transfer' && freshProfile.visa_transfer_active === false;
-
       // Migma Logic: Se for Migma, precisa ter concluído o Step 3 para sair do selection_fee
       const isMigma = freshProfile.source === 'migma';
       const migmaCheckoutCompleted = !!freshProfile.migma_checkout_completed_at;

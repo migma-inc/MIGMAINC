@@ -5,7 +5,7 @@
  */
 import React, { useState, useEffect } from 'react';
 import {
-  User, Phone, Home, Calendar, Briefcase, Star,
+  Phone, Home, Calendar, Briefcase, Star,
   Plus, Trash2, Loader2, CheckCircle, ArrowRight,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -126,9 +126,9 @@ const selectTriggerCls = "w-full bg-white/5 border border-white/10 text-white ro
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
-export const DadosComplementaresStep: React.FC<StepProps> = ({ onNext }) => {
+export const DadosComplementaresStep: React.FC<StepProps> = ({ onNext: _onNext }) => {
   const navigate = useNavigate();
-  const { user, userProfile } = useStudentAuth();
+  const { userProfile } = useStudentAuth();
   const [form, setForm] = useState<FormData>(INITIAL);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);

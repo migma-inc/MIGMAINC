@@ -21,7 +21,6 @@ import { useStudentAuth } from '@/contexts/StudentAuthContext';
 import { supabase } from '@/lib/supabase';
 import { getSecureUrl } from '@/lib/storage';
 import { DocumentViewerModal } from '@/components/DocumentViewerModal';
-import { PdfModal } from '@/components/ui/pdf-modal';
 import { StudentSupportPanel } from '@/pages/StudentSupport';
 import { StudentRewardsPanel } from '@/pages/StudentRewards';
 import {
@@ -32,6 +31,7 @@ import {
   type DashboardStudentDocument,
   type DashboardForm,
   type DashboardSurveyResponse,
+  type DashboardComplementaryData,
 } from './hooks/useStudentDashboard';
 
 type StudentDashboardTab =
@@ -812,7 +812,7 @@ function FormsTab({
   openViewer: (url: string | null, title: string) => void;
 }) {
   const { t } = useTranslation();
-  const [previewForm, setPreviewForm] = useState<DashboardForm | null>(null);
+  const [previewForm] = useState<DashboardForm | null>(null);
   const [signingForm, setSigningForm] = useState<DashboardForm | null>(null);
   const visibleForms = forms.filter(form => form.form_type !== 'termo_responsabilidade_estudante');
   const previewPdfUrl = previewForm ? (isPdfUrl(previewForm.signed_url) ? previewForm.signed_url : previewForm.template_url) : null;

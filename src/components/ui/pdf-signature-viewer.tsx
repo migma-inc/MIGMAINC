@@ -110,7 +110,8 @@ export function PdfSignatureViewer({
       ctx.scale(dpr, dpr);
 
       const renderTask = page.render({
-        canvasContext: ctx as unknown as OffscreenCanvasRenderingContext2D,
+        canvasContext: ctx as unknown as CanvasRenderingContext2D,
+        canvas,
         viewport: scaledViewport,
       });
       renderTaskRef.current = renderTask;
@@ -141,7 +142,6 @@ export function PdfSignatureViewer({
   } | null>(null);
 
   const clampOverlay = useCallback((x: number, y: number) => {
-    const maxX = pageHeightPdf > 0 ? (pageHeightPdf * (canvasRef.current?.clientWidth ?? 600) / pageHeightPdf) - placement.width : 9999;
     const minY = 0;
     const maxY = pageHeightPdf > 0 ? pageHeightPdf - placement.height : 9999;
     const canvasWidth = canvasRef.current ? canvasRef.current.clientWidth / renderScale : 9999;

@@ -349,6 +349,9 @@ const MigmaCheckout: React.FC = () => {
           full_name: resolvedName,
           email: profile.email || session.user.email || '',
           phone: profile.phone || '',
+          num_dependents: null,
+          terms_accepted: false,
+          data_accepted: false,
           signature_data_url: profile.signature_url || null
         });
 
@@ -407,6 +410,9 @@ const MigmaCheckout: React.FC = () => {
           full_name: resolvedName,
           email: profile.email || session.user.email || '',
           phone: profile.phone || '',
+          num_dependents: null,
+          terms_accepted: false,
+          data_accepted: false,
           signature_data_url: profile.signature_url || null
         });
 
@@ -516,6 +522,9 @@ const MigmaCheckout: React.FC = () => {
         full_name: profile?.full_name || session.user.user_metadata?.full_name || '',
         email: profile?.email || session.user.email || '',
         phone: profile?.phone || session.user.user_metadata?.phone || '',
+        num_dependents: null,
+        terms_accepted: false,
+        data_accepted: false,
         signature_data_url: profile?.signature_url || null
       });
     }
@@ -746,8 +755,8 @@ const MigmaCheckout: React.FC = () => {
         const splitResult = await matriculaApi.migmaSplitParcelowCheckout({
           user_id: userId,
           order_id: finalOrderId,
-          email: isThirdParty ? payment.payerInfo?.email : data.email,
-          full_name: isThirdParty ? payment.payerInfo?.name : data.full_name,
+          email: isThirdParty ? payment.payerInfo?.email ?? '' : data.email,
+          full_name: isThirdParty ? payment.payerInfo?.name ?? '' : data.full_name,
           phone: isThirdParty ? payment.payerInfo?.phone : data.phone,
           cpf: payment.cpf,
           payer_info: payment.payerInfo,
@@ -815,8 +824,8 @@ const MigmaCheckout: React.FC = () => {
           amount: total,
           user_id: userId,
           order_id: finalOrderId,
-          email: isThirdParty ? payment.payerInfo?.email : data.email,
-          full_name: isThirdParty ? payment.payerInfo?.name : data.full_name,
+          email: isThirdParty ? payment.payerInfo?.email ?? '' : data.email,
+          full_name: isThirdParty ? payment.payerInfo?.name ?? '' : data.full_name,
           phone: isThirdParty ? payment.payerInfo?.phone : data.phone,
           payment_method: payment.method,
           service_type: service ?? 'transfer',

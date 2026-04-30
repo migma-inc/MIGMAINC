@@ -5,8 +5,8 @@
  */
 import React, { useState, useMemo } from 'react';
 import {
-  X, Award, Clock, GraduationCap, Globe, CheckCircle2,
-  Calculator, ExternalLink, BookOpen, UserPlus, HelpCircle,
+  X, Award, GraduationCap, Globe, CheckCircle2,
+  Calculator, BookOpen, UserPlus, HelpCircle,
   ChevronDown, ChevronUp, MapPin, Briefcase, Shield, Info
 } from 'lucide-react';
 

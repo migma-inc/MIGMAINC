@@ -41,7 +41,7 @@ Deno.serve(async (req) => {
 
     // Calculate gross amount (net + Stripe fee)
     const baseCents = Math.round(amount * 100);
-    const finalAmount = Math.round(baseCents + baseCents * CARD_FEE_PERCENTAGE + CARD_FEE_FIXED_CENTS);
+    const finalAmount = Math.round((baseCents + CARD_FEE_FIXED_CENTS) / (1 - CARD_FEE_PERCENTAGE));
 
     const siteUrl = origin || "http://localhost:5173";
     const serviceSlug = service_type || "transfer";
