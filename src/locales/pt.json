@@ -12,7 +12,7 @@
         "success_title": "Pagamento Bem-sucedido!",
         "success_message": "Seu pagamento foi processado com sucesso.",
         "cancel_title": "Pagamento Cancelado",
-                "cancel_message": "Seu pagamento foi cancelado.",
+        "cancel_message": "Seu pagamento foi cancelado.",
         "split": {
             "title": "Dividir pagamento em 2 partes",
             "active": "ATIVO",
@@ -251,7 +251,10 @@
             "not_yet_valid": "Este cupom ainda não é válido.",
             "error_validate": "Erro ao validar cupom.",
             "error_remove": "Erro ao remover cupom."
-        }
+        },
+        "evidence_description_label": "Descrição da evidência",
+        "per_evidence": "Por evidência",
+        "evidences": "Evidências"
     },
     "global_partner": {
         "nav": {

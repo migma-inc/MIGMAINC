@@ -233,7 +233,10 @@
             "not_yet_valid": "Este cupón aún no es válido.",
             "error_validate": "Error al validar el cupón.",
             "error_remove": "Error al eliminar el cupón."
-        }
+        },
+        "evidence_description_label": "Descripción de la evidencia",
+        "per_evidence": "Por evidencia",
+        "evidences": "Evidencias"
     },
     "global_partner": {
         "nav": {

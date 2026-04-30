@@ -269,9 +269,11 @@ Deno.serve(async (req) => {
         pdf.setTextColor(255, 255, 255);
         pdf.setFontSize(10);
 
+        const isRfeDefense = order.product_slug === 'rfe-defense';
+
         pdf.text('Description', margin + 5, currentY + 7);
-        pdf.text('Qty', pageWidth - margin - 80, currentY + 7, { align: 'right' });
-        pdf.text('Unit Price', pageWidth - margin - 40, currentY + 7, { align: 'right' });
+        pdf.text(isRfeDefense ? 'Evidence' : 'Qty', pageWidth - margin - 80, currentY + 7, { align: 'right' });
+        pdf.text(isRfeDefense ? 'Price per Evidence' : 'Unit Price', pageWidth - margin - 40, currentY + 7, { align: 'right' });
         pdf.text('Total', pageWidth - margin - 5, currentY + 7, { align: 'right' });
 
         currentY += 10;
@@ -282,7 +284,6 @@ Deno.serve(async (req) => {
         const currencySymbol = '$';
 
         // Item 1: Main Product
-        const isRfeDefense = order.product_slug === 'rfe-defense';
         const basePrice = parseFloat(order.base_price_usd || '0');
 
         // Calculate Extras to check if they need to be merged or shown
@@ -297,12 +298,15 @@ Deno.serve(async (req) => {
             const totalPrice = basePrice + extraTotal;
             const rfeDescription = product?.name || 'RFE Defense (when immigration requests additional evidence)';
             
+            const evidenceCount = displayExtraUnits > 0 ? displayExtraUnits : 1;
+            const pricePerEvidence = displayExtraPrice > 0 ? displayExtraPrice : totalPrice / evidenceCount;
+            
             pdf.setFontSize(8); // Smaller font for long RFE description to avoid overlap
             pdf.text(rfeDescription, margin + 5, currentY + 7);
             pdf.setFontSize(10); // Reset font size
             
-            pdf.text('1', pageWidth - margin - 80, currentY + 7, { align: 'right' });
-            pdf.text(`${currencySymbol}${totalPrice.toFixed(2)}`, pageWidth - margin - 40, currentY + 7, { align: 'right' });
+            pdf.text(evidenceCount.toString(), pageWidth - margin - 80, currentY + 7, { align: 'right' });
+            pdf.text(`${currencySymbol}${pricePerEvidence.toFixed(2)}`, pageWidth - margin - 40, currentY + 7, { align: 'right' });
             pdf.text(`${currencySymbol}${totalPrice.toFixed(2)}`, pageWidth - margin - 5, currentY + 7, { align: 'right' });
         } else {
             // Regular logic for other products

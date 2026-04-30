@@ -79,7 +79,11 @@ export const OrderSummary: React.FC<OrderSummaryProps> = ({
                     )}
                     {product.calculation_type === 'units_only' && (
                         <div className="flex justify-between text-xs sm:text-sm">
-                            <span className="text-gray-400">{t('checkout.number_of_applicants', 'Number of applicants')} ({extraUnits || 0})</span>
+                            <span className="text-gray-400">
+                                {product.slug === 'rfe-defense' 
+                                    ? t('checkout.evidences', 'Evidências') 
+                                    : t('checkout.number_of_applicants', 'Number of applicants')} ({extraUnits || 0})
+                            </span>
                             <span className="text-white">US$ {((extraUnits || 0) * extraUnitPrice).toFixed(2)}</span>
                         </div>
                     )}

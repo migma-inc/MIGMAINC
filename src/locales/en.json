@@ -12,7 +12,7 @@
         "success_title": "Payment Successful!",
         "success_message": "Your payment has been processed successfully.",
         "cancel_title": "Payment Cancelled",
-                "cancel_message": "Your payment has been cancelled.",
+        "cancel_message": "Your payment has been cancelled.",
         "split": {
             "title": "Split payment into 2 parts",
             "active": "ACTIVE",
@@ -246,7 +246,10 @@
             "not_yet_valid": "This coupon is not yet valid.",
             "error_validate": "Error validating coupon.",
             "error_remove": "Error removing coupon."
-        }
+        },
+        "evidence_description_label": "Evidence description",
+        "per_evidence": "Per evidence",
+        "evidences": "Evidences"
     },
     "global_partner": {
         "nav": {

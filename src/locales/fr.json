@@ -233,7 +233,10 @@
             "not_yet_valid": "Ce coupon n'est pas encore valide.",
             "error_validate": "Erreur lors de la validation du coupon.",
             "error_remove": "Erreur lors du retrait du coupon."
-        }
+        },
+        "evidence_description_label": "Description de la preuve",
+        "per_evidence": "Par preuve",
+        "evidences": "Preuves"
     },
     "global_partner": {
         "nav": {
