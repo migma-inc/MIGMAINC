@@ -144,11 +144,18 @@ export function Sidebar({ className, isMobileOpen = false, onMobileClose }: Side
       }
 
       // 5. Orphan Sales Count
-      const { count: orphanCount } = await supabase
+      let orphanQuery = supabase
         .from('visa_orders')
         .select('*', { count: 'exact', head: true })
         .eq('payment_status', 'completed')
         .or('seller_id.is.null,seller_id.eq.""');
+
+      if (!isLocal) {
+        orphanQuery = orphanQuery.not('client_email', 'ilike', '%@uorak.com');
+      }
+
+      const { count: orphanCount } = await orphanQuery;
+
 
       setCounts({
         applications: appCount || 0,
