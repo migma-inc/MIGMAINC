@@ -10,6 +10,7 @@ import {
   FileText,
   Image,
   Download,
+  ExternalLink,
   Loader2,
   Mail,
   MapPin,
@@ -831,6 +832,50 @@ function buildVisaOrderDocuments(orders: CrmVisaOrder[]): VisaOrderDocument[] {
   return docs;
 }
 
+function TransferConcludeButton({ applicationId, profileId, onRefresh }: { applicationId: string; profileId: string; onRefresh: () => Promise<void> }) {
+  const [loading, setLoading] = useState(false);
+
+  const handleConclude = async () => {
+    if (!confirm('Confirmar que a transferência foi concluída? O aluno será notificado.')) return;
+    setLoading(true);
+    try {
+      await supabase
+        .from('institution_applications')
+        .update({ transfer_concluded_at: new Date().toISOString() })
+        .eq('id', applicationId);
+
+      await supabase.functions.invoke('migma-notify', {
+        body: {
+          trigger: 'transfer_completed',
+          user_id: profileId,
+          data: {},
+        },
+      });
+
+      await onRefresh();
+    } catch (err: any) {
+      alert('Erro: ' + err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <button
+      onClick={handleConclude}
+      disabled={loading}
+      className="flex items-center gap-2 rounded-xl border border-emerald-500/40 bg-emerald-500/10 px-4 py-2.5 text-sm font-bold text-emerald-400 hover:bg-emerald-500/20 transition-colors disabled:opacity-50"
+    >
+      {loading ? (
+        <svg className="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+      ) : (
+        <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+      )}
+      Marcar Transfer Concluído
+    </button>
+  );
+}
+
 function DocumentsTab({
   profileId,
   profileUserId,
@@ -1008,7 +1053,7 @@ function DocumentsTab({
   };
 
   useEffect(() => {
-    if (files.length === 0 && studentDocuments.length === 0 && globalDocumentRequests.length === 0 && orderDocuments.length === 0) { setLoadingUrls(false); return; }
+    if (files.length === 0 && studentDocuments.length === 0 && globalDocumentRequests.length === 0 && orderDocuments.length === 0 && !institutionApplication) { setLoadingUrls(false); return; }
     (async () => {
       const resolved: Record<string, string> = {};
       for (const f of files) {
@@ -1030,10 +1075,27 @@ function DocumentsTab({
         const url = await getSecureUrl(doc.url);
         if (url) resolved[doc.id] = url;
       }
+
+      // Resolve acceptance letter and transfer forms
+      if (institutionApplication) {
+        if (institutionApplication.acceptance_letter_url) {
+          const url = await getSecureUrl(institutionApplication.acceptance_letter_url);
+          if (url) resolved[`${institutionApplication.id}-acceptance`] = url;
+        }
+        if (institutionApplication.transfer_form_url) {
+          const url = await getSecureUrl(institutionApplication.transfer_form_url);
+          if (url) resolved[`${institutionApplication.id}-transfer-template`] = url;
+        }
+        if (institutionApplication.transfer_form_filled_url) {
+          const url = await getSecureUrl(institutionApplication.transfer_form_filled_url);
+          if (url) resolved[`${institutionApplication.id}-transfer-filled`] = url;
+        }
+      }
+
       setResolvedUrls(resolved);
       setLoadingUrls(false);
     })();
-  }, [files, studentDocuments, globalDocumentRequests, orderDocuments]);
+  }, [files, studentDocuments, globalDocumentRequests, orderDocuments, institutionApplication]);
 
   const hasAnything = !!institutionApplication || institutionForms.length > 0 || files.length > 0 || srDocuments.length > 0 || studentDocuments.length > 0 || globalDocumentRequests.length > 0 || orderDocuments.length > 0;
   if (!hasAnything) {
@@ -1151,6 +1213,88 @@ function DocumentsTab({
                   : 'bg-red-500/10 border-red-500/20 text-red-300'
               )}>
                 {matriculaMsg.text}
+              </div>
+            )}
+
+            {/* Acceptance Letter + Transfer Form status */}
+            {institutionApplication && (institutionApplication.acceptance_letter_url || institutionApplication.transfer_form_url || institutionApplication.package_status === 'ready' || institutionApplication.package_status === 'sent') && (
+              <div className="space-y-3">
+                <div className="text-xs text-gray-500 uppercase tracking-widest font-bold">Status MatriculaUSA → Aluno</div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3 space-y-2">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-gray-500">Carta de Aceite</p>
+                    {institutionApplication.acceptance_letter_url ? (
+                      <a
+                        href={resolvedUrls[`${institutionApplication.id}-acceptance`] || '#'}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={(e) => !resolvedUrls[`${institutionApplication.id}-acceptance`] && e.preventDefault()}
+                        className="inline-flex items-center gap-1.5 text-xs text-emerald-400 font-semibold hover:underline"
+                      >
+                        <ExternalLink className="w-3 h-3" />
+                        Ver carta de aceite
+                      </a>
+                    ) : (
+                      <p className="text-xs text-gray-500">Aguardando MatriculaUSA</p>
+                    )}
+                  </div>
+                  <div className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3 space-y-2">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-gray-500">Transfer Form</p>
+                    {institutionApplication.transfer_form_url ? (
+                      <div className="space-y-1.5">
+                        <a
+                          href={resolvedUrls[`${institutionApplication.id}-transfer-template`] || '#'}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={(e) => !resolvedUrls[`${institutionApplication.id}-transfer-template`] && e.preventDefault()}
+                          className="inline-flex items-center gap-1.5 text-xs text-blue-400 font-semibold hover:underline"
+                        >
+                          <ExternalLink className="w-3 h-3" />
+                          Template enviado
+                        </a>
+                        {institutionApplication.transfer_form_filled_url ? (
+                          <div className="space-y-1.5">
+                            <a
+                              href={resolvedUrls[`${institutionApplication.id}-transfer-filled`] || '#'}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              onClick={(e) => !resolvedUrls[`${institutionApplication.id}-transfer-filled`] && e.preventDefault()}
+                              className="inline-flex items-center gap-1.5 text-xs text-emerald-400 font-semibold hover:underline"
+                            >
+                              <ExternalLink className="w-3 h-3" />
+                              Aluno enviou preenchido
+                            </a>
+                            {institutionApplication.transfer_form_delivered_at && (
+                              <p className="text-xs text-emerald-400 font-semibold">
+                                ✅ Entregue à escola em {new Date(institutionApplication.transfer_form_delivered_at).toLocaleDateString('pt-BR')}
+                              </p>
+                            )}
+                          </div>
+                        ) : (
+                          <p className="text-xs text-gray-500">
+                            Status aluno: {institutionApplication.transfer_form_student_status ?? 'pending'}
+                          </p>
+                        )}
+                      </div>
+                    ) : (
+                      <p className="text-xs text-gray-500">Não aplicável</p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Marcar Transfer Concluído */}
+                {institutionApplication.transfer_form_delivered_at && !institutionApplication.transfer_concluded_at && (
+                  <TransferConcludeButton
+                    applicationId={institutionApplication.id}
+                    profileId={profileId}
+                    onRefresh={onRefresh}
+                  />
+                )}
+                {institutionApplication.transfer_concluded_at && (
+                  <div className="flex items-center gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm font-black text-emerald-400 uppercase tracking-widest">
+                    ✅ TRANSFER CONCLUÍDO — {new Date(institutionApplication.transfer_concluded_at).toLocaleDateString('pt-BR')}
+                  </div>
+                )}
               </div>
             )}
 

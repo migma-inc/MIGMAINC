@@ -14,6 +14,13 @@ export interface DashboardApplication {
   package_status: string | null;
   package_storage_url: string | null;
   acceptance_letter_url: string | null;
+  transfer_form_url: string | null;
+  transfer_form_filled_url: string | null;
+  transfer_form_student_status: string | null;
+  transfer_form_admin_status: string | null;
+  transfer_form_rejection_reason: string | null;
+  transfer_form_delivered_at: string | null;
+  transfer_concluded_at: string | null;
   created_at: string;
   institutions: {
     name: string;
@@ -83,6 +90,37 @@ export interface DashboardSurveyResponse {
   completed_at: string | null;
 }
 
+export interface DashboardWorkEntry {
+  company: string;
+  period: string;
+  role: string;
+}
+
+export interface DashboardComplementaryData {
+  emergency_contact_name: string | null;
+  emergency_contact_phone: string | null;
+  emergency_contact_relationship: string | null;
+  emergency_contact_address: string | null;
+  preferred_start_term: string | null;
+  has_sponsor: boolean | null;
+  sponsor_name: string | null;
+  sponsor_relationship: string | null;
+  sponsor_phone: string | null;
+  sponsor_address: string | null;
+  sponsor_employer: string | null;
+  sponsor_job_title: string | null;
+  sponsor_years_employed: number | null;
+  sponsor_annual_income: string | null;
+  sponsor_committed_amount_usd: number | null;
+  work_experience: DashboardWorkEntry[] | null;
+  recommender1_name: string | null;
+  recommender1_role: string | null;
+  recommender1_contact: string | null;
+  recommender2_name: string | null;
+  recommender2_role: string | null;
+  recommender2_contact: string | null;
+}
+
 export interface DashboardData {
   applications: DashboardApplication[];
   documents: DashboardDocument[];
@@ -90,6 +128,7 @@ export interface DashboardData {
   identity: DashboardIdentity | null;
   studentDocuments: DashboardStudentDocument[];
   surveyResponse: DashboardSurveyResponse | null;
+  complementaryData: DashboardComplementaryData | null;
 }
 
 export function useStudentDashboard() {
@@ -103,6 +142,7 @@ export function useStudentDashboard() {
     identity: null,
     studentDocuments: [],
     surveyResponse: null,
+    complementaryData: null,
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -116,6 +156,7 @@ export function useStudentDashboard() {
         identity: null,
         studentDocuments: [],
         surveyResponse: null,
+        complementaryData: null,
       });
       setLoading(false);
       return;
@@ -123,14 +164,16 @@ export function useStudentDashboard() {
     setLoading(true);
     setError(null);
 
-    const [applicationsRes, documentsRes, formsRes, identityRes, studentDocumentsRes, surveyRes] = await Promise.all([
+    const [applicationsRes, documentsRes, formsRes, identityRes, studentDocumentsRes, surveyRes, complementaryRes] = await Promise.all([
       supabase
         .from('institution_applications')
         .select(`
           id, status, placement_fee_paid_at, placement_fee_installments,
           placement_fee_2nd_installment_paid_at, admin_approved_at,
           payment_link_url, forms_status, package_status, package_storage_url,
-          acceptance_letter_url, created_at,
+          acceptance_letter_url, transfer_form_url, transfer_form_filled_url, transfer_form_student_status,
+          transfer_form_admin_status, transfer_form_rejection_reason,
+          transfer_form_delivered_at, transfer_concluded_at, created_at,
           institutions ( name, city, state, slug ),
           institution_scholarships (
             scholarship_level, placement_fee_usd, discount_percent,
@@ -167,9 +210,14 @@ export function useStudentDashboard() {
         .order('completed_at', { ascending: false, nullsFirst: false })
         .limit(1)
         .maybeSingle(),
+      supabase
+        .from('student_complementary_data')
+        .select('*')
+        .eq('profile_id', profileId)
+        .maybeSingle(),
     ]);
 
-    if (applicationsRes.error || documentsRes.error || formsRes.error || identityRes.error || studentDocumentsRes.error || surveyRes.error) {
+    if (applicationsRes.error || documentsRes.error || formsRes.error || identityRes.error || studentDocumentsRes.error || surveyRes.error || complementaryRes.error) {
       setError(
         applicationsRes.error?.message ||
         documentsRes.error?.message ||
@@ -177,6 +225,7 @@ export function useStudentDashboard() {
         identityRes.error?.message ||
         studentDocumentsRes.error?.message ||
         surveyRes.error?.message ||
+        complementaryRes.error?.message ||
         'Erro ao carregar dashboard',
       );
     }
@@ -188,6 +237,7 @@ export function useStudentDashboard() {
       identity: (identityRes.data ?? null) as DashboardIdentity | null,
       studentDocuments: (studentDocumentsRes.data ?? []) as DashboardStudentDocument[],
       surveyResponse: (surveyRes.data ?? null) as DashboardSurveyResponse | null,
+      complementaryData: (complementaryRes.data ?? null) as DashboardComplementaryData | null,
     });
     setLoading(false);
   }, [profileId, userId]);

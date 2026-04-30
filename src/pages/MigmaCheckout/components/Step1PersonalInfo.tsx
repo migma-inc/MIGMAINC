@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import {
-  User, Mail, Lock, Eye, EyeOff, Users, Loader2, ChevronDown, Check,
-  DollarSign, CreditCard, Smartphone, Zap, FileText,
+  User, Mail, Users, Loader2, ChevronDown, Check,
+  DollarSign, CreditCard, Zap, FileText,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { SignaturePadComponent } from '../../../components/ui/signature-pad';
@@ -106,7 +106,7 @@ export const Step1PersonalInfo: React.FC<Props> = ({
   const [contractError, setContractError] = useState<string | null>(null);
 
   // Registration state (separate from payment)
-  const [regDone, setRegDone] = useState(!!existingUserId);
+  const [, setRegDone] = useState(!!existingUserId);
   const [regUserId, setRegUserId] = useState<string | null>(existingUserId || null);
 
   // Payment state
@@ -125,8 +125,6 @@ export const Step1PersonalInfo: React.FC<Props> = ({
   const needsReceipt = method === 'zelle';
   const isParcelow = method === 'parcelow_card' || method === 'parcelow_pix' || method === 'parcelow_ted';
   const isParcelowCard = method === 'parcelow_card';
-  const needsCpfOnly = method === 'parcelow_pix' || method === 'parcelow_ted';
-
   const canUseSplit = region === 'BR' || region === 'OTHER';
   const isSplitEnabled = !!activeSplitConfig;
 

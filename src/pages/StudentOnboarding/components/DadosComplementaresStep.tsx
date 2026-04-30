@@ -5,7 +5,7 @@
  */
 import React, { useState, useEffect } from 'react';
 import {
-  User, Phone, Home, Calendar, Briefcase, Star,
+  Phone, Home, Calendar, Briefcase, Star,
   Plus, Trash2, Loader2, CheckCircle, ArrowRight,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -121,14 +121,14 @@ const Field: React.FC<{
   </div>
 );
 
-const inputCls = "w-full bg-white/5 border border-white/10 text-white rounded-xl px-4 py-3 text-sm placeholder-gray-600 focus:outline-none focus:border-gold-medium/50 transition-colors";
-const selectTriggerCls = "w-full bg-white/5 border border-white/10 text-white rounded-xl px-4 h-[46px] text-sm placeholder-gray-600 focus:outline-none focus:ring-1 focus:ring-gold-medium/50 transition-all flex items-center justify-between";
+const inputCls = "w-full bg-white/5 border border-white/10 text-white rounded-xl px-4 py-3 text-sm placeholder-gray-600 focus:outline-none focus:border-gold-medium focus:ring-1 focus:ring-gold-medium/20 transition-all";
+const selectTriggerCls = "w-full bg-white/5 border border-white/10 text-white rounded-xl px-4 h-[46px] text-sm placeholder-gray-600 focus:outline-none focus:border-gold-medium focus:ring-1 focus:ring-gold-medium/20 transition-all flex items-center justify-between";
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
-export const DadosComplementaresStep: React.FC<StepProps> = ({ onNext }) => {
+export const DadosComplementaresStep: React.FC<StepProps> = ({ onNext: _onNext }) => {
   const navigate = useNavigate();
-  const { user, userProfile } = useStudentAuth();
+  const { userProfile } = useStudentAuth();
   const [form, setForm] = useState<FormData>(INITIAL);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);

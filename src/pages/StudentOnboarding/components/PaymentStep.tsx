@@ -3,7 +3,7 @@
  * Usa exclusivamente as keys do projeto MatriculaUSA (MATRICULAUSA_*).
  * Zelle: pay@matriculausa.com
  */
-import React, { useEffect, useState, useCallback, useMemo } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
   CheckCircle, Building, Shield, Loader2, AlertCircle, Upload, Clock,
 } from 'lucide-react';
@@ -13,7 +13,6 @@ import { supabase } from '../../../lib/supabase';
 import {
   calculateCardAmountWithFees,
   getExchangeRate,
-  calculatePIXTotalWithIOF,
 } from '../../../utils/stripeFeeCalculator';
 import { ZelleUpload } from '../../../features/visa-checkout/components/steps/step3/ZelleUpload';
 import { SplitPaymentSelector, type SplitPaymentConfig } from '../../../features/visa-checkout/components/steps/step3/SplitPaymentSelector';
@@ -69,7 +68,7 @@ export const PaymentStep: React.FC<StepProps> = ({ onNext }) => {
   const [rejectionReason, setRejectionReason] = useState<string | null>(null);
   const [couponOpen, setCouponOpen] = useState(false);
   const [couponCode, setCouponCode] = useState('');
-  const [exchangeRate, setExchangeRate] = useState(5.6);
+  const [, setExchangeRate] = useState(5.6);
   const [splitConfig, setSplitConfig] = useState<SplitPaymentConfig | null>(null);
   const [cardOwnership, setCardOwnership] = useState<'own' | 'third_party'>('own');
   const [payerName, setPayerName] = useState('');
@@ -157,7 +156,7 @@ export const PaymentStep: React.FC<StepProps> = ({ onNext }) => {
 
   // Polling para atualizar status do Zelle automaticamente
   useEffect(() => {
-    let interval: NodeJS.Timeout;
+    let interval: ReturnType<typeof setInterval>;
     if (zelleSubmitted && !alreadyPaid) {
       interval = setInterval(() => {
         fetchApplications(true);
@@ -168,7 +167,6 @@ export const PaymentStep: React.FC<StepProps> = ({ onNext }) => {
   const firstApp = applications[0];
   const applicationFee = firstApp?.fee_amount ?? 400;
   const cardAmount = calculateCardAmountWithFees(applicationFee);
-  const pixTotal = calculatePIXTotalWithIOF(applicationFee, exchangeRate);
   const scholarshipName = firstApp?.scholarship_name || 'Selected Scholarship';
   const universityName = firstApp?.university_name || '';
 

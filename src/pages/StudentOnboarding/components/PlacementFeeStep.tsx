@@ -706,7 +706,7 @@ export const PlacementFeeStep: React.FC<StepProps> = ({ onNext }) => {
                   className="flex items-center justify-center gap-2 w-full bg-gold-medium hover:bg-gold-light disabled:opacity-50 text-black py-4 rounded-2xl font-black uppercase tracking-widest transition-all shadow-xl shadow-gold-medium/10"
                 >
                   {processing && <Loader2 className="w-5 h-5 animate-spin" />}
-                  {processing ? 'Redirecionando...' : `Pagar $${placementFee.toLocaleString()}.00`}
+                  {processing ? 'Redirecionando...' : `Pagar $${(selectedMethod === 'stripe' ? cardAmount : placementFee).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
                 </button>
                 <p className="text-[10px] text-center text-gray-600 font-bold uppercase tracking-tighter">
                   🔒 Pagamento 100% Seguro e Criptografado

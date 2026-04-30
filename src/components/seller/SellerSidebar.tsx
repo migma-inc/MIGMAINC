@@ -255,15 +255,16 @@ export function SellerSidebar({ className, sellerName, isMobileOpen = false, onM
               );
             }
 
-            const Icon = item.icon;
-            const isActive = item.exact 
-              ? location.pathname === item.path 
-              : location.pathname === item.path || location.pathname.startsWith(item.path + '/');
+            const menuItem = item as MenuItem;
+            const Icon = menuItem.icon;
+            const isActive = menuItem.exact
+              ? location.pathname === menuItem.path
+              : location.pathname === menuItem.path || location.pathname.startsWith(menuItem.path + '/');
 
             return (
               <Link
-                key={item.path}
-                to={item.path}
+                key={menuItem.path}
+                to={menuItem.path}
                 onClick={onMobileClose}
                 className={cn(
                   'flex items-center justify-between gap-3 px-4 py-3 rounded-lg transition-colors',
@@ -274,11 +275,11 @@ export function SellerSidebar({ className, sellerName, isMobileOpen = false, onM
               >
                 <div className="flex items-center gap-3">
                   <Icon className="w-5 h-5" />
-                  <span>{item.title}</span>
+                  <span>{menuItem.title}</span>
                 </div>
-                {item.badge !== undefined && item.badge > 0 && (
+                {menuItem.badge !== undefined && menuItem.badge > 0 && (
                   <span className="flex items-center justify-center min-w-[20px] h-5 px-1.5 text-[10px] font-bold bg-gold-medium text-black rounded-full">
-                    {item.badge}
+                    {menuItem.badge}
                   </span>
                 )}
               </Link>

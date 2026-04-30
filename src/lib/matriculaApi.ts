@@ -56,6 +56,7 @@ export interface CreateStudentResponse {
   message?: string;
   source?: string;
   order_id?: string; // ID da transação (visa_orders)
+  session_token?: string; // Magic link token para login silencioso
 }
 
 export type FeeType =
@@ -92,6 +93,8 @@ export interface PaymentCompletedPayload {
   service_request_id?: string;
   num_dependents?: number;
   finalize_contract_only?: boolean;
+  net_amount?: number;
+  fee_amount?: number;
 }
 
 export interface PaymentCompletedResponse {
@@ -171,6 +174,7 @@ export interface StudentParcelowCheckoutPayload {
   order_id: string; // ID da transação gerado pelo migma-create-student
   email: string;
   full_name: string;
+  phone?: string;
   payment_method: string;
   service_type: string;
   service_request_id?: string;

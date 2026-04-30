@@ -1,8 +1,11 @@
-import React, { useEffect, useState } from 'react';
-import { Lock, CheckCircle, AlertTriangle, FileText, ExternalLink, ArrowRight, Info, Gift } from 'lucide-react';
+import React, { useEffect, useRef, useState } from 'react';
+import { Lock, CheckCircle, AlertTriangle, FileText, ExternalLink, ArrowRight, Info, Gift, Upload, Clock } from 'lucide-react';
+import { Button } from '../../../components/ui/button';
 import { useNavigate } from 'react-router-dom';
 import { useStudentAuth } from '../../../contexts/StudentAuthContext';
 import { supabase } from '../../../lib/supabase';
+import { getSecureUrl } from '../../../lib/storage';
+import { DocumentViewerModal } from '../../../components/DocumentViewerModal';
 import type { StepProps } from '../types';
 
 interface ApplicationData {
@@ -10,6 +13,9 @@ interface ApplicationData {
   placement_fee_installments: number | null;
   placement_fee_2nd_installment_paid_at: string | null;
   acceptance_letter_url: string | null;
+  transfer_form_url: string | null;
+  transfer_form_filled_url: string | null;
+  transfer_form_student_status: string | null;
   package_status: string | null;
   institutions: { name: string } | null;
 }
@@ -19,6 +25,23 @@ export const AcceptanceLetterStep: React.FC<StepProps> = () => {
   const navigate = useNavigate();
   const [app, setApp] = useState<ApplicationData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [uploadingForm, setUploadingForm] = useState(false);
+  const [uploadSuccess, setUploadSuccess] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  const [acceptanceLetterUrl, setAcceptanceLetterUrl] = useState<string | null>(null);
+  const [transferTemplateUrl, setTransferTemplateUrl] = useState<string | null>(null);
+  const [transferFilledUrl, setTransferFilledUrl] = useState<string | null>(null);
+  const [viewerUrl, setViewerUrl] = useState<string | null>(null);
+  const [viewerTitle, setViewerTitle] = useState<string>('');
+  const [isViewerOpen, setIsViewerOpen] = useState(false);
+
+  const openViewer = (url: string | null, title: string) => {
+    if (!url) return;
+    setViewerUrl(url);
+    setViewerTitle(title);
+    setIsViewerOpen(true);
+  };
 
   const isTransfer = userProfile?.student_process_type === 'transfer';
 
@@ -26,17 +49,75 @@ export const AcceptanceLetterStep: React.FC<StepProps> = () => {
     if (!userProfile?.id) return;
     supabase
       .from('institution_applications')
-      .select('id, placement_fee_installments, placement_fee_2nd_installment_paid_at, acceptance_letter_url, package_status, institutions(name)')
+      .select('id, placement_fee_installments, placement_fee_2nd_installment_paid_at, acceptance_letter_url, transfer_form_url, transfer_form_filled_url, transfer_form_student_status, package_status, institutions(name)')
       .eq('profile_id', userProfile.id)
       .in('status', ['payment_confirmed', 'approved'])
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle()
-      .then(({ data }) => {
+      .then(async ({ data }) => {
         setApp(data as ApplicationData | null);
+        if (data) {
+          const [letter, template, filled] = await Promise.all([
+            getSecureUrl(data.acceptance_letter_url),
+            getSecureUrl(data.transfer_form_url),
+            getSecureUrl(data.transfer_form_filled_url)
+          ]);
+          setAcceptanceLetterUrl(letter);
+          setTransferTemplateUrl(template);
+          setTransferFilledUrl(filled);
+        }
         setLoading(false);
       });
   }, [userProfile?.id]);
+
+  const handleTransferFormUpload = async (file: File) => {
+    if (!app?.id || !userProfile?.id) return;
+    setUploadingForm(true);
+    try {
+      const ext = file.name.split('.').pop() ?? 'pdf';
+      const path = `${userProfile.id}/transfer-form-filled/${Date.now()}_transfer_form_filled.${ext}`;
+
+      const { data: uploadData, error: uploadErr } = await supabase.storage
+        .from('institution-forms')
+        .upload(path, file, { upsert: true });
+      if (uploadErr) throw uploadErr;
+
+      const TEN_YEARS = 60 * 60 * 24 * 365 * 10;
+      const { data: signedData, error: signedErr } = await supabase.storage
+        .from('institution-forms')
+        .createSignedUrl(uploadData.path, TEN_YEARS);
+      if (signedErr) throw signedErr;
+      const publicUrl = signedData.signedUrl;
+
+      const { error: updateErr } = await supabase
+        .from('institution_applications')
+        .update({
+          transfer_form_filled_url: publicUrl,
+          transfer_form_student_status: 'submitted',
+        })
+        .eq('id', app.id);
+      if (updateErr) throw updateErr;
+
+      // Notify MatriculaUSA
+      await supabase.functions.invoke('notify-matriculausa-transfer-form', {
+        body: {
+          student_email: userProfile.email,
+          student_name: userProfile.full_name,
+          filled_form_url: publicUrl,
+          migma_application_id: app.id,
+        },
+      }).catch(() => { /* non-fatal */ });
+
+      setApp(prev => prev ? { ...prev, transfer_form_filled_url: publicUrl, transfer_form_student_status: 'submitted' } : prev);
+      setUploadSuccess(true);
+    } catch (err) {
+      console.error('[AcceptanceLetterStep] upload error:', err);
+      alert('Erro ao enviar o formulário. Tente novamente.');
+    } finally {
+      setUploadingForm(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -87,7 +168,7 @@ export const AcceptanceLetterStep: React.FC<StepProps> = () => {
         </div>
       )}
 
-      {/* Conteúdo principal — só exibe se gate liberado */}
+      {/* Conteúdo principal */}
       {!is2xPending && (
         <>
           {/* Status do pacote */}
@@ -101,7 +182,7 @@ export const AcceptanceLetterStep: React.FC<StepProps> = () => {
             </div>
           </div>
 
-          {/* Carta de aceite / I-20 */}
+          {/* Carta de aceite */}
           {app?.acceptance_letter_url ? (
             <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/5 p-6">
               <div className="flex items-start gap-4">
@@ -111,15 +192,14 @@ export const AcceptanceLetterStep: React.FC<StepProps> = () => {
                   <p className="text-gray-400 text-sm mb-4">
                     Sua carta de aceite foi emitida pela universidade. Faça o download abaixo.
                   </p>
-                  <a
-                    href={app.acceptance_letter_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-2 px-5 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-white font-semibold rounded-xl transition-colors text-sm"
+                  <Button
+                    onClick={() => openViewer(acceptanceLetterUrl, 'Carta de Aceite')}
+                    disabled={!acceptanceLetterUrl}
+                    className="inline-flex items-center gap-2 px-5 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-white font-semibold rounded-xl transition-colors text-sm border-none"
                   >
                     <ExternalLink className="w-4 h-4" />
                     Baixar Carta de Aceite
-                  </a>
+                  </Button>
                 </div>
               </div>
             </div>
@@ -144,6 +224,89 @@ export const AcceptanceLetterStep: React.FC<StepProps> = () => {
             </div>
           )}
 
+          {/* Transfer Form — apenas para transfer students */}
+          {isTransfer && (
+            <div className="rounded-2xl border border-blue-500/20 bg-blue-500/5 p-6 space-y-5">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-full bg-blue-500/10 flex items-center justify-center flex-shrink-0">
+                  <ArrowRight className="w-4 h-4 text-blue-400" />
+                </div>
+                <h3 className="text-white font-bold">Transfer Form</h3>
+              </div>
+
+              {/* Step 1: Download template */}
+              <div className="space-y-2">
+                <p className="text-xs text-gray-500 uppercase tracking-widest font-bold">Passo 1 — Baixar o formulário</p>
+                {app?.transfer_form_url ? (
+                  <Button
+                    onClick={() => openViewer(transferTemplateUrl, 'Transfer Form - Modelo')}
+                    disabled={!transferTemplateUrl}
+                    className="inline-flex items-center gap-2 px-4 py-2.5 bg-blue-500/20 hover:bg-blue-500/30 border border-blue-500/30 text-blue-300 font-semibold rounded-xl transition-colors text-sm"
+                  >
+                    <ExternalLink className="w-4 h-4" />
+                    Baixar Transfer Form
+                  </Button>
+                ) : (
+                  <div className="flex items-center gap-2 text-xs text-gray-500 bg-white/5 rounded-xl px-4 py-3">
+                    <Clock className="w-4 h-4" />
+                    <span>Aguardando envio do Transfer Form pela equipe MatriculaUSA</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Step 2: Upload filled form */}
+              <div className="space-y-2">
+                <p className="text-xs text-gray-500 uppercase tracking-widest font-bold">Passo 2 — Entregar na escola atual e reenviar preenchido</p>
+                <p className="text-gray-400 text-xs leading-relaxed">
+                  Leve o Transfer Form ao DSO da sua escola atual, solicite a assinatura e o envio do SEVIS release, depois faça o upload do formulário preenchido aqui.
+                </p>
+
+                {app?.transfer_form_filled_url || uploadSuccess ? (
+                  <div className="flex items-center gap-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl px-4 py-3">
+                    <CheckCircle className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+                    <div>
+                      <p className="text-emerald-300 text-sm font-semibold">Formulário enviado com sucesso</p>
+                      <button
+                        onClick={() => openViewer(transferFilledUrl, 'Transfer Form Enviado')}
+                        className="text-xs text-emerald-400 hover:underline mt-0.5 block text-left"
+                      >
+                        Ver formulário enviado
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) handleTransferFormUpload(file);
+                        e.target.value = '';
+                      }}
+                    />
+                    <button
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={uploadingForm || !app?.transfer_form_url}
+                      className="inline-flex items-center gap-2 px-4 py-2.5 bg-blue-500 hover:bg-blue-400 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold rounded-xl transition-colors text-sm"
+                    >
+                      {uploadingForm ? (
+                        <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />Enviando...</>
+                      ) : (
+                        <><Upload className="w-4 h-4" />Enviar formulário preenchido</>
+                      )}
+                    </button>
+                    {!app?.transfer_form_url && (
+                      <p className="text-xs text-gray-600 mt-2">Disponível após receber o Transfer Form</p>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* Rewards CTA */}
           <div className="rounded-2xl border border-yellow-400/20 bg-yellow-400/5 p-5 flex items-center justify-between gap-4">
             <div className="flex items-center gap-3">
@@ -160,43 +323,15 @@ export const AcceptanceLetterStep: React.FC<StepProps> = () => {
               Ver Rewards
             </button>
           </div>
-
-          {/* Instruções Transfer Form — apenas para process_type = transfer */}
-          {isTransfer && (
-            <div className="rounded-2xl border border-blue-500/20 bg-blue-500/5 p-6 space-y-4">
-              <div className="flex items-center gap-3 mb-2">
-                <div className="w-8 h-8 rounded-full bg-blue-500/10 flex items-center justify-center">
-                  <ArrowRight className="w-4 h-4 text-blue-400" />
-                </div>
-                <h3 className="text-white font-bold">Instruções — Transfer Form</h3>
-              </div>
-              <p className="text-gray-400 text-sm leading-relaxed">
-                Como parte do processo de transfer F-1, você precisa entregar o Transfer Form
-                à sua escola atual (escola de origem) para liberar o seu SEVIS.
-              </p>
-              <ol className="space-y-3">
-                {[
-                  'Receba o Transfer Form emitido pela nova universidade (incluso no seu pacote)',
-                  'Leve o documento ao Designated School Official (DSO) da sua escola atual',
-                  'Solicite que o DSO assine e processe o transfer no SEVIS',
-                  'Aguarde a confirmação de release do SEVIS pela equipe Migma',
-                  'Com o SEVIS liberado, seu I-20 final será emitido pela nova universidade',
-                ].map((step, i) => (
-                  <li key={i} className="flex items-start gap-3">
-                    <span className="w-6 h-6 rounded-full bg-blue-500/20 text-blue-400 text-xs font-bold flex items-center justify-center flex-shrink-0 mt-0.5">
-                      {i + 1}
-                    </span>
-                    <span className="text-gray-300 text-sm">{step}</span>
-                  </li>
-                ))}
-              </ol>
-              <div className="mt-2 rounded-xl border border-blue-500/20 bg-blue-500/5 px-4 py-3 text-xs text-blue-300">
-                Dúvidas? Entre em contato com a equipe Migma via WhatsApp.
-              </div>
-            </div>
-          )}
         </>
       )}
+
+      <DocumentViewerModal 
+        isOpen={isViewerOpen}
+        onClose={() => setIsViewerOpen(false)}
+        url={viewerUrl}
+        title={viewerTitle}
+      />
     </div>
   );
 };

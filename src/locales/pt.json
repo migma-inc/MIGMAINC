@@ -472,7 +472,8 @@
       "placement_fee": "Placement Fee",
       "payment": "Application Fee",
       "complementary_data": "Dados Complementares",
-      "my_applications": "Dashboard",
+      "my_applications": "Processamento",
+      "acceptance_letter": "Carta de Aceite",
       "counter": "Etapa {{current}} de {{total}}"
     },
     "selection_fee": {

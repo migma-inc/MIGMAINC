@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -99,7 +98,7 @@ export const AdminReferralLeads = () => {
       `)
       .order('created_at', { ascending: false });
 
-    if (!error) setLeads((data as ReferralLead[]) ?? []);
+    if (!error) setLeads((data as unknown as ReferralLead[]) ?? []);
     setLoading(false);
   }, []);
 

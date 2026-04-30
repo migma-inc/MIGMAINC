@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { matriculaSupabase } from './matriculaSupabase';
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
@@ -100,7 +101,13 @@ export async function getSecureUrl(url: string | null): Promise<string | null> {
             'partner-signatures',
             'cv-files',
             'migma-student-documents',
+            'acceptance-letters',
+            'transfer-forms',
+            'institution-forms',
+            'document-attachments',
         ];
+
+        const MATRICULAUSA_URL = import.meta.env.VITE_MATRICULAUSA_SUPABASE_URL;
 
         let bucket: string | null = null;
         let path: string | null = null;
@@ -151,22 +158,25 @@ export async function getSecureUrl(url: string | null): Promise<string | null> {
         if (!bucket || !path) return url;
 
         // Verificação final - Se identificamos que é um bucket privado, forçamos a segurança
-        if (bucket && (privateBuckets.includes(bucket) || bucket === 'contracts')) {
+        if (bucket && (privateBuckets.includes(bucket) || bucket === 'contracts' || url.includes('fitpynguasqqutuhzifx'))) {
+            // 0. Decidir qual cliente usar
+            const isMatriculaUsa = url.includes('fitpynguasqqutuhzifx') || (MATRICULAUSA_URL && url.includes(MATRICULAUSA_URL));
+            const client = isMatriculaUsa ? matriculaSupabase : supabase;
 
             // 1. Tentar download direto (Blob URL) - Mais robusto para iFrames e visualização interna
             try {
-                const { data, error } = await supabase.storage.from(bucket).download(path || '');
+                const { data, error } = await client.storage.from(bucket).download(path || '');
                 if (!error && data) {
                     return URL.createObjectURL(data);
                 }
-                if (error) console.warn(`[STORAGE] Download error:`, error);
+                if (error) console.warn(`[STORAGE] Download error (${isMatriculaUsa ? 'MatriculaUSA' : 'Migma'}):`, error);
             } catch (err) {
                 console.warn('[STORAGE] Catch during direct download:', err);
             }
 
             // 2. Tentar gerar uma Signed URL (Fallback para visualização externa)
             try {
-                const { data: signedData, error: signedError } = await supabase.storage.from(bucket).createSignedUrl(path || '', 3600);
+                const { data: signedData, error: signedError } = await client.storage.from(bucket).createSignedUrl(path || '', 3600);
 
                 if (!signedError && signedData?.signedUrl) {
                     return signedData.signedUrl;
@@ -177,7 +187,29 @@ export async function getSecureUrl(url: string | null): Promise<string | null> {
             }
 
             // 3. Fallback final: Proxy (Edge Function)
-            return `${SUPABASE_URL}/functions/v1/document-proxy?bucket=${bucket}&path=${encodeURIComponent(path || '')}`;
+            // Agora suporta MatriculaUSA via parâmetro project
+            // Nota: O proxy está sempre no SUPABASE_URL (Migma), pois é ele que tem a lógica de cross-project
+            const proxyUrl = `${SUPABASE_URL}/functions/v1/document-proxy?bucket=${bucket}&path=${encodeURIComponent(path || '')}${isMatriculaUsa ? '&project=matriculausa' : ''}`;
+            
+            try {
+                const { data: { session } } = await supabase.auth.getSession();
+                if (session?.access_token) {
+                    const response = await fetch(proxyUrl, {
+                        headers: {
+                            'Authorization': `Bearer ${session.access_token}`
+                        }
+                    });
+                    
+                    if (response.ok) {
+                        const blob = await response.blob();
+                        return URL.createObjectURL(blob);
+                    }
+                }
+            } catch (err) {
+                console.error('[STORAGE] Proxy fetch failed:', err);
+            }
+
+            return proxyUrl;
         }
 
         // Buckets públicos (ex: Zelle)

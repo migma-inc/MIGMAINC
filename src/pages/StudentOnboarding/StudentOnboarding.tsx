@@ -74,7 +74,7 @@ const StudentOnboarding: React.FC = () => {
   const navigate = useNavigate();
   const { t } = useTranslation();
   const [searchParams] = useSearchParams();
-  const { state, loading, goToStep, checkProgress } = useOnboardingProgress();
+  const { state, loading, goToStep, checkProgress, maxAllowedStep } = useOnboardingProgress();
   const isInitialMount = React.useRef(true);
 
   // Redirecionar se não autenticado
@@ -134,11 +134,26 @@ const StudentOnboarding: React.FC = () => {
   ], []);
 
   const handleNext = useCallback(async () => {
-    await checkProgress();
+    // Refresh progress from backend
+    const res = await checkProgress();
+    const currentMax = (res as any)?.maxAllowedStep || maxAllowedStep;
+    
     const steps = getOrderedSteps();
     const currentIndex = steps.indexOf(state.currentStep);
+    const nextStep = steps[currentIndex + 1];
+    
+    // We don't need to manually check maxAllowedStep here because goToStep 
+    // will be called, but the next checkProgress cycle would pull them back anyway.
+    // However, to be explicit and avoid the "jump and back" effect:
     if (currentIndex < steps.length - 1) {
-      goToStep(steps[currentIndex + 1]);
+      const maxIdx = steps.indexOf(currentMax);
+      const nextIdx = steps.indexOf(nextStep);
+
+      if (nextIdx <= maxIdx) {
+        goToStep(nextStep);
+      } else {
+        console.warn('[Onboarding] Bloqueando avanço: necessário aprovação ou ação pendente.', { nextStep, maxAllowedStep: currentMax });
+      }
     }
   }, [state.currentStep, goToStep, getOrderedSteps, checkProgress]);
 

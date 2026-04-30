@@ -53,11 +53,17 @@ Deno.serve(async (req) => {
 
   try {
     const body = await req.json();
-    const { student_email, acceptance_letter_url, transfer_form_url } = body;
+    const {
+      student_email,
+      acceptance_letter_url,
+      transfer_form_url,
+      transfer_form_admin_status,   // 'approved' | 'rejected'
+      transfer_form_rejection_reason,
+    } = body;
 
-    if (!student_email || !acceptance_letter_url) {
+    if (!student_email || (!acceptance_letter_url && !transfer_form_url && !transfer_form_admin_status)) {
       return new Response(
-        JSON.stringify({ error: "student_email and acceptance_letter_url are required" }),
+        JSON.stringify({ error: "student_email and at least one action field are required" }),
         { status: 400, headers: { ...CORS, "Content-Type": "application/json" } }
       );
     }
@@ -84,7 +90,7 @@ Deno.serve(async (req) => {
       .from("institution_applications")
       .select("id, status, package_status")
       .eq("profile_id", profile.id)
-      .in("status", ["payment_confirmed", "approved"])
+      .in("status", ["payment_confirmed", "approved", "submitted", "pending", "documents_uploaded"])
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle();
@@ -98,12 +104,24 @@ Deno.serve(async (req) => {
     }
 
     // ── 3. Update institution_applications ────────────────────────────────────
-    const appUpdate: Record<string, unknown> = {
-      acceptance_letter_url,
-      package_status: "ready",
-    };
+    const appUpdate: Record<string, unknown> = {};
+    if (acceptance_letter_url) {
+      appUpdate.acceptance_letter_url = acceptance_letter_url;
+      appUpdate.package_status = "ready";
+    }
     if (transfer_form_url) {
       appUpdate.transfer_form_url = transfer_form_url;
+    }
+    if (transfer_form_admin_status) {
+      appUpdate.transfer_form_admin_status = transfer_form_admin_status;
+      appUpdate.transfer_form_reviewed_at = new Date().toISOString();
+      if (transfer_form_rejection_reason) {
+        appUpdate.transfer_form_rejection_reason = transfer_form_rejection_reason;
+      }
+      // If rejected, reset student status so they can resubmit
+      if (transfer_form_admin_status === "rejected") {
+        appUpdate.transfer_form_student_status = "pending";
+      }
     }
 
     const { error: appUpdateErr } = await supabase
@@ -127,21 +145,54 @@ Deno.serve(async (req) => {
       .update({ onboarding_current_step: "acceptance_letter" })
       .eq("id", profile.id);
 
-    // ── 5. Notify student via migma-notify ────────────────────────────────────
-    try {
-      await supabase.functions.invoke("migma-notify", {
-        body: {
-          trigger: "acceptance_letter_ready",
-          user_id: profile.id,
-          data: {
-            client_name: profile.full_name ?? profile.email,
-            acceptance_letter_url,
+    // ── 5. Notify student via migma-notify ───────────────────────────────────
+    if (acceptance_letter_url) {
+      try {
+        await supabase.functions.invoke("migma-notify", {
+          body: {
+            trigger: "acceptance_letter_ready",
+            user_id: profile.id,
+            data: {
+              client_name: profile.full_name ?? profile.email,
+              acceptance_letter_url,
+            },
           },
-        },
-      });
-      console.log(`[receive-matriculausa-letter] ✅ Notification sent to ${student_email}`);
-    } catch (notifyErr) {
-      console.warn("[receive-matriculausa-letter] Notification failed (non-fatal):", notifyErr);
+        });
+        console.log(`[receive-matriculausa-letter] ✅ Acceptance letter notification sent`);
+      } catch (notifyErr) {
+        console.warn("[receive-matriculausa-letter] Notification failed (non-fatal):", notifyErr);
+      }
+    }
+
+    if (transfer_form_admin_status === "approved") {
+      try {
+        await supabase.functions.invoke("migma-notify", {
+          body: {
+            trigger: "transfer_form_approved",
+            user_id: profile.id,
+            data: { client_name: profile.full_name ?? profile.email },
+          },
+        });
+      } catch (notifyErr) {
+        console.warn("[receive-matriculausa-letter] Transfer approved notification failed (non-fatal):", notifyErr);
+      }
+    }
+
+    if (transfer_form_admin_status === "rejected") {
+      try {
+        await supabase.functions.invoke("migma-notify", {
+          body: {
+            trigger: "transfer_form_rejected",
+            user_id: profile.id,
+            data: {
+              client_name: profile.full_name ?? profile.email,
+              rejection_reason: transfer_form_rejection_reason ?? "Motivo não informado",
+            },
+          },
+        });
+      } catch (notifyErr) {
+        console.warn("[receive-matriculausa-letter] Transfer rejected notification failed (non-fatal):", notifyErr);
+      }
     }
 
     return new Response(

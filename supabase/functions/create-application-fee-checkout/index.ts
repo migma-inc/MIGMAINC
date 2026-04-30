@@ -198,7 +198,7 @@ Deno.serve(async (req) => {
       const stripe = new Stripe(stripeKey, { apiVersion: "2024-12-18.acacia" as any });
 
       const baseCents = Math.round(applicationFee * 100);
-      const finalAmount = Math.round(baseCents + baseCents * STRIPE_FEE_PERCENT + STRIPE_FEE_FIXED_CENTS);
+      const finalAmount = Math.round((baseCents + STRIPE_FEE_FIXED_CENTS) / (1 - STRIPE_FEE_PERCENT));
 
       const session = await stripe.checkout.sessions.create({
         payment_method_types: ["card"],
