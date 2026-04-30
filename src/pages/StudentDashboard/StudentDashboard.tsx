@@ -323,7 +323,8 @@ function getProgress(profile: any, app: DashboardApplication | null) {
     !!profile?.is_placement_fee_paid || app?.status === 'payment_confirmed',
     !!profile?.is_application_fee_paid,
     !!profile?.documents_uploaded,
-    !!app?.acceptance_letter_url,
+    !!app?.acceptance_letter_url &&
+      !(app.placement_fee_installments === 2 && !app.placement_fee_2nd_installment_paid_at),
   ];
   return Math.round((checks.filter(Boolean).length / checks.length) * 100);
 }
@@ -338,12 +339,13 @@ function getCurrentStepInfo(profile: any, app: DashboardApplication | null, t: a
   if (!profile.is_application_fee_paid) return { number: 6, total: 8, title: t(`${k}.6_title`), description: t(`${k}.6_desc`) };
   if (!profile.documents_uploaded) return { number: 7, total: 8, title: t(`${k}.7_title`), description: t(`${k}.7_desc`) };
   
-  const hasLetter = !!app?.acceptance_letter_url;
-  return { 
-    number: 8, 
-    total: 8, 
-    title: hasLetter ? t(`${k}.8a_title`) : t(`${k}.8b_title`), 
-    description: hasLetter ? t(`${k}.8a_desc`) : t(`${k}.8b_desc`) 
+  const is2ndPending = app?.placement_fee_installments === 2 && !app?.placement_fee_2nd_installment_paid_at;
+  const hasLetter = !!app?.acceptance_letter_url && !is2ndPending;
+  return {
+    number: 8,
+    total: 8,
+    title: hasLetter ? t(`${k}.8a_title`) : t(`${k}.8b_title`),
+    description: hasLetter ? t(`${k}.8a_desc`) : t(`${k}.8b_desc`)
   };
 }
 
@@ -356,6 +358,8 @@ function getNextAction(profile: any, app: DashboardApplication | null, t: (key: 
   if (!profile.is_placement_fee_paid && app.status !== 'payment_confirmed') return { label: t(`${na}.pay_placement`), href: '/student/onboarding?step=placement_fee' };
   if (!profile.is_application_fee_paid) return { label: t(`${na}.pay_application`), href: '/student/onboarding?step=payment' };
   if (!profile.documents_uploaded) return { label: t(`${na}.send_docs`), href: '/student/dashboard/documents' };
+  if (app.placement_fee_installments === 2 && !app.placement_fee_2nd_installment_paid_at)
+    return { label: 'Aguardando 2ª parcela do Placement Fee', href: null };
   if (!app.acceptance_letter_url) return { label: t(`${na}.track`), href: '/student/dashboard/documents' };
   return { label: t(`${na}.view_letter`), href: '/student/dashboard/documents' };
 }
@@ -1892,15 +1896,33 @@ function AcceptanceLetterCard({
 }) {
   const [letterUrl, setLetterUrl] = useState<string | null>(null);
 
+  const is2ndPending =
+    application.placement_fee_installments === 2 &&
+    !application.placement_fee_2nd_installment_paid_at;
+
   useEffect(() => {
-    if (application.acceptance_letter_url) {
+    if (application.acceptance_letter_url && !is2ndPending) {
       getSecureUrl(application.acceptance_letter_url).then(setLetterUrl);
     } else {
       setLetterUrl(null);
     }
-  }, [application.acceptance_letter_url]);
+  }, [application.acceptance_letter_url, is2ndPending]);
 
-  const hasLetter = !!application.acceptance_letter_url;
+  const hasLetter = !!application.acceptance_letter_url && !is2ndPending;
+
+  const badgeClass = hasLetter
+    ? 'bg-emerald-100 text-emerald-800 border-emerald-200'
+    : is2ndPending
+      ? 'bg-amber-100 text-amber-800 border-amber-200'
+      : 'bg-amber-100 text-amber-800 border-amber-200';
+
+  const badgeLabel = hasLetter ? 'Disponível' : is2ndPending ? '2ª Parcela Pendente' : 'Aguardando';
+
+  const description = hasLetter
+    ? 'Sua carta de aceite foi emitida pela universidade. Clique para visualizar ou baixar.'
+    : is2ndPending
+      ? 'Sua carta de aceite está pronta, mas será liberada somente após o pagamento da 2ª parcela do Placement Fee.'
+      : 'Seu pacote foi enviado ao MatriculaUSA. A carta de aceite será disponibilizada aqui quando emitida.';
 
   return (
     <Card className="border-emerald-500/30 bg-emerald-500/5 dark:border-emerald-500/20 dark:bg-emerald-500/5 overflow-hidden">
@@ -1913,15 +1935,9 @@ function AcceptanceLetterCard({
             <div>
               <div className="flex items-center gap-2">
                 <h3 className="text-lg font-black text-[#1f1a14] dark:text-white">Carta de Aceite</h3>
-                <Badge className={hasLetter ? 'bg-emerald-100 text-emerald-800 border-emerald-200' : 'bg-amber-100 text-amber-800 border-amber-200'}>
-                  {hasLetter ? 'Disponível' : 'Aguardando'}
-                </Badge>
+                <Badge className={badgeClass}>{badgeLabel}</Badge>
               </div>
-              <p className="mt-1 text-sm text-[#8a7b66] dark:text-gray-400 max-w-md">
-                {hasLetter
-                  ? 'Sua carta de aceite foi emitida pela universidade. Clique para visualizar ou baixar.'
-                  : 'Seu pacote foi enviado ao MatriculaUSA. A carta de aceite será disponibilizada aqui quando emitida.'}
-              </p>
+              <p className="mt-1 text-sm text-[#8a7b66] dark:text-gray-400 max-w-md">{description}</p>
             </div>
           </div>
 

@@ -203,6 +203,7 @@ export function ScholarshipApprovalTab({ detail }: { detail: CaseDetailPage }) {
             admin_approved_at: now,
             admin_approved_by: adminId,
             placement_fee_paid_at: now,
+            placement_fee_installments: 1,
           })
           .eq('id', appId);
         if (approveErr) throw approveErr;
