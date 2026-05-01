@@ -278,9 +278,12 @@ export interface OnboardingCrmFilters {
     | 'completed'
     | 'selection_paid'
     | 'placement'
+    | 'needs_action'
+    | 'critical'
     | 'pre_pending'
     | 'pre_zelle'
-    | 'pre_card';
+    | 'pre_card'
+    | 'pre_confirmed';
   /** Ownership presence based on MIGMA profile metadata */
   ownership: 'all' | 'owned' | 'unassigned';
   /** Payment status from visa_orders */
