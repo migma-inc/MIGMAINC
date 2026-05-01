@@ -183,12 +183,12 @@ export const UniversitySelectionModal: React.FC<Props> = ({
         <div className="flex items-center justify-between p-6 sm:p-8 border-b border-white/5 bg-white/[0.02] shrink-0">
           <div className="flex items-start gap-5 min-w-0">
             {/* Logo / initial */}
-            <div className="w-14 h-14 sm:w-16 sm:h-16 bg-white/[0.03] border border-white/10 rounded-2xl flex items-center justify-center overflow-hidden shrink-0">
+            <div className="w-14 h-14 sm:w-16 sm:h-16 bg-white border border-white/10 rounded-2xl flex items-center justify-center overflow-hidden shrink-0">
               {institution.logo_url ? (
                 <img 
                   src={institution.logo_url} 
                   alt={institution.name} 
-                  className="max-h-[70%] max-w-[70%] object-contain"
+                  className="w-full h-full object-contain p-2"
                 />
               ) : (
                 <span className="text-gold-medium font-black text-2xl select-none">

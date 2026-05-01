@@ -203,6 +203,7 @@ export function ScholarshipApprovalTab({ detail }: { detail: CaseDetailPage }) {
             admin_approved_at: now,
             admin_approved_by: adminId,
             placement_fee_paid_at: now,
+            placement_fee_installments: 1,
           })
           .eq('id', appId);
         if (approveErr) throw approveErr;
@@ -794,35 +795,33 @@ export function ScholarshipApprovalTab({ detail }: { detail: CaseDetailPage }) {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
 
-              {/* Carta de Aceite */}
+              {/* Carta de Aceite — enviada automaticamente via webhook MatriculaUSA */}
               <Card className="bg-black/30 border border-white/10">
                 <CardContent className="p-5 space-y-3">
                   <div className="flex items-center gap-2">
                     <Link className="w-4 h-4 text-emerald-400" />
                     <span className="text-xs font-black uppercase tracking-widest text-gray-300">Carta de Aceite / I-20</span>
-                    {paidApp.acceptance_letter_url && (
-                      <span className="ml-auto text-[9px] font-black uppercase px-2 py-0.5 rounded-full border bg-emerald-500/10 text-emerald-400 border-emerald-500/20">
-                        Disponível
-                      </span>
-                    )}
+                    <span className={`ml-auto text-[9px] font-black uppercase px-2 py-0.5 rounded-full border ${paidApp.acceptance_letter_url ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-white/5 text-gray-500 border-white/10'}`}>
+                      {paidApp.acceptance_letter_url ? 'Disponível' : 'Aguardando'}
+                    </span>
                   </div>
                   <p className="text-xs text-gray-500">
-                    Cole a URL da carta de aceite/I-20 recebida do MatriculaUSA para liberar ao aluno.
+                    Enviada automaticamente pelo MatriculaUSA via webhook. Nenhuma ação necessária.
                   </p>
-                    {paidApp.acceptance_letter_url && (
-                      <div className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-xl px-3 py-2">
-                        <span className="text-xs text-gray-400 truncate flex-1 font-mono">{paidApp.acceptance_letter_url}</span>
-                        <a
-                          href={resolvedUrls[paidApp.id] || '#'}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-emerald-400 hover:text-emerald-300"
-                          onClick={(e) => !resolvedUrls[paidApp.id] && e.preventDefault()}
-                        >
-                          <ExternalLink className="w-3.5 h-3.5" />
-                        </a>
-                      </div>
-                    )}
+                  {paidApp.acceptance_letter_url && (
+                    <div className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-xl px-3 py-2">
+                      <span className="text-xs text-gray-400 truncate flex-1 font-mono">{paidApp.acceptance_letter_url}</span>
+                      <a
+                        href={resolvedUrls[paidApp.id] || '#'}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-emerald-400 hover:text-emerald-300"
+                        onClick={(e) => !resolvedUrls[paidApp.id] && e.preventDefault()}
+                      >
+                        <ExternalLink className="w-3.5 h-3.5" />
+                      </a>
+                    </div>
+                  )}
                   <div className="flex gap-2">
                     <input
                       type="url"

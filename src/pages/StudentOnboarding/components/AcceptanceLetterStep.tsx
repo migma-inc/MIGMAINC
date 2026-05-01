@@ -176,7 +176,7 @@ export const AcceptanceLetterStep: React.FC<StepProps> = () => {
             <div className="flex items-center gap-3">
               <CheckCircle className="w-5 h-5 text-emerald-400 flex-shrink-0" />
               <div>
-                <p className="text-white font-semibold text-sm">Pacote enviado ao MatriculaUSA</p>
+                <p className="text-white font-semibold text-sm">Documentos em processamento</p>
                 <p className="text-gray-500 text-xs mt-0.5">Seus formulários e documentos foram enviados para processamento</p>
               </div>
             </div>
@@ -212,7 +212,7 @@ export const AcceptanceLetterStep: React.FC<StepProps> = () => {
                 <div>
                   <h3 className="text-white font-bold mb-1">I-20 em processamento</h3>
                   <p className="text-gray-400 text-sm leading-relaxed">
-                    Seu pacote foi enviado ao MatriculaUSA. Assim que a universidade emitir
+                    Assim que a universidade emitir
                     seu I-20 e a Carta de Aceite, você será notificado por e-mail e WhatsApp.
                   </p>
                   <div className="mt-3 flex items-center gap-2 text-xs text-gold-medium bg-gold-medium/10 rounded-xl px-4 py-2 w-fit">
@@ -249,7 +249,7 @@ export const AcceptanceLetterStep: React.FC<StepProps> = () => {
                 ) : (
                   <div className="flex items-center gap-2 text-xs text-gray-500 bg-white/5 rounded-xl px-4 py-3">
                     <Clock className="w-4 h-4" />
-                    <span>Aguardando envio do Transfer Form pela equipe MatriculaUSA</span>
+                    <span>Aguardando envio do Transfer Form pela nossa equipe</span>
                   </div>
                 )}
               </div>

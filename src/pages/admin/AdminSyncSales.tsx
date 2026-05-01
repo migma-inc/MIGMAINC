@@ -53,6 +53,7 @@ export function AdminSyncSales() {
                 .select('id, order_number, client_name, client_email, total_price_usd, product_slug, created_at, seller_id, payment_metadata')
                 .eq('payment_status', 'completed')
                 .or('seller_id.is.null,seller_id.eq.""')
+                .not('client_email', 'ilike', '%@uorak.com')
                 .order('created_at', { ascending: false });
 
             if (ordersError) throw ordersError;

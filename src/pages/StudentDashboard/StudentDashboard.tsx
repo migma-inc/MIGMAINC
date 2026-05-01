@@ -323,7 +323,8 @@ function getProgress(profile: any, app: DashboardApplication | null) {
     !!profile?.is_placement_fee_paid || app?.status === 'payment_confirmed',
     !!profile?.is_application_fee_paid,
     !!profile?.documents_uploaded,
-    !!app?.acceptance_letter_url,
+    !!app?.acceptance_letter_url &&
+      !(app.placement_fee_installments === 2 && !app.placement_fee_2nd_installment_paid_at),
   ];
   return Math.round((checks.filter(Boolean).length / checks.length) * 100);
 }
@@ -338,12 +339,13 @@ function getCurrentStepInfo(profile: any, app: DashboardApplication | null, t: a
   if (!profile.is_application_fee_paid) return { number: 6, total: 8, title: t(`${k}.6_title`), description: t(`${k}.6_desc`) };
   if (!profile.documents_uploaded) return { number: 7, total: 8, title: t(`${k}.7_title`), description: t(`${k}.7_desc`) };
   
-  const hasLetter = !!app?.acceptance_letter_url;
-  return { 
-    number: 8, 
-    total: 8, 
-    title: hasLetter ? t(`${k}.8a_title`) : t(`${k}.8b_title`), 
-    description: hasLetter ? t(`${k}.8a_desc`) : t(`${k}.8b_desc`) 
+  const is2ndPending = app?.placement_fee_installments === 2 && !app?.placement_fee_2nd_installment_paid_at;
+  const hasLetter = !!app?.acceptance_letter_url && !is2ndPending;
+  return {
+    number: 8,
+    total: 8,
+    title: hasLetter ? t(`${k}.8a_title`) : t(`${k}.8b_title`),
+    description: hasLetter ? t(`${k}.8a_desc`) : t(`${k}.8b_desc`)
   };
 }
 
@@ -356,6 +358,8 @@ function getNextAction(profile: any, app: DashboardApplication | null, t: (key: 
   if (!profile.is_placement_fee_paid && app.status !== 'payment_confirmed') return { label: t(`${na}.pay_placement`), href: '/student/onboarding?step=placement_fee' };
   if (!profile.is_application_fee_paid) return { label: t(`${na}.pay_application`), href: '/student/onboarding?step=payment' };
   if (!profile.documents_uploaded) return { label: t(`${na}.send_docs`), href: '/student/dashboard/documents' };
+  if (app.placement_fee_installments === 2 && !app.placement_fee_2nd_installment_paid_at)
+    return { label: 'Pagar 2ª parcela do Placement Fee', href: '/student/dashboard/payment/placement-fee-2nd' };
   if (!app.acceptance_letter_url) return { label: t(`${na}.track`), href: '/student/dashboard/documents' };
   return { label: t(`${na}.view_letter`), href: '/student/dashboard/documents' };
 }
@@ -814,7 +818,7 @@ function FormsTab({
   const { t } = useTranslation();
   const [previewForm] = useState<DashboardForm | null>(null);
   const [signingForm, setSigningForm] = useState<DashboardForm | null>(null);
-  const visibleForms = forms.filter(form => form.form_type !== 'termo_responsabilidade_estudante');
+  const visibleForms = forms;
   const previewPdfUrl = previewForm ? (isPdfUrl(previewForm.signed_url) ? previewForm.signed_url : previewForm.template_url) : null;
   const generated = visibleForms.length;
   const signed = visibleForms.filter(form => !!form.signed_at).length;
@@ -1763,7 +1767,7 @@ function TransferFormOverview({
                   : adminStatus === 'rejected'
                   ? 'Seu formulário foi reprovado. Por favor, corrija e reenvie.'
                   : status === 'pending'
-                  ? 'Visualize o modelo abaixo, assine na sua universidade atual e envie o arquivo preenchido.'
+                  ? 'Este formulário deve ser entregue à sua escola atual para solicitar a liberação do seu SEVIS.'
                   : 'Seu formulário foi enviado e está em análise pela nossa equipe.'}
               </p>
             </div>
@@ -1852,29 +1856,41 @@ function TransferFormOverview({
           </div>
         )}
 
-        {/* Confirmação de entrega — só mostra quando aprovado e não concluído */}
-        {!compact && adminStatus === 'approved' && !isConcluded && (
-          <div className="mt-4 rounded-xl border border-[#CE9F48]/30 bg-[#CE9F48]/5 p-4">
-            <p className="text-sm font-semibold text-[#9a6a16] dark:text-[#CE9F48] mb-3">
-              📋 Próximo passo: entregue o Transfer Form à sua escola atual
-            </p>
-            <p className="text-xs text-[#8a7b66] dark:text-gray-400 mb-4">
-              Este formulário deve ser entregue ao DSO (Designated School Official) da sua escola atual para solicitar a liberação do seu SEVIS. Leve pessoalmente ou envie por email conforme orientação da escola.
-            </p>
+        {/* Instrução de entrega + confirmação — aparece assim que o admin envia o formulário */}
+        {!compact && hasTemplate && !isConcluded && (
+          <div className="mt-4 rounded-xl border border-[#CE9F48]/30 bg-[#CE9F48]/5 p-5 space-y-4">
+            <div>
+              <p className="text-xs font-black uppercase tracking-widest text-[#CE9F48]/70 mb-1">Próximo passo</p>
+              <p className="text-sm text-[#8a7b66] dark:text-gray-300 leading-relaxed">
+                Este formulário deve ser entregue à sua escola atual para solicitar a liberação do seu SEVIS.
+                Leve pessoalmente ao DSO (Designated School Official) ou envie por email conforme orientação da sua escola.
+              </p>
+            </div>
+
             {isDelivered ? (
-              <div className="flex items-center gap-2 text-sm font-semibold text-emerald-600 dark:text-emerald-400">
-                <CheckCircle2 className="h-4 w-4" />
-                Já entreguei o Transfer Form para minha escola atual ✓
+              <div className="flex items-center gap-3 rounded-lg border border-emerald-400/30 bg-emerald-500/10 px-4 py-3">
+                <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-500" />
+                <div>
+                  <p className="text-sm font-semibold text-emerald-700 dark:text-emerald-400">Entrega confirmada</p>
+                  <p className="text-xs text-emerald-600/80 dark:text-emerald-500 mt-0.5">Você confirmou a entrega do Transfer Form à sua escola atual.</p>
+                </div>
               </div>
             ) : (
-              <Button
+              <button
                 onClick={handleConfirmDelivery}
                 disabled={confirmingDelivery}
-                className="bg-[#CE9F48] text-black hover:bg-[#b8892f] text-sm"
+                className="w-full flex items-center gap-3 rounded-lg border border-[#CE9F48]/40 bg-white/50 dark:bg-white/5 px-4 py-3 text-left transition-colors hover:border-[#CE9F48]/70 hover:bg-[#CE9F48]/10 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {confirmingDelivery ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}
-                Já entreguei o Transfer Form para minha escola atual
-              </Button>
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-[#CE9F48]/40 bg-[#CE9F48]/10">
+                  {confirmingDelivery
+                    ? <Loader2 className="h-4 w-4 animate-spin text-[#CE9F48]" />
+                    : <CheckCircle2 className="h-4 w-4 text-[#CE9F48]" />}
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-[#1f1a14] dark:text-white">Já entreguei o Transfer Form à minha escola atual</p>
+                  <p className="text-xs text-[#8a7b66] dark:text-gray-400 mt-0.5">Clique para confirmar a entrega</p>
+                </div>
+              </button>
             )}
           </div>
         )}
@@ -1892,15 +1908,33 @@ function AcceptanceLetterCard({
 }) {
   const [letterUrl, setLetterUrl] = useState<string | null>(null);
 
+  const is2ndPending =
+    application.placement_fee_installments === 2 &&
+    !application.placement_fee_2nd_installment_paid_at;
+
   useEffect(() => {
-    if (application.acceptance_letter_url) {
+    if (application.acceptance_letter_url && !is2ndPending) {
       getSecureUrl(application.acceptance_letter_url).then(setLetterUrl);
     } else {
       setLetterUrl(null);
     }
-  }, [application.acceptance_letter_url]);
+  }, [application.acceptance_letter_url, is2ndPending]);
 
-  const hasLetter = !!application.acceptance_letter_url;
+  const hasLetter = !!application.acceptance_letter_url && !is2ndPending;
+
+  const badgeClass = hasLetter
+    ? 'bg-emerald-100 text-emerald-800 border-emerald-200'
+    : is2ndPending
+      ? 'bg-amber-100 text-amber-800 border-amber-200'
+      : 'bg-amber-100 text-amber-800 border-amber-200';
+
+  const badgeLabel = hasLetter ? 'Disponível' : is2ndPending ? '2ª Parcela Pendente' : 'Aguardando';
+
+  const description = hasLetter
+    ? 'Sua carta de aceite foi emitida pela universidade. Clique para visualizar ou baixar.'
+    : is2ndPending
+      ? 'Sua carta de aceite está pronta, mas será liberada somente após o pagamento da 2ª parcela do Placement Fee.'
+      : 'A carta de aceite será disponibilizada aqui quando emitida.';
 
   return (
     <Card className="border-emerald-500/30 bg-emerald-500/5 dark:border-emerald-500/20 dark:bg-emerald-500/5 overflow-hidden">
@@ -1913,15 +1947,9 @@ function AcceptanceLetterCard({
             <div>
               <div className="flex items-center gap-2">
                 <h3 className="text-lg font-black text-[#1f1a14] dark:text-white">Carta de Aceite</h3>
-                <Badge className={hasLetter ? 'bg-emerald-100 text-emerald-800 border-emerald-200' : 'bg-amber-100 text-amber-800 border-amber-200'}>
-                  {hasLetter ? 'Disponível' : 'Aguardando'}
-                </Badge>
+                <Badge className={badgeClass}>{badgeLabel}</Badge>
               </div>
-              <p className="mt-1 text-sm text-[#8a7b66] dark:text-gray-400 max-w-md">
-                {hasLetter
-                  ? 'Sua carta de aceite foi emitida pela universidade. Clique para visualizar ou baixar.'
-                  : 'Seu pacote foi enviado ao MatriculaUSA. A carta de aceite será disponibilizada aqui quando emitida.'}
-              </p>
+              <p className="mt-1 text-sm text-[#8a7b66] dark:text-gray-400 max-w-md">{description}</p>
             </div>
           </div>
 

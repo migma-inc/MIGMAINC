@@ -9,6 +9,9 @@ const MigmaCheckout = lazy(() => import('./pages/MigmaCheckout'));
 const StudentRewards = lazy(() => import('./pages/StudentRewards'));
 const StudentSupport = lazy(() => import('./pages/StudentSupport'));
 const StudentDashboard = lazy(() => import('./pages/StudentDashboard/StudentDashboard'));
+const PlacementFee2ndInstallment = lazy(() => import('./pages/StudentDashboard/PlacementFee2ndInstallmentPage').then(m => ({ default: m.PlacementFee2ndInstallmentPage })));
+const PlacementFee2ndSuccess = lazy(() => import('./pages/StudentDashboard/PlacementFee2ndSuccessPage'));
+const PaymentSuccessPreview = lazy(() => import('./pages/dev/PaymentSuccessPreview'));
 import { Home } from './pages/Home';
 import { Services } from './pages/Services';
 import { About } from './pages/About';
@@ -223,11 +226,22 @@ function App() {
         <Route path="/student/dashboard/:tab" element={
           <Suspense fallback={null}><StudentDashboard /></Suspense>
         } />
+        <Route path="/student/dashboard/payment/placement-fee-2nd" element={
+          <Suspense fallback={null}><PlacementFee2ndInstallment /></Suspense>
+        } />
+        <Route path="/student/dashboard/payment/placement-fee-2nd/success" element={
+          <Suspense fallback={null}><PlacementFee2ndSuccess /></Suspense>
+        } />
         <Route path="/student/rewards" element={
           <Suspense fallback={null}><StudentRewards /></Suspense>
         } />
         <Route path="/student/support" element={
           <Suspense fallback={null}><StudentSupport /></Suspense>
+        } />
+
+        {/* ── Dev / Preview Routes ──────────────────────────── */}
+        <Route path="/dev/payment-success" element={
+          <Suspense fallback={null}><PaymentSuccessPreview /></Suspense>
         } />
 
         {/* Catch-all 404 Route */}

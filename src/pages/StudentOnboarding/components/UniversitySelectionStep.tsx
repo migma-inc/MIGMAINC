@@ -84,7 +84,7 @@ export const UniversitySelectionStep: React.FC<StepProps> = ({ onNext }) => {
           .from('institution_applications')
           .select(`
             id, status, institution_id, scholarship_level_id,
-            institutions ( name, city, state ),
+            institutions ( name, city, state, logo_url ),
             institution_scholarships ( scholarship_level, discount_percent )
           `)
           .eq('profile_id', userProfile.id);
@@ -173,12 +173,22 @@ export const UniversitySelectionStep: React.FC<StepProps> = ({ onNext }) => {
     setMaxTuitionFilter('');
   };
 
-  // ── Confirm → save to DB ──
   const handleConfirm = async () => {
-    if (!userProfile?.id || selections.size === 0) return;
+    if (!userProfile?.id || selections.size === 0 || saving) return;
     setSaving(true);
     try {
-      const rows = Array.from(selections.values()).map(entry => ({
+      // Filter out selections that already have existing applications
+      const newEntries = Array.from(selections.values()).filter(entry => 
+        !existingApps.some(app => app.institution_id === entry.institution.id)
+      );
+
+      if (newEntries.length === 0) {
+        setShowConfirmModal(false);
+        setSaving(false);
+        return;
+      }
+
+      const rows = newEntries.map(entry => ({
         profile_id: userProfile.id,
         institution_id: entry.institution.id,
         scholarship_level_id: entry.scholarshipId,
@@ -190,6 +200,10 @@ export const UniversitySelectionStep: React.FC<StepProps> = ({ onNext }) => {
         .insert(rows);
 
       if (insertError) throw insertError;
+      
+      // Refresh local data to show "In Review" state immediately
+      await fetchData();
+      
       setShowConfirmModal(false);
       onNext();
     } catch (err) {
@@ -278,8 +292,18 @@ export const UniversitySelectionStep: React.FC<StepProps> = ({ onNext }) => {
             {existingApps.map(app => (
               <div key={app.id} className="flex items-center justify-between bg-white/[0.03] border border-white/5 rounded-2xl px-5 py-3.5 group hover:bg-white/[0.05] transition-colors">
                 <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center text-xs font-bold text-gray-400">
-                    {app.institutions?.name.charAt(0)}
+                  <div className="w-8 h-8 rounded-lg bg-white flex items-center justify-center overflow-hidden shrink-0 border border-white/10">
+                    {app.institutions?.logo_url ? (
+                      <img
+                        src={app.institutions.logo_url}
+                        alt={app.institutions.name}
+                        className="w-full h-full object-contain p-1.5"
+                      />
+                    ) : (
+                      <span className="text-xs font-bold text-gray-900">
+                        {app.institutions?.name.charAt(0)}
+                      </span>
+                    )}
                   </div>
                   <span className="text-sm font-bold text-white group-hover:text-gold-medium transition-colors">
                     {app.institutions?.name}
@@ -344,8 +368,18 @@ export const UniversitySelectionStep: React.FC<StepProps> = ({ onNext }) => {
                 key={entry.institution.id}
                 className="bg-white/[0.03] border border-white/10 rounded-2xl p-5 flex items-start gap-4"
               >
-                <div className="w-12 h-12 bg-gold-medium/10 border border-gold-medium/20 rounded-xl flex items-center justify-center text-gold-medium font-black text-lg shrink-0">
-                  {entry.institution.name.charAt(0)}
+                <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center shrink-0 overflow-hidden border border-white/20">
+                  {entry.institution.logo_url ? (
+                    <img
+                      src={entry.institution.logo_url}
+                      alt={entry.institution.name}
+                      className="w-full h-full object-contain p-2"
+                    />
+                  ) : (
+                    <span className="text-gold-medium font-black text-lg">
+                      {entry.institution.name.charAt(0)}
+                    </span>
+                  )}
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="font-black text-white">{entry.institution.name}</p>
@@ -422,8 +456,18 @@ export const UniversitySelectionStep: React.FC<StepProps> = ({ onNext }) => {
               <div className="space-y-2">
                 {Array.from(selections.values()).map(entry => (
                   <div key={entry.institution.id} className="flex items-center gap-3 bg-white/[0.03] border border-white/5 rounded-xl px-4 py-3">
-                    <div className="w-8 h-8 bg-gold-medium/10 rounded-lg flex items-center justify-center text-gold-medium font-black text-sm shrink-0">
-                      {entry.institution.name.charAt(0)}
+                    <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center shrink-0 overflow-hidden border border-white/10">
+                      {entry.institution.logo_url ? (
+                        <img
+                          src={entry.institution.logo_url}
+                          alt={entry.institution.name}
+                          className="w-full h-full object-contain p-1.5"
+                        />
+                      ) : (
+                        <span className="text-gold-medium font-black text-sm">
+                          {entry.institution.name.charAt(0)}
+                        </span>
+                      )}
                     </div>
                     <p className="text-sm font-bold text-white truncate">{entry.institution.name}</p>
                   </div>
@@ -434,14 +478,17 @@ export const UniversitySelectionStep: React.FC<StepProps> = ({ onNext }) => {
                 <button
                   onClick={handleConfirm}
                   disabled={saving}
-                  className="w-full flex items-center justify-center gap-2 py-4 bg-gold-medium hover:bg-gold-light disabled:opacity-40 text-black font-black uppercase tracking-widest text-sm rounded-2xl transition-all"
+                  className="w-full flex items-center justify-center gap-2 py-4 bg-gold-medium hover:bg-gold-light disabled:opacity-40 disabled:cursor-not-allowed text-black font-black uppercase tracking-widest text-sm rounded-2xl transition-all shadow-lg shadow-gold-medium/10 active:scale-95"
                 >
                   {saving ? (
-                    <Loader2 className="w-5 h-5 animate-spin" />
+                    <>
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                      <span>Salvando Seleção...</span>
+                    </>
                   ) : (
                     <>
                       <CheckCircle2 className="w-4 h-4" />
-                      Confirmar
+                      Confirmar e Enviar para Análise
                     </>
                   )}
                 </button>
@@ -772,15 +819,15 @@ const InstitutionCard: React.FC<CardProps> = ({
       }`}
     >
       {/* ── Logo banner ── */}
-      <div className="relative h-32 bg-white/[0.03] border-b border-white/5 flex items-center justify-center overflow-hidden shrink-0">
+      <div className="relative h-32 bg-white flex items-center justify-center overflow-hidden shrink-0">
         {institution.logo_url ? (
           <img
             src={institution.logo_url}
             alt={institution.name}
-            className="max-h-20 max-w-[70%] object-contain"
+            className="w-full h-full object-contain p-6"
           />
         ) : (
-          <span className="text-5xl font-black text-white/10 select-none">
+          <span className="text-5xl font-black text-gray-200 select-none">
             {institution.name.charAt(0)}
           </span>
         )}

@@ -16,6 +16,7 @@ interface InstitutionApplication {
   status: string;
   payment_link_url: string | null;
   placement_fee_paid_at: string | null;
+  placement_fee_installments: number | null;
   admin_approved_at: string | null;
   institutions: { name: string; city: string; state: string } | null;
   institution_scholarships: {
@@ -69,6 +70,7 @@ export const PlacementFeeStep: React.FC<StepProps> = ({ onNext }) => {
   const [payerName, setPayerName] = useState('');
   const [payerEmail, setPayerEmail] = useState('');
   const [payerPhone, setPayerPhone] = useState('');
+  const [installments, setInstallments] = useState<1 | 2>(1);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -96,7 +98,7 @@ export const PlacementFeeStep: React.FC<StepProps> = ({ onNext }) => {
       const { data, error } = await supabase
         .from('institution_applications')
         .select(`
-          id, status, payment_link_url, placement_fee_paid_at, admin_approved_at,
+          id, status, payment_link_url, placement_fee_paid_at, placement_fee_installments, admin_approved_at,
           institutions ( name, city, state ),
           institution_scholarships ( scholarship_level, placement_fee_usd, discount_percent, tuition_annual_usd )
         `)
@@ -142,7 +144,9 @@ export const PlacementFeeStep: React.FC<StepProps> = ({ onNext }) => {
         : cpf.replace(/\D/g, '').length >= 11
     )
   );
-  const cardAmount = calculateCardAmountWithFees(placementFee);
+  const canInstall2x = placementFee >= 1000;
+  const amountDueNow = (installments === 2 && canInstall2x) ? Math.floor(placementFee / 2) : placementFee;
+  const cardAmountDue = calculateCardAmountWithFees(amountDueNow);
 
   const handleConfirmZeroFee = useCallback(async () => {
     if (!userProfile?.id || !activeApp) return;
@@ -150,7 +154,7 @@ export const PlacementFeeStep: React.FC<StepProps> = ({ onNext }) => {
     try {
       const now = new Date().toISOString();
       await supabase.from('institution_applications')
-        .update({ status: 'payment_confirmed', placement_fee_paid_at: now })
+        .update({ status: 'payment_confirmed', placement_fee_paid_at: now, placement_fee_installments: 1 })
         .eq('id', activeApp.id);
       await supabase.from('user_profiles')
         .update({ is_placement_fee_paid: true })
@@ -168,6 +172,11 @@ export const PlacementFeeStep: React.FC<StepProps> = ({ onNext }) => {
     setPaymentError(null);
     setProcessing(true);
     try {
+      // Save installment choice to DB before redirecting to gateway
+      await supabase.from('institution_applications')
+        .update({ placement_fee_installments: installments })
+        .eq('id', activeApp.id);
+
       // ── Split payment (Parcelow) ─────────────────────────────────────────────
       if (splitConfig?.enabled) {
         const methodMap: Record<string, string> = {
@@ -184,7 +193,7 @@ export const PlacementFeeStep: React.FC<StepProps> = ({ onNext }) => {
             phone: isThirdParty ? payerPhone : undefined,
             cpf: cpf || undefined,
             service_type: 'placement_fee',
-            total_amount: placementFee,
+            total_amount: amountDueNow,
             part1_amount: splitConfig.part1_amount,
             part1_method: methodMap[selectedMethod] ?? splitConfig.part1_method,
             part2_amount: splitConfig.part2_amount,
@@ -207,6 +216,8 @@ export const PlacementFeeStep: React.FC<StepProps> = ({ onNext }) => {
           payment_method: selectedMethod,
           cpf: cpf || undefined,
           origin: window.location.origin,
+          placement_fee_installments: installments,
+          amount_override: amountDueNow,
           ...(isThirdParty && {
             payer_name: payerName,
             payer_email: payerEmail,
@@ -222,19 +233,24 @@ export const PlacementFeeStep: React.FC<StepProps> = ({ onNext }) => {
       setPaymentError(err.message || 'Erro ao processar pagamento. Tente novamente.');
       setProcessing(false);
     }
-  }, [selectedMethod, cpf, splitConfig, placementFee, activeApp, userProfile, user]);
+  }, [selectedMethod, cpf, splitConfig, placementFee, amountDueNow, installments, activeApp, userProfile, user]);
 
   const handleZelleUpload = useCallback(async () => {
     if (!zelleFile || !activeApp || !userProfile?.id || !user?.id) return;
     setZelleUploading(true);
     setPaymentError(null);
     try {
-      const n8nResult = await processZellePaymentWithN8n(zelleFile, placementFee, 'placement-fee', user.id);
+      // Save installment choice before uploading
+      await supabase.from('institution_applications')
+        .update({ placement_fee_installments: installments })
+        .eq('id', activeApp.id);
+
+      const n8nResult = await processZellePaymentWithN8n(zelleFile, amountDueNow, 'placement-fee', user.id);
       const { error: insertErr } = await supabase.from('migma_placement_fee_zelle_pending').insert({
         application_id: activeApp.id,
         profile_id: userProfile.id,
         migma_user_id: user.id,
-        amount_usd: placementFee,
+        amount_usd: amountDueNow,
         receipt_url: n8nResult.imageUrl,
         n8n_payment_id: n8nResult.paymentId,
         n8n_response: n8nResult.n8nResponse,
@@ -247,7 +263,7 @@ export const PlacementFeeStep: React.FC<StepProps> = ({ onNext }) => {
     } finally {
       setZelleUploading(false);
     }
-  }, [zelleFile, activeApp, userProfile?.id, user?.id, placementFee]);
+  }, [zelleFile, activeApp, userProfile?.id, user?.id, placementFee, amountDueNow, installments]);
 
   const isPaid = activeApp?.status === 'payment_confirmed';
   const isPendingApproval = activeApp?.status === 'pending_admin_approval';
@@ -387,11 +403,18 @@ export const PlacementFeeStep: React.FC<StepProps> = ({ onNext }) => {
             )}
           </div>
           <div className="text-right shrink-0 ml-2">
-            <p className="text-[9px] font-black uppercase tracking-widest text-gray-500 mb-0.5">Taxa de Colocação</p>
+            <p className="text-[9px] font-black uppercase tracking-widest text-gray-500 mb-0.5">
+              {installments === 2 ? '1ª Parcela (de 2)' : 'Taxa de Colocação'}
+            </p>
             <p className="text-3xl font-black text-white leading-none">
-              ${placementFee.toLocaleString()}
+              ${amountDueNow.toLocaleString()}
               <span className="text-base font-bold text-gray-400">.00</span>
             </p>
+            {installments === 2 && (
+              <p className="text-[9px] text-gray-500 font-bold mt-0.5">
+                Total: ${placementFee.toLocaleString()}
+              </p>
+            )}
           </div>
         </div>
 
@@ -426,6 +449,36 @@ export const PlacementFeeStep: React.FC<StepProps> = ({ onNext }) => {
         </div>
 
         <div className="border-t border-white/8 mx-5" />
+
+        {/* Installments selector — only for fees >= $1.000 */}
+        {!isZeroFee && placementFee >= 1000 && (
+          <div className="p-5 space-y-2">
+            <p className="text-xs font-black uppercase tracking-widest text-gray-400">Forma de Pagamento do Placement Fee</p>
+            <div className="flex gap-3">
+              {([1, 2] as const).map(n => (
+                <button
+                  key={n}
+                  onClick={() => setInstallments(n)}
+                  className={`flex-1 rounded-xl border px-4 py-3 text-sm font-black transition-colors ${
+                    installments === n
+                      ? 'border-gold-medium/60 bg-gold-medium/10 text-gold-light'
+                      : 'border-white/10 bg-transparent text-gray-400 hover:border-white/20 hover:text-white'
+                  }`}
+                >
+                  {n === 1 ? 'À vista (1x)' : 'Parcelado (2x)'}
+                </button>
+              ))}
+            </div>
+            {installments === 2 && (
+              <p className="text-[11px] text-amber-400 leading-relaxed">
+                Você paga <strong>${Math.floor(placementFee / 2).toLocaleString()}</strong> agora e <strong>${Math.ceil(placementFee / 2).toLocaleString()}</strong> após a emissão da carta de aceite.
+                A carta de aceite será liberada somente após o pagamento da 2ª parcela.
+              </p>
+            )}
+          </div>
+        )}
+
+        {!isZeroFee && placementFee >= 1000 && <div className="border-t border-white/8 mx-5" />}
 
         {/* Payment methods */}
         {isZeroFee ? (
@@ -464,7 +517,7 @@ export const PlacementFeeStep: React.FC<StepProps> = ({ onNext }) => {
               </div>
               <div className="text-right shrink-0">
                 <p className={`font-black text-lg ${selectedMethod === 'stripe' ? 'text-gold-medium' : 'text-white'}`}>
-                  ${cardAmount.toFixed(2)}
+                  ${cardAmountDue.toFixed(2)}
                 </p>
               </div>
             </button>
@@ -491,7 +544,7 @@ export const PlacementFeeStep: React.FC<StepProps> = ({ onNext }) => {
               </div>
               <div className="text-right shrink-0">
                 <p className={`font-black text-lg ${selectedMethod === 'parcelow_card' ? 'text-gold-medium' : 'text-white'}`}>
-                  ${placementFee.toLocaleString()}.00
+                  ${amountDueNow.toLocaleString()}.00
                 </p>
                 <p className="text-[9px] text-gray-500 font-black uppercase tracking-widest">Em até 12x</p>
               </div>
@@ -519,7 +572,7 @@ export const PlacementFeeStep: React.FC<StepProps> = ({ onNext }) => {
               </div>
               <div className="text-right shrink-0">
                 <p className={`font-black text-lg ${selectedMethod === 'parcelow_pix' ? 'text-gold-medium' : 'text-white'}`}>
-                  ${placementFee.toLocaleString()}.00
+                  ${amountDueNow.toLocaleString()}.00
                 </p>
               </div>
             </button>
@@ -546,7 +599,7 @@ export const PlacementFeeStep: React.FC<StepProps> = ({ onNext }) => {
               </div>
               <div className="text-right shrink-0">
                 <p className={`font-black text-lg ${selectedMethod === 'parcelow_ted' ? 'text-gold-medium' : 'text-white'}`}>
-                  ${placementFee.toLocaleString()}.00
+                  ${amountDueNow.toLocaleString()}.00
                 </p>
               </div>
             </button>
@@ -573,7 +626,7 @@ export const PlacementFeeStep: React.FC<StepProps> = ({ onNext }) => {
               </div>
               <div className="text-right shrink-0">
                 <p className={`font-black text-lg ${selectedMethod === 'zelle' ? 'text-gold-medium' : 'text-white'}`}>
-                  ${placementFee.toLocaleString()}.00
+                  ${amountDueNow.toLocaleString()}.00
                 </p>
                 <p className="text-[9px] text-gray-500 font-black uppercase tracking-widest">Sem taxas</p>
               </div>
@@ -664,7 +717,7 @@ export const PlacementFeeStep: React.FC<StepProps> = ({ onNext }) => {
             {/* Split payment selector — só para Parcelow */}
             {needsCpf && (
               <SplitPaymentSelector
-                totalAmount={placementFee}
+                totalAmount={amountDueNow}
                 onSplitChange={setSplitConfig}
                 disabled={processing}
               />
@@ -706,7 +759,7 @@ export const PlacementFeeStep: React.FC<StepProps> = ({ onNext }) => {
                   className="flex items-center justify-center gap-2 w-full bg-gold-medium hover:bg-gold-light disabled:opacity-50 text-black py-4 rounded-2xl font-black uppercase tracking-widest transition-all shadow-xl shadow-gold-medium/10"
                 >
                   {processing && <Loader2 className="w-5 h-5 animate-spin" />}
-                  {processing ? 'Redirecionando...' : `Pagar $${(selectedMethod === 'stripe' ? cardAmount : placementFee).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+                  {processing ? 'Redirecionando...' : `Pagar $${(selectedMethod === 'stripe' ? cardAmountDue : amountDueNow).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}${installments === 2 ? ' (1ª parcela)' : ''}`}
                 </button>
                 <p className="text-[10px] text-center text-gray-600 font-bold uppercase tracking-tighter">
                   🔒 Pagamento 100% Seguro e Criptografado
@@ -716,7 +769,5 @@ export const PlacementFeeStep: React.FC<StepProps> = ({ onNext }) => {
           </div>
         )}
       </div>
-
-    </div>
-  );
+    );
 };

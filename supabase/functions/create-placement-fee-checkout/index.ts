@@ -117,7 +117,7 @@ Deno.serve(async (req) => {
 
     // ── 1. Parse e validar input ──────────────────────────────────────────────
     const body = await req.json();
-    const { application_id, payment_method, cpf, origin, payer_name, payer_email, payer_phone } = body as {
+    const { application_id, payment_method, cpf, origin, payer_name, payer_email, payer_phone, is_2nd_installment } = body as {
       application_id?: string;
       payment_method?: string;
       cpf?: string;
@@ -125,6 +125,7 @@ Deno.serve(async (req) => {
       payer_name?: string;
       payer_email?: string;
       payer_phone?: string;
+      is_2nd_installment?: boolean;
     };
 
     if (!application_id || !payment_method) {
@@ -165,7 +166,7 @@ Deno.serve(async (req) => {
       return jsonError("Forbidden — application does not belong to authenticated user", 403);
     }
 
-    if (!["payment_pending", "approved"].includes(app.status)) {
+    if (!is_2nd_installment && !["payment_pending", "approved", "payment_confirmed"].includes(app.status)) {
       return jsonError(`Application status '${app.status}' is not ready for payment`);
     }
 
@@ -178,7 +179,9 @@ Deno.serve(async (req) => {
     if (!profile?.email) return jsonError("Student profile incomplete", 500);
 
     const siteUrl = (origin || "https://migmainc.com").replace(/\/$/, "");
-    const returnBase = `${siteUrl}/student/onboarding?step=placement_fee`;
+    const returnBase = is_2nd_installment
+      ? `${siteUrl}/student/dashboard/payment/placement-fee-2nd/success`
+      : `${siteUrl}/student/onboarding?step=placement_fee`;
 
     console.log(
       `[create-placement-fee-checkout] user=${user.id} app=${application_id}` +
@@ -208,11 +211,11 @@ Deno.serve(async (req) => {
           quantity: 1,
         }],
         mode: "payment",
-        success_url: `${returnBase}&pf_return=success&session_id={CHECKOUT_SESSION_ID}`,
-        cancel_url: `${returnBase}&pf_return=cancelled`,
+        success_url: `${returnBase}${returnBase.includes('?') ? '&' : '?'}pf_return=success&session_id={CHECKOUT_SESSION_ID}`,
+        cancel_url: `${returnBase}${returnBase.includes('?') ? '&' : '?'}pf_return=cancelled`,
         customer_email: profile.email,
         metadata: {
-          fee_type: "placement_fee",
+          fee_type: is_2nd_installment ? "placement_fee_2nd" : "placement_fee",
           application_id,
           user_id: user.id,
           full_name: profile.full_name || "",
@@ -276,8 +279,8 @@ Deno.serve(async (req) => {
         amount: Math.round(placementFee * 100), // centavos USD
       }],
       redirect: {
-        success: `${returnBase}&pf_return=success`,
-        failed: `${returnBase}&pf_return=failed`,
+        success: `${returnBase}${returnBase.includes('?') ? '&' : '?'}pf_return=success`,
+        failed: `${returnBase}${returnBase.includes('?') ? '&' : '?'}pf_return=failed`,
       },
       notify_url: `${migmaUrl}/functions/v1/parcelow-webhook`,
     };
