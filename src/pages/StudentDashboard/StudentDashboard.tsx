@@ -16,6 +16,14 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { LanguageSelector } from '@/components/LanguageSelector';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
 import { useStudentAuth } from '@/contexts/StudentAuthContext';
 import { supabase } from '@/lib/supabase';
@@ -33,6 +41,7 @@ import {
   type DashboardSurveyResponse,
   type DashboardComplementaryData,
 } from './hooks/useStudentDashboard';
+import { useStudentDashboardTour } from './hooks/useStudentDashboardTour';
 
 type StudentDashboardTab =
   | 'overview'
@@ -483,7 +492,7 @@ function OverviewTab({
   return (
     <div className="space-y-5">
       <DeadlineCountdown />
-      <section className="relative overflow-hidden rounded-xl border border-[#CE9F48]/20 bg-gradient-to-br from-white dark:from-[#111] via-[#f6ead2] dark:via-[#151515] to-[#ead6a8] dark:to-[#2a2413] p-6 shadow-sm lg:p-8">
+      <section data-tour="student-overview-hero" className="relative overflow-hidden rounded-xl border border-[#CE9F48]/20 bg-gradient-to-br from-white dark:from-[#111] via-[#f6ead2] dark:via-[#151515] to-[#ead6a8] dark:to-[#2a2413] p-6 shadow-sm lg:p-8">
         <div className="flex items-center gap-3">
           <div className="flex h-11 w-11 items-center justify-center rounded-lg border border-[#CE9F48]/30 bg-[#CE9F48]/10">
             <Award className="h-5 w-5 text-[#9a6a16] dark:text-[#CE9F48]" />
@@ -502,7 +511,7 @@ function OverviewTab({
           </Badge>
           <h3 className="text-2xl font-black tracking-tight lg:text-3xl">{step.title}</h3>
           <p className="mx-auto mt-3 max-w-xl text-sm leading-relaxed text-[#4b4032] dark:text-gray-300">{step.description}</p>
-          <div className="mx-auto mt-7 max-w-sm">
+          <div data-tour="student-progress" className="mx-auto mt-7 max-w-sm">
             <Progress value={progress} className="h-2 bg-[#eadbbf] dark:bg-white/10 [&>div]:bg-[#CE9F48]" />
             <p className="mt-2 text-xs text-[#8a7b66] dark:text-gray-500">{t('student_dashboard.step.progress', { value: progress })}</p>
           </div>
@@ -512,6 +521,7 @@ function OverviewTab({
             <MiniKpi label={t('student_dashboard.overview.kpi_forms')} value={String(formsCount)} />
           </div>
           <Button
+            data-tour="student-next-action"
             onClick={() => nextAction.href && navigate(nextAction.href)}
             disabled={!nextAction.href}
             className="mt-7 w-full max-w-sm bg-[#CE9F48] text-black hover:bg-[#b8892f]"
@@ -524,6 +534,7 @@ function OverviewTab({
       <div className="grid gap-4 md:grid-cols-3">
         <ActionCard
           icon={Search}
+          tourId="student-scholarships-card"
           title={t('student_dashboard.overview.card_scholarships_title')}
           subtitle={t('student_dashboard.overview.card_scholarships_sub')}
           metric={application ? t('student_dashboard.overview.card_scholarships_metric_active') : t('student_dashboard.overview.card_scholarships_metric_pending')}
@@ -531,6 +542,7 @@ function OverviewTab({
         />
         <ActionCard
           icon={ClipboardList}
+          tourId="student-applications-card"
           title={t('student_dashboard.overview.card_applications_title')}
           subtitle={t('student_dashboard.overview.card_applications_sub')}
           metric={t('student_dashboard.overview.card_applications_metric', { approved: approvedCount, pending: pendingCount })}
@@ -538,6 +550,7 @@ function OverviewTab({
         />
         <ActionCard
           icon={Target}
+          tourId="student-profile-card"
           title={t('student_dashboard.overview.card_profile_title')}
           subtitle={t('student_dashboard.overview.card_profile_sub')}
           metric={t('student_dashboard.overview.card_profile_metric', { count: pendingDocuments })}
@@ -555,7 +568,7 @@ function OverviewTab({
       )}
 
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_420px]">
-        <Card className="border-[#e3d5bd] dark:border-white/10 bg-white dark:bg-[#111] text-[#1f1a14] dark:text-white">
+        <Card data-tour="student-applications-summary" className="border-[#e3d5bd] dark:border-white/10 bg-white dark:bg-[#111] text-[#1f1a14] dark:text-white">
           <CardHeader className="flex-row items-center justify-between space-y-0">
             <div>
               <CardTitle className="flex items-center gap-2 text-lg">
@@ -592,7 +605,7 @@ function OverviewTab({
         </Card>
 
         <div className="space-y-5">
-          <Card className="border-[#e3d5bd] dark:border-white/10 bg-white dark:bg-[#111] text-[#1f1a14] dark:text-white">
+          <Card data-tour="student-profile-summary" className="border-[#e3d5bd] dark:border-white/10 bg-white dark:bg-[#111] text-[#1f1a14] dark:text-white">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-base">
                 <Target className="w-4 h-4 text-[#9a6a16] dark:text-[#CE9F48]" />
@@ -618,7 +631,7 @@ function OverviewTab({
             </CardContent>
           </Card>
 
-          <Card className="border-[#CE9F48]/20 bg-[#CE9F48] text-black">
+          <Card data-tour="student-success-tips" className="border-[#CE9F48]/20 bg-[#CE9F48] text-black">
             <CardContent className="p-5">
               <h3 className="flex items-center gap-2 font-black">
                 <HelpCircle className="h-4 w-4" />
@@ -653,13 +666,13 @@ function ApplicationsTab({
 
   if (applications.length === 0) {
     return (
-      <div className="mx-auto max-w-5xl space-y-6">
+      <div data-tour="student-applications-page" className="mx-auto max-w-5xl space-y-6">
         <div>
           <h2 className="text-2xl font-black tracking-tight">{t('student_dashboard.applications.title')}</h2>
           <p className="mt-1 text-sm text-[#8a7b66] dark:text-gray-500">{t('student_dashboard.applications.subtitle')}</p>
         </div>
         <ApplicationsKpis total={0} approved={0} pending={0} />
-        <Card className="border-[#e3d5bd] dark:border-white/10 bg-white dark:bg-[#111] text-[#1f1a14] dark:text-white">
+        <Card data-tour="student-applications-empty" className="border-[#e3d5bd] dark:border-white/10 bg-white dark:bg-[#111] text-[#1f1a14] dark:text-white">
           <CardContent className="p-10">
             <div className="flex min-h-[260px] flex-col items-center justify-center text-center">
               <div className="mb-5 flex h-16 w-16 items-center justify-center rounded-lg border border-[#CE9F48]/20 bg-[#CE9F48]/10">
@@ -681,7 +694,7 @@ function ApplicationsTab({
   }
 
   return (
-    <div className="mx-auto max-w-6xl space-y-6">
+    <div data-tour="student-applications-page" className="mx-auto max-w-6xl space-y-6">
       <div>
         <h2 className="text-2xl font-black tracking-tight">{t('student_dashboard.applications.title')}</h2>
         <p className="mt-1 text-sm text-[#8a7b66] dark:text-gray-500">{t('student_dashboard.applications.subtitle')}</p>
@@ -748,13 +761,13 @@ function DocumentsTab({
 
   if (total === 0 && !showAcceptanceLetter && !showTransferForm) {
     return (
-      <div className="mx-auto max-w-5xl space-y-6">
+      <div data-tour="student-documents-page" className="mx-auto max-w-5xl space-y-6">
         <div>
           <h2 className="text-2xl font-black tracking-tight">{t('student_dashboard.documents.title')}</h2>
           <p className="mt-1 text-sm text-[#8a7b66] dark:text-gray-500">{t('student_dashboard.documents.subtitle')}</p>
         </div>
         <DocumentKpis total={0} submitted={0} approved={0} rejected={0} />
-        <Card className="border-[#e3d5bd] dark:border-white/10 bg-white dark:bg-[#111] text-[#1f1a14] dark:text-white">
+        <Card data-tour="student-documents-empty" className="border-[#e3d5bd] dark:border-white/10 bg-white dark:bg-[#111] text-[#1f1a14] dark:text-white">
           <CardContent className="p-10">
             <div className="flex min-h-[260px] flex-col items-center justify-center text-center">
               <div className="mb-5 flex h-16 w-16 items-center justify-center rounded-lg border border-[#CE9F48]/20 bg-[#CE9F48]/10">
@@ -772,7 +785,7 @@ function DocumentsTab({
   }
 
   return (
-    <div className="mx-auto max-w-6xl space-y-6">
+    <div data-tour="student-documents-page" className="mx-auto max-w-6xl space-y-6">
       <div>
         <h2 className="text-2xl font-black tracking-tight">{t('student_dashboard.documents.title')}</h2>
         <p className="mt-1 text-sm text-[#8a7b66] dark:text-gray-500">{t('student_dashboard.documents.subtitle')}</p>
@@ -782,7 +795,7 @@ function DocumentsTab({
 
       {/* Carta de Aceite e Transfer Form no topo da lista */}
       {(showAcceptanceLetter || showTransferForm) && (
-        <div className="space-y-4">
+        <div data-tour="student-documents-finals" className="space-y-4">
           {showAcceptanceLetter && (
             <AcceptanceLetterCard application={application!} openViewer={openViewer} />
           )}
@@ -793,7 +806,7 @@ function DocumentsTab({
       )}
 
       {total > 0 && (
-        <div className="grid gap-4">
+        <div data-tour="student-documents-list" className="grid gap-4">
           {visibleDocuments.map(doc => (
             <DocumentRequestCard key={doc.id} document={doc} onUploaded={onRefresh} isTransferOnly={TRANSFER_ONLY_DOC_TYPES.has(doc.document_type)} openViewer={openViewer} />
           ))}
@@ -842,13 +855,13 @@ function FormsTab({
 
   if (visibleForms.length === 0) {
     return (
-      <div className="mx-auto max-w-5xl space-y-6">
+      <div data-tour="student-forms-page" className="mx-auto max-w-5xl space-y-6">
         <div>
           <h2 className="text-2xl font-black tracking-tight">{t('student_dashboard.forms.title')}</h2>
           <p className="mt-1 text-sm text-[#8a7b66] dark:text-gray-500">{t('student_dashboard.forms.sub')}</p>
         </div>
         <FormsKpis generated={0} signed={0} pending={0} />
-        <Card className="border-[#e3d5bd] dark:border-white/10 bg-white dark:bg-[#111] text-[#1f1a14] dark:text-white">
+        <Card data-tour="student-forms-empty" className="border-[#e3d5bd] dark:border-white/10 bg-white dark:bg-[#111] text-[#1f1a14] dark:text-white">
           <CardContent className="p-10">
             <div className="flex min-h-[260px] flex-col items-center justify-center text-center">
               <div className="mb-5 flex h-16 w-16 items-center justify-center rounded-lg border border-[#CE9F48]/20 bg-[#CE9F48]/10">
@@ -868,7 +881,7 @@ function FormsTab({
   }
 
   return (
-    <div className="mx-auto max-w-6xl space-y-6">
+    <div data-tour="student-forms-page" className="mx-auto max-w-6xl space-y-6">
       <div>
         <h2 className="text-2xl font-black tracking-tight">{t('student_dashboard.forms.title')}</h2>
         <p className="mt-1 text-sm text-[#8a7b66] dark:text-gray-500">{t('student_dashboard.forms.sub_desc')}</p>
@@ -876,7 +889,7 @@ function FormsTab({
 
       <FormsKpis generated={generated} signed={signed} pending={pending} />
 
-      <div className="grid gap-4">
+      <div data-tour="student-forms-list" className="grid gap-4">
         {visibleForms.map(form => (
           <FormCard
             key={form.id}
@@ -954,13 +967,13 @@ function ProfileTab({
   ].filter(item => !item.done);
 
   return (
-    <div className="mx-auto max-w-6xl space-y-6">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+    <div data-tour="student-profile-page" className="mx-auto max-w-6xl space-y-6">
+      <div data-tour="student-profile-header" className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h2 className="text-2xl font-black tracking-tight">{t('student_dashboard.profile.title')}</h2>
           <p className="mt-1 text-sm text-[#8a7b66] dark:text-gray-500">{t('student_dashboard.profile.subtitle')}</p>
         </div>
-        <Button asChild className="bg-[#CE9F48] text-black hover:bg-[#b8892f]">
+        <Button data-tour="student-profile-edit-action" asChild className="bg-[#CE9F48] text-black hover:bg-[#b8892f]">
           <a href="/student/onboarding?step=identity">
             <PenLine className="h-4 w-4" />
             {t('student_dashboard.profile.btn_edit')}
@@ -970,7 +983,7 @@ function ProfileTab({
 
       <div className="grid gap-6 md:grid-cols-2">
         <div className="space-y-6">
-          <Card className="border-[#e3d5bd] dark:border-white/10 bg-white dark:bg-[#111]">
+          <Card data-tour="student-profile-personal" className="border-[#e3d5bd] dark:border-white/10 bg-white dark:bg-[#111]">
             <CardHeader className="pb-3">
               <CardTitle className="text-sm font-semibold uppercase tracking-wider text-[#8a7b66] dark:text-gray-500">
                 {t('student_dashboard.profile.section_personal')}
@@ -994,7 +1007,7 @@ function ProfileTab({
             </CardContent>
           </Card>
 
-          <Card className="border-[#e3d5bd] dark:border-white/10 bg-white dark:bg-[#111]">
+          <Card data-tour="student-profile-academic" className="border-[#e3d5bd] dark:border-white/10 bg-white dark:bg-[#111]">
             <CardHeader className="pb-3">
               <CardTitle className="text-sm font-semibold uppercase tracking-wider text-[#8a7b66] dark:text-gray-500">
                 {t('student_dashboard.profile.section_academic')}
@@ -1020,7 +1033,7 @@ function ProfileTab({
         </div>
 
         <div className="space-y-6">
-          <Card className="border-[#e3d5bd] dark:border-white/10 bg-white dark:bg-[#111]">
+          <Card data-tour="student-profile-completion" className="border-[#e3d5bd] dark:border-white/10 bg-white dark:bg-[#111]">
             <CardHeader className="pb-3">
               <CardTitle className="text-sm font-semibold uppercase tracking-wider text-[#8a7b66] dark:text-gray-500">
                 {t('student_dashboard.profile.completion_title')}
@@ -1036,7 +1049,7 @@ function ProfileTab({
               <Progress value={progress} className="h-2 bg-[#eadbbf] dark:bg-white/10" />
 
               {missing.length > 0 ? (
-                <div className="mt-6 rounded-lg border border-[#e3d5bd] dark:border-white/10 bg-[#f3ead9] dark:bg-white/5 p-4">
+                <div data-tour="student-profile-missing" className="mt-6 rounded-lg border border-[#e3d5bd] dark:border-white/10 bg-[#f3ead9] dark:bg-white/5 p-4">
                   <h4 className="font-medium text-[#1f1a14] dark:text-white">{t('student_dashboard.profile.missing_title')}</h4>
                   <p className="mt-1 text-sm text-[#8a7b66] dark:text-gray-400">{t('student_dashboard.profile.missing_desc')}</p>
                   <ul className="mt-3 space-y-2">
@@ -1052,7 +1065,7 @@ function ProfileTab({
                   </Button>
                 </div>
               ) : (
-                <div className="mt-6 rounded-lg border border-emerald-500/20 bg-emerald-500/10 p-4">
+                <div data-tour="student-profile-complete" className="mt-6 rounded-lg border border-emerald-500/20 bg-emerald-500/10 p-4">
                   <div className="flex items-center gap-3">
                     <CheckCircle2 className="h-5 w-5 text-emerald-500" />
                     <h4 className="font-medium text-emerald-700 dark:text-emerald-300">{t('student_dashboard.profile.already_verified_title')}</h4>
@@ -1065,7 +1078,7 @@ function ProfileTab({
             </CardContent>
           </Card>
 
-          <Card className="border-[#e3d5bd] dark:border-white/10 bg-white dark:bg-[#111]">
+          <Card data-tour="student-profile-account" className="border-[#e3d5bd] dark:border-white/10 bg-white dark:bg-[#111]">
             <CardHeader className="pb-3">
               <CardTitle className="text-sm font-semibold uppercase tracking-wider text-[#8a7b66] dark:text-gray-500">{t('student_dashboard.profile.section_account')}</CardTitle>
             </CardHeader>
@@ -1131,14 +1144,14 @@ function SupplementalDataTab({ data, onRefresh }: { data: DashboardComplementary
 
   if (!data && !isEditing) {
     return (
-      <div className="mx-auto max-w-6xl space-y-6">
+      <div data-tour="student-supplemental-page" className="mx-auto max-w-6xl space-y-6">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <h2 className="text-2xl font-black tracking-tight">{t('student_dashboard.tabs.supplemental_data')}</h2>
             <p className="mt-1 text-sm text-[#8a7b66] dark:text-gray-500">Informações adicionais para sua candidatura universitária.</p>
           </div>
         </div>
-        <Card className="border-[#e3d5bd] dark:border-white/10 bg-white dark:bg-[#111] text-[#1f1a14] dark:text-white">
+        <Card data-tour="student-supplemental-empty" className="border-[#e3d5bd] dark:border-white/10 bg-white dark:bg-[#111] text-[#1f1a14] dark:text-white">
           <CardContent className="p-10">
             <div className="flex min-h-[260px] flex-col items-center justify-center text-center">
               <div className="mb-5 flex h-16 w-16 items-center justify-center rounded-lg border border-[#CE9F48]/20 bg-[#CE9F48]/10">
@@ -1148,7 +1161,7 @@ function SupplementalDataTab({ data, onRefresh }: { data: DashboardComplementary
               <p className="mt-3 max-w-md text-sm leading-relaxed text-[#8a7b66] dark:text-gray-500">
                 Você ainda não preencheu seus dados complementares.
               </p>
-              <Button onClick={() => setIsEditing(true)} className="mt-6 bg-[#CE9F48] text-black hover:bg-[#b8892f]">
+              <Button data-tour="student-supplemental-edit-action" onClick={() => setIsEditing(true)} className="mt-6 bg-[#CE9F48] text-black hover:bg-[#b8892f]">
                 Preencher Agora
               </Button>
             </div>
@@ -1160,13 +1173,13 @@ function SupplementalDataTab({ data, onRefresh }: { data: DashboardComplementary
 
   if (isEditing) {
     return (
-      <div className="mx-auto max-w-6xl space-y-6">
+      <div data-tour="student-supplemental-page" className="mx-auto max-w-6xl space-y-6">
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-2xl font-black tracking-tight">Editar Dados Complementares</h2>
             <p className="text-sm text-[#8a7b66] dark:text-gray-500">Atualize suas informações de contato e perfil acadêmico.</p>
           </div>
-          <div className="flex gap-2">
+          <div data-tour="student-supplemental-save-actions" className="flex gap-2">
             <Button variant="outline" onClick={() => setIsEditing(false)} disabled={isSaving}>
               <Undo2 className="mr-2 h-4 w-4" /> Cancelar
             </Button>
@@ -1179,7 +1192,7 @@ function SupplementalDataTab({ data, onRefresh }: { data: DashboardComplementary
 
         <div className="grid gap-6 md:grid-cols-2">
           {/* Contato de Emergência */}
-          <Card className="border-[#e3d5bd] dark:border-white/10 bg-white dark:bg-[#111]">
+          <Card data-tour="student-supplemental-emergency" className="border-[#e3d5bd] dark:border-white/10 bg-white dark:bg-[#111]">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-lg">
                 <Phone className="h-5 w-5 text-[#CE9F48]" /> Contato de Emergência
@@ -1218,7 +1231,7 @@ function SupplementalDataTab({ data, onRefresh }: { data: DashboardComplementary
           </Card>
 
           {/* Patrocinador Financeiro */}
-          <Card className="border-[#e3d5bd] dark:border-white/10 bg-white dark:bg-[#111]">
+          <Card data-tour="student-supplemental-sponsor" className="border-[#e3d5bd] dark:border-white/10 bg-white dark:bg-[#111]">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-lg">
                 <Award className="h-5 w-5 text-[#CE9F48]" /> Patrocinador Financeiro
@@ -1257,7 +1270,7 @@ function SupplementalDataTab({ data, onRefresh }: { data: DashboardComplementary
           </Card>
 
           {/* Recomendantes */}
-          <Card className="md:col-span-2 border-[#e3d5bd] dark:border-white/10 bg-white dark:bg-[#111]">
+          <Card data-tour="student-supplemental-recommenders" className="md:col-span-2 border-[#e3d5bd] dark:border-white/10 bg-white dark:bg-[#111]">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-lg">
                 <PenLine className="h-5 w-5 text-[#CE9F48]" /> Cartas de Recomendação
@@ -1341,20 +1354,20 @@ function SupplementalDataTab({ data, onRefresh }: { data: DashboardComplementary
   ].filter(r => !!r.name);
 
   return (
-    <div className="mx-auto max-w-6xl space-y-6">
+    <div data-tour="student-supplemental-page" className="mx-auto max-w-6xl space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h2 className="text-2xl font-black tracking-tight">{t('student_dashboard.tabs.supplemental_data')}</h2>
           <p className="mt-1 text-sm text-[#8a7b66] dark:text-gray-500">Informações adicionais para sua candidatura universitária.</p>
         </div>
-        <Button onClick={() => setIsEditing(true)} variant="outline" className="border-[#CE9F48] text-[#9a6a16] hover:bg-[#CE9F48]/10 dark:text-[#CE9F48]">
+        <Button data-tour="student-supplemental-edit-action" onClick={() => setIsEditing(true)} variant="outline" className="border-[#CE9F48] text-[#9a6a16] hover:bg-[#CE9F48]/10 dark:text-[#CE9F48]">
           <PenLine className="mr-2 h-4 w-4" /> Editar Dados
         </Button>
       </div>
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
         {/* Card Contato Emergência */}
-        <Card className="border-[#e3d5bd] dark:border-white/10 bg-white dark:bg-[#111]">
+        <Card data-tour="student-supplemental-emergency" className="border-[#e3d5bd] dark:border-white/10 bg-white dark:bg-[#111]">
           <CardHeader className="pb-3">
             <CardTitle className="flex items-center gap-2 text-lg font-bold text-[#1f1a14] dark:text-white">
               <div className="rounded-md bg-[#CE9F48]/10 p-2">
@@ -1377,7 +1390,7 @@ function SupplementalDataTab({ data, onRefresh }: { data: DashboardComplementary
         </Card>
 
         {/* Card Patrocinador Financeiro */}
-        <Card className="border-[#e3d5bd] dark:border-white/10 bg-white dark:bg-[#111]">
+        <Card data-tour="student-supplemental-sponsor" className="border-[#e3d5bd] dark:border-white/10 bg-white dark:bg-[#111]">
           <CardHeader className="pb-3">
             <CardTitle className="flex items-center gap-2 text-lg font-bold text-[#1f1a14] dark:text-white">
               <div className="rounded-md bg-[#CE9F48]/10 p-2">
@@ -1406,7 +1419,7 @@ function SupplementalDataTab({ data, onRefresh }: { data: DashboardComplementary
         </Card>
 
         {/* Card Experiência e Recomendantes */}
-        <Card className="border-[#e3d5bd] dark:border-white/10 bg-white dark:bg-[#111]">
+        <Card data-tour="student-supplemental-recommenders" className="border-[#e3d5bd] dark:border-white/10 bg-white dark:bg-[#111]">
           <CardHeader className="pb-3">
             <CardTitle className="flex items-center gap-2 text-lg font-bold text-[#1f1a14] dark:text-white">
               <div className="rounded-md bg-[#CE9F48]/10 p-2">
@@ -1439,9 +1452,9 @@ function SupplementalDataTab({ data, onRefresh }: { data: DashboardComplementary
   );
 }
 
-function ActionCard({ icon: Icon, title, subtitle, metric, onClick }: { icon: any; title: string; subtitle: string; metric: string; onClick: () => void }) {
+function ActionCard({ icon: Icon, title, subtitle, metric, onClick, tourId }: { icon: any; title: string; subtitle: string; metric: string; onClick: () => void; tourId?: string }) {
   return (
-    <button onClick={onClick} className="group rounded-lg border border-[#e3d5bd] dark:border-white/10 bg-white dark:bg-[#111] p-4 text-left text-[#1f1a14] dark:text-white transition-colors hover:border-[#CE9F48]/30 hover:bg-[#f8f1e4] dark:hover:bg-[#151515]">
+    <button data-tour={tourId} onClick={onClick} className="group rounded-lg border border-[#e3d5bd] dark:border-white/10 bg-white dark:bg-[#111] p-4 text-left text-[#1f1a14] dark:text-white transition-colors hover:border-[#CE9F48]/30 hover:bg-[#f8f1e4] dark:hover:bg-[#151515]">
       <div className="flex items-center gap-4">
         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[#CE9F48]/20 bg-[#CE9F48]/10">
           <Icon className="h-5 w-5 text-[#9a6a16] dark:text-[#CE9F48]" />
@@ -1478,7 +1491,7 @@ function MetricTile({ icon: Icon, label, value, tone }: { icon: any; label: stri
   }[tone];
 
   return (
-    <Card className="border-[#e3d5bd] dark:border-white/10 bg-white dark:bg-[#111] text-[#1f1a14] dark:text-white">
+    <Card data-tour="student-document-card" className="border-[#e3d5bd] dark:border-white/10 bg-white dark:bg-[#111] text-[#1f1a14] dark:text-white">
       <CardContent className="flex items-center justify-between p-5">
         <div>
           <p className="text-xs text-[#8a7b66] dark:text-gray-500">{label}</p>
@@ -1507,7 +1520,7 @@ function ApplicationCard({ application, documents, forms }: { application: Dashb
   ];
 
   return (
-    <Card className="border-[#e3d5bd] dark:border-white/10 bg-white dark:bg-[#111] text-[#1f1a14] dark:text-white">
+    <Card data-tour="student-application-card" className="border-[#e3d5bd] dark:border-white/10 bg-white dark:bg-[#111] text-[#1f1a14] dark:text-white">
       <CardContent className="p-5">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
           <div className="min-w-0 flex-1">
@@ -1540,7 +1553,7 @@ function ApplicationCard({ application, documents, forms }: { application: Dashb
           </div>
         </div>
 
-        <div className="mt-5 grid gap-2 md:grid-cols-4">
+        <div data-tour="student-application-progress" className="mt-5 grid gap-2 md:grid-cols-4">
           {statusSteps.map(step => (
             <div key={step.label} className={cn(
               'rounded-lg border px-3 py-2 text-xs font-semibold',
@@ -1987,7 +2000,7 @@ function AcceptanceLetterCard({
 function DocumentKpis({ total, submitted, approved, rejected }: { total: number; submitted: number; approved: number; rejected: number }) {
   const { t } = useTranslation();
   return (
-    <div className="grid gap-4 md:grid-cols-4">
+    <div data-tour="student-documents-kpis" className="grid gap-4 md:grid-cols-4">
       <MetricTile icon={FileText} label={t('student_dashboard.documents.kpi_requested')} value={String(total)} tone="gold" />
       <MetricTile icon={ArrowUpRight} label={t('student_dashboard.documents.kpi_submitted')} value={String(submitted)} tone="gold" />
       <MetricTile icon={CheckCircle2} label={t('student_dashboard.documents.kpi_approved')} value={String(approved)} tone="green" />
@@ -2090,8 +2103,8 @@ function DocumentRequestCard({
               )}
             </div>
           </div>
-          <div className="flex flex-col gap-3 lg:w-56 lg:shrink-0">
-            <div className="grid gap-2 text-sm">
+          <div data-tour="student-document-actions" className="flex flex-col gap-3 lg:w-56 lg:shrink-0">
+            <div data-tour="student-document-status" className="grid gap-2 text-sm">
               <DocumentStatusLine label={t('student_dashboard.documents.upload_label')} value={submitted ? t('student_dashboard.status.submitted') : t('student_dashboard.status.pending')} done={submitted} />
               <DocumentStatusLine label={t('student_dashboard.documents.review_label')} value={document.status === 'approved' ? t('student_dashboard.status.approved') : document.status === 'rejected' ? t('student_dashboard.status.rejected') : t('student_dashboard.status.waiting')} done={document.status === 'approved'} />
             </div>
@@ -2198,7 +2211,7 @@ function StudentDocumentCard({
   };
 
   return (
-    <Card className="border-[#e3d5bd] dark:border-white/10 bg-white dark:bg-[#111] text-[#1f1a14] dark:text-white">
+    <Card data-tour="student-document-card" className="border-[#e3d5bd] dark:border-white/10 bg-white dark:bg-[#111] text-[#1f1a14] dark:text-white">
       <CardContent className="p-5">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex gap-4 flex-1 min-w-0">
@@ -2230,8 +2243,10 @@ function StudentDocumentCard({
               )}
             </div>
           </div>
-          <div className="flex flex-col gap-3 lg:w-56 lg:shrink-0">
-            <DocumentStatusLine label={t('student_dashboard.documents.upload_label')} value={submitted ? t('student_dashboard.status.submitted') : t('student_dashboard.status.pending')} done={submitted} />
+          <div data-tour="student-document-actions" className="flex flex-col gap-3 lg:w-56 lg:shrink-0">
+            <div data-tour="student-document-status">
+              <DocumentStatusLine label={t('student_dashboard.documents.upload_label')} value={submitted ? t('student_dashboard.status.submitted') : t('student_dashboard.status.pending')} done={submitted} />
+            </div>
             {canUpload && (
               <>
                 <input
@@ -2281,7 +2296,7 @@ function StudentDocumentCard({
 function ApplicationsKpis({ total, approved, pending }: { total: number; approved: number; pending: number }) {
   const { t } = useTranslation();
   return (
-    <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-3">
+    <div data-tour="student-applications-kpis" className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-3">
       <MetricTile icon={FileText} label={t('student_dashboard.applications.kpis.total')} value={String(total)} tone="gold" />
       <MetricTile icon={CheckCircle2} label={t('student_dashboard.applications.kpis.approved')} value={String(approved)} tone="green" />
       <MetricTile icon={Clock} label={t('student_dashboard.applications.kpis.pending')} value={String(pending)} tone="amber" />
@@ -2292,7 +2307,7 @@ function ApplicationsKpis({ total, approved, pending }: { total: number; approve
 function FormsKpis({ generated, signed, pending }: { generated: number; signed: number; pending: number }) {
   const { t } = useTranslation();
   return (
-    <div className="grid gap-4 md:grid-cols-3">
+    <div data-tour="student-forms-kpis" className="grid gap-4 md:grid-cols-3">
       <MetricTile icon={FileSignature} label={t('student_dashboard.forms.kpis.generated')} value={String(generated)} tone="gold" />
       <MetricTile icon={CheckCircle2} label={t('student_dashboard.forms.kpis.signed')} value={String(signed)} tone="green" />
       <MetricTile icon={PenLine} label={t('student_dashboard.forms.kpis.pending')} value={String(pending)} tone="amber" />
@@ -2331,10 +2346,10 @@ function FormCard({
   };
 
   return (
-    <Card className="border-[#e3d5bd] dark:border-white/10 bg-white dark:bg-[#111] text-[#1f1a14] dark:text-white">
+    <Card data-tour="student-form-card" className="border-[#e3d5bd] dark:border-white/10 bg-white dark:bg-[#111] text-[#1f1a14] dark:text-white">
       <CardContent className="p-5">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex gap-4">
+          <div data-tour="student-form-status" className="flex gap-4">
             <div className={cn(
               'flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border',
               isSigned ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-400' : 'border-[#CE9F48]/20 bg-[#CE9F48]/10 text-[#9a6a16] dark:text-[#CE9F48]',
@@ -2354,7 +2369,7 @@ function FormCard({
               </p>
             </div>
           </div>
-          <div className="flex flex-wrap gap-2">
+          <div data-tour="student-form-actions" className="flex flex-wrap gap-2">
             {(form.template_url || hasSignedPdf) && (
               <Button
                 variant="outline"
@@ -2991,6 +3006,52 @@ function Info({ label, value }: { label: string; value: string }) {
   );
 }
 
+function StudentDashboardTourPrompt({
+  open,
+  onStart,
+  onDismiss,
+}: {
+  open: boolean;
+  onStart: () => void;
+  onDismiss: () => void;
+}) {
+  const { t } = useTranslation();
+
+  return (
+    <Dialog open={open} onOpenChange={(nextOpen) => {
+      if (!nextOpen) onDismiss();
+    }}>
+      <DialogContent className="border-[#e3d5bd] bg-white text-[#1f1a14] dark:border-white/10 dark:bg-[#111] dark:text-white">
+        <DialogHeader>
+          <DialogTitle className="text-[#1f1a14] dark:text-white">
+            {t('student_dashboard.tour.prompt_title')}
+          </DialogTitle>
+          <DialogDescription className="text-[#6f6251] dark:text-gray-400">
+            {t('student_dashboard.tour.prompt_description')}
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter className="gap-2 sm:gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={onDismiss}
+            className="border-[#e3d5bd] text-[#6f6251] hover:bg-[#f3ead9] dark:border-white/10 dark:bg-transparent dark:text-gray-300 dark:hover:bg-white/5"
+          >
+            {t('student_dashboard.tour.skip')}
+          </Button>
+          <Button
+            type="button"
+            onClick={onStart}
+            className="bg-[#CE9F48] text-black hover:bg-[#b8892f]"
+          >
+            {t('student_dashboard.tour.start')}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function formatArrayOrText(value: string[] | string | null | undefined) {
   if (!value) return '';
   return Array.isArray(value) ? value.join(', ') : value;
@@ -3018,6 +3079,18 @@ const StudentDashboard = () => {
   const [viewerUrl, setViewerUrl] = useState<string | null>(null);
   const [viewerTitle, setViewerTitle] = useState<string>('');
   const [isViewerOpen, setIsViewerOpen] = useState(false);
+  const {
+    showTourPrompt,
+    startTour,
+    dismissTourPrompt,
+  } = useStudentDashboardTour({
+    userId: user?.id ?? null,
+    ready: !authLoading && !loading && !!user && !!userProfile,
+    activeTab,
+    navigate,
+    setMobileSidebarOpen,
+    t,
+  });
 
   const openViewer = (url: string | null, title: string) => {
     if (!url) return;
@@ -3142,6 +3215,11 @@ const StudentDashboard = () => {
         url={viewerUrl}
         title={viewerTitle}
       />
+      <StudentDashboardTourPrompt
+        open={showTourPrompt && !isViewerOpen}
+        onStart={startTour}
+        onDismiss={dismissTourPrompt}
+      />
       {mobileSidebarOpen && (
         <button
           type="button"
@@ -3152,6 +3230,7 @@ const StudentDashboard = () => {
       )}
 
       <aside
+        data-tour="student-sidebar"
         className={cn(
           'fixed left-0 top-0 z-[60] h-full w-72 border-r border-[#e3d5bd] bg-[#fffaf0] transition-transform duration-200 dark:border-white/10 dark:bg-[#0d0d0d] lg:z-40 lg:translate-x-0',
           mobileSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
@@ -3179,6 +3258,7 @@ const StudentDashboard = () => {
             {TABS_CONFIG.map(item => (
               <button
                 key={item.id}
+                data-tour={`student-nav-${item.id}`}
                 onClick={() => {
                   navigate(`/student/dashboard/${item.id}`);
                   setMobileSidebarOpen(false);
@@ -3231,7 +3311,16 @@ const StudentDashboard = () => {
              <span className="text-[#1f1a14] dark:text-white capitalize">{activeTab.replace('-', ' ')}</span>
           </div>
 
-          <div className="flex items-center gap-2 sm:gap-4">
+          <div data-tour="student-topbar-actions" className="flex items-center gap-2 sm:gap-4">
+             <button
+               type="button"
+               onClick={() => startTour()}
+               className="p-2 rounded-lg text-[#6f6251] dark:text-gray-400 hover:bg-[#f3ead9] dark:hover:bg-white/5 transition-colors"
+               title={t('student_dashboard.tour.replay')}
+               aria-label={t('student_dashboard.tour.replay')}
+             >
+               <HelpCircle className="h-5 w-5" />
+             </button>
              <button
                onClick={toggleDarkMode}
                className="p-2 rounded-lg text-[#6f6251] dark:text-gray-400 hover:bg-[#f3ead9] dark:hover:bg-white/5 transition-colors"
@@ -3239,7 +3328,9 @@ const StudentDashboard = () => {
              >
                {isDarkMode ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
              </button>
-             <LanguageSelector />
+             <div data-tour="student-language-selector">
+               <LanguageSelector />
+             </div>
              <div className="hidden h-8 w-[1px] bg-[#eadbbf] dark:bg-white/10 sm:block" />
              <div className="hidden items-center gap-3 sm:flex">
                <div className="text-right hidden sm:block">

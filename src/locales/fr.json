@@ -1019,6 +1019,307 @@
       "support": "Support",
       "profile": "Profil"
     },
+    "tour": {
+      "prompt_title": "Voulez-vous faire une visite rapide du tableau de bord ?",
+      "prompt_description": "En moins d'une minute, nous vous montrons où suivre votre processus, vos documents, vos formulaires, vos parrainages et le support.",
+      "start": "Commencer la visite",
+      "skip": "Pas maintenant",
+      "replay": "Voir la visite du tableau",
+      "next": "Suivant",
+      "previous": "Retour",
+      "done": "Terminer",
+      "progress": "{{current}} sur {{total}}",
+      "steps": {
+        "sidebar": {
+          "title": "Menu de votre portail",
+          "description": "Utilisez ce menu pour naviguer entre toutes les zones de votre processus Migma."
+        },
+        "navigation": {
+          "title": "Sections principales",
+          "description": "Chaque onglet regroupe une partie de votre parcours : candidatures, documents, formulaires, parrainages, support et profil."
+        },
+        "overview": {
+          "title": "Vue d'ensemble",
+          "description": "Vous y voyez le résumé de votre parcours, l'étape actuelle et ce qui demande votre attention."
+        },
+        "progress": {
+          "title": "Progression du processus",
+          "description": "Cet indicateur montre la part déjà complétée et l'étape actuellement active."
+        },
+        "next_action": {
+          "title": "Prochaine action",
+          "description": "Ce bouton vous mène directement à l'action la plus importante du moment."
+        },
+        "applications": {
+          "title": "Mes candidatures",
+          "description": "Suivez les universités, les bourses, les paiements, les documents approuvés et le paquet final."
+        },
+        "documents": {
+          "title": "Documents en attente",
+          "description": "Consultez les documents demandés, envoyez vos fichiers et suivez la révision de l'équipe."
+        },
+        "supplemental_data": {
+          "title": "Données complémentaires",
+          "description": "Renseignez les informations utilisées dans les formulaires universitaires et votre dossier."
+        },
+        "forms": {
+          "title": "Formulaires à signer",
+          "description": "Révisez et signez numériquement les formulaires générés pour votre processus."
+        },
+        "rewards": {
+          "title": "Programme de parrainage",
+          "description": "Partagez votre lien, suivez vos parrainages et voyez votre progression vers l'avantage."
+        },
+        "support": {
+          "title": "Support",
+          "description": "Ouvrez le support lorsque vous avez besoin d'aide pour le processus, les documents, les paiements ou les prochaines étapes."
+        },
+        "preferences": {
+          "title": "Préférences du portail",
+          "description": "Ici, vous pouvez revoir cette visite, changer le thème et modifier la langue du tableau de bord."
+        },
+        "profile": {
+          "title": "État du profil",
+          "description": "Gardez vos données personnelles et académiques complètes pour éviter les retards."
+        }
+      },
+      "applications_page": {
+        "steps": {
+          "page": {
+            "title": "Mes candidatures",
+            "description": "Cet onglet regroupe toutes vos candidatures et montre l'avancement de chaque université dans le processus."
+          },
+          "kpis": {
+            "title": "Résumé des candidatures",
+            "description": "Utilisez ces indicateurs pour voir rapidement le nombre de candidatures, celles approuvées et celles qui demandent encore votre attention."
+          },
+          "card": {
+            "title": "Détails de l'université",
+            "description": "Chaque carte montre l'université, la bourse, le placement fee, les frais annuels et la date de candidature."
+          },
+          "progress": {
+            "title": "Étapes de la candidature",
+            "description": "Ici, vous suivez la bourse approuvée, le paiement du Placement Fee, les documents et les formulaires signés."
+          },
+          "empty": {
+            "title": "Aucune candidature pour le moment",
+            "description": "Lorsque vous sélectionnez des universités et des bourses, elles apparaîtront ici pour le suivi."
+          }
+        }
+      },
+      "documents_page": {
+        "steps": {
+          "page": {
+            "title": "Documents en attente",
+            "description": "Cet onglet affiche les documents demandés par Migma ou par le système pour compléter votre processus."
+          },
+          "kpis": {
+            "title": "Résumé des documents",
+            "description": "Suivez le nombre de documents demandés, envoyés, approuvés et ceux qui demandent encore votre attention."
+          },
+          "finals": {
+            "title": "Documents finaux",
+            "description": "Lorsqu'une lettre d'acceptation ou un formulaire de transfert est disponible, il apparaît en haut de cette liste."
+          },
+          "card": {
+            "title": "Document demandé",
+            "description": "Chaque carte montre le type de document, les dates importantes, les points en attente et l'état de révision."
+          },
+          "status": {
+            "title": "Statut d'envoi et de révision",
+            "description": "Utilisez ces indicateurs pour savoir si le fichier a été envoyé et si l'équipe l'a approuvé."
+          },
+          "actions": {
+            "title": "Envoyer ou renvoyer le fichier",
+            "description": "Utilisez cette zone pour envoyer le document ou renvoyer une version corrigée si nécessaire."
+          },
+          "empty": {
+            "title": "Aucun document demandé",
+            "description": "Lorsque de nouveaux documents seront nécessaires, ils apparaîtront ici pour l'envoi et le suivi."
+          }
+        }
+      },
+      "supplemental_data_page": {
+        "steps": {
+          "page": {
+            "title": "Données complémentaires",
+            "description": "Cet onglet regroupe les informations utilisées pour remplir les formulaires universitaires et compléter votre dossier."
+          },
+          "empty": {
+            "title": "Informations à compléter",
+            "description": "Lorsque vos données complémentaires n'ont pas encore été envoyées, commencez par ce bouton pour ouvrir le formulaire."
+          },
+          "edit_action": {
+            "title": "Modifier les données",
+            "description": "Utilisez cette action pour renseigner ou mettre à jour les informations lorsque nécessaire."
+          },
+          "emergency": {
+            "title": "Contact d'urgence",
+            "description": "Indiquez une personne de confiance pouvant être contactée pendant le processus si nécessaire."
+          },
+          "sponsor": {
+            "title": "Sponsor financier",
+            "description": "Cette section contient les informations financières utilisées dans les formulaires et justificatifs universitaires."
+          },
+          "recommenders": {
+            "title": "Référents",
+            "description": "Ajoutez des personnes pouvant appuyer les lettres de recommandation ou confirmer des informations académiques/professionnelles."
+          },
+          "save_actions": {
+            "title": "Enregistrer les modifications",
+            "description": "Après révision, enregistrez pour mettre à jour le tableau de bord et utiliser ces données aux prochaines étapes."
+          }
+        }
+      },
+      "forms_page": {
+        "steps": {
+          "page": {
+            "title": "Formulaires à signer",
+            "description": "Cet onglet regroupe les formulaires générés pour votre processus et indique ce qui doit encore être signé."
+          },
+          "kpis": {
+            "title": "Résumé des formulaires",
+            "description": "Voyez combien de formulaires ont été générés, combien ont été signés et combien restent en attente."
+          },
+          "card": {
+            "title": "Formulaire généré",
+            "description": "Chaque carte représente un formulaire universitaire ou un formulaire du dossier final de votre processus."
+          },
+          "status": {
+            "title": "Statut du formulaire",
+            "description": "Vous pouvez vérifier ici si le formulaire a été signé et quand il a été généré ou finalisé."
+          },
+          "actions": {
+            "title": "Réviser, ouvrir et signer",
+            "description": "Utilisez ces boutons pour réviser le PDF, ouvrir le fichier et commencer la signature numérique si disponible."
+          },
+          "empty": {
+            "title": "Aucun formulaire généré",
+            "description": "Les formulaires apparaissent ici lorsque le processus permet la génération du dossier à signer."
+          }
+        }
+      },
+      "rewards_page": {
+        "steps": {
+          "page": {
+            "title": "Programme de parrainage",
+            "description": "Cet onglet affiche votre lien de parrainage, la progression de l'objectif et les rendez-vous générés par vos parrainages."
+          },
+          "kpis": {
+            "title": "Résumé des parrainages",
+            "description": "Suivez le nombre de parrainages conclus, les clics reçus par le lien et les rendez-vous planifiés."
+          },
+          "progress": {
+            "title": "Progression de l'objectif",
+            "description": "Vous voyez ici ce qu'il reste à accomplir pour obtenir l'avantage du programme et si l'objectif est déjà atteint."
+          },
+          "code": {
+            "title": "Code unique",
+            "description": "Ce code identifie vos parrainages et suit le lead depuis la planification jusqu'à la conclusion."
+          },
+          "link": {
+            "title": "Lien de parrainage",
+            "description": "Partagez ce lien avec les personnes qui veulent étudier aux États-Unis afin que le système enregistre le parrainage à votre nom."
+          },
+          "share_actions": {
+            "title": "Partager le lien",
+            "description": "Utilisez ces boutons pour copier le lien, l'envoyer par WhatsApp, l'envoyer par email ou ouvrir la page de parrainage."
+          },
+          "how": {
+            "title": "Fonctionnement",
+            "description": "Ce bloc résume les étapes du programme, du partage du lien jusqu'à l'application de l'avantage."
+          },
+          "meetings": {
+            "title": "Rendez-vous récents",
+            "description": "Les leads arrivés via votre lien apparaissent ici, avec leur statut de rendez-vous ou de conclusion."
+          },
+          "meetings_empty": {
+            "title": "Aucun rendez-vous pour le moment",
+            "description": "Lorsqu'une personne planifie un rendez-vous avec votre lien, l'enregistrement apparaît dans cette zone."
+          },
+          "lead": {
+            "title": "Lead parrainé",
+            "description": "Chaque enregistrement affiche les principales informations de la personne parrainée, la date et le statut dans le programme."
+          }
+        }
+      },
+      "support_page": {
+        "steps": {
+          "page": {
+            "title": "Support Migma",
+            "description": "Cet onglet centralise vos conversations avec l'équipe Migma et aide à répondre aux questions sur le processus, les documents et les prochaines étapes."
+          },
+          "header": {
+            "title": "Canal de support",
+            "description": "En haut, vous voyez si vous parlez au support automatique ou si le dossier a déjà été transféré à un spécialiste."
+          },
+          "status": {
+            "title": "Statut du support",
+            "description": "Cet indicateur montre si le support est en ligne ou si vous attendez une assistance humaine."
+          },
+          "message": {
+            "title": "Historique de conversation",
+            "description": "Les réponses et orientations restent enregistrées ici pour suivre ce qui a déjà été traité."
+          },
+          "handoff": {
+            "title": "Assistance humaine",
+            "description": "Lorsque l'IA identifie qu'un spécialiste est nécessaire, cette zone affiche le transfert et les prochaines étapes."
+          },
+          "schedule": {
+            "title": "Agenda avec mentor",
+            "description": "Si des horaires sont disponibles, choisissez un créneau pour parler avec l'équipe via Google Meet."
+          },
+          "composer": {
+            "title": "Envoyer un message",
+            "description": "Utilisez ce champ pour écrire votre question. L'historique sert à conserver le contexte du support."
+          },
+          "send": {
+            "title": "Envoyer au support",
+            "description": "Après avoir écrit, envoyez votre message pour recevoir une réponse ou un transfert."
+          }
+        }
+      },
+      "profile_page": {
+        "steps": {
+          "page": {
+            "title": "Profil étudiant",
+            "description": "Cet onglet regroupe les données personnelles, académiques et de compte utilisées pour garder votre processus sans retard."
+          },
+          "header": {
+            "title": "Résumé du profil",
+            "description": "Ici, vous identifiez la zone du profil et accédez rapidement à la mise à jour des données."
+          },
+          "edit_action": {
+            "title": "Modifier le profil",
+            "description": "Utilisez ce bouton pour revenir à l'onboarding et corriger ou compléter les informations importantes."
+          },
+          "personal": {
+            "title": "Informations personnelles",
+            "description": "Vérifiez le nom, l'e-mail, le téléphone, le pays, le document et la nationalité utilisés dans votre processus."
+          },
+          "academic": {
+            "title": "Informations académiques",
+            "description": "Cette zone affiche les intérêts, la formation, le type de processus et le niveau d'anglais utilisés pour orienter la candidature."
+          },
+          "completion": {
+            "title": "Complétude du profil",
+            "description": "Suivez le pourcentage de complétion et voyez s'il reste quelque chose en attente."
+          },
+          "missing": {
+            "title": "Données en attente",
+            "description": "Lorsqu'il y a des éléments en attente, cette liste montre ce qui doit être complété pour éviter les blocages du processus."
+          },
+          "complete": {
+            "title": "Profil complet",
+            "description": "Lorsque tout est rempli, cette confirmation indique que le profil est prêt pour les prochaines utilisations."
+          },
+          "account": {
+            "title": "Informations du compte",
+            "description": "Les détails opérationnels comme l'ancienneté du compte, le statut des documents, les personnes à charge et la complétude sont affichés ici."
+          }
+        }
+      }
+    },
     "rewards": {
       "title": "Programme de Parrainage",
       "subtitle": "Partagez votre lien, suivez les rendez-vous et consultez vos parrainages conclus.",
