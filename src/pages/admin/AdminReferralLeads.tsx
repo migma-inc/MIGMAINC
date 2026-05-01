@@ -45,7 +45,7 @@ const STATUS_CONFIG: Record<LeadStatus, { label: string; className: string }> = 
   visit:     { label: 'Visit',     className: 'bg-gray-500/20 text-gray-300 border-gray-500/30' },
   pending:   { label: 'Pending',   className: 'bg-yellow-500/20 text-yellow-300 border-yellow-500/30' },
   scheduled: { label: 'Scheduled', className: 'bg-blue-500/20 text-blue-300 border-blue-500/30' },
-  fechado:   { label: 'Fechado',   className: 'bg-green-500/20 text-green-300 border-green-500/30' },
+  fechado:   { label: 'Closed',    className: 'bg-green-500/20 text-green-300 border-green-500/30' },
   cancelled: { label: 'Cancelled', className: 'bg-red-500/20 text-red-300 border-red-500/30' },
 };
 
@@ -61,7 +61,7 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 function fmt(iso: string) {
-  return new Intl.DateTimeFormat('pt-BR', {
+  return new Intl.DateTimeFormat('en-US', {
     day: '2-digit', month: '2-digit', year: 'numeric',
     hour: '2-digit', minute: '2-digit',
   }).format(new Date(iso));
@@ -148,12 +148,12 @@ export const AdminReferralLeads = () => {
       }
 
       const msg = result.already_closed
-        ? 'Lead já estava fechado.'
+        ? 'Lead was already closed.'
         : notifyError
-          ? `Fechado! ${result.closures_count}/10 indicações. Falha ao notificar: ${notifyError}`
+          ? `Closed. ${result.closures_count}/10 referrals. Notification failed: ${notifyError}`
           : result.goal_reached_now
-            ? `Fechado! 🏆 Meta atingida — ${result.closures_count} indicações fechadas! Notificação enviada.`
-            : `Fechado! ${result.closures_count}/10 indicações. Notificação enviada.`;
+            ? `Closed. Goal reached: ${result.closures_count} referrals closed. Notification sent.`
+            : `Closed. ${result.closures_count}/10 referrals. Notification sent.`;
       showToast(lead.id, msg, notifyError ? 'error' : 'success');
       void load();
     }
@@ -170,7 +170,7 @@ export const AdminReferralLeads = () => {
       if (result.error) {
         showToast(lead.id, result.error, 'error');
       } else {
-        showToast(lead.id, `Revertido. ${result.closures_count}/10 indicações.`, 'success');
+        showToast(lead.id, `Reverted. ${result.closures_count}/10 referrals.`, 'success');
         void load();
       }
     }
@@ -204,7 +204,7 @@ export const AdminReferralLeads = () => {
   const TABS: { key: FilterTab; label: string }[] = [
     { key: 'all',       label: 'All' },
     { key: 'scheduled', label: 'Scheduled' },
-    { key: 'fechado',   label: 'Fechado' },
+    { key: 'fechado',   label: 'Closed' },
     { key: 'pending',   label: 'Pending' },
     { key: 'other',     label: 'Other' },
   ];
@@ -234,7 +234,7 @@ export const AdminReferralLeads = () => {
         {[
           { label: 'Total', value: counts.all, color: 'text-white' },
           { label: 'Scheduled', value: counts.scheduled, color: 'text-blue-300' },
-          { label: 'Fechado', value: counts.fechado, color: 'text-green-300' },
+          { label: 'Closed', value: counts.fechado, color: 'text-green-300' },
           { label: 'Pending', value: counts.pending, color: 'text-yellow-300' },
         ].map(s => (
           <Card key={s.label} className="bg-zinc-900/40 border-white/5">
@@ -389,7 +389,7 @@ export const AdminReferralLeads = () => {
                                 className="h-7 px-2 text-xs bg-green-600/20 border border-green-500/40 text-green-300 hover:bg-green-600/40 hover:text-white"
                               >
                                 {isLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <CheckCircle2 className="w-3 h-3 mr-1" />}
-                                Fechar
+                                Close
                               </Button>
                             )}
                             {lead.status === 'fechado' && (
@@ -400,7 +400,7 @@ export const AdminReferralLeads = () => {
                                 className="h-7 px-2 text-xs bg-yellow-600/20 border border-yellow-500/40 text-yellow-300 hover:bg-yellow-600/40 hover:text-white"
                               >
                                 {isLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Undo2 className="w-3 h-3 mr-1" />}
-                                Reverter
+                                Revert
                               </Button>
                             )}
                           </div>

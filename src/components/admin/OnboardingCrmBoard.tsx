@@ -687,24 +687,24 @@ export function OnboardingCrmBoard({ productLine, title, description }: Onboardi
               <div className="space-y-1.5">
                 <p className="text-[10px] font-black uppercase tracking-widest text-amber-400">Transfer — Deadline</p>
                 <div className="space-y-1 text-xs text-gray-400">
-                  <div className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full bg-yellow-400 shrink-0" /> ≤ 30 dias</div>
-                  <div className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full bg-orange-400 shrink-0" /> ≤ 15 dias</div>
-                  <div className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full bg-red-500 shrink-0" /> ≤ 7 dias</div>
+                  <div className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full bg-yellow-400 shrink-0" /> ≤ 30 days</div>
+                  <div className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full bg-orange-400 shrink-0" /> ≤ 15 days</div>
+                  <div className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full bg-red-500 shrink-0" /> ≤ 7 days</div>
                 </div>
               </div>
               <div className="space-y-1.5">
                 <p className="text-[10px] font-black uppercase tracking-widest text-sky-400">COS — I-94 Expiry</p>
                 <div className="space-y-1 text-xs text-gray-400">
-                  <div className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full bg-yellow-400 shrink-0" /> ≤ 60 dias</div>
-                  <div className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full bg-orange-400 shrink-0" /> ≤ 15 dias</div>
-                  <div className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full bg-red-500 shrink-0" /> ≤ 7 dias</div>
+                  <div className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full bg-yellow-400 shrink-0" /> ≤ 60 days</div>
+                  <div className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full bg-orange-400 shrink-0" /> ≤ 15 days</div>
+                  <div className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full bg-red-500 shrink-0" /> ≤ 7 days</div>
                 </div>
               </div>
               <div className="space-y-1.5">
-                <p className="text-[10px] font-black uppercase tracking-widest text-gray-500">Inatividade (geral)</p>
+                <p className="text-[10px] font-black uppercase tracking-widest text-gray-500">General inactivity</p>
                 <div className="space-y-1 text-xs text-gray-400">
-                  <div className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full bg-yellow-400 shrink-0" /> Survey parado &gt; 3d</div>
-                  <div className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full bg-orange-400 shrink-0" /> Parado &gt; 7d</div>
+                  <div className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full bg-yellow-400 shrink-0" /> Survey idle &gt; 3d</div>
+                  <div className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full bg-orange-400 shrink-0" /> Idle &gt; 7d</div>
                 </div>
               </div>
             </div>

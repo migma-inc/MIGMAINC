@@ -239,7 +239,7 @@ export const OPERATIONAL_STAGE_LABELS: Record<OperationalStage, string> = {
   contract_pending: 'Contract Pending',
   contract_under_review: 'Contract Review',
   contract_rejected: 'Contract Rejected',
-  awaiting_university_choice: 'Aguard. Escolha de Faculdade',
+  awaiting_university_choice: 'Awaiting University Choice',
   documents_pending: 'Documents Pending',
   documents_under_review: 'Documents Review',
   in_processing: 'In Processing',
