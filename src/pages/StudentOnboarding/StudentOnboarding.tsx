@@ -231,7 +231,12 @@ const StudentOnboarding: React.FC = () => {
           {state.currentStep === 'selection_fee' && <SelectionFeeStep {...stepProps} />}
           {state.currentStep === 'selection_survey' && <MigmaSurveyStep {...stepProps} contractApproved={state.contractApproved} />}
           {state.currentStep === 'wait_room' && (
-            <WaitRoomStep surveyCompletedAt={state.surveyCompletedAt} checkProgress={checkProgress} />
+            <WaitRoomStep
+              surveyCompletedAt={state.surveyCompletedAt}
+              checkProgress={async () => {
+                await checkProgress();
+              }}
+            />
           )}
           {state.currentStep === 'scholarship_selection' && <UniversitySelectionStep {...stepProps} />}
           {state.currentStep === 'documents_upload' && <DocumentsUploadStep {...stepProps} />}

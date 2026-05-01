@@ -28,7 +28,7 @@ type ExistingApplication = {
   status: string;
   institution_id: string;
   scholarship_level_id: string;
-  institutions: { name: string; city: string; state: string } | null;
+  institutions: { name: string; city: string; state: string; logo_url?: string | null } | null;
   institution_scholarships: { scholarship_level: string | null; discount_percent: number | null } | null;
 };
 
@@ -88,7 +88,7 @@ export const UniversitySelectionStep: React.FC<StepProps> = ({ onNext }) => {
             institution_scholarships ( scholarship_level, discount_percent )
           `)
           .eq('profile_id', userProfile.id);
-        setExistingApps((apps || []) as ExistingApplication[]);
+        setExistingApps(((apps || []) as unknown) as ExistingApplication[]);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));

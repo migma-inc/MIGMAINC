@@ -769,5 +769,6 @@ export const PlacementFeeStep: React.FC<StepProps> = ({ onNext }) => {
           </div>
         )}
       </div>
+    </div>
     );
 };
