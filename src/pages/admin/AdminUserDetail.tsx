@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import DOMPurify from 'dompurify';
 import {
   Activity,
   AlertCircle,
@@ -2203,10 +2204,75 @@ function FollowupsTab({
 // Tab: Messages
 // ---------------------------------------------------------------------------
 
-function MessageBody({ text }: { text: string }) {
+function looksLikeHtml(value: string) {
+  return /<!doctype\s+html/i.test(value) || /<\/?[a-z][\s\S]*>/i.test(value);
+}
+
+function HtmlEmailPreview({ html }: { html: string }) {
   const [expanded, setExpanded] = useState(false);
+  const sanitizedHtml = useMemo(() => {
+    const clean = DOMPurify.sanitize(html, {
+      WHOLE_DOCUMENT: true,
+      FORCE_BODY: true,
+      ADD_ATTR: ['target'],
+    });
+
+    const previewHead = `<base target="_blank" />
+  <style>
+    html, body { margin: 0; min-height: 100%; background: #0a0a0a; color: #e5e7eb; }
+    body { overflow-wrap: anywhere; }
+    img { max-width: 100%; height: auto; }
+    table { max-width: 100%; }
+  </style>`;
+
+    if (/<html[\s>]/i.test(clean)) {
+      if (/<head[\s>]/i.test(clean)) {
+        return clean.replace(/<head([^>]*)>/i, `<head$1>${previewHead}`);
+      }
+
+      return clean.replace(/<html([^>]*)>/i, `<html$1><head>${previewHead}</head>`);
+    }
+
+    return `<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  ${previewHead}
+</head>
+<body>${clean}</body>
+</html>`;
+  }, [html]);
+
+  return (
+    <div className="overflow-hidden rounded-md border border-white/10 bg-[#0a0a0a]">
+      <iframe
+        title="Email preview"
+        sandbox=""
+        referrerPolicy="no-referrer"
+        srcDoc={sanitizedHtml}
+        className={cn('w-full bg-[#0a0a0a]', expanded ? 'h-[720px]' : 'h-[420px]')}
+      />
+      <button
+        type="button"
+        onClick={() => setExpanded((v) => !v)}
+        className="w-full border-t border-white/10 py-1.5 text-[10px] font-black uppercase tracking-widest text-gray-500 transition-colors hover:text-gray-300"
+      >
+        {expanded ? '▲ Collapse Preview' : '▼ Expand Preview'}
+      </button>
+    </div>
+  );
+}
+
+function MessageBody({ text, html }: { text: string; html?: string | null }) {
+  const [expanded, setExpanded] = useState(false);
+  const htmlContent = html || (looksLikeHtml(text) ? text : null);
   const isLong = text.length > 600;
   const preview = isLong && !expanded ? text.slice(0, 600) + '…' : text;
+
+  if (htmlContent) {
+    return <HtmlEmailPreview html={htmlContent} />;
+  }
 
   return (
     <div className="bg-white/[0.03] border border-white/5 rounded-md text-xs text-gray-300 whitespace-pre-wrap leading-relaxed overflow-hidden">
@@ -2234,7 +2300,9 @@ function MessagesTab({ messages }: { messages: CrmMessage[] }) {
     <div className="space-y-3">
       {messages.map((msg) => {
         const isInbound = msg.direction === 'inbound';
-        const analysis = (msg.message_metadata as Record<string, unknown> | null)?.analysis as Record<string, unknown> | null;
+        const metadata = msg.message_metadata as Record<string, unknown> | null;
+        const analysis = metadata?.analysis as Record<string, unknown> | null;
+        const htmlBody = typeof metadata?.html === 'string' ? metadata.html : null;
 
         return (
           <Card key={msg.id} className={`bg-black/30 border ${isInbound ? 'border-sky-500/20' : 'border-white/5'}`}>
@@ -2268,7 +2336,7 @@ function MessagesTab({ messages }: { messages: CrmMessage[] }) {
                 </div>
               </div>
 
-              {msg.body_text && <MessageBody text={msg.body_text} />}
+              {(msg.body_text || htmlBody) && <MessageBody text={msg.body_text ?? ''} html={htmlBody} />}
 
               {analysis && (
                 <div className="mt-3 flex flex-wrap gap-2">

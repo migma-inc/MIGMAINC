@@ -35,6 +35,7 @@ export type TriggerType =
   // Billing (Fase 9)
   | "billing_started"
   | "billing_installment_due"
+  | "billing_installment_paid"
   | "billing_suspended"
   // Admin-facing
   | "admin_new_documents"
@@ -74,11 +75,15 @@ interface NotifyPayload {
     last_message?: string;
     // Billing (Fase 9)
     monthly_usd?: number;
+    installment_number?: number;
     installments_total?: number;
     installments_paid?: number;
     degree_level?: string;
+    process_type?: string;
+    start_date?: string;
     next_billing_date?: string;
     billing_link?: string;
+    receipt_url?: string;
     suspend_reason?: string;
     acceptance_letter_url?: string;
   };
@@ -588,7 +593,8 @@ function buildTemplate(
         <ul style="color:#ccc;line-height:2;">
           <li>Valor mensal: <strong>US$ ${data.monthly_usd?.toLocaleString("en-US") ?? "–"}</strong></li>
           <li>Parcelas: <strong>${data.installments_total ?? "–"}x</strong></li>
-          <li>Curso: <strong>${data.degree_level ?? "–"}</strong></li>
+          <li>Processo: <strong>${data.process_type ?? data.degree_level ?? "–"}</strong></li>
+          <li>Primeira cobrança: <strong>${data.start_date ?? "–"}</strong></li>
         </ul>
         <p>Você receberá o link de pagamento todo mês com antecedência. Em caso de dúvidas, fale com o time Migma.</p>
         ${btn("Acessar minha conta", routes.studentDashboard)}
@@ -598,17 +604,28 @@ function buildTemplate(
 
     // ── 20 — BILLING ──────────────────────────────────────────────────────────
     case "billing_installment_due": return {
-      subject: `Parcela ${(data.installments_paid ?? 0) + 1}/${data.installments_total ?? "–"} disponível — US$ ${data.monthly_usd?.toLocaleString("en-US") ?? "–"}`,
-      emailHtml: emailWrapper("Link de pagamento disponível", `
+      subject: `Parcela ${data.installment_number ?? (data.installments_paid ?? 0) + 1}/${data.installments_total ?? "–"} gerada — US$ ${data.monthly_usd?.toLocaleString("en-US") ?? "–"}`,
+      emailHtml: emailWrapper("Parcela Migma gerada", `
         <p>Olá, ${highlight(firstName)}!</p>
-        <p>Sua parcela <strong>${(data.installments_paid ?? 0) + 1} de ${data.installments_total ?? "–"}</strong> está disponível para pagamento.</p>
+        <p>Sua parcela <strong>${data.installment_number ?? (data.installments_paid ?? 0) + 1} de ${data.installments_total ?? "–"}</strong> foi gerada.</p>
         <p>Valor: <strong>US$ ${data.monthly_usd?.toLocaleString("en-US") ?? "–"}</strong></p>
-        ${data.billing_link
-          ? btn("Pagar agora", data.billing_link)
-          : `<p style="color:#888;">Link de pagamento em processamento. Acesse ${routes.studentDashboard} para mais informações.</p>`}
+        ${data.billing_link ?? data.payment_link
+          ? btn("Pagar agora", data.billing_link ?? data.payment_link!)
+          : `<p style="color:#888;">O time Migma enviará as instruções de pagamento pelo canal combinado.</p>`}
         <p style="margin-top:20px;color:#888;font-size:13px;">Próxima parcela: ${data.next_billing_date ?? "–"}.</p>
       `),
-      whatsapp: `💳 *Migma* — Parcela ${(data.installments_paid ?? 0) + 1}/${data.installments_total ?? "–"} disponível!\n\nOlá ${firstName}, sua mensalidade de *US$ ${data.monthly_usd?.toLocaleString("en-US") ?? "–"}* está pronta para pagamento.\n\n${data.billing_link ? `Pague aqui: ${data.billing_link}` : "Link em breve pelo portal."}`,
+      whatsapp: `💳 *Migma* — Parcela ${data.installment_number ?? (data.installments_paid ?? 0) + 1}/${data.installments_total ?? "–"} gerada!\n\nOlá ${firstName}, sua mensalidade de *US$ ${data.monthly_usd?.toLocaleString("en-US") ?? "–"}* foi gerada.\n\n${data.billing_link ?? data.payment_link ? `Pague aqui: ${data.billing_link ?? data.payment_link}` : "O time Migma enviará as instruções de pagamento pelo canal combinado."}`,
+    };
+
+    case "billing_installment_paid": return {
+      subject: `Pagamento confirmado — parcela ${data.installment_number ?? "–"}/${data.installments_total ?? "–"}`,
+      emailHtml: emailWrapper("Pagamento confirmado", `
+        <p>Olá, ${highlight(firstName)}!</p>
+        <p>Recebemos o pagamento da sua parcela <strong>${data.installment_number ?? "–"} de ${data.installments_total ?? "–"}</strong>.</p>
+        <p>Parcelas pagas até agora: <strong>${data.installments_paid ?? "–"}</strong>.</p>
+        ${data.receipt_url ? btn("Ver comprovante", data.receipt_url) : btn("Acessar minha conta", routes.studentDashboard)}
+      `),
+      whatsapp: `✅ *Migma* — Pagamento confirmado!\n\nOlá ${firstName}, recebemos a parcela ${data.installment_number ?? "–"}/${data.installments_total ?? "–"}. Pagas até agora: ${data.installments_paid ?? "–"}.${data.receipt_url ? `\n\nComprovante: ${data.receipt_url}` : ""}`,
     };
 
     // ── 21 — BILLING ──────────────────────────────────────────────────────────

@@ -27,6 +27,7 @@ const OIKOS_FORMS = [
   "affidavit_of_financial_support",  // conditional on sponsor
   "enrollment_agreement",
   "all_statements_and_agreement",
+  "scholarship_agreement",
   "termo_responsabilidade_estudante", // internal only
 ] as const;
 
@@ -45,6 +46,7 @@ const FORM_LABELS: Record<string, string> = {
   scholarship_support_compliance_agreement:   "Scholarship Support & Compliance Agreement",
   enrollment_agreement:                       "Enrollment Agreement",
   all_statements_and_agreement:               "All Statements and Agreement",
+  scholarship_agreement:                      "Scholarship Agreement",
   statement_of_faith:                         "Statement of Faith",
   code_of_conduct:                            "Code of Conduct",
   refund_policy:                              "Refund Policy",
@@ -57,6 +59,7 @@ const OIKOS_APPLICATION_PACKET_TEMPLATE_FILENAME = "1. Application Packet - OIKO
 const OIKOS_VERIFICATION_OF_FINANCIAL_TEMPLATE_FILENAME = "5. Verification of Financial  (1).pdf";
 const OIKOS_ALL_STATEMENTS_AND_AGREEMENT_TEMPLATE_FILENAME = "All Statement and agreement  (1).pdf";
 const OIKOS_ENROLLMENT_AGREEMENT_TEMPLATE_FILENAME = "Enrollment Agreement (1).pdf";
+const OIKOS_SCHOLARSHIP_AGREEMENT_TEMPLATE_FILENAME = "Scholarship agreement_OIKOS.pdf";
 const CAROLINE_LETTER_OF_RECOMMENDATION_TEMPLATE_FILENAME = "Caroline Form Letter of Recommendation (1).pdf";
 const CAROLINE_AFFIDAVIT_OF_FINANCIAL_SUPPORT_TEMPLATE_FILENAME = "Caroline_Affidavit of Financial Support_2024 (1).pdf";
 const CAROLINE_APPLICATION_FORM_TEMPLATE_FILENAME = "Caroline_Form_Application_2024 (1).pdf";
@@ -659,6 +662,14 @@ const OIKOS_ENROLLMENT_AGREEMENT_V1: {
   checkboxes: {
     new_student:    { page: 0, x: 153.0, top: 127.0, source: "student.enrollmentType", equals: "new_student" },
     reentry_student:{ page: 0, x: 256.5, top: 126.0, source: "student.enrollmentType", equals: "reentry_student" },
+  },
+};
+
+const OIKOS_SCHOLARSHIP_AGREEMENT_V1: {
+  text: Record<string, OverlayTextField>;
+} = {
+  text: {
+    agency_name: { page: 0, x: 277.0, top: 133.5, maxWidth: 150, fontSize: 10, source: "agency.name", optional: true },
   },
 };
 
@@ -1841,6 +1852,9 @@ function buildFormData(
         installments_total: scholarship?.installments_total,
       };
 
+    case "scholarship_agreement":
+      return { agency: { name: "MIGMA INC" } };
+
     case "termo_responsabilidade_estudante":
       return {
         ...base,
@@ -2518,6 +2532,27 @@ async function generateOikosApplicationPacketPdf(
   return await doc.save();
 }
 
+async function generateOikosScholarshipAgreementPdf(
+  formData: Record<string, any>,
+): Promise<Uint8Array> {
+  const templateBytes = await loadPdfTemplate(OIKOS_SCHOLARSHIP_AGREEMENT_TEMPLATE_FILENAME);
+  const doc = await PDFDocument.load(templateBytes);
+  const pages = doc.getPages();
+  const font = await doc.embedFont(StandardFonts.Helvetica);
+
+  for (const field of Object.values(OIKOS_SCHOLARSHIP_AGREEMENT_V1.text)) {
+    const value = resolveOverlayTextValue(formData, field);
+    if (!value) continue;
+    drawPacketTextField(pages[field.page], font, value, {
+      page: field.page, x: field.x, top: field.top,
+      maxWidth: field.maxWidth, source: field.source,
+      fontSize: field.fontSize,
+    });
+  }
+
+  return await doc.save();
+}
+
 // ─── PDF generator ────────────────────────────────────────────────────────────
 
 async function generateFormPdf(
@@ -2545,6 +2580,10 @@ async function generateFormPdf(
 
   if (formType === "enrollment_agreement" && institutionSlug?.includes("oikos")) {
     return await generateOikosEnrollmentAgreementPdf(formData as OikosEnrollmentAgreementData);
+  }
+
+  if (formType === "scholarship_agreement" && institutionSlug?.includes("oikos")) {
+    return await generateOikosScholarshipAgreementPdf(formData);
   }
 
   if (formType === "letter_of_recommendation" && institutionSlug?.includes("caroline")) {

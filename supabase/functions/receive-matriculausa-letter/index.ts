@@ -107,6 +107,7 @@ Deno.serve(async (req) => {
     const appUpdate: Record<string, unknown> = {};
     if (acceptance_letter_url) {
       appUpdate.acceptance_letter_url = acceptance_letter_url;
+      appUpdate.acceptance_letter_received_at = new Date().toISOString();
       appUpdate.package_status = "ready";
     }
     if (transfer_form_url) {
