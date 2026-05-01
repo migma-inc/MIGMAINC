@@ -816,10 +816,8 @@ function FormsTab({
   openViewer: (url: string | null, title: string) => void;
 }) {
   const { t } = useTranslation();
-  const [previewForm] = useState<DashboardForm | null>(null);
   const [signingForm, setSigningForm] = useState<DashboardForm | null>(null);
   const visibleForms = forms;
-  const previewPdfUrl = previewForm ? (isPdfUrl(previewForm.signed_url) ? previewForm.signed_url : previewForm.template_url) : null;
   const generated = visibleForms.length;
   const signed = visibleForms.filter(form => !!form.signed_at).length;
   const pending = Math.max(generated - signed, 0);
@@ -883,13 +881,16 @@ function FormsTab({
           <FormCard
             key={form.id}
             form={form}
-            onPreview={() => {
+            onPreview={async () => {
+              const previewUrl = isPdfUrl(form.signed_url) ? form.signed_url : form.template_url;
+              const secureUrl = await getSecureUrl(previewUrl);
               void markFormPdfOpened(form);
-              openViewer(previewPdfUrl, form.form_type);
+              openViewer(secureUrl, form.form_type);
             }}
-            onOpenPdf={() => {
+            onOpenPdf={async () => {
+              const secureUrl = await getSecureUrl(form.signed_url || form.template_url);
               void markFormPdfOpened(form);
-              openViewer(form.signed_url || form.template_url, form.form_type);
+              openViewer(secureUrl, form.form_type);
             }}
             onSign={() => setSigningForm(form)}
           />
@@ -2306,14 +2307,29 @@ function FormCard({
   onSign 
 }: { 
   form: DashboardForm; 
-  onPreview: () => void; 
+  onPreview: () => Promise<void>; 
   onOpenPdf: () => void; 
   onSign: () => void;
 }) {
   const { t } = useTranslation();
+  const [previewing, setPreviewing] = useState(false);
+  const [previewClicked, setPreviewClicked] = useState(false);
   const isSigned = !!form.signed_at;
   const hasSignedPdf = isPdfUrl(form.signed_url);
   const canSign = !isSigned || !hasSignedPdf;
+
+  const handlePreview = async () => {
+    if (previewing) return;
+    setPreviewing(true);
+    setPreviewClicked(true);
+    try {
+      await onPreview();
+    } finally {
+      setPreviewing(false);
+      window.setTimeout(() => setPreviewClicked(false), 700);
+    }
+  };
+
   return (
     <Card className="border-[#e3d5bd] dark:border-white/10 bg-white dark:bg-[#111] text-[#1f1a14] dark:text-white">
       <CardContent className="p-5">
@@ -2340,9 +2356,19 @@ function FormCard({
           </div>
           <div className="flex flex-wrap gap-2">
             {(form.template_url || hasSignedPdf) && (
-              <Button variant="outline" onClick={onPreview} className="border-[#e3d5bd] dark:border-white/10 bg-[#f3ead9] dark:bg-white/5 text-[#1f1a14] dark:text-white hover:bg-[#eadbbf] dark:hover:bg-white/10">
-                <Eye className="h-4 w-4" />
-                {t('student_dashboard.forms.btn_review')}
+              <Button
+                variant="outline"
+                onClick={handlePreview}
+                disabled={previewing}
+                className={cn(
+                  'border-[#e3d5bd] dark:border-white/10 bg-[#f3ead9] dark:bg-white/5 text-[#1f1a14] dark:text-white hover:bg-[#eadbbf] dark:hover:bg-white/10 transition-all duration-200',
+                  previewClicked && 'scale-[0.98] border-[#CE9F48]/60 bg-[#CE9F48]/10 text-[#9a6a16] ring-2 ring-[#CE9F48]/25 dark:text-[#CE9F48]',
+                )}
+              >
+                {previewing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Eye className="h-4 w-4" />}
+                {previewing
+                  ? t('student_dashboard.forms.btn_review_loading', { defaultValue: 'Opening...' })
+                  : t('student_dashboard.forms.btn_review')}
               </Button>
             )}
             {(form.signed_url || form.template_url) && (

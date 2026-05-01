@@ -1036,6 +1036,125 @@ function compact(value?: string | null): string {
   return (value ?? "").trim();
 }
 
+function optionalString(value: unknown): string | undefined {
+  const text = asString(value);
+  return text || undefined;
+}
+
+function optionalNumber(value: unknown): number | undefined {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  const text = asString(value).replace(/[$,\s]/g, "");
+  if (!text) return undefined;
+  const parsed = Number(text);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function hasAnyValue(value: Record<string, unknown>): boolean {
+  return Object.values(value).some((item) => {
+    if (Array.isArray(item)) return item.length > 0;
+    if (item && typeof item === "object") return hasAnyValue(item as Record<string, unknown>);
+    return item !== undefined && item !== null && item !== "";
+  });
+}
+
+function normalizeStudentComplementaryData(row: Record<string, any> | null): SupplementalData {
+  if (!row) return {};
+
+  const emergencyContact = {
+    name: optionalString(row.emergency_contact_name),
+    phone: optionalString(row.emergency_contact_phone),
+    relationship: optionalString(row.emergency_contact_relationship),
+    address: optionalString(row.emergency_contact_address),
+  };
+
+  const sponsor = {
+    full_name: optionalString(row.sponsor_name),
+    relationship: optionalString(row.sponsor_relationship),
+    phone: optionalString(row.sponsor_phone),
+    address: optionalString(row.sponsor_address),
+    employer: optionalString(row.sponsor_employer),
+    position: optionalString(row.sponsor_job_title),
+    years_employed: optionalNumber(row.sponsor_years_employed),
+    annual_income_usd: optionalString(row.sponsor_annual_income),
+    committed_amount_usd: optionalNumber(row.sponsor_committed_amount_usd),
+  };
+
+  const workExperience = Array.isArray(row.work_experience)
+    ? row.work_experience
+      .map((item: Record<string, any>) => ({
+        company: optionalString(item.company),
+        period: optionalString(item.period),
+        position: optionalString(item.position ?? item.role),
+      }))
+      .filter((item: Record<string, unknown>) => hasAnyValue(item))
+    : undefined;
+
+  const recommenders = [
+    {
+      name: optionalString(row.recommender1_name),
+      position: optionalString(row.recommender1_role),
+      contact: optionalString(row.recommender1_contact),
+    },
+    {
+      name: optionalString(row.recommender2_name),
+      position: optionalString(row.recommender2_role),
+      contact: optionalString(row.recommender2_contact),
+    },
+  ].filter((item) => hasAnyValue(item));
+
+  const normalized: SupplementalData = {
+    preferred_start_term: optionalString(row.preferred_start_term),
+    has_sponsor: row.has_sponsor === true,
+  };
+
+  if (hasAnyValue(emergencyContact)) normalized.emergency_contact = emergencyContact;
+  if (normalized.has_sponsor && hasAnyValue(sponsor)) normalized.sponsor = sponsor;
+  if (workExperience && workExperience.length > 0) normalized.work_experience = workExperience;
+  if (recommenders.length > 0) normalized.recommenders = recommenders;
+
+  return normalized;
+}
+
+function mergeSupplementalData(...sources: Array<SupplementalData | null | undefined>): SupplementalData {
+  const merged: SupplementalData = {};
+  const assignDefined = (target: Record<string, any>, source: Record<string, any>) => {
+    for (const [key, value] of Object.entries(source)) {
+      if (value !== undefined) target[key] = value;
+    }
+  };
+
+  for (const source of sources) {
+    if (!source) continue;
+
+    if (source.emergency_contact) {
+      merged.emergency_contact = { ...(merged.emergency_contact ?? {}) };
+      assignDefined(merged.emergency_contact, source.emergency_contact);
+    }
+    if (source.sponsor) {
+      merged.sponsor = { ...(merged.sponsor ?? {}) };
+      assignDefined(merged.sponsor, source.sponsor);
+    }
+    if (source.notary) {
+      merged.notary = { ...(merged.notary ?? {}) };
+      assignDefined(merged.notary, source.notary);
+    }
+    if (source.preferred_start_term !== undefined) {
+      merged.preferred_start_term = source.preferred_start_term;
+    }
+    if (source.has_sponsor !== undefined) {
+      merged.has_sponsor = source.has_sponsor;
+    }
+    if (source.work_experience) {
+      merged.work_experience = source.work_experience;
+    }
+    if (source.recommenders) {
+      merged.recommenders = source.recommenders;
+    }
+  }
+
+  return merged;
+}
+
 function joinNonEmpty(parts: Array<string | undefined | null>, sep = " "): string {
   return parts.map((part) => compact(part)).filter(Boolean).join(sep);
 }
@@ -1555,7 +1674,7 @@ function buildCarolineAffidavitOfFinancialSupportData(
       lastName: splitName.lastName,
       firstName: splitName.firstName,
       middleName: splitName.middleName,
-      dateOfBirth: identity?.birth_date ?? undefined,
+      dateOfBirth: maybeFormatDate(identity?.birth_date),
     },
     sponsor: {
       name: supplemental.sponsor?.full_name,
@@ -3049,11 +3168,24 @@ Deno.serve(async (req) => {
         .eq("user_id", profile.user_id)
         .maybeSingle();
 
+      // ── 3c. Fetch complementary data captured in the student dashboard/onboarding
+      const { data: complementaryData, error: complementaryErr } = await supabase
+        .from("student_complementary_data")
+        .select("*")
+        .eq("profile_id", app.profile_id)
+        .maybeSingle();
+
+      if (complementaryErr) {
+        console.warn("[generate-institution-forms] student_complementary_data fetch failed:", complementaryErr.message);
+      }
+
       // ── 4. Resolve supplemental data (payload takes precedence over DB) ───
-      resolvedSupplemental = {
-        ...(app.supplemental_data ?? {}),
-        ...supplemental_data,
-      };
+      const complementarySupplemental = normalizeStudentComplementaryData(complementaryData as Record<string, any> | null);
+      resolvedSupplemental = mergeSupplementalData(
+        app.supplemental_data as SupplementalData | null,
+        complementarySupplemental,
+        supplemental_data,
+      );
 
       resolvedProfile = profile;
       resolvedIdentity = identity ?? null;
@@ -3152,8 +3284,6 @@ Deno.serve(async (req) => {
           template_url:   publicUrlData.publicUrl,
           form_data_json: formData,
           generated_at:   now,
-          signed_url:     null,
-          signed_at:      null,
         }, { onConflict: "application_id,form_type" })
         .select("id")
         .single();
