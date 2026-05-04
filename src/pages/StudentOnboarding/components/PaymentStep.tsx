@@ -7,7 +7,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import {
   CheckCircle, Building, Shield, Loader2, AlertCircle, Upload, Clock,
 } from 'lucide-react';
-import { useTranslation } from 'react-i18next';
+import { Trans, useTranslation } from 'react-i18next';
 import { useStudentAuth } from '../../../contexts/StudentAuthContext';
 import { supabase } from '../../../lib/supabase';
 import {
@@ -211,7 +211,7 @@ export const PaymentStep: React.FC<StepProps> = ({ onNext }) => {
           },
         });
         if (error) throw error;
-        if (!data?.part1_checkout_url) throw new Error('URL do split não recebida');
+        if (!data?.part1_checkout_url) throw new Error(t('student_onboarding.payment_ui.error_split_url', 'Split URL not received'));
         if (data?.split_payment_id) sessionStorage.setItem('last_split_payment_id', data.split_payment_id);
         window.location.href = data.part1_checkout_url;
         return;
@@ -233,14 +233,14 @@ export const PaymentStep: React.FC<StepProps> = ({ onNext }) => {
         },
       });
       if (error) throw error;
-      if (!data?.checkout_url) throw new Error('Checkout URL não recebida');
+      if (!data?.checkout_url) throw new Error(t('student_onboarding.payment_ui.error_checkout_url', 'Checkout URL not received'));
       window.location.href = data.checkout_url;
     } catch (err: any) {
       console.error('[PaymentStep] handleProcessPayment:', err);
-      setPaymentError(err.message || 'Erro ao processar pagamento. Tente novamente.');
+      setPaymentError(err.message || t('student_onboarding.payment_ui.error_process_payment', 'Error processing payment. Please try again.'));
       setProcessing(false);
     }
-  }, [selectedMethod, cpf, splitConfig, applicationFee, firstApp, userProfile, user]);
+  }, [selectedMethod, cpf, splitConfig, applicationFee, firstApp, userProfile, user, isThirdParty, payerEmail, payerName, payerPhone, t]);
 
   const handleZelleUpload = useCallback(async () => {
     if (!zelleFile || !firstApp || !userProfile?.id || !user?.id) return;
@@ -291,11 +291,11 @@ export const PaymentStep: React.FC<StepProps> = ({ onNext }) => {
       setZelleSubmitted(true);
     } catch (err: any) {
       console.error('[PaymentStep] handleZelleUpload:', err);
-      setPaymentError('Erro ao enviar comprovante. Tente novamente.');
+      setPaymentError(t('student_onboarding.payment_ui.error_upload_receipt', 'Error uploading receipt. Please try again.'));
     } finally {
       setZelleUploading(false);
     }
-  }, [zelleFile, firstApp, userProfile, user, applicationFee]);
+  }, [zelleFile, firstApp, userProfile, user, applicationFee, t]);
 
   if (loading) {
     return (
@@ -359,11 +359,14 @@ export const PaymentStep: React.FC<StepProps> = ({ onNext }) => {
             <Clock className="w-10 h-10 text-amber-400" />
           </div>
           <h3 className="text-2xl font-black text-white mb-3 uppercase tracking-tight">
-            Comprovante Enviado
+            {t('student_onboarding.payment_ui.receipt_sent', 'Receipt Sent')}
           </h3>
           <p className="text-gray-400 text-sm leading-relaxed max-w-sm mx-auto">
-            Seu pagamento está sendo processado e pode levar até <strong>48h úteis</strong>.
-            Você receberá uma notificação quando confirmado.
+            <Trans
+              i18nKey="student_onboarding.payment_ui.receipt_processing_desc_48h"
+              defaults="Your payment is being processed and may take up to <strong>48 business hours</strong>. You will receive a notification once confirmed."
+              components={{ strong: <strong /> }}
+            />
           </p>
         </div>
       </div>
@@ -376,16 +379,16 @@ export const PaymentStep: React.FC<StepProps> = ({ onNext }) => {
       {/* Security badge */}
       <div className="inline-flex items-center gap-2 border border-gold-medium/30 rounded-full px-3 py-1.5">
         <Shield className="w-3 h-3 text-gold-medium" />
-        <span className="text-[10px] font-black uppercase tracking-widest text-gold-medium">Pagamento Seguro &amp; Criptografado</span>
+        <span className="text-[10px] font-black uppercase tracking-widest text-gold-medium">{t('student_onboarding.payment_ui.secure_encrypted', 'Secure & Encrypted Payment')}</span>
       </div>
 
       {/* Title */}
       <div>
         <h2 className="text-4xl font-black text-white uppercase tracking-tight leading-none">
-          Taxa de Matrícula
+          {t('student_onboarding.payment_ui.application_fee_title', 'Application Fee')}
         </h2>
         <p className="text-gray-400 text-sm mt-2 leading-relaxed">
-          Pague a taxa de matrícula da bolsa selecionada para confirmar oficialmente sua escolha e garantir sua vaga.
+          {t('student_onboarding.payment_ui.application_fee_desc', 'Pay the application fee for the selected scholarship to officially confirm your choice and secure your seat.')}
         </p>
       </div>
 
@@ -408,16 +411,19 @@ export const PaymentStep: React.FC<StepProps> = ({ onNext }) => {
               </p>
               {userProfile?.num_dependents ? (
                 <p className="text-[10px] text-gold-medium/80 font-bold mt-1 uppercase tracking-wider">
-                  Inclui {userProfile.num_dependents} dependente{userProfile.num_dependents > 1 ? 's' : ''} (+$100 cada)
+                  {t('student_onboarding.payment_ui.includes_dependents', {
+                    count: userProfile.num_dependents,
+                    defaultValue: 'Includes {{count}} dependent(s) (+$100 each)',
+                  })}
                 </p>
               ) : (
                 <p className="text-[10px] text-gray-600 font-bold mt-1 uppercase tracking-wider">
-                  Individual (Sem dependentes)
+                  {t('student_onboarding.payment_ui.individual_no_dependents', 'Individual (No dependents)')}
                 </p>
               )}
             </div>
             <div className="text-right shrink-0 ml-2">
-              <p className="text-[9px] font-black uppercase tracking-widest text-gray-500 mb-0.5">Taxa de Matrícula</p>
+              <p className="text-[9px] font-black uppercase tracking-widest text-gray-500 mb-0.5">{t('student_onboarding.payment_ui.application_fee_label', 'Application Fee')}</p>
               <p className="text-3xl font-black text-white leading-none">
                 ${applicationFee.toLocaleString()}
                 <span className="text-base font-bold text-gray-400">.00</span>
@@ -439,17 +445,17 @@ export const PaymentStep: React.FC<StepProps> = ({ onNext }) => {
             >
               {couponOpen && <CheckCircle className="w-3.5 h-3.5 text-black" />}
             </button>
-            <span className="font-black text-white text-sm">Cupom Promocional</span>
+            <span className="font-black text-white text-sm">{t('student_onboarding.payment_ui.coupon_title', 'Promotional Coupon')}</span>
             {couponOpen && (
               <>
                 <input
                   value={couponCode}
                   onChange={e => setCouponCode(e.target.value)}
-                  placeholder="Digite o código"
+                  placeholder={t('student_onboarding.payment_ui.coupon_placeholder', 'Enter code')}
                   className="flex-1 bg-white/5 border border-white/15 rounded-xl px-4 py-2 text-white text-sm placeholder-gray-600 outline-none focus:border-gold-medium/50 transition-colors min-w-0"
                 />
                 <button className="shrink-0 bg-white/10 hover:bg-white/15 border border-white/20 text-white text-[10px] font-black uppercase tracking-widest px-3 py-2 rounded-xl transition-all">
-                  Validar Código
+                  {t('student_onboarding.payment_ui.validate_code', 'Validate Code')}
                 </button>
               </>
             )}
@@ -463,9 +469,9 @@ export const PaymentStep: React.FC<StepProps> = ({ onNext }) => {
           <div className="m-5 p-4 bg-red-500/10 border border-red-500/20 rounded-2xl flex items-start gap-3">
             <AlertCircle className="w-5 h-5 text-red-400 shrink-0 mt-0.5" />
             <div>
-              <p className="text-red-400 font-black text-xs uppercase tracking-widest mb-1">Pagamento Rejeitado</p>
+              <p className="text-red-400 font-black text-xs uppercase tracking-widest mb-1">{t('student_onboarding.payment_ui.payment_rejected', 'Payment Rejected')}</p>
               <p className="text-gray-400 text-sm leading-relaxed">{rejectionReason}</p>
-              <p className="text-[10px] text-gray-500 mt-2 italic">* Por favor, verifique o motivo e envie o comprovante correto abaixo.</p>
+              <p className="text-[10px] text-gray-500 mt-2 italic">{t('student_onboarding.payment_ui.rejection_help', '* Please check the reason and send the correct receipt below.')}</p>
             </div>
           </div>
         )}
@@ -489,10 +495,10 @@ export const PaymentStep: React.FC<StepProps> = ({ onNext }) => {
             </div>
             <div className="flex-1 min-w-0">
               <p className={`font-black text-sm uppercase tracking-wide ${selectedMethod === 'stripe' ? 'text-white' : 'text-gray-200'}`}>
-                Cartão de Crédito
+                {t('student_onboarding.payment_ui.credit_card', 'Credit Card')}
               </p>
               <p className="text-[10px] text-gray-600 uppercase tracking-wider font-bold mt-0.5">
-                * Podem incluir taxas de processamento
+                {t('student_onboarding.payment_ui.processing_fees_may_apply', '* Processing fees may apply')}
               </p>
             </div>
             <div className="text-right shrink-0">
@@ -516,17 +522,17 @@ export const PaymentStep: React.FC<StepProps> = ({ onNext }) => {
             </div>
             <div className="flex-1 min-w-0">
               <p className={`font-black text-sm uppercase tracking-wide ${selectedMethod === 'parcelow_card' ? 'text-white' : 'text-gray-200'}`}>
-                Parcelow — Cartão
+                {t('student_onboarding.payment_ui.parcelow_card', 'Parcelow — Card')}
               </p>
               <p className="text-[10px] text-gray-600 uppercase tracking-wider font-bold mt-0.5">
-                * Podem incluir taxas de operadora e processamento da plataforma
+                {t('student_onboarding.payment_ui.parcelow_fees_may_apply', '* Operator and platform processing fees may apply')}
               </p>
             </div>
             <div className="text-right shrink-0">
               <p className={`font-black text-lg ${selectedMethod === 'parcelow_card' ? 'text-gold-medium' : 'text-white'}`}>
                 ${applicationFee.toLocaleString()}.00
               </p>
-              <p className="text-[9px] text-gray-500 font-black uppercase tracking-widest">Em até 12x</p>
+              <p className="text-[9px] text-gray-500 font-black uppercase tracking-widest">{t('student_onboarding.payment_ui.up_to_12x', 'Up to 12x')}</p>
             </div>
           </button>
 
@@ -547,7 +553,7 @@ export const PaymentStep: React.FC<StepProps> = ({ onNext }) => {
                 Parcelow — PIX
               </p>
               <p className="text-[10px] text-gray-600 uppercase tracking-wider font-bold mt-0.5">
-                Via Parcelow · Podem incluir taxas
+                {t('student_onboarding.payment_ui.via_parcelow_fees', 'Via Parcelow · Fees may apply')}
               </p>
             </div>
             <div className="text-right shrink-0">
@@ -574,7 +580,7 @@ export const PaymentStep: React.FC<StepProps> = ({ onNext }) => {
                 Parcelow — TED
               </p>
               <p className="text-[10px] text-gray-600 uppercase tracking-wider font-bold mt-0.5">
-                Via Parcelow · Podem incluir taxas
+                {t('student_onboarding.payment_ui.via_parcelow_fees', 'Via Parcelow · Fees may apply')}
               </p>
             </div>
             <div className="text-right shrink-0">
@@ -601,21 +607,21 @@ export const PaymentStep: React.FC<StepProps> = ({ onNext }) => {
                 Zelle
               </p>
               <p className="text-[10px] text-gray-600 uppercase tracking-wider font-bold mt-0.5">
-                ⏱ Processamento pode levar até 48 horas
+                {t('student_onboarding.payment_ui.zelle_processing_48h', 'Processing may take up to 48 hours')}
               </p>
             </div>
             <div className="text-right shrink-0">
               <p className={`font-black text-lg ${selectedMethod === 'zelle' ? 'text-gold-medium' : 'text-white'}`}>
                 ${applicationFee.toLocaleString()}.00
               </p>
-              <p className="text-[9px] text-gray-500 font-black uppercase tracking-widest">Sem taxas</p>
+              <p className="text-[9px] text-gray-500 font-black uppercase tracking-widest">{t('student_onboarding.payment_ui.no_fees', 'No fees')}</p>
             </div>
           </button>
 
           {/* Parcelow Card — seleção de titular */}
           {isParcelowCard && (
             <div className="space-y-3 p-4 bg-white/[0.03] border border-white/10 rounded-2xl">
-              <p className="text-xs font-black uppercase tracking-widest text-gray-400">O cartão que você vai usar é seu ou de outra pessoa?</p>
+              <p className="text-xs font-black uppercase tracking-widest text-gray-400">{t('checkout.is_card_owner_question', "Is the credit card you are going to use yours or someone else's?")}</p>
               <div className="flex gap-2">
                 <button
                   onClick={() => { setCardOwnership('own'); setPayerName(''); setPayerEmail(''); setPayerPhone(''); }}
@@ -625,7 +631,7 @@ export const PaymentStep: React.FC<StepProps> = ({ onNext }) => {
                       : 'bg-white/5 border-white/10 text-gray-400 hover:border-white/20'
                   }`}
                 >
-                  Meu Cartão
+                  {t('checkout.my_card', 'My Card')}
                 </button>
                 <button
                   onClick={() => setCardOwnership('third_party')}
@@ -635,7 +641,7 @@ export const PaymentStep: React.FC<StepProps> = ({ onNext }) => {
                       : 'bg-white/5 border-white/10 text-gray-400 hover:border-white/20'
                   }`}
                 >
-                  Cartão de Terceiro
+                  {t('checkout.third_party_card', 'Third Party Card')}
                 </button>
               </div>
 
@@ -643,7 +649,7 @@ export const PaymentStep: React.FC<StepProps> = ({ onNext }) => {
                 <input
                   value={cpf}
                   onChange={e => setCpf(e.target.value)}
-                  placeholder="Seu CPF (apenas números)"
+                  placeholder={t('student_onboarding.payment_ui.your_cpf_placeholder', 'Your CPF (numbers only)')}
                   maxLength={14}
                   className="w-full bg-white/5 border border-white/10 focus:border-gold-medium/50 rounded-xl px-4 py-3 text-white text-sm placeholder-gray-600 outline-none transition-colors"
                 />
@@ -651,31 +657,31 @@ export const PaymentStep: React.FC<StepProps> = ({ onNext }) => {
 
               {cardOwnership === 'third_party' && (
                 <div className="space-y-2">
-                  <p className="text-[10px] text-amber-400/80 font-bold uppercase tracking-wider">Dados do Titular do Cartão</p>
+                  <p className="text-[10px] text-amber-400/80 font-bold uppercase tracking-wider">{t('checkout.payer_data_title', 'Cardholder Data')}</p>
                   <input
                     value={payerName}
                     onChange={e => setPayerName(e.target.value.toUpperCase())}
-                    placeholder="Nome completo do titular"
+                    placeholder={t('student_onboarding.payment_ui.payer_name_placeholder', 'Cardholder full name')}
                     className="w-full bg-white/5 border border-white/10 focus:border-gold-medium/50 rounded-xl px-4 py-3 text-white text-sm placeholder-gray-600 outline-none transition-colors"
                   />
                   <input
                     value={cpf}
                     onChange={e => setCpf(e.target.value)}
-                    placeholder="CPF do titular (apenas números)"
+                    placeholder={t('student_onboarding.payment_ui.payer_cpf_placeholder', 'Cardholder CPF (numbers only)')}
                     maxLength={14}
                     className="w-full bg-white/5 border border-white/10 focus:border-gold-medium/50 rounded-xl px-4 py-3 text-white text-sm placeholder-gray-600 outline-none transition-colors"
                   />
                   <input
                     value={payerEmail}
                     onChange={e => setPayerEmail(e.target.value)}
-                    placeholder="E-mail do titular"
+                    placeholder={t('student_onboarding.payment_ui.payer_email_placeholder', 'Cardholder email')}
                     type="email"
                     className="w-full bg-white/5 border border-white/10 focus:border-gold-medium/50 rounded-xl px-4 py-3 text-white text-sm placeholder-gray-600 outline-none transition-colors"
                   />
                   <input
                     value={payerPhone}
                     onChange={e => setPayerPhone(e.target.value)}
-                    placeholder="WhatsApp do titular (com DDD)"
+                    placeholder={t('student_onboarding.payment_ui.payer_phone_placeholder', 'Cardholder WhatsApp')}
                     className="w-full bg-white/5 border border-white/10 focus:border-gold-medium/50 rounded-xl px-4 py-3 text-white text-sm placeholder-gray-600 outline-none transition-colors"
                   />
                 </div>
@@ -688,7 +694,7 @@ export const PaymentStep: React.FC<StepProps> = ({ onNext }) => {
             <input
               value={cpf}
               onChange={e => setCpf(e.target.value)}
-              placeholder="CPF (apenas números)"
+              placeholder={t('student_onboarding.payment_ui.cpf_placeholder', 'CPF (numbers only)')}
               maxLength={14}
               className="w-full bg-white/5 border border-white/10 focus:border-gold-medium/50 rounded-xl px-4 py-3 text-white text-sm placeholder-gray-600 outline-none transition-colors"
             />
@@ -718,7 +724,9 @@ export const PaymentStep: React.FC<StepProps> = ({ onNext }) => {
                 className="flex items-center justify-center gap-2 w-full bg-gold-medium hover:bg-gold-light disabled:opacity-50 text-black py-3 rounded-2xl font-black uppercase tracking-widest text-sm transition-all"
               >
                 {zelleUploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
-                {zelleUploading ? 'Enviando e Validando...' : 'Enviar Comprovante'}
+                {zelleUploading
+                  ? t('student_onboarding.payment_ui.uploading_validating', 'Uploading and validating...')
+                  : t('student_onboarding.payment_ui.send_receipt', 'Send Receipt')}
               </button>
             </div>
           )}
@@ -740,10 +748,15 @@ export const PaymentStep: React.FC<StepProps> = ({ onNext }) => {
                 className="flex items-center justify-center gap-2 w-full bg-gold-medium hover:bg-gold-light disabled:opacity-50 text-black py-4 rounded-2xl font-black uppercase tracking-widest transition-all shadow-xl shadow-gold-medium/10 mt-2"
               >
                 {processing && <Loader2 className="w-5 h-5 animate-spin" />}
-                {processing ? 'Redirecionando...' : `Pagar $${(selectedMethod === 'stripe' ? cardAmount : applicationFee).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+                {processing
+                  ? t('student_onboarding.payment_ui.redirecting', 'Redirecting...')
+                  : t('student_onboarding.payment_ui.pay_amount', {
+                      amount: (selectedMethod === 'stripe' ? cardAmount : applicationFee).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+                      defaultValue: 'Pay ${{amount}}',
+                    })}
               </button>
               <p className="text-[10px] text-center text-gray-600 font-bold uppercase tracking-tighter">
-                🔒 Pagamento 100% Seguro e Criptografado
+                {t('student_onboarding.payment_ui.secure_100', '100% secure and encrypted payment')}
               </p>
             </>
           )}

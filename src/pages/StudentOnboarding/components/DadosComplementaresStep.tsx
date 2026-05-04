@@ -8,6 +8,7 @@ import {
   Phone, Home, Calendar, Briefcase, Star,
   Plus, Trash2, Loader2, CheckCircle, ArrowRight,
 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { useStudentAuth } from '../../../contexts/StudentAuthContext';
 import { supabase } from '../../../lib/supabase';
@@ -65,8 +66,12 @@ interface FormData {
 const EMPTY_WORK: WorkEntry = { company: '', period: '', role: '' };
 
 const START_TERMS = [
-  'Spring 2026', 'Summer 2026', 'Fall 2026',
-  'Spring 2027', 'Summer 2027', 'Fall 2027',
+  { value: 'Spring 2026', labelKey: 'student_onboarding.complementary.terms.spring_2026' },
+  { value: 'Summer 2026', labelKey: 'student_onboarding.complementary.terms.summer_2026' },
+  { value: 'Fall 2026', labelKey: 'student_onboarding.complementary.terms.fall_2026' },
+  { value: 'Spring 2027', labelKey: 'student_onboarding.complementary.terms.spring_2027' },
+  { value: 'Summer 2027', labelKey: 'student_onboarding.complementary.terms.summer_2027' },
+  { value: 'Fall 2027', labelKey: 'student_onboarding.complementary.terms.fall_2027' },
 ];
 
 const INITIAL: FormData = {
@@ -127,6 +132,7 @@ const selectTriggerCls = "w-full bg-white/5 border border-white/10 text-white ro
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export const DadosComplementaresStep: React.FC<StepProps> = ({ onNext: _onNext }) => {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const { userProfile } = useStudentAuth();
   const [form, setForm] = useState<FormData>(INITIAL);
@@ -198,18 +204,19 @@ export const DadosComplementaresStep: React.FC<StepProps> = ({ onNext: _onNext }
 
   const validate = (): boolean => {
     const errs: typeof errors = {};
-    if (!form.emergency_contact_name.trim()) errs.emergency_contact_name = 'Required';
-    if (!form.emergency_contact_phone.trim()) errs.emergency_contact_phone = 'Required';
-    if (!form.emergency_contact_relationship.trim()) errs.emergency_contact_relationship = 'Required';
-    if (!form.preferred_start_term) errs.preferred_start_term = 'Required';
+    const required = t('common.required', 'Required');
+    if (!form.emergency_contact_name.trim()) errs.emergency_contact_name = required;
+    if (!form.emergency_contact_phone.trim()) errs.emergency_contact_phone = required;
+    if (!form.emergency_contact_relationship.trim()) errs.emergency_contact_relationship = required;
+    if (!form.preferred_start_term) errs.preferred_start_term = required;
     if (form.has_sponsor) {
-      if (!form.sponsor_name.trim()) errs.sponsor_name = 'Required';
-      if (!form.sponsor_relationship.trim()) errs.sponsor_relationship = 'Required';
-      if (!form.sponsor_phone.trim()) errs.sponsor_phone = 'Required';
+      if (!form.sponsor_name.trim()) errs.sponsor_name = required;
+      if (!form.sponsor_relationship.trim()) errs.sponsor_relationship = required;
+      if (!form.sponsor_phone.trim()) errs.sponsor_phone = required;
     }
-    if (!form.recommender1_name.trim()) errs.recommender1_name = 'Required';
-    if (!form.recommender1_role.trim()) errs.recommender1_role = 'Required';
-    if (!form.recommender1_contact.trim()) errs.recommender1_contact = 'Required';
+    if (!form.recommender1_name.trim()) errs.recommender1_name = required;
+    if (!form.recommender1_role.trim()) errs.recommender1_role = required;
+    if (!form.recommender1_contact.trim()) errs.recommender1_contact = required;
     setErrors(errs);
     return Object.keys(errs).length === 0;
   };
@@ -255,7 +262,12 @@ export const DadosComplementaresStep: React.FC<StepProps> = ({ onNext: _onNext }
       navigate('/student/dashboard');
     } catch (err: any) {
       console.error('[DadosComplementaresStep] Save error:', err.message);
-      setErrors({ emergency_contact_name: `Save failed: ${err.message}` });
+      setErrors({
+        emergency_contact_name: t('student_onboarding.complementary.error_save', {
+          message: err.message,
+          defaultValue: 'Save failed: {{message}}',
+        }),
+      });
     } finally {
       setSaving(false);
     }
@@ -277,9 +289,9 @@ export const DadosComplementaresStep: React.FC<StepProps> = ({ onNext: _onNext }
     <div className="space-y-10 pb-16 max-w-3xl mx-auto px-4">
       {/* Header */}
       <div>
-        <h2 className="text-2xl font-black text-white uppercase tracking-tight">Complementary Information</h2>
+        <h2 className="text-2xl font-black text-white uppercase tracking-tight">{t('student_onboarding.complementary.title', 'Complementary Information')}</h2>
         <p className="text-sm text-gray-400 mt-1">
-          This information is required to complete your university application forms. All fields marked * are mandatory.
+          {t('student_onboarding.complementary.subtitle', 'This information is required to complete your university application forms. All fields marked * are mandatory.')}
         </p>
       </div>
 
@@ -287,20 +299,20 @@ export const DadosComplementaresStep: React.FC<StepProps> = ({ onNext: _onNext }
       <div className="bg-white/[0.03] border border-white/8 rounded-2xl p-6 space-y-5">
         <SectionTitle
           icon={<Phone className="w-4 h-4" />}
-          title="Emergency Contact"
-          subtitle="Person to contact in case of emergency"
+          title={t('student_onboarding.complementary.emergency_title', 'Emergency Contact')}
+          subtitle={t('student_onboarding.complementary.emergency_subtitle', 'Person to contact in case of emergency')}
         />
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <Field label="Full Name" required>
+          <Field label={t('student_onboarding.complementary.full_name', 'Full Name')} required>
             <input
               className={inputCls}
-              placeholder="e.g. Maria Silva"
+              placeholder={t('student_onboarding.complementary.placeholder_name', 'e.g. Maria Silva')}
               value={form.emergency_contact_name}
               onChange={e => set('emergency_contact_name', e.target.value)}
             />
             {err('emergency_contact_name')}
           </Field>
-          <Field label="Phone / WhatsApp" required>
+          <Field label={t('student_onboarding.complementary.phone_whatsapp', 'Phone / WhatsApp')} required>
             <input
               className={inputCls}
               placeholder="+1 (555) 000-0000"
@@ -309,19 +321,19 @@ export const DadosComplementaresStep: React.FC<StepProps> = ({ onNext: _onNext }
             />
             {err('emergency_contact_phone')}
           </Field>
-          <Field label="Relationship" required>
+          <Field label={t('student_onboarding.complementary.relationship', 'Relationship')} required>
             <input
               className={inputCls}
-              placeholder="e.g. Mother, Father, Spouse"
+              placeholder={t('student_onboarding.complementary.placeholder_relationship', 'e.g. Mother, Father, Spouse')}
               value={form.emergency_contact_relationship}
               onChange={e => set('emergency_contact_relationship', e.target.value)}
             />
             {err('emergency_contact_relationship')}
           </Field>
-          <Field label="Address">
+          <Field label={t('student_onboarding.complementary.address', 'Address')}>
             <input
               className={inputCls}
-              placeholder="Street, City, State, ZIP"
+              placeholder={t('student_onboarding.complementary.placeholder_address', 'Street, City, State, ZIP')}
               value={form.emergency_contact_address}
               onChange={e => set('emergency_contact_address', e.target.value)}
             />
@@ -333,25 +345,25 @@ export const DadosComplementaresStep: React.FC<StepProps> = ({ onNext: _onNext }
       <div className="bg-white/[0.03] border border-white/8 rounded-2xl p-6 space-y-5">
         <SectionTitle
           icon={<Calendar className="w-4 h-4" />}
-          title="Program Start Preference"
-          subtitle="When would you like to start your program?"
+          title={t('student_onboarding.complementary.start_title', 'Program Start Preference')}
+          subtitle={t('student_onboarding.complementary.start_subtitle', 'When would you like to start your program?')}
         />
-        <Field label="Preferred Start Term" required>
+        <Field label={t('student_onboarding.complementary.preferred_start_term', 'Preferred Start Term')} required>
           <Select
             value={form.preferred_start_term}
             onValueChange={value => set('preferred_start_term', value)}
           >
             <SelectTrigger className={selectTriggerCls}>
-              <SelectValue placeholder="Select a term..." />
+              <SelectValue placeholder={t('student_onboarding.complementary.select_term', 'Select a term...')} />
             </SelectTrigger>
-            <SelectContent className="bg-[#0a0a0a] border border-white/10 text-white rounded-xl overflow-hidden">
-              {START_TERMS.map(t => (
+            <SelectContent className="bg-[#fffaf0] dark:bg-[#0a0a0a] border border-[#e3d5bd] dark:border-white/10 text-[#1f1a14] dark:text-white rounded-xl overflow-hidden">
+              {START_TERMS.map(term => (
                 <SelectItem 
-                  key={t} 
-                  value={t}
+                  key={term.value} 
+                  value={term.value}
                   className="focus:bg-gold-medium/10 focus:text-gold-medium cursor-pointer py-3"
                 >
-                  {t}
+                  {t(term.labelKey, term.value)}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -364,12 +376,12 @@ export const DadosComplementaresStep: React.FC<StepProps> = ({ onNext: _onNext }
       <div className="bg-white/[0.03] border border-white/8 rounded-2xl p-6 space-y-5">
         <SectionTitle
           icon={<Briefcase className="w-4 h-4" />}
-          title="Professional Experience"
-          subtitle="Optional — up to 3 entries. Include churches, businesses, or any relevant experience."
+          title={t('student_onboarding.complementary.work_title', 'Professional Experience')}
+          subtitle={t('student_onboarding.complementary.work_subtitle', 'Optional — up to 3 entries. Include churches, businesses, or any relevant experience.')}
         />
 
         {form.work_experience.length === 0 && (
-          <p className="text-sm text-gray-600 italic">No entries added yet.</p>
+          <p className="text-sm text-gray-600 italic">{t('student_onboarding.complementary.no_entries', 'No entries added yet.')}</p>
         )}
 
         {form.work_experience.map((entry, idx) => (
@@ -380,28 +392,30 @@ export const DadosComplementaresStep: React.FC<StepProps> = ({ onNext: _onNext }
             >
               <Trash2 className="w-4 h-4" />
             </button>
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Entry {idx + 1}</p>
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+              {t('student_onboarding.complementary.entry_number', { count: idx + 1, defaultValue: 'Entry {{count}}' })}
+            </p>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <Field label="Company / Organization">
+              <Field label={t('student_onboarding.complementary.company_organization', 'Company / Organization')}>
                 <input
                   className={inputCls}
-                  placeholder="Company or Church"
+                  placeholder={t('student_onboarding.complementary.placeholder_company', 'Company or Church')}
                   value={entry.company}
                   onChange={e => setWork(idx, 'company', e.target.value)}
                 />
               </Field>
-              <Field label="Period">
+              <Field label={t('student_onboarding.complementary.period', 'Period')}>
                 <input
                   className={inputCls}
-                  placeholder="2020 – 2023"
+                  placeholder={t('student_onboarding.complementary.placeholder_period', '2020 – 2023')}
                   value={entry.period}
                   onChange={e => setWork(idx, 'period', e.target.value)}
                 />
               </Field>
-              <Field label="Role / Position">
+              <Field label={t('student_onboarding.complementary.role_position', 'Role / Position')}>
                 <input
                   className={inputCls}
-                  placeholder="Manager, Pastor, etc."
+                  placeholder={t('student_onboarding.complementary.placeholder_role', 'Manager, Pastor, etc.')}
                   value={entry.role}
                   onChange={e => setWork(idx, 'role', e.target.value)}
                 />
@@ -416,7 +430,7 @@ export const DadosComplementaresStep: React.FC<StepProps> = ({ onNext: _onNext }
             className="flex items-center gap-2 text-sm text-gold-medium hover:text-gold-light border border-gold-medium/20 hover:border-gold-medium/40 rounded-xl px-4 py-2.5 transition-all font-semibold"
           >
             <Plus className="w-4 h-4" />
-            Add Experience
+            {t('student_onboarding.complementary.add_experience', 'Add Experience')}
           </button>
         )}
       </div>
@@ -425,12 +439,12 @@ export const DadosComplementaresStep: React.FC<StepProps> = ({ onNext: _onNext }
       <div className="bg-white/[0.03] border border-white/8 rounded-2xl p-6 space-y-5">
         <SectionTitle
           icon={<Home className="w-4 h-4" />}
-          title="Financial Sponsor"
-          subtitle="Required by the university for I-20 issuance if you have a sponsor"
+          title={t('student_onboarding.complementary.sponsor_title', 'Financial Sponsor')}
+          subtitle={t('student_onboarding.complementary.sponsor_subtitle', 'Required by the university for I-20 issuance if you have a sponsor')}
         />
 
         <div className="flex items-center gap-4">
-          <span className="text-sm text-gray-300 font-medium">Do you have a financial sponsor?</span>
+          <span className="text-sm text-gray-300 font-medium">{t('student_onboarding.complementary.has_sponsor_question', 'Do you have a financial sponsor?')}</span>
           <div className="flex gap-3">
             {[true, false].map(v => (
               <button
@@ -442,7 +456,7 @@ export const DadosComplementaresStep: React.FC<StepProps> = ({ onNext: _onNext }
                     : 'border-white/10 text-gray-500 hover:border-white/20'
                 }`}
               >
-                {v ? 'Yes' : 'No'}
+                {v ? t('common.yes', 'Yes') : t('common.no', 'No')}
               </button>
             ))}
           </div>
@@ -451,35 +465,35 @@ export const DadosComplementaresStep: React.FC<StepProps> = ({ onNext: _onNext }
         {form.has_sponsor && (
           <div className="space-y-4 pt-2">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <Field label="Sponsor Full Name" required>
-                <input className={inputCls} placeholder="Full name" value={form.sponsor_name} onChange={e => set('sponsor_name', e.target.value)} />
+              <Field label={t('student_onboarding.complementary.sponsor_full_name', 'Sponsor Full Name')} required>
+                <input className={inputCls} placeholder={t('student_onboarding.complementary.placeholder_full_name', 'Full name')} value={form.sponsor_name} onChange={e => set('sponsor_name', e.target.value)} />
                 {err('sponsor_name')}
               </Field>
-              <Field label="Relationship to You" required>
-                <input className={inputCls} placeholder="e.g. Father, Company" value={form.sponsor_relationship} onChange={e => set('sponsor_relationship', e.target.value)} />
+              <Field label={t('student_onboarding.complementary.relationship_to_you', 'Relationship to You')} required>
+                <input className={inputCls} placeholder={t('student_onboarding.complementary.placeholder_sponsor_relationship', 'e.g. Father, Company')} value={form.sponsor_relationship} onChange={e => set('sponsor_relationship', e.target.value)} />
                 {err('sponsor_relationship')}
               </Field>
-              <Field label="Phone" required>
+              <Field label={t('student_onboarding.complementary.phone', 'Phone')} required>
                 <input className={inputCls} placeholder="+1 (555) 000-0000" value={form.sponsor_phone} onChange={e => set('sponsor_phone', e.target.value)} />
                 {err('sponsor_phone')}
               </Field>
-              <Field label="Address">
-                <input className={inputCls} placeholder="Full address" value={form.sponsor_address} onChange={e => set('sponsor_address', e.target.value)} />
+              <Field label={t('student_onboarding.complementary.address', 'Address')}>
+                <input className={inputCls} placeholder={t('student_onboarding.complementary.placeholder_full_address', 'Full address')} value={form.sponsor_address} onChange={e => set('sponsor_address', e.target.value)} />
               </Field>
-              <Field label="Current Employer">
-                <input className={inputCls} placeholder="Company name" value={form.sponsor_employer} onChange={e => set('sponsor_employer', e.target.value)} />
+              <Field label={t('student_onboarding.complementary.current_employer', 'Current Employer')}>
+                <input className={inputCls} placeholder={t('student_onboarding.complementary.placeholder_company_name', 'Company name')} value={form.sponsor_employer} onChange={e => set('sponsor_employer', e.target.value)} />
               </Field>
-              <Field label="Job Title">
-                <input className={inputCls} placeholder="e.g. CEO, Director" value={form.sponsor_job_title} onChange={e => set('sponsor_job_title', e.target.value)} />
+              <Field label={t('student_onboarding.complementary.job_title', 'Job Title')}>
+                <input className={inputCls} placeholder={t('student_onboarding.complementary.placeholder_job_title', 'e.g. CEO, Director')} value={form.sponsor_job_title} onChange={e => set('sponsor_job_title', e.target.value)} />
               </Field>
-              <Field label="Years Employed">
-                <input className={inputCls} type="number" min="0" placeholder="e.g. 5" value={form.sponsor_years_employed} onChange={e => set('sponsor_years_employed', e.target.value)} />
+              <Field label={t('student_onboarding.complementary.years_employed', 'Years Employed')}>
+                <input className={inputCls} type="number" min="0" placeholder={t('student_onboarding.complementary.placeholder_years', 'e.g. 5')} value={form.sponsor_years_employed} onChange={e => set('sponsor_years_employed', e.target.value)} />
               </Field>
-              <Field label="Gross Annual Income">
-                <input className={inputCls} placeholder="e.g. $80,000" value={form.sponsor_annual_income} onChange={e => set('sponsor_annual_income', e.target.value)} />
+              <Field label={t('student_onboarding.complementary.gross_annual_income', 'Gross Annual Income')}>
+                <input className={inputCls} placeholder={t('student_onboarding.complementary.placeholder_income', 'e.g. $80,000')} value={form.sponsor_annual_income} onChange={e => set('sponsor_annual_income', e.target.value)} />
               </Field>
-              <Field label="Committed Amount / Year (USD)">
-                <input className={inputCls} type="number" min="0" step="100" placeholder="e.g. 22000" value={form.sponsor_committed_amount_usd} onChange={e => set('sponsor_committed_amount_usd', e.target.value)} />
+              <Field label={t('student_onboarding.complementary.committed_amount', 'Committed Amount / Year (USD)')}>
+                <input className={inputCls} type="number" min="0" step="100" placeholder={t('student_onboarding.complementary.placeholder_committed_amount', 'e.g. 22000')} value={form.sponsor_committed_amount_usd} onChange={e => set('sponsor_committed_amount_usd', e.target.value)} />
               </Field>
             </div>
           </div>
@@ -490,28 +504,28 @@ export const DadosComplementaresStep: React.FC<StepProps> = ({ onNext: _onNext }
       <div className="bg-white/[0.03] border border-white/8 rounded-2xl p-6 space-y-5">
         <SectionTitle
           icon={<Star className="w-4 h-4" />}
-          title="Recommenders"
-          subtitle="Choose someone who knows you well — professor, pastor, supervisor, or trusted family member."
+          title={t('student_onboarding.complementary.recommenders_title', 'Recommenders')}
+          subtitle={t('student_onboarding.complementary.recommenders_subtitle', 'Choose someone who knows you well — professor, pastor, supervisor, or trusted family member.')}
         />
 
         <div className="bg-gold-medium/5 border border-gold-medium/15 rounded-xl p-4 text-sm text-gray-400 leading-relaxed">
-          This person may be contacted by the university to confirm the recommendation. Choose someone available who can confirm the information if contacted. The signature can be digital or the full name typed in the designated field.
+          {t('student_onboarding.complementary.recommenders_notice', 'This person may be contacted by the university to confirm the recommendation. Choose someone available who can confirm the information if contacted. The signature can be digital or the full name typed in the designated field.')}
         </div>
 
         {/* Recommender 1 */}
         <div className="space-y-3">
-          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Recommender 1 <span className="text-red-400">*</span></p>
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">{t('student_onboarding.complementary.recommender_1', 'Recommender 1')} <span className="text-red-400">*</span></p>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <Field label="Full Name" required>
-              <input className={inputCls} placeholder="Full name" value={form.recommender1_name} onChange={e => set('recommender1_name', e.target.value)} />
+            <Field label={t('student_onboarding.complementary.full_name', 'Full Name')} required>
+              <input className={inputCls} placeholder={t('student_onboarding.complementary.placeholder_full_name', 'Full name')} value={form.recommender1_name} onChange={e => set('recommender1_name', e.target.value)} />
               {err('recommender1_name')}
             </Field>
-            <Field label="Role / Position" required>
-              <input className={inputCls} placeholder="Professor, Pastor, Supervisor..." value={form.recommender1_role} onChange={e => set('recommender1_role', e.target.value)} />
+            <Field label={t('student_onboarding.complementary.role_position', 'Role / Position')} required>
+              <input className={inputCls} placeholder={t('student_onboarding.complementary.placeholder_recommender_role', 'Professor, Pastor, Supervisor...')} value={form.recommender1_role} onChange={e => set('recommender1_role', e.target.value)} />
               {err('recommender1_role')}
             </Field>
-            <Field label="Phone or Email" required>
-              <input className={inputCls} placeholder="Contact info" value={form.recommender1_contact} onChange={e => set('recommender1_contact', e.target.value)} />
+            <Field label={t('student_onboarding.complementary.phone_or_email', 'Phone or Email')} required>
+              <input className={inputCls} placeholder={t('student_onboarding.complementary.placeholder_contact_info', 'Contact info')} value={form.recommender1_contact} onChange={e => set('recommender1_contact', e.target.value)} />
               {err('recommender1_contact')}
             </Field>
           </div>
@@ -520,18 +534,18 @@ export const DadosComplementaresStep: React.FC<StepProps> = ({ onNext: _onNext }
         {/* Recommender 2 */}
         <div className="space-y-3">
           <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
-            Recommender 2
-            <span className="ml-2 text-gold-medium/70 font-normal normal-case">Required for Caroline University</span>
+            {t('student_onboarding.complementary.recommender_2', 'Recommender 2')}
+            <span className="ml-2 text-gold-medium/70 font-normal normal-case">{t('student_onboarding.complementary.required_for_caroline', 'Required for Caroline University')}</span>
           </p>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <Field label="Full Name">
-              <input className={inputCls} placeholder="Full name" value={form.recommender2_name} onChange={e => set('recommender2_name', e.target.value)} />
+            <Field label={t('student_onboarding.complementary.full_name', 'Full Name')}>
+              <input className={inputCls} placeholder={t('student_onboarding.complementary.placeholder_full_name', 'Full name')} value={form.recommender2_name} onChange={e => set('recommender2_name', e.target.value)} />
             </Field>
-            <Field label="Role / Position">
-              <input className={inputCls} placeholder="Professor, Pastor, Supervisor..." value={form.recommender2_role} onChange={e => set('recommender2_role', e.target.value)} />
+            <Field label={t('student_onboarding.complementary.role_position', 'Role / Position')}>
+              <input className={inputCls} placeholder={t('student_onboarding.complementary.placeholder_recommender_role', 'Professor, Pastor, Supervisor...')} value={form.recommender2_role} onChange={e => set('recommender2_role', e.target.value)} />
             </Field>
-            <Field label="Phone or Email">
-              <input className={inputCls} placeholder="Contact info" value={form.recommender2_contact} onChange={e => set('recommender2_contact', e.target.value)} />
+            <Field label={t('student_onboarding.complementary.phone_or_email', 'Phone or Email')}>
+              <input className={inputCls} placeholder={t('student_onboarding.complementary.placeholder_contact_info', 'Contact info')} value={form.recommender2_contact} onChange={e => set('recommender2_contact', e.target.value)} />
             </Field>
           </div>
         </div>
@@ -545,9 +559,9 @@ export const DadosComplementaresStep: React.FC<StepProps> = ({ onNext: _onNext }
           className="flex items-center gap-2 bg-gold-medium hover:bg-gold-dark text-black py-3 px-10 rounded-xl transition-colors font-black uppercase tracking-widest disabled:opacity-40 disabled:cursor-not-allowed"
         >
           {saving ? (
-            <><Loader2 className="w-4 h-4 animate-spin" /> Saving...</>
+            <><Loader2 className="w-4 h-4 animate-spin" /> {t('student_onboarding.complementary.saving', 'Saving...')}</>
           ) : (
-            <><CheckCircle className="w-4 h-4" /> Save &amp; Continue <ArrowRight className="w-4 h-4" /></>
+            <><CheckCircle className="w-4 h-4" /> {t('student_onboarding.complementary.save_continue', 'Save & Continue')} <ArrowRight className="w-4 h-4" /></>
           )}
         </button>
       </div>

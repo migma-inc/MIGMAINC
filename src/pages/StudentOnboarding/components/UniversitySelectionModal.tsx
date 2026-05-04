@@ -9,6 +9,7 @@ import {
   Calculator, BookOpen, UserPlus, HelpCircle,
   ChevronDown, ChevronUp, MapPin, Briefcase, Shield, Info
 } from 'lucide-react';
+import { Trans, useTranslation } from 'react-i18next';
 
 export interface ScholarshipLevel {
   id: string;
@@ -60,20 +61,20 @@ interface Props {
 
 const FAQ_ITEMS = [
   {
-    q: 'O que é Placement Fee?',
-    a: 'É um investimento único que você faz para garantir sua bolsa e vaga na universidade. Quanto maior o Placement Fee pago agora, menor será sua tuition anual durante todo o curso — como uma compra antecipada de desconto.',
+    qKey: 'student_onboarding.university_modal.faq_placement_q',
+    aKey: 'student_onboarding.university_modal.faq_placement_a',
   },
   {
-    q: 'O que é CPT e OPT?',
-    a: 'CPT (Curricular Practical Training) é a autorização para trabalhar na sua área durante o curso, com vínculo ao currículo acadêmico. OPT (Optional Practical Training) é a autorização para trabalhar após a formatura — 1 ano padrão ou até 3 anos para cursos STEM.',
+    qKey: 'student_onboarding.university_modal.faq_cpt_opt_q',
+    aKey: 'student_onboarding.university_modal.faq_cpt_opt_a',
   },
   {
-    q: 'Posso mudar de bolsa depois?',
-    a: 'Não. A escolha do nível de bolsa é definitiva após a confirmação. Por isso, avalie cuidadosamente a calculadora de economia antes de confirmar.',
+    qKey: 'student_onboarding.university_modal.faq_change_q',
+    aKey: 'student_onboarding.university_modal.faq_change_a',
   },
   {
-    q: 'O que acontece se eu não for aprovado?',
-    a: 'Se você não for aceito em nenhuma universidade parceira Migma, a taxa do processo seletivo será totalmente reembolsada, conforme nossa Garantia de Reembolso.',
+    qKey: 'student_onboarding.university_modal.faq_rejected_q',
+    aKey: 'student_onboarding.university_modal.faq_rejected_a',
   },
 ];
 
@@ -83,6 +84,7 @@ export const UniversitySelectionModal: React.FC<Props> = ({
   onClose,
   onSelect,
 }) => {
+  const { t } = useTranslation();
   const [selectedCourseId, setSelectedCourseId] = useState<string | null>(
     institution.courses[0]?.id || null
   );
@@ -149,18 +151,24 @@ export const UniversitySelectionModal: React.FC<Props> = ({
   // CPT label
   const cptLabel = useMemo(() => {
     if (!selectedCourse) return institution.cpt_opt;
-    if (selectedCourse.cpt_after_months === 0) return 'disponível desde o 1º dia de aula';
-    if (selectedCourse.cpt_after_months) return `disponível após ${selectedCourse.cpt_after_months} meses matriculado`;
+    if (selectedCourse.cpt_after_months === 0) return t('student_onboarding.university_modal.cpt_available_day_one');
+    if (selectedCourse.cpt_after_months) return t('student_onboarding.university_modal.cpt_available_after_months', { months: selectedCourse.cpt_after_months });
     return institution.cpt_opt;
-  }, [institution, selectedCourse]);
+  }, [institution, selectedCourse, t]);
 
   // Course duration label
   const durationLabel = useMemo(() => {
     if (!selectedCourse || !selectedCourse.duration_months) return null;
     const y = Math.round(selectedCourse.duration_months / 12);
-    const level = selectedCourse.degree_level === 'Graduação' ? 'Bacharelado' : selectedCourse.degree_level;
-    return `${level} — ${y} ${y === 1 ? 'ano' : 'anos'}`;
-  }, [selectedCourse]);
+    const level = selectedCourse.degree_level === 'Graduação'
+      ? t('student_onboarding.university_modal.bachelor')
+      : selectedCourse.degree_level;
+    return t('student_onboarding.university_modal.duration_years', {
+      level,
+      years: y,
+      unit: y === 1 ? t('common.year', 'year') : t('common.years', 'years'),
+    });
+  }, [selectedCourse, t]);
 
   const handleSelect = () => {
     if (!selectedScholarshipId) return;
@@ -211,14 +219,14 @@ export const UniversitySelectionModal: React.FC<Props> = ({
                 </span>
               </div>
               <div className="flex flex-wrap gap-2 mt-2">
-                {institution.accepts_transfer && (
+                  {institution.accepts_transfer && (
                   <span className="text-[10px] font-black uppercase px-2.5 py-1 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-300 tracking-widest">
-                    Aceita Transfer
+                    {t('student_onboarding.university_modal.accepts_transfer')}
                   </span>
                 )}
                 {institution.accepts_cos && (
                   <span className="text-[10px] font-black uppercase px-2.5 py-1 rounded-full bg-purple-500/10 border border-purple-500/20 text-purple-300 tracking-widest">
-                    Aceita COS
+                    {t('student_onboarding.university_modal.accepts_cos')}
                   </span>
                 )}
                 {selectedCourse && (
@@ -246,7 +254,7 @@ export const UniversitySelectionModal: React.FC<Props> = ({
               <div className="flex items-center gap-3">
                 <BookOpen className="w-5 h-5 text-gold-medium shrink-0" />
                 <h3 className="text-sm font-black text-white uppercase tracking-widest">
-                  Escolha seu Curso
+                  {t('student_onboarding.university_modal.choose_course')}
                 </h3>
               </div>
               <div className="relative group">
@@ -264,7 +272,7 @@ export const UniversitySelectionModal: React.FC<Props> = ({
                 <ChevronDown className="absolute right-5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 group-hover:text-gold-medium pointer-events-none transition-all" />
               </div>
               <p className="text-[10px] text-gray-500 uppercase font-black tracking-widest">
-                * As bolsas exibidas abaixo mudam conforme o curso selecionado.
+                {t('student_onboarding.university_modal.course_note')}
               </p>
             </section>
           )}
@@ -274,29 +282,31 @@ export const UniversitySelectionModal: React.FC<Props> = ({
             <div className="flex items-center gap-3">
               <Award className="w-5 h-5 text-gold-medium shrink-0" />
               <h3 className="text-base font-black text-white uppercase tracking-widest">
-                Escolha seu Nível de Bolsa
+                {t('student_onboarding.university_modal.choose_scholarship_level')}
               </h3>
             </div>
             <p className="text-gray-400 text-sm leading-relaxed max-w-2xl">
-              Quanto maior o{' '}
-              <span className="text-gold-medium font-bold">Placement Fee</span>{' '}
-              que você paga agora, menor será sua{' '}
-              <span className="text-white font-bold">tuition anual</span>{' '}
-              durante todo o curso.
+              <Trans
+                i18nKey="student_onboarding.university_modal.scholarship_level_desc"
+                components={{
+                  gold: <span className="text-gold-medium font-bold" />,
+                  strong: <span className="text-white font-bold" />,
+                }}
+              />
             </p>
 
             {sortedScholarships.length === 0 ? (
               <div className="text-center py-8 text-gray-500 text-sm">
-                Nenhum nível de bolsa cadastrado para esta instituição.
+                {t('student_onboarding.university_modal.no_scholarship_levels')}
               </div>
             ) : (
               <div className="space-y-2">
                 {/* Table header */}
                 <div className="hidden sm:grid grid-cols-4 px-6 pb-1 text-[10px] text-gray-600 font-black uppercase tracking-widest">
-                  <span>Placement Fee</span>
-                  <span>Tuition Anual</span>
-                  <span>Desconto</span>
-                  <span className="text-right">Selecionar</span>
+                  <span>{t('student_onboarding.university_modal.placement_fee')}</span>
+                  <span>{t('student_onboarding.university_modal.annual_tuition')}</span>
+                  <span>{t('student_onboarding.university_modal.discount')}</span>
+                  <span className="text-right">{t('student_onboarding.university_modal.select')}</span>
                 </div>
 
                 {sortedScholarships.map((level, idx) => {
@@ -314,12 +324,12 @@ export const UniversitySelectionModal: React.FC<Props> = ({
                     >
                       {isPopular && (
                         <div className="absolute -top-3 left-6 bg-emerald-500 text-black text-[9px] font-black px-3 py-0.5 rounded-full uppercase tracking-widest">
-                          Mais Popular
+                          {t('student_onboarding.university_modal.most_popular')}
                         </div>
                       )}
                       <div>
                         <p className="text-[10px] text-gray-500 uppercase font-black tracking-widest mb-0.5 sm:hidden">
-                          Placement Fee
+                          {t('student_onboarding.university_modal.placement_fee')}
                         </p>
                         <p className={`text-lg font-black ${isSelected ? 'text-gold-medium' : 'text-gray-200'}`}>
                           ${level.placement_fee_usd.toLocaleString()}
@@ -327,7 +337,7 @@ export const UniversitySelectionModal: React.FC<Props> = ({
                       </div>
                       <div>
                         <p className="text-[10px] text-gray-500 uppercase font-black tracking-widest mb-0.5 sm:hidden">
-                          Tuition Anual
+                          {t('student_onboarding.university_modal.annual_tuition')}
                         </p>
                         <p className="text-lg font-black text-white">
                           ${level.tuition_annual_usd.toLocaleString()}
@@ -335,7 +345,7 @@ export const UniversitySelectionModal: React.FC<Props> = ({
                       </div>
                       <div>
                         <p className="text-[10px] text-gray-500 uppercase font-black tracking-widest mb-0.5 sm:hidden">
-                          Desconto
+                          {t('student_onboarding.university_modal.discount')}
                         </p>
                         <p className="text-lg font-black text-emerald-400">
                           {level.scholarship_level || `${level.discount_percent}% OFF`}
@@ -361,13 +371,17 @@ export const UniversitySelectionModal: React.FC<Props> = ({
               <div className="flex items-center gap-3 bg-emerald-500/5 border border-emerald-500/20 rounded-xl px-5 py-4">
                 <Calculator className="w-4 h-4 text-emerald-400 shrink-0" />
                 <p className="text-sm text-emerald-300">
-                  Se você estudar{' '}
-                  <span className="font-black text-white">{savingsInfo.years} anos</span>, você
-                  economiza{' '}
-                  <span className="font-black text-emerald-400">
-                    ${savingsInfo.totalSavings.toLocaleString()}
-                  </span>{' '}
-                  comparado à tuition cheia.
+                  <Trans
+                    i18nKey="student_onboarding.university_modal.savings_sentence"
+                    values={{
+                      years: savingsInfo.years,
+                      amount: `$${savingsInfo.totalSavings.toLocaleString()}`,
+                    }}
+                    components={{
+                      years: <span className="font-black text-white" />,
+                      amount: <span className="font-black text-emerald-400" />,
+                    }}
+                  />
                 </p>
               </div>
             )}
@@ -378,7 +392,7 @@ export const UniversitySelectionModal: React.FC<Props> = ({
             <div className="flex items-center gap-3">
               <Calculator className="w-5 h-5 text-gold-medium shrink-0" />
               <h3 className="text-base font-black text-white uppercase tracking-widest">
-                Quanto vou pagar?
+                {t('student_onboarding.university_modal.how_much_pay')}
               </h3>
             </div>
 
@@ -387,15 +401,15 @@ export const UniversitySelectionModal: React.FC<Props> = ({
               <div className="bg-gold-medium/8 border border-gold-medium/20 rounded-2xl p-5 space-y-3">
                 <div className="flex items-center gap-2">
                   <div className="w-6 h-6 rounded-full bg-gold-medium text-black flex items-center justify-center text-[10px] font-black">1</div>
-                  <p className="text-[10px] font-black uppercase tracking-widest text-gold-medium">Agora — Para confirmar sua vaga</p>
+                  <p className="text-[10px] font-black uppercase tracking-widest text-gold-medium">{t('student_onboarding.university_modal.now_confirm_seat')}</p>
                 </div>
                 <div>
                   <p className="text-3xl font-black text-white">
                     {selectedScholarship
                       ? `$${selectedScholarship.placement_fee_usd.toLocaleString()}`
-                      : <span className="text-gray-600">Escolha um nível acima</span>}
+                      : <span className="text-gray-600">{t('student_onboarding.university_modal.choose_level_above')}</span>}
                   </p>
-                  <p className="text-xs text-gray-500 mt-1">Placement Fee — garante sua bolsa e vaga</p>
+                  <p className="text-xs text-gray-500 mt-1">{t('student_onboarding.university_modal.placement_fee_guarantee')}</p>
                 </div>
               </div>
 
@@ -403,15 +417,15 @@ export const UniversitySelectionModal: React.FC<Props> = ({
               <div className="bg-white/[0.03] border border-white/10 rounded-2xl p-5 space-y-3">
                 <div className="flex items-center gap-2">
                   <div className="w-6 h-6 rounded-full bg-white/10 text-white flex items-center justify-center text-[10px] font-black">2</div>
-                  <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Após Aceite — Para efetivar a matrícula</p>
+                  <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">{t('student_onboarding.university_modal.after_acceptance_enroll')}</p>
                 </div>
                 <div>
                   <p className="text-3xl font-black text-white">
                     ${institution.application_fee_usd.toLocaleString()}
                   </p>
                   <p className="text-xs text-gray-500 mt-1">
-                    Taxa I-20 / Application Fee — obrigatória para emissão do I-20
-                    <span className="block text-gray-600 mt-0.5">+$100 por dependente</span>
+                    {t('student_onboarding.university_modal.i20_application_fee_desc')}
+                    <span className="block text-gray-600 mt-0.5">{t('student_onboarding.university_modal.dependent_fee')}</span>
                   </p>
                 </div>
               </div>
@@ -420,20 +434,20 @@ export const UniversitySelectionModal: React.FC<Props> = ({
               <div className="bg-white/[0.03] border border-white/10 rounded-2xl p-5 space-y-3">
                 <div className="flex items-center gap-2">
                   <div className="w-6 h-6 rounded-full bg-white/10 text-white flex items-center justify-center text-[10px] font-black">3</div>
-                  <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Ao Iniciar o Curso — Taxa única</p>
+                  <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">{t('student_onboarding.university_modal.when_start_course')}</p>
                 </div>
                 <ul className="space-y-2 text-sm">
                   <li className="flex justify-between text-gray-300">
-                    <span>Orientation Day</span>
+                    <span>{t('student_onboarding.university_modal.orientation_day')}</span>
                     <span className="font-bold">$300</span>
                   </li>
                   <li className="flex justify-between text-gray-400">
-                    <span>Teste de Inglês <span className="text-gray-600">(se aplicável)</span></span>
+                    <span>{t('student_onboarding.university_modal.english_test')} <span className="text-gray-600">{t('student_onboarding.university_modal.if_applicable')}</span></span>
                     <span className="font-bold">$50</span>
                   </li>
                   <li className="flex justify-between text-gray-500 text-xs">
-                    <span>Material didático</span>
-                    <span>informado pela universidade</span>
+                    <span>{t('student_onboarding.university_modal.course_materials')}</span>
+                    <span>{t('student_onboarding.university_modal.informed_by_university')}</span>
                   </li>
                 </ul>
               </div>
@@ -442,17 +456,17 @@ export const UniversitySelectionModal: React.FC<Props> = ({
               <div className="bg-white/[0.03] border border-white/10 rounded-2xl p-5 space-y-3">
                 <div className="flex items-center gap-2">
                   <div className="w-6 h-6 rounded-full bg-white/10 text-white flex items-center justify-center text-[10px] font-black">4</div>
-                  <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Anualmente — Tuition</p>
+                  <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">{t('student_onboarding.university_modal.annually_tuition')}</p>
                 </div>
                 <div>
                   <p className="text-3xl font-black text-white">
                     {selectedScholarship
                       ? `$${selectedScholarship.tuition_annual_usd.toLocaleString()}`
-                      : <span className="text-gray-600 text-xl">Escolha um nível</span>}
-                    <span className="text-sm font-normal text-gray-500 ml-1">/ano</span>
+                      : <span className="text-gray-600 text-xl">{t('student_onboarding.university_modal.choose_level')}</span>}
+                    <span className="text-sm font-normal text-gray-500 ml-1">{t('student_onboarding.university_modal.per_year')}</span>
                   </p>
                   <p className="text-xs text-gray-500 mt-1">
-                    Estruturado em 12 parcelas mensais pela universidade
+                    {t('student_onboarding.university_modal.tuition_installments_desc')}
                   </p>
                 </div>
               </div>
@@ -463,7 +477,7 @@ export const UniversitySelectionModal: React.FC<Props> = ({
               <div className="flex items-center justify-between bg-white/5 border border-white/10 rounded-2xl px-6 py-4">
                 <div className="flex items-center gap-3">
                   <Info className="w-4 h-4 text-gray-500 shrink-0" />
-                  <p className="text-xs text-gray-400">Investimento estimado no primeiro ano completo:</p>
+                  <p className="text-xs text-gray-400">{t('student_onboarding.university_modal.first_year_estimate')}</p>
                 </div>
                 <p className="text-xl font-black text-white">
                   ${firstYearEstimate.toLocaleString()}
@@ -477,13 +491,13 @@ export const UniversitySelectionModal: React.FC<Props> = ({
             <div className="flex items-center gap-3">
               <GraduationCap className="w-5 h-5 text-gold-medium shrink-0" />
               <h3 className="text-base font-black text-white uppercase tracking-widest">
-                Informações do Programa
+                {t('student_onboarding.university_modal.program_info')}
               </h3>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="bg-white/[0.03] border border-white/5 rounded-2xl p-6 space-y-4">
                 <h4 className="text-xs font-black uppercase tracking-widest text-gold-medium/80">
-                  Cursos Disponíveis
+                  {t('student_onboarding.university_modal.available_courses')}
                 </h4>
                 {institution.courses.length > 0 ? (
                   <ul className="space-y-1.5">
@@ -496,7 +510,7 @@ export const UniversitySelectionModal: React.FC<Props> = ({
                     ))}
                   </ul>
                 ) : (
-                  <p className="text-sm text-gray-600">A confirmar</p>
+                  <p className="text-sm text-gray-600">{t('student_onboarding.university_modal.to_confirm')}</p>
                 )}
                 {durationLabel && (
                   <p className="text-xs text-gray-500 border-t border-white/5 pt-3">{durationLabel}</p>
@@ -504,23 +518,23 @@ export const UniversitySelectionModal: React.FC<Props> = ({
               </div>
               <div className="bg-white/[0.03] border border-white/5 rounded-2xl p-6 space-y-4">
                 <h4 className="text-xs font-black uppercase tracking-widest text-gold-medium/80">
-                  Permissão de Trabalho
+                  {t('student_onboarding.university_modal.work_permission')}
                 </h4>
                 <div className="space-y-3">
                   <div>
                     <p className="text-sm font-bold text-white">CPT</p>
                     <p className="text-xs text-gray-400 mt-0.5">
-                      Autorização para trabalhar durante o curso — {cptLabel}
+                      {t('student_onboarding.university_modal.cpt_desc', { cpt: cptLabel })}
                     </p>
                   </div>
                   <div>
                     <p className="text-sm font-bold text-white">OPT</p>
                     <p className="text-xs text-gray-400 mt-0.5">
-                      Autorização pós-formatura: 1 ano padrão (3 anos para cursos STEM)
+                      {t('student_onboarding.university_modal.opt_desc')}
                     </p>
                   </div>
                   <div>
-                    <p className="text-sm font-bold text-white">Modalidade</p>
+                    <p className="text-sm font-bold text-white">{t('student_onboarding.university_modal.modality')}</p>
                     <p className="text-xs text-gray-400 mt-0.5">{institution.modality}</p>
                   </div>
                 </div>
@@ -533,7 +547,7 @@ export const UniversitySelectionModal: React.FC<Props> = ({
             <div className="flex items-center gap-3">
               <Shield className="w-5 h-5 text-gold-medium shrink-0" />
               <h3 className="text-base font-black text-white uppercase tracking-widest">
-                Requisitos de Entrada
+                {t('student_onboarding.university_modal.entry_requirements')}
               </h3>
             </div>
             <div className="bg-white/[0.03] border border-white/5 rounded-2xl p-6">
@@ -541,29 +555,29 @@ export const UniversitySelectionModal: React.FC<Props> = ({
                 <li className="flex items-start gap-3 text-sm text-gray-300">
                   <CheckCircle2 className="w-4 h-4 text-gold-medium shrink-0 mt-0.5" />
                   <span>
-                    <strong className="text-white">GPA mínimo 2.0</strong> — histórico escolar ou
-                    equivalente (conforme avaliação da universidade)
+                    <Trans i18nKey="student_onboarding.university_modal.req_gpa" components={{ strong: <strong className="text-white" /> }} />
                   </span>
                 </li>
                 <li className="flex items-start gap-3 text-sm text-gray-300">
                   <CheckCircle2 className="w-4 h-4 text-gold-medium shrink-0 mt-0.5" />
                   <span>
-                    <strong className="text-white">Proficiência em inglês</strong> — TOEFL, IELTS,
-                    Duolingo ou entrevista com o diretor acadêmico
+                    <Trans i18nKey="student_onboarding.university_modal.req_english" components={{ strong: <strong className="text-white" /> }} />
                   </span>
                 </li>
                 <li className="flex items-start gap-3 text-sm text-gray-300">
                   <CheckCircle2 className="w-4 h-4 text-gold-medium shrink-0 mt-0.5" />
                   <span>
-                    <strong className="text-white">Documentação</strong> — passaporte válido,
-                    diploma(s) e histórico(s) escolar(es) anteriores
+                    <Trans i18nKey="student_onboarding.university_modal.req_documents" components={{ strong: <strong className="text-white" /> }} />
                   </span>
                 </li>
                 <li className="flex items-start gap-3 text-sm text-gray-300">
                   <CheckCircle2 className="w-4 h-4 text-gold-medium shrink-0 mt-0.5" />
                   <span>
-                    <strong className="text-white">Bank Statement</strong> — comprovante de
-                    ${institution.bank_statement_min_usd.toLocaleString()} mínimo
+                    <Trans
+                      i18nKey="student_onboarding.university_modal.req_bank_statement"
+                      values={{ amount: `$${institution.bank_statement_min_usd.toLocaleString()}` }}
+                      components={{ strong: <strong className="text-white" /> }}
+                    />
                   </span>
                 </li>
               </ul>
@@ -575,7 +589,7 @@ export const UniversitySelectionModal: React.FC<Props> = ({
             <div className="flex items-center gap-3">
               <HelpCircle className="w-5 h-5 text-gold-medium shrink-0" />
               <h3 className="text-base font-black text-white uppercase tracking-widest">
-                Perguntas Frequentes
+                {t('student_onboarding.university_modal.faq_title')}
               </h3>
             </div>
             {FAQ_ITEMS.map((item, i) => (
@@ -587,7 +601,7 @@ export const UniversitySelectionModal: React.FC<Props> = ({
                   className="w-full flex items-center justify-between px-5 py-4 text-left hover:bg-white/[0.04] transition-colors"
                   onClick={() => setOpenFaq(openFaq === i ? null : i)}
                 >
-                  <span className="text-sm font-bold text-white">{item.q}</span>
+                  <span className="text-sm font-bold text-white">{t(item.qKey)}</span>
                   {openFaq === i ? (
                     <ChevronUp className="w-4 h-4 text-gold-medium shrink-0 ml-3" />
                   ) : (
@@ -596,7 +610,7 @@ export const UniversitySelectionModal: React.FC<Props> = ({
                 </button>
                 {openFaq === i && (
                   <div className="px-5 pb-4 text-sm text-gray-400 leading-relaxed border-t border-white/5 pt-3">
-                    {item.a}
+                    {t(item.aKey)}
                   </div>
                 )}
               </div>
@@ -610,13 +624,13 @@ export const UniversitySelectionModal: React.FC<Props> = ({
             </div>
             <div className="flex-1 text-center sm:text-left">
               <h4 className="text-sm font-black text-white uppercase tracking-widest">
-                Programa de Indicação
+                {t('student_onboarding.university_modal.referral_program')}
               </h4>
               <p className="text-xs text-gray-400 mt-1 leading-relaxed">
-                Indique <strong className="text-white">10 pessoas efetivadas</strong> e sua tuition
-                cai para{' '}
-                <strong className="text-white">$3.800/ano</strong> pelo restante do curso — uma
-                economia enorme ao longo dos anos.
+                <Trans
+                  i18nKey="student_onboarding.university_modal.referral_desc"
+                  components={{ strong: <strong className="text-white" /> }}
+                />
               </p>
             </div>
           </div>
@@ -628,9 +642,9 @@ export const UniversitySelectionModal: React.FC<Props> = ({
           <div className="flex items-center gap-3 text-gray-500 text-xs">
             <Briefcase className="w-4 h-4 text-gold-medium/40 shrink-0" />
             <span className="uppercase font-black tracking-widest leading-tight max-w-[160px]">
-              Dúvidas?{' '}
+              {t('student_onboarding.university_modal.questions')}{' '}
               <span className="text-white normal-case font-medium tracking-normal">
-                Fale com seu consultor
+                {t('student_onboarding.university_modal.talk_to_consultant')}
               </span>
             </span>
           </div>
@@ -640,7 +654,7 @@ export const UniversitySelectionModal: React.FC<Props> = ({
               onClick={onClose}
               className="flex-1 sm:flex-none px-6 py-4 text-gray-400 font-bold uppercase tracking-widest text-xs hover:text-white transition-all"
             >
-              Voltar
+              {t('common.back', 'Back')}
             </button>
             <button
               onClick={handleSelect}
@@ -648,7 +662,7 @@ export const UniversitySelectionModal: React.FC<Props> = ({
               className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-10 py-4 bg-gold-medium hover:bg-gold-light disabled:opacity-30 disabled:cursor-not-allowed text-black font-black uppercase tracking-widest text-sm rounded-2xl shadow-[0_0_30px_rgba(184,158,78,0.25)] transition-all active:scale-95"
             >
               <CheckCircle2 className="w-4 h-4" />
-              Selecionar esta Universidade
+              {t('student_onboarding.university_modal.select_this_university')}
             </button>
           </div>
         </div>

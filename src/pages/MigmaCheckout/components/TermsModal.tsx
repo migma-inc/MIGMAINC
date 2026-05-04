@@ -1,5 +1,6 @@
 import React, { useRef } from 'react';
 import { X } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 interface Props {
   isOpen: boolean;
@@ -9,6 +10,7 @@ interface Props {
 }
 
 export const TermsModal: React.FC<Props> = ({ isOpen, onClose, contractTitle, contractText }) => {
+  const { t } = useTranslation();
   const contentRef = useRef<HTMLDivElement>(null);
 
   if (!isOpen) return null;
@@ -28,6 +30,7 @@ export const TermsModal: React.FC<Props> = ({ isOpen, onClose, contractTitle, co
           <h2 className="font-bold text-white text-base">{contractTitle}</h2>
           <button
             onClick={onClose}
+            aria-label={t('migma_checkout.terms.close', 'Close')}
             className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-white hover:bg-white/10 transition-all"
           >
             <X className="w-4 h-4" />
@@ -51,7 +54,7 @@ export const TermsModal: React.FC<Props> = ({ isOpen, onClose, contractTitle, co
             onClick={onClose}
             className="w-full py-3 rounded-xl bg-gradient-to-b from-gold-light via-gold-medium to-gold-light text-black font-bold text-sm tracking-widest uppercase hover:opacity-90 transition-all"
           >
-            Close
+            {t('migma_checkout.terms.close', 'Close')}
           </button>
         </div>
       </div>

@@ -3,6 +3,7 @@ import {
   CheckCircle, Building, Shield, Loader2,
   Clock, AlertCircle, Building2, Upload,
 } from 'lucide-react';
+import { Trans, useTranslation } from 'react-i18next';
 import { useStudentAuth } from '../../../contexts/StudentAuthContext';
 import { supabase } from '../../../lib/supabase';
 import { calculateCardAmountWithFees } from '../../../utils/stripeFeeCalculator';
@@ -51,6 +52,7 @@ const ZelleIcon: React.FC<{ className?: string }> = ({ className }) => (
 
 // ─── Componente ───────────────────────────────────────────────────────────────
 export const PlacementFeeStep: React.FC<StepProps> = ({ onNext }) => {
+  const { t } = useTranslation();
   const { userProfile, user } = useStudentAuth();
 
   const [applications, setApplications] = useState<InstitutionApplication[]>([]);
@@ -202,7 +204,7 @@ export const PlacementFeeStep: React.FC<StepProps> = ({ onNext }) => {
           },
         });
         if (error) throw error;
-        if (!data?.part1_checkout_url) throw new Error('URL do split não recebida');
+        if (!data?.part1_checkout_url) throw new Error(t('student_onboarding.payment_ui.error_split_url', 'Split URL not received'));
         if (data?.split_payment_id) sessionStorage.setItem('last_split_payment_id', data.split_payment_id);
         window.location.href = data.part1_checkout_url;
         return;
@@ -226,14 +228,14 @@ export const PlacementFeeStep: React.FC<StepProps> = ({ onNext }) => {
         },
       });
       if (error) throw error;
-      if (!data?.checkout_url) throw new Error('Checkout URL não recebida');
+      if (!data?.checkout_url) throw new Error(t('student_onboarding.payment_ui.error_checkout_url', 'Checkout URL not received'));
       window.location.href = data.checkout_url;
     } catch (err: any) {
       console.error('[PlacementFeeStep] handleProcessPayment:', err);
-      setPaymentError(err.message || 'Erro ao processar pagamento. Tente novamente.');
+      setPaymentError(err.message || t('student_onboarding.payment_ui.error_process_payment', 'Error processing payment. Try again.'));
       setProcessing(false);
     }
-  }, [selectedMethod, cpf, splitConfig, placementFee, amountDueNow, installments, activeApp, userProfile, user]);
+  }, [selectedMethod, cpf, splitConfig, amountDueNow, installments, activeApp, userProfile, user, isThirdParty, payerEmail, payerName, payerPhone, t]);
 
   const handleZelleUpload = useCallback(async () => {
     if (!zelleFile || !activeApp || !userProfile?.id || !user?.id) return;
@@ -259,11 +261,11 @@ export const PlacementFeeStep: React.FC<StepProps> = ({ onNext }) => {
       setZelleSubmitted(true);
     } catch (err: any) {
       console.error('[PlacementFeeStep] handleZelleUpload:', err);
-      setPaymentError('Erro ao enviar comprovante. Tente novamente.');
+      setPaymentError(t('student_onboarding.payment_ui.error_upload_receipt', 'Error uploading receipt. Try again.'));
     } finally {
       setZelleUploading(false);
     }
-  }, [zelleFile, activeApp, userProfile?.id, user?.id, placementFee, amountDueNow, installments]);
+  }, [zelleFile, activeApp, userProfile?.id, user?.id, amountDueNow, installments, t]);
 
   const isPaid = activeApp?.status === 'payment_confirmed';
   const isPendingApproval = activeApp?.status === 'pending_admin_approval';
@@ -280,7 +282,7 @@ export const PlacementFeeStep: React.FC<StepProps> = ({ onNext }) => {
     return (
       <div className="text-center py-16 space-y-4">
         <Building className="w-12 h-12 text-gray-600 mx-auto opacity-20" />
-        <p className="text-gray-500">Nenhuma aplicação encontrada. Selecione suas faculdades primeiro.</p>
+        <p className="text-gray-500">{t('student_onboarding.placement_fee.no_applications_select_first', 'No applications found. Select your universities first.')}</p>
       </div>
     );
   }
@@ -293,19 +295,31 @@ export const PlacementFeeStep: React.FC<StepProps> = ({ onNext }) => {
             <CheckCircle className="w-10 h-10 text-emerald-400" />
           </div>
           <h3 className="text-3xl font-black text-white mb-3 uppercase tracking-tight">
-            {placementFee === 0 ? 'Vaga Garantida!' : 'Pagamento Confirmado!'}
+            {placementFee === 0
+              ? t('student_onboarding.placement_fee.seat_secured', 'Seat Secured!')
+              : t('student_onboarding.placement_fee.payment_confirmed', 'Payment Confirmed!')}
           </h3>
           <p className="text-gray-400 mb-8 max-w-sm mx-auto">
             {placementFee === 0
-              ? <>Sua vaga na <strong>{activeApp?.institutions?.name}</strong> está confirmada com bolsa integral.</>
-              : <>Sua vaga na <strong>{activeApp?.institutions?.name}</strong> está garantida.</>
+              ? <Trans
+                  i18nKey="student_onboarding.placement_fee.full_scholarship_confirmed"
+                  defaults="Your seat at <strong>{{university}}</strong> is confirmed with a full scholarship."
+                  values={{ university: activeApp?.institutions?.name }}
+                  components={{ strong: <strong /> }}
+                />
+              : <Trans
+                  i18nKey="student_onboarding.placement_fee.seat_confirmed"
+                  defaults="Your seat at <strong>{{university}}</strong> is secured."
+                  values={{ university: activeApp?.institutions?.name }}
+                  components={{ strong: <strong /> }}
+                />
             }
           </p>
           <button
             onClick={onNext}
             className="w-full bg-gold-medium hover:bg-gold-dark text-black py-4 px-8 rounded-2xl font-black uppercase tracking-widest transition-all shadow-lg hover:shadow-gold-medium/20"
           >
-            Continuar para Próximos Passos
+            {t('student_onboarding.placement_fee.continue_next_steps', 'Continue to Next Steps')}
           </button>
         </div>
       </div>
@@ -320,14 +334,18 @@ export const PlacementFeeStep: React.FC<StepProps> = ({ onNext }) => {
             <Clock className="w-10 h-10 text-amber-400" />
           </div>
           <h3 className="text-2xl font-black text-white mb-3 uppercase tracking-tight leading-tight">
-            Perfil em Revisão pela Banca Migma
+            {t('student_onboarding.placement_fee.profile_review_title', 'Profile Under Review by Migma Board')}
           </h3>
           <p className="text-gray-400 mb-8 text-sm leading-relaxed">
-            Nossa equipe está revisando sua escolha da <strong>{activeApp?.institutions?.name}</strong>.
-            Assim que aprovado, você poderá realizar o pagamento aqui.
+            <Trans
+              i18nKey="student_onboarding.placement_fee.profile_review_desc"
+              defaults="Our team is reviewing your choice of <strong>{{university}}</strong>. Once approved, you will be able to make the payment here."
+              values={{ university: activeApp?.institutions?.name }}
+              components={{ strong: <strong /> }}
+            />
           </p>
           <div className="flex flex-col gap-3 p-4 bg-white/5 border border-white/10 rounded-2xl text-left">
-            <p className="text-[10px] font-black uppercase text-gray-500 tracking-widest">Sua Seleção:</p>
+            <p className="text-[10px] font-black uppercase text-gray-500 tracking-widest">{t('student_onboarding.placement_fee.your_selection', 'Your Selection:')}</p>
             <div className="flex justify-between items-center">
               <span className="text-white font-bold">{activeApp?.institutions?.name}</span>
               <span className="text-xs bg-gold-medium/10 text-gold-medium px-2 py-0.5 rounded-full font-bold">
@@ -335,7 +353,7 @@ export const PlacementFeeStep: React.FC<StepProps> = ({ onNext }) => {
               </span>
             </div>
           </div>
-          <p className="mt-8 text-gray-600 text-xs">Aprovação costuma ocorrer em até 24h úteis.</p>
+          <p className="mt-8 text-gray-600 text-xs">{t('student_onboarding.placement_fee.approval_time', 'Approval usually happens within 24 business hours.')}</p>
         </div>
       </div>
     );
@@ -349,11 +367,14 @@ export const PlacementFeeStep: React.FC<StepProps> = ({ onNext }) => {
             <Clock className="w-10 h-10 text-amber-400" />
           </div>
           <h3 className="text-2xl font-black text-white mb-3 uppercase tracking-tight">
-            Comprovante Enviado
+            {t('student_onboarding.payment_ui.receipt_sent', 'Receipt Sent')}
           </h3>
           <p className="text-gray-400 text-sm leading-relaxed max-w-sm mx-auto">
-            Nosso time irá confirmar seu pagamento Zelle em até <strong>24h úteis</strong>.
-            Você receberá uma notificação quando confirmado.
+            <Trans
+              i18nKey="student_onboarding.payment_ui.receipt_processing_desc_24h"
+              defaults="Our team will confirm your Zelle payment within <strong>24 business hours</strong>. You will receive a notification once confirmed."
+              components={{ strong: <strong /> }}
+            />
           </p>
         </div>
       </div>
@@ -367,16 +388,16 @@ export const PlacementFeeStep: React.FC<StepProps> = ({ onNext }) => {
       {/* Security badge */}
       <div className="inline-flex items-center gap-2 border border-gold-medium/30 rounded-full px-3 py-1.5">
         <Shield className="w-3 h-3 text-gold-medium" />
-        <span className="text-[10px] font-black uppercase tracking-widest text-gold-medium">Pagamento Seguro &amp; Criptografado</span>
+        <span className="text-[10px] font-black uppercase tracking-widest text-gold-medium">{t('student_onboarding.payment_ui.secure_encrypted', 'Secure & Encrypted Payment')}</span>
       </div>
 
       {/* Title */}
       <div>
         <h2 className="text-4xl font-black text-white uppercase tracking-tight leading-none">
-          Taxa de Colocação
+          {t('student_onboarding.placement_fee.title', 'Placement Fee')}
         </h2>
         <p className="text-gray-400 text-sm mt-2 leading-relaxed">
-          Taxa de colocação calculada com base no valor anual da sua bolsa selecionada.
+          {t('student_onboarding.placement_fee.subtitle_calc_selected', 'Placement fee calculated based on the annual value of your selected scholarship.')}
         </p>
       </div>
 
@@ -398,13 +419,18 @@ export const PlacementFeeStep: React.FC<StepProps> = ({ onNext }) => {
             </p>
             {scholar?.tuition_annual_usd && (
               <p className="text-xs text-blue-400 font-bold mt-0.5">
-                Valor anual da bolsa: ${scholar.tuition_annual_usd.toLocaleString()}
+                {t('student_onboarding.placement_fee.annual_scholarship_value', {
+                  amount: scholar.tuition_annual_usd.toLocaleString(),
+                  defaultValue: 'Annual scholarship value: ${{amount}}',
+                })}
               </p>
             )}
           </div>
           <div className="text-right shrink-0 ml-2">
             <p className="text-[9px] font-black uppercase tracking-widest text-gray-500 mb-0.5">
-              {installments === 2 ? '1ª Parcela (de 2)' : 'Taxa de Colocação'}
+              {installments === 2
+                ? t('student_onboarding.placement_fee.first_installment_label', '1st Installment (of 2)')
+                : t('student_onboarding.placement_fee.fee_label', 'Placement Fee')}
             </p>
             <p className="text-3xl font-black text-white leading-none">
               ${amountDueNow.toLocaleString()}
@@ -431,17 +457,17 @@ export const PlacementFeeStep: React.FC<StepProps> = ({ onNext }) => {
             >
               {couponOpen && <CheckCircle className="w-3.5 h-3.5 text-black" />}
             </button>
-            <span className="font-black text-white text-sm">Cupom Promocional</span>
+            <span className="font-black text-white text-sm">{t('student_onboarding.payment_ui.coupon_title', 'Promotional Coupon')}</span>
             {couponOpen && (
               <>
                 <input
                   value={couponCode}
                   onChange={e => setCouponCode(e.target.value)}
-                  placeholder="Digite o código"
+                  placeholder={t('student_onboarding.payment_ui.coupon_placeholder', 'Enter code')}
                   className="flex-1 bg-white/5 border border-white/15 rounded-xl px-4 py-2 text-white text-sm placeholder-gray-600 outline-none focus:border-gold-medium/50 transition-colors min-w-0"
                 />
                 <button className="shrink-0 bg-white/10 hover:bg-white/15 border border-white/20 text-white text-[10px] font-black uppercase tracking-widest px-3 py-2 rounded-xl transition-all">
-                  Validar Código
+                  {t('student_onboarding.payment_ui.validate_code', 'Validate Code')}
                 </button>
               </>
             )}
@@ -453,7 +479,7 @@ export const PlacementFeeStep: React.FC<StepProps> = ({ onNext }) => {
         {/* Installments selector — only for fees >= $1.000 */}
         {!isZeroFee && placementFee >= 1000 && (
           <div className="p-5 space-y-2">
-            <p className="text-xs font-black uppercase tracking-widest text-gray-400">Forma de Pagamento do Placement Fee</p>
+            <p className="text-xs font-black uppercase tracking-widest text-gray-400">{t('student_onboarding.placement_fee.payment_form_title', 'Placement Fee Payment Form')}</p>
             <div className="flex gap-3">
               {([1, 2] as const).map(n => (
                 <button
@@ -465,14 +491,23 @@ export const PlacementFeeStep: React.FC<StepProps> = ({ onNext }) => {
                       : 'border-white/10 bg-transparent text-gray-400 hover:border-white/20 hover:text-white'
                   }`}
                 >
-                  {n === 1 ? 'À vista (1x)' : 'Parcelado (2x)'}
+                  {n === 1
+                    ? t('student_onboarding.placement_fee.pay_in_full', 'Pay in full (1x)')
+                    : t('student_onboarding.placement_fee.pay_installments', 'Installments (2x)')}
                 </button>
               ))}
             </div>
             {installments === 2 && (
               <p className="text-[11px] text-amber-400 leading-relaxed">
-                Você paga <strong>${Math.floor(placementFee / 2).toLocaleString()}</strong> agora e <strong>${Math.ceil(placementFee / 2).toLocaleString()}</strong> após a emissão da carta de aceite.
-                A carta de aceite será liberada somente após o pagamento da 2ª parcela.
+                <Trans
+                  i18nKey="student_onboarding.placement_fee.installments_notice"
+                  defaults="You pay <strong>${{first}}</strong> now and <strong>${{second}}</strong> after the acceptance letter is issued. The acceptance letter will only be released after payment of the 2nd installment."
+                  values={{
+                    first: Math.floor(placementFee / 2).toLocaleString(),
+                    second: Math.ceil(placementFee / 2).toLocaleString(),
+                  }}
+                  components={{ strong: <strong /> }}
+                />
               </p>
             )}
           </div>
@@ -489,7 +524,9 @@ export const PlacementFeeStep: React.FC<StepProps> = ({ onNext }) => {
               className="flex items-center justify-center gap-2 w-full bg-gold-medium hover:bg-gold-light disabled:opacity-60 text-black py-4 rounded-2xl font-black uppercase tracking-widest transition-all"
             >
               {confirmingZero ? <Loader2 className="w-5 h-5 animate-spin" /> : <CheckCircle className="w-5 h-5" />}
-              {confirmingZero ? 'Confirmando...' : 'Confirmar Vaga'}
+              {confirmingZero
+                ? t('student_onboarding.placement_fee.confirming', 'Confirming...')
+                : t('student_onboarding.placement_fee.confirm_seat', 'Confirm Seat')}
             </button>
           </div>
         ) : (
@@ -509,10 +546,10 @@ export const PlacementFeeStep: React.FC<StepProps> = ({ onNext }) => {
               </div>
               <div className="flex-1 min-w-0">
                 <p className={`font-black text-sm uppercase tracking-wide ${selectedMethod === 'stripe' ? 'text-white' : 'text-gray-200'}`}>
-                  Cartão de Crédito
+                  {t('student_onboarding.payment_ui.credit_card', 'Credit Card')}
                 </p>
                 <p className="text-[10px] text-gray-600 uppercase tracking-wider font-bold mt-0.5">
-                  * Podem incluir taxas de processamento
+                  {t('student_onboarding.payment_ui.processing_fees_may_apply', '* Processing fees may apply')}
                 </p>
               </div>
               <div className="text-right shrink-0">
@@ -536,17 +573,17 @@ export const PlacementFeeStep: React.FC<StepProps> = ({ onNext }) => {
               </div>
               <div className="flex-1 min-w-0">
                 <p className={`font-black text-sm uppercase tracking-wide ${selectedMethod === 'parcelow_card' ? 'text-white' : 'text-gray-200'}`}>
-                  Parcelow — Cartão
+                  {t('student_onboarding.payment_ui.parcelow_card', 'Parcelow — Card')}
                 </p>
                 <p className="text-[10px] text-gray-600 uppercase tracking-wider font-bold mt-0.5">
-                  * Podem incluir taxas de operadora e processamento da plataforma
+                  {t('student_onboarding.payment_ui.parcelow_fees_may_apply', '* Operator and platform processing fees may apply')}
                 </p>
               </div>
               <div className="text-right shrink-0">
                 <p className={`font-black text-lg ${selectedMethod === 'parcelow_card' ? 'text-gold-medium' : 'text-white'}`}>
                   ${amountDueNow.toLocaleString()}.00
                 </p>
-                <p className="text-[9px] text-gray-500 font-black uppercase tracking-widest">Em até 12x</p>
+                <p className="text-[9px] text-gray-500 font-black uppercase tracking-widest">{t('student_onboarding.payment_ui.up_to_12x', 'Up to 12x')}</p>
               </div>
             </button>
 
@@ -567,7 +604,7 @@ export const PlacementFeeStep: React.FC<StepProps> = ({ onNext }) => {
                   Parcelow — PIX
                 </p>
                 <p className="text-[10px] text-gray-600 uppercase tracking-wider font-bold mt-0.5">
-                  Via Parcelow · Podem incluir taxas
+                  {t('student_onboarding.payment_ui.via_parcelow_fees', 'Via Parcelow · Fees may apply')}
                 </p>
               </div>
               <div className="text-right shrink-0">
@@ -594,7 +631,7 @@ export const PlacementFeeStep: React.FC<StepProps> = ({ onNext }) => {
                   Parcelow — TED
                 </p>
                 <p className="text-[10px] text-gray-600 uppercase tracking-wider font-bold mt-0.5">
-                  Via Parcelow · Podem incluir taxas
+                  {t('student_onboarding.payment_ui.via_parcelow_fees', 'Via Parcelow · Fees may apply')}
                 </p>
               </div>
               <div className="text-right shrink-0">
@@ -621,21 +658,21 @@ export const PlacementFeeStep: React.FC<StepProps> = ({ onNext }) => {
                   Zelle
                 </p>
                 <p className="text-[10px] text-gray-600 uppercase tracking-wider font-bold mt-0.5">
-                  ⏱ Processamento pode levar até 48 horas
+                  {t('student_onboarding.payment_ui.zelle_processing_48h', 'Processing may take up to 48 hours')}
                 </p>
               </div>
               <div className="text-right shrink-0">
                 <p className={`font-black text-lg ${selectedMethod === 'zelle' ? 'text-gold-medium' : 'text-white'}`}>
                   ${amountDueNow.toLocaleString()}.00
                 </p>
-                <p className="text-[9px] text-gray-500 font-black uppercase tracking-widest">Sem taxas</p>
+                <p className="text-[9px] text-gray-500 font-black uppercase tracking-widest">{t('student_onboarding.payment_ui.no_fees', 'No fees')}</p>
               </div>
             </button>
 
             {/* Parcelow Card — seleção de titular */}
           {isParcelowCard && (
             <div className="space-y-3 p-4 bg-white/[0.03] border border-white/10 rounded-2xl">
-              <p className="text-xs font-black uppercase tracking-widest text-gray-400">O cartão que você vai usar é seu ou de outra pessoa?</p>
+              <p className="text-xs font-black uppercase tracking-widest text-gray-400">{t('checkout.is_card_owner_question', "Is the credit card you are going to use yours or someone else's?")}</p>
               <div className="flex gap-2">
                 <button
                   onClick={() => { setCardOwnership('own'); setPayerName(''); setPayerEmail(''); setPayerPhone(''); }}
@@ -645,7 +682,7 @@ export const PlacementFeeStep: React.FC<StepProps> = ({ onNext }) => {
                       : 'bg-white/5 border-white/10 text-gray-400 hover:border-white/20'
                   }`}
                 >
-                  Meu Cartão
+                  {t('checkout.my_card', 'My Card')}
                 </button>
                 <button
                   onClick={() => setCardOwnership('third_party')}
@@ -655,7 +692,7 @@ export const PlacementFeeStep: React.FC<StepProps> = ({ onNext }) => {
                       : 'bg-white/5 border-white/10 text-gray-400 hover:border-white/20'
                   }`}
                 >
-                  Cartão de Terceiro
+                  {t('checkout.third_party_card', 'Third Party Card')}
                 </button>
               </div>
 
@@ -663,7 +700,7 @@ export const PlacementFeeStep: React.FC<StepProps> = ({ onNext }) => {
                 <input
                   value={cpf}
                   onChange={e => setCpf(e.target.value)}
-                  placeholder="Seu CPF (apenas números)"
+                  placeholder={t('student_onboarding.payment_ui.your_cpf_placeholder', 'Your CPF (numbers only)')}
                   maxLength={14}
                   className="w-full bg-white/5 border border-white/10 focus:border-gold-medium/50 rounded-xl px-4 py-3 text-white text-sm placeholder-gray-600 outline-none transition-colors"
                 />
@@ -671,31 +708,31 @@ export const PlacementFeeStep: React.FC<StepProps> = ({ onNext }) => {
 
               {cardOwnership === 'third_party' && (
                 <div className="space-y-2">
-                  <p className="text-[10px] text-amber-400/80 font-bold uppercase tracking-wider">Dados do Titular do Cartão</p>
+                  <p className="text-[10px] text-amber-400/80 font-bold uppercase tracking-wider">{t('checkout.payer_data_title', 'Cardholder Data')}</p>
                   <input
                     value={payerName}
                     onChange={e => setPayerName(e.target.value.toUpperCase())}
-                    placeholder="Nome completo do titular"
+                    placeholder={t('student_onboarding.payment_ui.payer_name_placeholder', 'Cardholder full name')}
                     className="w-full bg-white/5 border border-white/10 focus:border-gold-medium/50 rounded-xl px-4 py-3 text-white text-sm placeholder-gray-600 outline-none transition-colors"
                   />
                   <input
                     value={cpf}
                     onChange={e => setCpf(e.target.value)}
-                    placeholder="CPF do titular (apenas números)"
+                    placeholder={t('student_onboarding.payment_ui.payer_cpf_placeholder', 'Cardholder CPF (numbers only)')}
                     maxLength={14}
                     className="w-full bg-white/5 border border-white/10 focus:border-gold-medium/50 rounded-xl px-4 py-3 text-white text-sm placeholder-gray-600 outline-none transition-colors"
                   />
                   <input
                     value={payerEmail}
                     onChange={e => setPayerEmail(e.target.value)}
-                    placeholder="E-mail do titular"
+                    placeholder={t('student_onboarding.payment_ui.payer_email_placeholder', 'Cardholder email')}
                     type="email"
                     className="w-full bg-white/5 border border-white/10 focus:border-gold-medium/50 rounded-xl px-4 py-3 text-white text-sm placeholder-gray-600 outline-none transition-colors"
                   />
                   <input
                     value={payerPhone}
                     onChange={e => setPayerPhone(e.target.value)}
-                    placeholder="WhatsApp do titular (com DDD)"
+                    placeholder={t('student_onboarding.payment_ui.payer_phone_placeholder', 'Cardholder WhatsApp')}
                     className="w-full bg-white/5 border border-white/10 focus:border-gold-medium/50 rounded-xl px-4 py-3 text-white text-sm placeholder-gray-600 outline-none transition-colors"
                   />
                 </div>
@@ -708,7 +745,7 @@ export const PlacementFeeStep: React.FC<StepProps> = ({ onNext }) => {
             <input
               value={cpf}
               onChange={e => setCpf(e.target.value)}
-              placeholder="CPF (apenas números)"
+              placeholder={t('student_onboarding.payment_ui.cpf_placeholder', 'CPF (numbers only)')}
               maxLength={14}
               className="w-full bg-white/5 border border-white/10 focus:border-gold-medium/50 rounded-xl px-4 py-3 text-white text-sm placeholder-gray-600 outline-none transition-colors"
             />
@@ -737,7 +774,9 @@ export const PlacementFeeStep: React.FC<StepProps> = ({ onNext }) => {
                   className="flex items-center justify-center gap-2 w-full bg-gold-medium hover:bg-gold-light disabled:opacity-50 text-black py-3 rounded-2xl font-black uppercase tracking-widest text-sm transition-all"
                 >
                   {zelleUploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
-                  {zelleUploading ? 'Enviando e Validando...' : 'Enviar Comprovante'}
+                  {zelleUploading
+                    ? t('student_onboarding.payment_ui.uploading_validating', 'Uploading and validating...')
+                    : t('student_onboarding.payment_ui.send_receipt', 'Send Receipt')}
                 </button>
               </div>
             )}
@@ -759,10 +798,15 @@ export const PlacementFeeStep: React.FC<StepProps> = ({ onNext }) => {
                   className="flex items-center justify-center gap-2 w-full bg-gold-medium hover:bg-gold-light disabled:opacity-50 text-black py-4 rounded-2xl font-black uppercase tracking-widest transition-all shadow-xl shadow-gold-medium/10"
                 >
                   {processing && <Loader2 className="w-5 h-5 animate-spin" />}
-                  {processing ? 'Redirecionando...' : `Pagar $${(selectedMethod === 'stripe' ? cardAmountDue : amountDueNow).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}${installments === 2 ? ' (1ª parcela)' : ''}`}
+                  {processing
+                    ? t('student_onboarding.payment_ui.redirecting', 'Redirecting...')
+                    : t(installments === 2 ? 'student_onboarding.payment_ui.pay_amount_first_installment' : 'student_onboarding.payment_ui.pay_amount', {
+                        amount: (selectedMethod === 'stripe' ? cardAmountDue : amountDueNow).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+                        defaultValue: installments === 2 ? 'Pay ${{amount}} (1st installment)' : 'Pay ${{amount}}',
+                      })}
                 </button>
                 <p className="text-[10px] text-center text-gray-600 font-bold uppercase tracking-tighter">
-                  🔒 Pagamento 100% Seguro e Criptografado
+                  {t('student_onboarding.payment_ui.secure_100', '100% secure and encrypted payment')}
                 </p>
               </>
             )}

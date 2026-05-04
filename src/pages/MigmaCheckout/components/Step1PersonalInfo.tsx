@@ -201,7 +201,7 @@ export const Step1PersonalInfo: React.FC<Props> = ({
     }
     if (isSplitEnabled) {
       if (!activeSplitConfig) {
-        e.split_amount = 'Configure os valores e métodos de cada parte antes de continuar';
+        e.split_amount = t('migma_checkout.step1.validation_split_amount', 'Configure each part amount and method before continuing');
       }
       // Se for cartão próprio no split, validamos o splitCpf
       if (cardOwnership === 'own') {
@@ -301,13 +301,13 @@ export const Step1PersonalInfo: React.FC<Props> = ({
 
   const payBtnLabel = () => {
     if (saving) return <><Loader2 className="w-4 h-4 animate-spin" /> {t('migma_checkout.step1.processing', 'Processando...')}</>;
-    if (isSplitEnabled) return `Pagar Dividido — $${total} →`;
-    if (method === 'stripe') return `Pagar com Stripe — $${total} →`;
-    if (method === 'zelle') return 'Enviar Comprovante Zelle →';
-    if (method === 'parcelow_card') return `Pagar com Cartão (Parcelow) — $${total} →`;
-    if (method === 'parcelow_pix') return `Pagar com PIX (Parcelow) — $${total} →`;
-    if (method === 'parcelow_ted') return `Pagar com TED (Parcelow) — $${total} →`;
-    return t('migma_checkout.step1.continue_payment', `Continuar Pagamento — $${total} →`);
+    if (isSplitEnabled) return t('migma_checkout.step1.pay_split', 'Pay Split — ${{total}} →', { total });
+    if (method === 'stripe') return t('migma_checkout.step1.pay_stripe_total', 'Pay with Stripe — ${{total}} →', { total });
+    if (method === 'zelle') return t('migma_checkout.step1.pay_zelle_receipt', 'Submit Zelle Receipt →');
+    if (method === 'parcelow_card') return t('migma_checkout.step1.pay_parcelow_card', 'Pay with Card (Parcelow) — ${{total}} →', { total });
+    if (method === 'parcelow_pix') return t('migma_checkout.step1.pay_parcelow_pix', 'Pay with PIX (Parcelow) — ${{total}} →', { total });
+    if (method === 'parcelow_ted') return t('migma_checkout.step1.pay_parcelow_ted', 'Pay with TED (Parcelow) — ${{total}} →', { total });
+    return t('migma_checkout.step1.continue_payment', 'Continue Payment — ${{total}} →', { total });
   };
 
   return (
@@ -341,7 +341,7 @@ export const Step1PersonalInfo: React.FC<Props> = ({
                 </div>
                 <div className="hidden sm:flex px-3 py-1 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded-full text-xs font-bold items-center gap-1.5">
                   <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse"></span>
-                  Conectado
+                  {t('migma_checkout.step1.connected', 'Connected')}
                 </div>
               </div>
             ) : (
@@ -515,7 +515,7 @@ export const Step1PersonalInfo: React.FC<Props> = ({
                 {t('migma_checkout.step1.signature_found', 'Assinatura digital vinculada ao seu perfil')}
               </p>
               <div className="bg-white rounded-lg p-2 w-full max-w-xs">
-                <img src={form.signature_data_url} alt="Signature" className="h-16 object-contain" />
+                <img src={form.signature_data_url} alt={t('signature.alt', 'Signature')} className="h-16 object-contain" />
               </div>
               <button type="button" onClick={() => set('signature_data_url', null)}
                 className="mt-3 text-xs text-gray-500 hover:text-white underline transition-colors">
@@ -588,7 +588,7 @@ export const Step1PersonalInfo: React.FC<Props> = ({
                         <input
                           type="text"
                           className={`${INPUT_CLASS} uppercase h-12`}
-                          placeholder="COMO ESTÁ NO CARTÃO"
+                          placeholder={t('migma_checkout.step1.name_on_card_placeholder', 'AS IT APPEARS ON THE CARD')}
                         />
                       </div>
                     </div>
@@ -704,7 +704,7 @@ export const Step1PersonalInfo: React.FC<Props> = ({
                 <div className="bg-zinc-900/40 border border-gold-medium/20 rounded-lg p-4 space-y-3 animate-in fade-in slide-in-from-top-2 duration-300">
                   <div className="flex items-center gap-2">
                     <FileText className="w-4 h-4 text-gold-medium" />
-                    <label className="text-xs font-black text-gray-400 uppercase tracking-widest">Seu CPF *</label>
+                    <label className="text-xs font-black text-gray-400 uppercase tracking-widest">{t('checkout.cpf_label', 'Seu CPF')} *</label>
                   </div>
                   <input
                     type="text"

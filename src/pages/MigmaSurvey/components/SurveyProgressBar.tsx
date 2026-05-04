@@ -1,5 +1,6 @@
 import React from 'react';
 import { Check } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import type { SurveySection } from '../../../data/migmaSurveyQuestions';
 
 interface Props {
@@ -8,6 +9,8 @@ interface Props {
 }
 
 export const SurveyProgressBar: React.FC<Props> = ({ sections, currentSectionIdx }) => {
+  const { t } = useTranslation();
+
   return (
     <div className="bg-black/80 backdrop-blur-sm border-b border-white/5 sticky top-14 z-40">
       <div className="max-w-2xl mx-auto px-4 py-4">
@@ -16,6 +19,7 @@ export const SurveyProgressBar: React.FC<Props> = ({ sections, currentSectionIdx
           {sections.map((section, idx) => {
             const completed = idx < currentSectionIdx;
             const active = idx === currentSectionIdx;
+            const sectionTitle = t(`survey_questions.sections.${section.key}.title`, section.title);
             return (
               <div key={section.key} className="flex flex-col items-center gap-1.5 z-10 flex-1">
                 <div className={`
@@ -32,7 +36,7 @@ export const SurveyProgressBar: React.FC<Props> = ({ sections, currentSectionIdx
                 <span className={`text-[10px] font-semibold hidden sm:block text-center transition-colors leading-tight ${
                   active ? 'text-gold-medium' : completed ? 'text-emerald-400' : 'text-gray-600'
                 }`}>
-                  {section.title.split(' ').slice(0, 2).join(' ')}
+                  {sectionTitle.split(' ').slice(0, 2).join(' ')}
                 </span>
               </div>
             );
