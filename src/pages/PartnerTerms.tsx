@@ -485,11 +485,23 @@ export const PartnerTerms = () => {
 
     const getClientIP = async (): Promise<string | null> => {
         try {
-            const response = await fetch('https://api.ipify.org?format=json');
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 4000); // 4s timeout
+
+            const response = await fetch('https://api.ipify.org?format=json', {
+                signal: controller.signal
+            });
+            
+            clearTimeout(timeoutId);
+            
             const data = await response.json();
             return data.ip || null;
-        } catch (error) {
-            console.warn('Could not fetch IP address:', error);
+        } catch (error: any) {
+            if (error.name === 'AbortError') {
+                console.warn('[PARTNER TERMS] IP fetch timed out');
+            } else {
+                console.warn('[PARTNER TERMS] Could not get client IP:', error);
+            }
             return null;
         }
     };
@@ -741,6 +753,7 @@ export const PartnerTerms = () => {
 
         // Iniciar loading
         setIsSubmitting(true);
+        console.log('[PARTNER TERMS] handleAccept started');
         setPhotoUploadError(null);
 
         try {
@@ -767,8 +780,10 @@ export const PartnerTerms = () => {
             }
 
             // Obter IP address e user agent
+            console.log('[PARTNER TERMS] Fetching client IP...');
             const ipAddress = await getClientIP();
             const userAgent = navigator.userAgent;
+            console.log('[PARTNER TERMS] Client IP:', ipAddress);
 
             // ETAPA 8: Buscar dados legais (versão, hash, geolocalização)
             console.log('[PARTNER TERMS] Fetching legal data (version, hash, geolocation)...');
@@ -808,6 +823,7 @@ export const PartnerTerms = () => {
             // 3. Obter geolocalização via IP
             let geolocation: { country: string | null; city: string | null } = { country: null, city: null };
             try {
+                console.log('[PARTNER TERMS] Fetching geolocation...');
                 geolocation = await getGeolocationFromIP(ipAddress);
                 if (geolocation.country) {
                     console.log('[PARTNER TERMS] Geolocation obtained:', geolocation);
@@ -925,6 +941,7 @@ export const PartnerTerms = () => {
                 updateData.geolocation_city = geolocation.city;
             }
 
+            console.log('[PARTNER TERMS] Executing update in partner_terms_acceptances...');
             const { data: updatedAcceptance, error: updateError } = await supabase
                 .from('partner_terms_acceptances')
                 .update(updateData)
@@ -975,16 +992,13 @@ export const PartnerTerms = () => {
 
                     if (!appError && application?.email && application?.full_name) {
                         console.log('[PARTNER TERMS] Sending confirmation email to:', application.email);
-                        const emailSent = await sendTermsAcceptanceConfirmationEmail(
+                        // Do not await to avoid blocking UI navigation
+                        sendTermsAcceptanceConfirmationEmail(
                             application.email,
                             application.full_name
-                        );
+                        ).catch(err => console.warn('[PARTNER TERMS] Email delivery failed:', err));
 
-                        if (emailSent) {
-                            console.log('[PARTNER TERMS] Confirmation email sent successfully');
-                        } else {
-                            console.warn('[PARTNER TERMS] Failed to send confirmation email (non-critical)');
-                        }
+                        console.log('[PARTNER TERMS] Confirmation email triggered');
                     } else {
                         console.warn('[PARTNER TERMS] Could not fetch application data for email:', appError);
                     }

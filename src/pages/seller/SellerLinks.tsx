@@ -872,7 +872,7 @@ export function SellerLinks() {
                     <div className="grid gap-3 sm:grid-cols-2">
                       {/* Number of Dependents */}
                       <div className="space-y-1.5">
-                        <Label htmlFor="prefill-extra-units" className="text-white text-sm">Number of Dependents</Label>
+                        <Label htmlFor="prefill-extra-units" className="text-white text-sm">{prefillFormData.productSlug === 'rfe-defense' ? 'Número de evidências' : 'Number of Dependents'}</Label>
                         <div className="relative">
                           <Select
                             value={prefillFormData.extraUnits.toString()}
@@ -961,7 +961,7 @@ export function SellerLinks() {
                         {Array.from({ length: prefillFormData.extraUnits }, (_, i) => (
                           <div key={i} className="space-y-1.5">
                             <Label htmlFor={`prefill-dependent-name-${i}`} className="text-white text-sm">
-                              Dependent Name {i + 1}
+                              {prefillFormData.productSlug === 'rfe-defense' ? `Descrição da evidência ${i + 1}` : `Dependent Name ${i + 1}`}
                             </Label>
                             <Input
                               id={`prefill-dependent-name-${i}`}
@@ -1547,15 +1547,17 @@ export function SellerLinks() {
                   };
 
                   products.forEach((product) => {
-                    if (product.slug.startsWith('initial-') || product.slug === 'INITIAL Application - Full Process Payment') {
+                    const slug = product.slug.toLowerCase();
+                    
+                    if (slug.startsWith('initial-') || slug.includes('initial-application')) {
                       serviceGroups.initial.products.push(product);
-                    } else if (product.slug.startsWith('cos-') || product.slug === 'Change of Status - Full Process Payment') {
+                    } else if (slug.startsWith('cos-') || slug.includes('change-of-status')) {
                       serviceGroups.cos.products.push(product);
-                    } else if (product.slug.startsWith('transfer-') || product.slug === 'TRANSFER - Full Process Payment') {
+                    } else if (slug.startsWith('transfer-') || slug.includes('transfer-full-process')) {
                       serviceGroups.transfer.products.push(product);
-                    } else if (product.slug.startsWith('eb2-')) {
+                    } else if (slug.startsWith('eb2-') || slug.startsWith('eb-2-')) {
                       serviceGroups.eb2.products.push(product);
-                    } else if (product.slug.startsWith('eb3-')) {
+                    } else if (slug.startsWith('eb3-') || slug.startsWith('eb-3-')) {
                       serviceGroups.eb3.products.push(product);
                     } else {
                       serviceGroups.other.products.push(product);

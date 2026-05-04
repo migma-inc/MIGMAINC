@@ -169,13 +169,19 @@ export async function getGeolocationFromIP(ipAddress: string | null): Promise<{ 
   }
 
   try {
-    // Use ipapi.co free API
+    // Use ipapi.co free API with a timeout
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000);
+
     const response = await fetch(`https://ipapi.co/${ipAddress}/json/`, {
       method: 'GET',
       headers: {
         'Accept': 'application/json',
       },
+      signal: controller.signal,
     });
+
+    clearTimeout(timeoutId);
 
     if (!response.ok) {
       console.warn('[contracts] Geolocation API returned non-OK status:', response.status);
@@ -195,8 +201,12 @@ export async function getGeolocationFromIP(ipAddress: string | null): Promise<{ 
     const city = data.city || null;
 
     return { country, city };
-  } catch (error) {
-    console.warn('[contracts] Error fetching geolocation (non-critical):', error);
+  } catch (error: any) {
+    if (error.name === 'AbortError') {
+      console.warn('[contracts] Geolocation API request timed out');
+    } else {
+      console.warn('[contracts] Error fetching geolocation (non-critical):', error);
+    }
     // Return nulls on error - geolocation is not critical for functionality
     return { country: null, city: null };
   }

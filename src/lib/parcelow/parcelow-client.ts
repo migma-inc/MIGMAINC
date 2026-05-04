@@ -25,7 +25,7 @@ export class ParcelowClient {
     this.baseUrl =
       config.environment === 'staging'
         ? 'https://staging.parcelow.com'
-        : 'https://app.parcelow.com'; // URL de produção (assumindo baseado na documentação)
+        : 'https://app.parcelow.com.br'; // URL de produção (assumindo baseado na documentação)
   }
 
   /**
@@ -177,12 +177,12 @@ export class ParcelowClient {
       'GET',
       `/api/order/${orderId}`
     );
-    
+
     // API returns array, get first item
     if (response.success && Array.isArray(response.data) && response.data.length > 0) {
       return response.data[0];
     }
-    
+
     throw new Error('Order not found');
   }
 
@@ -194,11 +194,11 @@ export class ParcelowClient {
       'GET',
       `/api/orders/reference/${reference}`
     );
-    
+
     if (response.success && Array.isArray(response.data)) {
       return response.data;
     }
-    
+
     return [];
   }
 

@@ -269,9 +269,11 @@ Deno.serve(async (req) => {
         pdf.setTextColor(255, 255, 255);
         pdf.setFontSize(10);
 
+        const isRfeDefense = order.product_slug === 'rfe-defense';
+
         pdf.text('Description', margin + 5, currentY + 7);
-        pdf.text('Qty', pageWidth - margin - 80, currentY + 7, { align: 'right' });
-        pdf.text('Unit Price', pageWidth - margin - 40, currentY + 7, { align: 'right' });
+        pdf.text(isRfeDefense ? 'Evidence' : 'Qty', pageWidth - margin - 80, currentY + 7, { align: 'right' });
+        pdf.text(isRfeDefense ? 'Price per Evidence' : 'Unit Price', pageWidth - margin - 40, currentY + 7, { align: 'right' });
         pdf.text('Total', pageWidth - margin - 5, currentY + 7, { align: 'right' });
 
         currentY += 10;
@@ -283,24 +285,44 @@ Deno.serve(async (req) => {
 
         // Item 1: Main Product
         const basePrice = parseFloat(order.base_price_usd || '0');
-        pdf.text(product?.name || order.product_slug, margin + 5, currentY + 7);
-        pdf.text('1', pageWidth - margin - 80, currentY + 7, { align: 'right' });
-        pdf.text(`${currencySymbol}${basePrice.toFixed(2)}`, pageWidth - margin - 40, currentY + 7, { align: 'right' });
-        pdf.text(`${currencySymbol}${basePrice.toFixed(2)}`, pageWidth - margin - 5, currentY + 7, { align: 'right' });
+
+        // Calculate Extras to check if they need to be merged or shown
+        const dbExtraUnits = order.extra_units || 0;
+        const dependentNamesCount = Array.isArray(order.dependent_names) ? order.dependent_names.length : 0;
+        const displayExtraUnits = dbExtraUnits > 0 ? dbExtraUnits : dependentNamesCount;
+        const displayExtraPrice = parseFloat(order.extra_unit_price_usd || order.price_per_dependent_usd || product?.price_per_dependent_usd || '0');
+        const extraTotal = displayExtraUnits * displayExtraPrice;
+
+        if (isRfeDefense) {
+            // For RFE, we merge everything into one line for a cleaner invoice as requested
+            const totalPrice = basePrice + extraTotal;
+            const rfeDescription = product?.name || 'RFE Defense (when immigration requests additional evidence)';
+            
+            const evidenceCount = displayExtraUnits > 0 ? displayExtraUnits : 1;
+            const pricePerEvidence = displayExtraPrice > 0 ? displayExtraPrice : totalPrice / evidenceCount;
+            
+            pdf.setFontSize(8); // Smaller font for long RFE description to avoid overlap
+            pdf.text(rfeDescription, margin + 5, currentY + 7);
+            pdf.setFontSize(10); // Reset font size
+            
+            pdf.text(evidenceCount.toString(), pageWidth - margin - 80, currentY + 7, { align: 'right' });
+            pdf.text(`${currencySymbol}${pricePerEvidence.toFixed(2)}`, pageWidth - margin - 40, currentY + 7, { align: 'right' });
+            pdf.text(`${currencySymbol}${totalPrice.toFixed(2)}`, pageWidth - margin - 5, currentY + 7, { align: 'right' });
+        } else {
+            // Regular logic for other products
+            pdf.text(product?.name || order.product_slug, margin + 5, currentY + 7);
+            pdf.text('1', pageWidth - margin - 80, currentY + 7, { align: 'right' });
+            pdf.text(`${currencySymbol}${basePrice.toFixed(2)}`, pageWidth - margin - 40, currentY + 7, { align: 'right' });
+            pdf.text(`${currencySymbol}${basePrice.toFixed(2)}`, pageWidth - margin - 5, currentY + 7, { align: 'right' });
+        }
+
 
         currentY += 10;
         pdf.setDrawColor(240, 240, 240);
         pdf.line(margin, currentY, pageWidth - margin, currentY);
 
-        // Item 2: Extra Units / Dependents
-        const dbExtraUnits = order.extra_units || 0;
-        const dependentNamesCount = Array.isArray(order.dependent_names) ? order.dependent_names.length : 0;
-        const displayExtraUnits = dbExtraUnits > 0 ? dbExtraUnits : dependentNamesCount;
-        const displayExtraPrice = parseFloat(order.extra_unit_price_usd || order.price_per_dependent_usd || product?.price_per_dependent_usd || '0');
-
-        const extraTotal = displayExtraUnits * displayExtraPrice;
-
-        if (displayExtraUnits > 0 && extraTotal > 0) {
+        // Item 2: Extra Units / Dependents (Omitted for RFE as they are merged above)
+        if (!isRfeDefense && displayExtraUnits > 0 && extraTotal > 0) {
             const label = order.extra_unit_label || product?.extra_unit_label || 'Additional Dependent';
             pdf.text(label, margin + 5, currentY + 7);
             pdf.text(displayExtraUnits.toString(), pageWidth - margin - 80, currentY + 7, { align: 'right' });
@@ -445,11 +467,12 @@ Deno.serve(async (req) => {
                 .trim();
         };
 
-        const safeClientName = normalizeForFileName(order.client_name).replace(/[^a-zA-Z0-9]/g, '_');
-        const safeServiceName = normalizeForFileName(product?.name || order.product_slug).replace(/[^a-zA-Z0-9]/g, '_');
+        const safeClientName = normalizeForFileName(order.client_name).replace(/[^a-zA-Z0-9]/g, '_').replace(/_+/g, '_');
+        const safeServiceName = isRfeDefense ? 'RFE_Defense' : normalizeForFileName(product?.name || order.product_slug).replace(/[^a-zA-Z0-9]/g, '_').replace(/_+/g, '_');
 
-        // Pattern: INVOICE_CUSTOMER_NAME_ORDER_NUMBER_SERVICE_NAME_V2.pdf
-        const fileName = `INVOICE_${safeClientName}_${order.order_number}_${safeServiceName}_V2.pdf`;
+        // Pattern: INVOICE_CUSTOMER_NAME_ORDER_NUMBER_SERVICE_NAME_V3.pdf
+        const fileName = `INVOICE_${safeClientName}_${order.order_number}_${safeServiceName}_V3.pdf`;
+
         const filePath = `invoices/${fileName}`;
 
         const { error: uploadError } = await supabase.storage

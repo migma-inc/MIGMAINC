@@ -240,7 +240,7 @@ export const CheckoutSuccess = () => {
                     </span>
                   </div>
 
-                  {order.product_details?.base_price_usd && (
+                  {order.product_details?.base_price_usd && order.product_slug !== 'rfe-defense' && (
                     <div className="flex justify-between items-center">
                       <span className="text-gray-400">{t('checkout.base_price', 'Base Price')}:</span>
                       <span className="text-white font-medium">US$ {parseFloat(order.product_details.base_price_usd).toFixed(2)}</span>
@@ -249,7 +249,11 @@ export const CheckoutSuccess = () => {
 
                   {order.extra_units > 0 && (
                     <div className="flex justify-between items-center">
-                      <span className="text-gray-400">{t('checkout.number_of_dependents', 'Number of dependents')}:</span>
+                      <span className="text-gray-400">
+                        {order.product_slug === 'rfe-defense' 
+                          ? t('checkout.evidences', 'Evidências') + ':' 
+                          : t('checkout.number_of_dependents', 'Number of dependents') + ':'}
+                      </span>
                       <span className="text-white font-medium">{order.extra_units}</span>
                     </div>
                   )}

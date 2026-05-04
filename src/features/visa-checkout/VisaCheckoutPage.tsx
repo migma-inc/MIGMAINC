@@ -81,11 +81,8 @@ export const VisaCheckoutPage: React.FC = () => {
 
     const baseTotal = state.customAmount !== null ? state.customAmount : Math.max(0, initialBaseTotal - discountAmount);
     const totalWithFees = product ? calculateTotalWithFees(baseTotal, state.paymentMethod, state.exchangeRate || undefined) : 0;
-    const isLocalhost = typeof window !== 'undefined' && (
-        window.location.hostname === 'localhost' ||
-        window.location.hostname === '127.0.0.1'
-    );
-    const showSquare = isLocalhost || userLocation.countryCode === 'US';
+    // showSquare is currently hidden to prioritize Stripe/Parcelow for international/US orders
+    const showSquare = false; // isLocalhost || userLocation.countryCode === 'US';
 
     // Sync discount amount to state
     useEffect(() => {
@@ -269,13 +266,19 @@ export const VisaCheckoutPage: React.FC = () => {
                                     <p className="text-gray-400 text-sm leading-relaxed">{product.description}</p>
                                 </div>
                                 <div className="pt-2 space-y-2 border-t border-white/5">
-                                    <div className="flex justify-between items-center text-sm">
-                                        <span className="text-gray-400">{t('checkout.base_price', 'Base Price')}:</span>
-                                        <span className="text-white font-bold text-lg">US$ {parseFloat(product.base_price_usd).toFixed(2)}</span>
-                                    </div>
+                                    {productSlug !== 'rfe-defense' && (
+                                        <div className="flex justify-between items-center text-sm">
+                                            <span className="text-gray-400">{t('checkout.base_price', 'Base Price')}:</span>
+                                            <span className="text-white font-bold text-lg">US$ {parseFloat(product.base_price_usd).toFixed(2)}</span>
+                                        </div>
+                                    )}
                                     {productSlug !== 'consultation-common' && (
                                         <div className="flex justify-between items-center text-sm">
-                                            <span className="text-gray-400">{t('checkout.per_dependents', 'Per dependents')}:</span>
+                                            <span className="text-gray-400">
+                                                {productSlug === 'rfe-defense' 
+                                                    ? t('checkout.per_evidence', 'Por evidência:') 
+                                                    : t('checkout.per_dependents', 'Por dependente:')}
+                                            </span>
                                             <span className="text-gray-300">US$ {parseFloat(product.extra_unit_price).toFixed(2)}</span>
                                         </div>
                                     )}
