@@ -4,7 +4,7 @@ import { isParcelowMethod } from '../../types/form.types';
 import { useTranslation } from 'react-i18next';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { ArrowUpRight } from 'lucide-react';
+import { ArrowUpRight, CreditCard } from 'lucide-react';
 
 // Step 3 Sub-components
 import { ContractTermsSection } from './step3/ContractTermsSection';
@@ -110,6 +110,15 @@ export const Step3Payment: React.FC<Step3Props> = ({ state, actions, handlers, o
                     showStripe={false}
                     showSquare={showSquare}
                 />
+
+                {paymentMethod === 'parcelow_card' && (
+                    <div className="mt-3 flex items-start gap-2 rounded-lg border border-blue-500/30 bg-blue-500/10 px-4 py-3 animate-in fade-in slide-in-from-top-2">
+                        <CreditCard className="w-4 h-4 text-blue-400 mt-0.5 shrink-0" />
+                        <p className="text-sm text-blue-200 leading-snug">
+                            {t('checkout.parcelow_card_us_notice', 'Parcelow accepts US credit cards. Payment will be processed as a single charge — installments are not available for international cards.')}
+                        </p>
+                    </div>
+                )}
 
                 {isParcelowMethod(paymentMethod) && (
                     <div className="pt-2 animate-in fade-in slide-in-from-top-2">

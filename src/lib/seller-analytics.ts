@@ -901,6 +901,30 @@ function getBaseService(productSlug: string | null | undefined): string | null {
 }
 
 /**
+ * Normaliza um slug para comparação: remove separadores e caixa.
+ * Mesma lógica usada em AdminTracking para slugMatchesStep.
+ * Ex: "us-visa-change-of-status-selection-process-12" -> "usvisachangeofstatusselectionprocess12"
+ */
+function normalizeSlug(slug: string): string {
+  return slug.toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
+/**
+ * Retorna o slug base normalizado de um produto, removendo sufixos de parcelamento dinâmico.
+ * Ex: "us-visa-change-of-status-selection-process-12"  -> "usvisachangeofstatusselectionprocess"
+ *     "us-visa-change-of-status-selection-process-22"  -> "usvisachangeofstatusselectionprocess"
+ *     "us-visa-change-of-status-selection-process-outstanding" -> "usvisachangeofstatusselectionprocess"
+ */
+function getBaseSlug(productSlug: string | null | undefined): string {
+  if (!productSlug) return '';
+  const stripped = productSlug
+    .replace(/-\d+-of-\d+$/, '')  // ex: -2-of-3
+    .replace(/-outstanding$/, '')  // ex: -outstanding
+    .replace(/-\d+$/, '');         // ex: -12, -22
+  return normalizeSlug(stripped);
+}
+
+/**
  * Verifica se um pedido é o primeiro pagamento (contrato vendido)
  * Regras:
  * 1. Se está na blacklist, nunca é contrato vendido
@@ -970,12 +994,15 @@ function isFirstPayment(order: any, allOrders: any[]): boolean {
     if (hasPreviousSelectionProcess) return false;
   }
 
-  // 4. Para outros produtos (ou se não achou selection process nos casos acima), 
-  // verificar se já existe pedido anterior do mesmo produto (completado/paid)
+  // 4. Para outros produtos (ou se não achou selection process nos casos acima),
+  // verificar se já existe pedido anterior do mesmo produto (completado/paid).
+  // Usa getBaseSlug para agrupar installments dinâmicos (-12, -22, -outstanding)
+  // do mesmo produto como um único contrato.
+  const orderBaseSlug = getBaseSlug(order.product_slug);
   const hasPreviousOrder = allOrders.some((o: any) => {
     if (o.id === order.id) return false;
     if (o.client_email !== order.client_email) return false;
-    if (o.product_slug !== order.product_slug) return false;
+    if (getBaseSlug(o.product_slug) !== orderBaseSlug) return false;
     if (o.payment_status !== 'completed' && o.payment_status !== 'paid') return false;
 
     const dateA = new Date(o.created_at).getTime();
