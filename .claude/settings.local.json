@@ -34,7 +34,8 @@
       "Bash(xargs -I {} grep -l \"parcelow_pending\\\\|get_user_id_by_email\" \"C:\\\\Users\\\\victurib\\\\Migma\\\\migma-lp/supabase/migrations/{}\")",
       "Bash(rtk npx:*)",
       "Bash(rtk supabase:*)",
-      "Bash(date:*)"
+      "Bash(date:*)",
+      "Bash(rtk npm:*)"
     ]
   }
 }
