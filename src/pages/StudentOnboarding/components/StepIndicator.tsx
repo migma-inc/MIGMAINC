@@ -33,7 +33,7 @@ export const StepIndicator: React.FC<StepIndicatorProps> = ({ currentStep, compl
   
   // Resolve alias steps to the main steps we display
   const resolvedStep = STEP_ALIAS[currentStep] ?? currentStep;
-  const currentIndex = STEPS.findIndex(s => s.key === resolvedStep);
+  const rawCurrentIndex = STEPS.findIndex(s => s.key === resolvedStep);
   const totalSteps = STEPS.length;
   
   // Find the highest completed index for visual progress
@@ -45,7 +45,11 @@ export const StepIndicator: React.FC<StepIndicatorProps> = ({ currentStep, compl
   );
   
   // Use the highest of current or last completed
-  const effectivelyCurrentIndex = Math.max(currentIndex, lastCompletedIndex);
+  const currentIndex = rawCurrentIndex >= 0 ? rawCurrentIndex : Math.max(lastCompletedIndex, 0);
+  const effectivelyCurrentIndex = Math.min(
+    totalSteps - 1,
+    Math.max(currentIndex, lastCompletedIndex)
+  );
   
   // Progress bar percentage (overall completion)
   const progress = ((effectivelyCurrentIndex + 1) / totalSteps) * 100;
@@ -70,16 +74,16 @@ export const StepIndicator: React.FC<StepIndicatorProps> = ({ currentStep, compl
       <div className="flex items-center justify-between gap-4 mb-6 px-1">
         <div className="flex flex-col">
           <span className="font-bold tracking-widest uppercase text-gray-500 text-[10px]">
-            {t('student_onboarding.steps.counter', { current: currentIndex + 1, total: totalSteps })}
+            {t('student_onboarding.steps.counter', { current: effectivelyCurrentIndex + 1, total: totalSteps })}
           </span>
           <span className="font-black text-white uppercase tracking-tight text-sm md:text-lg mt-0.5">
-            {STEPS[currentIndex] ? t(STEPS[currentIndex].labelKey) : ''}
+            {STEPS[rawCurrentIndex] ? t(STEPS[rawCurrentIndex].labelKey) : t(STEPS[effectivelyCurrentIndex].labelKey)}
           </span>
         </div>
         
         {/* Mobile quick progress icon */}
         <div className="lg:hidden w-10 h-10 rounded-xl bg-gold-medium/10 border border-gold-medium/20 flex items-center justify-center">
-            <span className="text-gold-medium font-black text-sm">{currentIndex + 1}</span>
+            <span className="text-gold-medium font-black text-sm">{effectivelyCurrentIndex + 1}</span>
         </div>
       </div>
 
@@ -97,7 +101,7 @@ export const StepIndicator: React.FC<StepIndicatorProps> = ({ currentStep, compl
           const isCurrent = step.key === resolvedStep;
           const isCompleted = completedSteps.includes(step.key) || 
                              completedSteps.some(cs => STEP_ALIAS[cs] === step.key) ||
-                             index < currentIndex;
+                             index < effectivelyCurrentIndex;
 
           return (
             <div
