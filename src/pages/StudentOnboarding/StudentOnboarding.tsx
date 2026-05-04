@@ -14,6 +14,9 @@ const SelectionFeeStep = React.lazy(() =>
 const MigmaSurveyStep = React.lazy(() =>
   import('./components/MigmaSurveyStep').then(m => ({ default: m.MigmaSurveyStep }))
 );
+const WaitRoomStep = React.lazy(() =>
+  import('./components/WaitRoomStep').then(m => ({ default: m.WaitRoomStep }))
+);
 const UniversitySelectionStep = React.lazy(() =>
   import('./components/UniversitySelectionStep').then(m => ({ default: m.UniversitySelectionStep }))
 );
@@ -40,7 +43,6 @@ const normalizeLegacyStep = (step: OnboardingStep | string | null | undefined): 
   if (!step) return null;
   if (step === 'process_type') return 'documents_upload';
   if (step === 'identity_verification') return 'selection_survey';
-  if (step === 'wait_room') return 'scholarship_selection';
   return step as OnboardingStep;
 };
 
@@ -49,6 +51,8 @@ const StepLoader = () => (
     <Loader2 className="w-10 h-10 animate-spin text-gold-medium" />
   </div>
 );
+
+const DISABLE_REVIEW_WAIT_ROOM_FOR_TESTS = true;
 
 const CompletedScreen = () => {
   const { t } = useTranslation();
@@ -83,7 +87,7 @@ const StudentOnboarding: React.FC = () => {
   }, [authLoading, user, navigate]);
 
   const VALID_STEPS: OnboardingStep[] = [
-    'selection_fee', 'selection_survey',
+    'selection_fee', 'selection_survey', 'wait_room',
     'scholarship_selection', 'placement_fee',
     'documents_upload', 'payment', 'dados_complementares',
     'my_applications', 'acceptance_letter',
@@ -121,6 +125,7 @@ const StudentOnboarding: React.FC = () => {
   const getOrderedSteps = useCallback((): OnboardingStep[] => [
     'selection_fee',
     'selection_survey',
+    'wait_room',
     'scholarship_selection',
     'placement_fee',
     'documents_upload',
@@ -133,11 +138,14 @@ const StudentOnboarding: React.FC = () => {
   const handleNext = useCallback(async () => {
     // Refresh progress from backend
     const res = await checkProgress();
-    const currentMax = (res as any)?.maxAllowedStep || maxAllowedStep;
+    const currentMax = (res as { maxAllowedStep?: OnboardingStep } | void)?.maxAllowedStep || maxAllowedStep;
     
     const steps = getOrderedSteps();
     const currentIndex = steps.indexOf(state.currentStep);
-    const nextStep = steps[currentIndex + 1];
+    let nextStep = steps[currentIndex + 1];
+    if (DISABLE_REVIEW_WAIT_ROOM_FOR_TESTS && state.currentStep === 'selection_survey') {
+      nextStep = 'scholarship_selection';
+    }
     
     // We don't need to manually check maxAllowedStep here because goToStep 
     // will be called, but the next checkProgress cycle would pull them back anyway.
@@ -152,7 +160,7 @@ const StudentOnboarding: React.FC = () => {
         console.warn('[Onboarding] Bloqueando avanço: necessário aprovação ou ação pendente.', { nextStep, maxAllowedStep: currentMax });
       }
     }
-  }, [state.currentStep, goToStep, getOrderedSteps, checkProgress]);
+  }, [state.currentStep, goToStep, getOrderedSteps, checkProgress, maxAllowedStep]);
 
   const handleBack = useCallback(() => {
     const steps = getOrderedSteps();
@@ -165,6 +173,7 @@ const StudentOnboarding: React.FC = () => {
   const completedSteps: OnboardingStep[] = [];
   if (state.selectionFeePaid) completedSteps.push('selection_fee');
   if (state.selectionSurveyPassed) completedSteps.push('selection_survey');
+  if (state.contractApproved) completedSteps.push('wait_room');
   if (state.scholarshipsSelected) completedSteps.push('scholarship_selection');
   if (state.placementFeePaid) completedSteps.push('placement_fee');
   if (state.documentsUploaded) completedSteps.push('documents_upload');
@@ -221,6 +230,14 @@ const StudentOnboarding: React.FC = () => {
         <Suspense fallback={<StepLoader />}>
           {state.currentStep === 'selection_fee' && <SelectionFeeStep {...stepProps} />}
           {state.currentStep === 'selection_survey' && <MigmaSurveyStep {...stepProps} contractApproved={state.contractApproved} />}
+          {state.currentStep === 'wait_room' && (
+            <WaitRoomStep
+              surveyCompletedAt={state.surveyCompletedAt}
+              checkProgress={async () => {
+                await checkProgress();
+              }}
+            />
+          )}
           {state.currentStep === 'scholarship_selection' && <UniversitySelectionStep {...stepProps} />}
           {state.currentStep === 'documents_upload' && <DocumentsUploadStep {...stepProps} />}
           {state.currentStep === 'payment' && <PaymentStep {...stepProps} />}

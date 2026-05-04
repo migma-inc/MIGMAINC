@@ -22,16 +22,27 @@ interface SplitCheckoutResponse {
     error?: string;
 }
 
+const SANDBOX_PAYMENT_HOSTS = [
+    'migma-lp-2qvd-4glfm5nvh-migma-incs-projects.vercel.app',
+];
+
+function targetsSandboxPayment(...values: string[]): boolean {
+    return values.some((value) => SANDBOX_PAYMENT_HOSTS.some((host) => value.includes(host)));
+}
+
 function detectParcelowEnvironment(req: Request, appUrl?: string): 'production' | 'staging' {
     const referer = req.headers.get("referer") || "";
     const origin = req.headers.get("origin") || "";
     const host = req.headers.get("host") || "";
     const browserOrigin = appUrl || origin || referer || host || "";
+    const forceSandbox = targetsSandboxPayment(browserOrigin);
 
     const isProductionDomain =
-        browserOrigin.includes("migma.com") ||
-        browserOrigin.includes("migmainc.com") ||
-        (browserOrigin.includes("vercel.app") && !browserOrigin.includes("preview"));
+        !forceSandbox && (
+            browserOrigin.includes("migma.com") ||
+            browserOrigin.includes("migmainc.com") ||
+            (browserOrigin.includes("vercel.app") && !browserOrigin.includes("preview"))
+        );
 
     return isProductionDomain ? 'production' : 'staging';
 }

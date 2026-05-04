@@ -85,6 +85,55 @@ async function upsertIdentityFiles(
   }
 }
 
+async function resolveProfile(
+  migma: ReturnType<typeof createClient>,
+  userOrProfileId: string,
+) {
+  const { data: profile, error } = await migma
+    .from("user_profiles")
+    .select("id, user_id")
+    .or(`user_id.eq.${userOrProfileId},id.eq.${userOrProfileId}`)
+    .maybeSingle();
+
+  if (error || !profile?.id) {
+    console.warn(`[migma-payment-completed] profile not found for id ${userOrProfileId}`);
+    return null;
+  }
+
+  return profile as { id: string; user_id: string | null };
+}
+
+async function notifyByProfile(
+  migma: ReturnType<typeof createClient>,
+  trigger: "selection_fee_paid" | "placement_fee_paid",
+  profileId: string,
+  data: Record<string, unknown> = {},
+) {
+  try {
+    const notifyRes = await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/migma-notify`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+        "apikey": Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
+      },
+      body: JSON.stringify({
+        trigger,
+        user_id: profileId,
+        data,
+      }),
+    });
+
+    if (!notifyRes.ok) {
+      console.warn(`[migma-payment-completed] notify ${trigger} failed: ${notifyRes.status} ${await notifyRes.text()}`);
+    } else {
+      console.log(`[migma-payment-completed] ✅ notify ${trigger} dispatched for profile ${profileId}`);
+    }
+  } catch (err: any) {
+    console.warn(`[migma-payment-completed] notify ${trigger} failed: ${err.message}`);
+  }
+}
+
 // ─── Handler principal ───────────────────────────────────────────────────────
 
 Deno.serve(async (req) => {
@@ -162,6 +211,8 @@ Deno.serve(async (req) => {
         console.log(`[individual_fee_payments] ✅ Registro criado: ${paymentRecordId}`);
       }
 
+      const resolvedProfile = await resolveProfile(migma, user_id);
+
       if (fee_type === "selection_process") {
         const profileUpdate: Record<string, unknown> = {
           has_paid_selection_process_fee: true,
@@ -175,10 +226,12 @@ Deno.serve(async (req) => {
           profileUpdate.num_dependents = Number(num_dependents);
         }
 
-        const { error: profErr } = await migma
+        const updateQuery = migma
           .from("user_profiles")
-          .update(profileUpdate)
-          .eq("user_id", user_id);
+          .update(profileUpdate);
+        const { error: profErr } = resolvedProfile?.id
+          ? await updateQuery.eq("id", resolvedProfile.id)
+          : await updateQuery.eq("user_id", user_id);
 
         if (profErr) {
           console.error(`[user_profiles] update falhou: ${profErr.message}`);
@@ -186,23 +239,29 @@ Deno.serve(async (req) => {
           console.log(
             `[user_profiles] ✅ selection_process: paid=true | price=${amountNum > 0 ? amountNum : "preservado"}`
           );
+          if (resolvedProfile?.id) {
+            await notifyByProfile(migma, "selection_fee_paid", resolvedProfile.id);
+          }
         }
       }
 
       // 🎯 NOVO: Tratar Placement Fee (V11)
       if (fee_type === "placement_fee" || fee_type === "placement-fee") {
         console.log(`[V11] 🎓 Processando baixa de Placement Fee para user ${user_id}...`);
-        
-        // 1. Atualizar user_profiles
-        const { error: profErr } = await migma
-          .from("user_profiles")
-          .update({
-            is_placement_fee_paid: true,
-            placement_fee_paid_at: new Date().toISOString()
-          })
-          .eq("user_id", user_id);
 
-        if (profErr) console.error(`[user_profiles] update placement_fee falhou: ${profErr.message}`);
+        if (!resolvedProfile?.id) {
+          console.error(`[user_profiles] update placement_fee falhou: profile not found for ${user_id}`);
+        } else {
+          const { error: profErr } = await migma
+            .from("user_profiles")
+            .update({
+              is_placement_fee_paid: true,
+            })
+            .eq("id", resolvedProfile.id);
+
+          if (profErr) console.error(`[user_profiles] update placement_fee falhou: ${profErr.message}`);
+          else await notifyByProfile(migma, "placement_fee_paid", resolvedProfile.id);
+        }
 
         // 2. Atualizar institution_applications se ID disponível
         if (body.application_id) {

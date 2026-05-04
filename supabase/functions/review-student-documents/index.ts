@@ -11,10 +11,40 @@ const corsHeaders = {
 
 type ReviewDecision = "approve" | "reject";
 type DocumentScope = "student" | "global";
+type AggregateStatus = "pending" | "under_review" | "approved" | "rejected";
+
+async function getAggregateDocumentStatus(
+  supabase: ReturnType<typeof createClient>,
+  profile: { id: string; user_id: string }
+): Promise<AggregateStatus> {
+  const [{ data: studentDocs, error: studentDocsError }, { data: globalDocs, error: globalDocsError }] = await Promise.all([
+    supabase
+      .from("student_documents")
+      .select("status")
+      .eq("user_id", profile.user_id),
+    supabase
+      .from("global_document_requests")
+      .select("status")
+      .eq("profile_id", profile.id),
+  ]);
+
+  if (studentDocsError) throw new Error(studentDocsError.message);
+  if (globalDocsError) throw new Error(globalDocsError.message);
+
+  const statuses = [
+    ...(studentDocs ?? []).map((doc) => doc.status ?? "pending"),
+    ...(globalDocs ?? []).map((doc) => doc.status ?? "pending"),
+  ];
+
+  if (statuses.length === 0) return "pending";
+  if (statuses.some((status) => status === "rejected")) return "rejected";
+  if (statuses.every((status) => status === "approved")) return "approved";
+  return "under_review";
+}
 
 function buildNotifyPayload(
   decision: ReviewDecision,
-  profile: { user_id: string; email: string | null; full_name: string | null },
+  profile: { id: string; email: string | null; full_name: string | null },
   data: { rejection_reason?: string | null; scope: DocumentScope; document_id?: string | null }
 ) {
   const documentName =
@@ -22,26 +52,18 @@ function buildNotifyPayload(
       ? "Post-university documents"
       : "Student onboarding documents";
 
-  return decision === "approve"
-    ? {
-        trigger: data.document_id ? "document_approved" as const : "all_documents_approved" as const,
-        user_id: profile.user_id,
-        data: {
-          client_name: profile.full_name ?? profile.email ?? "Student",
-          document_id: data.document_id ?? undefined,
-          document_name: documentName,
-        },
-      }
-    : {
-        trigger: "document_rejected" as const,
-        user_id: profile.user_id,
-        data: {
-          client_name: profile.full_name ?? profile.email ?? "Student",
-          document_name: documentName,
-          document_id: data.document_id ?? undefined,
-          document_reason: data.rejection_reason ?? undefined,
-        },
-      };
+  if (decision === "approve") return null;
+
+  return {
+    trigger: "document_rejected" as const,
+    user_id: profile.id,
+    data: {
+      client_name: profile.full_name ?? profile.email ?? "Student",
+      document_name: documentName,
+      document_id: data.document_id ?? undefined,
+      document_reason: data.rejection_reason ?? undefined,
+    },
+  };
 }
 
 Deno.serve(async (req) => {
@@ -126,72 +148,7 @@ Deno.serve(async (req) => {
         if (docsUpdateError) {
           console.warn("[review-student-documents] Failed to update student_documents:", docsUpdateError.message);
         }
-
-        const { data: studentDocs, error: studentDocsError } = await supabase
-          .from("student_documents")
-          .select("status")
-          .eq("user_id", profile.user_id);
-
-        if (studentDocsError) {
-          return new Response(
-            JSON.stringify({ success: false, error: studentDocsError.message }),
-            { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-          );
-        }
-
-        const statuses = (studentDocs ?? []).map((doc) => doc.status ?? "pending");
-        const aggregateStatus = statuses.length === 0
-          ? "pending"
-          : statuses.some((status) => status === "rejected")
-            ? "rejected"
-            : statuses.every((status) => status === "approved")
-              ? "approved"
-              : "under_review";
-
-        const nextProfileUpdate: Record<string, unknown> = {
-          documents_status: aggregateStatus,
-          documents_uploaded: aggregateStatus === "approved",
-          updated_at: new Date().toISOString(),
-        };
-
-        if (aggregateStatus !== "approved") {
-          nextProfileUpdate.onboarding_current_step = "documents_upload";
-        }
-
-        const { error: profileUpdateError } = await supabase
-          .from("user_profiles")
-          .update(nextProfileUpdate)
-          .eq("id", profile_id);
-
-        if (profileUpdateError) {
-          return new Response(
-            JSON.stringify({ success: false, error: profileUpdateError.message }),
-            { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-          );
-        }
       } else {
-        const nextProfileUpdate: Record<string, unknown> = {
-          documents_status: nextStatus,
-          documents_uploaded: decision === "approve",
-          updated_at: new Date().toISOString(),
-        };
-
-        if (decision === "reject") {
-          nextProfileUpdate.onboarding_current_step = "documents_upload";
-        }
-
-        const { error: profileUpdateError } = await supabase
-          .from("user_profiles")
-          .update(nextProfileUpdate)
-          .eq("id", profile_id);
-
-        if (profileUpdateError) {
-          return new Response(
-            JSON.stringify({ success: false, error: profileUpdateError.message }),
-            { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-          );
-        }
-
         const { error } = await supabase
           .from("student_documents")
           .update({
@@ -224,6 +181,31 @@ Deno.serve(async (req) => {
       }
     }
 
+    const aggregateStatus = await getAggregateDocumentStatus(supabase, profile);
+    const nextProfileUpdate: Record<string, unknown> = {
+      documents_status: aggregateStatus,
+      documents_uploaded: aggregateStatus === "approved" ? true : profile.documents_uploaded,
+      updated_at: new Date().toISOString(),
+    };
+
+    if (aggregateStatus === "approved") {
+      nextProfileUpdate.onboarding_current_step = "payment";
+    } else if (decision === "reject" || aggregateStatus === "rejected") {
+      nextProfileUpdate.onboarding_current_step = "documents_upload";
+    }
+
+    const { error: profileUpdateError } = await supabase
+      .from("user_profiles")
+      .update(nextProfileUpdate)
+      .eq("id", profile_id);
+
+    if (profileUpdateError) {
+      return new Response(
+        JSON.stringify({ success: false, error: profileUpdateError.message }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     try {
       const appBaseUrl = Deno.env.get("APP_BASE_URL") ?? "https://migmainc.com";
       const notifyPayload = buildNotifyPayload(decision, profile, {
@@ -232,51 +214,50 @@ Deno.serve(async (req) => {
         document_id: singleDocumentId,
       });
 
-      // Fix 3: Custom app_url based on scope for rejection
-      if (decision === "reject") {
+      if (notifyPayload && decision === "reject") {
         notifyPayload.data = {
           ...notifyPayload.data,
-          app_url: scope === "global"
-            ? `${appBaseUrl}/student/onboarding?step=documents_upload`
-            : `${appBaseUrl}/student/onboarding?step=payment`,
+          app_url: `${appBaseUrl}/student/dashboard/documents`,
         };
       }
 
-      await supabase.functions.invoke("migma-notify", {
-        body: notifyPayload,
-      });
+      // supabase.functions.invoke não passa service role key corretamente entre Edge Functions → 401.
+      // Raw fetch com Bearer é o padrão correto para chamadas server-side.
+      const notifyUrl = `${supabaseUrl}/functions/v1/migma-notify`;
+      const notifyHeaders = {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${supabaseServiceKey}`,
+        "apikey": supabaseServiceKey,
+      };
 
-      // Fix 2: Check if all global docs are approved and notify
-      if (scope === "global" && decision === "approve") {
-        const { data: allDocs } = await supabase
-          .from("global_document_requests")
-          .select("status")
-          .eq("profile_id", profile_id);
+      if (notifyPayload) {
+        const notifyRes = await fetch(notifyUrl, {
+          method: "POST",
+          headers: notifyHeaders,
+          body: JSON.stringify(notifyPayload),
+        });
+        if (!notifyRes.ok) {
+          console.error("[review-student-documents] document_rejected notification failed:", notifyRes.status, await notifyRes.text());
+        }
+      }
 
-        const allApproved = allDocs && allDocs.length > 0 && allDocs.every(d => d.status === "approved");
-
-        if (allApproved) {
-          // Notify Student
-          await supabase.functions.invoke("migma-notify", {
-            body: {
+      if (decision === "approve") {
+        if (aggregateStatus === "approved") {
+          const approvedNotifyRes = await fetch(notifyUrl, {
+            method: "POST",
+            headers: notifyHeaders,
+            body: JSON.stringify({
               trigger: "all_documents_approved",
-              user_id: profile.user_id,
+              user_id: profile.id,
               data: {
                 client_name: profile.full_name ?? profile.email ?? "Student",
+                app_url: `${appBaseUrl}/student/onboarding?step=payment`,
               },
-            },
+            }),
           });
-
-          // Notify Admin
-          await supabase.functions.invoke("migma-notify", {
-            body: {
-              trigger: "admin_package_complete",
-              data: {
-                client_name: profile.full_name ?? profile.email ?? "Student",
-                client_id: profile_id,
-              },
-            },
-          });
+          if (!approvedNotifyRes.ok) {
+            console.error("[review-student-documents] all_documents_approved notification failed:", approvedNotifyRes.status, await approvedNotifyRes.text());
+          }
         }
       }
     } catch (notifyError) {
@@ -288,7 +269,7 @@ Deno.serve(async (req) => {
         success: true,
         profile_id,
         scope,
-        documents_status: nextStatus,
+        documents_status: aggregateStatus,
         documents_updated: !docsUpdateError,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }

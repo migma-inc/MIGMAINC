@@ -675,6 +675,7 @@ export const VisaOrdersPage = () => {
   };
 
   const [totalCount, setTotalCount] = useState(0);
+  const [isExportingExcel, setIsExportingExcel] = useState(false);
 
   const buildOrdersQuery = ({
     search,
@@ -951,6 +952,10 @@ export const VisaOrdersPage = () => {
 
   // Function updated to accept filter type
   const handleExportExcel = async (filterType: ExportFilterType = 'all') => {
+    if (isExportingExcel) return;
+
+    setIsExportingExcel(true);
+
     try {
       const batchSize = 1000;
       const allFilteredOrders: VisaOrder[] = [];
@@ -983,6 +988,9 @@ export const VisaOrdersPage = () => {
       await exportVisaOrdersToExcel(filteredOrders);
     } catch (error) {
       console.error('Failed to export excel:', error);
+      window.alert('Não foi possível exportar os pedidos. Tente novamente.');
+    } finally {
+      setIsExportingExcel(false);
     }
   };
 
@@ -1212,9 +1220,10 @@ export const VisaOrdersPage = () => {
                 <PopoverTrigger asChild>
                   <Button
                     className="bg-green-600 hover:bg-green-700 text-white border-none gap-2 text-sm font-medium h-9"
+                    disabled={isExportingExcel}
                   >
                     <Download className="w-4 h-4" />
-                    Export Excel
+                    {isExportingExcel ? 'Exporting...' : 'Export Excel'}
                     <ChevronDown className="w-4 h-4 ml-1" />
                   </Button>
                 </PopoverTrigger>
@@ -1224,6 +1233,7 @@ export const VisaOrdersPage = () => {
                       variant="ghost"
                       className="w-full justify-start text-zinc-300 hover:text-white hover:bg-zinc-800 text-sm font-normal"
                       onClick={() => handleExportExcel('all')}
+                      disabled={isExportingExcel}
                     >
                       Exportar Todos
                     </Button>
@@ -1231,6 +1241,7 @@ export const VisaOrdersPage = () => {
                       variant="ghost"
                       className="w-full justify-start text-zinc-300 hover:text-white hover:bg-zinc-800 text-sm font-normal"
                       onClick={() => handleExportExcel('completed')}
+                      disabled={isExportingExcel}
                     >
                       Apenas Pagos
                     </Button>
@@ -1238,6 +1249,7 @@ export const VisaOrdersPage = () => {
                       variant="ghost"
                       className="w-full justify-start text-zinc-300 hover:text-white hover:bg-zinc-800 text-sm font-normal"
                       onClick={() => handleExportExcel('pending')}
+                      disabled={isExportingExcel}
                     >
                       Apenas Pendentes
                     </Button>

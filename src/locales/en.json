@@ -466,6 +466,7 @@
       "selection_fee": "Selection Fee",
       "profile": "Profile",
       "survey": "Survey",
+      "wait_room": "Review",
       "scholarship": "University",
       "documents": "Documents",
       "payment": "Application Fee",
@@ -1021,6 +1022,307 @@
       "rewards": "Referral Program",
       "support": "Support",
       "profile": "Profile"
+    },
+    "tour": {
+      "prompt_title": "Want a quick tour of your dashboard?",
+      "prompt_description": "In under a minute, we will show you where to track your process, documents, forms, referrals, and support.",
+      "start": "Start tour",
+      "skip": "Not now",
+      "replay": "View dashboard tour",
+      "next": "Next",
+      "previous": "Back",
+      "done": "Done",
+      "progress": "{{current}} of {{total}}",
+      "steps": {
+        "sidebar": {
+          "title": "Your portal menu",
+          "description": "Use this menu to move between every area of your Migma process."
+        },
+        "navigation": {
+          "title": "Main sections",
+          "description": "Each tab groups one part of your journey: applications, documents, forms, referrals, support, and profile."
+        },
+        "overview": {
+          "title": "Overview",
+          "description": "This is where you see your journey summary, current step, and what needs attention now."
+        },
+        "progress": {
+          "title": "Process progress",
+          "description": "This indicator shows how much of the process is complete and which step is active."
+        },
+        "next_action": {
+          "title": "Next action",
+          "description": "This button takes you straight to the most important action right now."
+        },
+        "applications": {
+          "title": "My applications",
+          "description": "Track universities, scholarships, payments, approved documents, and the final package."
+        },
+        "documents": {
+          "title": "Pending documents",
+          "description": "See requested documents, upload files, and follow the team's review."
+        },
+        "supplemental_data": {
+          "title": "Supplemental data",
+          "description": "Fill in information used in university forms and your application package."
+        },
+        "forms": {
+          "title": "Forms to sign",
+          "description": "Review and digitally sign the forms generated for your process."
+        },
+        "rewards": {
+          "title": "Referral program",
+          "description": "Share your link, track referrals, and follow your progress toward the benefit."
+        },
+        "support": {
+          "title": "Support",
+          "description": "Open support whenever you need help with the process, documents, payments, or next steps."
+        },
+        "preferences": {
+          "title": "Portal preferences",
+          "description": "Here you can replay this tour, switch theme, and change the dashboard language."
+        },
+        "profile": {
+          "title": "Profile status",
+          "description": "Keep your personal and academic data complete to avoid delays in the process."
+        }
+      },
+      "applications_page": {
+        "steps": {
+          "page": {
+            "title": "My applications",
+            "description": "This tab gathers all your applications and shows each university's progress in the process."
+          },
+          "kpis": {
+            "title": "Application summary",
+            "description": "Use these indicators to quickly see how many applications exist, how many were approved, and how many still need attention."
+          },
+          "card": {
+            "title": "University details",
+            "description": "Each card shows the university, scholarship, placement fee, annual tuition, and application date."
+          },
+          "progress": {
+            "title": "Application stages",
+            "description": "Here you track scholarship approval, Placement Fee payment, documents, and signed forms."
+          },
+          "empty": {
+            "title": "No applications yet",
+            "description": "When you select universities and scholarships, they will appear here for tracking."
+          }
+        }
+      },
+      "documents_page": {
+        "steps": {
+          "page": {
+            "title": "Pending documents",
+            "description": "This tab shows the documents requested by Migma or by the system to complete your process."
+          },
+          "kpis": {
+            "title": "Document summary",
+            "description": "Track how many documents were requested, submitted, approved, and how many still need attention."
+          },
+          "finals": {
+            "title": "Final documents",
+            "description": "When an acceptance letter or transfer form is available, it appears at the top of this list."
+          },
+          "card": {
+            "title": "Requested document",
+            "description": "Each card shows the document type, important dates, pending issues, and review status."
+          },
+          "status": {
+            "title": "Upload and review status",
+            "description": "Use these indicators to know whether the file was uploaded and whether the team has approved it."
+          },
+          "actions": {
+            "title": "Upload or resend file",
+            "description": "Use this area to upload the document or resend a corrected version when needed."
+          },
+          "empty": {
+            "title": "No documents requested",
+            "description": "When new documents are needed, they will appear here for upload and tracking."
+          }
+        }
+      },
+      "supplemental_data_page": {
+        "steps": {
+          "page": {
+            "title": "Supplemental data",
+            "description": "This tab gathers information used to fill university forms and complete your application package."
+          },
+          "empty": {
+            "title": "Pending completion",
+            "description": "When your supplemental data has not been submitted yet, start with this button to open the form."
+          },
+          "edit_action": {
+            "title": "Edit data",
+            "description": "Use this action to fill in or update the information whenever needed."
+          },
+          "emergency": {
+            "title": "Emergency contact",
+            "description": "Provide a trusted person who can be contacted during the process if needed."
+          },
+          "sponsor": {
+            "title": "Financial sponsor",
+            "description": "This is where financial information used in university forms and proof documents is kept."
+          },
+          "recommenders": {
+            "title": "Recommenders",
+            "description": "Add people who can support recommendation letters or confirm academic/professional information."
+          },
+          "save_actions": {
+            "title": "Save changes",
+            "description": "After reviewing everything, save to update the dashboard and make this data available for the next steps."
+          }
+        }
+      },
+      "forms_page": {
+        "steps": {
+          "page": {
+            "title": "Forms to sign",
+            "description": "This tab gathers the forms generated for your process and shows what still needs a signature."
+          },
+          "kpis": {
+            "title": "Forms summary",
+            "description": "See how many forms were generated, how many were signed, and how many are still pending."
+          },
+          "card": {
+            "title": "Generated form",
+            "description": "Each card represents a university form or a final package form for your process."
+          },
+          "status": {
+            "title": "Form status",
+            "description": "Here you can check whether the form has been signed and when it was generated or completed."
+          },
+          "actions": {
+            "title": "Review, open, and sign",
+            "description": "Use these buttons to review the PDF, open the file, and start the digital signature when available."
+          },
+          "empty": {
+            "title": "No forms generated",
+            "description": "Forms appear here after the process allows the package to be generated for signature."
+          }
+        }
+      },
+      "rewards_page": {
+        "steps": {
+          "page": {
+            "title": "Referral program",
+            "description": "This tab shows your referral link, goal progress, and appointments generated by your referrals."
+          },
+          "kpis": {
+            "title": "Referral summary",
+            "description": "Track how many closures you have, how many clicks the link received, and how many meetings were scheduled."
+          },
+          "progress": {
+            "title": "Goal progress",
+            "description": "Here you can see what is still missing to reach the program benefit and whether the goal is already complete."
+          },
+          "code": {
+            "title": "Unique code",
+            "description": "This code identifies your referrals and follows the lead from scheduling through closing."
+          },
+          "link": {
+            "title": "Referral link",
+            "description": "Share this link with people who want to study in the US so the system registers the referral under your name."
+          },
+          "share_actions": {
+            "title": "Share link",
+            "description": "Use these buttons to copy the link, send it through WhatsApp, email it, or open the referral page."
+          },
+          "how": {
+            "title": "How it works",
+            "description": "This block summarizes the program steps, from sharing to benefit application."
+          },
+          "meetings": {
+            "title": "Recent appointments",
+            "description": "This is where leads that arrived through your link appear, with meeting or closing status."
+          },
+          "meetings_empty": {
+            "title": "No appointments yet",
+            "description": "When someone schedules using your link, the record will appear in this area."
+          },
+          "lead": {
+            "title": "Referred lead",
+            "description": "Each record shows the person's main information, date, and status inside the program."
+          }
+        }
+      },
+      "support_page": {
+        "steps": {
+          "page": {
+            "title": "Migma support",
+            "description": "This tab centralizes your conversations with the Migma Team and helps answer questions about the process, documents, and next steps."
+          },
+          "header": {
+            "title": "Support channel",
+            "description": "At the top you can see whether you are speaking with automated support or whether the case has already been transferred to a specialist."
+          },
+          "status": {
+            "title": "Support status",
+            "description": "This indicator shows whether support is online or whether you are waiting for human assistance."
+          },
+          "message": {
+            "title": "Conversation history",
+            "description": "Responses and guidance stay recorded here so you can track what has already been handled."
+          },
+          "handoff": {
+            "title": "Human assistance",
+            "description": "When the AI identifies that a specialist is needed, this area shows the handoff and next steps."
+          },
+          "schedule": {
+            "title": "Mentor schedule",
+            "description": "If times are available, choose a slot to speak with the team through Google Meet."
+          },
+          "composer": {
+            "title": "Send a message",
+            "description": "Use this field to write your question. The history is used to keep support context."
+          },
+          "send": {
+            "title": "Send to support",
+            "description": "After writing, send your message to receive a response or handoff."
+          }
+        }
+      },
+      "profile_page": {
+        "steps": {
+          "page": {
+            "title": "Student profile",
+            "description": "This tab gathers personal, academic, and account data used to keep your process moving without delays."
+          },
+          "header": {
+            "title": "Profile summary",
+            "description": "Here you identify the profile area and quickly access data updates."
+          },
+          "edit_action": {
+            "title": "Edit profile",
+            "description": "Use this button to return to onboarding and correct or complete important information."
+          },
+          "personal": {
+            "title": "Personal information",
+            "description": "Review name, email, phone, country, document, and nationality used in your process."
+          },
+          "academic": {
+            "title": "Academic information",
+            "description": "This area shows interests, education, process type, and English level used to guide the application."
+          },
+          "completion": {
+            "title": "Profile completion",
+            "description": "Track the completion percentage and see whether anything is still pending."
+          },
+          "missing": {
+            "title": "Pending data",
+            "description": "When there are pending items, this list shows what needs to be completed to avoid process blocks."
+          },
+          "complete": {
+            "title": "Complete profile",
+            "description": "When everything is filled in, this confirmation shows the profile is ready for the next uses."
+          },
+          "account": {
+            "title": "Account information",
+            "description": "Operational details such as membership time, document status, dependents, and completion are shown here."
+          }
+        }
+      }
     },
     "rewards": {
       "title": "Referral Program",

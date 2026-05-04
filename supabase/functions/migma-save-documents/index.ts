@@ -48,6 +48,44 @@ Deno.serve(async (req) => {
       await migma.from("student_documents").upsert(documentsToInsert, { ignoreDuplicates: true });
     }
 
+    try {
+      const { data: profile, error: profileError } = await migma
+        .from("user_profiles")
+        .select("id, full_name, email")
+        .eq("user_id", user_id)
+        .maybeSingle();
+
+      if (profileError || !profile?.id) {
+        console.warn(`[migma-save-documents] admin notification skipped: profile not found for auth user ${user_id}`);
+      } else {
+        // supabase.functions.invoke não passa service role key entre Edge Functions → 401
+        const notifyRes = await fetch(`${migmaUrl}/functions/v1/migma-notify`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${migmaKey}`,
+            "apikey": migmaKey,
+          },
+          body: JSON.stringify({
+            trigger: "admin_new_documents",
+            data: {
+              client_name: profile.full_name ?? profile.email ?? "Student",
+              client_id: profile.id,
+              document_count: documents.length,
+            },
+          }),
+        });
+
+        if (!notifyRes.ok) {
+          console.warn(`[migma-save-documents] admin notification failed: ${notifyRes.status}`);
+        } else {
+          console.log(`[migma-save-documents] ✅ admin_new_documents dispatched for profile ${profile.id}`);
+        }
+      }
+    } catch (notifyErr: any) {
+      console.warn(`[migma-save-documents] admin notification failed: ${notifyErr.message}`);
+    }
+
     return new Response(JSON.stringify({ success: true, count: documents.length }), { headers: { ...CORS, "Content-Type": "application/json" } });
 
   } catch (err: any) {

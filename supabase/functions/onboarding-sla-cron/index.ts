@@ -68,6 +68,34 @@ function getDeadlineAlertForDays(
   return null;
 }
 
+async function notifyClient(trigger: string, profileId: string, data: Record<string, unknown>) {
+  const supabaseUrl = Deno.env.get("SUPABASE_URL") || Deno.env.get("MIGMA_REMOTE_URL") || "";
+  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ||
+    Deno.env.get("MIGMA_REMOTE_SERVICE_ROLE_KEY") || "";
+
+  if (!supabaseUrl || !serviceKey) {
+    throw new Error("Missing SUPABASE_URL/SERVICE_ROLE for migma-notify");
+  }
+
+  const res = await fetch(`${supabaseUrl}/functions/v1/migma-notify`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${serviceKey}`,
+      "apikey": serviceKey,
+    },
+    body: JSON.stringify({
+      trigger,
+      user_id: profileId,
+      data,
+    }),
+  });
+
+  if (!res.ok) {
+    throw new Error(`migma-notify ${trigger} failed: ${res.status} ${await res.text()}`);
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Entry point
 // ---------------------------------------------------------------------------
@@ -518,6 +546,11 @@ async function checkTransferDeadlines(
         "Ensure transfer form, SEVIS release and I-20 are on track.",
       deadline.toISOString(),
     );
+
+    await notifyClient("deadline_alert_transfer", profile.id, {
+      days_remaining: daysUntil,
+      deadline_date: profile.transfer_deadline_date,
+    });
     created++;
   }
 
@@ -602,6 +635,11 @@ async function checkCosI94Deadlines(
         "This is an immigration-critical deadline — ensure COS filing is actively in progress.",
       expiry.toISOString(),
     );
+
+    await notifyClient("deadline_alert_cos", profile.id, {
+      days_remaining: daysUntil,
+      deadline_date: profile.cos_i94_expiry_date,
+    });
     created++;
   }
 

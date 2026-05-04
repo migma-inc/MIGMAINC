@@ -85,8 +85,13 @@ export interface CrmVisaOrder {
   payment_status: string | null;
   contract_approval_status: string | null;
   annex_approval_status: string | null;
+  contract_approval_reviewed_by?: string | null;
+  contract_approval_reviewed_at?: string | null;
+  contract_approval_admin_ip?: string | null;
   contract_accepted: boolean | null;
+  ip_address?: string | null;
   contract_document_url: string | null;
+  contract_document_back_url: string | null;
   contract_selfie_url: string | null;
   contract_pdf_url: string | null;
   annex_pdf_url: string | null;
@@ -135,6 +140,7 @@ export type OperationalStage =
   | 'contract_pending'
   | 'contract_under_review'
   | 'contract_rejected'
+  | 'awaiting_university_choice'
   | 'documents_pending'
   | 'documents_under_review'
   | 'in_processing'
@@ -207,6 +213,8 @@ export function deriveOperationalStage(
   if (contractStatus === 'rejected') return 'contract_rejected';
   if (contractStatus === 'pending') return 'contract_under_review';
 
+  if (profileStep === 'scholarship_selection') return 'awaiting_university_choice';
+
   // Contract approved — evaluate operational stage
   if (sr) {
     if (sr.case_status === 'completed' || sr.workflow_stage === 'completed') return 'completed';
@@ -231,6 +239,7 @@ export const OPERATIONAL_STAGE_LABELS: Record<OperationalStage, string> = {
   contract_pending: 'Contract Pending',
   contract_under_review: 'Contract Review',
   contract_rejected: 'Contract Rejected',
+  awaiting_university_choice: 'Awaiting University Choice',
   documents_pending: 'Documents Pending',
   documents_under_review: 'Documents Review',
   in_processing: 'In Processing',
@@ -248,6 +257,7 @@ export const OPERATIONAL_STAGE_COLORS: Record<OperationalStage, string> = {
   contract_pending: 'bg-blue-500/20 text-blue-300 border-blue-500/40',
   contract_under_review: 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40',
   contract_rejected: 'bg-red-500/20 text-red-300 border-red-500/40',
+  awaiting_university_choice: 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40',
   documents_pending: 'bg-violet-500/20 text-violet-300 border-violet-500/40',
   documents_under_review: 'bg-fuchsia-500/20 text-fuchsia-300 border-fuchsia-500/40',
   in_processing: 'bg-sky-500/20 text-sky-300 border-sky-500/40',
@@ -268,9 +278,12 @@ export interface OnboardingCrmFilters {
     | 'completed'
     | 'selection_paid'
     | 'placement'
+    | 'needs_action'
+    | 'critical'
     | 'pre_pending'
     | 'pre_zelle'
-    | 'pre_card';
+    | 'pre_card'
+    | 'pre_confirmed';
   /** Ownership presence based on MIGMA profile metadata */
   ownership: 'all' | 'owned' | 'unassigned';
   /** Payment status from visa_orders */
@@ -390,7 +403,8 @@ export async function loadOnboardingBoard(productLine?: 'cos' | 'transfer'): Pro
             .select(`
             id, order_number, product_slug, client_email, client_country, client_nationality,
             payment_method, payment_status, contract_approval_status, annex_approval_status,
-            contract_accepted, contract_document_url, contract_selfie_url, contract_pdf_url,
+            contract_approval_reviewed_by, contract_approval_reviewed_at, contract_approval_admin_ip, ip_address,
+            contract_accepted, contract_document_url, contract_document_back_url, contract_selfie_url, contract_pdf_url,
             annex_pdf_url, signature_image_url, zelle_proof_url, service_request_id, total_price_usd,
             created_at, paid_at
           `)
@@ -671,6 +685,7 @@ export async function loadOrderHistory(email: string): Promise<CrmVisaOrder[]> {
     .select(`
       id, order_number, product_slug, client_email, payment_method,
       payment_status, contract_approval_status, annex_approval_status,
+      contract_approval_reviewed_by, contract_approval_reviewed_at, contract_approval_admin_ip, ip_address,
       contract_accepted, service_request_id, total_price_usd,
       created_at, paid_at
     `)
@@ -997,7 +1012,8 @@ export async function loadDetailPage(profileId: string): Promise<{
         .select(`
           id, order_number, product_slug, client_email, client_country, client_nationality,
           payment_method, payment_status, contract_approval_status, annex_approval_status,
-          contract_accepted, contract_document_url, contract_selfie_url, contract_pdf_url,
+          contract_approval_reviewed_by, contract_approval_reviewed_at, contract_approval_admin_ip, ip_address,
+          contract_accepted, contract_document_url, contract_document_back_url, contract_selfie_url, contract_pdf_url,
           annex_pdf_url, signature_image_url, zelle_proof_url, service_request_id, total_price_usd,
           created_at, paid_at
         `)

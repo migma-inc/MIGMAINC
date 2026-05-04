@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Trophy, Mail, Clock, CheckCircle } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { CheckoutTopbar } from '../../MigmaCheckout/components/CheckoutTopbar';
@@ -18,11 +18,11 @@ interface Props {
 
 const TARGET = 1481;
 const DURATION_MS = 2800;
+const DISABLE_24H_REVIEW_LOCK_FOR_TESTS = true;
 
 export const SurveyCompletionScreen: React.FC<Props> = ({ email, name, service, whatsapp, academicFormation, englishLevel, surveyCompletedAt, onContinue, standalone = true, contractApproved = false }) => {
   const { t, i18n } = useTranslation();
   const [count, setCount] = useState(0);
-  const [unlockAt, setUnlockAt] = useState<Date | null>(null);
   const [timeLeft, setTimeLeft] = useState('');
   const animationRef = useRef<number | null>(null);
 
@@ -47,14 +47,15 @@ export const SurveyCompletionScreen: React.FC<Props> = ({ email, name, service, 
     return () => { if (animationRef.current) cancelAnimationFrame(animationRef.current); };
   }, []);
 
-  // Botão "Escolher Faculdades" bloqueado por 24h — usa selection_survey_completed_at do banco
-  useEffect(() => {
+  const unlockAt = useMemo(() => {
+    if (DISABLE_24H_REVIEW_LOCK_FOR_TESTS) return null;
     const completedAt = surveyCompletedAt ? new Date(surveyCompletedAt) : new Date();
-    setUnlockAt(new Date(completedAt.getTime() + 24 * 60 * 60 * 1000));
+    return new Date(completedAt.getTime() + 24 * 60 * 60 * 1000);
   }, [surveyCompletedAt]);
 
   // Countdown timer
   useEffect(() => {
+    if (DISABLE_24H_REVIEW_LOCK_FOR_TESTS) return;
     if (!unlockAt) return;
     const update = () => {
       const now = new Date();
@@ -70,7 +71,7 @@ export const SurveyCompletionScreen: React.FC<Props> = ({ email, name, service, 
     return () => clearInterval(interval);
   }, [unlockAt]);
 
-  const isUnlocked = !timeLeft || contractApproved;
+  const isUnlocked = DISABLE_24H_REVIEW_LOCK_FOR_TESTS || !timeLeft || contractApproved;
   const serviceLabel = service === 'transfer' ? 'Transfer' : service === 'cos' ? 'COS' : service.toUpperCase();
 
   return (

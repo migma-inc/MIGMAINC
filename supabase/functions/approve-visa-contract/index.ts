@@ -8,6 +8,14 @@ import { appendServiceRequestEvent, transitionServiceRequestStage } from "../sha
 
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
 const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const CONTRACT_IDENTITY_DOC_TYPES = [
+  "passport",
+  "passport_back",
+  "selfie_with_doc",
+  "document_front",
+  "document_back",
+  "selfie_doc",
+];
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -203,6 +211,23 @@ async function sendVisaAdminNotification(order: any, supabase: any) {
     }
   } catch (error) {
     console.error("[Admin Notification] Unexpected error:", error);
+  }
+}
+
+async function approveContractIdentityDocuments(supabase: any, userId: string | null | undefined) {
+  if (!userId) return;
+
+  const { error } = await supabase
+    .from('student_documents')
+    .update({
+      status: 'approved',
+      rejection_reason: null,
+    })
+    .eq('user_id', userId)
+    .in('type', CONTRACT_IDENTITY_DOC_TYPES);
+
+  if (error) {
+    console.error('[EDGE FUNCTION] Failed to approve contract identity documents:', error.message);
   }
 }
 
@@ -469,7 +494,7 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { order_id, reviewed_by, contract_type } = await req.json();
+    const { order_id, reviewed_by, contract_type, admin_ip } = await req.json();
 
     if (!order_id) {
       return new Response(
@@ -487,6 +512,11 @@ Deno.serve(async (req) => {
 
     // contract_type: 'annex', 'contract', 'upsell_contract', or 'upsell_annex'
     const approvalType = contract_type || 'contract';
+    const adminIp = admin_ip
+      ?? req.headers.get("cf-connecting-ip")
+      ?? req.headers.get("x-forwarded-for")?.split(",")[0]?.trim()
+      ?? req.headers.get("x-real-ip")
+      ?? null;
 
     console.log(`[EDGE FUNCTION] Approving ${approvalType} for order:`, order_id);
 
@@ -518,19 +548,23 @@ Deno.serve(async (req) => {
       updateData.annex_approval_status = 'approved';
       updateData.annex_approval_reviewed_by = reviewed_by;
       updateData.annex_approval_reviewed_at = new Date().toISOString();
+      if (adminIp) updateData.annex_approval_admin_ip = adminIp;
     } else if (approvalType === 'upsell_contract') {
       updateData.upsell_contract_approval_status = 'approved';
       updateData.upsell_contract_approval_reviewed_by = reviewed_by;
       updateData.upsell_contract_approval_reviewed_at = new Date().toISOString();
+      if (adminIp) updateData.upsell_contract_approval_admin_ip = adminIp;
     } else if (approvalType === 'upsell_annex') {
       updateData.upsell_annex_approval_status = 'approved';
       updateData.upsell_annex_approval_reviewed_by = reviewed_by;
       updateData.upsell_annex_approval_reviewed_at = new Date().toISOString();
+      if (adminIp) updateData.upsell_annex_approval_admin_ip = adminIp;
     } else {
       // Default to main contract
       updateData.contract_approval_status = 'approved';
       updateData.contract_approval_reviewed_by = reviewed_by;
       updateData.contract_approval_reviewed_at = new Date().toISOString();
+      if (adminIp) updateData.contract_approval_admin_ip = adminIp;
     }
 
     const { error: updateError } = await supabase
@@ -547,6 +581,62 @@ Deno.serve(async (req) => {
     }
 
     console.log(`[EDGE FUNCTION] ${approvalType} approved successfully in DB`);
+
+    if (approvalType === 'contract') {
+      try {
+        const { data: profile, error: profileError } = await supabase
+          .from('user_profiles')
+          .select('id, user_id')
+          .eq('email', order.client_email)
+          .maybeSingle();
+
+        if (profileError || !profile?.id) {
+          console.warn(`[EDGE FUNCTION] migma-notify contract_approved skipped: profile not found for ${order.client_email}`);
+        } else {
+          await supabase
+            .from('user_profiles')
+            .update({
+              onboarding_current_step: 'scholarship_selection',
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', profile.id);
+
+          await approveContractIdentityDocuments(supabase, profile.user_id);
+
+          const notifyRes = await fetch(`${supabaseUrl}/functions/v1/migma-notify`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${supabaseServiceKey}`,
+              'apikey': supabaseServiceKey,
+            },
+            body: JSON.stringify({
+              trigger: 'contract_approved',
+              user_id: profile.id,
+              channels: {
+                email: false,
+                whatsapp: true,
+              },
+              data: {
+                app_url: 'https://migmainc.com/student/onboarding?step=scholarship_selection',
+                order_id: order.id,
+                order_number: order.order_number,
+                reviewed_by,
+                admin_ip: adminIp,
+              },
+            }),
+          });
+
+          if (!notifyRes.ok) {
+            console.error('[EDGE FUNCTION] migma-notify contract_approved failed:', notifyRes.status);
+          } else {
+            console.log('[EDGE FUNCTION] ✅ migma-notify contract_approved dispatched for profile', profile.id);
+          }
+        }
+      } catch (notifyErr) {
+        console.error('[EDGE FUNCTION] migma-notify contract_approved error:', notifyErr);
+      }
+    }
 
     // --- Operational stage: persist contract_approved event + transition stage ---
     if (order.service_request_id) {
@@ -881,13 +971,26 @@ Deno.serve(async (req) => {
           </html>
         `;
 
-          await supabase.functions.invoke('send-email', {
-            body: {
+          const emailRes = await fetch(`${supabaseUrl}/functions/v1/send-email`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${supabaseServiceKey}`,
+              'apikey': supabaseServiceKey,
+            },
+            body: JSON.stringify({
               to: order.client_email,
               subject: `Document Approved: ${documentName} - Order #${order.order_number}`,
               html: emailHtml,
-            },
+            }),
           });
+
+          const emailBody = await emailRes.text();
+          if (!emailRes.ok) {
+            console.error("[EDGE FUNCTION] Contract approval client email failed:", emailRes.status, emailBody);
+          } else {
+            console.log("[EDGE FUNCTION] Contract approval client email sent:", order.client_email);
+          }
         }
       } catch (tokenEmailError) {
         console.error("[EDGE FUNCTION] Error with token/email (non-critical):", tokenEmailError);

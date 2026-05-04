@@ -508,15 +508,15 @@ export const StudentSupportPanel: React.FC<StudentSupportPanelProps> = ({ embedd
   }
 
   return (
-    <div className={`${embedded ? 'h-[calc(100vh-132px)] min-h-[620px] rounded-lg border border-[#e3d5bd] dark:border-white/10 overflow-hidden' : 'min-h-screen'} bg-[#f7f4ee] dark:bg-[#0a0a0a] flex flex-col text-[#1f1a14] dark:text-white`}>
-      <header className="shrink-0 bg-white/80 dark:bg-[#0a0a0a]/90 backdrop-blur border-b border-[#e3d5bd] dark:border-white/5 px-4 py-3">
+    <div data-tour="student-support-page" className={`${embedded ? 'h-[calc(100vh-132px)] min-h-[620px] rounded-lg border border-[#e3d5bd] dark:border-white/10 overflow-hidden' : 'min-h-screen'} bg-[#f7f4ee] dark:bg-[#0a0a0a] flex flex-col text-[#1f1a14] dark:text-white`}>
+      <header data-tour="student-support-header" className="shrink-0 bg-white/80 dark:bg-[#0a0a0a]/90 backdrop-blur border-b border-[#e3d5bd] dark:border-white/5 px-4 py-3">
         <div className="max-w-2xl mx-auto flex items-center gap-3">
           {!embedded && onBack && (
             <button onClick={onBack} className="p-2 rounded-lg text-[#6f6251] dark:text-white/50 hover:bg-[#f3ead9] dark:hover:bg-white/5 transition-colors">
               <ArrowLeft className="w-5 h-5" />
             </button>
           )}
-          <div className="flex items-center gap-3 flex-1">
+          <div data-tour="student-support-status" className="flex items-center gap-3 flex-1">
             <div className={`w-9 h-9 rounded-full flex items-center justify-center border ${handedOff ? 'bg-blue-500/15 border-blue-500/30' : 'bg-[#CE9F48]/15 border-[#CE9F48]/30'}`}>
               {handedOff ? <UserCheck className="w-5 h-5 text-blue-400" /> : <MessageCircle className="w-5 h-5 text-[#9a6a16] dark:text-[#CE9F48]" />}
             </div>
@@ -531,14 +531,14 @@ export const StudentSupportPanel: React.FC<StudentSupportPanelProps> = ({ embedd
         </div>
       </header>
 
-      <main className="flex-1 overflow-y-auto px-4 py-6">
+      <main data-tour="student-support-chat" className="flex-1 overflow-y-auto px-4 py-6">
         <div className="max-w-2xl mx-auto space-y-4">
           {messages.map((msg) => <MessageBubble key={msg.id} message={msg} />)}
 
           {sending && <TypingIndicator />}
 
           {handedOff && handoffCreatedAt && (
-            <div className="flex items-start gap-3 bg-blue-500/10 border border-blue-500/20 rounded-2xl px-4 py-3 text-sm text-blue-700 dark:text-blue-300">
+            <div data-tour="student-support-handoff" className="flex items-start gap-3 bg-blue-500/10 border border-blue-500/20 rounded-2xl px-4 py-3 text-sm text-blue-700 dark:text-blue-300">
               <UserCheck className="w-4 h-4 flex-shrink-0 mt-0.5" />
               <div className="min-w-0 flex-1">
                 <p className="font-medium">{handoffMeetingUrl ? 'Reunião com mentor agendada' : 'Agende com seu mentor'}</p>
@@ -586,7 +586,7 @@ export const StudentSupportPanel: React.FC<StudentSupportPanelProps> = ({ embedd
                     ) : slotsError ? (
                       <p className="text-xs text-blue-700/70 dark:text-blue-300/70">{slotsError}</p>
                     ) : slotGroups.length > 0 ? (
-                      <>
+                      <div data-tour="student-support-schedule" className="space-y-3">
                         <SupportSlotPicker groups={slotGroups} selected={selectedSlot} onSelect={setSelectedSlot} />
                         {bookingError && <p className="text-xs font-medium text-red-600 dark:text-red-300">{bookingError}</p>}
                         <button
@@ -598,7 +598,7 @@ export const StudentSupportPanel: React.FC<StudentSupportPanelProps> = ({ embedd
                           {bookingSlot ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Calendar className="h-3.5 w-3.5" />}
                           {selectedSlot ? `Confirmar ${formatTime(selectedSlot.start)}` : 'Escolha um horário'}
                         </button>
-                      </>
+                      </div>
                     ) : (
                       <p className="text-xs text-blue-700/70 dark:text-blue-300/70">
                         Não encontramos horários disponíveis agora. Nossa equipe vai acompanhar seu caso.
@@ -627,7 +627,7 @@ export const StudentSupportPanel: React.FC<StudentSupportPanelProps> = ({ embedd
         </div>
       </main>
 
-      <footer className="sticky bottom-0 bg-white/95 dark:bg-[#0a0a0a]/95 backdrop-blur border-t border-[#e3d5bd] dark:border-white/5 px-4 py-4">
+      <footer data-tour="student-support-composer" className="sticky bottom-0 bg-white/95 dark:bg-[#0a0a0a]/95 backdrop-blur border-t border-[#e3d5bd] dark:border-white/5 px-4 py-4">
         <div className="max-w-2xl mx-auto">
           {handedOff && !meetingCountdown?.expired ? (
             <div className="flex flex-col items-center gap-3 text-center text-[#8a7b66] dark:text-white/40 text-sm py-2">
@@ -664,6 +664,7 @@ export const StudentSupportPanel: React.FC<StudentSupportPanelProps> = ({ embedd
                   disabled={sending}
                 />
                 <button
+                  data-tour="student-support-send"
                   onClick={sendMessage}
                   disabled={sending || !input.trim()}
                   className="flex-shrink-0 w-9 h-9 rounded-xl bg-[#CE9F48] hover:bg-[#b8892f] disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center transition-colors"
@@ -711,7 +712,7 @@ const MessageBubble: React.FC<{ message: Message }> = ({ message }) => {
           {message.is_handoff ? <UserCheck className="w-4 h-4 text-blue-400" /> : <MessageCircle className="w-4 h-4 text-[#9a6a16] dark:text-[#CE9F48]" />}
         </div>
       )}
-      <div className={`max-w-[80%] rounded-2xl px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap ${isUser ? 'bg-[#CE9F48] text-black rounded-tr-sm font-medium' : 'bg-[#f3ead9] dark:bg-white/5 border border-[#e3d5bd] dark:border-white/10 text-[#1f1a14] dark:text-white/90 rounded-tl-sm'}`}>
+      <div data-tour={!isUser ? 'student-support-message' : undefined} className={`max-w-[80%] rounded-2xl px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap ${isUser ? 'bg-[#CE9F48] text-black rounded-tr-sm font-medium' : 'bg-[#f3ead9] dark:bg-white/5 border border-[#e3d5bd] dark:border-white/10 text-[#1f1a14] dark:text-white/90 rounded-tl-sm'}`}>
         {message.content}
         <div className={`text-xs mt-1.5 ${isUser ? 'text-black/50' : 'text-[#8a7b66] dark:text-white/25'}`}>
           {new Date(message.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}

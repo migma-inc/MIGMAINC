@@ -465,6 +465,7 @@
     "steps": {
       "profile": "Perfil",
       "survey": "Encuesta",
+      "wait_room": "Revisión",
       "scholarship": "Universidad",
       "documents": "Documentos",
       "payment": "Tasa de Inscripción",
@@ -1017,6 +1018,307 @@
       "rewards": "Programa de Referidos",
       "support": "Soporte",
       "profile": "Perfil"
+    },
+    "tour": {
+      "prompt_title": "¿Quieres hacer un tour rápido por tu panel?",
+      "prompt_description": "En menos de un minuto, te mostramos dónde seguir tu proceso, documentos, formularios, referidos y soporte.",
+      "start": "Comenzar tour",
+      "skip": "Ahora no",
+      "replay": "Ver tour del panel",
+      "next": "Siguiente",
+      "previous": "Volver",
+      "done": "Finalizar",
+      "progress": "{{current}} de {{total}}",
+      "steps": {
+        "sidebar": {
+          "title": "Menú de tu portal",
+          "description": "Usa este menú para navegar entre todas las áreas de tu proceso Migma."
+        },
+        "navigation": {
+          "title": "Secciones principales",
+          "description": "Cada pestaña reúne una parte de tu jornada: candidaturas, documentos, formularios, referidos, soporte y perfil."
+        },
+        "overview": {
+          "title": "Resumen",
+          "description": "Aquí ves el resumen de tu jornada, el paso actual y lo que necesita atención ahora."
+        },
+        "progress": {
+          "title": "Progreso del proceso",
+          "description": "Este indicador muestra cuánto del proceso ya fue completado y qué etapa está activa."
+        },
+        "next_action": {
+          "title": "Próxima acción",
+          "description": "Este botón te lleva directo a la acción más importante del momento."
+        },
+        "applications": {
+          "title": "Mis candidaturas",
+          "description": "Sigue universidades, becas, pagos, documentos aprobados y paquete final."
+        },
+        "documents": {
+          "title": "Documentos pendientes",
+          "description": "Consulta documentos solicitados, sube archivos y acompaña la revisión del equipo."
+        },
+        "supplemental_data": {
+          "title": "Datos complementarios",
+          "description": "Completa información usada en los formularios universitarios y en tu paquete de candidatura."
+        },
+        "forms": {
+          "title": "Formularios para firmar",
+          "description": "Revisa y firma digitalmente los formularios generados para tu proceso."
+        },
+        "rewards": {
+          "title": "Programa de referidos",
+          "description": "Comparte tu enlace, sigue tus referidos y ve el progreso hacia el beneficio."
+        },
+        "support": {
+          "title": "Soporte",
+          "description": "Abre soporte cuando necesites ayuda con proceso, documentos, pagos o próximos pasos."
+        },
+        "preferences": {
+          "title": "Preferencias del portal",
+          "description": "Aquí puedes repetir este tour, cambiar el tema y cambiar el idioma del panel."
+        },
+        "profile": {
+          "title": "Estado del perfil",
+          "description": "Mantén tus datos personales y académicos completos para evitar retrasos en el proceso."
+        }
+      },
+      "applications_page": {
+        "steps": {
+          "page": {
+            "title": "Mis candidaturas",
+            "description": "Esta pestaña reúne todas tus candidaturas y muestra el avance de cada universidad en el proceso."
+          },
+          "kpis": {
+            "title": "Resumen de candidaturas",
+            "description": "Usa estos indicadores para ver rápidamente cuántas candidaturas existen, cuántas fueron aprobadas y cuántas aún necesitan atención."
+          },
+          "card": {
+            "title": "Detalles de la universidad",
+            "description": "Cada tarjeta muestra la universidad, beca, placement fee, matrícula anual y fecha de aplicación."
+          },
+          "progress": {
+            "title": "Etapas de la candidatura",
+            "description": "Aquí acompañas beca aprobada, pago del Placement Fee, documentos y formularios firmados."
+          },
+          "empty": {
+            "title": "Aún no hay candidaturas",
+            "description": "Cuando selecciones universidades y becas, aparecerán aquí para seguimiento."
+          }
+        }
+      },
+      "documents_page": {
+        "steps": {
+          "page": {
+            "title": "Documentos pendientes",
+            "description": "Esta pestaña muestra los documentos solicitados por Migma o por el sistema para completar tu proceso."
+          },
+          "kpis": {
+            "title": "Resumen de documentos",
+            "description": "Acompaña cuántos documentos fueron solicitados, enviados, aprobados y cuántos aún necesitan atención."
+          },
+          "finals": {
+            "title": "Documentos finales",
+            "description": "Cuando haya carta de aceptación o formulario de transferencia, aparecerán al inicio de esta lista."
+          },
+          "card": {
+            "title": "Documento solicitado",
+            "description": "Cada tarjeta muestra el tipo de documento, fechas importantes, pendientes y estado de revisión."
+          },
+          "status": {
+            "title": "Estado de envío y revisión",
+            "description": "Usa estos indicadores para saber si el archivo ya fue enviado y si el equipo ya lo aprobó."
+          },
+          "actions": {
+            "title": "Enviar o reenviar archivo",
+            "description": "Usa esta área para subir el documento o reenviar una versión corregida cuando sea necesario."
+          },
+          "empty": {
+            "title": "Ningún documento solicitado",
+            "description": "Cuando se necesiten nuevos documentos, aparecerán aquí para envío y seguimiento."
+          }
+        }
+      },
+      "supplemental_data_page": {
+        "steps": {
+          "page": {
+            "title": "Datos complementarios",
+            "description": "Esta pestaña reúne información usada para completar formularios universitarios y tu paquete de candidatura."
+          },
+          "empty": {
+            "title": "Completar datos pendientes",
+            "description": "Cuando tus datos complementarios aún no fueron enviados, comienza con este botón para abrir el formulario."
+          },
+          "edit_action": {
+            "title": "Editar datos",
+            "description": "Usa esta acción para completar o actualizar la información cuando sea necesario."
+          },
+          "emergency": {
+            "title": "Contacto de emergencia",
+            "description": "Informa una persona de confianza que pueda ser contactada durante el proceso si es necesario."
+          },
+          "sponsor": {
+            "title": "Patrocinador financiero",
+            "description": "Aquí quedan los datos financieros usados en formularios universitarios y comprobaciones."
+          },
+          "recommenders": {
+            "title": "Recomendantes",
+            "description": "Incluye personas que puedan apoyar cartas de recomendación o confirmar información académica/profesional."
+          },
+          "save_actions": {
+            "title": "Guardar cambios",
+            "description": "Después de revisar todo, guarda para actualizar el panel y usar estos datos en los próximos pasos."
+          }
+        }
+      },
+      "forms_page": {
+        "steps": {
+          "page": {
+            "title": "Formularios para firmar",
+            "description": "Esta pestaña reúne los formularios generados para tu proceso y muestra lo que aún necesita firma."
+          },
+          "kpis": {
+            "title": "Resumen de formularios",
+            "description": "Ve cuántos formularios fueron generados, cuántos ya fueron firmados y cuántos siguen pendientes."
+          },
+          "card": {
+            "title": "Formulario generado",
+            "description": "Cada tarjeta representa un formulario de la universidad o del paquete final de tu proceso."
+          },
+          "status": {
+            "title": "Estado del formulario",
+            "description": "Aquí puedes confirmar si el formulario ya fue firmado y cuándo fue generado o finalizado."
+          },
+          "actions": {
+            "title": "Revisar, abrir y firmar",
+            "description": "Usa estos botones para revisar el PDF, abrir el archivo e iniciar la firma digital cuando esté disponible."
+          },
+          "empty": {
+            "title": "Ningún formulario generado",
+            "description": "Los formularios aparecen aquí cuando el proceso libera la generación del paquete para firma."
+          }
+        }
+      },
+      "rewards_page": {
+        "steps": {
+          "page": {
+            "title": "Programa de referidos",
+            "description": "Esta pestaña muestra tu enlace de referido, el progreso de la meta y las citas generadas por tus referidos."
+          },
+          "kpis": {
+            "title": "Resumen de referidos",
+            "description": "Acompaña cuántos cierres tienes, cuántos clics recibió el enlace y cuántas reuniones fueron agendadas."
+          },
+          "progress": {
+            "title": "Progreso de la meta",
+            "description": "Aquí ves cuánto falta para alcanzar el beneficio del programa y si la meta ya fue completada."
+          },
+          "code": {
+            "title": "Código único",
+            "description": "Este código identifica tus referidos y acompaña al lead desde la cita hasta el cierre."
+          },
+          "link": {
+            "title": "Enlace de referido",
+            "description": "Comparte este enlace con personas que quieren estudiar en EE. UU. para que el sistema registre el referido a tu nombre."
+          },
+          "share_actions": {
+            "title": "Compartir enlace",
+            "description": "Usa estos botones para copiar el enlace, enviarlo por WhatsApp, mandarlo por email o abrir la página de referido."
+          },
+          "how": {
+            "title": "Cómo funciona",
+            "description": "Este bloque resume las etapas del programa, desde compartir el enlace hasta aplicar el beneficio."
+          },
+          "meetings": {
+            "title": "Citas recientes",
+            "description": "Aquí aparecen los leads que llegaron por tu enlace, con estado de reunión o cierre."
+          },
+          "meetings_empty": {
+            "title": "Aún no hay citas",
+            "description": "Cuando alguien agende usando tu enlace, el registro aparecerá en esta área."
+          },
+          "lead": {
+            "title": "Lead referido",
+            "description": "Cada registro muestra los datos principales de la persona referida, fecha y estado dentro del programa."
+          }
+        }
+      },
+      "support_page": {
+        "steps": {
+          "page": {
+            "title": "Soporte Migma",
+            "description": "Esta pestaña centraliza tus conversaciones con el Equipo Migma y ayuda a resolver dudas sobre el proceso, documentos y próximos pasos."
+          },
+          "header": {
+            "title": "Canal de atención",
+            "description": "En la parte superior ves si estás hablando con soporte automático o si el caso ya fue transferido a un especialista."
+          },
+          "status": {
+            "title": "Estado del soporte",
+            "description": "Este indicador muestra si el soporte está en línea o si estás esperando atención humana."
+          },
+          "message": {
+            "title": "Historial de conversación",
+            "description": "Las respuestas y orientaciones quedan registradas aquí para que puedas revisar lo que ya fue tratado."
+          },
+          "handoff": {
+            "title": "Atención humana",
+            "description": "Cuando la IA identifica que se necesita un especialista, esta área muestra la transferencia y los próximos pasos."
+          },
+          "schedule": {
+            "title": "Agenda con mentor",
+            "description": "Si hay horarios disponibles, elige un espacio para hablar con el equipo por Google Meet."
+          },
+          "composer": {
+            "title": "Enviar mensaje",
+            "description": "Usa este campo para escribir tu duda. El historial se usa para mantener el contexto de atención."
+          },
+          "send": {
+            "title": "Enviar al soporte",
+            "description": "Después de escribir, envía tu mensaje para recibir una respuesta o transferencia."
+          }
+        }
+      },
+      "profile_page": {
+        "steps": {
+          "page": {
+            "title": "Perfil del estudiante",
+            "description": "Esta pestaña reúne datos personales, académicos y de cuenta usados para mantener tu proceso sin retrasos."
+          },
+          "header": {
+            "title": "Resumen del perfil",
+            "description": "Aquí identificas el área del perfil y accedes rápidamente a la actualización de datos."
+          },
+          "edit_action": {
+            "title": "Editar perfil",
+            "description": "Usa este botón para volver al onboarding y corregir o completar información importante."
+          },
+          "personal": {
+            "title": "Información personal",
+            "description": "Revisa nombre, email, teléfono, país, documento y nacionalidad usados en tu proceso."
+          },
+          "academic": {
+            "title": "Información académica",
+            "description": "Esta área muestra intereses, formación, tipo de proceso y nivel de inglés usados para orientar la candidatura."
+          },
+          "completion": {
+            "title": "Completitud del perfil",
+            "description": "Acompaña el porcentaje de completado y ve si todavía hay algo pendiente."
+          },
+          "missing": {
+            "title": "Datos pendientes",
+            "description": "Cuando hay pendientes, esta lista muestra lo que debe completarse para evitar bloqueos en el proceso."
+          },
+          "complete": {
+            "title": "Perfil completo",
+            "description": "Cuando todo está completo, esta confirmación indica que el perfil está listo para los próximos usos."
+          },
+          "account": {
+            "title": "Información de la cuenta",
+            "description": "Aquí quedan datos operativos como tiempo de registro, estado de documentos, dependientes y completitud."
+          }
+        }
+      }
     },
     "status": {
       "pending_admin_approval": "Esperando aprobación",

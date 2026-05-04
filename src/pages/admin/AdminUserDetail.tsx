@@ -1,9 +1,11 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import DOMPurify from 'dompurify';
 import {
   Activity,
   AlertCircle,
   ArrowLeft,
+  CalendarDays,
   CheckCircle2,
   Clock3,
   DollarSign,
@@ -55,8 +57,8 @@ import {
   updateCaseStatus,
 } from '@/lib/onboarding-crm';
 import {
-  ALL_QUESTIONS,
   SURVEY_SECTIONS,
+  getQuestionsForService,
 } from '@/data/migmaSurveyQuestions';
 import { reviewGlobalDocuments, reviewStudentDocuments } from '@/lib/student-documents';
 import { ScholarshipApprovalTab } from './ScholarshipApprovalTab';
@@ -85,7 +87,7 @@ function fmtDate(iso: string | null | undefined) {
 }
 
 function errorMessage(error: unknown) {
-  return error instanceof Error ? error.message : 'Erro inesperado';
+  return error instanceof Error ? error.message : 'Unexpected error';
 }
 
 function metadataString(metadata: Record<string, unknown> | null | undefined, key: string) {
@@ -163,7 +165,7 @@ function SlaCountdown({ surveyCompletedAt }: { surveyCompletedAt: string | null 
           : "bg-emerald-500/20 border-emerald-300/40 text-emerald-300"
     )}>
       <span className="text-[10px] font-black uppercase tracking-widest opacity-70">
-        {timeLeft.expired ? 'SLA Expirado' : 'Tempo Restante (SLA 24h)'}
+        {timeLeft.expired ? 'SLA Expired' : 'Time Left (24h SLA)'}
       </span>
       <span className="text-2xl font-black tabular-nums">
         {pad(timeLeft.hours)}:{pad(timeLeft.mins)}:{pad(timeLeft.secs)}
@@ -243,7 +245,7 @@ function MentorAssignSection({ profileId, currentMentorId }: { profileId: string
       .update({ mentor_id: selected || null })
       .eq('id', profileId);
     setSaving(false);
-    setMsg(error ? `Erro: ${error.message}` : 'Mentor salvo.');
+    setMsg(error ? `Error: ${error.message}` : 'Mentor saved.');
   };
 
   return (
@@ -253,19 +255,19 @@ function MentorAssignSection({ profileId, currentMentorId }: { profileId: string
         onChange={(e) => setSelected(e.target.value)}
         className="w-full rounded-md border border-white/10 bg-white text-black text-sm px-3 py-2"
       >
-        <option value="">— Sem mentor atribuído —</option>
+        <option value="">— No mentor assigned —</option>
         {mentors.map((m) => (
           <option key={m.id} value={m.id}>{m.full_name ?? m.id}</option>
         ))}
       </select>
       <div className="flex items-center gap-2">
         <Button size="sm" onClick={handleSave} disabled={saving} className="bg-gold-medium text-black hover:bg-gold-light font-bold">
-          {saving ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Salvar'}
+          {saving ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Save'}
         </Button>
-        {msg && <span className={`text-xs ${msg.startsWith('Erro') ? 'text-red-400' : 'text-green-400'}`}>{msg}</span>}
+        {msg && <span className={`text-xs ${msg.startsWith('Error') ? 'text-red-400' : 'text-green-400'}`}>{msg}</span>}
       </div>
       {mentors.length === 0 && (
-        <p className="text-xs text-gray-500">Nenhum mentor ativo. Configure a URL de agenda em Admin Profile para criar o mentor.</p>
+        <p className="text-xs text-gray-500">No active mentors. Configure the calendar URL in Admin Profile to create the mentor.</p>
       )}
     </div>
   );
@@ -281,13 +283,12 @@ const TABS: Array<{ id: Tab; label: string }> = [
   { id: 'overview', label: 'Overview' },
   { id: 'journey', label: 'Journey' },
   { id: 'survey', label: 'Survey' },
-  { id: 'scholarship', label: 'Bolsas' },
-  { id: 'support', label: 'Suporte IA' },
+  { id: 'scholarship', label: 'Scholarships' },
+  { id: 'support', label: 'AI Support' },
   { id: 'orders', label: 'Orders' },
   { id: 'documents', label: 'Documents' },
-  { id: 'timeline', label: 'Timeline' },
   { id: 'messages', label: 'Messages' },
-  { id: 'followups', label: 'Follow-ups' },
+  { id: 'followups', label: 'Pending Tasks' },
 ];
 
 // ---------------------------------------------------------------------------
@@ -344,7 +345,7 @@ function OverviewTab({
             <InfoRow label="Status" value={toLabel(profile.status)} />
           </div>
           <div className="mt-4 pt-4 border-t border-white/5">
-            <p className="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-2">Mentor de Indicação</p>
+            <p className="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-2">Referral Mentor</p>
             <MentorAssignSection profileId={profile.id} currentMentorId={profile.mentor_id} />
           </div>
         </SectionCard>
@@ -557,8 +558,8 @@ function OverviewTab({
           </div>
         </SectionCard>
 
-        {/* Billing Recorrente */}
-        <SectionCard title="Billing Recorrente" icon={TrendingUp}>
+        {/* Recurring Billing */}
+        <SectionCard title="Recurring Billing" icon={TrendingUp}>
           {detail.recurringCharge ? (
             <div className="space-y-3">
               <div className="space-y-1.5">
@@ -571,45 +572,45 @@ function OverviewTab({
                     {detail.recurringCharge.status}
                   </Badge>
                 } />
-                <InfoRow label="Valor/mês" value={`$${detail.recurringCharge.monthly_usd.toLocaleString('en-US')}`} />
-                <InfoRow label="Parcelas" value={`${detail.recurringCharge.installments_paid} / ${detail.recurringCharge.installments_total}`} />
-                <InfoRow label="Próx. cobrança" value={detail.recurringCharge.next_billing_date ?? '—'} />
+                <InfoRow label="Monthly Amount" value={`$${detail.recurringCharge.monthly_usd.toLocaleString('en-US')}`} />
+                <InfoRow label="Installments" value={`${detail.recurringCharge.installments_paid} / ${detail.recurringCharge.installments_total}`} />
+                <InfoRow label="Next Billing" value={detail.recurringCharge.next_billing_date ?? '—'} />
                 {detail.recurringCharge.suspended_reason && (
-                  <InfoRow label="Motivo suspensão" value={<span className="text-yellow-400 text-xs">{detail.recurringCharge.suspended_reason}</span>} />
+                  <InfoRow label="Suspension Reason" value={<span className="text-yellow-400 text-xs">{detail.recurringCharge.suspended_reason}</span>} />
                 )}
               </div>
               <div className="flex gap-2 pt-1 flex-wrap">
                 {detail.recurringCharge.status === 'active' && (
                   <Button size="sm" onClick={() => onSuspendBilling('suspend')} disabled={mutating}
                     className="bg-yellow-500/10 border border-yellow-500/30 text-yellow-400 hover:bg-yellow-500/20 font-bold text-xs">
-                    <PauseCircle className="w-3.5 h-3.5 mr-1.5" />Suspender
+                    <PauseCircle className="w-3.5 h-3.5 mr-1.5" />Suspend
                   </Button>
                 )}
                 {detail.recurringCharge.status === 'suspended' && (
                   <Button size="sm" onClick={() => onSuspendBilling('reactivate')} disabled={mutating}
                     className="bg-green-500/10 border border-green-500/30 text-green-400 hover:bg-green-500/20 font-bold text-xs">
-                    <PlayCircle className="w-3.5 h-3.5 mr-1.5" />Reativar
+                    <PlayCircle className="w-3.5 h-3.5 mr-1.5" />Reactivate
                   </Button>
                 )}
                 {detail.recurringCharge.status !== 'cancelled' && (
                   <Button size="sm" onClick={() => onSuspendBilling('cancel')} disabled={mutating}
                     className="bg-red-500/10 border border-red-500/30 text-red-400 hover:bg-red-500/20 font-bold text-xs">
-                    Cancelar
+                    Cancel
                   </Button>
                 )}
               </div>
             </div>
           ) : (
             <div className="space-y-3">
-              <p className="text-gray-500 text-sm italic">Nenhum billing ativo.</p>
+              <p className="text-gray-500 text-sm italic">No active billing.</p>
               {detail.institutionApplication && (
                 <Button size="sm" onClick={onStartBilling} disabled={mutating}
                   className="bg-gold-medium hover:bg-gold-dark text-black font-black w-full">
-                  <PlayCircle className="w-4 h-4 mr-1.5" />Iniciar Billing
+                  <PlayCircle className="w-4 h-4 mr-1.5" />Start Billing
                 </Button>
               )}
               {!detail.institutionApplication && (
-                <p className="text-gray-600 text-xs">Aguardando application V11.</p>
+                <p className="text-gray-600 text-xs">Waiting for V11 application.</p>
               )}
             </div>
           )}
@@ -624,7 +625,11 @@ function OverviewTab({
 // Tab: Orders
 // ---------------------------------------------------------------------------
 
-function OrdersTab({ orders }: { orders: CrmVisaOrder[] }) {
+function OrdersTab({
+  orders,
+}: {
+  orders: CrmVisaOrder[];
+}) {
   if (orders.length === 0) {
     return <EmptyState icon={DollarSign} message="No orders found for this profile." />;
   }
@@ -696,7 +701,47 @@ function OrdersTab({ orders }: { orders: CrmVisaOrder[] }) {
                   <span className="font-mono text-gray-400 text-[10px]">{order.service_request_id}</span>
                 </div>
               )}
+              <div>
+                <span className="text-gray-500 block uppercase tracking-wider mb-0.5">Terms</span>
+                <span className={cn('font-bold', order.contract_accepted ? 'text-emerald-300' : 'text-red-300')}>
+                  {order.contract_accepted ? 'Accepted' : 'Missing'}
+                </span>
+              </div>
+              <div>
+                <span className="text-gray-500 block uppercase tracking-wider mb-0.5">Identity</span>
+                <span className={cn('font-bold', order.contract_selfie_url ? 'text-amber-300' : 'text-red-300')}>
+                  {order.contract_selfie_url ? 'Pending Review' : 'Missing'}
+                </span>
+              </div>
+              <div>
+                <span className="text-gray-500 block uppercase tracking-wider mb-0.5">Signature</span>
+                <span className={cn('font-bold', order.signature_image_url ? 'text-emerald-300' : 'text-red-300')}>
+                  {order.signature_image_url ? 'Captured' : 'Missing'}
+                </span>
+              </div>
+              {order.ip_address && (
+                <div>
+                  <span className="text-gray-500 block uppercase tracking-wider mb-0.5">Client IP</span>
+                  <span className="font-mono text-gray-400 text-[10px]">{order.ip_address}</span>
+                </div>
+              )}
+              {order.contract_approval_reviewed_at && (
+                <div className="sm:col-span-2">
+                  <span className="text-gray-500 block uppercase tracking-wider mb-0.5">Reviewed</span>
+                  <span className="text-gray-300">
+                    {fmtDate(order.contract_approval_reviewed_at)}
+                    {order.contract_approval_reviewed_by ? ` by ${order.contract_approval_reviewed_by}` : ''}
+                  </span>
+                </div>
+              )}
+              {order.contract_approval_admin_ip && (
+                <div>
+                  <span className="text-gray-500 block uppercase tracking-wider mb-0.5">Admin IP</span>
+                  <span className="font-mono text-gray-400 text-[10px]">{order.contract_approval_admin_ip}</span>
+                </div>
+              )}
             </div>
+
           </CardContent>
         </Card>
       ))}
@@ -719,6 +764,7 @@ type VisaOrderDocument = {
   label: string;
   url: string | null;
   orderNumber: string | null;
+  forceIsPdf?: boolean;
 };
 
 function buildVisaOrderDocuments(orders: CrmVisaOrder[]): VisaOrderDocument[] {
@@ -730,17 +776,26 @@ function buildVisaOrderDocuments(orders: CrmVisaOrder[]): VisaOrderDocument[] {
 
     if (order.contract_document_url) {
       docs.push({
-        id: `${baseId}-contract-document`,
-        label: 'Contract document',
+        id: `${baseId}-document-front`,
+        label: 'Document Front',
         url: order.contract_document_url,
+        orderNumber,
+      });
+    }
+
+    if (order.contract_document_back_url) {
+      docs.push({
+        id: `${baseId}-document-back`,
+        label: 'Document Back',
+        url: order.contract_document_back_url,
         orderNumber,
       });
     }
 
     if (order.contract_selfie_url) {
       docs.push({
-        id: `${baseId}-contract-selfie`,
-        label: 'Contract selfie',
+        id: `${baseId}-selfie`,
+        label: 'Selfie with Document',
         url: order.contract_selfie_url,
         orderNumber,
       });
@@ -749,7 +804,7 @@ function buildVisaOrderDocuments(orders: CrmVisaOrder[]): VisaOrderDocument[] {
     if (order.signature_image_url) {
       docs.push({
         id: `${baseId}-signature`,
-        label: 'Signature image',
+        label: 'Signature',
         url: order.signature_image_url,
         orderNumber,
       });
@@ -758,9 +813,10 @@ function buildVisaOrderDocuments(orders: CrmVisaOrder[]): VisaOrderDocument[] {
     if (order.contract_pdf_url) {
       docs.push({
         id: `${baseId}-contract-pdf`,
-        label: 'Signed contract PDF',
+        label: 'Contract PDF',
         url: order.contract_pdf_url,
         orderNumber,
+        forceIsPdf: true,
       });
     }
 
@@ -781,7 +837,7 @@ function TransferConcludeButton({ applicationId, profileId, onRefresh }: { appli
   const [loading, setLoading] = useState(false);
 
   const handleConclude = async () => {
-    if (!confirm('Confirmar que a transferência foi concluída? O aluno será notificado.')) return;
+    if (!confirm('Confirm that the transfer has been completed? The student will be notified.')) return;
     setLoading(true);
     try {
       await supabase
@@ -798,8 +854,9 @@ function TransferConcludeButton({ applicationId, profileId, onRefresh }: { appli
       });
 
       await onRefresh();
-    } catch (err: any) {
-      alert('Erro: ' + err.message);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      alert('Error: ' + message);
     } finally {
       setLoading(false);
     }
@@ -816,7 +873,7 @@ function TransferConcludeButton({ applicationId, profileId, onRefresh }: { appli
       ) : (
         <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
       )}
-      Marcar Transfer Concluído
+      Mark Transfer Completed
     </button>
   );
 }
@@ -898,10 +955,10 @@ function DocumentsTab({
       });
       if (res.error) throw new Error(res.error.message);
       const generated = res.data?.forms_generated ?? res.data?.forms?.length ?? '?';
-      setMatriculaMsg({ text: `${generated} formulários gerados com sucesso.`, ok: true });
+      setMatriculaMsg({ text: `${generated} forms generated successfully.`, ok: true });
       await onRefresh();
     } catch (e) {
-      setMatriculaMsg({ text: `Erro ao gerar PDFs: ${errorMessage(e)}`, ok: false });
+      setMatriculaMsg({ text: `Error generating PDFs: ${errorMessage(e)}`, ok: false });
     } finally {
       setGeneratingForms(false);
     }
@@ -918,12 +975,12 @@ function DocumentsTab({
       });
       if (res.error) throw new Error(res.error.message);
       setMatriculaMsg({
-        text: `Pacote gerado. ${res.data?.forms_added ?? 0} formulários + ${res.data?.docs_added ?? 0} documentos.`,
+        text: `Package generated. ${res.data?.forms_added ?? 0} forms + ${res.data?.docs_added ?? 0} documents.`,
         ok: true,
       });
       await onRefresh();
     } catch (e) {
-      setMatriculaMsg({ text: `Erro ao montar pacote: ${errorMessage(e)}`, ok: false });
+      setMatriculaMsg({ text: `Error building package: ${errorMessage(e)}`, ok: false });
     } finally {
       setBuildingPackage(false);
     }
@@ -946,7 +1003,7 @@ function DocumentsTab({
         : await reviewStudentDocuments(profileId, reviewDialog.decision, adminId, reason);
 
       if (!result.success) {
-        alert(result.error || 'Falha ao revisar documentos');
+        alert(result.error || 'Failed to review documents');
         return;
       }
 
@@ -984,7 +1041,7 @@ function DocumentsTab({
           );
 
       if (!result.success) {
-        alert(result.error || 'Falha ao revisar documentos');
+        alert(result.error || 'Failed to review documents');
         return;
       }
 
@@ -998,7 +1055,7 @@ function DocumentsTab({
   };
 
   useEffect(() => {
-    if (files.length === 0 && studentDocuments.length === 0 && globalDocumentRequests.length === 0 && !institutionApplication) { setLoadingUrls(false); return; }
+    if (files.length === 0 && studentDocuments.length === 0 && globalDocumentRequests.length === 0 && orderDocuments.length === 0 && !institutionApplication) { setLoadingUrls(false); return; }
     (async () => {
       const resolved: Record<string, string> = {};
       for (const f of files) {
@@ -1015,7 +1072,12 @@ function DocumentsTab({
         const url = await getSecureUrl(doc.submitted_url);
         if (url) resolved[doc.id] = url;
       }
-      
+      for (const doc of orderDocuments) {
+        if (!doc.url) continue;
+        const url = await getSecureUrl(doc.url);
+        if (url) resolved[doc.id] = url;
+      }
+
       // Resolve acceptance letter and transfer forms
       if (institutionApplication) {
         if (institutionApplication.acceptance_letter_url) {
@@ -1035,7 +1097,7 @@ function DocumentsTab({
       setResolvedUrls(resolved);
       setLoadingUrls(false);
     })();
-  }, [files, studentDocuments, globalDocumentRequests, institutionApplication]);
+  }, [files, studentDocuments, globalDocumentRequests, orderDocuments, institutionApplication]);
 
   const hasAnything = !!institutionApplication || institutionForms.length > 0 || files.length > 0 || srDocuments.length > 0 || studentDocuments.length > 0 || globalDocumentRequests.length > 0 || orderDocuments.length > 0;
   if (!hasAnything) {
@@ -1052,6 +1114,7 @@ function DocumentsTab({
           : studentDocuments.some((doc) => doc.status === 'under_review')
             ? 'under_review'
             : 'pending';
+  const visibleStudentDocuments = studentDocuments;
 
   const globalDocumentOrder: Record<string, number> = {
     current_i20: 1,
@@ -1075,7 +1138,7 @@ function DocumentsTab({
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-black uppercase tracking-widest text-gray-300 flex items-center gap-2">
               <Package className="w-4 h-4 text-gold-medium" />
-              Formulários e Pacote MatriculaUSA
+              MatriculaUSA Forms and Package
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-5">
@@ -1087,23 +1150,23 @@ function DocumentsTab({
               <div className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3">
                 <p className="text-[10px] font-black uppercase tracking-widest text-gray-500">PDFs</p>
                 <p className="mt-1 text-sm font-bold text-white">
-                  {institutionApplication?.forms_status ? toLabel(institutionApplication.forms_status) : `${institutionForms.length} gerado(s)`}
+                  {institutionApplication?.forms_status ? toLabel(institutionApplication.forms_status) : `${institutionForms.length} generated`}
                 </p>
               </div>
               <div className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3">
-                <p className="text-[10px] font-black uppercase tracking-widest text-gray-500">Assinados</p>
+                <p className="text-[10px] font-black uppercase tracking-widest text-gray-500">Signed</p>
                 <p className="mt-1 text-sm font-bold text-white">
                   {institutionForms.filter((form) => !!form.signed_url || !!form.signed_at).length} / {institutionForms.length}
                 </p>
               </div>
               <div className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3">
-                <p className="text-[10px] font-black uppercase tracking-widest text-gray-500">Lidos</p>
+                <p className="text-[10px] font-black uppercase tracking-widest text-gray-500">Read</p>
                 <p className="mt-1 text-sm font-bold text-white">
                   {institutionForms.filter((form) => !!metadataString(form.signature_metadata_json, 'pdf_opened_at')).length} / {institutionForms.length}
                 </p>
               </div>
               <div className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3">
-                <p className="text-[10px] font-black uppercase tracking-widest text-gray-500">Pacote</p>
+                <p className="text-[10px] font-black uppercase tracking-widest text-gray-500">Package</p>
                 <p className="mt-1 text-sm font-bold text-white">{toLabel(institutionApplication?.package_status)}</p>
               </div>
             </div>
@@ -1117,8 +1180,8 @@ function DocumentsTab({
                 variant="outline"
               >
                 {generatingForms
-                  ? <><Loader2 className="w-3.5 h-3.5 mr-2 animate-spin" />Gerando PDFs...</>
-                  : <><FileText className="w-3.5 h-3.5 mr-2" />{institutionApplication?.forms_status === 'generated' ? 'Regenerar PDFs' : 'Gerar PDFs'}</>}
+                  ? <><Loader2 className="w-3.5 h-3.5 mr-2 animate-spin" />Generating PDFs...</>
+                  : <><FileText className="w-3.5 h-3.5 mr-2" />{institutionApplication?.forms_status === 'generated' ? 'Regenerate PDFs' : 'Generate PDFs'}</>}
               </Button>
               <Button
                 size="sm"
@@ -1128,8 +1191,8 @@ function DocumentsTab({
                 variant="outline"
               >
                 {buildingPackage
-                  ? <><Loader2 className="w-3.5 h-3.5 mr-2 animate-spin" />Montando pacote...</>
-                  : <><Package className="w-3.5 h-3.5 mr-2" />{institutionApplication?.package_status === 'ready' ? 'Remontar Pacote' : 'Montar Pacote'}</>}
+                  ? <><Loader2 className="w-3.5 h-3.5 mr-2 animate-spin" />Building package...</>
+                  : <><Package className="w-3.5 h-3.5 mr-2" />{institutionApplication?.package_status === 'ready' ? 'Rebuild Package' : 'Build Package'}</>}
               </Button>
               {institutionApplication?.package_storage_url && (
                 <a
@@ -1139,7 +1202,7 @@ function DocumentsTab({
                   className="inline-flex h-9 items-center justify-center rounded-md border border-emerald-500/20 bg-emerald-500/10 px-3 text-xs font-black uppercase tracking-wide text-emerald-300 hover:bg-emerald-500/20"
                 >
                   <Download className="w-3.5 h-3.5 mr-2" />
-                  Baixar ZIP
+                  Download ZIP
                 </a>
               )}
             </div>
@@ -1158,10 +1221,10 @@ function DocumentsTab({
             {/* Acceptance Letter + Transfer Form status */}
             {institutionApplication && (institutionApplication.acceptance_letter_url || institutionApplication.transfer_form_url || institutionApplication.package_status === 'ready' || institutionApplication.package_status === 'sent') && (
               <div className="space-y-3">
-                <div className="text-xs text-gray-500 uppercase tracking-widest font-bold">Status MatriculaUSA → Aluno</div>
+                <div className="text-xs text-gray-500 uppercase tracking-widest font-bold">MatriculaUSA → Student Status</div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <div className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3 space-y-2">
-                    <p className="text-[10px] font-black uppercase tracking-widest text-gray-500">Carta de Aceite</p>
+                    <p className="text-[10px] font-black uppercase tracking-widest text-gray-500">Acceptance Letter</p>
                     {institutionApplication.acceptance_letter_url ? (
                       <a
                         href={resolvedUrls[`${institutionApplication.id}-acceptance`] || '#'}
@@ -1171,10 +1234,10 @@ function DocumentsTab({
                         className="inline-flex items-center gap-1.5 text-xs text-emerald-400 font-semibold hover:underline"
                       >
                         <ExternalLink className="w-3 h-3" />
-                        Ver carta de aceite
+                        View acceptance letter
                       </a>
                     ) : (
-                      <p className="text-xs text-gray-500">Aguardando MatriculaUSA</p>
+                      <p className="text-xs text-gray-500">Waiting for MatriculaUSA</p>
                     )}
                   </div>
                   <div className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3 space-y-2">
@@ -1189,11 +1252,11 @@ function DocumentsTab({
                           className="inline-flex items-center gap-1.5 text-xs text-blue-400 font-semibold hover:underline"
                         >
                           <ExternalLink className="w-3 h-3" />
-                          Template enviado
+                          Template sent
                         </a>
                         {institutionApplication.transfer_form_delivered_at && (
                           <p className="text-xs text-emerald-400 font-semibold">
-                            ✅ Entregue à escola em {new Date(institutionApplication.transfer_form_delivered_at).toLocaleDateString('pt-BR')}
+                            Delivered to school on {new Date(institutionApplication.transfer_form_delivered_at).toLocaleDateString('en-US')}
                           </p>
                         )}
                         {institutionApplication.transfer_form_filled_url ? (
@@ -1205,18 +1268,18 @@ function DocumentsTab({
                             className="inline-flex items-center gap-1.5 text-xs text-emerald-400 font-semibold hover:underline"
                           >
                             <ExternalLink className="w-3 h-3" />
-                            Aluno enviou preenchido
+                            Student submitted completed form
                           </a>
                         ) : (
                           !institutionApplication.transfer_form_delivered_at && (
                             <p className="text-xs text-gray-500">
-                              Aguardando confirmação do aluno
+                              Waiting for student confirmation
                             </p>
                           )
                         )}
                       </div>
                     ) : (
-                      <p className="text-xs text-gray-500">Não aplicável</p>
+                      <p className="text-xs text-gray-500">Not applicable</p>
                     )}
                   </div>
                 </div>
@@ -1231,7 +1294,7 @@ function DocumentsTab({
                 )}
                 {institutionApplication.transfer_concluded_at && (
                   <div className="flex items-center gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm font-black text-emerald-400 uppercase tracking-widest">
-                    ✅ TRANSFER CONCLUÍDO — {new Date(institutionApplication.transfer_concluded_at).toLocaleDateString('pt-BR')}
+                    TRANSFER COMPLETED — {new Date(institutionApplication.transfer_concluded_at).toLocaleDateString('en-US')}
                   </div>
                 )}
               </div>
@@ -1239,7 +1302,7 @@ function DocumentsTab({
 
             {institutionForms.length > 0 && (
               <div>
-                <div className="text-xs text-gray-500 uppercase tracking-widest font-bold mb-3">Formulários Gerados</div>
+                <div className="text-xs text-gray-500 uppercase tracking-widest font-bold mb-3">Generated Forms</div>
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
                   {institutionForms.map((form) => {
                     const signedUrl = form.signed_url;
@@ -1266,55 +1329,55 @@ function DocumentsTab({
                         <div className="flex items-start justify-between gap-3">
                           <div>
                             <p className="text-sm font-bold text-white">{toLabel(form.form_type)}</p>
-                            <p className="mt-1 text-[10px] text-gray-500">Gerado em {fmtDate(form.generated_at)}</p>
+                            <p className="mt-1 text-[10px] text-gray-500">Generated on {fmtDate(form.generated_at)}</p>
                           </div>
                           <div className="flex flex-col items-end gap-1">
                             <Badge className={cn(
                               'text-[9px] font-black uppercase border rounded-sm',
                               signed ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-amber-500/10 text-amber-400 border-amber-500/20'
                             )}>
-                              {signed ? 'Assinado' : 'Pendente'}
+                              {signed ? 'Signed' : 'Pending'}
                             </Badge>
                             <Badge className={cn(
                               'text-[9px] font-black uppercase border rounded-sm',
                               openedAt ? 'bg-blue-500/10 text-blue-300 border-blue-500/20' : 'bg-white/5 text-gray-500 border-white/10'
                             )}>
-                              {openedAt ? 'PDF lido' : 'Não lido'}
+                              {openedAt ? 'PDF read' : 'Unread'}
                             </Badge>
                           </div>
                         </div>
                         <div className="grid grid-cols-1 gap-1.5 text-[10px] text-gray-500">
                           <div className="flex items-center justify-between gap-3">
-                            <span>Primeira leitura</span>
+                            <span>First read</span>
                             <span className={openedAt ? 'text-blue-300' : 'text-gray-600'}>{fmtDate(openedAt)}</span>
                           </div>
                           <div className="flex items-center justify-between gap-3">
-                            <span>Última abertura</span>
+                            <span>Last opened</span>
                             <span className={lastOpenedAt ? 'text-blue-300' : 'text-gray-600'}>
                               {lastOpenedAt ? `${fmtDate(lastOpenedAt)}${openCount ? ` · ${openCount}x` : ''}` : '—'}
                             </span>
                           </div>
                           <div className="flex items-center justify-between gap-3">
-                            <span>Confirmação assinatura</span>
+                            <span>Signature confirmation</span>
                             <span className={confirmedAt ? 'text-emerald-300' : 'text-gray-600'}>{fmtDate(confirmedAt)}</span>
                           </div>
                           {signatureCapture && (
                             <div className="flex items-center justify-between gap-3">
-                              <span>Modo</span>
+                              <span>Mode</span>
                               <span className="text-gray-300">{toLabel(signatureCapture)}</span>
                             </div>
                           )}
                           {(documentFrontUrl || documentBackUrl || identityPhotoUrl) && (
                             <div className="flex items-center justify-between gap-3">
-                              <span>Docs identidade</span>
+                              <span>Identity docs</span>
                               <span className="text-emerald-300">
-                                {[documentFrontUrl, documentBackUrl, identityPhotoUrl].filter(Boolean).length}/3 recebidos
+                                {[documentFrontUrl, documentBackUrl, identityPhotoUrl].filter(Boolean).length}/3 received
                               </span>
                             </div>
                           )}
                           {identityPhotoHash && (
                             <div className="flex items-center justify-between gap-3">
-                              <span>Hash foto</span>
+                              <span>Photo hash</span>
                               <span className="max-w-[160px] truncate font-mono text-gray-400" title={identityPhotoHash}>{identityPhotoHash}</span>
                             </div>
                           )}
@@ -1339,7 +1402,7 @@ function DocumentsTab({
                               className="inline-flex items-center rounded-md border border-emerald-500/20 bg-emerald-500/10 px-2.5 py-1.5 text-[10px] font-black uppercase tracking-wide text-emerald-300 hover:bg-emerald-500/20"
                             >
                               <CheckCircle2 className="w-3 h-3 mr-1.5" />
-                              Assinado
+                              Signed
                             </a>
                           )}
                           {identityPhotoUrl && (
@@ -1350,7 +1413,7 @@ function DocumentsTab({
                               className="inline-flex items-center rounded-md border border-blue-500/20 bg-blue-500/10 px-2.5 py-1.5 text-[10px] font-black uppercase tracking-wide text-blue-300 hover:bg-blue-500/20"
                             >
                               <Image className="w-3 h-3 mr-1.5" />
-                              Foto ID
+                              ID Photo
                             </a>
                           )}
                           {documentFrontUrl && (
@@ -1392,9 +1455,9 @@ function DocumentsTab({
           <div className="text-xs text-gray-500 uppercase tracking-widest font-bold mb-3">Order Documents</div>
           <div className="flex flex-wrap gap-4">
             {orderDocuments.map((doc) => {
-              const url = doc.url;
+              const url = resolvedUrls[doc.id] ?? doc.url;
               const label = doc.label;
-              const pdf = url ? isPdf(url) : false;
+              const pdf = doc.forceIsPdf || (url ? isPdf(url) : false);
               return (
                 <div
                   key={doc.id}
@@ -1538,7 +1601,7 @@ function DocumentsTab({
       )}
 
       {/* Student onboarding documents */}
-      {studentDocuments.length > 0 && (
+      {visibleStudentDocuments.length > 0 && (
         <div>
           <div className="flex items-center justify-between gap-3 mb-3">
             <div className="flex items-center gap-2 flex-wrap">
@@ -1551,21 +1614,29 @@ function DocumentsTab({
             </div>
           </div>
           <div className="flex flex-wrap gap-4">
-            {studentDocuments.map((doc) => {
+            {visibleStudentDocuments.map((doc) => {
               const url = resolvedUrls[doc.id];
               const label = (DOC_TYPE_LABELS[doc.type ?? ''] ?? toLabel(doc.type)) || 'Document';
               const pdf = url ? isPdf(url) : false;
+              const status = doc.status ?? 'pending';
+              const isContractIdentityDoc = CONTRACT_IDENTITY_DOC_TYPES.has(doc.type ?? '');
               return (
                 <div
                   key={doc.id}
                   onClick={() => {
                     if (url) {
-                      openModal(url, label, {
-                        scope: 'student',
-                        documentId: doc.id,
-                        status: doc.status,
-                        rejectionReason: doc.rejection_reason,
-                      });
+                      openModal(
+                        url,
+                        label,
+                        isContractIdentityDoc
+                          ? undefined
+                          : {
+                              scope: 'student',
+                              documentId: doc.id,
+                              status: doc.status,
+                              rejectionReason: doc.rejection_reason,
+                            }
+                      );
                     }
                   }}
                   className="group relative cursor-pointer w-28 h-28 sm:w-32 sm:h-32 rounded-lg overflow-hidden border border-white/20 bg-black/50 hover:border-white transition-all hover:scale-105 duration-300 shadow-lg shadow-black/50"
@@ -1588,8 +1659,8 @@ function DocumentsTab({
                       {label}
                   </div>
                   <div className="absolute top-2 right-2">
-                    <Badge className={cn('text-[8px] font-black uppercase border rounded-sm px-1.5 py-0.5', studentDocBadge(doc.status))}>
-                      {toLabel(doc.status)}
+                    <Badge className={cn('text-[8px] font-black uppercase border rounded-sm px-1.5 py-0.5', studentDocBadge(status))}>
+                      {toLabel(status)}
                     </Badge>
                   </div>
                 </div>
@@ -1603,25 +1674,25 @@ function DocumentsTab({
       <Dialog open={!!reviewDialog && !reviewing} onOpenChange={(open) => !open && setReviewDialog(null)}>
         <DialogContent className="sm:max-w-md bg-[#0b0b0b] border border-white/10 text-white">
           <DialogTitle className="text-lg font-black uppercase tracking-wide">
-            {reviewDialog?.decision === 'approve' ? 'Confirmar aprovação' : 'Recusar documentos'}
+            {reviewDialog?.decision === 'approve' ? 'Confirm Approval' : 'Reject Documents'}
           </DialogTitle>
           <div className="mt-2 text-sm text-gray-400">
             {reviewDialog?.scope === 'global'
-              ? 'Essa ação vale para os documentos enviados depois da universidade.'
-              : 'Essa ação vale para os documentos de onboarding do aluno.'}
+              ? 'This action applies to documents submitted after university selection.'
+              : 'This action applies to the student onboarding documents.'}
           </div>
 
           {reviewDialog?.decision === 'reject' && (
             <div className="mt-4 space-y-2">
               <label className="text-xs font-bold uppercase tracking-widest text-gray-500">
-                Motivo da rejeição
+                Rejection Reason
               </label>
               <textarea
                 value={rejectionReason}
                 onChange={(e) => setRejectionReason(e.target.value)}
                 rows={4}
                 className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-gray-600 focus:border-gold-medium/40"
-                placeholder="Explique ao aluno o que precisa ser corrigido."
+                placeholder="Explain to the student what needs to be corrected."
               />
             </div>
           )}
@@ -1633,7 +1704,7 @@ function DocumentsTab({
               onClick={() => setReviewDialog(null)}
               className="border-white/10 bg-white/5 text-gray-300 hover:bg-white/10"
             >
-              Cancelar
+              Cancel
             </Button>
             <Button
               type="button"
@@ -1643,7 +1714,7 @@ function DocumentsTab({
                 ? 'bg-emerald-500 hover:bg-emerald-400 text-black'
                 : 'bg-red-500 hover:bg-red-400 text-white'}
             >
-              {reviewDialog?.decision === 'approve' ? 'Aprovar' : 'Recusar'}
+              {reviewDialog?.decision === 'approve' ? 'Approve' : 'Reject'}
             </Button>
           </div>
         </DialogContent>
@@ -1654,10 +1725,10 @@ function DocumentsTab({
           <div className="flex flex-col items-center text-center py-2">
             <Loader2 className="w-8 h-8 animate-spin text-gold-medium" />
             <DialogTitle className="mt-4 text-lg font-black uppercase tracking-wide">
-              Processando
+              Processing
             </DialogTitle>
             <p className="mt-2 text-sm text-gray-400">
-              Atualizando os documentos e recarregando os dados do CRM.
+              Updating documents and reloading CRM data.
             </p>
           </div>
         </DialogContent>
@@ -1715,7 +1786,7 @@ function DocumentsTab({
                       {mediaModal.reviewTarget.status === 'rejected' && mediaModal.reviewTarget.rejectionReason && (
                         <div className="mt-3 rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3">
                           <div className="text-[10px] font-black uppercase tracking-widest text-red-300">
-                            Motivo da rejeição
+                            Rejection Reason
                           </div>
                           <div className="mt-1 text-sm text-red-100 whitespace-pre-line">
                             {mediaModal.reviewTarget.rejectionReason}
@@ -1751,14 +1822,14 @@ function DocumentsTab({
                   {modalRejecting && (
                     <div className="space-y-2">
                       <label className="text-xs font-bold uppercase tracking-widest text-gray-500">
-                        Motivo da rejeição
+                        Rejection Reason
                       </label>
                       <textarea
                         value={rejectionReason}
                         onChange={(e) => setRejectionReason(e.target.value)}
                         rows={4}
                         className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-gray-600 focus:border-gold-medium/40"
-                        placeholder="Explique o que precisa ser corrigido neste documento."
+                        placeholder="Explain what needs to be corrected in this document."
                       />
                       <div className="flex items-center justify-end gap-3">
                         <Button
@@ -1771,7 +1842,7 @@ function DocumentsTab({
                           }}
                           className="border-white/10 bg-white/5 text-gray-300 hover:bg-white/10"
                         >
-                          Cancelar
+                          Cancel
                         </Button>
                         <Button
                           type="button"
@@ -1779,7 +1850,7 @@ function DocumentsTab({
                           onClick={() => runModalReview('reject')}
                           className="bg-red-500 hover:bg-red-400 text-white"
                         >
-                          Confirmar recusa
+                          Confirm Rejection
                         </Button>
                       </div>
                     </div>
@@ -1912,13 +1983,14 @@ function TimelineTab({ events, stageHistory }: { events: CrmEvent[]; stageHistor
 }
 
 // ---------------------------------------------------------------------------
-// Tab: Follow-ups
+// Tab: Pending Tasks
 // ---------------------------------------------------------------------------
 
 const FOLLOWUP_TYPES = [
   'document_request',
   'payment_reminder',
   'contract_followup',
+  'dependent_data_or_documents',
   'general_checkin',
   'sevis_release',
   'school_update',
@@ -1928,11 +2000,13 @@ const FOLLOWUP_TYPES = [
 function FollowupsTab({
   followups,
   serviceRequestId,
+  profileId,
   adminId,
   onRefresh,
 }: {
   followups: CrmFollowup[];
   serviceRequestId: string | null;
+  profileId: string;
   adminId: string | null;
   onRefresh: () => void;
 }) {
@@ -1941,6 +2015,13 @@ function FollowupsTab({
   const [resolving, setResolving] = useState<string | null>(null);
   const [errMsg, setErrMsg] = useState<string | null>(null);
   const [form, setForm] = useState({ type: 'general_checkin', notes: '', due_at: '' });
+  const dueDateInputRef = useRef<HTMLInputElement | null>(null);
+
+  function openDueDatePicker() {
+    const input = dueDateInputRef.current as (HTMLInputElement & { showPicker?: () => void }) | null;
+    input?.showPicker?.();
+    input?.focus();
+  }
 
   async function handleCreate() {
     if (!serviceRequestId) return;
@@ -1953,6 +2034,31 @@ function FollowupsTab({
       dueAt: form.due_at || null,
       ownerUserId: adminId,
     });
+    if (!error) {
+      const taskDescription = [
+        toLabel(form.type),
+        form.notes.trim(),
+        form.due_at ? `Due: ${new Date(form.due_at).toLocaleString('en-US')}` : '',
+      ].filter(Boolean).join(' — ');
+
+      const trigger = form.type === 'dependent_data_or_documents' ? 'dependent_pending' : 'new_pending_task';
+
+      const { error: notifyError } = await supabase.functions.invoke('migma-notify', {
+        body: {
+          trigger,
+          user_id: profileId,
+          data: {
+            task_description: taskDescription || 'New pending task created by the Migma team.',
+          },
+        },
+      });
+
+      if (notifyError) {
+        setErrMsg(`Follow-up created, but customer notification failed: ${notifyError.message}`);
+        setSaving(false);
+        return;
+      }
+    }
     setSaving(false);
     if (error) { setErrMsg(error); return; }
     setCreating(false);
@@ -1977,7 +2083,7 @@ function FollowupsTab({
             onClick={() => setCreating((v) => !v)}
             className="bg-gold-medium hover:bg-gold-dark text-black font-black text-xs"
           >
-            {creating ? 'Cancel' : '+ New Follow-up'}
+            {creating ? 'Cancel' : '+ New Pending Task'}
           </Button>
         </div>
       )}
@@ -2001,12 +2107,24 @@ function FollowupsTab({
               </div>
               <div>
                 <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 block mb-1">Due Date</label>
-                <input
-                  type="datetime-local"
-                  value={form.due_at}
-                  onChange={(e) => setForm((f) => ({ ...f, due_at: e.target.value }))}
-                  className="w-full bg-black/40 border border-white/10 text-white text-xs rounded px-2 py-1.5"
-                />
+                <div className="flex max-w-[240px] overflow-hidden rounded border border-white/10 bg-black/40">
+                  <input
+                    ref={dueDateInputRef}
+                    type="datetime-local"
+                    value={form.due_at}
+                    onClick={openDueDatePicker}
+                    onChange={(e) => setForm((f) => ({ ...f, due_at: e.target.value }))}
+                    className="min-w-0 flex-1 bg-transparent px-2 py-1.5 text-xs text-white outline-none [color-scheme:dark] [&::-webkit-calendar-picker-indicator]:hidden"
+                  />
+                  <button
+                    type="button"
+                    onClick={openDueDatePicker}
+                    className="flex w-9 items-center justify-center border-l border-white/10 text-gray-300 hover:bg-white/10 hover:text-white"
+                    aria-label="Open due date picker"
+                  >
+                    <CalendarDays className="h-4 w-4" />
+                  </button>
+                </div>
               </div>
             </div>
             <div>
@@ -2027,7 +2145,7 @@ function FollowupsTab({
                 disabled={saving}
                 className="bg-gold-medium hover:bg-gold-dark text-black font-black text-xs"
               >
-                {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Save Follow-up'}
+                {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Save Pending Task'}
               </Button>
             </div>
           </CardContent>
@@ -2036,7 +2154,7 @@ function FollowupsTab({
 
       {/* List */}
       {followups.length === 0 && !creating && (
-        <EmptyState icon={Clock3} message="No follow-ups recorded for this case." />
+        <EmptyState icon={Clock3} message="No pending tasks recorded for this case." />
       )}
 
       {followups.map((f) => (
@@ -2086,10 +2204,75 @@ function FollowupsTab({
 // Tab: Messages
 // ---------------------------------------------------------------------------
 
-function MessageBody({ text }: { text: string }) {
+function looksLikeHtml(value: string) {
+  return /<!doctype\s+html/i.test(value) || /<\/?[a-z][\s\S]*>/i.test(value);
+}
+
+function HtmlEmailPreview({ html }: { html: string }) {
   const [expanded, setExpanded] = useState(false);
+  const sanitizedHtml = useMemo(() => {
+    const clean = DOMPurify.sanitize(html, {
+      WHOLE_DOCUMENT: true,
+      FORCE_BODY: true,
+      ADD_ATTR: ['target'],
+    });
+
+    const previewHead = `<base target="_blank" />
+  <style>
+    html, body { margin: 0; min-height: 100%; background: #0a0a0a; color: #e5e7eb; }
+    body { overflow-wrap: anywhere; }
+    img { max-width: 100%; height: auto; }
+    table { max-width: 100%; }
+  </style>`;
+
+    if (/<html[\s>]/i.test(clean)) {
+      if (/<head[\s>]/i.test(clean)) {
+        return clean.replace(/<head([^>]*)>/i, `<head$1>${previewHead}`);
+      }
+
+      return clean.replace(/<html([^>]*)>/i, `<html$1><head>${previewHead}</head>`);
+    }
+
+    return `<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  ${previewHead}
+</head>
+<body>${clean}</body>
+</html>`;
+  }, [html]);
+
+  return (
+    <div className="overflow-hidden rounded-md border border-white/10 bg-[#0a0a0a]">
+      <iframe
+        title="Email preview"
+        sandbox=""
+        referrerPolicy="no-referrer"
+        srcDoc={sanitizedHtml}
+        className={cn('w-full bg-[#0a0a0a]', expanded ? 'h-[720px]' : 'h-[420px]')}
+      />
+      <button
+        type="button"
+        onClick={() => setExpanded((v) => !v)}
+        className="w-full border-t border-white/10 py-1.5 text-[10px] font-black uppercase tracking-widest text-gray-500 transition-colors hover:text-gray-300"
+      >
+        {expanded ? '▲ Collapse Preview' : '▼ Expand Preview'}
+      </button>
+    </div>
+  );
+}
+
+function MessageBody({ text, html }: { text: string; html?: string | null }) {
+  const [expanded, setExpanded] = useState(false);
+  const htmlContent = html || (looksLikeHtml(text) ? text : null);
   const isLong = text.length > 600;
   const preview = isLong && !expanded ? text.slice(0, 600) + '…' : text;
+
+  if (htmlContent) {
+    return <HtmlEmailPreview html={htmlContent} />;
+  }
 
   return (
     <div className="bg-white/[0.03] border border-white/5 rounded-md text-xs text-gray-300 whitespace-pre-wrap leading-relaxed overflow-hidden">
@@ -2117,7 +2300,9 @@ function MessagesTab({ messages }: { messages: CrmMessage[] }) {
     <div className="space-y-3">
       {messages.map((msg) => {
         const isInbound = msg.direction === 'inbound';
-        const analysis = (msg.message_metadata as Record<string, unknown> | null)?.analysis as Record<string, unknown> | null;
+        const metadata = msg.message_metadata as Record<string, unknown> | null;
+        const analysis = metadata?.analysis as Record<string, unknown> | null;
+        const htmlBody = typeof metadata?.html === 'string' ? metadata.html : null;
 
         return (
           <Card key={msg.id} className={`bg-black/30 border ${isInbound ? 'border-sky-500/20' : 'border-white/5'}`}>
@@ -2151,7 +2336,7 @@ function MessagesTab({ messages }: { messages: CrmMessage[] }) {
                 </div>
               </div>
 
-              {msg.body_text && <MessageBody text={msg.body_text} />}
+              {(msg.body_text || htmlBody) && <MessageBody text={msg.body_text ?? ''} html={htmlBody} />}
 
               {analysis && (
                 <div className="mt-3 flex flex-wrap gap-2">
@@ -2191,12 +2376,67 @@ function MessagesTab({ messages }: { messages: CrmMessage[] }) {
 // Tab: Survey
 // ---------------------------------------------------------------------------
 
-const QUESTION_LABEL: Record<string, string> = Object.fromEntries(
-  ALL_QUESTIONS.map((q) => [q.id, q.text])
-);
+const SURVEY_SECTION_LABELS: Record<string, string> = {
+  A: 'Academic Profile and Preferences',
+  B: 'Documents and Timeline',
+  C: 'Financial Responsibility',
+  D: 'F-1 Visa Rules',
+  E: 'Mindset and Commitment',
+};
+
+const QUESTION_LABEL: Record<string, string> = {
+  a_email: 'Email',
+  a_full_name: 'Full Name',
+  a_formation: 'Desired Program Type',
+  a_interest_areas: 'Areas of Interest (choose exactly 2)',
+  a_class_frequency: 'Preferred Class Frequency (choose exactly 2)',
+  a_annual_investment: 'Acceptable Annual Investment Range (choose exactly 2)',
+  a_preferred_regions: 'Preferred U.S. Regions (choose exactly 3 states)',
+  a_english_level: 'Current English Level',
+  a_studied_college: 'Have you studied at a college or university before?',
+  a_main_objective: 'Main Objective with the Program',
+  a_weekly_availability: 'Minimum Weekly Study Availability',
+  service_transfer_deadline: 'What is your maximum transfer deadline?',
+  service_cos_i94_expiry: 'When does your status / I-94 expire?',
+  b_has_passport: 'Do you have a valid passport?',
+  b_can_send_passport: 'Can you send a copy of your passport?',
+  b_has_education_proof: 'Do you have proof of high school or higher education completion?',
+  b_can_organize_docs: 'Can you organize documents in an online folder (Google Drive / Dropbox)?',
+  b_start_timeline: 'How soon do you want to start the program?',
+  b_can_interview: 'Can you participate in an alignment interview?',
+  b_understands_no_skip: 'Do you understand that skipping process steps delays the result?',
+  c_fees_difference: 'Do you understand that tuition and selection process fees are different charges?',
+  c_scholarship_responsibility: 'If I receive a scholarship, I am still responsible for maintaining my active university status.',
+  c_payment_method: 'Payment Method You Are Most Comfortable With',
+  d_f1_objective: 'The purpose of the F-1 visa is:',
+  d_i20_is: 'The I-20 is:',
+  d_maintain_status: 'Maintaining F-1 status means:',
+  d_miss_classes: 'If I miss many classes and stop studying, I may:',
+  d_critical_decisions: 'For critical decisions about my status, I should:',
+  d_cos_is: 'COS (Change of Status) is:',
+  d_transfer_is: 'Transfer is:',
+  d_initial_is: 'Initial is:',
+  d_work_without_auth: 'Working without F-1 authorization is:',
+  d_confused_rule: 'If I am confused about an F-1 rule, I should:',
+  e_professional_student: 'Being a professional student means:',
+  e_avoid_missing_deadlines: 'To avoid missing deadlines in the U.S., the best habit is:',
+  e_difficulty_in_subject: 'If I have difficulty in a subject, I should first:',
+  e_networking: 'Networking at the university is for:',
+  e_main_fail_reason: 'What causes most people to fail in the program:',
+  e_current_priority: 'My most important priority right now in this process is:',
+  e_accept_feedback: 'Do you accept receiving feedback and being corrected throughout the process?',
+  e_commitment_checkbox: 'I commit to maintaining attendance, meeting deadlines, and following F-1 visa rules.',
+  e_study_plan: 'Describe your weekly study plan (available days and times)',
+  e_final_declaration: 'Final commitment statement (write in your own words)',
+};
 
 const DOC_TYPE_LABELS: Record<string, string> = {
   passport: 'Passport',
+  passport_back: 'Passport Back',
+  selfie_with_doc: 'Selfie with Document',
+  document_front: 'Document Front',
+  document_back: 'Document Back',
+  selfie_doc: 'Selfie with Document',
   diploma: 'High School / College Diploma',
   transcript: 'Official Transcript',
   proof_of_funds: 'Proof of Funds',
@@ -2206,6 +2446,15 @@ const DOC_TYPE_LABELS: Record<string, string> = {
   other: 'Other',
 };
 
+const CONTRACT_IDENTITY_DOC_TYPES = new Set([
+  'passport',
+  'passport_back',
+  'selfie_with_doc',
+  'document_front',
+  'document_back',
+  'selfie_doc',
+]);
+
 function studentDocBadge(status: string | null) {
   if (status === 'approved') return 'bg-green-500/20 text-green-300 border-green-500/30';
   if (status === 'rejected') return 'bg-red-500/20 text-red-300 border-red-500/30';
@@ -2214,12 +2463,10 @@ function studentDocBadge(status: string | null) {
   return 'bg-white/5 text-gray-400 border-white/10';
 }
 
-function formatAnswerValue(value: string | string[] | null | undefined): string {
+function formatSurveyAnswerValue(value: unknown): string {
   if (value === null || value === undefined) return '—';
-  if (Array.isArray(value)) return value.join(', ') || '—';
-  if (value === 'true') return 'Yes';
-  if (value === 'false') return 'No';
-  return value.replace(/[_-]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()) || '—';
+  if (Array.isArray(value)) return value.map((item) => String(item)).join(', ') || '—';
+  return String(value) || '—';
 }
 
 function SurveyTab({ surveyResponses }: { surveyResponses: CrmSurveyResponse[] }) {
@@ -2257,7 +2504,8 @@ function SurveyTab({ surveyResponses }: { surveyResponses: CrmSurveyResponse[] }
 
           {/* Sections */}
           {SURVEY_SECTIONS.map((section) => {
-            const sectionQuestions = ALL_QUESTIONS.filter((q) => q.section === section.key);
+            const questions = getQuestionsForService((resp.service_type ?? '').toLowerCase());
+            const sectionQuestions = questions.filter((q) => q.section === section.key);
             const answers = resp.answers ?? {};
             const hasAnswers = sectionQuestions.some((q) => answers[q.id] !== undefined);
             if (!hasAnswers) return null;
@@ -2266,7 +2514,7 @@ function SurveyTab({ surveyResponses }: { surveyResponses: CrmSurveyResponse[] }
               <Card key={section.key} className="bg-black/30 border border-white/5">
                 <CardHeader className="pb-3 pt-5 px-6">
                   <CardTitle className="text-sm font-black uppercase tracking-widest text-gold-medium">
-                    Section {section.key} — {section.title}
+                    Section {section.key} — {SURVEY_SECTION_LABELS[section.key] ?? section.title}
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="px-6 pb-5">
@@ -2280,7 +2528,7 @@ function SurveyTab({ surveyResponses }: { surveyResponses: CrmSurveyResponse[] }
                             {QUESTION_LABEL[q.id] ?? q.id}
                           </span>
                           <span className="text-sm text-white font-semibold text-right">
-                            {formatAnswerValue(raw as string | string[])}
+                            {formatSurveyAnswerValue(raw)}
                           </span>
                         </div>
                       );
@@ -2486,13 +2734,13 @@ function EmptyState({ icon: Icon, message }: { icon: React.ElementType; message:
 // ---------------------------------------------------------------------------
 
 // ---------------------------------------------------------------------------
-// Tab: Support IA
+// Tab: AI Support
 // ---------------------------------------------------------------------------
 
 const HANDOFF_STATUS_LABELS: Record<CrmSupportHandoff['status'], string> = {
-  pending: 'Aguardando',
-  in_progress: 'Em atendimento',
-  resolved: 'Resolvido',
+  pending: 'Waiting',
+  in_progress: 'In Progress',
+  resolved: 'Resolved',
 };
 
 const HANDOFF_STATUS_COLORS: Record<CrmSupportHandoff['status'], string> = {
@@ -2542,11 +2790,11 @@ function SupportTab({
       resolved_note: note,
     }).eq('id', id);
 
-    // Insere marco visual no chat do aluno
+    // Insert a visible milestone in the student's chat.
     await supabase.from('support_chat_messages').insert({
       profile_id: profileId,
       role: 'system',
-      content: `Atendimento encerrado pela equipe. ${note}`,
+      content: `Support handoff closed by the team. ${note}`,
     });
 
     setResolvingId(null);
@@ -2558,19 +2806,19 @@ function SupportTab({
     <div className="space-y-4">
       {/* Header */}
       <div className="flex justify-between items-center">
-        <p className="text-xs text-white/40">{handoffs.length} transferência(s) · {chatMessages.length} mensagens</p>
+        <p className="text-xs text-white/40">{handoffs.length} handoff(s) · {chatMessages.length} messages</p>
         <button
           onClick={() => setChatOpen(true)}
           disabled={chatMessages.length === 0}
           className="px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-white/60 text-xs font-medium hover:bg-white/10 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
         >
-          Ver histórico de chat
+          View chat history
         </button>
       </div>
 
       {/* Handoffs */}
       {handoffs.length === 0 ? (
-        <p className="text-white/30 text-sm">Nenhuma transferência registrada.</p>
+        <p className="text-white/30 text-sm">No handoffs registered.</p>
       ) : (
         <div className="space-y-2">
           {handoffs.map((h) => (
@@ -2582,20 +2830,20 @@ function SupportTab({
                     {HANDOFF_STATUS_LABELS[h.status]}
                   </span>
                   <span className="text-xs text-white/30 truncate">
-                    {new Date(h.created_at).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })} · via {h.triggered_by === 'ai_escalation' ? 'IA' : h.triggered_by === 'student_request' ? 'aluno' : 'admin'}
+                    {new Date(h.created_at).toLocaleString('en-US', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })} · via {h.triggered_by === 'ai_escalation' ? 'AI' : h.triggered_by === 'student_request' ? 'student' : 'admin'}
                   </span>
                 </div>
                 <div className="flex gap-2 shrink-0">
                   {h.status === 'pending' && (
                     <button onClick={() => updateHandoff(h.id, { status: 'in_progress' })} disabled={updatingId === h.id}
                       className="px-3 py-1 rounded-lg bg-blue-500/20 text-blue-400 text-xs font-medium hover:bg-blue-500/30 transition-colors disabled:opacity-50">
-                      Assumir
+                      Take Over
                     </button>
                   )}
                   {h.status === 'in_progress' && resolvingId !== h.id && (
                     <button onClick={() => setResolvingId(h.id)}
                       className="px-3 py-1 rounded-lg bg-green-500/20 text-green-400 text-xs font-medium hover:bg-green-500/30 transition-colors">
-                      Resolver
+                      Resolve
                     </button>
                   )}
                 </div>
@@ -2604,7 +2852,7 @@ function SupportTab({
               {/* Motivo + última msg */}
               {(h.reason || h.last_ai_message) && (
                 <div className="space-y-1">
-                  {h.reason && <p className="text-xs text-white/60"><span className="text-white/30">Motivo: </span>{h.reason}</p>}
+                  {h.reason && <p className="text-xs text-white/60"><span className="text-white/30">Reason: </span>{h.reason}</p>}
                   {h.last_ai_message && (
                     <p className="text-xs text-white/40 italic border-l-2 border-white/10 pl-2 truncate">"{h.last_ai_message}"</p>
                   )}
@@ -2618,32 +2866,32 @@ function SupportTab({
                   rel="noopener noreferrer"
                   className="inline-flex items-center rounded-lg border border-blue-500/20 bg-blue-500/10 px-3 py-1.5 text-xs font-bold text-blue-300 hover:bg-blue-500/20"
                 >
-                  Link de agendamento humano
+                  Human Scheduling Link
                 </a>
               )}
 
               {/* Nota de resolução — expande ao clicar Resolver */}
               {h.status === 'in_progress' && resolvingId === h.id && (
                 <div className="space-y-2 pt-1 border-t border-white/10">
-                  <p className="text-xs text-white/50">Nota para o aluno <span className="text-red-400">*</span></p>
+                  <p className="text-xs text-white/50">Note to student <span className="text-red-400">*</span></p>
                   <textarea
                     value={resolveNoteInput[h.id] ?? ''}
                     onChange={(e) => setResolveNoteInput((p) => ({ ...p, [h.id]: e.target.value }))}
-                    placeholder="Ex: Situação esclarecida. Seu I-94 foi verificado e está dentro do prazo."
+                    placeholder="Example: Situation clarified. Your I-94 was verified and is within the deadline."
                     rows={2}
                     className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-xs text-white placeholder-white/20 outline-none focus:border-green-500/40 resize-none"
                   />
                   <div className="flex gap-2 justify-end">
                     <button onClick={() => setResolvingId(null)}
                       className="px-3 py-1 rounded-lg text-white/40 text-xs hover:text-white/60 transition-colors">
-                      Cancelar
+                      Cancel
                     </button>
                     <button
                       onClick={() => resolveHandoff(h.id)}
                       disabled={!resolveNoteInput[h.id]?.trim() || updatingId === h.id}
                       className="px-3 py-1 rounded-lg bg-green-500/20 text-green-400 text-xs font-medium hover:bg-green-500/30 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                     >
-                      {updatingId === h.id ? 'Salvando…' : 'Confirmar resolução'}
+                      {updatingId === h.id ? 'Saving…' : 'Confirm Resolution'}
                     </button>
                   </div>
                 </div>
@@ -2662,7 +2910,7 @@ function SupportTab({
                   <input
                     value={assignInput[h.id] ?? h.assigned_to ?? ''}
                     onChange={(e) => setAssignInput((p) => ({ ...p, [h.id]: e.target.value }))}
-                    placeholder="Atribuir a…"
+                    placeholder="Assign to…"
                     className="flex-1 bg-white/5 border border-white/10 rounded-lg px-2.5 py-1 text-xs text-white placeholder-white/20 outline-none focus:border-[#CE9F48]/40"
                   />
                   <button
@@ -2670,7 +2918,7 @@ function SupportTab({
                     disabled={updatingId === h.id}
                     className="px-2.5 py-1 rounded-lg bg-[#CE9F48]/20 text-[#CE9F48] text-xs font-medium hover:bg-[#CE9F48]/30 transition-colors disabled:opacity-50"
                   >
-                    Salvar
+                    Save
                   </button>
                 </div>
               )}
@@ -2684,7 +2932,7 @@ function SupportTab({
         <DialogContent className="bg-[#111] border border-white/10 max-w-xl w-full max-h-[80vh] flex flex-col p-0">
           <div className="flex items-center justify-between px-5 py-4 border-b border-white/10">
             <DialogTitle className="text-sm font-semibold text-white">
-              Histórico de chat — {chatMessages.length} mensagens
+              Chat History — {chatMessages.length} messages
             </DialogTitle>
           </div>
           <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
@@ -2696,7 +2944,7 @@ function SupportTab({
                     : 'bg-white/5 border border-white/10 text-white/80'
                 }`}>
                   <p className={`text-xs mb-1 ${msg.role === 'user' ? 'text-[#CE9F48]/50' : 'text-white/25'}`}>
-                    {msg.role === 'user' ? 'Aluno' : 'IA'} · {new Date(msg.created_at).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                    {msg.role === 'user' ? 'Student' : 'AI'} · {new Date(msg.created_at).toLocaleString('en-US', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
                   </p>
                   {msg.content}
                 </div>
@@ -2809,7 +3057,7 @@ export function AdminUserDetail() {
       application_id: detail.institutionApplication.id,
     });
     setMutating(false);
-    setBillingMsg(error ? `Erro: ${error}` : 'Billing iniciado.');
+    setBillingMsg(error ? `Error: ${error}` : 'Billing started.');
     if (!error) load();
   }
 
@@ -2822,7 +3070,7 @@ export function AdminUserDetail() {
     });
     setMutating(false);
     const msgs = { suspend: 'Billing suspenso.', cancel: 'Billing cancelado.', reactivate: 'Billing reativado.' };
-    setBillingMsg(error ? `Erro: ${error}` : msgs[action]);
+    setBillingMsg(error ? `Error: ${error}` : msgs[action]);
     if (!error) load();
   }
 
@@ -2959,7 +3207,11 @@ export function AdminUserDetail() {
             billingMsg={billingMsg}
           />
         )}
-        {activeTab === 'orders' && <OrdersTab orders={detail.visaOrders} />}
+        {activeTab === 'orders' && (
+          <OrdersTab
+            orders={detail.visaOrders}
+          />
+        )}
         {activeTab === 'documents' && (
           <DocumentsTab
             profileId={detail.profile.id}
@@ -2983,6 +3235,7 @@ export function AdminUserDetail() {
           <FollowupsTab
             followups={detail.followups}
             serviceRequestId={detail.primaryRequest?.id ?? null}
+            profileId={detail.profile.id}
             adminId={currentAdminId}
             onRefresh={load}
           />

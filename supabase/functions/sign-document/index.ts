@@ -71,7 +71,7 @@ Deno.serve(async (req) => {
     // Confirm form belongs to this user via institution_applications → user_profiles
     const { data: formRow, error: formErr } = await adminClient
       .from("institution_forms")
-      .select("id, application_id, institution_applications(profile_id, user_profiles(user_id))")
+      .select("id, application_id, institution_applications(id, profile_id, forms_status, user_profiles(user_id, full_name, email))")
       .eq("id", form_id)
       .single();
 
@@ -82,7 +82,16 @@ Deno.serve(async (req) => {
       });
     }
 
-    type AppJoin = { profile_id: string; user_profiles: { user_id: string } | null } | null;
+    type AppJoin = {
+      id: string;
+      profile_id: string;
+      forms_status: string | null;
+      user_profiles: {
+        user_id: string;
+        full_name: string | null;
+        email: string | null;
+      } | null;
+    } | null;
     const app = formRow.institution_applications as AppJoin;
     const authUid = app?.user_profiles?.user_id ?? null;
 
@@ -134,6 +143,53 @@ Deno.serve(async (req) => {
       .eq("id", form_id);
 
     if (updateError) throw updateError;
+
+    if (formRow.application_id && app?.profile_id) {
+      const { data: applicationForms, error: formsError } = await adminClient
+        .from("institution_forms")
+        .select("id, signed_at, form_type")
+        .eq("application_id", formRow.application_id)
+        .neq("form_type", "termo_responsabilidade_estudante");
+
+      if (formsError) throw formsError;
+
+      const allFormsSigned =
+        (applicationForms ?? []).length > 0 &&
+        (applicationForms ?? []).every((form) => form.id === form_id || !!form.signed_at);
+
+      if (allFormsSigned && app.forms_status !== "signed") {
+        const { data: signedApp, error: signedStatusError } = await adminClient
+          .from("institution_applications")
+          .update({ forms_status: "signed" })
+          .eq("id", formRow.application_id)
+          .select("id")
+          .maybeSingle();
+
+        if (signedStatusError) throw signedStatusError;
+
+        if (signedApp?.id) {
+          const notifyRes = await fetch(`${supabaseUrl}/functions/v1/migma-notify`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${serviceKey}`,
+              "apikey": serviceKey,
+            },
+            body: JSON.stringify({
+              trigger: "admin_package_complete",
+              data: {
+                client_name: app.user_profiles?.full_name ?? app.user_profiles?.email ?? "Cliente",
+                client_id: app.profile_id,
+              },
+            }),
+          });
+
+          if (!notifyRes.ok) {
+            console.error("[sign-document] admin_package_complete notification failed:", notifyRes.status, await notifyRes.text());
+          }
+        }
+      }
+    }
 
     console.log(`[sign-document] form ${form_id} signed by user ${user.id} at ${serverNow}`);
 

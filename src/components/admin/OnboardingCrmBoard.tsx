@@ -11,6 +11,7 @@ import {
   Loader2,
   RefreshCw,
   Search,
+  SlidersHorizontal,
   Table2,
   User,
   UserCheck,
@@ -33,7 +34,7 @@ import {
 } from '@/lib/onboarding-crm';
 
 type CrmView = 'pre_onboarding' | 'onboarding';
-type PreOnboardingTab = 'all' | 'pre_pending' | 'pre_zelle' | 'pre_card';
+type PreOnboardingTab = 'all' | 'pre_pending' | 'pre_zelle' | 'pre_card' | 'pre_confirmed';
 
 const PAGE_SIZE = 15;
 
@@ -270,7 +271,8 @@ function applyFilters(
   cases: OnboardingCase[],
   search: string,
   filters: OnboardingCrmFilters,
-  crmView: CrmView
+  crmView: CrmView,
+  productLine?: 'cos' | 'transfer'
 ) {
   const term = search.trim().toLowerCase();
 
@@ -300,10 +302,14 @@ function applyFilters(
       if (preTab === 'pre_pending' && paymentStatus === 'confirmed') return false;
       if (preTab === 'pre_zelle' && paymentStatus !== 'pending_zelle') return false;
       if (preTab === 'pre_card' && paymentStatus !== 'pending_card') return false;
+      if (preTab === 'pre_confirmed' && paymentStatus !== 'confirmed') return false;
     } else {
       const { profileTab } = filters;
+      const stuckTone = getStuckState(item, productLine).tone;
       if (profileTab === 'completed' && !profile.onboarding_completed) return false;
       if (profileTab === 'in_progress' && !!profile.onboarding_completed) return false;
+      if (profileTab === 'needs_action' && !stuckTone) return false;
+      if (profileTab === 'critical' && stuckTone !== 'critical') return false;
       if (profileTab === 'selection_paid' && !profile.has_paid_selection_process_fee) return false;
       if (profileTab === 'placement' && !profile.placement_fee_flow) return false;
     }
@@ -487,6 +493,7 @@ export function OnboardingCrmBoard({ productLine, title, description }: Onboardi
   const [currentPage, setCurrentPage] = useState(1);
   const [viewMode, setViewMode] = useState<'table' | 'kanban'>('table');
   const [crmView, setCrmView] = useState<CrmView>('pre_onboarding');
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   const [showAlertLegend, setShowAlertLegend] = useState(false);
   const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768);
 
@@ -512,9 +519,19 @@ export function OnboardingCrmBoard({ productLine, title, description }: Onboardi
     persistFilters(filters);
   }, [filters]);
 
+  useEffect(() => {
+    const allowedTabs: OnboardingCrmFilters['profileTab'][] = crmView === 'pre_onboarding'
+      ? ['all', 'pre_pending', 'pre_zelle', 'pre_card', 'pre_confirmed']
+      : ['all', 'needs_action', 'in_progress', 'critical', 'completed'];
+
+    if (!allowedTabs.includes(filters.profileTab)) {
+      setFilters((current) => ({ ...current, profileTab: 'all' }));
+    }
+  }, [crmView, filters.profileTab]);
+
   const filteredCases = useMemo(
-    () => applyFilters(cases, search, filters, crmView),
-    [cases, search, filters, crmView]
+    () => applyFilters(cases, search, filters, crmView, productLine),
+    [cases, search, filters, crmView, productLine]
   );
 
   const totalPages = Math.max(1, Math.ceil(filteredCases.length / PAGE_SIZE));
@@ -531,32 +548,26 @@ export function OnboardingCrmBoard({ productLine, title, description }: Onboardi
         getCrmViewForCase(item) === crmView &&
         (filters.showArchived || item.operationalStage !== 'cancelled')
     );
-    const owned = scopedCases.filter((item) => !!(item.profile.migma_seller_id || item.profile.migma_agent_id)).length;
 
     if (crmView === 'pre_onboarding') {
+      const needsPayment = scopedCases.filter((item) => getPreOnboardingPaymentStatus(item) !== 'confirmed').length;
+      const confirmed = scopedCases.filter((item) => getPreOnboardingPaymentStatus(item) === 'confirmed').length;
       return {
         cards: [
           { label: 'Pre-Leads', value: scopedCases.length, valueColor: 'text-white' },
-          { label: 'Pending', value: scopedCases.filter((item) => getPreOnboardingPaymentStatus(item) !== 'confirmed').length, valueColor: 'text-amber-400' },
-          { label: 'Zelle', value: scopedCases.filter((item) => getPreOnboardingPaymentStatus(item) === 'pending_zelle').length, valueColor: 'text-orange-400' },
-          { label: 'Card', value: scopedCases.filter((item) => getPreOnboardingPaymentStatus(item) === 'pending_card').length, valueColor: 'text-sky-400' },
-          { label: 'Confirmed', value: scopedCases.filter((item) => getPreOnboardingPaymentStatus(item) === 'confirmed').length, valueColor: 'text-emerald-400' },
-          { label: 'Owned', value: owned, valueColor: 'text-gray-400' },
+          { label: 'Needs Payment', value: needsPayment, valueColor: 'text-amber-400' },
+          { label: 'Confirmed', value: confirmed, valueColor: 'text-emerald-400' },
         ],
       };
     }
 
+    const needsAction = scopedCases.filter((item) => !!getStuckState(item, productLine).tone).length;
+    const critical = scopedCases.filter((item) => getStuckState(item, productLine).tone === 'critical').length;
     return {
       cards: [
         { label: 'Active Cases', value: scopedCases.length, valueColor: 'text-white' },
-        { label: 'Stuck', value: scopedCases.filter((item) => {
-          const tone = getStuckState(item, productLine).tone;
-          return tone === 'danger' || tone === 'warning';
-        }).length, valueColor: 'text-amber-400' },
-        { label: 'Critical', value: scopedCases.filter((item) => getStuckState(item, productLine).tone === 'critical').length, valueColor: 'text-red-400' },
-        { label: 'In Process', value: scopedCases.filter((item) => item.operationalStage === 'in_processing' || item.operationalStage === 'documents_pending' || item.operationalStage === 'documents_under_review').length, valueColor: 'text-sky-400' },
-        { label: 'Completed', value: scopedCases.filter((item) => item.operationalStage === 'completed').length, valueColor: 'text-gold-light' },
-        { label: 'Owned', value: owned, valueColor: 'text-gray-400' },
+        { label: 'Needs Action', value: needsAction, valueColor: 'text-amber-400' },
+        { label: 'Critical', value: critical, valueColor: 'text-red-400' },
       ],
     };
   }, [cases, crmView, filters.showArchived, productLine]);
@@ -564,15 +575,17 @@ export function OnboardingCrmBoard({ productLine, title, description }: Onboardi
   const filterTabs: Array<{ id: OnboardingCrmFilters['profileTab']; label: string }> = crmView === 'pre_onboarding'
     ? [
         { id: 'all', label: 'All' },
-        { id: 'pre_pending', label: 'Pending' },
-        { id: 'pre_zelle', label: 'Zelle' },
-        { id: 'pre_card', label: 'Card' },
+        { id: 'pre_pending', label: 'Needs Payment' },
+        { id: 'pre_zelle', label: 'Zelle Review' },
+        { id: 'pre_card', label: 'Card Pending' },
+        { id: 'pre_confirmed', label: 'Confirmed' },
       ]
     : [
         { id: 'all', label: 'All' },
+        { id: 'needs_action', label: 'Needs Action' },
         { id: 'in_progress', label: 'In Progress' },
+        { id: 'critical', label: 'Critical' },
         { id: 'completed', label: 'Completed' },
-        { id: 'placement', label: 'Placement' },
       ];
 
   return (
@@ -600,22 +613,19 @@ export function OnboardingCrmBoard({ productLine, title, description }: Onboardi
           </div>
 
           <div className="flex items-center gap-2 w-full sm:w-auto">
-            <div className="flex border border-white/10 rounded-lg overflow-hidden shrink-0 h-9">
-              <button
-                onClick={() => setViewMode('table')}
-                className={cn('flex items-center gap-1.5 px-3 py-2 text-xs transition-colors', viewMode === 'table' ? 'bg-gold-medium/20 text-gold-light' : 'bg-transparent text-gray-500 hover:text-gray-300')}
-              >
-                <Table2 className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">Table</span>
-              </button>
-              <button
-                onClick={() => setViewMode('kanban')}
-                className={cn('flex items-center gap-1.5 px-3 py-2 text-xs transition-colors border-l border-white/10', viewMode === 'kanban' ? 'bg-gold-medium/20 text-gold-light' : 'bg-transparent text-gray-500 hover:text-gray-300')}
-              >
-                <Kanban className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">Kanban</span>
-              </button>
-            </div>
+            <Button
+              onClick={() => setShowAdvancedFilters((value) => !value)}
+              variant="outline"
+              size="sm"
+              className={cn(
+                'gap-2 flex-1 sm:flex-none h-9 border-white/10 bg-black/40 hover:bg-white/10',
+                showAdvancedFilters ? 'text-gold-light border-gold-medium/30' : 'text-gray-300'
+              )}
+            >
+              <SlidersHorizontal className="w-3.5 h-3.5" />
+              <span>More filters</span>
+              <ChevronDown className={cn('w-3.5 h-3.5 transition-transform', showAdvancedFilters && 'rotate-180')} />
+            </Button>
 
             <Button
               onClick={loadBoard}
@@ -630,7 +640,7 @@ export function OnboardingCrmBoard({ productLine, title, description }: Onboardi
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:flex gap-2 sm:overflow-x-auto pb-2">
+      <div className="grid grid-cols-2 gap-2 rounded-xl border border-white/5 bg-black/30 p-1">
         {[
           { id: 'pre_onboarding' as const, label: 'Pre-Onboarding', description: 'Checkout done, selection fee still pending.' },
           { id: 'onboarding' as const, label: 'Onboarding', description: 'Selection fee confirmed, operational flow active.' },
@@ -639,19 +649,19 @@ export function OnboardingCrmBoard({ productLine, title, description }: Onboardi
             key={tab.id}
             onClick={() => setCrmView(tab.id)}
             className={cn(
-              'w-full sm:min-w-[220px] rounded-2xl border p-4 text-left transition-all',
+              'w-full rounded-lg border px-3 py-2.5 text-left transition-all',
               crmView === tab.id
-                ? 'border-gold-medium/40 bg-gold-medium/10 shadow-[0_0_20px_rgba(206,159,72,0.15)]'
-                : 'border-white/5 bg-black/30 hover:border-white/10'
+                ? 'border-gold-medium/40 bg-gold-medium/15 shadow-[0_0_16px_rgba(206,159,72,0.12)]'
+                : 'border-transparent bg-transparent hover:bg-white/5'
             )}
           >
-            <div className="text-[11px] font-black uppercase tracking-[0.2em] text-gold-light">{tab.label}</div>
-            <p className="mt-2 text-xs text-gray-400 leading-relaxed">{tab.description}</p>
+            <div className="text-[10px] sm:text-[11px] font-black uppercase tracking-[0.16em] text-gold-light">{tab.label}</div>
+            <p className="mt-1 text-[10px] sm:text-xs text-gray-500 leading-relaxed truncate">{tab.description}</p>
           </button>
         ))}
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-2">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
         {stats.cards.map((stat) => (
           <div key={stat.label} className="bg-black/40 border border-white/5 p-2 sm:p-3 rounded-xl flex items-center justify-between hover:border-white/10 transition-all">
             <span className="text-[9px] sm:text-[10px] text-gray-500 font-black uppercase tracking-widest leading-none">{stat.label}</span>
@@ -677,24 +687,24 @@ export function OnboardingCrmBoard({ productLine, title, description }: Onboardi
               <div className="space-y-1.5">
                 <p className="text-[10px] font-black uppercase tracking-widest text-amber-400">Transfer — Deadline</p>
                 <div className="space-y-1 text-xs text-gray-400">
-                  <div className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full bg-yellow-400 shrink-0" /> ≤ 30 dias</div>
-                  <div className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full bg-orange-400 shrink-0" /> ≤ 15 dias</div>
-                  <div className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full bg-red-500 shrink-0" /> ≤ 7 dias</div>
+                  <div className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full bg-yellow-400 shrink-0" /> ≤ 30 days</div>
+                  <div className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full bg-orange-400 shrink-0" /> ≤ 15 days</div>
+                  <div className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full bg-red-500 shrink-0" /> ≤ 7 days</div>
                 </div>
               </div>
               <div className="space-y-1.5">
                 <p className="text-[10px] font-black uppercase tracking-widest text-sky-400">COS — I-94 Expiry</p>
                 <div className="space-y-1 text-xs text-gray-400">
-                  <div className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full bg-yellow-400 shrink-0" /> ≤ 60 dias</div>
-                  <div className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full bg-orange-400 shrink-0" /> ≤ 15 dias</div>
-                  <div className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full bg-red-500 shrink-0" /> ≤ 7 dias</div>
+                  <div className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full bg-yellow-400 shrink-0" /> ≤ 60 days</div>
+                  <div className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full bg-orange-400 shrink-0" /> ≤ 15 days</div>
+                  <div className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full bg-red-500 shrink-0" /> ≤ 7 days</div>
                 </div>
               </div>
               <div className="space-y-1.5">
-                <p className="text-[10px] font-black uppercase tracking-widest text-gray-500">Inatividade (geral)</p>
+                <p className="text-[10px] font-black uppercase tracking-widest text-gray-500">General inactivity</p>
                 <div className="space-y-1 text-xs text-gray-400">
-                  <div className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full bg-yellow-400 shrink-0" /> Survey parado &gt; 3d</div>
-                  <div className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full bg-orange-400 shrink-0" /> Parado &gt; 7d</div>
+                  <div className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full bg-yellow-400 shrink-0" /> Survey idle &gt; 3d</div>
+                  <div className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full bg-orange-400 shrink-0" /> Idle &gt; 7d</div>
                 </div>
               </div>
             </div>
@@ -721,47 +731,66 @@ export function OnboardingCrmBoard({ productLine, title, description }: Onboardi
           ))}
         </div>
 
-        <div className="flex flex-col sm:flex-row pb-2 gap-3 items-stretch sm:items-center">
-          <div className="flex flex-wrap gap-1.5 shrink-0 bg-white/5 p-1 rounded-lg border border-white/5">
-            {(['all', 'pending', 'completed', 'cancelled'] as const).map((value) => (
+        {showAdvancedFilters && (
+          <div className="grid gap-3 rounded-xl border border-white/5 bg-black/35 p-3 sm:grid-cols-[auto_1fr_1fr_auto] sm:items-center">
+            <div className="flex border border-white/10 rounded-lg overflow-hidden h-9">
               <button
-                key={value}
-                onClick={() => setFilters((f) => ({ ...f, paymentStatus: value }))}
-                className={cn(
-                  'h-7 px-3 text-[9px] font-black uppercase tracking-widest rounded-md whitespace-nowrap transition-all flex-1 sm:flex-none',
-                  filters.paymentStatus === value ? 'bg-white/10 text-white shadow-inner' : 'text-gray-500 hover:text-gray-300'
-                )}
+                onClick={() => setViewMode('table')}
+                className={cn('flex flex-1 items-center justify-center gap-1.5 px-3 py-2 text-xs transition-colors sm:flex-none', viewMode === 'table' ? 'bg-gold-medium/20 text-gold-light' : 'bg-transparent text-gray-500 hover:text-gray-300')}
               >
-                {value === 'all' ? 'Pmt: All' : value}
+                <Table2 className="w-3.5 h-3.5" />
+                <span>Table</span>
               </button>
-            ))}
-          </div>
-
-          <div className="flex flex-wrap gap-1.5 shrink-0 bg-white/5 p-1 rounded-lg border border-white/5">
-            {(['all', 'owned', 'unassigned'] as const).map((value) => (
               <button
-                key={value}
-                onClick={() => setFilters((f) => ({ ...f, ownership: value }))}
-                className={cn(
-                  'h-7 px-3 text-[9px] font-black uppercase tracking-widest rounded-md whitespace-nowrap transition-all flex-1 sm:flex-none',
-                  filters.ownership === value ? 'bg-white/10 text-white shadow-inner' : 'text-gray-500 hover:text-gray-300'
-                )}
+                onClick={() => setViewMode('kanban')}
+                className={cn('flex flex-1 items-center justify-center gap-1.5 px-3 py-2 text-xs transition-colors border-l border-white/10 sm:flex-none', viewMode === 'kanban' ? 'bg-gold-medium/20 text-gold-light' : 'bg-transparent text-gray-500 hover:text-gray-300')}
               >
-                {value === 'all' ? 'Owner: All' : value === 'owned' ? 'Assigned' : 'Open'}
+                <Kanban className="w-3.5 h-3.5" />
+                <span>Kanban</span>
               </button>
-            ))}
-          </div>
+            </div>
 
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setFilters((f) => ({ ...f, showArchived: !f.showArchived }))}
-            className={cn('h-9 px-3 text-[9px] font-black uppercase tracking-widest rounded-lg shrink-0 transition-all border border-white/5 w-full sm:w-auto', filters.showArchived ? 'text-gold-light' : 'text-gray-500')}
-          >
-            <Archive className="w-3.5 h-3.5 mr-2" />
-            {filters.showArchived ? 'Hide' : 'Show'} Archived
-          </Button>
-        </div>
+            <div className="flex flex-wrap gap-1.5 bg-white/5 p-1 rounded-lg border border-white/5">
+              {(['all', 'pending', 'completed', 'cancelled'] as const).map((value) => (
+                <button
+                  key={value}
+                  onClick={() => setFilters((f) => ({ ...f, paymentStatus: value }))}
+                  className={cn(
+                    'h-7 px-3 text-[9px] font-black uppercase tracking-widest rounded-md whitespace-nowrap transition-all flex-1 sm:flex-none',
+                    filters.paymentStatus === value ? 'bg-white/10 text-white shadow-inner' : 'text-gray-500 hover:text-gray-300'
+                  )}
+                >
+                  {value === 'all' ? 'Pmt: All' : value}
+                </button>
+              ))}
+            </div>
+
+            <div className="flex flex-wrap gap-1.5 bg-white/5 p-1 rounded-lg border border-white/5">
+              {(['all', 'owned', 'unassigned'] as const).map((value) => (
+                <button
+                  key={value}
+                  onClick={() => setFilters((f) => ({ ...f, ownership: value }))}
+                  className={cn(
+                    'h-7 px-3 text-[9px] font-black uppercase tracking-widest rounded-md whitespace-nowrap transition-all flex-1 sm:flex-none',
+                    filters.ownership === value ? 'bg-white/10 text-white shadow-inner' : 'text-gray-500 hover:text-gray-300'
+                  )}
+                >
+                  {value === 'all' ? 'Owner: All' : value === 'owned' ? 'Assigned' : 'Open'}
+                </button>
+              ))}
+            </div>
+
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setFilters((f) => ({ ...f, showArchived: !f.showArchived }))}
+              className={cn('h-9 px-3 text-[9px] font-black uppercase tracking-widest rounded-lg shrink-0 transition-all border border-white/5 w-full sm:w-auto', filters.showArchived ? 'text-gold-light' : 'text-gray-500')}
+            >
+              <Archive className="w-3.5 h-3.5 mr-2" />
+              {filters.showArchived ? 'Hide' : 'Show'} Archived
+            </Button>
+          </div>
+        )}
       </div>
 
       {viewMode === 'kanban' && (

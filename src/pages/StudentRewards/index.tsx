@@ -44,6 +44,7 @@ interface ReferralLeadEntry {
   country: string | null;
 }
 
+const REFERRAL_LINK_COLUMNS = 'id, unique_code, utm_source, clicks, closures_count, goal_reached_at, created_at';
 const PRODUCTION_BASE_URL = 'https://migmainc.com';
 const GOAL = 10;
 const REDUCED_TUITION = '$3,800';
@@ -94,8 +95,10 @@ export const StudentRewardsPanel: React.FC<StudentRewardsPanelProps> = ({ embedd
     try {
       const { data: existing, error: existingError } = await supabase
         .from('referral_links')
-        .select('id, unique_code, utm_source, clicks, closures_count, goal_reached_at, created_at')
+        .select(REFERRAL_LINK_COLUMNS)
         .eq('profile_id', userProfile.id)
+        .order('created_at', { ascending: true })
+        .limit(1)
         .maybeSingle();
 
       if (existingError) throw existingError;
@@ -103,18 +106,33 @@ export const StudentRewardsPanel: React.FC<StudentRewardsPanelProps> = ({ embedd
       let currentReferral = existing as ReferralLink | null;
 
       if (!currentReferral) {
-        const unique_code = generateCode(userProfile.full_name ?? userProfile.email ?? 'MIG');
-        const { data: created, error: createError } = await supabase
+        const createReferral = async () => supabase
           .from('referral_links')
           .insert({
             profile_id: userProfile.id,
-            unique_code,
+            unique_code: generateCode(userProfile.full_name ?? userProfile.email ?? 'MIG'),
             utm_source: 'migma_referral',
             clicks: 0,
             closures_count: 0,
           })
-          .select('id, unique_code, utm_source, clicks, closures_count, goal_reached_at, created_at')
+          .select(REFERRAL_LINK_COLUMNS)
           .single();
+
+        let { data: created, error: createError } = await createReferral();
+
+        if (createError?.code === '23505') {
+          const { data: afterConflict, error: reloadError } = await supabase
+            .from('referral_links')
+            .select(REFERRAL_LINK_COLUMNS)
+            .eq('profile_id', userProfile.id)
+            .order('created_at', { ascending: true })
+            .limit(1)
+            .single();
+
+          if (reloadError) throw reloadError;
+          created = afterConflict;
+          createError = null;
+        }
 
         if (createError) throw createError;
         currentReferral = created as ReferralLink;
@@ -222,7 +240,7 @@ export const StudentRewardsPanel: React.FC<StudentRewardsPanelProps> = ({ embedd
           </button>
         )}
 
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+        <div data-tour="student-rewards-page" className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-lg border border-[#CE9F48]/20 bg-[#CE9F48]/10">
               <Gift className="h-5 w-5 text-[#9a6a16] dark:text-[#CE9F48]" />
@@ -268,13 +286,13 @@ export const StudentRewardsPanel: React.FC<StudentRewardsPanelProps> = ({ embedd
           </div>
         )}
 
-        <section className="grid gap-4 md:grid-cols-3">
+        <section data-tour="student-rewards-kpis" className="grid gap-4 md:grid-cols-3">
           <MetricCard icon={Trophy} label={t('student_dashboard.rewards.kpi_closures')} value={`${closures}/${GOAL}`} tone={goalReached ? 'green' : 'gold'} />
           <MetricCard icon={Users} label={t('student_dashboard.rewards.kpi_clicks')} value={String(clicks)} tone="blue" />
           <MetricCard icon={Calendar} label={t('student_dashboard.rewards.kpi_meetings')} value={String(leads.length)} tone="purple" />
         </section>
 
-        <Card className="border-[#e3d5bd] dark:border-white/10 bg-white dark:bg-[#111] text-[#1f1a14] dark:text-white">
+        <Card data-tour="student-rewards-progress" className="border-[#e3d5bd] dark:border-white/10 bg-white dark:bg-[#111] text-[#1f1a14] dark:text-white">
           <CardContent className="p-6">
             <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr] lg:items-center">
               <div>
@@ -303,7 +321,7 @@ export const StudentRewardsPanel: React.FC<StudentRewardsPanelProps> = ({ embedd
                 )}
               </div>
 
-              <div className="rounded-lg border border-[#e3d5bd] dark:border-white/10 bg-white/70 dark:bg-white/[0.03] p-4">
+              <div data-tour="student-rewards-code" className="rounded-lg border border-[#e3d5bd] dark:border-white/10 bg-white/70 dark:bg-white/[0.03] p-4">
                 <p className="text-[10px] font-black uppercase tracking-widest text-[#8a7b66] dark:text-gray-500">{t('student_dashboard.rewards.code_title')}</p>
                 <p className="mt-1 font-mono text-lg font-black text-[#1f1a14] dark:text-white">{referral?.unique_code ?? '—'}</p>
                 <p className="mt-3 text-xs leading-relaxed text-[#8a7b66] dark:text-gray-500">
@@ -314,7 +332,7 @@ export const StudentRewardsPanel: React.FC<StudentRewardsPanelProps> = ({ embedd
           </CardContent>
         </Card>
 
-        <Card className="border-[#e3d5bd] dark:border-white/10 bg-white dark:bg-[#111] text-[#1f1a14] dark:text-white">
+        <Card data-tour="student-rewards-link" className="border-[#e3d5bd] dark:border-white/10 bg-white dark:bg-[#111] text-[#1f1a14] dark:text-white">
           <CardContent className="p-6">
             <div className="mb-4 flex items-center gap-2">
               <Users className="h-5 w-5 text-[#9a6a16] dark:text-[#CE9F48]" />
@@ -325,7 +343,7 @@ export const StudentRewardsPanel: React.FC<StudentRewardsPanelProps> = ({ embedd
               <div className="min-w-0 flex-1 rounded-lg border border-[#e3d5bd] dark:border-white/10 bg-white/[0.04] px-4 py-3 font-mono text-sm text-[#4b4032] dark:text-gray-300">
                 <span className="block truncate">{referralUrl}</span>
               </div>
-              <div className="flex flex-wrap gap-2">
+              <div data-tour="student-rewards-share-actions" className="flex flex-wrap gap-2">
                 <Button onClick={handleCopy} className="bg-[#CE9F48] text-black hover:bg-[#b8892f]">
                   {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
                   {copied ? t('student_dashboard.rewards.btn_copied') : t('student_dashboard.rewards.btn_copy')}
@@ -354,7 +372,7 @@ export const StudentRewardsPanel: React.FC<StudentRewardsPanelProps> = ({ embedd
         </Card>
 
         <div className="grid gap-4 lg:grid-cols-[0.9fr_1.1fr]">
-          <Card className="border-[#e3d5bd] dark:border-white/10 bg-white dark:bg-[#111] text-[#1f1a14] dark:text-white">
+          <Card data-tour="student-rewards-how" className="border-[#e3d5bd] dark:border-white/10 bg-white dark:bg-[#111] text-[#1f1a14] dark:text-white">
             <CardContent className="p-6">
               <h2 className="mb-4 text-sm font-black uppercase tracking-widest text-[#4b4032] dark:text-gray-300">{t('student_dashboard.rewards.how_title')}</h2>
               <div className="space-y-4">
@@ -375,7 +393,7 @@ export const StudentRewardsPanel: React.FC<StudentRewardsPanelProps> = ({ embedd
             </CardContent>
           </Card>
 
-          <Card className="border-[#e3d5bd] dark:border-white/10 bg-white dark:bg-[#111] text-[#1f1a14] dark:text-white">
+          <Card data-tour="student-rewards-meetings" className="border-[#e3d5bd] dark:border-white/10 bg-white dark:bg-[#111] text-[#1f1a14] dark:text-white">
             <CardContent className="p-6">
               <div className="mb-4 flex items-center justify-between gap-3">
                 <h2 className="text-sm font-black uppercase tracking-widest text-[#4b4032] dark:text-gray-300">{t('student_dashboard.rewards.meetings_title')}</h2>
@@ -383,7 +401,7 @@ export const StudentRewardsPanel: React.FC<StudentRewardsPanelProps> = ({ embedd
               </div>
 
               {leads.length === 0 ? (
-                <div className="flex min-h-[180px] flex-col items-center justify-center rounded-lg border border-dashed border-[#e3d5bd] dark:border-white/10 bg-white/[0.02] text-center">
+                <div data-tour="student-rewards-meetings-empty" className="flex min-h-[180px] flex-col items-center justify-center rounded-lg border border-dashed border-[#e3d5bd] dark:border-white/10 bg-white/[0.02] text-center">
                   <Calendar className="mb-3 h-8 w-8 text-[#6f6251] dark:text-gray-600" />
                   <p className="text-sm font-bold text-[#4b4032] dark:text-gray-300">{t('student_dashboard.rewards.meetings_empty_title')}</p>
                   <p className="mt-1 max-w-sm text-xs text-[#8a7b66] dark:text-gray-500">{t('student_dashboard.rewards.meetings_empty_desc')}</p>
@@ -393,7 +411,7 @@ export const StudentRewardsPanel: React.FC<StudentRewardsPanelProps> = ({ embedd
                   {leads.map(lead => {
                     const isClosed = lead.status === 'fechado';
                     return (
-                      <div key={lead.id} className="rounded-lg border border-[#e3d5bd] dark:border-white/10 bg-white/70 dark:bg-white/[0.03] px-4 py-3">
+                      <div key={lead.id} data-tour="student-rewards-lead" className="rounded-lg border border-[#e3d5bd] dark:border-white/10 bg-white/70 dark:bg-white/[0.03] px-4 py-3">
                         <div className="flex items-start justify-between gap-3">
                           <div className="min-w-0">
                             <p className="truncate text-sm font-bold text-[#1f1a14] dark:text-white">{lead.full_name}</p>

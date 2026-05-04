@@ -8,26 +8,39 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+const SANDBOX_PAYMENT_HOSTS = [
+  'migma-lp-2qvd-4glfm5nvh-migma-incs-projects.vercel.app',
+];
+
+function targetsSandboxPayment(...values: string[]): boolean {
+  return values.some((value) => SANDBOX_PAYMENT_HOSTS.some((host) => value.includes(host)));
+}
+
 // Environment detection function (inline)
 function detectEnvironment(req: Request): { isProduction: boolean; environment: string } {
   const referer = req.headers.get('referer') || '';
   const origin = req.headers.get('origin') || '';
   const host = req.headers.get('host') || '';
   const userAgent = req.headers.get('user-agent') || '';
+  const forceSandbox = targetsSandboxPayment(referer, origin, host);
 
   const isProductionDomain =
-    referer.includes('migma.com') ||
-    origin.includes('migma.com') ||
-    host.includes('migma.com') ||
-    referer.includes('migmainc.com') ||
-    origin.includes('migmainc.com') ||
-    host.includes('migmainc.com') ||
-    (referer.includes('vercel.app') && !referer.includes('preview')) ||
-    (origin.includes('vercel.app') && !origin.includes('preview'));
+    !forceSandbox && (
+      referer.includes('migma.com') ||
+      origin.includes('migma.com') ||
+      host.includes('migma.com') ||
+      referer.includes('migmainc.com') ||
+      origin.includes('migmainc.com') ||
+      host.includes('migmainc.com') ||
+      (referer.includes('vercel.app') && !referer.includes('preview')) ||
+      (origin.includes('vercel.app') && !origin.includes('preview'))
+    );
 
   const isStripeWebhook = userAgent.includes('Stripe/');
-  const hasProdKeys = Deno.env.get('STRIPE_SECRET_KEY_PROD') &&
-    Deno.env.get('STRIPE_WEBHOOK_SECRET_PROD');
+  const hasProdKeys = Boolean(
+    Deno.env.get('STRIPE_SECRET_KEY_PROD') &&
+    Deno.env.get('STRIPE_WEBHOOK_SECRET_PROD')
+  );
 
   const isProduction = isProductionDomain || (isStripeWebhook && hasProdKeys);
 
@@ -390,7 +403,7 @@ Deno.serve(async (req: Request) => {
     // This way, if Stripe fails, we don't create an order
     let session;
     try {
-      session = await stripe.checkout.sessions.create({
+      session = await stripe.checkout.sessions.create(({
         payment_method_types: isPixOnly ? ["pix"] : ["card"],
         line_items: [
           {
@@ -425,7 +438,7 @@ Deno.serve(async (req: Request) => {
         phone_number_collection: {
           enabled: true,
         },
-      });
+      }) as any);
     } catch (stripeError: any) {
       console.error("[Checkout] Stripe session creation failed:", stripeError);
 

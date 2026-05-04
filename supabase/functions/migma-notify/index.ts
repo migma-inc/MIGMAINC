@@ -35,9 +35,11 @@ export type TriggerType =
   // Billing (Fase 9)
   | "billing_started"
   | "billing_installment_due"
+  | "billing_installment_paid"
   | "billing_suspended"
   // Admin-facing
   | "admin_new_documents"
+  | "admin_contract_resubmitted"
   | "admin_package_complete"
   | "admin_no_university_match"
   | "admin_support_handoff";
@@ -48,6 +50,10 @@ interface NotifyPayload {
   trigger: TriggerType;
   user_id?: string;          // required for client triggers
   admin_email?: string;      // override; falls back to ADMIN_NOTIFY_EMAIL env var
+  channels?: {
+    email?: boolean;
+    whatsapp?: boolean;
+  };
   data?: {
     payment_link?: string;
     app_url?: string;
@@ -60,16 +66,24 @@ interface NotifyPayload {
     closures_count?: number;
     client_name?: string;
     client_id?: string;
+    client_email?: string;
+    client_phone?: string;
+    order_number?: string;
+    contract_type?: string;
     reason?: string;
     rejection_reason?: string;
     last_message?: string;
     // Billing (Fase 9)
     monthly_usd?: number;
+    installment_number?: number;
     installments_total?: number;
     installments_paid?: number;
     degree_level?: string;
+    process_type?: string;
+    start_date?: string;
     next_billing_date?: string;
     billing_link?: string;
+    receipt_url?: string;
     suspend_reason?: string;
     acceptance_letter_url?: string;
   };
@@ -387,14 +401,14 @@ function buildTemplate(
 
     // ── 07 ────────────────────────────────────────────────────────────────────
     case "all_documents_approved": return {
-      subject: "All Documents Approved — Your Application is Being Processed",
+      subject: "Documents Approved — Pay Your Application Fee",
       emailHtml: emailWrapper("Documents Approved", `
         <p>Hi, ${highlight(firstName)}!</p>
-        <p>All your submitted documents have been <strong>reviewed and approved</strong>. 🎉</p>
-        <p>Our team is now processing your application package and coordinating with the university. You will be notified as soon as your acceptance letter is ready.</p>
-        ${btn("Track your documents", routes.studentDocuments)}
+        <p>All your submitted documents have been <strong>reviewed and approved</strong>.</p>
+        <p>The next step is to pay your <strong>Application Fee</strong> so we can continue submitting your package to the university.</p>
+        ${btn("Pay Application Fee", data.app_url ?? routes.onboardingPayment)}
       `),
-      whatsapp: `✅ *Migma* — Documents Approved!\n\nHi ${firstName}, all your documents have been approved! We're now processing your application. We'll notify you when your acceptance letter is ready.\n${routes.studentDocuments}`,
+      whatsapp: `✅ *Migma* — Documents Approved!\n\nHi ${firstName}, all your documents have been approved. Next step: pay your Application Fee here:\n${data.app_url ?? routes.onboardingPayment}`,
     };
 
     // ── 08 ────────────────────────────────────────────────────────────────────
@@ -540,6 +554,26 @@ function buildTemplate(
       whatsapp: `📥 *Migma Admin* — Novos documentos\n\n${data.client_name ?? "Cliente"} enviou documentos para revisão.\n${data.client_id ? routes.adminUser(data.client_id) : routes.adminUser()}`,
     };
 
+    // ── admin_contract_resubmitted — ADMIN ───────────────────────────────────
+    case "admin_contract_resubmitted": {
+      const contractLabel = data.contract_type === "annex"
+        ? "Annex"
+        : data.contract_type === "upsell_contract"
+          ? "Upsell Contract"
+          : data.contract_type === "upsell_annex"
+            ? "Upsell Annex"
+            : "Contract";
+      return {
+        subject: `[Admin] Documentos reenviados — ${data.client_name ?? "cliente"} | Pedido #${data.order_number ?? "?"}`,
+        emailHtml: emailWrapper("[Admin] Documentos reenviados", `
+          <p><strong>${data.client_name ?? "Cliente"}</strong> resubmeteu os documentos de identidade para o pedido <strong>#${data.order_number ?? "?"}</strong> (${contractLabel}).</p>
+          <p>O contrato voltou para status <em>Pending</em> e aguarda nova revisão.</p>
+          ${data.client_id ? btn("Revisar pedido", routes.adminUser(data.client_id)) : ""}
+        `),
+        whatsapp: `📤 *Migma Admin* — Documentos reenviados\n\n${data.client_name ?? "Cliente"} resubmeteu os docs do pedido *#${data.order_number ?? "?"}* (${contractLabel}).\n\nAguarda revisão.${data.client_id ? `\n${routes.adminUser(data.client_id)}` : ""}`,
+      };
+    }
+
     // ── 17 — ADMIN ────────────────────────────────────────────────────────────
     case "admin_package_complete": return {
       subject: `[Admin] Pacote completo — ${data.client_name ?? "cliente"} pronto para MatriculaUSA`,
@@ -559,7 +593,8 @@ function buildTemplate(
         <ul style="color:#ccc;line-height:2;">
           <li>Valor mensal: <strong>US$ ${data.monthly_usd?.toLocaleString("en-US") ?? "–"}</strong></li>
           <li>Parcelas: <strong>${data.installments_total ?? "–"}x</strong></li>
-          <li>Curso: <strong>${data.degree_level ?? "–"}</strong></li>
+          <li>Processo: <strong>${data.process_type ?? data.degree_level ?? "–"}</strong></li>
+          <li>Primeira cobrança: <strong>${data.start_date ?? "–"}</strong></li>
         </ul>
         <p>Você receberá o link de pagamento todo mês com antecedência. Em caso de dúvidas, fale com o time Migma.</p>
         ${btn("Acessar minha conta", routes.studentDashboard)}
@@ -569,17 +604,28 @@ function buildTemplate(
 
     // ── 20 — BILLING ──────────────────────────────────────────────────────────
     case "billing_installment_due": return {
-      subject: `Parcela ${(data.installments_paid ?? 0) + 1}/${data.installments_total ?? "–"} disponível — US$ ${data.monthly_usd?.toLocaleString("en-US") ?? "–"}`,
-      emailHtml: emailWrapper("Link de pagamento disponível", `
+      subject: `Parcela ${data.installment_number ?? (data.installments_paid ?? 0) + 1}/${data.installments_total ?? "–"} gerada — US$ ${data.monthly_usd?.toLocaleString("en-US") ?? "–"}`,
+      emailHtml: emailWrapper("Parcela Migma gerada", `
         <p>Olá, ${highlight(firstName)}!</p>
-        <p>Sua parcela <strong>${(data.installments_paid ?? 0) + 1} de ${data.installments_total ?? "–"}</strong> está disponível para pagamento.</p>
+        <p>Sua parcela <strong>${data.installment_number ?? (data.installments_paid ?? 0) + 1} de ${data.installments_total ?? "–"}</strong> foi gerada.</p>
         <p>Valor: <strong>US$ ${data.monthly_usd?.toLocaleString("en-US") ?? "–"}</strong></p>
-        ${data.billing_link
-          ? btn("Pagar agora", data.billing_link)
-          : `<p style="color:#888;">Link de pagamento em processamento. Acesse ${routes.studentDashboard} para mais informações.</p>`}
+        ${data.billing_link ?? data.payment_link
+          ? btn("Pagar agora", data.billing_link ?? data.payment_link!)
+          : `<p style="color:#888;">O time Migma enviará as instruções de pagamento pelo canal combinado.</p>`}
         <p style="margin-top:20px;color:#888;font-size:13px;">Próxima parcela: ${data.next_billing_date ?? "–"}.</p>
       `),
-      whatsapp: `💳 *Migma* — Parcela ${(data.installments_paid ?? 0) + 1}/${data.installments_total ?? "–"} disponível!\n\nOlá ${firstName}, sua mensalidade de *US$ ${data.monthly_usd?.toLocaleString("en-US") ?? "–"}* está pronta para pagamento.\n\n${data.billing_link ? `Pague aqui: ${data.billing_link}` : "Link em breve pelo portal."}`,
+      whatsapp: `💳 *Migma* — Parcela ${data.installment_number ?? (data.installments_paid ?? 0) + 1}/${data.installments_total ?? "–"} gerada!\n\nOlá ${firstName}, sua mensalidade de *US$ ${data.monthly_usd?.toLocaleString("en-US") ?? "–"}* foi gerada.\n\n${data.billing_link ?? data.payment_link ? `Pague aqui: ${data.billing_link ?? data.payment_link}` : "O time Migma enviará as instruções de pagamento pelo canal combinado."}`,
+    };
+
+    case "billing_installment_paid": return {
+      subject: `Pagamento confirmado — parcela ${data.installment_number ?? "–"}/${data.installments_total ?? "–"}`,
+      emailHtml: emailWrapper("Pagamento confirmado", `
+        <p>Olá, ${highlight(firstName)}!</p>
+        <p>Recebemos o pagamento da sua parcela <strong>${data.installment_number ?? "–"} de ${data.installments_total ?? "–"}</strong>.</p>
+        <p>Parcelas pagas até agora: <strong>${data.installments_paid ?? "–"}</strong>.</p>
+        ${data.receipt_url ? btn("Ver comprovante", data.receipt_url) : btn("Acessar minha conta", routes.studentDashboard)}
+      `),
+      whatsapp: `✅ *Migma* — Pagamento confirmado!\n\nOlá ${firstName}, recebemos a parcela ${data.installment_number ?? "–"}/${data.installments_total ?? "–"}. Pagas até agora: ${data.installments_paid ?? "–"}.${data.receipt_url ? `\n\nComprovante: ${data.receipt_url}` : ""}`,
     };
 
     // ── 21 — BILLING ──────────────────────────────────────────────────────────
@@ -660,10 +706,13 @@ Deno.serve(async (req) => {
 
   const appBaseUrl = Deno.env.get("APP_BASE_URL") ?? "https://migmainc.com";
   const adminNotifyEmail = Deno.env.get("ADMIN_NOTIFY_EMAIL") ?? "";
+  const adminNotifyPhone = Deno.env.get("ADMIN_NOTIFY_PHONE") ?? "";
 
   try {
     const payload: NotifyPayload = await req.json();
     const { trigger, user_id, data = {} } = payload;
+    const sendEmailChannel = payload.channels?.email !== false;
+    const sendWhatsappChannel = payload.channels?.whatsapp !== false;
 
     if (!trigger) {
       return new Response(JSON.stringify({ error: "trigger is required" }), { status: 400, headers: CORS });
@@ -678,17 +727,18 @@ Deno.serve(async (req) => {
 
     if (isAdminTrigger) {
       recipientEmail = payload.admin_email ?? adminNotifyEmail;
+      recipientPhone = adminNotifyPhone;
       recipientName = "Admin";
       if (!recipientEmail) {
         console.warn("[migma-notify] ADMIN_NOTIFY_EMAIL not set — email skipped");
       }
-    } else {
-      if (!user_id) {
-        return new Response(JSON.stringify({ error: "user_id is required for client triggers" }), { status: 400, headers: CORS });
+      if (!recipientPhone) {
+        console.warn("[migma-notify] ADMIN_NOTIFY_PHONE not set — whatsapp skipped");
       }
+    } else if (user_id) {
       const { data: profile, error: profileErr } = await supabase
         .from("user_profiles")
-        .select("full_name, email, phone")
+        .select("full_name, email, phone, whatsapp")
         .eq("id", user_id)
         .single();
 
@@ -697,8 +747,24 @@ Deno.serve(async (req) => {
       }
 
       recipientEmail = profile.email ?? "";
-      recipientPhone = profile.phone ?? "";
+      recipientPhone = profile.phone ?? profile.whatsapp ?? "";
       recipientName = profile.full_name ?? "Cliente";
+    } else if (data.client_email || data.client_phone) {
+      recipientEmail = data.client_email ?? "";
+      recipientPhone = data.client_phone ?? "";
+      recipientName = data.client_name ?? "Cliente";
+    } else {
+      return new Response(JSON.stringify({ error: "user_id or client recipient data is required for client triggers" }), { status: 400, headers: CORS });
+    }
+
+    // ── Resolve client_id from client_email for admin triggers ───────────────
+    if (isAdminTrigger && data.client_email && !data.client_id) {
+      const { data: profile } = await supabase
+        .from("user_profiles")
+        .select("id")
+        .eq("email", data.client_email)
+        .maybeSingle();
+      if (profile?.id) data.client_id = profile.id;
     }
 
     // ── Build template ───────────────────────────────────────────────────────
@@ -706,16 +772,38 @@ Deno.serve(async (req) => {
 
     // ── Send email ───────────────────────────────────────────────────────────
     let emailResult: { success: boolean; error?: string } = { success: false };
-    if (recipientEmail) {
-      const { error: invokeErr } = await supabase.functions.invoke("send-email", {
-        body: {
-          to: recipientEmail,
-          subject: template.subject,
-          html: template.emailHtml,
-        },
-      });
-      emailResult = invokeErr ? { success: false, error: invokeErr.message } : { success: true };
-      if (invokeErr) console.error("[migma-notify][email] invoke error:", invokeErr.message);
+    if (!sendEmailChannel) {
+      emailResult = { success: true, error: "skipped_by_channel" };
+    } else if (recipientEmail) {
+      try {
+        const emailRes = await fetch(`${supabaseUrl}/functions/v1/send-email`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${supabaseKey}`,
+            "apikey": supabaseKey,
+          },
+          body: JSON.stringify({
+            to: recipientEmail,
+            subject: template.subject,
+            html: template.emailHtml,
+          }),
+        });
+        const emailBody = await emailRes.text();
+        if (!emailRes.ok) {
+          emailResult = { success: false, error: `send-email_${emailRes.status}: ${emailBody}` };
+          console.error("[migma-notify][email] send-email failed:", emailResult.error);
+        } else {
+          const parsed = emailBody ? JSON.parse(emailBody) : {};
+          emailResult = parsed?.error || parsed?.success === false
+            ? { success: false, error: parsed?.error ?? "send-email_failed" }
+            : { success: true };
+        }
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        emailResult = { success: false, error: message };
+        console.error("[migma-notify][email] fetch error:", message);
+      }
     } else {
       emailResult = { success: false, error: "no_email_address" };
       console.warn(`[migma-notify][email] No email for trigger ${trigger}`);
@@ -723,7 +811,9 @@ Deno.serve(async (req) => {
 
     // ── Send WhatsApp ────────────────────────────────────────────────────────
     let whatsappResult: { sent: boolean; reason?: string; provider?: string } = { sent: false, reason: "no_phone" };
-    if (recipientPhone) {
+    if (!sendWhatsappChannel) {
+      whatsappResult = { sent: true, reason: "skipped_by_channel" };
+    } else if (recipientPhone) {
       whatsappResult = await sendWhatsApp({
         trigger,
         phone: recipientPhone,

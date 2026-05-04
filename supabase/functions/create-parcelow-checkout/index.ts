@@ -6,6 +6,14 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+const SANDBOX_PAYMENT_HOSTS = [
+  'migma-lp-2qvd-4glfm5nvh-migma-incs-projects.vercel.app',
+];
+
+function targetsSandboxPayment(...values: string[]): boolean {
+  return values.some((value) => SANDBOX_PAYMENT_HOSTS.some((host) => value.includes(host)));
+}
+
 /**
  * Clean and validate CPF/CNPJ
  * Removes formatting and ensures it's a valid length
@@ -229,14 +237,19 @@ class ParcelowClient {
       throw new Error(`Failed to parse token response: ${parseError}`);
     }
 
-    this.accessToken = tokenData.access_token;
+    const accessToken = tokenData.access_token;
+    if (!accessToken || typeof accessToken !== 'string') {
+      throw new Error('Parcelow token response missing access_token');
+    }
+
+    this.accessToken = accessToken;
     this.tokenExpiresAt = Date.now() + (tokenData.expires_in - 300) * 1000;
 
     console.log(`[Parcelow OAuth] ✅ Token stored successfully`);
     console.log(`[Parcelow OAuth] Token expires at: ${new Date(this.tokenExpiresAt).toISOString()}`);
     console.log(`[Parcelow OAuth] =========================================`);
 
-    return this.accessToken;
+    return accessToken;
   }
 
   private async request<T>(method: string, endpoint: string, data?: any): Promise<T> {
@@ -334,13 +347,16 @@ function detectEnvironment(req: Request): { isProduction: boolean; environment: 
   const referer = req.headers.get('referer') || '';
   const origin = req.headers.get('origin') || '';
   const host = req.headers.get('host') || '';
+  const forceSandbox = targetsSandboxPayment(referer, origin, host);
 
   const isProductionDomain =
-    referer.includes('migmainc.com') ||
-    origin.includes('migmainc.com') ||
-    host.includes('migmainc.com') ||
-    (referer.includes('vercel.app') && !referer.includes('preview')) ||
-    (origin.includes('vercel.app') && !origin.includes('preview'));
+    !forceSandbox && (
+      referer.includes('migmainc.com') ||
+      origin.includes('migmainc.com') ||
+      host.includes('migmainc.com') ||
+      (referer.includes('vercel.app') && !referer.includes('preview')) ||
+      (origin.includes('vercel.app') && !origin.includes('preview'))
+    );
 
   // Default to staging unless on production domain
   const isProduction = isProductionDomain;

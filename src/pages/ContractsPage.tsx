@@ -14,6 +14,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { ContractTemplateSelector } from '@/components/admin/ContractTemplateSelector';
 import { PdfModal } from '@/components/ui/pdf-modal';
 import { ImageModal } from '@/components/ui/image-modal';
+import { supabase } from '@/lib/supabase';
 
 // Chave para localStorage
 const CONTRACTS_TAB_STORAGE_KEY = 'contracts_page_selected_tab';
@@ -411,6 +412,36 @@ export function ContractsPage() {
     setShowApproveConfirm(true);
   };
 
+  const notifyContractApprovedWhatsapp = async (contract: AcceptedContract) => {
+    const email = contract.application?.email;
+    const phone = contract.application?.phone;
+    if (!email && !phone) {
+      console.warn('[ContractsPage] WhatsApp notification skipped: contract has no recipient data');
+      return;
+    }
+
+    const { error: notifyError } = await supabase.functions.invoke('migma-notify', {
+      body: {
+        trigger: 'contract_approved',
+        channels: {
+          email: false,
+          whatsapp: true,
+        },
+        data: {
+          app_url: 'https://migmainc.com/student/onboarding?step=scholarship_selection',
+          contract_acceptance_id: contract.id,
+          client_email: email,
+          client_phone: phone,
+          client_name: contract.application?.full_name,
+        },
+      },
+    });
+
+    if (notifyError) {
+      console.error('[ContractsPage] WhatsApp notification failed:', notifyError);
+    }
+  };
+
   const confirmApproveContract = async () => {
     if (!pendingContract) return;
 
@@ -422,6 +453,7 @@ export function ContractsPage() {
       const result = await approvePartnerContract(pendingContract.id, reviewedBy);
 
       if (result.success) {
+        await notifyContractApprovedWhatsapp(pendingContract);
         setAlertData({
           title: 'Success',
           message: 'Partner contract approved successfully!',

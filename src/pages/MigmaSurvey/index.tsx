@@ -190,6 +190,21 @@ const MigmaSurvey: React.FC = () => {
         .update(profileUpdate)
         .eq('id', profileId);
 
+      await supabase
+        .from('user_profiles')
+        .update({ selection_survey_passed: true })
+        .eq('id', profileId);
+
+      supabase.functions.invoke('migma-notify', {
+        body: {
+          trigger: 'questionnaire_received',
+          user_id: profileId,
+          data: {},
+        },
+      }).catch(notifyError => {
+        console.warn('[Survey] questionnaire notification failed:', notifyError);
+      });
+
       setCompleted(true);
       scrollTop();
     } catch (err: any) {
