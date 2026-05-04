@@ -7,6 +7,23 @@ const CORS = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+function getMigmaEnv() {
+  const url =
+    Deno.env.get("MIGMA_REMOTE_URL") ||
+    Deno.env.get("REMOTE_SUPABASE_URL") ||
+    Deno.env.get("SUPABASE_URL");
+  const key =
+    Deno.env.get("MIGMA_REMOTE_SERVICE_ROLE_KEY") ||
+    Deno.env.get("REMOTE_SUPABASE_SERVICE_ROLE_KEY") ||
+    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+
+  if (!url || !key) {
+    throw new Error("Supabase URL/service role não configurados para a função.");
+  }
+
+  return { url, key };
+}
+
 /**
  * migma-payment-completed (V15)
  *
@@ -105,17 +122,19 @@ async function resolveProfile(
 
 async function notifyByProfile(
   migma: ReturnType<typeof createClient>,
+  migmaUrl: string,
+  migmaKey: string,
   trigger: "selection_fee_paid" | "placement_fee_paid",
   profileId: string,
   data: Record<string, unknown> = {},
 ) {
   try {
-    const notifyRes = await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/migma-notify`, {
+    const notifyRes = await fetch(`${migmaUrl}/functions/v1/migma-notify`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
-        "apikey": Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
+        "Authorization": `Bearer ${migmaKey}`,
+        "apikey": migmaKey,
       },
       body: JSON.stringify({
         trigger,
@@ -139,8 +158,7 @@ async function notifyByProfile(
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
 
-  const migmaUrl = Deno.env.get("SUPABASE_URL")!;
-  const migmaKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+  const { url: migmaUrl, key: migmaKey } = getMigmaEnv();
   const migma = createClient(migmaUrl, migmaKey);
 
   const matriculaUrl = Deno.env.get("MATRICULAUSA_URL");
@@ -240,7 +258,7 @@ Deno.serve(async (req) => {
             `[user_profiles] ✅ selection_process: paid=true | price=${amountNum > 0 ? amountNum : "preservado"}`
           );
           if (resolvedProfile?.id) {
-            await notifyByProfile(migma, "selection_fee_paid", resolvedProfile.id);
+            await notifyByProfile(migma, migmaUrl, migmaKey, "selection_fee_paid", resolvedProfile.id);
           }
         }
       }
@@ -260,7 +278,7 @@ Deno.serve(async (req) => {
             .eq("id", resolvedProfile.id);
 
           if (profErr) console.error(`[user_profiles] update placement_fee falhou: ${profErr.message}`);
-          else await notifyByProfile(migma, "placement_fee_paid", resolvedProfile.id);
+          else await notifyByProfile(migma, migmaUrl, migmaKey, "placement_fee_paid", resolvedProfile.id);
         }
 
         // 2. Atualizar institution_applications se ID disponível
@@ -318,7 +336,7 @@ Deno.serve(async (req) => {
       try {
         const { data: profile, error: profileErr } = await migma
           .from("user_profiles")
-          .select("full_name, email, phone, country, num_dependents, signature_url, student_process_type")
+          .select("full_name, email, phone, country, num_dependents, signature_url, student_process_type, migma_seller_id")
           .eq("user_id", user_id)
           .single();
 
@@ -451,6 +469,7 @@ Deno.serve(async (req) => {
           };
 
           if (service_request_id) orderUpdate.service_request_id = service_request_id;
+          if (profile.migma_seller_id) orderUpdate.seller_id = profile.migma_seller_id;
 
           // Atualiza status e preço apenas em pagamento real (não no finalize_only)
           if (!finalize_contract_only) {
@@ -519,6 +538,7 @@ Deno.serve(async (req) => {
             contract_accepted: true,
             contract_signed_at: new Date().toISOString(),
             service_request_id: service_request_id ?? null,
+            seller_id: profile.migma_seller_id || null,
             contract_approval_status: "pending",
             annex_approval_status: "pending",
             // Salvar decomposição gross/net/fee para o dashboard calcular corretamente

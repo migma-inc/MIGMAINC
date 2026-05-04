@@ -81,7 +81,24 @@ const MigmaCheckout: React.FC = () => {
   useEffect(() => {
     // Persist seller ref to localStorage so it survives auth redirects
     const refParam = searchParams.get('ref') || searchParams.get('seller_id');
-    if (refParam) saveSellerRef(refParam);
+    if (refParam) {
+      saveSellerRef(refParam);
+      supabase.auth.getSession()
+        .then(async ({ data: { session } }) => {
+          if (!session?.user.id) return;
+
+          const { error } = await supabase
+            .from('user_profiles')
+            .update({ migma_seller_id: refParam })
+            .eq('user_id', session.user.id)
+            .is('migma_seller_id', null);
+
+          if (error) {
+            console.warn('[MigmaCheckout] Could not persist seller ref to profile:', error.message);
+          }
+        })
+        .catch(err => console.warn('[MigmaCheckout] Could not persist seller ref:', err));
+    }
 
     const success = searchParams.get('success');
     const failed = searchParams.get('failed');
@@ -565,8 +582,9 @@ const MigmaCheckout: React.FC = () => {
         try {
           const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
           const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
+          const functionsBaseUrl = ((import.meta.env.VITE_FUNCTIONS_BASE_URL as string | undefined) || `${supabaseUrl}/functions/v1`).replace(/\/$/, '');
           const res = await fetch(
-            `${supabaseUrl}/functions/v1/migma-student-stripe-checkout?session_id=${encodeURIComponent(sessionId)}`,
+            `${functionsBaseUrl}/migma-student-stripe-checkout?session_id=${encodeURIComponent(sessionId)}`,
             { headers: { apikey: supabaseAnonKey, Authorization: `Bearer ${supabaseAnonKey}` } }
           );
           if (res.ok) {
@@ -648,6 +666,7 @@ const MigmaCheckout: React.FC = () => {
         migma_seller_id: sellerId || undefined,
         migma_agent_id: agentId || undefined,
         migma_user_id: studentAuthUser?.id || undefined,
+        service_request_id: state.serviceRequestId || undefined,
       });
 
       if (!res?.user_id) {
