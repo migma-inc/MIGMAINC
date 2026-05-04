@@ -1547,15 +1547,17 @@ export function SellerLinks() {
                   };
 
                   products.forEach((product) => {
-                    if (product.slug.startsWith('initial-') || product.slug === 'INITIAL Application - Full Process Payment') {
+                    const slug = product.slug.toLowerCase();
+                    
+                    if (slug.startsWith('initial-') || slug.includes('initial-application')) {
                       serviceGroups.initial.products.push(product);
-                    } else if (product.slug.startsWith('cos-') || product.slug === 'Change of Status - Full Process Payment') {
+                    } else if (slug.startsWith('cos-') || slug.includes('change-of-status')) {
                       serviceGroups.cos.products.push(product);
-                    } else if (product.slug.startsWith('transfer-') || product.slug === 'TRANSFER - Full Process Payment') {
+                    } else if (slug.startsWith('transfer-') || slug.includes('transfer-full-process')) {
                       serviceGroups.transfer.products.push(product);
-                    } else if (product.slug.startsWith('eb2-')) {
+                    } else if (slug.startsWith('eb2-') || slug.startsWith('eb-2-')) {
                       serviceGroups.eb2.products.push(product);
-                    } else if (product.slug.startsWith('eb3-')) {
+                    } else if (slug.startsWith('eb3-') || slug.startsWith('eb-3-')) {
                       serviceGroups.eb3.products.push(product);
                     } else {
                       serviceGroups.other.products.push(product);
