@@ -235,6 +235,7 @@
             "error_remove": "Error al eliminar el cupón."
         },
         "evidence_description_label": "Descripción de la evidencia",
+        "evidence_description_placeholder": "Descripción de la evidencia",
         "per_evidence": "Por evidencia",
         "evidences": "Evidencias"
     },

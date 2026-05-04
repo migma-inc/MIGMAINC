@@ -93,7 +93,7 @@ export const QuantitySelector: React.FC<QuantitySelectorProps> = ({
                         value={name}
                         onChange={(e) => handleNameChange(i, e.target.value)}
                         className="bg-white text-black min-h-[44px]"
-                        placeholder={product.slug === 'rfe-defense' ? t('checkout.evidence_description_placeholder', 'Evidence description') : t('checkout.full_name_placeholder', 'Full name')}
+                        placeholder={product.slug === 'rfe-defense' ? t('checkout.evidence_description_placeholder', 'Description of the evidence') : t('checkout.full_name_placeholder', 'Full name')}
                     />
                 </div>
             ))}

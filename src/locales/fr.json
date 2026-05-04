@@ -235,6 +235,7 @@
             "error_remove": "Erreur lors du retrait du coupon."
         },
         "evidence_description_label": "Description de la preuve",
+        "evidence_description_placeholder": "Description de la preuve",
         "per_evidence": "Par preuve",
         "evidences": "Preuves"
     },

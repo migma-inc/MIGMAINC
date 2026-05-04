@@ -253,6 +253,7 @@
             "error_remove": "Erro ao remover cupom."
         },
         "evidence_description_label": "Descrição da evidência",
+        "evidence_description_placeholder": "Descrição da evidência",
         "per_evidence": "Por evidência",
         "evidences": "Evidências"
     },

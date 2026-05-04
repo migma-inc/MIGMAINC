@@ -247,7 +247,8 @@
             "error_validate": "Error validating coupon.",
             "error_remove": "Error removing coupon."
         },
-        "evidence_description_label": "Evidence description",
+        "evidence_description_label": "Description of the evidence",
+        "evidence_description_placeholder": "Description of the evidence",
         "per_evidence": "Per evidence",
         "evidences": "Evidences"
     },
