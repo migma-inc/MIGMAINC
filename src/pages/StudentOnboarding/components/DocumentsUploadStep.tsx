@@ -342,7 +342,7 @@ export const DocumentsUploadStep: React.FC<StepProps> = ({ onNext }) => {
         <h2 className="text-2xl font-black text-white uppercase tracking-tight">{t('student_onboarding.documents.title')}</h2>
         <div className="space-y-4">
           <p className="text-sm text-gray-400 font-medium">
-            {t('student_onboarding.documents.subtitle_main', 'Envie os documentos obrigatórios para continuar.')}
+            {t('student_onboarding.documents.subtitle_main', 'Upload the required documents to continue.')}
           </p>
           
           <div className="inline-flex items-center gap-2.5 px-4 py-2 bg-gold-medium/10 border border-gold-medium/20 rounded-xl group hover:border-gold-medium/40 transition-all cursor-default">

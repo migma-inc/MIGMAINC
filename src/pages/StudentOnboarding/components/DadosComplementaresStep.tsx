@@ -393,7 +393,7 @@ export const DadosComplementaresStep: React.FC<StepProps> = ({ onNext: _onNext }
               <Trash2 className="w-4 h-4" />
             </button>
             <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
-              {t('student_onboarding.complementary.entry_number', { count: idx + 1, defaultValue: 'Entry {{count}}' })}
+              {t('student_onboarding.complementary.entry_number', { number: idx + 1, defaultValue: 'Entry {{number}}' })}
             </p>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <Field label={t('student_onboarding.complementary.company_organization', 'Company / Organization')}>

@@ -78,6 +78,19 @@ const FAQ_ITEMS = [
   },
 ];
 
+const DEGREE_LEVEL_LABEL_KEYS: Record<string, string> = {
+  'Graduação': 'student_onboarding.university_modal.degree_undergraduate',
+  'Pós-Graduação': 'student_onboarding.university_modal.degree_postgraduate',
+  'Mestrado': 'student_onboarding.university_modal.degree_masters',
+};
+
+const MODALITY_LABEL_KEYS: Record<string, string> = {
+  'Híbrido': 'student_onboarding.university_modal.modality_hybrid',
+  'Presencial': 'student_onboarding.university_modal.modality_in_person',
+  'Híbrido ou Presencial': 'student_onboarding.university_modal.modality_hybrid_or_in_person',
+  'A confirmar': 'student_onboarding.university_modal.to_confirm',
+};
+
 export const UniversitySelectionModal: React.FC<Props> = ({
   institution,
   preSelectedScholarshipId,
@@ -111,6 +124,45 @@ export const UniversitySelectionModal: React.FC<Props> = ({
   );
 
   const selectedScholarship = sortedScholarships.find(s => s.id === selectedScholarshipId) ?? null;
+
+  const formatDegreeLevel = (value: string | null | undefined) => {
+    if (!value) return t('student_onboarding.university_modal.to_confirm');
+    const key = DEGREE_LEVEL_LABEL_KEYS[value];
+    return key ? t(key) : value;
+  };
+
+  const formatModality = (value: string | null | undefined) => {
+    if (!value) return t('student_onboarding.university_modal.to_confirm');
+    const key = MODALITY_LABEL_KEYS[value];
+    return key ? t(key) : value;
+  };
+
+  const formatScholarshipLevel = (value: string | null | undefined, discountPercent: number) => {
+    if (!value) {
+      return t('student_onboarding.university_modal.discount_percent', { percent: discountPercent });
+    }
+
+    const match = value.match(/^N[ií]vel\s+(\d+)(.*)$/i);
+    if (!match) return value;
+
+    return t('student_onboarding.university_modal.scholarship_level_named', {
+      level: match[1],
+      suffix: match[2] || '',
+    });
+  };
+
+  const formatCptLabel = (value: string | null | undefined) => {
+    if (!value) return t('student_onboarding.university_modal.to_confirm');
+    if (value === 'A confirmar') return t('student_onboarding.university_modal.to_confirm');
+
+    const firstDayMatch = value.match(/^1º dia(?:\s+\((.+)\))?$/i);
+    if (firstDayMatch) {
+      const degree = firstDayMatch[1] ? ` (${formatDegreeLevel(firstDayMatch[1])})` : '';
+      return `${t('student_onboarding.university_modal.cpt_available_day_one')}${degree}`;
+    }
+
+    return value;
+  };
 
   // Se mudar o curso e a bolsa selecionada não existir mais no filtro, deseleciona
   React.useEffect(() => {
@@ -153,16 +205,14 @@ export const UniversitySelectionModal: React.FC<Props> = ({
     if (!selectedCourse) return institution.cpt_opt;
     if (selectedCourse.cpt_after_months === 0) return t('student_onboarding.university_modal.cpt_available_day_one');
     if (selectedCourse.cpt_after_months) return t('student_onboarding.university_modal.cpt_available_after_months', { months: selectedCourse.cpt_after_months });
-    return institution.cpt_opt;
+    return formatCptLabel(institution.cpt_opt);
   }, [institution, selectedCourse, t]);
 
   // Course duration label
   const durationLabel = useMemo(() => {
     if (!selectedCourse || !selectedCourse.duration_months) return null;
     const y = Math.round(selectedCourse.duration_months / 12);
-    const level = selectedCourse.degree_level === 'Graduação'
-      ? t('student_onboarding.university_modal.bachelor')
-      : selectedCourse.degree_level;
+    const level = formatDegreeLevel(selectedCourse.degree_level);
     return t('student_onboarding.university_modal.duration_years', {
       level,
       years: y,
@@ -215,7 +265,7 @@ export const UniversitySelectionModal: React.FC<Props> = ({
                 </span>
                 <span className="text-gray-500 text-xs font-bold flex items-center gap-1 uppercase tracking-widest">
                   <Globe className="w-3 h-3 text-gold-medium/40" />
-                  {institution.modality}
+                  {formatModality(institution.modality)}
                 </span>
               </div>
               <div className="flex flex-wrap gap-2 mt-2">
@@ -265,7 +315,7 @@ export const UniversitySelectionModal: React.FC<Props> = ({
                 >
                   {institution.courses.map(course => (
                     <option key={course.id} value={course.id}>
-                      {course.course_name} — {course.degree_level}
+                      {course.course_name} — {formatDegreeLevel(course.degree_level)}
                     </option>
                   ))}
                 </select>
@@ -348,7 +398,7 @@ export const UniversitySelectionModal: React.FC<Props> = ({
                           {t('student_onboarding.university_modal.discount')}
                         </p>
                         <p className="text-lg font-black text-emerald-400">
-                          {level.scholarship_level || `${level.discount_percent}% OFF`}
+                          {formatScholarshipLevel(level.scholarship_level, level.discount_percent)}
                         </p>
                       </div>
                       <div className="flex justify-end items-center sm:col-start-4">
@@ -505,7 +555,7 @@ export const UniversitySelectionModal: React.FC<Props> = ({
                       <li key={c.id} className="text-sm text-gray-300 flex items-center gap-2">
                         <div className="w-1.5 h-1.5 rounded-full bg-gold-medium/60 shrink-0" />
                         {c.course_name}
-                        <span className="text-xs text-gray-600">— {c.degree_level}</span>
+                        <span className="text-xs text-gray-600">— {formatDegreeLevel(c.degree_level)}</span>
                       </li>
                     ))}
                   </ul>
@@ -535,7 +585,7 @@ export const UniversitySelectionModal: React.FC<Props> = ({
                   </div>
                   <div>
                     <p className="text-sm font-bold text-white">{t('student_onboarding.university_modal.modality')}</p>
-                    <p className="text-xs text-gray-400 mt-0.5">{institution.modality}</p>
+                    <p className="text-xs text-gray-400 mt-0.5">{formatModality(institution.modality)}</p>
                   </div>
                 </div>
               </div>

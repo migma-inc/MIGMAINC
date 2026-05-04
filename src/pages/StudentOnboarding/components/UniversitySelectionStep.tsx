@@ -17,6 +17,19 @@ import { UniversitySelectionModal, type Institution } from './UniversitySelectio
 const MAX_SELECTIONS = 4;
 const DISABLE_SCHOLARSHIP_APPROVAL_LOCK_FOR_TESTS = true;
 
+const STUDY_AREA_LABEL_KEYS: Record<string, string> = {
+  'Exatas & Tecnologia': 'student_onboarding.scholarship.study_area_options.stem',
+  'Negócios & Gestão': 'student_onboarding.scholarship.study_area_options.business',
+  'Humanas & Sociais': 'student_onboarding.scholarship.study_area_options.humanities',
+  'Saúde & Ciências': 'student_onboarding.scholarship.study_area_options.health',
+};
+
+const DEGREE_LEVEL_LABEL_KEYS: Record<string, string> = {
+  'Graduação': 'student_onboarding.university_modal.degree_undergraduate',
+  'Pós-Graduação': 'student_onboarding.university_modal.degree_postgraduate',
+  'Mestrado': 'student_onboarding.university_modal.degree_masters',
+};
+
 type SelectionEntry = {
   institution: Institution;
   scholarshipId: string;
@@ -35,6 +48,12 @@ type ExistingApplication = {
 export const UniversitySelectionStep: React.FC<StepProps> = ({ onNext }) => {
   const { userProfile } = useStudentAuth();
   const { t } = useTranslation();
+
+  const formatDegreeLevel = (value: string | null | undefined) => {
+    if (!value) return '';
+    const key = DEGREE_LEVEL_LABEL_KEYS[value];
+    return key ? t(key) : value;
+  };
 
   // ── Data ──
   const [institutions, setInstitutions] = useState<Institution[]>([]);
@@ -394,7 +413,7 @@ export const UniversitySelectionStep: React.FC<StepProps> = ({ onNext }) => {
                   </p>
                   {course && (
                     <p className="text-xs text-gray-500 mt-0.5">
-                      {course.course_name} — {course.degree_level}
+                      {course.course_name} — {formatDegreeLevel(course.degree_level)}
                     </p>
                   )}
                   {scholarship && (
@@ -602,7 +621,9 @@ export const UniversitySelectionStep: React.FC<StepProps> = ({ onNext }) => {
           >
             <option value="">{t('student_onboarding.scholarship.study_area', 'Study Area')}</option>
             {uniqueAreas.map(area => (
-              <option key={area} value={area}>{area}</option>
+              <option key={area} value={area}>
+                {t(STUDY_AREA_LABEL_KEYS[area] || '', { defaultValue: area })}
+              </option>
             ))}
           </select>
 

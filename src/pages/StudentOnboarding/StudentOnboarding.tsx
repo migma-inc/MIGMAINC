@@ -248,7 +248,7 @@ const StudentOnboarding: React.FC = () => {
               className="px-4 py-2 flex items-center gap-2 bg-white border border-[#e3d5bd] text-[#6f6251] hover:bg-[#f3ead9] hover:text-[#1f1a14] dark:bg-white/5 dark:border-white/10 dark:text-gray-400 dark:hover:bg-white/10 dark:hover:text-white rounded-xl transition-all text-sm font-semibold"
             >
               <LogOut className="w-4 h-4" />
-              <span>{t('admin_header.logout', 'Sair')}</span>
+              <span>{t('common.logout', 'Sign Out')}</span>
             </button>
           </div>
         </div>

@@ -167,7 +167,9 @@ export const PaymentStep: React.FC<StepProps> = ({ onNext }) => {
   const firstApp = applications[0];
   const applicationFee = firstApp?.fee_amount ?? 400;
   const cardAmount = calculateCardAmountWithFees(applicationFee);
-  const scholarshipName = firstApp?.scholarship_name || 'Selected Scholarship';
+  const scholarshipName = firstApp?.scholarship_name === 'University Application'
+    ? t('student_onboarding.payment_ui.university_application', 'University Application')
+    : firstApp?.scholarship_name || t('student_onboarding.payment_ui.selected_scholarship', 'Selected Scholarship');
   const universityName = firstApp?.university_name || '';
 
   const needsCpf = !!selectedMethod && ['parcelow_card', 'parcelow_pix', 'parcelow_ted'].includes(selectedMethod);
@@ -335,16 +337,16 @@ export const PaymentStep: React.FC<StepProps> = ({ onNext }) => {
             <AlertCircle className="w-10 h-10 text-red-400" />
           </div>
           <h3 className="text-2xl font-black text-white mb-3 uppercase tracking-tight">
-            Nenhuma universidade selecionada
+            {t('student_onboarding.payment.no_university_selected_title')}
           </h3>
           <p className="text-gray-400 text-sm leading-relaxed max-w-sm mx-auto mb-8">
-            Você ainda não escolheu uma universidade ou bolsa. Por favor, volte ao passo anterior para selecionar uma antes de prosseguir com o pagamento.
+            {t('student_onboarding.payment.no_university_selected_desc')}
           </p>
           <button
-            onClick={() => window.location.href = '?step=scholarship'}
+            onClick={() => window.location.href = '?step=scholarship_selection'}
             className="w-full bg-white/10 hover:bg-white/20 text-white py-4 px-8 rounded-2xl font-black uppercase tracking-widest transition-all"
           >
-            Voltar para Seleção
+            {t('student_onboarding.payment.back_to_selection')}
           </button>
         </div>
       </div>
