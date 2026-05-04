@@ -7,6 +7,7 @@
  */
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { ChevronRight, ChevronLeft, Check, Loader2 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { CheckoutTopbar } from '../MigmaCheckout/components/CheckoutTopbar';
@@ -32,6 +33,7 @@ function normalizeService(raw: string | null | undefined): ValidServiceType {
 }
 
 const MigmaSurvey: React.FC = () => {
+  const { t } = useTranslation();
   const { service: rawService = 'transfer' } = useParams<{ service: string }>();
   const service = normalizeService(rawService);
   const navigate = useNavigate();
@@ -209,7 +211,7 @@ const MigmaSurvey: React.FC = () => {
       scrollTop();
     } catch (err: any) {
       console.error('[Survey] submit error', err);
-      setError('Erro ao salvar suas respostas. Tente novamente.');
+      setError(t('migma_survey.error_save', 'Error saving your answers. Try again.'));
     } finally {
       setSaving(false);
     }
@@ -229,7 +231,7 @@ const MigmaSurvey: React.FC = () => {
   const isLast = currentSectionIdx === sections.length - 1;
 
   return (
-    <div className="min-h-screen bg-black" ref={topRef}>
+    <div className="migma-pre-onboarding min-h-screen bg-[#f7f4ee] text-[#1f1a14] dark:bg-black dark:text-white" ref={topRef}>
       <CheckoutTopbar serviceLabel={service === 'transfer' ? 'Transfer' : service === 'cos' ? 'COS' : service.toUpperCase()} />
 
       <SurveyProgressBar
@@ -241,10 +243,18 @@ const MigmaSurvey: React.FC = () => {
         {/* Section header */}
         <div className="mb-8">
           <p className="text-gold-medium text-xs font-bold tracking-widest uppercase mb-1">
-            Seção {currentSection.key} de {sections.length}
+            {t('migma_survey.section_counter', {
+              current: currentSection.key,
+              total: sections.length,
+              defaultValue: 'Section {{current}} of {{total}}',
+            })}
           </p>
-          <h2 className="text-white text-2xl font-black mb-2">{currentSection.title}</h2>
-          <p className="text-gray-400 text-sm">{currentSection.description}</p>
+          <h2 className="text-white text-2xl font-black mb-2">
+            {t(`survey_questions.sections.${currentSection.key}.title`, currentSection.title)}
+          </h2>
+          <p className="text-gray-400 text-sm">
+            {t(`survey_questions.sections.${currentSection.key}.description`, currentSection.description)}
+          </p>
         </div>
 
         {/* Questions */}
@@ -273,7 +283,7 @@ const MigmaSurvey: React.FC = () => {
             className="flex items-center gap-2 px-5 py-3 border border-white/10 text-gray-400 hover:text-white hover:border-white/30 rounded-xl transition-all disabled:opacity-30 disabled:cursor-not-allowed text-sm font-semibold"
           >
             <ChevronLeft className="w-4 h-4" />
-            Voltar
+            {t('migma_survey.back', 'Back')}
           </button>
 
           <button
@@ -282,18 +292,22 @@ const MigmaSurvey: React.FC = () => {
             className="flex items-center gap-2 px-6 py-3 bg-gold-medium hover:bg-gold-light text-black font-black rounded-xl transition-all disabled:opacity-40 disabled:cursor-not-allowed text-sm"
           >
             {saving ? (
-              <><Loader2 className="w-4 h-4 animate-spin" /> Salvando...</>
+              <><Loader2 className="w-4 h-4 animate-spin" /> {t('migma_survey.saving', 'Saving...')}</>
             ) : isLast ? (
-              <><Check className="w-4 h-4" /> Enviar Questionário</>
+              <><Check className="w-4 h-4" /> {t('migma_survey.submit', 'Submit Survey')}</>
             ) : (
-              <>Próxima Seção <ChevronRight className="w-4 h-4" /></>
+              <>{t('migma_survey.next_section', 'Next Section')} <ChevronRight className="w-4 h-4" /></>
             )}
           </button>
         </div>
 
         {/* Progress indicator */}
         <p className="mt-6 text-center text-gray-600 text-xs">
-          {currentSectionIdx + 1} / {sections.length} seções concluídas
+          {t('migma_survey.progress_counter', {
+            current: currentSectionIdx + 1,
+            total: sections.length,
+            defaultValue: '{{current}} / {{total}} sections completed',
+          })}
         </p>
       </main>
     </div>

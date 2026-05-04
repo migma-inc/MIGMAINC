@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Lock, CheckCircle, AlertTriangle, FileText, ExternalLink, ArrowRight, Info, Gift, Upload, Clock } from 'lucide-react';
 import { Button } from '../../../components/ui/button';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useStudentAuth } from '../../../contexts/StudentAuthContext';
 import { supabase } from '../../../lib/supabase';
 import { getSecureUrl } from '../../../lib/storage';
@@ -21,6 +22,7 @@ interface ApplicationData {
 }
 
 export const AcceptanceLetterStep: React.FC<StepProps> = () => {
+  const { t } = useTranslation();
   const { userProfile } = useStudentAuth();
   const navigate = useNavigate();
   const [app, setApp] = useState<ApplicationData | null>(null);
@@ -113,7 +115,7 @@ export const AcceptanceLetterStep: React.FC<StepProps> = () => {
       setUploadSuccess(true);
     } catch (err) {
       console.error('[AcceptanceLetterStep] upload error:', err);
-      alert('Erro ao enviar o formulário. Tente novamente.');
+      alert(t('student_onboarding.acceptance_letter.error_upload_form'));
     } finally {
       setUploadingForm(false);
     }
@@ -139,10 +141,10 @@ export const AcceptanceLetterStep: React.FC<StepProps> = () => {
           <FileText className="w-8 h-8 text-gold-medium" />
         </div>
         <h2 className="text-2xl font-black text-white uppercase tracking-tight">
-          Carta de Aceite
+          {t('student_onboarding.acceptance_letter.title')}
         </h2>
         <p className="text-gray-400 mt-2 text-sm">
-          {app?.institutions?.name ?? 'Universidade'}
+          {app?.institutions?.name ?? t('student_onboarding.acceptance_letter.university_fallback')}
         </p>
       </div>
 
@@ -154,14 +156,13 @@ export const AcceptanceLetterStep: React.FC<StepProps> = () => {
               <Lock className="w-5 h-5 text-red-400" />
             </div>
             <div>
-              <h3 className="text-white font-bold text-base mb-1">Acesso bloqueado</h3>
+              <h3 className="text-white font-bold text-base mb-1">{t('student_onboarding.acceptance_letter.access_blocked')}</h3>
               <p className="text-gray-400 text-sm leading-relaxed">
-                Seu Placement Fee foi pago em 2 parcelas. A 2ª parcela ainda está pendente.
-                Após a confirmação do pagamento, sua carta de aceite será liberada automaticamente.
+                {t('student_onboarding.acceptance_letter.second_installment_pending_desc')}
               </p>
               <div className="mt-4 flex items-center gap-2 text-xs text-red-400 bg-red-500/10 rounded-xl px-4 py-2 w-fit">
                 <AlertTriangle className="w-3.5 h-3.5" />
-                <span>Aguardando confirmação da 2ª parcela</span>
+                <span>{t('student_onboarding.acceptance_letter.waiting_second_installment')}</span>
               </div>
             </div>
           </div>
@@ -176,8 +177,8 @@ export const AcceptanceLetterStep: React.FC<StepProps> = () => {
             <div className="flex items-center gap-3">
               <CheckCircle className="w-5 h-5 text-emerald-400 flex-shrink-0" />
               <div>
-                <p className="text-white font-semibold text-sm">Documentos em processamento</p>
-                <p className="text-gray-500 text-xs mt-0.5">Seus formulários e documentos foram enviados para processamento</p>
+                <p className="text-white font-semibold text-sm">{t('student_onboarding.acceptance_letter.docs_processing')}</p>
+                <p className="text-gray-500 text-xs mt-0.5">{t('student_onboarding.acceptance_letter.docs_processing_desc')}</p>
               </div>
             </div>
           </div>
@@ -188,17 +189,17 @@ export const AcceptanceLetterStep: React.FC<StepProps> = () => {
               <div className="flex items-start gap-4">
                 <CheckCircle className="w-6 h-6 text-emerald-400 flex-shrink-0 mt-0.5" />
                 <div className="flex-1">
-                  <h3 className="text-white font-bold mb-1">Carta de Aceite disponível</h3>
+                  <h3 className="text-white font-bold mb-1">{t('student_onboarding.acceptance_letter.letter_available')}</h3>
                   <p className="text-gray-400 text-sm mb-4">
-                    Sua carta de aceite foi emitida pela universidade. Faça o download abaixo.
+                    {t('student_onboarding.acceptance_letter.letter_available_desc')}
                   </p>
                   <Button
-                    onClick={() => openViewer(acceptanceLetterUrl, 'Carta de Aceite')}
+                    onClick={() => openViewer(acceptanceLetterUrl, t('student_onboarding.acceptance_letter.title'))}
                     disabled={!acceptanceLetterUrl}
                     className="inline-flex items-center gap-2 px-5 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-white font-semibold rounded-xl transition-colors text-sm border-none"
                   >
                     <ExternalLink className="w-4 h-4" />
-                    Baixar Carta de Aceite
+                    {t('student_onboarding.acceptance_letter.download_letter')}
                   </Button>
                 </div>
               </div>
@@ -210,14 +211,13 @@ export const AcceptanceLetterStep: React.FC<StepProps> = () => {
                   <Info className="w-5 h-5 text-gold-medium" />
                 </div>
                 <div>
-                  <h3 className="text-white font-bold mb-1">I-20 em processamento</h3>
+                  <h3 className="text-white font-bold mb-1">{t('student_onboarding.acceptance_letter.i20_processing')}</h3>
                   <p className="text-gray-400 text-sm leading-relaxed">
-                    Assim que a universidade emitir
-                    seu I-20 e a Carta de Aceite, você será notificado por e-mail e WhatsApp.
+                    {t('student_onboarding.acceptance_letter.i20_processing_desc')}
                   </p>
                   <div className="mt-3 flex items-center gap-2 text-xs text-gold-medium bg-gold-medium/10 rounded-xl px-4 py-2 w-fit">
                     <div className="w-2 h-2 rounded-full bg-gold-medium animate-pulse" />
-                    <span>Aguardando emissão pela universidade</span>
+                    <span>{t('student_onboarding.acceptance_letter.waiting_university_issue')}</span>
                   </div>
                 </div>
               </div>
@@ -231,46 +231,46 @@ export const AcceptanceLetterStep: React.FC<StepProps> = () => {
                 <div className="w-8 h-8 rounded-full bg-blue-500/10 flex items-center justify-center flex-shrink-0">
                   <ArrowRight className="w-4 h-4 text-blue-400" />
                 </div>
-                <h3 className="text-white font-bold">Transfer Form</h3>
+                <h3 className="text-white font-bold">{t('student_onboarding.acceptance_letter.transfer_form_title')}</h3>
               </div>
 
               {/* Step 1: Download template */}
               <div className="space-y-2">
-                <p className="text-xs text-gray-500 uppercase tracking-widest font-bold">Passo 1 — Baixar o formulário</p>
+                <p className="text-xs text-gray-500 uppercase tracking-widest font-bold">{t('student_onboarding.acceptance_letter.step1_download_form')}</p>
                 {app?.transfer_form_url ? (
                   <Button
-                    onClick={() => openViewer(transferTemplateUrl, 'Transfer Form - Modelo')}
+                    onClick={() => openViewer(transferTemplateUrl, t('student_onboarding.acceptance_letter.transfer_form_template'))}
                     disabled={!transferTemplateUrl}
                     className="inline-flex items-center gap-2 px-4 py-2.5 bg-blue-500/20 hover:bg-blue-500/30 border border-blue-500/30 text-blue-300 font-semibold rounded-xl transition-colors text-sm"
                   >
                     <ExternalLink className="w-4 h-4" />
-                    Baixar Transfer Form
+                    {t('student_onboarding.acceptance_letter.download_transfer_form')}
                   </Button>
                 ) : (
                   <div className="flex items-center gap-2 text-xs text-gray-500 bg-white/5 rounded-xl px-4 py-3">
                     <Clock className="w-4 h-4" />
-                    <span>Aguardando envio do Transfer Form pela nossa equipe</span>
+                    <span>{t('student_onboarding.acceptance_letter.waiting_transfer_form_team')}</span>
                   </div>
                 )}
               </div>
 
               {/* Step 2: Upload filled form */}
               <div className="space-y-2">
-                <p className="text-xs text-gray-500 uppercase tracking-widest font-bold">Passo 2 — Entregar na escola atual e reenviar preenchido</p>
+                <p className="text-xs text-gray-500 uppercase tracking-widest font-bold">{t('student_onboarding.acceptance_letter.step2_upload_filled')}</p>
                 <p className="text-gray-400 text-xs leading-relaxed">
-                  Leve o Transfer Form ao DSO da sua escola atual, solicite a assinatura e o envio do SEVIS release, depois faça o upload do formulário preenchido aqui.
+                  {t('student_onboarding.acceptance_letter.step2_upload_desc')}
                 </p>
 
                 {app?.transfer_form_filled_url || uploadSuccess ? (
                   <div className="flex items-center gap-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl px-4 py-3">
                     <CheckCircle className="w-4 h-4 text-emerald-400 flex-shrink-0" />
                     <div>
-                      <p className="text-emerald-300 text-sm font-semibold">Formulário enviado com sucesso</p>
+                      <p className="text-emerald-300 text-sm font-semibold">{t('student_onboarding.acceptance_letter.form_sent_success')}</p>
                       <button
-                        onClick={() => openViewer(transferFilledUrl, 'Transfer Form Enviado')}
+                        onClick={() => openViewer(transferFilledUrl, t('student_onboarding.acceptance_letter.transfer_form_sent'))}
                         className="text-xs text-emerald-400 hover:underline mt-0.5 block text-left"
                       >
-                        Ver formulário enviado
+                        {t('student_onboarding.acceptance_letter.view_sent_form')}
                       </button>
                     </div>
                   </div>
@@ -293,13 +293,13 @@ export const AcceptanceLetterStep: React.FC<StepProps> = () => {
                       className="inline-flex items-center gap-2 px-4 py-2.5 bg-blue-500 hover:bg-blue-400 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold rounded-xl transition-colors text-sm"
                     >
                       {uploadingForm ? (
-                        <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />Enviando...</>
+                        <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />{t('common.sending', 'Sending...')}</>
                       ) : (
-                        <><Upload className="w-4 h-4" />Enviar formulário preenchido</>
+                        <><Upload className="w-4 h-4" />{t('student_onboarding.acceptance_letter.upload_filled_form')}</>
                       )}
                     </button>
                     {!app?.transfer_form_url && (
-                      <p className="text-xs text-gray-600 mt-2">Disponível após receber o Transfer Form</p>
+                      <p className="text-xs text-gray-600 mt-2">{t('student_onboarding.acceptance_letter.available_after_transfer_form')}</p>
                     )}
                   </div>
                 )}
@@ -312,15 +312,15 @@ export const AcceptanceLetterStep: React.FC<StepProps> = () => {
             <div className="flex items-center gap-3">
               <Gift className="w-5 h-5 text-yellow-400 flex-shrink-0" />
               <div>
-                <p className="text-white font-semibold text-sm">Indique amigos e reduza sua tuition</p>
-                <p className="text-gray-400 text-xs mt-0.5">10 indicações = mensalidade Migma zerada</p>
+                <p className="text-white font-semibold text-sm">{t('student_onboarding.acceptance_letter.refer_friends')}</p>
+                <p className="text-gray-400 text-xs mt-0.5">{t('student_onboarding.acceptance_letter.refer_friends_desc')}</p>
               </div>
             </div>
             <button
               onClick={() => navigate('/student/dashboard/rewards')}
               className="shrink-0 px-4 py-2 bg-yellow-400 hover:bg-yellow-300 text-black font-bold rounded-xl text-xs transition-colors"
             >
-              Ver Rewards
+              {t('student_onboarding.acceptance_letter.view_rewards')}
             </button>
           </div>
         </>

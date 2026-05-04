@@ -1,6 +1,6 @@
 import React, { useEffect, useCallback, Suspense } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Loader2, LogOut } from 'lucide-react';
+import { Loader2, LogOut, Moon, Sun } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useStudentAuth } from '../../contexts/StudentAuthContext';
 import { useOnboardingProgress } from './hooks/useOnboardingProgress';
@@ -57,14 +57,14 @@ const DISABLE_REVIEW_WAIT_ROOM_FOR_TESTS = true;
 const CompletedScreen = () => {
   const { t } = useTranslation();
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center px-4 text-center">
-      <div className="w-20 h-20 bg-emerald-100 rounded-full flex items-center justify-center mb-6">
+    <div className="student-onboarding min-h-screen flex flex-col items-center justify-center px-4 text-center bg-[#f7f4ee] text-[#1f1a14] dark:bg-[#0a0a0a] dark:text-white">
+      <div className="w-20 h-20 bg-emerald-100 dark:bg-emerald-500/10 rounded-full flex items-center justify-center mb-6">
         <span className="text-4xl">🎓</span>
       </div>
-      <h1 className="text-4xl font-black text-slate-900 mb-3 uppercase tracking-tighter">
+      <h1 className="text-4xl font-black text-[#1f1a14] dark:text-white mb-3 uppercase tracking-tighter">
         {t('student_onboarding.completed.title')}
       </h1>
-      <p className="text-lg text-slate-600 max-w-md">
+      <p className="text-lg text-[#6f6251] dark:text-gray-400 max-w-md">
         {t('student_onboarding.completed.subtitle')}
       </p>
     </div>
@@ -78,6 +78,9 @@ const StudentOnboarding: React.FC = () => {
   const [searchParams] = useSearchParams();
   const { state, loading, goToStep, checkProgress, maxAllowedStep } = useOnboardingProgress();
   const isInitialMount = React.useRef(true);
+  const [isDarkMode, setIsDarkMode] = React.useState(() =>
+    document.documentElement.classList.contains('dark')
+  );
 
   // Redirecionar se não autenticado
   useEffect(() => {
@@ -85,6 +88,21 @@ const StudentOnboarding: React.FC = () => {
       navigate('/student/login');
     }
   }, [authLoading, user, navigate]);
+
+  useEffect(() => {
+    const isDark = document.documentElement.classList.contains('dark') || localStorage.getItem('theme') === 'dark';
+    setIsDarkMode(isDark);
+    document.documentElement.classList.toggle('dark', isDark);
+  }, []);
+
+  const toggleDarkMode = () => {
+    setIsDarkMode(prev => {
+      const next = !prev;
+      document.documentElement.classList.toggle('dark', next);
+      localStorage.setItem('theme', next ? 'dark' : 'light');
+      return next;
+    });
+  };
 
   const VALID_STEPS: OnboardingStep[] = [
     'selection_fee', 'selection_survey', 'wait_room',
@@ -182,7 +200,7 @@ const StudentOnboarding: React.FC = () => {
 
   if (authLoading || loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#0a0a0a]">
+      <div className="student-onboarding min-h-screen flex items-center justify-center bg-[#f7f4ee] dark:bg-[#0a0a0a]">
         <Loader2 className="w-10 h-10 animate-spin text-gold-medium" />
       </div>
     );
@@ -195,7 +213,7 @@ const StudentOnboarding: React.FC = () => {
   const stepProps = { onNext: handleNext, onBack: handleBack, currentStep: state.currentStep };
 
   return (
-    <div className="min-h-screen bg-[#0a0a0a] relative">
+    <div className="student-onboarding min-h-screen bg-[#f7f4ee] text-[#1f1a14] dark:bg-[#0a0a0a] dark:text-white relative">
       <div className="max-w-5xl mx-auto px-4 py-8 relative">
         {/* Logo / header */}
         <div className="mb-8 flex items-center justify-between">
@@ -207,20 +225,32 @@ const StudentOnboarding: React.FC = () => {
               onClick={() => navigate('/')}
               onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} 
             />
-            <div className="h-4 w-[1px] bg-white/10 hidden sm:block" />
+            <div className="h-4 w-[1px] bg-[#eadbbf] dark:bg-white/10 hidden sm:block" />
             <LanguageSelector />
           </div>
-          
-          <button
-            onClick={() => {
-              signOut();
-              navigate('/student/login');
-            }}
-            className="px-4 py-2 flex items-center gap-2 bg-white/5 border border-white/10 text-gray-400 hover:bg-white/10 hover:text-white rounded-xl transition-all text-sm font-semibold"
-          >
-            <LogOut className="w-4 h-4" />
-            <span>{t('admin_header.logout', 'Sair')}</span>
-          </button>
+
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={toggleDarkMode}
+              className="p-2 rounded-lg text-[#6f6251] dark:text-gray-400 hover:bg-[#f3ead9] dark:hover:bg-white/5 transition-colors"
+              title={isDarkMode ? t('theme.light', { defaultValue: 'Light Mode' }) : t('theme.dark', { defaultValue: 'Dark Mode' })}
+              aria-label={isDarkMode ? t('theme.light', { defaultValue: 'Light Mode' }) : t('theme.dark', { defaultValue: 'Dark Mode' })}
+            >
+              {isDarkMode ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
+            </button>
+
+            <button
+              onClick={() => {
+                signOut();
+                navigate('/student/login');
+              }}
+              className="px-4 py-2 flex items-center gap-2 bg-white border border-[#e3d5bd] text-[#6f6251] hover:bg-[#f3ead9] hover:text-[#1f1a14] dark:bg-white/5 dark:border-white/10 dark:text-gray-400 dark:hover:bg-white/10 dark:hover:text-white rounded-xl transition-all text-sm font-semibold"
+            >
+              <LogOut className="w-4 h-4" />
+              <span>{t('common.logout', 'Sign Out')}</span>
+            </button>
+          </div>
         </div>
 
         {/* Step indicator */}

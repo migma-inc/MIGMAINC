@@ -7,7 +7,7 @@ import {
   Upload, FileText, CheckCircle, Loader2,
   AlertCircle, ArrowRight, X, Languages, ExternalLink,
 } from 'lucide-react';
-import { useTranslation } from 'react-i18next';
+import { Trans, useTranslation } from 'react-i18next';
 import { useStudentAuth } from '../../../contexts/StudentAuthContext';
 import { supabase } from '../../../lib/supabase';
 import type { StepProps } from '../types';
@@ -186,7 +186,11 @@ export const DocumentsUploadStep: React.FC<StepProps> = ({ onNext }) => {
       return true;
     } catch (err: any) {
       console.error(`[DocumentsUploadStep] Erro ao fazer upload de ${docType}:`, err);
-      setError(`Failed to upload ${docType}: ${err.message}`);
+      setError(t('student_onboarding.documents.error_upload_doc', {
+        docType,
+        message: err.message,
+        defaultValue: 'Failed to upload {{docType}}: {{message}}',
+      }));
       return false;
     } finally {
       setUploadingFiles(prev => ({ ...prev, [docType]: false }));
@@ -196,7 +200,7 @@ export const DocumentsUploadStep: React.FC<StepProps> = ({ onNext }) => {
   const handleUploadAll = async () => {
     const filesToUpload = Object.entries(selectedFiles).filter(([_, file]) => file !== null);
     if (filesToUpload.length === 0) {
-      setError('Please select files to upload.');
+      setError(t('student_onboarding.documents.error_select_files', 'Please select files to upload.'));
       return;
     }
 
@@ -313,7 +317,11 @@ export const DocumentsUploadStep: React.FC<StepProps> = ({ onNext }) => {
       return true;
     } catch (err: any) {
       console.error('[DocumentsUploadStep] Erro ao fazer upload de passport:', err);
-      setError(`Failed to upload passport: ${err.message}`);
+      setError(t('student_onboarding.documents.error_upload_doc', {
+        docType: t('student_onboarding.documents.passport_label', 'Passport'),
+        message: err.message,
+        defaultValue: 'Failed to upload {{docType}}: {{message}}',
+      }));
       return false;
     } finally {
       setUploadingFiles(prev => ({ ...prev, passport: false }));
@@ -334,20 +342,20 @@ export const DocumentsUploadStep: React.FC<StepProps> = ({ onNext }) => {
         <h2 className="text-2xl font-black text-white uppercase tracking-tight">{t('student_onboarding.documents.title')}</h2>
         <div className="space-y-4">
           <p className="text-sm text-gray-400 font-medium">
-            {t('student_onboarding.documents.subtitle_main', 'Envie os documentos obrigatórios para continuar.')}
+            {t('student_onboarding.documents.subtitle_main', 'Upload the required documents to continue.')}
           </p>
           
           <div className="inline-flex items-center gap-2.5 px-4 py-2 bg-gold-medium/10 border border-gold-medium/20 rounded-xl group hover:border-gold-medium/40 transition-all cursor-default">
             <div className="w-8 h-8 rounded-lg bg-gold-medium/10 flex items-center justify-center">
               <Languages className="w-4 h-4 text-gold-medium" />
             </div>
-            <p className="text-sm text-gold-light/90 font-medium">
-              Precisa de tradução certificada? Recomendamos a 
+            <p className="text-sm text-[#9a6a16] dark:text-gold-light/90 font-medium">
+              {t('student_onboarding.documents.translation_notice_prefix', 'Need certified translation? We recommend')}{' '}
               <a 
                 href="https://lushamerica.com" 
                 target="_blank" 
                 rel="noopener noreferrer"
-                className="mx-1.5 text-gold-medium hover:text-gold-light underline decoration-gold-medium/30 hover:decoration-gold-medium transition-all font-bold"
+                className="mx-1.5 text-[#7a4f0f] dark:text-gold-medium hover:text-[#5f3d0b] dark:hover:text-gold-light underline decoration-gold-medium/40 hover:decoration-gold-medium transition-all font-bold"
               >
                 lushamerica.com
               </a>
@@ -401,12 +409,12 @@ export const DocumentsUploadStep: React.FC<StepProps> = ({ onNext }) => {
                   <span className="text-xs text-red-400 font-medium">*</span>
                   {passportDoc && (
                     <span className="text-[10px] font-black uppercase border rounded-sm px-2 py-0.5 bg-emerald-500/10 text-emerald-300 border-emerald-500/20">
-                      Já enviado
+                      {t('student_onboarding.documents.already_sent', 'Already sent')}
                     </span>
                   )}
                   {!passportDoc && selectedFiles.passport && (
                     <span className="text-[10px] font-black uppercase border rounded-sm px-2 py-0.5 bg-gold-medium/20 text-gold-medium border-gold-medium/30 animate-pulse">
-                      Pronto para enviar
+                      {t('student_onboarding.documents.ready_to_send', 'Ready to send')}
                     </span>
                   )}
                 </div>
@@ -415,7 +423,7 @@ export const DocumentsUploadStep: React.FC<StepProps> = ({ onNext }) => {
                 {passportDoc && (
                   <div className="mt-2 flex items-center gap-1.5 text-sm text-emerald-400 font-medium">
                     <CheckCircle className="w-4 h-4" />
-                    {passportDoc.original_filename || 'Passaporte enviado'}
+                    {passportDoc.original_filename || t('student_onboarding.documents.passport_sent', 'Passport uploaded')}
                   </div>
                 )}
 
@@ -448,7 +456,7 @@ export const DocumentsUploadStep: React.FC<StepProps> = ({ onNext }) => {
                       <button 
                         onClick={() => handleFileSelect('passport', null)}
                         className="text-gray-400 hover:text-red-400 transition-colors p-1"
-                        title="Remover arquivo"
+                        title={t('student_onboarding.documents.remove_file', 'Remove file')}
                       >
                         <X className="w-4 h-4" />
                       </button>
@@ -478,12 +486,16 @@ export const DocumentsUploadStep: React.FC<StepProps> = ({ onNext }) => {
                         <AlertCircle className="w-5 h-5 text-gold-medium" />
                       </div>
                       <div className="space-y-2">
-                        <h4 className="text-gold-medium font-bold uppercase tracking-wider text-sm">Atenção ao Bank Statement</h4>
+                        <h4 className="text-gold-medium font-bold uppercase tracking-wider text-sm">{t('student_onboarding.documents.bank_statement_notice_title', 'Bank Statement Notice')}</h4>
                         <p className="text-sm text-gray-400 leading-relaxed">
-                          O Bank Statement <strong>NÃO</strong> é o valor que você vai gastar. É apenas uma comprovação para a imigração de que você tem capacidade financeira. Pode ser: conta corrente, poupança, investimentos, conta de familiar ou patrocinador, ou combinação de contas.
+                          <Trans
+                            i18nKey="student_onboarding.documents.bank_statement_notice_desc"
+                            defaults="The Bank Statement is <strong>NOT</strong> the amount you will spend. It is only proof for immigration that you have financial capacity. It can be: checking account, savings, investments, family or sponsor account, or a combination of accounts."
+                            components={{ strong: <strong /> }}
+                          />
                         </p>
                         <p className="text-sm text-gray-500 italic">
-                          Não tem o valor disponível agora? Entre em contato com nossa equipe — temos soluções.
+                          {t('student_onboarding.documents.bank_statement_notice_help', 'Do not have the amount available now? Contact our team — we have solutions.')}
                         </p>
                       </div>
                     </div>
@@ -518,12 +530,12 @@ export const DocumentsUploadStep: React.FC<StepProps> = ({ onNext }) => {
                         {doc.required && <span className="text-xs text-red-400 font-medium">*</span>}
                         {uploaded && (
                           <span className="text-[10px] font-black uppercase border rounded-sm px-2 py-0.5 bg-emerald-500/10 text-emerald-300 border-emerald-500/20">
-                            Já enviado
+                            {t('student_onboarding.documents.already_sent', 'Already sent')}
                           </span>
                         )}
                         {isSelected && (
                           <span className="text-[10px] font-black uppercase border rounded-sm px-2 py-0.5 bg-gold-medium/20 text-gold-medium border-gold-medium/30 animate-pulse">
-                            Pronto para enviar
+                            {t('student_onboarding.documents.ready_to_send', 'Ready to send')}
                           </span>
                         )}
                       </div>
@@ -532,7 +544,7 @@ export const DocumentsUploadStep: React.FC<StepProps> = ({ onNext }) => {
                       {uploaded && (
                         <div className="mt-2 flex items-center gap-1.5 text-sm text-emerald-400 font-medium">
                           <CheckCircle className="w-4 h-4" />
-                          {uploaded.submitted_url?.split('/').pop() ?? 'Enviado'}
+                          {uploaded.submitted_url?.split('/').pop() ?? t('student_onboarding.documents.sent', 'Sent')}
                         </div>
                       )}
 
@@ -566,7 +578,7 @@ export const DocumentsUploadStep: React.FC<StepProps> = ({ onNext }) => {
                               <button 
                                 onClick={() => handleFileSelect(doc.key, null)}
                                 className="text-gray-400 hover:text-red-400 transition-colors p-1"
-                                title="Remover arquivo"
+                                title={t('student_onboarding.documents.remove_file', 'Remove file')}
                               >
                                 <X className="w-4 h-4" />
                               </button>
@@ -599,7 +611,7 @@ export const DocumentsUploadStep: React.FC<StepProps> = ({ onNext }) => {
           {allRequiredUploaded && (
             <div className="flex items-center gap-2 text-sm text-emerald-400 font-bold bg-emerald-500/5 px-4 py-2 rounded-full border border-emerald-500/20">
               <CheckCircle className="w-4 h-4" />
-              Todos os documentos obrigatórios anexados!
+              {t('student_onboarding.documents.all_required_attached', 'All required documents attached!')}
             </div>
           )}
           <button
@@ -614,8 +626,8 @@ export const DocumentsUploadStep: React.FC<StepProps> = ({ onNext }) => {
             {saving
               ? <><Loader2 className="w-5 h-5 animate-spin" /> {t('student_onboarding.documents.uploading')}</>
               : allRequiredUploaded
-              ? <><ArrowRight className="w-5 h-5" /> Finalizar Envio</>
-              : <><Upload className="w-5 h-5" /> Enviar Documentos Selecionados</>
+              ? <><ArrowRight className="w-5 h-5" /> {t('student_onboarding.documents.finish_upload', 'Finish Submission')}</>
+              : <><Upload className="w-5 h-5" /> {t('student_onboarding.documents.submit_selected', 'Upload Selected Documents')}</>
             }
           </button>
         </div>

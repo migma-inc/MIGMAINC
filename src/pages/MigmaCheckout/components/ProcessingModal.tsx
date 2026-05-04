@@ -1,5 +1,6 @@
 import React from 'react';
 import { Loader2, CheckCircle2 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 interface ProcessingModalProps {
   isOpen: boolean;
@@ -8,6 +9,8 @@ interface ProcessingModalProps {
 }
 
 export const ProcessingModal: React.FC<ProcessingModalProps> = ({ isOpen, progress, message }) => {
+  const { t } = useTranslation();
+
   if (!isOpen) return null;
 
   return (
@@ -34,7 +37,9 @@ export const ProcessingModal: React.FC<ProcessingModalProps> = ({ isOpen, progre
 
           <div className="space-y-2 w-full">
             <h3 className="text-xl font-bold text-white tracking-tight">
-              {progress === 100 ? 'Tudo pronto!' : 'Processando sua Solicitação'}
+              {progress === 100
+                ? t('migma_checkout.processing.ready', 'All set!')
+                : t('migma_checkout.processing.title', 'Processing your request')}
             </h3>
             <p className="text-gray-400 text-sm min-h-[40px] flex items-center justify-center gap-2">
               {progress < 100 && <Loader2 className="w-3 h-3 animate-spin text-gold-medium" />}
@@ -51,7 +56,7 @@ export const ProcessingModal: React.FC<ProcessingModalProps> = ({ isOpen, progre
           </div>
 
           <p className="text-[10px] uppercase font-black text-white/20 tracking-[0.2em]">
-            Migma Inc. Secure Checkout
+            {t('migma_checkout.processing.secure_checkout', 'Migma Inc. Secure Checkout')}
           </p>
         </div>
       </div>

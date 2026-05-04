@@ -21,6 +21,12 @@ const normalizeLegacyStep = (step: OnboardingStep | string | null | undefined): 
   return step as OnboardingStep;
 };
 
+const getInitialUrlStep = (): OnboardingStep | null => {
+  if (typeof window === 'undefined') return null;
+  const step = normalizeLegacyStep(new URLSearchParams(window.location.search).get('step'));
+  return step && VALID_STEPS.includes(step) ? step : null;
+};
+
 export const useOnboardingProgress = () => {
   const { user, userProfile } = useStudentAuth();
 
@@ -66,7 +72,7 @@ export const useOnboardingProgress = () => {
 
   const [state, setState] = useState<OnboardingState>(() => {
     const savedStep = normalizeLegacyStep(userProfile?.onboarding_current_step as OnboardingStep | null);
-    const initial = savedStep || 'selection_fee';
+    const initial = getInitialUrlStep() || savedStep || 'selection_fee';
     currentStepRef.current = initial;
     return {
       currentStep: initial,
@@ -261,6 +267,7 @@ export const useOnboardingProgress = () => {
 
       // Decisão final do step
       const uiStep = normalizeLegacyStep(currentStepRef.current) ?? 'selection_fee';
+      const initialUrlStep = getInitialUrlStep();
       const savedStep = normalizeLegacyStep(freshProfile.onboarding_current_step as OnboardingStep | null) ?? 'selection_fee';
       const uiIdx = VALID_STEPS.indexOf(uiStep);
       const savedIdx = VALID_STEPS.indexOf(savedStep);
@@ -272,10 +279,12 @@ export const useOnboardingProgress = () => {
       } else if (uiIdx > maxIdx) {
         // Aluno tentou avançar mais do que o permitido — volta para o máximo permitido
         chosenStep = computedMaxAllowedStep;
+      } else if (loading && initialUrlStep && uiIdx >= 0 && uiIdx <= maxIdx) {
+        // Na carga inicial, respeita uma URL/manual step anterior ou igual ao máximo permitido.
+        // Isso permite revisar documentos sem ser empurrado automaticamente para Application Fee.
+        chosenStep = uiStep;
       } else if (loading && savedIdx >= 0) {
-        // NA CARGA INICIAL: Move para o ponto mais avançado permitido.
-        // Se o Admin aprovou uma bolsa, o aluno deve ser movido para 'placement_fee' automaticamente.
-        // Se o banco estava em uma step anterior por qualquer motivo, o negócio (maxAllowedStep) prevalece.
+        // Se não houver step válido na URL/ref, move para o ponto mais avançado permitido.
         chosenStep = computedMaxAllowedStep;
       } else if (uiIdx >= 0) {
         // Respeita a navegação manual se o step for permitido (igual ou anterior ao máximo)

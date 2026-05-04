@@ -3,7 +3,7 @@
  * Multi-select até 4 universidades → Review → Confirm → salva no banco.
  */
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { useTranslation } from 'react-i18next';
+import { Trans, useTranslation } from 'react-i18next';
 import {
   Search, MapPin, Clock,
   ChevronRight, Loader2, AlertCircle, X, CheckCircle, CheckCircle2, AlertTriangle,
@@ -16,6 +16,19 @@ import { UniversitySelectionModal, type Institution } from './UniversitySelectio
 
 const MAX_SELECTIONS = 4;
 const DISABLE_SCHOLARSHIP_APPROVAL_LOCK_FOR_TESTS = true;
+
+const STUDY_AREA_LABEL_KEYS: Record<string, string> = {
+  'Exatas & Tecnologia': 'student_onboarding.scholarship.study_area_options.stem',
+  'Negócios & Gestão': 'student_onboarding.scholarship.study_area_options.business',
+  'Humanas & Sociais': 'student_onboarding.scholarship.study_area_options.humanities',
+  'Saúde & Ciências': 'student_onboarding.scholarship.study_area_options.health',
+};
+
+const DEGREE_LEVEL_LABEL_KEYS: Record<string, string> = {
+  'Graduação': 'student_onboarding.university_modal.degree_undergraduate',
+  'Pós-Graduação': 'student_onboarding.university_modal.degree_postgraduate',
+  'Mestrado': 'student_onboarding.university_modal.degree_masters',
+};
 
 type SelectionEntry = {
   institution: Institution;
@@ -35,6 +48,12 @@ type ExistingApplication = {
 export const UniversitySelectionStep: React.FC<StepProps> = ({ onNext }) => {
   const { userProfile } = useStudentAuth();
   const { t } = useTranslation();
+
+  const formatDegreeLevel = (value: string | null | undefined) => {
+    if (!value) return '';
+    const key = DEGREE_LEVEL_LABEL_KEYS[value];
+    return key ? t(key) : value;
+  };
 
   // ── Data ──
   const [institutions, setInstitutions] = useState<Institution[]>([]);
@@ -208,7 +227,7 @@ export const UniversitySelectionStep: React.FC<StepProps> = ({ onNext }) => {
       onNext();
     } catch (err) {
       console.error('[UniversitySelectionStep] Save error:', err);
-      alert('Erro ao salvar seleção. Tente novamente.');
+      alert(t('student_onboarding.scholarship.error_save'));
     } finally {
       setSaving(false);
     }
@@ -219,7 +238,7 @@ export const UniversitySelectionStep: React.FC<StepProps> = ({ onNext }) => {
     return (
       <div className="flex flex-col items-center justify-center py-24">
         <Loader2 className="w-10 h-10 text-gold-medium animate-spin mb-4" />
-        <p className="text-gray-400 font-medium">Carregando catálogo de universidades...</p>
+        <p className="text-gray-400 font-medium">{t('student_onboarding.scholarship.loading_catalog', 'Loading university catalog...')}</p>
       </div>
     );
   }
@@ -228,7 +247,7 @@ export const UniversitySelectionStep: React.FC<StepProps> = ({ onNext }) => {
     return (
       <div className="flex flex-col items-center justify-center py-24 space-y-4">
         <AlertCircle className="w-10 h-10 text-red-400" />
-        <p className="text-gray-400">Erro ao carregar instituições. Tente recarregar a página.</p>
+        <p className="text-gray-400">{t('student_onboarding.scholarship.error_load_institutions', 'Error loading institutions. Try reloading the page.')}</p>
       </div>
     );
   }
@@ -249,12 +268,17 @@ export const UniversitySelectionStep: React.FC<StepProps> = ({ onNext }) => {
 
         <div className="space-y-2">
           <h3 className="text-3xl font-black text-white uppercase tracking-tight leading-tight">
-            Seleção <span className="text-gold-medium">{isApproved ? 'Aprovada' : 'Confirmada'}</span>
+            {t('student_onboarding.scholarship.selection_title_prefix', 'Selection')}{' '}
+            <span className="text-gold-medium">
+              {isApproved
+                ? t('student_onboarding.scholarship.approved', 'Approved')
+                : t('student_onboarding.scholarship.confirmed', 'Confirmed')}
+            </span>
           </h3>
           <p className="text-gray-400 font-medium leading-relaxed">
             {isApproved
-              ? 'Sua bolsa de estudos foi aprovada pela nossa equipe! Prossiga agora para garantir sua vaga.'
-              : 'Sua seleção foi registrada. Para testes, a etapa de aprovação da bolsa está liberada temporariamente.'}
+              ? t('student_onboarding.scholarship.approved_desc', 'Your scholarship has been approved by our team. Proceed now to secure your seat.')
+              : t('student_onboarding.scholarship.confirmed_desc', 'Your selection has been registered. For testing, scholarship approval is temporarily unlocked.')}
           </p>
         </div>
 
@@ -262,7 +286,7 @@ export const UniversitySelectionStep: React.FC<StepProps> = ({ onNext }) => {
           onClick={onNext}
           className="w-full bg-gold-medium hover:bg-gold-dark text-black py-4 rounded-2xl font-black uppercase tracking-widest transition-all shadow-lg shadow-gold-medium/20"
         >
-          Continuar para Pagamento
+          {t('student_onboarding.scholarship.continue_to_payment', 'Continue to Payment')}
         </button>
       </div>
     );
@@ -279,15 +303,15 @@ export const UniversitySelectionStep: React.FC<StepProps> = ({ onNext }) => {
 
         <div className="space-y-2">
           <h3 className="text-3xl font-black text-white uppercase tracking-tight leading-tight">
-            Análise de Perfil <span className="text-gold-medium">Migma</span>
+            {t('student_onboarding.scholarship.profile_review_title', 'Migma Profile Review')}
           </h3>
           <p className="text-gray-400 font-medium leading-relaxed">
-            Nossa equipe de especialistas está revisando suas seleções de universidade e seu perfil acadêmico para aprovação das bolsas.
+            {t('student_onboarding.scholarship.profile_review_desc', 'Our specialist team is reviewing your university selections and academic profile for scholarship approval.')}
           </p>
         </div>
 
         <div className="w-full space-y-3">
-          <p className="text-[10px] font-black uppercase text-gray-500 tracking-[0.2em]">Candidaturas em Revisão:</p>
+          <p className="text-[10px] font-black uppercase text-gray-500 tracking-[0.2em]">{t('student_onboarding.scholarship.applications_in_review', 'Applications in Review:')}</p>
           <div className="space-y-2">
             {existingApps.map(app => (
               <div key={app.id} className="flex items-center justify-between bg-white/[0.03] border border-white/5 rounded-2xl px-5 py-3.5 group hover:bg-white/[0.05] transition-colors">
@@ -310,7 +334,7 @@ export const UniversitySelectionStep: React.FC<StepProps> = ({ onNext }) => {
                   </span>
                 </div>
                 <span className="text-[10px] bg-gold-medium/10 text-gold-medium px-2.5 py-1 rounded-full font-black uppercase tracking-tighter">
-                  {app.institution_scholarships?.scholarship_level || 'Bolsa Migma'}
+                  {app.institution_scholarships?.scholarship_level || t('student_onboarding.scholarship.migma_scholarship', 'Migma Scholarship')}
                 </span>
               </div>
             ))}
@@ -320,10 +344,10 @@ export const UniversitySelectionStep: React.FC<StepProps> = ({ onNext }) => {
         <div className="space-y-3">
           <div className="flex items-center justify-center gap-2 text-xs font-bold text-gray-500 uppercase tracking-widest">
             <div className="w-1 h-1 bg-gold-medium rounded-full animate-ping" />
-            Aprovação estimada em até 24h úteis
+            {t('student_onboarding.scholarship.approval_estimate', 'Estimated approval within 24 business hours')}
           </div>
           <p className="text-[11px] text-gray-600 leading-relaxed italic">
-            Você receberá uma notificação em seu WhatsApp assim que o pagamento da taxa de bolsa (Placement Fee) for liberado.
+            {t('student_onboarding.scholarship.approval_notification', 'You will receive a WhatsApp notification as soon as the scholarship fee payment (Placement Fee) is released.')}
           </p>
         </div>
       </div>
@@ -339,20 +363,20 @@ export const UniversitySelectionStep: React.FC<StepProps> = ({ onNext }) => {
       <div className="max-w-3xl mx-auto px-4 pb-20 space-y-8">
         {/* Header */}
         <div className="space-y-2">
-          <p className="text-xs font-black uppercase tracking-[0.3em] text-gold-medium/80">Revisão Final</p>
+          <p className="text-xs font-black uppercase tracking-[0.3em] text-gold-medium/80">{t('student_onboarding.scholarship.final_review', 'Final Review')}</p>
           <h1 className="text-3xl font-black text-white tracking-tight uppercase">
-            Revise suas Universidades Selecionadas
+            {t('student_onboarding.scholarship.review_title', 'Review Your Selected Universities')}
           </h1>
           <p className="text-gray-400 font-medium leading-relaxed">
-            Esta é uma escolha definitiva. Ao confirmar, você não poderá mais alterar as universidades escolhidas.
+            {t('student_onboarding.scholarship.review_subtitle', 'This is a final choice. Once confirmed, you will no longer be able to change the selected universities.')}
           </p>
         </div>
 
         {/* Warning banner */}
         <div className="flex items-start gap-3 bg-amber-500/8 border border-amber-500/20 rounded-2xl px-5 py-4">
           <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
-          <p className="text-sm text-amber-200">
-            Revise cuidadosamente antes de confirmar. Esta seleção não poderá ser alterada após a confirmação.
+          <p className="text-sm font-medium text-amber-400">
+            {t('student_onboarding.scholarship.review_warning', 'Review carefully before confirming. This selection cannot be changed after confirmation.')}
           </p>
         </div>
 
@@ -389,16 +413,22 @@ export const UniversitySelectionStep: React.FC<StepProps> = ({ onNext }) => {
                   </p>
                   {course && (
                     <p className="text-xs text-gray-500 mt-0.5">
-                      {course.course_name} — {course.degree_level}
+                      {course.course_name} — {formatDegreeLevel(course.degree_level)}
                     </p>
                   )}
                   {scholarship && (
                     <div className="flex flex-wrap gap-3 mt-2">
                       <span className="text-xs bg-gold-medium/10 border border-gold-medium/20 text-gold-medium px-2.5 py-1 rounded-full font-bold">
-                        Placement Fee: ${scholarship.placement_fee_usd.toLocaleString()}
+                        {t('student_onboarding.scholarship.placement_fee_amount', {
+                          amount: scholarship.placement_fee_usd.toLocaleString(),
+                          defaultValue: 'Placement Fee: ${{amount}}',
+                        })}
                       </span>
                       <span className="text-xs bg-white/5 border border-white/10 text-gray-300 px-2.5 py-1 rounded-full font-bold">
-                        Tuition: ${scholarship.tuition_annual_usd.toLocaleString()}/ano
+                        {t('student_onboarding.scholarship.tuition_annual_amount', {
+                          amount: scholarship.tuition_annual_usd.toLocaleString(),
+                          defaultValue: 'Tuition: ${{amount}}/year',
+                        })}
                       </span>
                       <span className="text-xs bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 px-2.5 py-1 rounded-full font-bold">
                         {scholarship.discount_percent}% OFF
@@ -409,7 +439,7 @@ export const UniversitySelectionStep: React.FC<StepProps> = ({ onNext }) => {
                 <button
                   onClick={() => handleRemove(entry.institution.id)}
                   className="p-2 text-gray-600 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all shrink-0"
-                  title="Remover"
+                  title={t('student_onboarding.scholarship.remove', 'Remove')}
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -424,7 +454,7 @@ export const UniversitySelectionStep: React.FC<StepProps> = ({ onNext }) => {
             onClick={() => setView('list')}
             className="flex-1 px-6 py-4 bg-white/5 border border-white/10 text-gray-300 hover:text-white hover:bg-white/10 font-bold uppercase tracking-widest text-xs rounded-2xl transition-all"
           >
-            ← Voltar para Seleção
+            {t('student_onboarding.scholarship.back_to_selection', '← Back to Selection')}
           </button>
           <button
             onClick={() => setShowConfirmModal(true)}
@@ -432,7 +462,7 @@ export const UniversitySelectionStep: React.FC<StepProps> = ({ onNext }) => {
             className="flex-1 flex items-center justify-center gap-2 px-8 py-4 bg-gold-medium hover:bg-gold-light disabled:opacity-30 disabled:cursor-not-allowed text-black font-black uppercase tracking-widest text-sm rounded-2xl shadow-[0_0_30px_rgba(184,158,78,0.25)] transition-all"
           >
             <CheckCircle2 className="w-4 h-4" />
-            Continuar
+            {t('student_onboarding.scholarship.continue', 'Continue →').replace(' →', '')}
           </button>
         </div>
 
@@ -446,10 +476,14 @@ export const UniversitySelectionStep: React.FC<StepProps> = ({ onNext }) => {
                   <AlertTriangle className="w-7 h-7 text-amber-400" />
                 </div>
                 <h3 className="text-xl font-black text-white uppercase tracking-tight">
-                  Confirmar Seleção
+                  {t('student_onboarding.scholarship.confirm_selection', 'Confirm Selection')}
                 </h3>
                 <p className="text-sm text-gray-400 leading-relaxed">
-                  Ao confirmar, você <strong className="text-white">não poderá mais alterar</strong> as universidades escolhidas. Revise cuidadosamente antes de prosseguir.
+                  <Trans
+                    i18nKey="student_onboarding.scholarship.confirm_modal_desc"
+                    defaults="By confirming, you <strong>will no longer be able to change</strong> the selected universities. Review carefully before proceeding."
+                    components={{ strong: <strong className="text-white" /> }}
+                  />
                 </p>
               </div>
 
@@ -483,12 +517,12 @@ export const UniversitySelectionStep: React.FC<StepProps> = ({ onNext }) => {
                   {saving ? (
                     <>
                       <Loader2 className="w-5 h-5 animate-spin" />
-                      <span>Salvando Seleção...</span>
+                      <span>{t('student_onboarding.scholarship.saving_selection', 'Saving Selection...')}</span>
                     </>
                   ) : (
                     <>
                       <CheckCircle2 className="w-4 h-4" />
-                      Confirmar e Enviar para Análise
+                      {t('student_onboarding.scholarship.confirm_send_review', 'Confirm and Submit for Review')}
                     </>
                   )}
                 </button>
@@ -496,7 +530,7 @@ export const UniversitySelectionStep: React.FC<StepProps> = ({ onNext }) => {
                   onClick={() => setShowConfirmModal(false)}
                   className="w-full py-3 text-gray-400 hover:text-white text-sm font-medium transition-colors"
                 >
-                  Revisar Novamente
+                  {t('student_onboarding.scholarship.review_again', 'Review Again')}
                 </button>
               </div>
             </div>
@@ -549,7 +583,7 @@ export const UniversitySelectionStep: React.FC<StepProps> = ({ onNext }) => {
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
             <input
               type="text"
-              placeholder="Palavra-chave: nome, cidade, curso..."
+              placeholder={t('student_onboarding.scholarship.keyword_placeholder', 'Keyword: name, city, course...')}
               value={searchTerm}
               onChange={e => setSearchTerm(e.target.value)}
               className="w-full pl-11 pr-4 py-3.5 bg-white/5 border border-white/10 rounded-2xl text-white placeholder-gray-600 focus:outline-none focus:border-gold-medium focus:ring-1 focus:ring-gold-medium/20 transition-all text-sm"
@@ -560,7 +594,7 @@ export const UniversitySelectionStep: React.FC<StepProps> = ({ onNext }) => {
             onChange={e => setUniversityFilter(e.target.value)}
             className="migma-select lg:min-w-[220px]"
           >
-            <option value="">Todas as Universidades</option>
+            <option value="">{t('student_onboarding.scholarship.all_universities', 'All Universities')}</option>
             {institutions.map(i => (
               <option key={i.id} value={i.id}>{i.name}</option>
             ))}
@@ -574,10 +608,10 @@ export const UniversitySelectionStep: React.FC<StepProps> = ({ onNext }) => {
             onChange={e => setLevelFilter(e.target.value)}
             className="migma-select !text-xs !font-bold"
           >
-            <option value="">Nível de Estudo</option>
-            <option value="Graduação">Graduação</option>
-            <option value="Pós-Graduação">Pós-Graduação</option>
-            <option value="Mestrado">Mestrado</option>
+            <option value="">{t('student_onboarding.scholarship.study_level', 'Study Level')}</option>
+            <option value="Graduação">{t('student_onboarding.scholarship.level_undergraduate', 'Undergraduate')}</option>
+            <option value="Pós-Graduação">{t('student_onboarding.scholarship.level_postgraduate', 'Postgraduate')}</option>
+            <option value="Mestrado">{t('student_onboarding.scholarship.level_masters', 'Master')}</option>
           </select>
 
           <select
@@ -585,9 +619,11 @@ export const UniversitySelectionStep: React.FC<StepProps> = ({ onNext }) => {
             onChange={e => setAreaFilter(e.target.value)}
             className="migma-select !text-xs !font-bold"
           >
-            <option value="">Área de Estudo</option>
+            <option value="">{t('student_onboarding.scholarship.study_area', 'Study Area')}</option>
             {uniqueAreas.map(area => (
-              <option key={area} value={area}>{area}</option>
+              <option key={area} value={area}>
+                {t(STUDY_AREA_LABEL_KEYS[area] || '', { defaultValue: area })}
+              </option>
             ))}
           </select>
 
@@ -599,9 +635,9 @@ export const UniversitySelectionStep: React.FC<StepProps> = ({ onNext }) => {
             }}
             className="migma-select !text-xs !font-bold"
           >
-            <option value="">Modalidade</option>
-            <option value="Híbrido">Híbrido</option>
-            <option value="Presencial">Presencial</option>
+            <option value="">{t('student_onboarding.scholarship.modality', 'Modality')}</option>
+            <option value="Híbrido">{t('student_onboarding.scholarship.hybrid', 'Hybrid')}</option>
+            <option value="Presencial">{t('student_onboarding.scholarship.in_person', 'In Person')}</option>
           </select>
 
           {/* Frequência — só aparece quando Híbrido selecionado */}
@@ -611,9 +647,9 @@ export const UniversitySelectionStep: React.FC<StepProps> = ({ onNext }) => {
               onChange={e => setFrequencyFilter(e.target.value)}
               className="migma-select !text-xs !font-bold border-gold-medium/20"
             >
-              <option value="">Frequência</option>
-              <option value="mensal">Mensal</option>
-              <option value="semestral">Semestral</option>
+              <option value="">{t('student_onboarding.scholarship.frequency', 'Frequency')}</option>
+              <option value="mensal">{t('student_onboarding.scholarship.monthly', 'Monthly')}</option>
+              <option value="semestral">{t('student_onboarding.scholarship.semesterly', 'Semesterly')}</option>
             </select>
           )}
 
@@ -622,17 +658,17 @@ export const UniversitySelectionStep: React.FC<StepProps> = ({ onNext }) => {
             onChange={e => setWorkAuthFilter(e.target.value)}
             className="migma-select !text-xs !font-bold"
           >
-            <option value="">Permissão de Trabalho</option>
+            <option value="">{t('student_onboarding.scholarship.work_permission', 'Work Permission')}</option>
             <option value="OPT">OPT</option>
             <option value="CPT">CPT</option>
-            <option value="">Ambos</option>
+            <option value="">{t('student_onboarding.scholarship.both', 'Both')}</option>
           </select>
 
           <button
             onClick={resetFilters}
             className="px-4 py-3 bg-white/5 border border-white/10 hover:bg-white/10 rounded-2xl text-gray-400 hover:text-white text-xs font-bold uppercase tracking-widest transition-all"
           >
-            Limpar
+            {t('student_onboarding.scholarship.clear', 'Clear')}
           </button>
         </div>
 
@@ -642,7 +678,7 @@ export const UniversitySelectionStep: React.FC<StepProps> = ({ onNext }) => {
             <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-500" />
             <input
               type="number"
-              placeholder="Tuition mín."
+              placeholder={t('student_onboarding.scholarship.min_tuition', 'Min tuition')}
               value={minTuitionFilter}
               onChange={e => setMinTuitionFilter(e.target.value)}
               className="w-full pl-8 pr-4 py-3 bg-white/5 border border-white/10 rounded-2xl text-white placeholder-gray-600 focus:outline-none focus:border-gold-medium focus:ring-1 focus:ring-gold-medium/20 text-sm"
@@ -652,7 +688,7 @@ export const UniversitySelectionStep: React.FC<StepProps> = ({ onNext }) => {
             <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-500" />
             <input
               type="number"
-              placeholder="Tuition máx."
+              placeholder={t('student_onboarding.scholarship.max_tuition', 'Max tuition')}
               value={maxTuitionFilter}
               onChange={e => setMaxTuitionFilter(e.target.value)}
               className="w-full pl-8 pr-4 py-3 bg-white/5 border border-white/10 rounded-2xl text-white placeholder-gray-600 focus:outline-none focus:border-gold-medium focus:ring-1 focus:ring-gold-medium/20 text-sm"
@@ -669,17 +705,25 @@ export const UniversitySelectionStep: React.FC<StepProps> = ({ onNext }) => {
         </div>
         <div className="space-y-1 flex-1 text-center md:text-left">
           <h4 className="text-base font-black text-white uppercase tracking-widest">
-            Entenda o <span className="text-gold-medium">Bank Statement</span>
+            <Trans
+              i18nKey="student_onboarding.scholarship.bank_statement_title"
+              defaults="Understand the <gold>Bank Statement</gold>"
+              components={{ gold: <span className="text-gold-medium" /> }}
+            />
           </h4>
           <p className="text-sm text-gray-400 leading-relaxed font-medium">
-            O Bank Statement <span className="text-white font-bold">NÃO é o valor que você vai gastar</span>. É apenas uma comprovação financeira exigida pela imigração dos EUA para a emissão do seu I-20. Você não precisa transferir esse valor para a universidade ou para a Migma.
+            <Trans
+              i18nKey="student_onboarding.scholarship.bank_statement_desc"
+              defaults="The Bank Statement <strong>is NOT the amount you will spend</strong>. It is only financial proof required by U.S. immigration for your I-20 issuance. You do not need to transfer this amount to the university or to Migma."
+              components={{ strong: <span className="text-white font-bold" /> }}
+            />
           </p>
         </div>
         <button
           onClick={() => window.open('https://migma.app/ajuda-bank-statement', '_blank')}
           className="px-6 py-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-xs font-black uppercase tracking-widest text-white transition-all whitespace-nowrap"
         >
-          Saber Mais
+          {t('student_onboarding.scholarship.learn_more', 'Learn More')}
         </button>
       </div>
 
@@ -687,11 +731,18 @@ export const UniversitySelectionStep: React.FC<StepProps> = ({ onNext }) => {
       <div className="flex items-center justify-between">
         <p className="text-sm text-gray-500">
           <span className="font-bold text-white">{filteredInstitutions.length}</span>{' '}
-          {filteredInstitutions.length === 1 ? 'universidade encontrada' : 'universidades encontradas'}
+          {t(filteredInstitutions.length === 1 ? 'student_onboarding.scholarship.university_found' : 'student_onboarding.scholarship.universities_found', {
+            count: filteredInstitutions.length,
+            defaultValue: filteredInstitutions.length === 1 ? 'university found' : 'universities found',
+          })}
         </p>
         {selections.size > 0 && (
           <p className="text-sm text-gold-medium font-bold">
-            {selections.size}/{MAX_SELECTIONS} selecionadas
+            {t('student_onboarding.scholarship.selected_counter', {
+              selected: selections.size,
+              total: MAX_SELECTIONS,
+              defaultValue: '{{selected}}/{{total}} selected',
+            })}
           </p>
         )}
       </div>
@@ -702,15 +753,15 @@ export const UniversitySelectionStep: React.FC<StepProps> = ({ onNext }) => {
           <div className="w-20 h-20 bg-white/5 rounded-full flex items-center justify-center mx-auto mb-5">
             <AlertCircle className="w-8 h-8 text-gray-700" />
           </div>
-          <h3 className="text-lg font-bold text-white mb-2 uppercase">Nenhuma universidade encontrada</h3>
+          <h3 className="text-lg font-bold text-white mb-2 uppercase">{t('student_onboarding.scholarship.no_university_found_title', 'No university found')}</h3>
           <p className="text-gray-500 max-w-sm mx-auto mb-6 text-sm">
-            Tente outros critérios de busca ou remova alguns filtros.
+            {t('student_onboarding.scholarship.no_university_found_desc', 'Try other search criteria or remove some filters.')}
           </p>
           <button
             onClick={resetFilters}
             className="px-8 py-3 bg-white/5 border border-white/10 rounded-2xl text-gold-medium font-black uppercase tracking-widest text-xs hover:bg-white/10 transition-all"
           >
-            Resetar Filtros
+            {t('student_onboarding.scholarship.reset_filters', 'Reset Filters')}
           </button>
         </div>
       ) : (
@@ -748,17 +799,23 @@ export const UniversitySelectionStep: React.FC<StepProps> = ({ onNext }) => {
           <div className="max-w-3xl mx-auto flex items-center justify-between gap-4">
             <div>
               <p className="text-white font-black">
-                {selections.size} {selections.size === 1 ? 'universidade selecionada' : 'universidades selecionadas'}
+                {t(selections.size === 1 ? 'student_onboarding.scholarship.selected_count_one' : 'student_onboarding.scholarship.selected_count_other', {
+                  count: selections.size,
+                  defaultValue: selections.size === 1 ? '{{count}} university selected' : '{{count}} universities selected',
+                })}
               </p>
               <p className="text-xs text-gray-500 mt-0.5">
-                {MAX_SELECTIONS - selections.size} vaga(s) restante(s)
+                {t('student_onboarding.scholarship.slots_remaining', {
+                  count: MAX_SELECTIONS - selections.size,
+                  defaultValue: '{{count}} slot(s) remaining',
+                })}
               </p>
             </div>
             <button
               onClick={() => setView('review')}
               className="flex items-center gap-2 px-8 py-4 bg-gold-medium hover:bg-gold-light text-black font-black uppercase tracking-widest text-sm rounded-2xl shadow-[0_0_30px_rgba(184,158,78,0.3)] transition-all active:scale-95"
             >
-              Continuar
+              {t('student_onboarding.scholarship.continue', 'Continue →').replace(' →', '')}
               <ChevronRight className="w-4 h-4" />
             </button>
           </div>
@@ -782,6 +839,7 @@ interface CardProps {
 const InstitutionCard: React.FC<CardProps> = ({
   institution, isSelected, currentScholarshipId, selectionDisabled, onOpenModal, onRemove,
 }) => {
+  const { t } = useTranslation();
   const scholarships = useMemo(() => 
     [...institution.scholarships].sort((a, b) => a.placement_fee_usd - b.placement_fee_usd),
     [institution.scholarships]
@@ -861,22 +919,22 @@ const InstitutionCard: React.FC<CardProps> = ({
 
         {/* Financial Overview */}
         <div className="bg-white/5 border border-white/10 rounded-2xl p-3">
-          <p className="text-[9px] text-gray-500 uppercase font-black tracking-widest mb-2">Finanças Migma</p>
+          <p className="text-[9px] text-gray-500 uppercase font-black tracking-widest mb-2">{t('student_onboarding.scholarship.finance_overview', 'Migma Finances')}</p>
           <div className="grid grid-cols-2 gap-x-4 gap-y-1">
             <div>
-              <p className="text-[8px] text-gray-600 uppercase font-black">Original</p>
+              <p className="text-[8px] text-gray-600 uppercase font-black">{t('student_onboarding.scholarship.original', 'Original')}</p>
               <p className="text-xs text-gray-500 line-through font-bold">${stats.maxTuition.toLocaleString()}</p>
             </div>
             <div className="text-right">
-              <p className="text-[8px] text-gold-medium uppercase font-black">Com Bolsa</p>
+              <p className="text-[8px] text-gold-medium uppercase font-black">{t('student_onboarding.scholarship.with_scholarship', 'With Scholarship')}</p>
               <p className="text-xs text-white font-black">${stats.displayTuition.toLocaleString()}</p>
             </div>
             <div>
-              <p className="text-[8px] text-emerald-500 uppercase font-black">Desconto</p>
+              <p className="text-[8px] text-emerald-500 uppercase font-black">{t('student_onboarding.scholarship.discount', 'Discount')}</p>
               <p className="text-xs text-emerald-400 font-black">{stats.displayDiscount}% OFF</p>
             </div>
             <div className="text-right">
-              <p className="text-[8px] text-gray-600 uppercase font-black">Taxa Coloc.</p>
+              <p className="text-[8px] text-gray-600 uppercase font-black">{t('student_onboarding.scholarship.placement_fee_short', 'Placement Fee')}</p>
               <p className="text-xs text-gray-400 font-bold">${stats.displayPlacement.toLocaleString()}</p>
             </div>
           </div>
@@ -885,11 +943,11 @@ const InstitutionCard: React.FC<CardProps> = ({
         {/* Modalidade / CPT */}
         <div className="grid grid-cols-2 gap-2">
           <div className="bg-white/5 border border-white/5 rounded-xl px-3 py-2">
-            <p className="text-[8px] text-gray-600 uppercase font-black tracking-widest mb-0.5">Modalidade</p>
+            <p className="text-[8px] text-gray-600 uppercase font-black tracking-widest mb-0.5">{t('student_onboarding.scholarship.modality', 'Modality')}</p>
             <p className="text-[11px] text-gray-200 font-black">{institution.modality}</p>
           </div>
           <div className="bg-white/5 border border-white/5 rounded-xl px-3 py-2">
-            <p className="text-[8px] text-gray-600 uppercase font-black tracking-widest mb-0.5">Trabalho</p>
+            <p className="text-[8px] text-gray-600 uppercase font-black tracking-widest mb-0.5">{t('student_onboarding.scholarship.work', 'Work')}</p>
             <p className="text-[11px] text-gray-200 font-black truncate">{institution.cpt_opt || 'CPT + OPT'}</p>
           </div>
         </div>
@@ -897,7 +955,7 @@ const InstitutionCard: React.FC<CardProps> = ({
         {/* Scholarship Levels */}
         <div className="space-y-2 pt-1">
           <p className="text-[10px] text-gray-500 uppercase font-black tracking-widest">
-            Níveis de Bolsa
+            {t('student_onboarding.scholarship.scholarship_levels', 'Scholarship Levels')}
           </p>
 
           {currentScholarshipId ? (
@@ -908,13 +966,13 @@ const InstitutionCard: React.FC<CardProps> = ({
               return (
                 <div className="flex items-center justify-between bg-gold-medium/10 border border-gold-medium/30 rounded-2xl px-4 py-3">
                   <div>
-                    <p className="text-[9px] text-gold-medium/70 uppercase font-black tracking-widest mb-0.5">Nível selecionado</p>
+                    <p className="text-[9px] text-gold-medium/70 uppercase font-black tracking-widest mb-0.5">{t('student_onboarding.scholarship.selected_level', 'Selected level')}</p>
                     <p className="text-lg font-black text-white leading-none">
                       ${selected.monthly_migma_usd}
-                      <span className="text-[10px] text-gray-400 font-bold ml-1">/mês</span>
+                      <span className="text-[10px] text-gray-400 font-bold ml-1">{t('student_onboarding.scholarship.per_month', '/month')}</span>
                     </p>
                     <p className="text-[10px] text-gray-500 mt-0.5">
-                      Placement: <span className="text-gray-300 font-bold">${selected.placement_fee_usd.toLocaleString()}</span>
+                      {t('student_onboarding.scholarship.placement', 'Placement')}: <span className="text-gray-300 font-bold">${selected.placement_fee_usd.toLocaleString()}</span>
                       {' · '}
                       <span className="text-emerald-400 font-bold">{selected.discount_percent}% OFF</span>
                     </p>
@@ -923,7 +981,7 @@ const InstitutionCard: React.FC<CardProps> = ({
                     onClick={(e) => { e.stopPropagation(); onOpenModal(); }}
                     className="text-[9px] text-gold-medium/70 hover:text-gold-medium font-black uppercase tracking-widest transition-colors"
                   >
-                    Trocar
+                    {t('student_onboarding.scholarship.change', 'Change')}
                   </button>
                 </div>
               );
@@ -936,14 +994,14 @@ const InstitutionCard: React.FC<CardProps> = ({
               className="w-full flex items-center justify-between bg-white/[0.03] hover:bg-white/[0.06] border border-white/10 hover:border-gold-medium/30 disabled:opacity-40 disabled:cursor-not-allowed rounded-2xl px-4 py-3.5 transition-all group/range"
             >
               <div className="text-left">
-                <p className="text-[9px] text-gray-600 uppercase font-black tracking-widest mb-0.5">A partir de</p>
+                <p className="text-[9px] text-gray-600 uppercase font-black tracking-widest mb-0.5">{t('student_onboarding.scholarship.starting_at', 'Starting at')}</p>
                 <p className="text-xl font-black text-white leading-none">
                   ${Math.min(...scholarships.map(s => s.monthly_migma_usd))}
-                  <span className="text-[10px] text-gray-400 font-bold ml-1">/mês</span>
+                  <span className="text-[10px] text-gray-400 font-bold ml-1">{t('student_onboarding.scholarship.per_month', '/month')}</span>
                 </p>
               </div>
               <div className="text-right">
-                <p className="text-[9px] text-emerald-600 uppercase font-black tracking-widest mb-0.5">Maior desconto</p>
+                <p className="text-[9px] text-emerald-600 uppercase font-black tracking-widest mb-0.5">{t('student_onboarding.scholarship.highest_discount', 'Highest discount')}</p>
                 <p className="text-xl font-black text-emerald-400 leading-none">
                   {Math.max(...scholarships.map(s => s.discount_percent))}% OFF
                 </p>
@@ -952,7 +1010,10 @@ const InstitutionCard: React.FC<CardProps> = ({
           )}
 
           <p className="text-center text-[9px] text-gray-600 font-medium">
-            {scholarships.length} nível{scholarships.length !== 1 ? 'is' : ''} disponíve{scholarships.length !== 1 ? 'is' : 'l'} · ver detalhes para comparar
+            {t('student_onboarding.scholarship.levels_available_compare', {
+              count: scholarships.length,
+              defaultValue: '{{count}} level(s) available · view details to compare',
+            })}
           </p>
         </div>
       </div>
@@ -964,7 +1025,7 @@ const InstitutionCard: React.FC<CardProps> = ({
           className="flex-1 py-4 text-[10px] font-black uppercase tracking-widest text-gray-500 hover:text-white hover:bg-white/5 transition-all flex items-center justify-center gap-2"
         >
           <Info className="w-3.5 h-3.5" />
-          Detalhes
+          {t('student_onboarding.scholarship.details', 'Details')}
         </button>
         <div className="w-px bg-white/5" />
         {isSelected ? (
@@ -973,7 +1034,7 @@ const InstitutionCard: React.FC<CardProps> = ({
             className="flex-1 py-4 text-[10px] font-black uppercase tracking-widest text-red-400/80 hover:text-red-400 hover:bg-red-500/10 transition-all flex items-center justify-center gap-2"
           >
             <X className="w-3.5 h-3.5" />
-            Remover
+            {t('student_onboarding.scholarship.remove', 'Remove')}
           </button>
         ) : (
           <button
@@ -985,7 +1046,7 @@ const InstitutionCard: React.FC<CardProps> = ({
             className="flex-1 py-4 text-[10px] font-black uppercase tracking-widest text-gold-medium hover:bg-gold-medium hover:text-black disabled:text-gray-700 disabled:bg-transparent transition-all flex items-center justify-center gap-2"
           >
             <CheckCircle2 className="w-3.5 h-3.5" />
-            Selecionar
+            {t('student_onboarding.scholarship.select', 'Select')}
           </button>
         )}
       </div>

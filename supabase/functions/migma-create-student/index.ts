@@ -7,6 +7,23 @@ const CORS = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+function getMigmaEnv() {
+  const url =
+    Deno.env.get("MIGMA_REMOTE_URL") ||
+    Deno.env.get("REMOTE_SUPABASE_URL") ||
+    Deno.env.get("SUPABASE_URL");
+  const key =
+    Deno.env.get("MIGMA_REMOTE_SERVICE_ROLE_KEY") ||
+    Deno.env.get("REMOTE_SUPABASE_SERVICE_ROLE_KEY") ||
+    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+
+  if (!url || !key) {
+    throw new Error("Supabase URL/service role não configurados para a função.");
+  }
+
+  return { url, key };
+}
+
 /**
  * migma-create-student (V34 - Local Only)
  * Cria usuário local na Migma e gera order_id para Parcelow.
@@ -16,8 +33,7 @@ const CORS = {
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
 
-  const migmaUrl = Deno.env.get("SUPABASE_URL")!;
-  const migmaKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+  const { url: migmaUrl, key: migmaKey } = getMigmaEnv();
   const migma = createClient(migmaUrl, migmaKey);
 
   const debug_logs: string[] = [];
@@ -35,6 +51,12 @@ Deno.serve(async (req) => {
       payment_metadata,
       num_dependents
     } = body;
+    const sellerId = typeof body.migma_seller_id === "string" && body.migma_seller_id.trim()
+      ? body.migma_seller_id.trim()
+      : null;
+    const agentId = typeof body.migma_agent_id === "string" && body.migma_agent_id.trim()
+      ? body.migma_agent_id.trim()
+      : null;
 
     debug_logs.push(`Body recebido para: ${email}`);
 
@@ -57,6 +79,19 @@ Deno.serve(async (req) => {
       } else {
         orderId = rpcData;
         debug_logs.push(`Order ID gerado via RPC: ${orderId}`);
+
+        if (sellerId && orderId) {
+          const { error: sellerOrderErr } = await migma
+            .from("visa_orders")
+            .update({ seller_id: sellerId })
+            .eq("id", orderId);
+
+          if (sellerOrderErr) {
+            debug_logs.push(`Aviso: não foi possível vincular seller_id ao pedido ${orderId}: ${sellerOrderErr.message}`);
+          } else {
+            debug_logs.push(`Seller vinculado ao pedido ${orderId}: ${sellerId}`);
+          }
+        }
       }
     } else {
       orderId = null;
@@ -133,8 +168,8 @@ Deno.serve(async (req) => {
       num_dependents: num_dependents || 0,
       student_process_type: mappedProcessType, // Usa o valor mapeado/limpo
       source: 'migma',
-      migma_seller_id: body.migma_seller_id || null,
-      migma_agent_id: body.migma_agent_id || null
+      migma_seller_id: sellerId,
+      migma_agent_id: agentId
     }, { onConflict: 'user_id' });
 
     if (upsertErr) {

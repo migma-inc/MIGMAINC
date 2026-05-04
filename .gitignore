@@ -21,6 +21,9 @@ supabase/config.toml
 .env.production.local
 .env.development.local
 
+# Local git backup/artifact
+.git_disabled/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

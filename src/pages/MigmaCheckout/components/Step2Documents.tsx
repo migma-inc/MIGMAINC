@@ -96,7 +96,12 @@ const FileUploadArea: React.FC<FileUploadProps> = ({ label, hint, file, onFile, 
         >
           <Upload className="w-8 h-8 text-gold-medium/70 mx-auto mb-2" />
           <p className="text-gray-400 text-sm">{t('migma_checkout.step2.drop_file', 'Arraste o arquivo aqui ou clique para carregar')}</p>
-          <p className="text-gray-600 text-xs mt-1">JPG or PNG, max {MAX_SIZE_MB}MB</p>
+          <p className="text-gray-600 text-xs mt-1">
+            {t('migma_checkout.step2.file_hint_short', {
+              maxSize: MAX_SIZE_MB,
+              defaultValue: 'JPG or PNG, max {{maxSize}}MB',
+            })}
+          </p>
           <input
             ref={inputRef}
             type="file"
@@ -131,7 +136,7 @@ export const Step2Documents: React.FC<Props> = ({ onComplete, onBack, isComplete
           </div>
           <div className="hidden sm:flex px-3 py-1 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded-full text-xs font-bold items-center gap-1.5">
             <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse"></span>
-            Verificado
+            {t('migma_checkout.step2.verified', 'Verified')}
           </div>
         </div>
 
@@ -216,8 +221,8 @@ export const Step2Documents: React.FC<Props> = ({ onComplete, onBack, isComplete
               <select value={form.doc_type} onChange={e => set('doc_type', e.target.value as DocType)}
                 className={SELECT_CLASS}>
                 <option value="passport" className="bg-[#1a1a1a]">{t('docs.passport', 'Passaporte')}</option>
-                <option value="rg" className="bg-[#1a1a1a]">RG</option>
-                <option value="cnh" className="bg-[#1a1a1a]">CNH</option>
+                <option value="rg" className="bg-[#1a1a1a]">{t('docs.rg', 'RG')}</option>
+                <option value="cnh" className="bg-[#1a1a1a]">{t('docs.cnh', 'CNH')}</option>
               </select>
               <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 pointer-events-none" />
             </div>
@@ -289,10 +294,10 @@ export const Step2Documents: React.FC<Props> = ({ onComplete, onBack, isComplete
               <select value={form.civil_status}
                 onChange={e => set('civil_status', e.target.value as CivilStatus)}
                 className={SELECT_CLASS}>
-                <option value="single" className="bg-[#1a1a1a]">{t('checkout.civil_status_single', 'Solteiro')}</option>
-                <option value="married" className="bg-[#1a1a1a]">{t('checkout.civil_status_married', 'Casado')}</option>
-                <option value="divorced" className="bg-[#1a1a1a]">{t('checkout.civil_status_divorced', 'Divorciado')}</option>
-                <option value="widowed" className="bg-[#1a1a1a]">{t('checkout.civil_status_widowed', 'Viúvo')}</option>
+                <option value="single" className="bg-[#1a1a1a]">{t('checkout.single', 'Single')}</option>
+                <option value="married" className="bg-[#1a1a1a]">{t('checkout.married', 'Married')}</option>
+                <option value="divorced" className="bg-[#1a1a1a]">{t('checkout.divorced', 'Divorced')}</option>
+                <option value="widowed" className="bg-[#1a1a1a]">{t('checkout.widowed', 'Widowed')}</option>
               </select>
               <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 pointer-events-none" />
             </div>

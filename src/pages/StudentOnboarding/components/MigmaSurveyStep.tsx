@@ -55,6 +55,7 @@ export const MigmaSurveyStep: React.FC<ExtendedStepProps> = ({ onNext, contractA
   const [profileId, setProfileId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const topRef = useRef<HTMLDivElement>(null);
+  const didMountRef = useRef(false);
 
   // Pré-preencher dados do perfil e verificar se já concluiu
   useEffect(() => {
@@ -101,7 +102,22 @@ export const MigmaSurveyStep: React.FC<ExtendedStepProps> = ({ onNext, contractA
     });
   }, [sectionQuestions, answers]);
 
-  const scrollTop = () => topRef.current?.scrollIntoView({ behavior: 'smooth' });
+  const scrollTop = useCallback((behavior: ScrollBehavior = 'smooth') => {
+    window.requestAnimationFrame(() => {
+      const target = topRef.current;
+      if (!target) return;
+      const top = target.getBoundingClientRect().top + window.scrollY - 16;
+      window.scrollTo({ top: Math.max(top, 0), behavior });
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!didMountRef.current) {
+      didMountRef.current = true;
+      return;
+    }
+    scrollTop();
+  }, [currentSectionIdx, scrollTop]);
 
   const handleAnswer = (questionId: string, value: string | string[]) => {
     setAnswers(prev => ({ ...prev, [questionId]: value }));
@@ -110,7 +126,6 @@ export const MigmaSurveyStep: React.FC<ExtendedStepProps> = ({ onNext, contractA
   const handleNext = () => {
     if (currentSectionIdx < sections.length - 1) {
       setCurrentSectionIdx(i => i + 1);
-      scrollTop();
     } else {
       handleSubmit();
     }
@@ -119,7 +134,6 @@ export const MigmaSurveyStep: React.FC<ExtendedStepProps> = ({ onNext, contractA
   const handleBack = () => {
     if (currentSectionIdx > 0) {
       setCurrentSectionIdx(i => i - 1);
-      scrollTop();
     }
   };
 

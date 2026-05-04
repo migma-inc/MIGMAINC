@@ -14,7 +14,7 @@ import {
   Award, CheckCircle2, Clock, Copy, DollarSign,
   ExternalLink, GraduationCap, Loader2, MapPin, RefreshCw,
   Send, Shield, Timer, X, AlertTriangle, CheckCircle,
-  Link, CreditCard,
+  FileText, Package, Link, CreditCard, Download,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -115,6 +115,8 @@ export function ScholarshipApprovalTab({ detail }: { detail: CaseDetailPage }) {
   const [backgroundProcessingIds, setBackgroundProcessingIds] = useState<Set<string>>(new Set());
 
   // V11 post-payment states
+  const [generatingForms, setGeneratingForms] = useState(false);
+  const [buildingPackage, setBuildingPackage] = useState(false);
   const [savingLetterUrl, setSavingLetterUrl] = useState(false);
   const [confirming2nd, setConfirming2nd] = useState(false);
   const [letterUrlInput, setLetterUrlInput] = useState('');
@@ -324,6 +326,44 @@ export function ScholarshipApprovalTab({ detail }: { detail: CaseDetailPage }) {
   };
 
   // ── V11 handlers ──
+
+  const handleGenerateForms = async (appId: string) => {
+    setGeneratingForms(true);
+    setV11Msg(null);
+    try {
+      const res = await supabase.functions.invoke('generate-institution-forms', {
+        body: { application_id: appId },
+      });
+      if (res.error) throw new Error(res.error.message);
+      const n = res.data?.forms_generated ?? '?';
+      setV11Msg({ text: `${n} forms generated successfully.`, ok: true });
+      await fetchApplications();
+    } catch (e) {
+      setV11Msg({ text: `Error: ${errorMessage(e)}`, ok: false });
+    } finally {
+      setGeneratingForms(false);
+    }
+  };
+
+  const handleBuildPackage = async (appId: string) => {
+    setBuildingPackage(true);
+    setV11Msg(null);
+    try {
+      const res = await supabase.functions.invoke('package-matriculausa', {
+        body: { application_id: appId, force: true },
+      });
+      if (res.error) throw new Error(res.error.message);
+      setV11Msg({
+        text: `Package generated. ${res.data?.forms_added ?? 0} forms + ${res.data?.docs_added ?? 0} docs.`,
+        ok: true,
+      });
+      await fetchApplications();
+    } catch (e) {
+      setV11Msg({ text: `Error: ${errorMessage(e)}`, ok: false });
+    } finally {
+      setBuildingPackage(false);
+    }
+  };
 
   const handleSaveLetterUrl = async (appId: string) => {
     if (!letterUrlInput.trim()) return;
@@ -789,11 +829,86 @@ export function ScholarshipApprovalTab({ detail }: { detail: CaseDetailPage }) {
         return (
           <div className="space-y-4">
             <h3 className="text-xs font-black uppercase tracking-widest text-gray-400 flex items-center gap-2 pt-2">
-              <CreditCard className="w-4 h-4 text-gold-medium" />
+              <Package className="w-4 h-4 text-gold-medium" />
               V11 Flow — Post-Payment
             </h3>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+              {/* 1. Generate forms */}
+              <Card className="bg-black/30 border border-white/10">
+                <CardContent className="p-5 space-y-3">
+                  <div className="flex items-center gap-2">
+                    <FileText className="w-4 h-4 text-gold-medium" />
+                    <span className="text-xs font-black uppercase tracking-widest text-gray-300">Institution Forms</span>
+                    {paidApp.forms_status && (
+                      <span className={cn(
+                        'ml-auto text-[9px] font-black uppercase px-2 py-0.5 rounded-full border',
+                        paidApp.forms_status === 'generated' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-amber-500/10 text-amber-400 border-amber-500/20'
+                      )}>
+                        {paidApp.forms_status}
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-gray-500">
+                    Generates the university PDF forms using the student data.
+                  </p>
+                  <Button
+                    size="sm"
+                    disabled={generatingForms}
+                    onClick={() => handleGenerateForms(paidApp.id)}
+                    className="w-full bg-gold-medium/10 border border-gold-medium/20 text-gold-medium hover:bg-gold-medium/20 text-xs font-black"
+                    variant="outline"
+                  >
+                    {generatingForms
+                      ? <><Loader2 className="w-3.5 h-3.5 mr-2 animate-spin" />Generating...</>
+                      : <><FileText className="w-3.5 h-3.5 mr-2" />{paidApp.forms_status === 'generated' ? 'Regenerate PDFs' : 'Generate PDFs'}</>}
+                  </Button>
+                </CardContent>
+              </Card>
+
+              {/* 2. MatriculaUSA package */}
+              <Card className="bg-black/30 border border-white/10">
+                <CardContent className="p-5 space-y-3">
+                  <div className="flex items-center gap-2">
+                    <Package className="w-4 h-4 text-blue-400" />
+                    <span className="text-xs font-black uppercase tracking-widest text-gray-300">MatriculaUSA Package</span>
+                    {paidApp.package_status && (
+                      <span className={cn(
+                        'ml-auto text-[9px] font-black uppercase px-2 py-0.5 rounded-full border',
+                        paidApp.package_status === 'ready' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-blue-500/10 text-blue-400 border-blue-500/20'
+                      )}>
+                        {paidApp.package_status}
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-gray-500">
+                    Builds the ZIP with forms and documents and creates a 7-day download link.
+                  </p>
+                  <Button
+                    size="sm"
+                    disabled={buildingPackage}
+                    onClick={() => handleBuildPackage(paidApp.id)}
+                    className="w-full bg-blue-500/10 border border-blue-500/20 text-blue-300 hover:bg-blue-500/20 text-xs font-black"
+                    variant="outline"
+                  >
+                    {buildingPackage
+                      ? <><Loader2 className="w-3.5 h-3.5 mr-2 animate-spin" />Building...</>
+                      : <><Package className="w-3.5 h-3.5 mr-2" />{paidApp.package_status === 'ready' ? 'Rebuild Package' : 'Build Package'}</>}
+                  </Button>
+                  {paidApp.package_storage_url && (
+                    <a
+                      href={paidApp.package_storage_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-2 text-xs text-emerald-400 hover:text-emerald-300 transition-colors"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      Download ZIP
+                    </a>
+                  )}
+                </CardContent>
+              </Card>
 
               {/* Carta de Aceite — enviada automaticamente via webhook MatriculaUSA */}
               <Card className="bg-black/30 border border-white/10">

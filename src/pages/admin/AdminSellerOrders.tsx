@@ -12,6 +12,8 @@ import { Eye, Search, ShoppingBag, FileSignature, ArrowLeft, BarChart3, X } from
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { calculateOrderAmounts } from '@/lib/seller-commissions';
 
+const isLocal = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+
 interface SellerInfo {
     id: string;
     seller_id_public: string;
@@ -295,11 +297,17 @@ export function AdminSellerOrders() {
 
             try {
                 setLoading(true);
-                const { data: ordersData } = await adminSupabase
+                let query = adminSupabase
                     .from('visa_orders')
                     .select('*, payment_metadata')
                     .eq('seller_id', seller.seller_id_public)
                     .order('created_at', { ascending: false });
+
+                if (!isLocal) {
+                    query = query.eq('is_test', false).not('client_email', 'ilike', '%@uorak.com');
+                }
+
+                const { data: ordersData } = await query;
 
                 if (ordersData) {
                     setOrders(ordersData as Order[]);

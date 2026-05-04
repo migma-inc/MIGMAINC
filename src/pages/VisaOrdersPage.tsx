@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { PdfModal } from '@/components/ui/pdf-modal';
-import { FileText, Eye, Download, ChevronDown, Archive, Undo2, Ticket, Search, RefreshCcw } from 'lucide-react';
+import { FileText, Eye, Download, ChevronDown, Archive, Undo2, Ticket, Search, RefreshCcw, User } from 'lucide-react';
 import { regenerateVisaDocuments } from '@/lib/visa-utils';
 import {
   Popover,
@@ -85,6 +85,16 @@ const shouldDisplayOrder = (order: VisaOrder) => {
   return !order.is_hidden && !isPendingParcelowOrder(order) && !isCancelled;
 };
 
+const matchesActiveTab = (order: VisaOrder, tab: 'real' | 'signatures') => {
+  const isManualOrder = order.payment_method === 'manual';
+
+  if (tab === 'signatures') {
+    return isManualOrder;
+  }
+
+  return !isManualOrder;
+};
+
 const getSplitPaymentPartsPaid = (order: VisaOrder) => {
   const splitPayment = order.split_payment;
   if (!order.is_split_payment || !splitPayment) return 0;
@@ -95,6 +105,10 @@ const getSplitPaymentPartsPaid = (order: VisaOrder) => {
 };
 
 const getSplitPaymentProgressData = (order: VisaOrder) => {
+  // Defensive: only show split payment progress if the method is parcelow
+  // This prevents non-split orders (like Zelle) from showing "0/2" if flagged incorrectly
+  if (order.payment_method !== 'parcelow') return null;
+
   const splitPayment = order.split_payment;
   if (!order.is_split_payment || !splitPayment) return null;
 
@@ -390,7 +404,7 @@ const OrderTable = ({
                       variant="ghost"
                       size="sm"
                       disabled={isUpdating === order.id}
-                      onClick={() => toggleHideOrder(order.id, !!order.is_hidden)}
+                      onClick={() => toggleHideOrder(order.id, !!order.is_hidden, order.payment_status)}
                       className={`mt-1 w-full flex items-center gap-2 text-xs ${order.is_hidden ? 'text-green-400' : 'text-gray-500 hover:text-red-400'}`}
                     >
                       {order.is_hidden ? <Undo2 className="w-3 h-3" /> : <Archive className="w-3 h-3" />}
@@ -412,203 +426,196 @@ const OrderTable = ({
         const splitProgress = getSplitPaymentProgressData(order);
 
         return (
-          <Card key={order.id} className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30">
-            <CardContent className="p-4 space-y-3">
-              <div className="flex items-start justify-between">
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-mono text-gold-light font-semibold">{order.order_number}</p>
-                  <p className="text-base font-semibold text-white mt-1 break-words">{order.client_name}</p>
-                  <p className="text-xs text-gray-400 truncate">{order.client_email}</p>
+          <Card key={order.id} className="bg-[#0f0f0f] border border-gold-medium/20 rounded-xl overflow-hidden shadow-lg shadow-black/50">
+            <CardContent className="p-4 sm:p-5">
+              
+              {/* Profile Header */}
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded border border-gold-medium/30 flex items-center justify-center bg-black text-gray-400 shrink-0">
+                  <User className="w-5 h-5" />
                 </div>
-                <div className="ml-2">
-                  <div className="flex flex-col items-end gap-1">
-                    {getStatusBadge(order)}
-                    {splitProgress && (
-                      <div className="flex items-center gap-1.5">
-                        <span className="inline-flex min-w-[34px] items-center justify-center rounded-md border border-gold-medium/30 bg-gold-medium/12 px-2 py-0.5 text-[11px] font-extrabold leading-none tracking-tight text-gold-light">
-                          {splitProgress.fraction}
-                        </span>
-                        {splitProgress.isComplete && (
-                          <span className="text-[11px] font-semibold text-gold-light whitespace-nowrap">
-                            Complete
-                          </span>
-                        )}
-                      </div>
-                    )}
-                  </div>
+                <div className="flex-1 min-w-0">
+                  <h3 className="text-white font-black text-sm sm:text-base leading-tight uppercase truncate">
+                    {order.client_name}
+                  </h3>
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-2 text-xs sm:text-sm">
-                <div>
-                  <p className="text-gray-400">Product</p>
-                  <p className="text-white break-words">{order.product_slug}</p>
-                  {order.upsell_product_slug && (
-                    <p className="text-xs text-green-400 mt-0.5">
-                      + {order.upsell_product_slug} (${parseFloat(order.upsell_price_usd || '0').toFixed(2)})
-                    </p>
-                  )}
-                </div>
-                <div>
-                  <p className="text-gray-400">{isSignatureOnly ? 'Value' : 'Total (with fee)'}</p>
-                  <p className="text-gold-light font-bold">${totalPrice.toFixed(2)}</p>
+              {/* Sub Info Row */}
+              <div className="mt-3 flex items-center justify-between gap-2 overflow-hidden">
+                <span className="text-[10px] sm:text-xs text-gray-400 font-bold truncate uppercase tracking-normal min-w-0 flex-1">
+                  {order.client_email}
+                </span>
+                <span className="text-[9px] uppercase font-bold px-1.5 py-0.5 rounded bg-zinc-800 text-gray-300 whitespace-nowrap shrink-0 border border-white/5">
+                  {order.product_slug.substring(0, 15)}
+                </span>
+              </div>
+              
+              <div className="mt-1.5 text-[9px] sm:text-[10px] text-gray-500 font-bold uppercase tracking-wider">
+                DATE: {new Date(order.paid_at ?? order.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: '2-digit' })}
+                <span className="ml-1 opacity-70 border-l border-gray-700 pl-1">{order.order_number}</span>
+              </div>
 
-                  {order.coupon_code && (
-                    <div className="flex items-center gap-1 text-green-400 mt-1" title={`Cupom: ${order.coupon_code}`}>
-                      <Ticket className="w-3 h-3" />
-                      <span className="text-[10px] uppercase font-bold tracking-wider">{order.coupon_code}</span>
-                    </div>
-                  )}
+              {/* Status Row */}
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                {getStatusBadge(order)}
+                {splitProgress && (
+                  <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full border border-gold-medium/30 bg-gold-medium/10 text-[10px] font-extrabold text-gold-light">
+                    SPLIT: {splitProgress.fraction}
+                    {splitProgress.isComplete && <span className="text-green-400">✓</span>}
+                  </span>
+                )}
+                {order.coupon_code && (
+                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded border border-green-500/20 bg-green-500/10 text-[9px] font-bold text-green-400 uppercase max-w-full truncate">
+                    <Ticket className="w-2.5 h-2.5 shrink-0" />
+                    <span className="truncate">{order.coupon_code}</span>
+                  </span>
+                )}
+              </div>
+
+              {/* Information Inner Box - Mimicking "LEGAL RECORDS" */}
+              <div className="mt-4 p-3.5 rounded-lg bg-zinc-950 border border-white/5 flex flex-col gap-2.5">
+                <div className="flex items-center gap-1.5 text-gold-medium text-[10px] font-black tracking-widest uppercase mb-1">
+                  <FileText className="w-3.5 h-3.5" />
+                  ORDER DETAILS
+                </div>
+
+                <div className="flex items-center gap-2 text-xs">
+                  <div className="w-1.5 h-1.5 rounded-full bg-gold-medium/40 shrink-0"></div>
+                  <span className="text-gray-500 font-bold uppercase w-16 shrink-0 text-[10px] tracking-wider">TOTAL</span>
+                  <span className="text-white font-bold">${totalPrice.toFixed(2)}</span>
                   {order.extra_units && order.extra_units > 0 ? (
-                    <div className="text-[10px] text-blue-400 mt-1">+{order.extra_units} dependent{order.extra_units > 1 ? 's' : ''}</div>
+                    <span className="text-[9px] text-blue-400 font-bold tracking-wide italic ml-1">+{order.extra_units} Dep.</span>
                   ) : null}
                 </div>
+
                 {!isSignatureOnly && (
-                  <div>
-                    <p className="text-gray-400">Net Amount</p>
-                    <p className="text-white font-semibold">${netAmount.toFixed(2)}</p>
+                  <div className="flex items-center gap-2 text-xs">
+                    <div className="w-1.5 h-1.5 rounded-full bg-gold-medium/40 shrink-0"></div>
+                    <span className="text-gray-500 font-bold uppercase w-16 shrink-0 text-[10px] tracking-wider">NET + FEE</span>
+                    <span className="text-white font-semibold">${netAmount.toFixed(2)} <span className="text-red-400/80 font-normal">(-${feeAmount.toFixed(2)})</span></span>
                   </div>
                 )}
-                <div>
-                  <p className="text-gray-400">Method</p>
-                  <Badge
-                    variant="outline"
-                    className={`whitespace-nowrap px-2 py-0 text-[10px] font-medium border-gold-medium/30 ${order.payment_method === 'manual'
-                      ? 'bg-blue-500/10 text-blue-300 border-blue-500/30'
-                      : 'text-gold-light'
-                      }`}
-                  >
-                    {order.payment_method === 'manual'
-                      ? 'Manual by Seller'
-                      : order.payment_method === 'square_card'
-                        ? 'Square Card'
-                        : order.payment_method}
-                  </Badge>
+
+                <div className="flex items-center gap-2 text-xs">
+                  <div className="w-1.5 h-1.5 rounded-full bg-gold-medium/40 shrink-0"></div>
+                  <span className="text-gray-500 font-bold uppercase w-16 shrink-0 text-[10px] tracking-wider">METHOD</span>
+                  <span className="text-white uppercase text-[10px] font-bold truncate">
+                    {order.payment_method === 'manual' ? 'MANUAL' : order.payment_method === 'square_card' ? 'SQUARE' : order.payment_method}
+                  </span>
                 </div>
-                {!isSignatureOnly && (
-                  <div>
-                    <p className="text-gray-400">Fee</p>
-                    <p className="text-red-400">${feeAmount > 0 ? `-${feeAmount.toFixed(2)}` : '0.00'}</p>
-                  </div>
-                )}
-                <div>
-                  <p className="text-gray-400">Seller</p>
-                  <p className="text-white">{order.seller_id || '-'}</p>
-                </div>
-                <div>
-                  <p className="text-gray-400">Date</p>
-                  <p className="text-white">{new Date(order.paid_at ?? order.created_at).toLocaleDateString()}</p>
+
+                <div className="flex items-center gap-2 text-xs">
+                  <div className="w-1.5 h-1.5 rounded-full bg-gold-medium/40 shrink-0"></div>
+                  <span className="text-gray-500 font-bold uppercase w-16 shrink-0 text-[10px] tracking-wider">SELLER</span>
+                  <span className="text-gray-300 text-[10px] uppercase font-bold truncate">{(order.seller_id && sellersMap[order.seller_id]) || order.seller_id || 'UNKNOWN'}</span>
                 </div>
               </div>
 
-              <div className="flex flex-col gap-2 pt-2 border-t border-gold-medium/20">
-                <div className="flex gap-2">
-                  {order.annex_pdf_url && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        setSelectedPdfUrl(order.annex_pdf_url);
-                        const productName = getProductName(order.product_slug);
-                        setSelectedPdfTitle(`${order.client_name} - ${productName} - ANNEX I`);
-                      }}
-                      className="flex-1 flex items-center justify-center gap-2 border-gold-medium/50 bg-black/50 text-gold-light hover:bg-black hover:border-gold-medium hover:text-gold-medium text-xs"
-                    >
-                      <FileText className="w-3 h-3" />
-                      ANNEX I
-                    </Button>
-                  )}
-                  {order.contract_pdf_url && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        setSelectedPdfUrl(order.contract_pdf_url);
-                        const productName = getProductName(order.product_slug);
-                        setSelectedPdfTitle(`${order.client_name} - ${productName} - Contract`);
-                      }}
-                      className="flex-1 flex items-center justify-center gap-2 border-gold-medium/50 bg-black/50 text-gold-light hover:bg-black hover:border-gold-medium hover:text-gold-medium text-xs"
-                    >
-                      <FileText className="w-3 h-3" />
-                      Contract
-                    </Button>
-                  )}
-                </div>
-                {/* Upsell PDFs Row */}
-                {(order.upsell_annex_pdf_url || order.upsell_contract_pdf_url) && (
-                  <div className="flex gap-2">
-                    {order.upsell_annex_pdf_url && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          setSelectedPdfUrl(order.upsell_annex_pdf_url);
-                          setSelectedPdfTitle(`ANNEX I (Upsell) - ${order.order_number}`);
-                        }}
-                        className="flex-1 flex items-center justify-center gap-2 border-green-500/50 bg-black/50 text-green-400 hover:bg-black hover:border-green-500 hover:text-green-500 text-xs"
-                      >
-                        <FileText className="w-3 h-3" />
-                        ANNEX I (Upsell)
-                      </Button>
-                    )}
-                    {order.upsell_contract_pdf_url && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          setSelectedPdfUrl(order.upsell_contract_pdf_url);
-                          setSelectedPdfTitle(`Contract (Upsell) - ${order.order_number}`);
-                        }}
-                        className="flex-1 flex items-center justify-center gap-2 border-green-500/50 bg-black/50 text-green-400 hover:bg-black hover:border-green-500 hover:text-green-500 text-xs"
-                      >
-                        <FileText className="w-3 h-3" />
-                        Contract (Upsell)
-                      </Button>
-                    )}
-                  </div>
-                )}
-                {!order.annex_pdf_url && !order.contract_pdf_url && !(order.payment_metadata as any)?.invoice_pdf_url && (
-                  <div className="flex items-center justify-between p-2 bg-amber-500/5 rounded border border-amber-500/20">
-                    <span className="text-amber-500/70 text-[10px] font-medium italic">
-                      {order.payment_method === 'manual' ? 'Awaiting Approval' : 'Documents Generation Pending...'}
-                    </span>
-                    {(order.payment_status === 'completed' || order.payment_status === 'paid') && order.payment_method !== 'manual' && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleRegenerate(order.id)}
-                        disabled={isRegenerating === order.id}
-                        className="h-7 border-gold-medium/30 bg-gold-medium/10 text-gold-light text-[10px]"
-                      >
-                        {isRegenerating === order.id ? <RefreshCcw className="animate-spin w-3 h-3 mr-1" /> : <RefreshCcw className="w-3 h-3 mr-1" />}
-                        Retry
-                      </Button>
-                    )}
-                  </div>
-                )}
-                <Link to={`/dashboard/visa-orders/${order.id}`} className="w-full">
+              {/* Action Buttons Grid */}
+              <div className="mt-4 grid grid-cols-2 gap-2">
+                {/* PDF Buttons */}
+                {order.annex_pdf_url && (
                   <Button
-                    variant="outline"
+                    variant="ghost"
                     size="sm"
-                    className="w-full flex items-center justify-center gap-2 border-gold-medium/50 bg-black/50 text-white hover:bg-gold-medium/30 hover:text-gold-light text-xs"
+                    onClick={() => {
+                      setSelectedPdfUrl(order.annex_pdf_url);
+                      setSelectedPdfTitle(`${order.client_name} - ANNEX I`);
+                    }}
+                    className="flex items-center gap-1.5 bg-[#121212] border border-white/5 hover:bg-[#1a1a1a] hover:border-gold-medium/30 text-gold-light text-[9px] sm:text-[10px] font-bold tracking-wider uppercase h-10 px-2"
                   >
-                    <Eye className="w-3 h-3" />
-                    View Details
+                    <Download className="w-3.5 h-3.5 shrink-0" />
+                    <span className="truncate">ANNEX</span>
+                  </Button>
+                )}
+                {order.contract_pdf_url && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setSelectedPdfUrl(order.contract_pdf_url);
+                      setSelectedPdfTitle(`${order.client_name} - Contract`);
+                    }}
+                    className="flex items-center gap-1.5 bg-[#121212] border border-white/5 hover:bg-[#1a1a1a] hover:border-gold-medium/30 text-gold-light text-[9px] sm:text-[10px] font-bold tracking-wider uppercase h-10 px-2"
+                  >
+                    <Download className="w-3.5 h-3.5 shrink-0" />
+                    <span className="truncate">CONTRACT</span>
+                  </Button>
+                )}
+                {(order.payment_metadata as any)?.invoice_pdf_url && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setSelectedPdfUrl((order.payment_metadata as any).invoice_pdf_url);
+                      setSelectedPdfTitle(`${order.client_name} - Invoice`);
+                    }}
+                    className="flex items-center justify-center col-span-2 sm:col-span-1 gap-1.5 bg-[#121212] border border-white/5 hover:bg-[#1a1a1a] hover:border-gold-medium/30 text-white text-[9px] sm:text-[10px] font-bold tracking-wider uppercase h-10 px-2"
+                  >
+                    <Download className="w-3.5 h-3.5 shrink-0" />
+                    INVOICE
+                  </Button>
+                )}
+
+                {/* View Details Box spanning what is available */}
+                <Link to={`/dashboard/visa-orders/${order.id}`} className="col-span-full">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="w-full flex items-center justify-center gap-2 bg-[#121212] border border-white/5 hover:bg-[#1a1a1a] hover:border-gold-medium/30 text-gold-medium text-[9px] sm:text-[10px] font-bold tracking-wider uppercase h-10 px-2 w-full"
+                  >
+                    <Eye className="w-3.5 h-3.5 shrink-0" />
+                    <span className="truncate">VIEW FULL DETAILS</span>
                   </Button>
                 </Link>
-                {isLocal && (
+
+                {/* Upsells */}
+                {order.upsell_annex_pdf_url && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setSelectedPdfUrl(order.upsell_annex_pdf_url);
+                      setSelectedPdfTitle(`ANNEX I (Upsell)`);
+                    }}
+                    className="flex items-center gap-1.5 bg-[#121212] border border-green-500/10 hover:bg-[#1a1a1a] hover:border-green-500/30 text-green-400 text-[9px] sm:text-[10px] font-bold tracking-wider uppercase h-10 px-2"
+                  >
+                    <Download className="w-3.5 h-3.5 shrink-0" />
+                    <span className="truncate">UP. ANNEX</span>
+                  </Button>
+                )}
+                {order.upsell_contract_pdf_url && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setSelectedPdfUrl(order.upsell_contract_pdf_url);
+                      setSelectedPdfTitle(`Contract (Upsell)`);
+                    }}
+                    className="flex items-center gap-1.5 bg-[#121212] border border-green-500/10 hover:bg-[#1a1a1a] hover:border-green-500/30 text-green-400 text-[9px] sm:text-[10px] font-bold tracking-wider uppercase h-10 px-2"
+                  >
+                    <Download className="w-3.5 h-3.5 shrink-0" />
+                    <span className="truncate">UP. CONTRACT</span>
+                  </Button>
+                )}
+              </div>
+
+              {/* Admin specific buttons */}
+              {isLocal && (
+                <div className="pt-4 mt-4 border-t border-white/5 flex gap-2">
                   <Button
                     variant="ghost"
                     size="sm"
                     disabled={isUpdating === order.id}
-                    onClick={() => toggleHideOrder(order.id, !!order.is_hidden)}
-                    className={`w-full flex items-center justify-center gap-2 text-xs ${order.is_hidden ? 'text-green-400' : 'text-gray-500'}`}
+                    onClick={() => toggleHideOrder(order.id, !!order.is_hidden, order.payment_status)}
+                    className={`flex-1 flex items-center justify-center gap-2 text-[10px] font-bold uppercase tracking-wider h-8 ${order.is_hidden ? 'text-green-400' : 'text-gray-500 hover:text-red-400'}`}
                   >
                     {order.is_hidden ? <Undo2 className="w-3 h-3" /> : <Archive className="w-3 h-3" />}
-                    {order.is_hidden ? 'Mostrar na Lista' : 'Ocultar Pedido'}
+                    {order.is_hidden ? 'SHOW' : 'HIDE'}
                   </Button>
-                )}
-              </div>
+                </div>
+              )}
             </CardContent>
           </Card>
         );
@@ -680,18 +687,16 @@ export const VisaOrdersPage = () => {
   const buildOrdersQuery = ({
     search,
     exportFilterType = 'all',
-    tab = activeTab,
   }: {
     search: string;
     exportFilterType?: ExportFilterType;
-    tab?: 'real' | 'signatures';
   }) => {
     let query = supabase
       .from('visa_orders')
       .select(VISA_ORDERS_SELECT);
 
     if (!isLocal) {
-      query = query.eq('is_test', false);
+      query = query.eq('is_test', false).not('client_email', 'ilike', '%@uorak.com');
     }
 
     if (statusFilter !== 'all') {
@@ -709,13 +714,8 @@ export const VisaOrdersPage = () => {
     }
 
     if (methodFilter !== 'all') {
-      query = query.ilike('payment_method', `%${methodFilter}%`);
-    }
-
-    if (tab === 'signatures') {
-      query = query.eq('payment_method', 'manual');
-    } else {
-      query = query.neq('payment_method', 'manual');
+      const methodSearchValue = methodFilter === 'infinitepay' ? 'infinite' : methodFilter;
+      query = query.ilike('payment_method', `%${methodSearchValue}%`);
     }
 
     const normalizedSearch = search.trim().toLowerCase();
@@ -809,7 +809,6 @@ export const VisaOrdersPage = () => {
         while (true) {
           const { data, error } = await buildOrdersQuery({
             search: searchTerm,
-            tab: activeTab,
           })
             .order('created_at', { ascending: false })
             .range(from, from + batchSize - 1);
@@ -827,7 +826,11 @@ export const VisaOrdersPage = () => {
         }
 
         const visibleFilteredOrders = allFilteredOrders
-          .filter(order => shouldDisplayOrder(order))
+          .filter(order => matchesActiveTab(order, activeTab))
+          .filter(order => {
+            if (statusFilter === 'failed') return !order.is_hidden;
+            return shouldDisplayOrder(order);
+          })
           .sort((a, b) => {
             const dateA = new Date(a.paid_at ?? a.created_at).getTime();
             const dateB = new Date(b.paid_at ?? b.created_at).getTime();
@@ -926,24 +929,6 @@ export const VisaOrdersPage = () => {
     setSearchInput(urlSearch);
   }, [searchParams]);
 
-  // Effect to sync search term with URL and reset page
-  useEffect(() => {
-    return;
-    const timeoutId = setTimeout(() => {
-      const newParams = new URLSearchParams(searchParams);
-      if (searchTerm) {
-        newParams.set('search', searchTerm);
-      } else {
-        newParams.delete('search');
-      }
-      // Se mudar a busca, sempre volta pra página 1
-      if (currentPage !== 1 && searchTerm !== (searchParams.get('search') || '')) {
-        newParams.set('page', '1');
-      }
-      setSearchParams(newParams, { replace: true });
-    }, 500);
-    return () => clearTimeout(timeoutId);
-  }, [searchTerm]);
 
   // Helper to get product name
   const getProductName = (slug: string) => {
@@ -965,7 +950,6 @@ export const VisaOrdersPage = () => {
         const { data, error } = await buildOrdersQuery({
           search: searchTerm,
           exportFilterType: filterType,
-          tab: activeTab,
         })
           .order('created_at', { ascending: false })
           .range(from, from + batchSize - 1);
@@ -982,7 +966,12 @@ export const VisaOrdersPage = () => {
         from += batchSize;
       }
 
-      const filteredOrders = allFilteredOrders.filter(order => shouldDisplayOrder(order));
+      const filteredOrders = allFilteredOrders
+        .filter(order => matchesActiveTab(order, activeTab))
+        .filter(order => {
+          if (statusFilter === 'failed') return !order.is_hidden;
+          return shouldDisplayOrder(order);
+        });
 
       const { exportVisaOrdersToExcel } = await import('@/lib/visaOrdersExport');
       await exportVisaOrdersToExcel(filteredOrders);
@@ -994,7 +983,14 @@ export const VisaOrdersPage = () => {
     }
   };
 
-  const toggleHideOrder = async (orderId: string, currentStatus: boolean) => {
+  const toggleHideOrder = async (orderId: string, currentStatus: boolean, paymentStatus?: string) => {
+    const isHiding = !currentStatus;
+    if (isHiding && paymentStatus === 'completed') {
+      const confirmed = window.confirm(
+        'Atenção: este pedido já foi pago (completed). Tem certeza que deseja ocultá-lo do painel?'
+      );
+      if (!confirmed) return;
+    }
     try {
       setIsUpdating(orderId);
       const { error } = await supabase
@@ -1013,6 +1009,8 @@ export const VisaOrdersPage = () => {
   };
 
   const displayOrders = orders.filter(order => {
+    if (statusFilter === 'failed') return !order.is_hidden;
+
     // Definimos como "abandonado" ou "em espera" pedidos Parcelow que não foram concluídos
     const isPendingParcelow = order.payment_method === 'parcelow' &&
       order.payment_status === 'pending' &&
@@ -1139,37 +1137,41 @@ export const VisaOrdersPage = () => {
   }
 
   return (
-    <div className="p-2 sm:p-4 lg:p-6">
+    <div className="p-4 sm:p-6 lg:p-8">
       <div className="max-w-full mx-auto">
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4 sm:mb-8">
-          <h1 className="text-2xl sm:text-3xl font-bold migma-gold-text">Visa Orders</h1>
-
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
-            <div className="w-full md:w-96">
-              <div className="relative">
+        {/* Full Header Row (Title + Filters + Actions) */}
+        <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4 mb-4 sm:mb-6 w-full">
+          {/* Title */}
+          <h1 className="text-2xl sm:text-3xl font-bold migma-gold-text whitespace-nowrap">Visa Orders</h1>
+          
+          {/* Controls Wrapper */}
+          <div className="flex flex-col sm:flex-row flex-wrap xl:flex-nowrap items-stretch sm:items-center gap-3 w-full xl:w-auto">
+            
+            {/* Search */}
+            <div className="relative w-full sm:flex-1 xl:w-[260px] shrink-0">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
               <Input
                 placeholder="Search by name, email, or order..."
-                className="pl-10 bg-black/50 border-gold-medium/30 text-white placeholder:text-gray-500"
+                className="pl-10 bg-black/50 border-gold-medium/30 text-white placeholder:text-gray-500 w-full"
                 value={searchInput}
                 onChange={(e) => handleSearchChange(e.target.value)}
               />
-              </div>
             </div>
 
-            <div className="w-full md:w-64">
+            {/* Selects */}
+            <div className="grid grid-cols-2 sm:flex sm:flex-row flex-wrap gap-2 w-full sm:w-auto shrink-0">
               <Select
                 value={sellerFilter}
                 onValueChange={(val) => {
                   const newParams = new URLSearchParams(searchParams);
                   if (val === 'all') newParams.delete('seller');
                   else newParams.set('seller', val);
-                  newParams.set('page', '1'); // Reset to page 1
+                  newParams.set('page', '1');
                   setSearchParams(newParams);
                 }}
               >
-                <SelectTrigger className="bg-black/50 border-gold-medium/30 text-white">
-                  <SelectValue placeholder="Filter by Seller" />
+                <SelectTrigger className="bg-black/50 border-gold-medium/30 text-white w-full sm:w-auto sm:min-w-[130px]">
+                  <SelectValue placeholder="All Sellers" />
                 </SelectTrigger>
                 <SelectContent className="bg-zinc-950 border-zinc-800 text-white">
                   <SelectItem value="all">All Sellers</SelectItem>
@@ -1178,48 +1180,48 @@ export const VisaOrdersPage = () => {
                   ))}
                 </SelectContent>
               </Select>
-            </div>
 
-            <div className="w-full md:w-48">
               <Select
                 value={methodFilter}
                 onValueChange={(val) => {
                   const newParams = new URLSearchParams(searchParams);
                   if (val === 'all') newParams.delete('method');
                   else newParams.set('method', val);
-                  newParams.set('page', '1'); // Reset to page 1
+                  newParams.set('page', '1');
                   setSearchParams(newParams);
                 }}
               >
-                <SelectTrigger className="bg-black/50 border-gold-medium/30 text-white">
-                  <SelectValue placeholder="Method" />
+                <SelectTrigger className="bg-black/50 border-gold-medium/30 text-white w-full sm:w-auto sm:min-w-[130px]">
+                  <SelectValue placeholder="All Methods" />
                 </SelectTrigger>
                 <SelectContent className="bg-zinc-950 border-zinc-800 text-white">
                   <SelectItem value="all">All Methods</SelectItem>
                   <SelectItem value="parcelow">Parcelow</SelectItem>
                   <SelectItem value="stripe">Stripe</SelectItem>
                   <SelectItem value="square">Square</SelectItem>
+                  <SelectItem value="infinitepay">InfinitePay</SelectItem>
                   <SelectItem value="zelle">Zelle</SelectItem>
                 </SelectContent>
               </Select>
+
+              <div className="col-span-2 sm:col-span-1 w-full sm:w-auto">
+                <PeriodFilter
+                  value={periodFilter}
+                  onChange={setPeriodFilter}
+                  showLabel={false}
+                  customDateRange={customRange}
+                  onCustomDateRangeChange={setCustomDateRange}
+                  locale="en"
+                />
+              </div>
             </div>
 
-            <div className="w-full md:w-auto">
-              <PeriodFilter
-                value={periodFilter}
-                onChange={setPeriodFilter}
-                showLabel={false}
-                customDateRange={customRange}
-                onCustomDateRangeChange={setCustomDateRange}
-                locale="en"
-              />
-            </div>
-
-            <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
+            {/* Actions */}
+            <div className="flex w-full sm:w-auto items-center gap-2 shrink-0">
               <Popover>
                 <PopoverTrigger asChild>
                   <Button
-                    className="bg-green-600 hover:bg-green-700 text-white border-none gap-2 text-sm font-medium h-9"
+                    className="flex-1 sm:flex-none bg-green-600 hover:bg-green-700 text-white border-none gap-2 text-sm font-medium h-9"
                     disabled={isExportingExcel}
                   >
                     <Download className="w-4 h-4" />
@@ -1257,6 +1259,7 @@ export const VisaOrdersPage = () => {
                 </PopoverContent>
               </Popover>
             </div>
+
           </div>
         </div>
 
@@ -1267,21 +1270,22 @@ export const VisaOrdersPage = () => {
           }}
           className="space-y-6"
         >
-          <TabsList className="bg-black/50 border border-gold-medium/30 p-1 h-auto flex-wrap">
-            <TabsTrigger
-              value="real"
-              className="data-[state=active]:bg-gold-medium data-[state=active]:text-black text-gray-400 px-4 py-2"
-            >
-              Real Orders ({realOrders.length})
-            </TabsTrigger>
-            <TabsTrigger
-              value="signatures"
-              className="data-[state=active]:bg-blue-600 data-[state=active]:text-white text-gray-400 px-4 py-2"
-            >
-              Manual / Signature Only ({signatureOrders.length})
-            </TabsTrigger>
-
-            <div className="flex items-center gap-2 ml-auto px-2">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center justify-start sm:flex-wrap mt-2">
+            <TabsList className="bg-black/50 border border-gold-medium/30 p-1 h-auto grid grid-cols-2 w-full sm:w-auto sm:flex sm:flex-wrap">
+              <TabsTrigger
+                value="real"
+                className="data-[state=active]:bg-gold-medium data-[state=active]:text-black text-gray-400 px-2 sm:px-3 py-2 text-xs sm:text-sm font-semibold truncate"
+              >
+                Real Orders {realOrders.length !== undefined ? `(${realOrders.length})` : ''}
+              </TabsTrigger>
+              <TabsTrigger
+                value="signatures"
+                className="data-[state=active]:bg-blue-600 data-[state=active]:text-white text-gray-400 px-2 sm:px-3 py-2 text-xs sm:text-sm font-semibold truncate"
+              >
+                Manual / Signature Only {signatureOrders.length !== undefined ? `(${signatureOrders.length})` : ''}
+              </TabsTrigger>
+            </TabsList>
+            <div className="grid grid-cols-3 sm:flex sm:flex-wrap gap-2 w-full sm:w-auto">
               <Button
                 variant="outline"
                 size="sm"
@@ -1289,10 +1293,10 @@ export const VisaOrdersPage = () => {
                   const newParams = new URLSearchParams(searchParams);
                   if (statusFilter === 'completed') newParams.delete('status');
                   else newParams.set('status', 'completed');
-                  newParams.set('page', '1'); // Reset to page 1
+                  newParams.set('page', '1');
                   setSearchParams(newParams);
                 }}
-                className={`h-9 border-gold-medium/30 text-xs font-bold uppercase tracking-wider transition-all ${statusFilter === 'completed'
+                className={`h-9 border-gold-medium/30 text-[9px] sm:text-xs font-bold uppercase tracking-tight sm:tracking-wider transition-all px-0.5 sm:px-3 ${statusFilter === 'completed'
                     ? 'bg-gold-medium text-black border-gold-medium shadow-[0_0_10px_rgba(212,175,55,0.3)]'
                     : 'bg-black/50 text-gold-light hover:bg-gold-medium/20'
                   }`}
@@ -1306,10 +1310,10 @@ export const VisaOrdersPage = () => {
                   const newParams = new URLSearchParams(searchParams);
                   if (statusFilter === 'pending') newParams.delete('status');
                   else newParams.set('status', 'pending');
-                  newParams.set('page', '1'); // Reset to page 1
+                  newParams.set('page', '1');
                   setSearchParams(newParams);
                 }}
-                className={`h-9 border-gold-medium/30 text-xs font-bold uppercase tracking-wider transition-all ${statusFilter === 'pending'
+                className={`h-9 border-gold-medium/30 text-[9px] sm:text-xs font-bold uppercase tracking-tight sm:tracking-wider transition-all px-0.5 sm:px-3 ${statusFilter === 'pending'
                     ? 'bg-gold-medium text-black border-gold-medium shadow-[0_0_10px_rgba(212,175,55,0.3)]'
                     : 'bg-black/50 text-gold-light hover:bg-gold-medium/20'
                   }`}
@@ -1326,15 +1330,15 @@ export const VisaOrdersPage = () => {
                   newParams.set('page', '1');
                   setSearchParams(newParams);
                 }}
-                className={`h-9 border-red-500/30 text-xs font-bold uppercase tracking-wider transition-all ${statusFilter === 'failed'
+                className={`h-9 text-[9px] sm:text-xs font-bold uppercase tracking-tight sm:tracking-wider transition-all px-0.5 sm:px-3 ${statusFilter === 'failed'
                     ? 'bg-red-500 text-white border-red-500 shadow-[0_0_10px_rgba(239,68,68,0.3)]'
-                    : 'bg-black/50 text-red-400 hover:bg-red-500/20'
+                    : 'bg-black/50 text-red-400 border-red-500/30 hover:bg-red-500/20'
                   }`}
               >
                 Failed
               </Button>
             </div>
-          </TabsList>
+          </div>
 
           <TabsContent value="real">
             <Card className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30">

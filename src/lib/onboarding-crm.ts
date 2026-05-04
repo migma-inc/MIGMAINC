@@ -37,6 +37,8 @@ export interface CrmProfile {
   has_paid_i20_control_fee: boolean | null;
   is_placement_fee_paid: boolean | null;
   selection_survey_passed: boolean | null;
+  documents_uploaded: boolean | null;
+  documents_status: string | null;
   placement_fee_flow: boolean | null;
   student_process_type: string | null;
   num_dependents: number | null;
@@ -343,7 +345,7 @@ export async function loadOnboardingBoard(productLine?: 'cos' | 'transfer'): Pro
       total_price_usd, onboarding_completed, onboarding_current_step,
       has_paid_selection_process_fee, is_application_fee_paid,
       is_scholarship_fee_paid, has_paid_college_enrollment_fee, has_paid_i20_control_fee,
-      is_placement_fee_paid, selection_survey_passed, placement_fee_flow,
+      is_placement_fee_paid, selection_survey_passed, documents_uploaded, documents_status, placement_fee_flow,
       student_process_type, num_dependents, selection_process_fee_payment_method,
       signature_url, migma_seller_id, migma_agent_id, matricula_user_id, onboarding_email_status,
       transfer_deadline_date, cos_i94_expiry_date, selection_survey_completed_at,
@@ -989,7 +991,7 @@ export async function loadDetailPage(profileId: string): Promise<{
       total_price_usd, onboarding_completed, onboarding_current_step,
       has_paid_selection_process_fee, is_application_fee_paid,
       is_scholarship_fee_paid, has_paid_college_enrollment_fee, has_paid_i20_control_fee,
-      is_placement_fee_paid, selection_survey_passed, placement_fee_flow,
+      is_placement_fee_paid, selection_survey_passed, documents_uploaded, documents_status, placement_fee_flow,
       student_process_type, num_dependents, selection_process_fee_payment_method,
       signature_url, migma_seller_id, migma_agent_id, matricula_user_id, onboarding_email_status,
       transfer_deadline_date, cos_i94_expiry_date, selection_survey_completed_at,

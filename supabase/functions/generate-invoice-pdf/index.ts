@@ -297,7 +297,7 @@ Deno.serve(async (req) => {
 
         // Item 1: Main Product
         const basePrice = parseFloat(order.base_price_usd || '0');
-        
+
         // Calculate Extras to check if they need to be merged or shown
         const dbExtraUnits = order.extra_units || 0;
         const dependentNamesCount = Array.isArray(order.dependent_names) ? order.dependent_names.length : 0;
@@ -309,17 +309,17 @@ Deno.serve(async (req) => {
             // For RFE, merge everything into one line for a cleaner invoice
             const totalPrice = basePrice + extraTotal;
             const rfeDescription = product?.name || 'RFE Defense (when immigration requests additional evidence)';
-            
+
             const evidenceCount = displayExtraUnits > 0 ? displayExtraUnits : 1;
             const pricePerEvidence = displayExtraPrice > 0 ? displayExtraPrice : totalPrice / evidenceCount;
-            
+
             // Truncate to 38 chars to safely fit before colQtyX (465 points)
             pdf.text(truncateText(rfeDescription, 38), margin + 5, currentY + 7);
-            
+
             pdf.text(evidenceCount.toString(), colQtyX, currentY + 7, { align: 'center' });
             pdf.text(`${currencySymbol}${pricePerEvidence.toFixed(2)}`, colPriceX, currentY + 7, { align: 'center' });
             pdf.text(`${currencySymbol}${totalPrice.toFixed(2)}`, colTotalX, currentY + 7, { align: 'center' });
-            
+
             currentY += 10;
             pdf.setDrawColor(240, 240, 240);
             pdf.line(margin, currentY, pageWidth - margin, currentY);
@@ -373,7 +373,7 @@ Deno.serve(async (req) => {
                 .single();
 
             const upsellName = upsellProduct?.name || order.upsell_product_slug;
-            
+
             pdf.text(`BUNDLE: ${truncateText(upsellName, 30)}`, margin + 5, currentY + 7);
             pdf.text('1', colQtyX, currentY + 7, { align: 'center' });
             pdf.text(`${currencySymbol}${upsellPrice.toFixed(2)}`, colPriceX, currentY + 7, { align: 'center' });
@@ -482,11 +482,12 @@ Deno.serve(async (req) => {
                 .trim();
         };
 
-        const safeClientName = normalizeForFileName(order.client_name).replace(/[^a-zA-Z0-9]/g, '_');
-        const safeServiceName = normalizeForFileName(product?.name || order.product_slug).replace(/[^a-zA-Z0-9]/g, '_');
+        const safeClientName = normalizeForFileName(order.client_name).replace(/[^a-zA-Z0-9]/g, '_').replace(/_+/g, '_');
+        const safeServiceName = isRfeDefense ? 'RFE_Defense' : normalizeForFileName(product?.name || order.product_slug).replace(/[^a-zA-Z0-9]/g, '_').replace(/_+/g, '_');
 
-        // Pattern: INVOICE_CUSTOMER_NAME_ORDER_NUMBER_SERVICE_NAME_V2.pdf
-        const fileName = `INVOICE_${safeClientName}_${order.order_number}_${safeServiceName}_V2.pdf`;
+        // Pattern: INVOICE_CUSTOMER_NAME_ORDER_NUMBER_SERVICE_NAME_V3.pdf
+        const fileName = `INVOICE_${safeClientName}_${order.order_number}_${safeServiceName}_V3.pdf`;
+
         const filePath = `invoices/${fileName}`;
 
         const { error: uploadError } = await supabase.storage

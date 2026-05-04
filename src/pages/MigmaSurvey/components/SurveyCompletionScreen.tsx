@@ -75,7 +75,7 @@ export const SurveyCompletionScreen: React.FC<Props> = ({ email, name, service, 
   const serviceLabel = service === 'transfer' ? 'Transfer' : service === 'cos' ? 'COS' : service.toUpperCase();
 
   return (
-    <div className={standalone ? 'min-h-screen bg-black' : ''}>
+    <div className={standalone ? 'migma-pre-onboarding min-h-screen bg-[#f7f4ee] text-[#1f1a14] dark:bg-black dark:text-white' : ''}>
       {standalone && <CheckoutTopbar serviceLabel={serviceLabel} />}
 
       <main className="max-w-xl mx-auto px-4 pb-20 text-center" style={{ paddingTop: standalone ? '140px' : '24px' }}>
@@ -152,12 +152,14 @@ export const SurveyCompletionScreen: React.FC<Props> = ({ email, name, service, 
               <p className={`font-black uppercase tracking-widest text-xs mb-1 ${
                 contractApproved ? 'text-emerald-400' : 'text-gold-light'
               }`}>
-                {contractApproved ? 'Contrato Aprovado' : 'Perfil em Análise'}
+                {contractApproved
+                  ? t('student_onboarding.survey_completion.contract_approved_title', 'Contract Approved')
+                  : t('student_onboarding.survey_completion.profile_review_title', 'Profile Under Review')}
               </p>
               <p className="text-gray-400 text-sm leading-relaxed">
-                {contractApproved 
-                  ? 'Sua aprovação foi confirmada! Você já pode prosseguir para a escolha das faculdades.'
-                  : 'Nossa equipe está revisando seus documentos. Em breve seu acesso às bolsas será liberado.'}
+                {contractApproved
+                  ? t('student_onboarding.survey_completion.contract_approved_desc', 'Your approval has been confirmed. You can now proceed to college selection.')
+                  : t('student_onboarding.survey_completion.profile_review_desc', 'Our team is reviewing your documents. Your scholarship access will be released soon.')}
               </p>
             </div>
           </div>
@@ -185,7 +187,10 @@ export const SurveyCompletionScreen: React.FC<Props> = ({ email, name, service, 
                 {t('student_onboarding.survey_completion.btn_choose_colleges').replace(' →', '')}
               </p>
               <p className="text-gold-medium/40 text-sm font-black tabular-nums">
-                Disponível em {timeLeft}
+                {t('student_onboarding.survey_completion.available_in_time', {
+                  time: timeLeft,
+                  defaultValue: 'Available in {{time}}',
+                })}
               </p>
             </div>
           )}

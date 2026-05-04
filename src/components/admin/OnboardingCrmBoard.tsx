@@ -39,24 +39,26 @@ type PreOnboardingTab = 'all' | 'pre_pending' | 'pre_zelle' | 'pre_card' | 'pre_
 const PAGE_SIZE = 15;
 
 const ONBOARDING_STEPS: { key: string; label: string }[] = [
-  { key: 'identity_verification', label: 'Profile' },
+  { key: 'selection_fee', label: 'Selection Fee' },
   { key: 'selection_survey', label: 'Survey' },
-  { key: 'scholarship_selection', label: 'Scholarship' },
+  { key: 'wait_room', label: 'Review' },
+  { key: 'scholarship_selection', label: 'University' },
+  { key: 'placement_fee', label: 'Placement Fee' },
   { key: 'documents_upload', label: 'Documents' },
   { key: 'payment', label: 'Application Fee' },
-  { key: 'placement_fee', label: 'Placement Fee' },
-  { key: 'my_applications', label: 'My Applications' },
+  { key: 'dados_complementares', label: 'Complementary Data' },
 ];
 
 const PRE_ONBOARDING_COLUMNS = ['pending_zelle', 'pending_card', 'confirmed'] as const;
 const ONBOARDING_KANBAN_COLUMNS = [
-  'identity_verification',
+  'selection_fee',
   'selection_survey',
+  'wait_room',
   'scholarship_selection',
+  'placement_fee',
   'documents_upload',
   'payment',
-  'placement_fee',
-  'my_applications',
+  'dados_complementares',
 ] as const;
 
 interface OnboardingCrmBoardProps {
@@ -107,17 +109,17 @@ function daysUntil(dateStr: string | null | undefined): number | null {
 }
 
 // Step order — used to pick the furthest-along step
-const STEP_ORDER = [
-  'selection_fee', 'identity_verification', 'selection_survey',
-  'scholarship_selection', 'documents_upload', 'payment',
-  'scholarship_fee', 'placement_fee', 'my_applications', 'completed',
-];
+const STEP_ORDER = ONBOARDING_STEPS.map((step) => step.key);
 
 function normalizeOnboardingStep(onboardingStep: string | null | undefined) {
   const step = onboardingStep || 'selection_fee';
-  if (step === 'process_type') return 'scholarship_selection';
+  if (step === 'identity_verification') return 'selection_survey';
+  if (step === 'process_type') return 'documents_upload';
   if (step === 'reinstatement_fee') return 'placement_fee';
-  if (step === 'completed') return 'my_applications';
+  if (step === 'scholarship_fee') return 'placement_fee';
+  if (step === 'completed') return 'dados_complementares';
+  if (step === 'my_applications') return 'dados_complementares';
+  if (step === 'acceptance_letter') return 'dados_complementares';
   return step;
 }
 
@@ -129,14 +131,20 @@ function normalizeOnboardingStep(onboardingStep: string | null | undefined) {
 function getEffectiveStep(profile: OnboardingCase['profile']): string {
   // Mínimo derivado pelas flags
   let flagMin: string;
-  if (!profile.has_paid_selection_process_fee) {
+  if (profile.onboarding_completed) {
+    flagMin = 'dados_complementares';
+  } else if (profile.is_application_fee_paid) {
+    flagMin = 'dados_complementares';
+  } else if (profile.documents_uploaded) {
+    flagMin = 'payment';
+  } else if (profile.is_placement_fee_paid || profile.is_scholarship_fee_paid) {
+    flagMin = 'documents_upload';
+  } else if (!profile.has_paid_selection_process_fee) {
     flagMin = 'selection_fee';
-  } else if (!profile.identity_verified) {
-    flagMin = 'identity_verification';
   } else if (!profile.selection_survey_passed) {
     flagMin = 'selection_survey';
   } else {
-    flagMin = 'scholarship_selection'; // survey passou → no mínimo em scholarship
+    flagMin = 'scholarship_selection'; // survey passou → no mínimo em University
   }
 
   const saved = normalizeOnboardingStep(profile.onboarding_current_step);
@@ -144,13 +152,13 @@ function getEffectiveStep(profile: OnboardingCase['profile']): string {
   const savedIdx = STEP_ORDER.indexOf(saved);
 
   // Retorna o step mais avançado entre o derivado por flags e o salvo no banco
+  if (flagIdx < 0) return savedIdx >= 0 ? saved : 'selection_fee';
   return savedIdx >= flagIdx ? saved : flagMin;
 }
 
 function getOnboardingProgress(profile: OnboardingCase['profile']) {
   const step = getEffectiveStep(profile);
-  // Mapeia selection_fee → identity_verification para exibição
-  const displayStep = step === 'selection_fee' ? 'identity_verification' : step;
+  const displayStep = normalizeOnboardingStep(step);
   const index = ONBOARDING_STEPS.findIndex((s) => s.key === displayStep);
   const totalSteps = ONBOARDING_STEPS.length;
   const currentStep = index >= 0 ? index + 1 : 1;
@@ -417,7 +425,7 @@ function KanbanView({
   for (const column of ONBOARDING_KANBAN_COLUMNS) byStep.set(column, []);
   for (const item of cases) {
     const step = getEffectiveStep(item.profile);
-    const resolvedStep = byStep.has(step) ? step : 'identity_verification';
+    const resolvedStep = byStep.has(step) ? step : 'selection_survey';
     byStep.get(resolvedStep)?.push(item);
   }
 

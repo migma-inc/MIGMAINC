@@ -7,6 +7,7 @@ import { createClient } from '@supabase/supabase-js';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
+const functionsBaseUrl = (import.meta.env.VITE_FUNCTIONS_BASE_URL as string | undefined)?.replace(/\/$/, '');
 
 // Client dedicado para Edge Functions — completamente isolado do cliente principal.
 // storageKey diferente evita que os dois GoTrueClients compartilhem o mesmo
@@ -232,19 +233,51 @@ async function invokeFunction<T>(name: string, options: {
   console.log(`[matriculaApi] [${name}] Chamando Edge Function...`, { method, body: invokeBody });
   const start = Date.now();
 
-  const invokePromise = fnClient.functions.invoke<T>(name, {
-    body: invokeBody,
-    method,
-  }).then(res => {
+  const invokePromise = (async () => {
+    if (functionsBaseUrl) {
+      const url = new URL(`${functionsBaseUrl}/${name}`);
+      if (method === 'GET' && query) {
+        Object.entries(query).forEach(([key, value]) => url.searchParams.set(key, value));
+      }
+
+      const res = await fetch(url.toString(), {
+        method,
+        headers: {
+          apikey: supabaseAnonKey,
+          Authorization: `Bearer ${supabaseAnonKey}`,
+          ...(method === 'GET' ? {} : { 'Content-Type': 'application/json' }),
+        },
+        body: method === 'GET' ? undefined : JSON.stringify(body ?? {}),
+      });
+
+      const text = await res.text();
+      const data = text ? JSON.parse(text) : null;
+      console.log(`[matriculaApi] [${name}] Resposta local recebida em ${Date.now() - start}ms:`, {
+        status: res.status,
+        data,
+      });
+
+      if (!res.ok) {
+        throw new Error(data?.error || data?.message || `Erro na Edge Function ${name}`);
+      }
+
+      return data as T;
+    }
+
+    const res = await fnClient.functions.invoke<T>(name, {
+      body: invokeBody,
+      method,
+    });
+
     console.log(`[matriculaApi] [${name}] Resposta recebida em ${Date.now() - start}ms:`, res);
-    
+
     if (res.error) {
       console.error(`[matriculaApi] [${name}] Erro retornado pela função:`, res.error);
       throw new Error(res.error.message || `Erro na Edge Function ${name}`);
     }
-    
-    return res.data;
-  }).catch(err => {
+
+    return res.data as T;
+  })().catch(err => {
     console.error(`[matriculaApi] [${name}] Falha na promessa invoke em ${Date.now() - start}ms:`, err);
     throw err;
   });

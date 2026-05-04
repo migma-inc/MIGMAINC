@@ -200,7 +200,9 @@ export const VisaOrderDetailPage = () => {
             .from('terms_acceptance')
             .select('*')
             .eq('service_request_id', orderData.service_request_id)
-            .single();
+            .order('accepted_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
 
           if (!termsError && termsData) {
             setTermsAcceptance(termsData);
@@ -1082,12 +1084,21 @@ export const VisaOrderDetailPage = () => {
                       <span className="text-white font-mono text-sm">{order.ip_address}</span>
                     </div>
                   )}
-                  <div className="flex items-center gap-2 p-3 bg-yellow-500/10 border border-yellow-500/20 rounded">
-                    <AlertCircle className="w-4 h-4 text-yellow-400" />
-                    <p className="text-yellow-200 text-xs">
-                      Note: Detailed terms acceptance log not found. This order may predate the latest tracking system.
-                    </p>
-                  </div>
+                  {order.contract_accepted ? (
+                    <div className="flex items-center gap-2 p-3 bg-green-500/10 border border-green-500/20 rounded">
+                      <CheckCircle2 className="w-4 h-4 text-green-400" />
+                      <p className="text-green-200 text-xs">
+                        Acceptance verified via legacy tracking system. Full audit trail available for new orders only.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2 p-3 bg-yellow-500/10 border border-yellow-500/20 rounded">
+                      <AlertCircle className="w-4 h-4 text-yellow-400" />
+                      <p className="text-yellow-200 text-xs">
+                        Note: Detailed terms acceptance log not found. This order may predate the latest tracking system.
+                      </p>
+                    </div>
+                  )}
                 </div>
               )}
             </CardContent>

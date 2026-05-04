@@ -10,6 +10,8 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
+
+const isLocal = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
 import { 
   Popover, 
   PopoverContent, 
@@ -46,6 +48,34 @@ interface TrackingJourney {
   total_steps: number;
   slugs: { slug: string; paid_at: string | null; created_at: string; status: string; contract_status: string | null }[];
 }
+
+type TrackingGroupData = {
+  client_name: string;
+  client_email: string;
+  seller_id: string;
+  slugs: { slug: string; paid_at: string | null; created_at: string; status: string; contract_status: string | null }[];
+  last_activity: string;
+  last_paid_at: string | null;
+  identifiers: Set<string>;
+};
+
+const PAID_PAYMENT_STATUSES = new Set(['completed', 'paid']);
+const TRACKABLE_PAYMENT_STATUSES = ['completed', 'paid', 'pending', 'manual_pending', 'processing'];
+const PAYMENT_COUNT_RECONCILED_JOURNEYS = new Set(['initial', 'cos', 'transfer']);
+// Visual-only credits for legacy payments made before the checkout existed.
+const LEGACY_VISUAL_PAYMENT_CREDITS = [
+  {
+    client_email: 'saragscontato@gmail.com',
+    journey_type: 'transfer',
+    minimum_paid_count: 2,
+  },
+];
+const TRACKING_ORDER_EXCLUSIONS = [
+  {
+    order_number: 'ORD-INT-20260331003601-302',
+    journey_type: 'transfer',
+  },
+];
 
 const JOURNEY_CONFIG: Record<string, {
   label: string;
@@ -127,19 +157,116 @@ function detectJourneyType(slugs: string[]): string | null {
   return null;
 }
 
-function normalizeTrackingContact(order: {
+function normalizeSlug(slug: string) {
+  return slug.toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
+function isPaidStatus(status?: string | null) {
+  return PAID_PAYMENT_STATUSES.has((status || '').toLowerCase());
+}
+
+function getEffectivePaidAt(order: { payment_status?: string | null; paid_at?: string | null; created_at: string }) {
+  if (!isPaidStatus(order.payment_status)) return null;
+  return order.paid_at ?? order.created_at;
+}
+
+function isFullProcessSlug(slug?: string | null) {
+  const normalized = normalizeSlug(slug || '');
+  return normalized.includes('fullprocess') || normalized.includes('totalprocess');
+}
+
+function slugMatchesStep(slug: string, pattern: string) {
+  const orderSlug = normalizeSlug(slug);
+  const stepPattern = normalizeSlug(pattern);
+  if (orderSlug.includes(stepPattern) || stepPattern.includes(orderSlug)) return true;
+  if (stepPattern === 'cosselectionprocess' && orderSlug.includes('changeofstatus') && orderSlug.includes('selectionprocess')) return true;
+  if (stepPattern === 'eb3stepinitial' && (orderSlug.includes('eb3initial') || (orderSlug.includes('eb3') && orderSlug.includes('initial')))) return true;
+  return false;
+}
+
+function normalizeTrackingIdentifiers(order: {
   client_whatsapp?: string | null;
   client_email?: string | null;
   client_name?: string | null;
 }) {
-  const phone = order.client_whatsapp?.replace(/\D/g, '');
-  if (phone) return `phone:${phone}`;
-
+  const identifiers: string[] = [];
   const email = order.client_email?.toLowerCase().trim();
-  if (email) return `email:${email}`;
+  if (email) identifiers.push(`email:${email}`);
+
+  const phone = order.client_whatsapp?.replace(/\D/g, '');
+  if (phone && phone.length >= 8) identifiers.push(`phone:${phone}`);
+
+  if (identifiers.length > 0) return identifiers;
 
   const name = order.client_name?.toLowerCase().trim().replace(/\s+/g, ' ');
-  return name ? `name:${name}` : null;
+  return name ? [`name:${name}`] : [];
+}
+
+function mergeTrackingGroups(
+  grouped: Record<string, TrackingGroupData>,
+  identifierToGroupKey: Map<string, string>,
+  targetKey: string,
+  sourceKey: string,
+) {
+  if (targetKey === sourceKey) return targetKey;
+
+  const target = grouped[targetKey];
+  const source = grouped[sourceKey];
+  if (!target || !source) return targetKey;
+
+  target.slugs.push(...source.slugs);
+
+  if (!target.client_email && source.client_email) {
+    target.client_email = source.client_email;
+  }
+
+  if ((!target.client_name || target.client_name === 'Unknown Client') && source.client_name) {
+    target.client_name = source.client_name;
+  }
+
+  if (!target.seller_id && source.seller_id) {
+    target.seller_id = source.seller_id;
+  }
+
+  if (source.last_activity > target.last_activity) {
+    target.last_activity = source.last_activity;
+  }
+
+  if (source.last_paid_at && (!target.last_paid_at || source.last_paid_at > target.last_paid_at)) {
+    target.last_paid_at = source.last_paid_at;
+  }
+
+  source.identifiers.forEach(identifier => {
+    target.identifiers.add(identifier);
+    identifierToGroupKey.set(identifier, targetKey);
+  });
+
+  delete grouped[sourceKey];
+  return targetKey;
+}
+
+function applyLegacyVisualPaymentCredit(
+  data: TrackingGroupData,
+  journeyType: string,
+  paidCount: number,
+  totalSteps: number,
+) {
+  const clientEmail = data.client_email.toLowerCase().trim();
+  const visualCredit = LEGACY_VISUAL_PAYMENT_CREDITS.find(credit =>
+    credit.client_email === clientEmail &&
+    credit.journey_type === journeyType
+  );
+
+  if (!visualCredit) return paidCount;
+
+  return Math.min(totalSteps, Math.max(paidCount, visualCredit.minimum_paid_count));
+}
+
+function isTrackingOrderExcluded(order: { order_number?: string | null }, journeyType: string) {
+  return TRACKING_ORDER_EXCLUSIONS.some(exclusion =>
+    exclusion.order_number === order.order_number &&
+    exclusion.journey_type === journeyType
+  );
 }
 
 type TimeRange = '24h' | '7d' | '30d' | 'all';
@@ -163,11 +290,17 @@ export function AdminTracking() {
     try {
       setLoading(true);
 
-      const { data: orders, error } = await supabase
+      let query = supabase
         .from('visa_orders')
-        .select('client_email, client_name, client_whatsapp, product_slug, seller_id, paid_at, created_at, payment_status, contract_approval_status')
-        .in('payment_status', ['completed', 'pending', 'manual_pending', 'processing'])
+        .select('order_number, client_email, client_name, client_whatsapp, product_slug, seller_id, paid_at, created_at, payment_status, contract_approval_status')
+        .in('payment_status', TRACKABLE_PAYMENT_STATUSES)
         .order('created_at', { ascending: false });
+
+      if (!isLocal) {
+        query = query.not('client_email', 'ilike', '%@uorak.com');
+      }
+
+      const { data: orders, error } = await query;
 
       if (error || !orders) {
         console.error('[Tracking] Error fetching orders:', error);
@@ -184,24 +317,31 @@ export function AdminTracking() {
 
       const sellerMap = new Map((sellers || []).map(s => [s.seller_id_public, s.full_name]));
 
-      // Group by email
-      const grouped: Record<string, {
-        client_name: string;
-        client_email: string;
-        seller_id: string;
-        slugs: { slug: string; paid_at: string | null; created_at: string; status: string; contract_status: string | null }[];
-        last_activity: string;
-        last_paid_at: string | null;
-      }> = {};
+      const grouped: Record<string, TrackingGroupData> = {};
+      const identifierToGroupKey = new Map<string, string>();
+      let groupSequence = 0;
 
       for (const order of orders) {
         const journeyType = detectJourneyType([order.product_slug]);
         if (!journeyType) continue;
+        if (isTrackingOrderExcluded(order, journeyType)) continue;
 
         const email = (order.client_email || '').toLowerCase().trim();
-        const contactKey = normalizeTrackingContact(order);
-        const key = contactKey ? `${contactKey}:${journeyType}` : null;
-        if (!key) continue;
+        const identifiers = normalizeTrackingIdentifiers(order).map(identifier => `${journeyType}:${identifier}`);
+        if (identifiers.length === 0) continue;
+
+        const existingKeys = [...new Set(
+          identifiers
+            .map(identifier => identifierToGroupKey.get(identifier))
+            .filter((key): key is string => !!key && !!grouped[key])
+        )];
+
+        let key = existingKeys[0] ?? `${journeyType}:${++groupSequence}`;
+        for (const sourceKey of existingKeys.slice(1)) {
+          key = mergeTrackingGroups(grouped, identifierToGroupKey, key, sourceKey);
+        }
+
+        const effectivePaidAt = getEffectivePaidAt(order);
 
         if (!grouped[key]) {
           grouped[key] = {
@@ -209,27 +349,35 @@ export function AdminTracking() {
             client_email: email,
             seller_id: order.seller_id || '',
             slugs: [],
-            last_activity: order.paid_at ?? order.created_at,
-            last_paid_at: order.paid_at || null,
+            last_activity: effectivePaidAt ?? order.created_at,
+            last_paid_at: effectivePaidAt,
+            identifiers: new Set(),
           };
         }
 
-        grouped[key].slugs.push({
-          slug: order.product_slug || '',
-          paid_at: order.paid_at,
+        identifiers.forEach(identifier => {
+          grouped[key].identifiers.add(identifier);
+          identifierToGroupKey.set(identifier, key);
+        });
+
+        const group = grouped[key];
+
+        group.slugs.push({
+          slug: order.product_slug,
+          paid_at: effectivePaidAt,
           created_at: order.created_at,
           status: order.payment_status || '',
           contract_status: order.contract_approval_status || null,
         });
 
-        const orderDate = order.paid_at ?? order.created_at;
-        if (orderDate > grouped[key].last_activity) {
-          grouped[key].last_activity = orderDate;
+        const orderDate = effectivePaidAt ?? order.created_at;
+        if (orderDate > group.last_activity) {
+          group.last_activity = orderDate;
         }
 
         // Track latest real payment date separately
-        if (order.paid_at && (!grouped[key].last_paid_at || order.paid_at > grouped[key].last_paid_at)) {
-          grouped[key].last_paid_at = order.paid_at;
+        if (effectivePaidAt && (!group.last_paid_at || effectivePaidAt > group.last_paid_at)) {
+          group.last_paid_at = effectivePaidAt;
         }
       }
 
@@ -245,20 +393,13 @@ export function AdminTracking() {
         const config = JOURNEY_CONFIG[journeyType];
         const steps: TrackingStep[] = config.steps.map(stepDef => {
           const match = data.slugs.find(s => {
-            if (s.status !== 'completed') return false; // Only completed counts as paid step
-            const oS = s.slug.toLowerCase().replace(/[^a-z0-9]/g, '');
-            const p = stepDef.pattern.toLowerCase().replace(/[^a-z0-9]/g, '');
-            if (oS.includes(p) || p.includes(oS)) return true;
-            if (p === 'cosselectionprocess' && oS.includes('changeofstatus') && oS.includes('selectionprocess')) return true;
-            if (p === 'eb3stepinitial' && (oS.includes('eb3initial') || (oS.includes('eb3') && oS.includes('initial')))) return true;
-            return false;
+            if (!isPaidStatus(s.status)) return false; // Only paid orders count as paid steps
+            return slugMatchesStep(s.slug, stepDef.pattern);
           });
 
           const pendingMatch = data.slugs.find(s => {
-            if (s.status === 'completed') return false;
-            const oS = s.slug.toLowerCase().replace(/[^a-z0-9]/g, '');
-            const p = stepDef.pattern.toLowerCase().replace(/[^a-z0-9]/g, '');
-            return oS.includes(p) || p.includes(oS);
+            if (isPaidStatus(s.status)) return false;
+            return slugMatchesStep(s.slug, stepDef.pattern);
           });
 
           return {
@@ -269,9 +410,17 @@ export function AdminTracking() {
           };
         });
 
-        let paid_count = steps.filter(s => s.status === 'paid').length;
-        const hasFullPayment = steps.some(s => s.status === 'paid' && s.label.toLowerCase().includes('full'));
+        const matchedPaidStepCount = steps.filter(s => s.status === 'paid').length;
+        const paidOrderCount = data.slugs.filter(s => isPaidStatus(s.status)).length;
+        let paid_count = matchedPaidStepCount;
+
+        if (PAYMENT_COUNT_RECONCILED_JOURNEYS.has(journeyType)) {
+          paid_count = Math.min(config.steps.length, Math.max(matchedPaidStepCount, paidOrderCount));
+        }
+
+        const hasFullPayment = data.slugs.some(s => isPaidStatus(s.status) && isFullProcessSlug(s.slug));
         if (hasFullPayment) paid_count = config.steps.length;
+        paid_count = applyLegacyVisualPaymentCredit(data, journeyType, paid_count, config.steps.length);
 
         result.push({
           client_email: data.client_email || 'no-email@migma.io',
@@ -319,17 +468,19 @@ export function AdminTracking() {
     return timeFilteredJourneys.map(j => {
       const isCompleted = (() => {
         if (j.paid_count >= j.total_steps) return true;
-        const slugsStr = (j.slugs || []).map(s => s?.slug?.toLowerCase()?.replace(/[^a-z0-9]/g, '') || '').join(' ');
-        const hasMainSteps = slugsStr.includes('selection') && slugsStr.includes('scholarship') && slugsStr.includes('i20');
-        if (hasMainSteps) return true;
+        const paidSlugsStr = (j.slugs || [])
+          .filter(s => isPaidStatus(s?.status))
+          .map(s => normalizeSlug(s?.slug || ''))
+          .join(' ');
+        if (paidSlugsStr.includes('selection') && paidSlugsStr.includes('scholarship') && paidSlugsStr.includes('i20')) return true;
         
-        // Match 'fullprocess' (normalized)
-        if (slugsStr.includes('fullprocess')) return true;
+        // Match paid full-process slugs only.
+        if (paidSlugsStr.includes('fullprocess') || paidSlugsStr.includes('totalprocess')) return true;
         
         return false;
       })();
       
-      const isFullPaid = (j.slugs || []).some(s => s?.slug?.toLowerCase()?.includes('full process'));
+      const isFullPaid = (j.slugs || []).some(s => isPaidStatus(s?.status) && isFullProcessSlug(s?.slug));
       return { ...j, is_completed: isCompleted, is_full_paid: isFullPaid };
     });
   }, [timeFilteredJourneys]);

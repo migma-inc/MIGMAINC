@@ -81,7 +81,24 @@ const MigmaCheckout: React.FC = () => {
   useEffect(() => {
     // Persist seller ref to localStorage so it survives auth redirects
     const refParam = searchParams.get('ref') || searchParams.get('seller_id');
-    if (refParam) saveSellerRef(refParam);
+    if (refParam) {
+      saveSellerRef(refParam);
+      supabase.auth.getSession()
+        .then(async ({ data: { session } }) => {
+          if (!session?.user.id) return;
+
+          const { error } = await supabase
+            .from('user_profiles')
+            .update({ migma_seller_id: refParam })
+            .eq('user_id', session.user.id)
+            .is('migma_seller_id', null);
+
+          if (error) {
+            console.warn('[MigmaCheckout] Could not persist seller ref to profile:', error.message);
+          }
+        })
+        .catch(err => console.warn('[MigmaCheckout] Could not persist seller ref:', err));
+    }
 
     const success = searchParams.get('success');
     const failed = searchParams.get('failed');
@@ -158,7 +175,7 @@ const MigmaCheckout: React.FC = () => {
 
   const handleVerifyAndAdvance = async () => {
     setPaymentLoading(true);
-    setProcessMessage('Verificando confirmação do pagamento...');
+    setProcessMessage(t('migma_checkout.process_messages.verifying_payment', 'Verifying payment confirmation...'));
 
     // Restaurar step1Data e totalPrice do draft salvo antes do redirect Parcelow
     const draftRaw = localStorage.getItem(getDraftKey(service));
@@ -263,7 +280,7 @@ const MigmaCheckout: React.FC = () => {
 
   const handleFinalFinish = async () => {
     setProcessing(true);
-    setProcessMessage('Finalizando seu processo...');
+    setProcessMessage(t('migma_checkout.process_messages.finishing_process', 'Finalizing your process...'));
     setProgress(50);
 
     try {
@@ -565,8 +582,9 @@ const MigmaCheckout: React.FC = () => {
         try {
           const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
           const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
+          const functionsBaseUrl = ((import.meta.env.VITE_FUNCTIONS_BASE_URL as string | undefined) || `${supabaseUrl}/functions/v1`).replace(/\/$/, '');
           const res = await fetch(
-            `${supabaseUrl}/functions/v1/migma-student-stripe-checkout?session_id=${encodeURIComponent(sessionId)}`,
+            `${functionsBaseUrl}/migma-student-stripe-checkout?session_id=${encodeURIComponent(sessionId)}`,
             { headers: { apikey: supabaseAnonKey, Authorization: `Bearer ${supabaseAnonKey}` } }
           );
           if (res.ok) {
@@ -609,7 +627,10 @@ const MigmaCheckout: React.FC = () => {
 
     } catch (err: any) {
       console.error('[MigmaCheckout] Stripe return critical error:', err);
-      alert('Erro ao processar retorno do pagamento: ' + err.message);
+      alert(t('migma_checkout.errors.payment_return', {
+        message: err.message,
+        defaultValue: 'Error processing payment return: {{message}}',
+      }));
     } finally {
       setPaymentLoading(false);
     }
@@ -645,10 +666,11 @@ const MigmaCheckout: React.FC = () => {
         migma_seller_id: sellerId || undefined,
         migma_agent_id: agentId || undefined,
         migma_user_id: studentAuthUser?.id || undefined,
+        service_request_id: state.serviceRequestId || undefined,
       });
 
       if (!res?.user_id) {
-        throw new Error(res?.error || 'Falha ao processar registro do aluno.');
+        throw new Error(res?.error || t('migma_checkout.errors.registration_failed', 'Failed to process student registration.'));
       }
 
       if (res?.order_id) {
@@ -679,7 +701,7 @@ const MigmaCheckout: React.FC = () => {
       return res.user_id;
     } catch (err: any) {
       console.error('[MigmaCheckout] createStudent failed:', err);
-      throw new Error(err.message || 'Erro ao registrar usuário. Verifique seus dados.');
+      throw new Error(err.message || t('migma_checkout.errors.register_user', 'Error registering user. Check your data.'));
     }
   };
 
@@ -691,7 +713,7 @@ const MigmaCheckout: React.FC = () => {
   ) => {
     setProcessing(true);
     setProgress(10);
-    setProcessMessage('Iniciando registro...');
+    setProcessMessage(t('migma_checkout.process_messages.starting_registration', 'Starting registration...'));
 
     try {
       const userId = registeredUserId;
@@ -699,7 +721,7 @@ const MigmaCheckout: React.FC = () => {
       const orderId = orderIdRef.current;
 
       setProgress(25);
-      setProcessMessage('Salvando assinatura digital...');
+      setProcessMessage(t('migma_checkout.process_messages.saving_signature', 'Saving digital signature...'));
 
       if (data.signature_data_url && data.signature_data_url.startsWith('data:')) {
         const signatureBase64 = data.signature_data_url.split(',')[1];
@@ -718,7 +740,7 @@ const MigmaCheckout: React.FC = () => {
 
       if (payment.method === 'stripe') {
         setProgress(60);
-        setProcessMessage('Preparando pagamento via Stripe...');
+        setProcessMessage(t('migma_checkout.process_messages.preparing_stripe', 'Preparing Stripe payment...'));
         const result = await matriculaApi.stripeStudentCheckout({
           amount: total,
           user_id: userId,
@@ -739,7 +761,7 @@ const MigmaCheckout: React.FC = () => {
         };
         localStorage.setItem(STRIPE_LS_KEY, JSON.stringify(stripeState));
         await supabase.from('user_profiles').update({ payment_submitted_at: new Date().toISOString() }).eq('user_id', userId);
-        setProcessMessage('Redirecionando para o Stripe...');
+        setProcessMessage(t('migma_checkout.process_messages.redirecting_stripe', 'Redirecting to Stripe...'));
         setProgress(100);
         window.location.href = result.url;
         return;
@@ -747,7 +769,7 @@ const MigmaCheckout: React.FC = () => {
 
       if (payment.splitConfig?.enabled) {
         setProgress(60);
-        setProcessMessage('Configurando pagamento dividido...');
+        setProcessMessage(t('migma_checkout.process_messages.configuring_split', 'Configuring split payment...'));
 
         const finalOrderId = orderIdRef.current ?? orderId ?? crypto.randomUUID();
         const isThirdParty = payment.cardOwnership === 'third_party';
@@ -772,7 +794,7 @@ const MigmaCheckout: React.FC = () => {
         });
 
         if (!splitResult?.success || !splitResult?.part1_checkout_url) {
-          throw new Error(splitResult?.error || 'Não foi possível configurar o pagamento dividido.');
+          throw new Error(splitResult?.error || t('migma_checkout.errors.configure_split', 'Could not configure split payment.'));
         }
 
         if (splitResult?.split_payment_id) {
@@ -795,7 +817,7 @@ const MigmaCheckout: React.FC = () => {
 
         await supabase.from('user_profiles').update({ payment_submitted_at: new Date().toISOString() }).eq('user_id', userId);
         
-        setProcessMessage('Redirecionando para a Parcelow (Parte 1)...');
+        setProcessMessage(t('migma_checkout.process_messages.redirecting_parcelow_part1', 'Redirecting to Parcelow (Part 1)...'));
         setProgress(100);
         window.location.href = splitResult.part1_checkout_url;
         return;
@@ -803,7 +825,7 @@ const MigmaCheckout: React.FC = () => {
 
       if (payment.method.startsWith('parcelow')) {
         setProgress(60);
-        setProcessMessage('Iniciando integração com Parcelow...');
+        setProcessMessage(t('migma_checkout.process_messages.starting_parcelow', 'Starting Parcelow integration...'));
 
         // Garante que order_id nunca seja null para o Parcelow
         const finalOrderId = orderIdRef.current ?? orderId ?? crypto.randomUUID();
@@ -857,13 +879,18 @@ const MigmaCheckout: React.FC = () => {
             step2Data: null,
           }));
           await supabase.from('user_profiles').update({ payment_submitted_at: new Date().toISOString() }).eq('user_id', userId);
-          setProcessMessage('Redirecionando para a Parcelow...');
+          setProcessMessage(t('migma_checkout.process_messages.redirecting_parcelow', 'Redirecting to Parcelow...'));
           setProgress(100);
           window.location.href = finalUrl;
         } else {
           console.error('[MigmaCheckout] Resposta completa da Parcelow:', parcelowResult);
           const errorMsg = parcelowResult.error || (parcelowResult.details && JSON.stringify(parcelowResult.details));
-          throw new Error(errorMsg ? `Erro Parcelow: ${errorMsg}` : 'Não foi possível gerar o link de pagamento. Verifique seus dados.');
+          throw new Error(errorMsg
+            ? t('migma_checkout.errors.parcelow_with_message', {
+                message: errorMsg,
+                defaultValue: 'Parcelow error: {{message}}',
+              })
+            : t('migma_checkout.errors.generate_payment_link', 'Could not generate the payment link. Check your data.'));
         }
         return;
       }
@@ -940,7 +967,7 @@ const MigmaCheckout: React.FC = () => {
 
     } catch (err: any) {
       console.error('[Step1] Error:', err);
-      alert(err.message || 'Erro ao processar Passo 1. Tente novamente.');
+      alert(err.message || t('migma_checkout.errors.step1_process', 'Error processing Step 1. Try again.'));
       setProcessing(false);
     } finally {
       // Modal fechado explicitamente nos paths acima
@@ -1037,14 +1064,14 @@ const MigmaCheckout: React.FC = () => {
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (err: any) {
       console.error('[Step 2] Error:', err);
-      alert('Erro ao salvar documentos.');
+      alert(t('migma_checkout.errors.save_documents', 'Error saving documents.'));
     } finally {
       setPaymentLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-black">
+    <div className="migma-pre-onboarding min-h-screen bg-[#f7f4ee] text-[#1f1a14] dark:bg-black dark:text-white">
       <CheckoutTopbar serviceLabel={config?.label || ''} />
       <CheckoutProgressBar
         currentStep={state.currentStep}

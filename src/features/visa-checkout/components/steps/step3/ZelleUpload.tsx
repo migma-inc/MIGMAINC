@@ -144,7 +144,10 @@ export const ZelleUpload: React.FC<ZelleUploadProps> = ({ onFileSelect, currentF
                             </p>
                         </div>
                         <p className="text-[11px] text-gray-400 leading-relaxed">
-                            {t('checkout.zelle.image_requirements', 'The image must show: Confirmation Code, Date, Exact Amount, and Recipient (adm@migmainc.com).')}
+                            {t('checkout.zelle.image_requirements', {
+                                recipientEmail,
+                                defaultValue: 'The image must show: Confirmation Code, Date, Exact Amount, and Recipient ({{recipientEmail}}).',
+                            })}
                         </p>
                     </div>
                 </div>

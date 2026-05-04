@@ -34,28 +34,23 @@ interface Props {
   onFinish: () => void;
 }
 
-const DOC_TYPE_LABEL: Record<string, string> = {
-  passport: 'Passaporte',
-  rg: 'RG',
-  cnh: 'CNH',
-};
-
-const CIVIL_STATUS_LABEL: Record<string, string> = {
-  single: 'Solteiro(a)',
-  married: 'Casado(a)',
-  divorced: 'Divorciado(a)',
-  widowed: 'Viúvo(a)',
-};
-
 const INFO_BOX_CLASS = "bg-white/5 border border-white/10 rounded-2xl p-6 space-y-4";
+
+const CIVIL_STATUS_KEY: Record<string, string> = {
+  single: 'single',
+  married: 'married',
+  divorced: 'divorced',
+  widowed: 'widowed',
+};
 
 interface DocPreviewProps {
   file: File | null;
   label: string;
   fallbackUrl?: string | null;
+  emptyLabel: string;
 }
 
-const DocPreview: React.FC<DocPreviewProps> = ({ file, label, fallbackUrl }) => {
+const DocPreview: React.FC<DocPreviewProps> = ({ file, label, fallbackUrl, emptyLabel }) => {
   const objectUrl = useMemo(() => (file ? URL.createObjectURL(file) : null), [file]);
   const url = objectUrl ?? fallbackUrl ?? null;
 
@@ -75,7 +70,7 @@ const DocPreview: React.FC<DocPreviewProps> = ({ file, label, fallbackUrl }) => 
         </div>
       ) : (
         <div className="rounded-xl border border-white/10 aspect-[4/3] bg-white/5 flex items-center justify-center">
-          <p className="text-gray-600 text-xs">Não enviado</p>
+          <p className="text-gray-600 text-xs">{emptyLabel}</p>
         </div>
       )}
     </div>
@@ -84,6 +79,9 @@ const DocPreview: React.FC<DocPreviewProps> = ({ file, label, fallbackUrl }) => 
 
 export const Step3Summary: React.FC<Props> = ({ userData, documents, documentUrls, personalInfo, onFinish }) => {
   const { t } = useTranslation();
+  const docTypeLabel = t(`docs.${personalInfo.docType}`, personalInfo.docType);
+  const civilStatusLabel = t(`checkout.${CIVIL_STATUS_KEY[personalInfo.civilStatus] || personalInfo.civilStatus}`, personalInfo.civilStatus);
+  const emptyDocLabel = t('migma_checkout.step3.not_sent', 'Not sent');
 
   return (
     <div className="space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-700">
@@ -97,7 +95,7 @@ export const Step3Summary: React.FC<Props> = ({ userData, documents, documentUrl
             {t('migma_checkout.step3.title', 'Revisão Final')}
           </h2>
           <p className="text-gold-light/80 font-medium italic uppercase tracking-widest text-sm">
-            Tudo pronto para concluir seu processo?
+            {t('migma_checkout.step3.ready_subtitle', 'Ready to complete your process?')}
           </p>
         </div>
       </div>
@@ -108,15 +106,15 @@ export const Step3Summary: React.FC<Props> = ({ userData, documents, documentUrl
         <div className={INFO_BOX_CLASS}>
           <div className="flex items-center gap-3 text-gold-medium border-b border-white/5 pb-4 mb-4">
             <User className="w-5 h-5" />
-            <h3 className="font-black uppercase tracking-widest text-xs">Informações do Aluno</h3>
+            <h3 className="font-black uppercase tracking-widest text-xs">{t('migma_checkout.step3.student_info', 'Student Information')}</h3>
           </div>
           <div className="space-y-4">
             <div>
-              <p className="text-gray-500 text-[10px] uppercase font-bold tracking-tighter">Nome Completo</p>
+              <p className="text-gray-500 text-[10px] uppercase font-bold tracking-tighter">{t('migma_checkout.step3.full_name', 'Full Name')}</p>
               <p className="text-white font-medium">{userData.fullName}</p>
             </div>
             <div>
-              <p className="text-gray-500 text-[10px] uppercase font-bold tracking-tighter">E-mail de Acesso</p>
+              <p className="text-gray-500 text-[10px] uppercase font-bold tracking-tighter">{t('migma_checkout.step3.access_email', 'Access Email')}</p>
               <p className="text-white font-medium">{userData.email}</p>
             </div>
           </div>
@@ -126,15 +124,15 @@ export const Step3Summary: React.FC<Props> = ({ userData, documents, documentUrl
         <div className={INFO_BOX_CLASS}>
           <div className="flex items-center gap-3 text-gold-medium border-b border-white/5 pb-4 mb-4">
             <Package className="w-5 h-5" />
-            <h3 className="font-black uppercase tracking-widest text-xs">Resumo do Pedido</h3>
+            <h3 className="font-black uppercase tracking-widest text-xs">{t('migma_checkout.step3.order_summary', 'Order Summary')}</h3>
           </div>
           <div className="space-y-4">
             <div>
-              <p className="text-gray-500 text-[10px] uppercase font-bold tracking-tighter">Programa</p>
+              <p className="text-gray-500 text-[10px] uppercase font-bold tracking-tighter">{t('migma_checkout.step3.program', 'Program')}</p>
               <p className="text-white font-medium">{userData.processType}</p>
             </div>
             <div>
-              <p className="text-gray-500 text-[10px] uppercase font-bold tracking-tighter">Valor Final</p>
+              <p className="text-gray-500 text-[10px] uppercase font-bold tracking-tighter">{t('migma_checkout.step3.final_amount', 'Final Amount')}</p>
               <p className="text-gold-light font-black text-xl">U$ {userData.totalPrice.toFixed(2)}</p>
             </div>
           </div>
@@ -145,36 +143,36 @@ export const Step3Summary: React.FC<Props> = ({ userData, documents, documentUrl
       <div className={INFO_BOX_CLASS}>
         <div className="flex items-center gap-3 text-gold-medium border-b border-white/5 pb-4 mb-4">
           <MapPin className="w-5 h-5" />
-          <h3 className="font-black uppercase tracking-widest text-xs">Dados Pessoais</h3>
+          <h3 className="font-black uppercase tracking-widest text-xs">{t('migma_checkout.step3.personal_data', 'Personal Data')}</h3>
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-4">
           {personalInfo.birthDate && (
             <div>
-              <p className="text-gray-500 text-[10px] uppercase font-bold tracking-tighter">Data de Nascimento</p>
+              <p className="text-gray-500 text-[10px] uppercase font-bold tracking-tighter">{t('migma_checkout.step3.birth_date', 'Date of Birth')}</p>
               <p className="text-white text-sm font-medium">{personalInfo.birthDate}</p>
             </div>
           )}
           {personalInfo.docNumber && (
             <div>
-              <p className="text-gray-500 text-[10px] uppercase font-bold tracking-tighter">{DOC_TYPE_LABEL[personalInfo.docType] || personalInfo.docType}</p>
+              <p className="text-gray-500 text-[10px] uppercase font-bold tracking-tighter">{docTypeLabel}</p>
               <p className="text-white text-sm font-medium">{personalInfo.docNumber}</p>
             </div>
           )}
           {personalInfo.nationality && (
             <div>
-              <p className="text-gray-500 text-[10px] uppercase font-bold tracking-tighter">Nacionalidade</p>
+              <p className="text-gray-500 text-[10px] uppercase font-bold tracking-tighter">{t('migma_checkout.step3.nationality', 'Nationality')}</p>
               <p className="text-white text-sm font-medium">{personalInfo.nationality}</p>
             </div>
           )}
           {personalInfo.civilStatus && (
             <div>
-              <p className="text-gray-500 text-[10px] uppercase font-bold tracking-tighter">Estado Civil</p>
-              <p className="text-white text-sm font-medium">{CIVIL_STATUS_LABEL[personalInfo.civilStatus] || personalInfo.civilStatus}</p>
+              <p className="text-gray-500 text-[10px] uppercase font-bold tracking-tighter">{t('migma_checkout.step3.marital_status', 'Marital Status')}</p>
+              <p className="text-white text-sm font-medium">{civilStatusLabel}</p>
             </div>
           )}
           {personalInfo.address && (
             <div className="col-span-2">
-              <p className="text-gray-500 text-[10px] uppercase font-bold tracking-tighter">Endereço</p>
+              <p className="text-gray-500 text-[10px] uppercase font-bold tracking-tighter">{t('migma_checkout.step3.address', 'Address')}</p>
               <p className="text-white text-sm font-medium">
                 {personalInfo.address}{personalInfo.city ? `, ${personalInfo.city}` : ''}{personalInfo.state ? ` - ${personalInfo.state}` : ''}{personalInfo.zipCode ? `, ${personalInfo.zipCode}` : ''}
               </p>
@@ -182,7 +180,7 @@ export const Step3Summary: React.FC<Props> = ({ userData, documents, documentUrl
           )}
           {personalInfo.country && (
             <div>
-              <p className="text-gray-500 text-[10px] uppercase font-bold tracking-tighter">País</p>
+              <p className="text-gray-500 text-[10px] uppercase font-bold tracking-tighter">{t('migma_checkout.step3.country', 'Country')}</p>
               <p className="text-white text-sm font-medium">{personalInfo.country}</p>
             </div>
           )}
@@ -192,12 +190,12 @@ export const Step3Summary: React.FC<Props> = ({ userData, documents, documentUrl
       {/* ── Documentos Enviados ── */}
       <div className="bg-white/5 border border-white/10 rounded-2xl p-6 space-y-6">
         <div className="flex items-center gap-3 text-gold-medium border-b border-white/5 pb-4">
-          <h3 className="font-black uppercase tracking-widest text-xs">Documentos Enviados</h3>
+          <h3 className="font-black uppercase tracking-widest text-xs">{t('migma_checkout.step3.sent_documents', 'Uploaded Documents')}</h3>
         </div>
         <div className="grid grid-cols-3 gap-4">
-          <DocPreview file={documents.docFront} label="Frente" fallbackUrl={documentUrls?.docFront} />
-          <DocPreview file={documents.docBack} label="Verso" fallbackUrl={documentUrls?.docBack} />
-          <DocPreview file={documents.selfie} label="Selfie" fallbackUrl={documentUrls?.selfie} />
+          <DocPreview file={documents.docFront} label={t('migma_checkout.step3.doc_front', 'Front')} fallbackUrl={documentUrls?.docFront} emptyLabel={emptyDocLabel} />
+          <DocPreview file={documents.docBack} label={t('migma_checkout.step3.doc_back', 'Back')} fallbackUrl={documentUrls?.docBack} emptyLabel={emptyDocLabel} />
+          <DocPreview file={documents.selfie} label={t('migma_checkout.step3.doc_selfie', 'Selfie')} fallbackUrl={documentUrls?.selfie} emptyLabel={emptyDocLabel} />
         </div>
       </div>
 
@@ -211,7 +209,7 @@ export const Step3Summary: React.FC<Props> = ({ userData, documents, documentUrl
           <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
         </button>
         <p className="text-gray-600 text-[10px] uppercase font-bold tracking-widest">
-          Sua jornada começa agora • Migma Group
+          {t('migma_checkout.step3.footer_note', 'Your journey starts now • Migma Group')}
         </p>
       </div>
     </div>

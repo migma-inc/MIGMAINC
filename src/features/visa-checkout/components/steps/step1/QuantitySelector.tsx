@@ -85,15 +85,15 @@ export const QuantitySelector: React.FC<QuantitySelectorProps> = ({
                 <div key={i} className="space-y-2">
                     <Label className="text-white text-sm sm:text-base flex items-center">
                         {product.slug === 'rfe-defense'
-                            ? `${t('checkout.evidence', 'Evidence')} ${i + 1} ${t('checkout.description', 'description')}`
-                            : (product.calculation_type === 'units_only' ? t('checkout.applicant_name', 'Applicant Name') : t('checkout.dependent_name', 'Dependent Name'))} {i + 1}
+                            ? `${t('checkout.evidence_description_label', 'Descrição da evidência')} ${i + 1}`
+                            : `${product.calculation_type === 'units_only' ? t('checkout.applicant_name', 'Applicant Name') : t('checkout.dependent_name', 'Dependent Name')} ${i + 1}`}
                         <span className="text-red-500 ml-1 font-bold">*</span>
                     </Label>
                     <Input
                         value={name}
                         onChange={(e) => handleNameChange(i, e.target.value)}
                         className="bg-white text-black min-h-[44px]"
-                        placeholder={product.slug === 'rfe-defense' ? t('checkout.evidence_description_placeholder', 'Evidence description') : t('checkout.full_name_placeholder', 'Full name')}
+                        placeholder={product.slug === 'rfe-defense' ? t('checkout.evidence_description_placeholder', 'Description of the evidence') : t('checkout.full_name_placeholder', 'Full name')}
                     />
                 </div>
             ))}

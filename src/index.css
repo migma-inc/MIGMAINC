@@ -493,3 +493,256 @@
      color: #ffffff !important;
   }
 }
+
+html:not(.dark) .student-onboarding {
+  color-scheme: light;
+}
+
+html:not(.dark) .student-onboarding .text-white {
+  color: #1f1a14;
+}
+
+html:not(.dark) .student-onboarding .text-gray-200,
+html:not(.dark) .student-onboarding .text-gray-300 {
+  color: #4b4032;
+}
+
+html:not(.dark) .student-onboarding .text-gray-400 {
+  color: #6f6251;
+}
+
+html:not(.dark) .student-onboarding .text-gray-500,
+html:not(.dark) .student-onboarding .text-gray-600,
+html:not(.dark) .student-onboarding .text-gray-700 {
+  color: #8a7b66;
+}
+
+html:not(.dark) .student-onboarding .text-gold-light,
+html:not(.dark) .student-onboarding .text-gold-medium {
+  color: #9a6a16;
+}
+
+html:not(.dark) .student-onboarding .text-emerald-400 {
+  color: #047857;
+}
+
+html:not(.dark) .student-onboarding .text-red-400 {
+  color: #dc2626;
+}
+
+html:not(.dark) .student-onboarding .text-amber-400 {
+  color: #b45309;
+}
+
+html:not(.dark) .student-onboarding [class~="bg-[#0a0a0a]"],
+html:not(.dark) .student-onboarding [class~="bg-[#0d0d0d]"],
+html:not(.dark) .student-onboarding [class~="bg-[#0f0f0f]"],
+html:not(.dark) .student-onboarding .bg-zinc-900,
+html:not(.dark) .student-onboarding .bg-black {
+  background-color: #fffaf0;
+}
+
+html:not(.dark) .student-onboarding .bg-zinc-950 {
+  background-color: #f3ead9;
+}
+
+html:not(.dark) .student-onboarding [class~="bg-white/5"],
+html:not(.dark) .student-onboarding [class~="bg-white/10"],
+html:not(.dark) .student-onboarding [class~="bg-white/[0.01]"],
+html:not(.dark) .student-onboarding [class~="bg-white/[0.02]"],
+html:not(.dark) .student-onboarding [class~="bg-white/[0.03]"],
+html:not(.dark) .student-onboarding [class~="bg-white/[0.04]"],
+html:not(.dark) .student-onboarding [class~="bg-white/[0.06]"] {
+  background-color: rgba(243, 234, 217, 0.75);
+}
+
+html:not(.dark) .student-onboarding [class~="bg-black/60"] {
+  background-color: rgba(31, 26, 20, 0.45);
+}
+
+html:not(.dark) .student-onboarding [class~="bg-black/80"] {
+  background-color: rgba(255, 250, 240, 0.9);
+}
+
+html:not(.dark) .student-onboarding [class~="border-white/5"],
+html:not(.dark) .student-onboarding [class~="border-white/8"],
+html:not(.dark) .student-onboarding [class~="border-white/10"],
+html:not(.dark) .student-onboarding [class~="border-white/15"],
+html:not(.dark) .student-onboarding [class~="border-white/20"],
+html:not(.dark) .student-onboarding [class~="border-white/30"],
+html:not(.dark) .student-onboarding [class~="border-white/50"] {
+  border-color: #e3d5bd;
+}
+
+html:not(.dark) .student-onboarding [class~="placeholder-gray-600"]::placeholder,
+html:not(.dark) .student-onboarding [class~="placeholder-gray-500"]::placeholder,
+html:not(.dark) .student-onboarding [class~="placeholder-gray-400"]::placeholder {
+  color: #a39177;
+}
+
+html:not(.dark) .student-onboarding [class~="hover:bg-white/5"]:hover,
+html:not(.dark) .student-onboarding [class~="hover:bg-white/10"]:hover,
+html:not(.dark) .student-onboarding [class~="hover:bg-white/15"]:hover,
+html:not(.dark) .student-onboarding [class~="hover:bg-white/[0.06]"]:hover {
+  background-color: #f3ead9;
+}
+
+html:not(.dark) .student-onboarding [class~="hover:text-white"]:hover,
+html:not(.dark) .student-onboarding [class~="group-hover:text-white"]:hover {
+  color: #1f1a14;
+}
+
+html:not(.dark) .student-onboarding input,
+html:not(.dark) .student-onboarding textarea,
+html:not(.dark) .student-onboarding select {
+  color-scheme: light;
+}
+
+html:not(.dark) .student-onboarding .react-international-phone-container {
+  --react-international-phone-background-color: #fffaf0;
+  --react-international-phone-text-color: #1f1a14;
+  --react-international-phone-border-color: #e3d5bd;
+  --react-international-phone-dropdown-item-background-color: #fffaf0;
+  --react-international-phone-dropdown-item-text-color: #1f1a14;
+  --react-international-phone-dropdown-item-background-color--active: #f3ead9;
+  --react-international-phone-dropdown-item-background-color--hover: #f3ead9;
+}
+
+html:not(.dark) .student-onboarding .react-international-phone-input {
+  color: #1f1a14 !important;
+}
+
+html:not(.dark) .student-onboarding .react-international-phone-country-selector-dropdown__list-item,
+html:not(.dark) .student-onboarding .react-international-phone-country-selector-dropdown__list-item:hover,
+html:not(.dark) .student-onboarding .react-international-phone-country-selector-dropdown__list-item--active,
+html:not(.dark) .student-onboarding .react-international-phone-country-selector-dropdown__list-item--selected {
+  background-color: #fffaf0 !important;
+  color: #1f1a14 !important;
+}
+
+html:not(.dark) .migma-pre-onboarding {
+  color-scheme: light;
+}
+
+html:not(.dark) .migma-pre-onboarding .text-white {
+  color: #1f1a14;
+}
+
+html:not(.dark) .migma-pre-onboarding .text-gray-200,
+html:not(.dark) .migma-pre-onboarding .text-gray-300 {
+  color: #4b4032;
+}
+
+html:not(.dark) .migma-pre-onboarding .text-gray-400 {
+  color: #6f6251;
+}
+
+html:not(.dark) .migma-pre-onboarding .text-gray-500,
+html:not(.dark) .migma-pre-onboarding .text-gray-600,
+html:not(.dark) .migma-pre-onboarding .text-gray-700 {
+  color: #8a7b66;
+}
+
+html:not(.dark) .migma-pre-onboarding .text-gold-light,
+html:not(.dark) .migma-pre-onboarding .text-gold-medium {
+  color: #9a6a16;
+}
+
+html:not(.dark) .migma-pre-onboarding .text-emerald-400 {
+  color: #047857;
+}
+
+html:not(.dark) .migma-pre-onboarding .text-red-300,
+html:not(.dark) .migma-pre-onboarding .text-red-400 {
+  color: #dc2626;
+}
+
+html:not(.dark) .migma-pre-onboarding .text-white\/20 {
+  color: rgba(31, 26, 20, 0.32);
+}
+
+html:not(.dark) .migma-pre-onboarding [class~="bg-[#0b0b0b]"],
+html:not(.dark) .migma-pre-onboarding [class~="bg-[#0d0d0d]"],
+html:not(.dark) .migma-pre-onboarding [class~="bg-[#111]"],
+html:not(.dark) .migma-pre-onboarding [class~="bg-[#1a1a1a]"],
+html:not(.dark) .migma-pre-onboarding .bg-black {
+  background-color: #fffaf0;
+}
+
+html:not(.dark) .migma-pre-onboarding [class~="bg-black/40"],
+html:not(.dark) .migma-pre-onboarding [class~="bg-white/5"],
+html:not(.dark) .migma-pre-onboarding [class~="bg-white/10"],
+html:not(.dark) .migma-pre-onboarding [class~="bg-white/[0.02]"],
+html:not(.dark) .migma-pre-onboarding [class~="bg-white/[0.03]"],
+html:not(.dark) .migma-pre-onboarding [class~="bg-white/[0.05]"] {
+  background-color: rgba(243, 234, 217, 0.75);
+}
+
+html:not(.dark) .migma-pre-onboarding [class~="bg-black/80"],
+html:not(.dark) .migma-pre-onboarding [class~="bg-black/95"] {
+  background-color: rgba(255, 250, 240, 0.92);
+}
+
+html:not(.dark) .migma-pre-onboarding [class~="border-white/5"],
+html:not(.dark) .migma-pre-onboarding [class~="border-white/10"],
+html:not(.dark) .migma-pre-onboarding [class~="border-white/20"],
+html:not(.dark) .migma-pre-onboarding [class~="border-white/25"],
+html:not(.dark) .migma-pre-onboarding [class~="border-white/30"],
+html:not(.dark) .migma-pre-onboarding [class~="border-white/40"] {
+  border-color: #e3d5bd;
+}
+
+html:not(.dark) .migma-pre-onboarding [class~="border-b"][class~="border-white/[0.03]"],
+html:not(.dark) .migma-pre-onboarding [class~="border-b"][class~="border-white/5"],
+html:not(.dark) .migma-pre-onboarding [class~="border-t"][class~="border-white/5"],
+html:not(.dark) .migma-pre-onboarding [class~="border-t"][class~="border-white/10"] {
+  border-color: #eadbbf;
+}
+
+html:not(.dark) .migma-pre-onboarding [class~="placeholder:text-gray-500"]::placeholder,
+html:not(.dark) .migma-pre-onboarding [class~="placeholder-gray-600"]::placeholder {
+  color: #a39177;
+}
+
+html:not(.dark) .migma-pre-onboarding [class~="hover:bg-white/5"]:hover,
+html:not(.dark) .migma-pre-onboarding [class~="hover:bg-white/10"]:hover,
+html:not(.dark) .migma-pre-onboarding [class~="hover:bg-[#111]"]:hover {
+  background-color: #f3ead9;
+}
+
+html:not(.dark) .migma-pre-onboarding [class~="hover:text-white"]:hover {
+  color: #1f1a14;
+}
+
+html:not(.dark) .migma-pre-onboarding input,
+html:not(.dark) .migma-pre-onboarding textarea,
+html:not(.dark) .migma-pre-onboarding select {
+  color-scheme: light !important;
+}
+
+html:not(.dark) .migma-pre-onboarding option {
+  background-color: #fffaf0;
+  color: #1f1a14;
+}
+
+html:not(.dark) .migma-pre-onboarding .react-international-phone-container {
+  --react-international-phone-background-color: #fffaf0;
+  --react-international-phone-text-color: #1f1a14;
+  --react-international-phone-border-color: #e3d5bd;
+  --react-international-phone-dropdown-item-background-color: #fffaf0;
+  --react-international-phone-dropdown-item-text-color: #1f1a14;
+  --react-international-phone-dropdown-item-background-color--active: #f3ead9;
+  --react-international-phone-dropdown-item-background-color--hover: #f3ead9;
+}
+
+html:not(.dark) .migma-pre-onboarding .react-international-phone-input {
+  color: #1f1a14 !important;
+}
+
+html:not(.dark) .migma-pre-onboarding .react-international-phone-country-selector-dropdown__list-item,
+html:not(.dark) .migma-pre-onboarding .react-international-phone-country-selector-dropdown__list-item:hover,
+html:not(.dark) .migma-pre-onboarding .react-international-phone-country-selector-dropdown__list-item--active,
+html:not(.dark) .migma-pre-onboarding .react-international-phone-country-selector-dropdown__list-item--selected {
+  background-color: #fffaf0 !important;
+  color: #1f1a14 !important;
+}
