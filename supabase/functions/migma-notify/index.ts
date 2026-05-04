@@ -7,6 +7,12 @@ const CORS = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+const TEST_EMAIL_DOMAIN = "@uorak.com";
+
+function isUorakTestEmail(email: string | null | undefined): boolean {
+  return Boolean(email?.trim().toLowerCase().endsWith(TEST_EMAIL_DOMAIN));
+}
+
 // ─── Trigger catalogue ────────────────────────────────────────────────────────
 
 export type TriggerType =
@@ -767,6 +773,26 @@ Deno.serve(async (req) => {
       if (profile?.id) data.client_id = profile.id;
     }
 
+    let adminNotificationSourceEmail = data.client_email ?? "";
+    if (isAdminTrigger && !adminNotificationSourceEmail && data.client_id) {
+      const { data: profile } = await supabase
+        .from("user_profiles")
+        .select("email")
+        .eq("id", data.client_id)
+        .maybeSingle();
+      if (profile?.email) {
+        adminNotificationSourceEmail = profile.email;
+        data.client_email = profile.email;
+      }
+    }
+
+    const skipAdminNotificationForTestUser =
+      isAdminTrigger && isUorakTestEmail(adminNotificationSourceEmail);
+
+    if (skipAdminNotificationForTestUser) {
+      console.log(`[migma-notify] Skipping admin notification for test user: ${adminNotificationSourceEmail}`);
+    }
+
     // ── Build template ───────────────────────────────────────────────────────
     const template = buildTemplate(trigger, recipientName, data, appBaseUrl);
 
@@ -774,6 +800,8 @@ Deno.serve(async (req) => {
     let emailResult: { success: boolean; error?: string } = { success: false };
     if (!sendEmailChannel) {
       emailResult = { success: true, error: "skipped_by_channel" };
+    } else if (skipAdminNotificationForTestUser) {
+      emailResult = { success: true, error: "skipped_test_user_admin_notification" };
     } else if (recipientEmail) {
       try {
         const emailRes = await fetch(`${supabaseUrl}/functions/v1/send-email`, {
@@ -813,6 +841,8 @@ Deno.serve(async (req) => {
     let whatsappResult: { sent: boolean; reason?: string; provider?: string } = { sent: false, reason: "no_phone" };
     if (!sendWhatsappChannel) {
       whatsappResult = { sent: true, reason: "skipped_by_channel" };
+    } else if (skipAdminNotificationForTestUser) {
+      whatsappResult = { sent: true, reason: "skipped_test_user_admin_notification" };
     } else if (recipientPhone) {
       whatsappResult = await sendWhatsApp({
         trigger,

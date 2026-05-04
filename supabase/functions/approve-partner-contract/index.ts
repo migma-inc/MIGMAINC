@@ -6,17 +6,27 @@ import { createClient } from "jsr:@supabase/supabase-js@2";
 
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
 const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const TEST_EMAIL_DOMAIN = "@uorak.com";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+function isUorakTestEmail(email: string | null | undefined): boolean {
+  return Boolean(email?.trim().toLowerCase().endsWith(TEST_EMAIL_DOMAIN));
+}
+
 async function sendPartnerAdminNotification(acceptance: any, application: any, supabase: any) {
   const adminEmail = "adm@migmainc.com";
   console.log(`[Admin Notification] Preparing admin notification for partner acceptance ${acceptance.id}`);
 
   try {
+    if (isUorakTestEmail(application.email)) {
+      console.log(`[Admin Notification] Skipping admin email for test partner: ${application.email}`);
+      return;
+    }
+
     if (!acceptance.contract_pdf_path) {
       console.log("[Admin Notification] No PDF found to attach. Skipping admin email.");
       return;
