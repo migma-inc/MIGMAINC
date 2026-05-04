@@ -872,7 +872,7 @@ export function SellerLinks() {
                     <div className="grid gap-3 sm:grid-cols-2">
                       {/* Number of Dependents */}
                       <div className="space-y-1.5">
-                        <Label htmlFor="prefill-extra-units" className="text-white text-sm">Number of Dependents</Label>
+                        <Label htmlFor="prefill-extra-units" className="text-white text-sm">{prefillFormData.productSlug === 'rfe-defense' ? 'Número de evidências' : 'Number of Dependents'}</Label>
                         <div className="relative">
                           <Select
                             value={prefillFormData.extraUnits.toString()}
@@ -961,7 +961,7 @@ export function SellerLinks() {
                         {Array.from({ length: prefillFormData.extraUnits }, (_, i) => (
                           <div key={i} className="space-y-1.5">
                             <Label htmlFor={`prefill-dependent-name-${i}`} className="text-white text-sm">
-                              Dependent Name {i + 1}
+                              {prefillFormData.productSlug === 'rfe-defense' ? `Descrição da evidência ${i + 1}` : `Dependent Name ${i + 1}`}
                             </Label>
                             <Input
                               id={`prefill-dependent-name-${i}`}
