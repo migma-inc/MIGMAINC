@@ -44,7 +44,7 @@ export const PaymentMethodSelector: React.FC<PaymentMethodSelectorProps> = ({
                     <SelectItem value="parcelow_card" className="cursor-pointer hover:bg-gray-100 focus:bg-gray-100 focus:text-black">
                         <div className="flex items-center gap-2">
                             <CreditCard className="w-4 h-4 text-blue-600" />
-                            <span>{t('checkout.parcelow_card', 'Parcelow – Cartão Brasileiro')}</span>
+                            <span>{t('checkout.parcelow_card', 'Parcelow – Cartão')}</span>
                         </div>
                     </SelectItem>
                     <SelectItem value="parcelow_pix" className="cursor-pointer hover:bg-gray-100 focus:bg-gray-100 focus:text-black">

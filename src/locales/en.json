@@ -184,6 +184,7 @@
         "back_simple": "Back",
         "select_payment_method": "Select Payment Method",
         "select_payment_method_placeholder": "Select a payment method",
+        "parcelow_card_us_notice": "Parcelow accepts US credit cards! When you reach Parcelow's checkout, select the single payment option. Choosing installments will cause your payment to be declined.",
         "parcelow_description": "Parcelow (Card, PIX, TED)",
         "order_reference": "Order Reference",
         "total_price": "Total Price",

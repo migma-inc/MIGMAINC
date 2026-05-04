@@ -171,6 +171,7 @@
         "back_simple": "Retour",
         "select_payment_method": "Sélectionnez le Mode de Paiement",
         "select_payment_method_placeholder": "Sélectionnez un mode de paiement",
+        "parcelow_card_us_notice": "Parcelow accepte les cartes américaines ! Lorsque vous arrivez au checkout de Parcelow, sélectionnez le paiement en une seule fois. Choisir des versements entraînera un refus du paiement.",
         "parcelow_description": "Parcelow (Carte, PIX, TED)",
         "order_reference": "Référence de Commande",
         "total_price": "Prix Total",
