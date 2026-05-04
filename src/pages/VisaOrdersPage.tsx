@@ -105,6 +105,10 @@ const getSplitPaymentPartsPaid = (order: VisaOrder) => {
 };
 
 const getSplitPaymentProgressData = (order: VisaOrder) => {
+  // Defensive: only show split payment progress if the method is parcelow
+  // This prevents non-split orders (like Zelle) from showing "0/2" if flagged incorrectly
+  if (order.payment_method !== 'parcelow') return null;
+
   const splitPayment = order.split_payment;
   if (!order.is_split_payment || !splitPayment) return null;
 
