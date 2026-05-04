@@ -269,10 +269,19 @@ Deno.serve(async (req) => {
         pdf.setTextColor(255, 255, 255);
         pdf.setFontSize(10);
 
+        const isRFE = order.product_slug === 'rfe-defense';
+        const qtyHeader = isRFE ? 'Evidence' : 'Qty';
+        const unitPriceHeader = isRFE ? 'Price per Evidence' : 'Unit Price';
+
+        // Column centers for alignment
+        const colQtyX = pageWidth - margin - 110;
+        const colPriceX = pageWidth - margin - 60;
+        const colTotalX = pageWidth - margin - 15;
+
         pdf.text('Description', margin + 5, currentY + 7);
-        pdf.text('Qty', pageWidth - margin - 80, currentY + 7, { align: 'right' });
-        pdf.text('Unit Price', pageWidth - margin - 40, currentY + 7, { align: 'right' });
-        pdf.text('Total', pageWidth - margin - 5, currentY + 7, { align: 'right' });
+        pdf.text(qtyHeader, colQtyX, currentY + 7, { align: 'center' });
+        pdf.text(unitPriceHeader, colPriceX, currentY + 7, { align: 'center' });
+        pdf.text('Total', colTotalX, currentY + 7, { align: 'center' });
 
         currentY += 10;
         pdf.setTextColor(0, 0, 0);
@@ -281,33 +290,61 @@ Deno.serve(async (req) => {
         // All Invoices are in USD ($) and do not include installment/gateway fees
         const currencySymbol = '$';
 
+        // Helper to safely truncate long product names
+        const truncateText = (text: string, maxLength: number) => {
+            return text.length > maxLength ? text.substring(0, maxLength - 3) + '...' : text;
+        };
+
         // Item 1: Main Product
         const basePrice = parseFloat(order.base_price_usd || '0');
-        pdf.text(product?.name || order.product_slug, margin + 5, currentY + 7);
-        pdf.text('1', pageWidth - margin - 80, currentY + 7, { align: 'right' });
-        pdf.text(`${currencySymbol}${basePrice.toFixed(2)}`, pageWidth - margin - 40, currentY + 7, { align: 'right' });
-        pdf.text(`${currencySymbol}${basePrice.toFixed(2)}`, pageWidth - margin - 5, currentY + 7, { align: 'right' });
-
-        currentY += 10;
-        pdf.setDrawColor(240, 240, 240);
-        pdf.line(margin, currentY, pageWidth - margin, currentY);
-
-        // Item 2: Extra Units / Dependents
+        
+        // Calculate Extras to check if they need to be merged or shown
         const dbExtraUnits = order.extra_units || 0;
         const dependentNamesCount = Array.isArray(order.dependent_names) ? order.dependent_names.length : 0;
         const displayExtraUnits = dbExtraUnits > 0 ? dbExtraUnits : dependentNamesCount;
         const displayExtraPrice = parseFloat(order.extra_unit_price_usd || order.price_per_dependent_usd || product?.price_per_dependent_usd || '0');
-
         const extraTotal = displayExtraUnits * displayExtraPrice;
 
-        if (displayExtraUnits > 0 && extraTotal > 0) {
-            const label = order.extra_unit_label || product?.extra_unit_label || 'Additional Dependent';
-            pdf.text(label, margin + 5, currentY + 7);
-            pdf.text(displayExtraUnits.toString(), pageWidth - margin - 80, currentY + 7, { align: 'right' });
-            pdf.text(`${currencySymbol}${displayExtraPrice.toFixed(2)}`, pageWidth - margin - 40, currentY + 7, { align: 'right' });
-            pdf.text(`${currencySymbol}${extraTotal.toFixed(2)}`, pageWidth - margin - 5, currentY + 7, { align: 'right' });
+        if (isRFE) {
+            // For RFE, merge everything into one line for a cleaner invoice
+            const totalPrice = basePrice + extraTotal;
+            const rfeDescription = product?.name || 'RFE Defense (when immigration requests additional evidence)';
+            
+            const evidenceCount = displayExtraUnits > 0 ? displayExtraUnits : 1;
+            const pricePerEvidence = displayExtraPrice > 0 ? displayExtraPrice : totalPrice / evidenceCount;
+            
+            // Truncate to 38 chars to safely fit before colQtyX (465 points)
+            pdf.text(truncateText(rfeDescription, 38), margin + 5, currentY + 7);
+            
+            pdf.text(evidenceCount.toString(), colQtyX, currentY + 7, { align: 'center' });
+            pdf.text(`${currencySymbol}${pricePerEvidence.toFixed(2)}`, colPriceX, currentY + 7, { align: 'center' });
+            pdf.text(`${currencySymbol}${totalPrice.toFixed(2)}`, colTotalX, currentY + 7, { align: 'center' });
+            
             currentY += 10;
+            pdf.setDrawColor(240, 240, 240);
             pdf.line(margin, currentY, pageWidth - margin, currentY);
+        } else {
+            // Regular logic for other products
+            const productName = truncateText(product?.name || order.product_slug, 38);
+            pdf.text(productName, margin + 5, currentY + 7);
+            pdf.text('1', colQtyX, currentY + 7, { align: 'center' });
+            pdf.text(`${currencySymbol}${basePrice.toFixed(2)}`, colPriceX, currentY + 7, { align: 'center' });
+            pdf.text(`${currencySymbol}${basePrice.toFixed(2)}`, colTotalX, currentY + 7, { align: 'center' });
+
+            currentY += 10;
+            pdf.setDrawColor(240, 240, 240);
+            pdf.line(margin, currentY, pageWidth - margin, currentY);
+
+            // Item 2: Extra Units / Dependents (Omitted for RFE as they are merged above)
+            if (displayExtraUnits > 0 && extraTotal > 0) {
+                const label = order.extra_unit_label || product?.extra_unit_label || 'Additional Dependent';
+                pdf.text(truncateText(label, 38), margin + 5, currentY + 7);
+                pdf.text(displayExtraUnits.toString(), colQtyX, currentY + 7, { align: 'center' });
+                pdf.text(`${currencySymbol}${displayExtraPrice.toFixed(2)}`, colPriceX, currentY + 7, { align: 'center' });
+                pdf.text(`${currencySymbol}${extraTotal.toFixed(2)}`, colTotalX, currentY + 7, { align: 'center' });
+                currentY += 10;
+                pdf.line(margin, currentY, pageWidth - margin, currentY);
+            }
         }
 
         // Item 3: Coupon Discount
@@ -315,10 +352,10 @@ Deno.serve(async (req) => {
         if (discountAmount > 0) {
             pdf.setTextColor(200, 0, 0); // Red for discount
             const couponLabel = `Discount (${order.coupon_code || 'Promo'})`;
-            pdf.text(couponLabel, margin + 5, currentY + 7);
-            pdf.text('1', pageWidth - margin - 80, currentY + 7, { align: 'right' });
-            pdf.text(`-${currencySymbol}${discountAmount.toFixed(2)}`, pageWidth - margin - 40, currentY + 7, { align: 'right' });
-            pdf.text(`-${currencySymbol}${discountAmount.toFixed(2)}`, pageWidth - margin - 5, currentY + 7, { align: 'right' });
+            pdf.text(truncateText(couponLabel, 38), margin + 5, currentY + 7);
+            pdf.text('1', colQtyX, currentY + 7, { align: 'center' });
+            pdf.text(`-${currencySymbol}${discountAmount.toFixed(2)}`, colPriceX, currentY + 7, { align: 'center' });
+            pdf.text(`-${currencySymbol}${discountAmount.toFixed(2)}`, colTotalX, currentY + 7, { align: 'center' });
             pdf.setTextColor(0, 0, 0);
             currentY += 10;
             pdf.line(margin, currentY, pageWidth - margin, currentY);
@@ -336,17 +373,17 @@ Deno.serve(async (req) => {
                 .single();
 
             const upsellName = upsellProduct?.name || order.upsell_product_slug;
-            const shortName = upsellName.length > 35 ? upsellName.substring(0, 32) + '...' : upsellName;
-
-            pdf.text(`BUNDLE: ${shortName}`, margin + 5, currentY + 7);
-            pdf.text('1', pageWidth - margin - 80, currentY + 7, { align: 'right' });
-            pdf.text(`${currencySymbol}${upsellPrice.toFixed(2)}`, pageWidth - margin - 40, currentY + 7, { align: 'right' });
-            pdf.text(`${currencySymbol}${upsellPrice.toFixed(2)}`, pageWidth - margin - 5, currentY + 7, { align: 'right' });
+            
+            pdf.text(`BUNDLE: ${truncateText(upsellName, 30)}`, margin + 5, currentY + 7);
+            pdf.text('1', colQtyX, currentY + 7, { align: 'center' });
+            pdf.text(`${currencySymbol}${upsellPrice.toFixed(2)}`, colPriceX, currentY + 7, { align: 'center' });
+            pdf.text(`${currencySymbol}${upsellPrice.toFixed(2)}`, colTotalX, currentY + 7, { align: 'center' });
             currentY += 10;
             pdf.line(margin, currentY, pageWidth - margin, currentY);
         }
 
         currentY += 10;
+
 
         // ============================================
         // 5. Totals
@@ -356,26 +393,26 @@ Deno.serve(async (req) => {
         let totalAmount = subtotal - discountAmount;
 
         pdf.setFont('helvetica', 'normal');
-        pdf.text('Subtotal', pageWidth - margin - 40, currentY, { align: 'right' });
+        pdf.text('Subtotal', colPriceX, currentY, { align: 'center' });
         pdf.setFont('helvetica', 'bold');
-        pdf.text(`${currencySymbol}${subtotal.toFixed(2)}`, pageWidth - margin - 5, currentY, { align: 'right' });
+        pdf.text(`${currencySymbol}${subtotal.toFixed(2)}`, colTotalX, currentY, { align: 'center' });
 
         if (discountAmount > 0) {
             currentY += 8;
             pdf.setFont('helvetica', 'normal');
             pdf.setTextColor(200, 0, 0);
-            pdf.text(`Discount (${order.coupon_code || 'Promo'})`, pageWidth - margin - 40, currentY, { align: 'right' });
+            pdf.text(`Discount (${order.coupon_code || 'Promo'})`, colPriceX, currentY, { align: 'center' });
             pdf.setFont('helvetica', 'bold');
-            pdf.text(`-${currencySymbol}${discountAmount.toFixed(2)}`, pageWidth - margin - 5, currentY, { align: 'right' });
+            pdf.text(`-${currencySymbol}${discountAmount.toFixed(2)}`, colTotalX, currentY, { align: 'center' });
             pdf.setTextColor(0, 0, 0);
         }
 
         currentY += 10;
         pdf.setFillColor(248, 248, 248);
-        pdf.rect(pageWidth - margin - 90, currentY - 5, 90, 12, 'F');
+        pdf.rect(colPriceX - 40, currentY - 5, (colTotalX - colPriceX) + 60, 12, 'F'); // Adjusted rect to fit the centered text
         pdf.setFontSize(12);
-        pdf.text('Total Due', pageWidth - margin - 40, currentY + 3, { align: 'right' });
-        pdf.text(`${currencySymbol}${totalAmount.toFixed(2)}`, pageWidth - margin - 5, currentY + 3, { align: 'right' });
+        pdf.text('Total Due', colPriceX, currentY + 3, { align: 'center' });
+        pdf.text(`${currencySymbol}${totalAmount.toFixed(2)}`, colTotalX, currentY + 3, { align: 'center' });
 
         currentY += 30;
 
