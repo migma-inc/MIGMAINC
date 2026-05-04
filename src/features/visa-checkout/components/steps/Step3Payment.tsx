@@ -107,7 +107,7 @@ export const Step3Payment: React.FC<Step3Props> = ({ state, actions, handlers, o
                 <PaymentMethodSelector
                     paymentMethod={paymentMethod}
                     onMethodChange={setPaymentMethod}
-                    showStripe={!state.isBrazil}
+                    showStripe={false}
                     showSquare={showSquare}
                 />
 
