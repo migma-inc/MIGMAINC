@@ -163,6 +163,77 @@ async function processSuccessfulSession(session: Stripe.Checkout.Session, supaba
     } catch (e) { }
   }
 
+  // 3.1 Scholarship & EB-3 Recurrence Activation
+  try {
+    const { data: clientData } = await supabase
+      .from('clients')
+      .select('id')
+      .eq('email', mainOrder.client_email)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    const clientId = clientData?.id;
+
+    // Scholarship Activation
+    if (mainOrder.product_slug === 'scholarship-maintenance-fee' && clientId) {
+      const { data: existingRecurrence } = await supabase
+        .from('scholarship_recurrence_control')
+        .select('id')
+        .eq('client_id', clientId)
+        .maybeSingle();
+
+      if (!existingRecurrence) {
+        console.log('[Stripe Webhook] 🎯 Activating Scholarship recurrence...');
+        await supabase.rpc('activate_scholarship_recurrence', {
+          p_client_id: clientId,
+          p_activation_order_id: mainOrder.id,
+          p_seller_id: mainOrder.seller_id || null,
+          p_seller_commission_percent: mainOrder.seller_commission_percent || null
+        });
+      }
+    }
+
+    // Scholarship Installment Marking
+    if (mainOrder.payment_metadata?.scholarship_schedule_id) {
+      console.log('[Stripe Webhook] 💳 Marking scholarship installment as paid:', mainOrder.payment_metadata.scholarship_schedule_id);
+      await supabase.rpc('mark_scholarship_installment_paid', {
+        p_schedule_id: mainOrder.payment_metadata.scholarship_schedule_id,
+        p_payment_id: mainOrder.id
+      });
+    }
+
+    // EB-3 Activation
+    if (mainOrder.product_slug === 'eb3-installment-catalog' && clientId) {
+      const { data: existingEb3 } = await supabase
+        .from('eb3_recurrence_control')
+        .select('id')
+        .eq('client_id', clientId)
+        .maybeSingle();
+
+      if (!existingEb3) {
+        console.log('[Stripe Webhook] 🎯 Activating EB-3 recurrence...');
+        await supabase.rpc('activate_eb3_recurrence', {
+          p_client_id: clientId,
+          p_activation_order_id: mainOrder.id,
+          p_seller_id: mainOrder.seller_id || null,
+          p_seller_commission_percent: mainOrder.seller_commission_percent || null
+        });
+      }
+    }
+
+    // EB-3 Installment Marking
+    if (mainOrder.payment_metadata?.eb3_schedule_id) {
+      console.log('[Stripe Webhook] 💳 Marking EB-3 installment as paid:', mainOrder.payment_metadata.eb3_schedule_id);
+      await supabase.rpc('mark_eb3_installment_paid', {
+        p_schedule_id: mainOrder.payment_metadata.eb3_schedule_id,
+        p_payment_id: mainOrder.id
+      });
+    }
+  } catch (err) {
+    console.error('[Stripe Webhook] ❌ Error processing recurrence:', err);
+  }
+
   // 4. 🔍 Test User Detection
   const isTestUser = mainOrder.client_email?.toLowerCase() === 'victuribdev@gmail.com' ||
     mainOrder.client_email?.toLowerCase() === 'victtinho.ribeiro@gmail.com' ||

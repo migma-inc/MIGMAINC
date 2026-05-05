@@ -124,7 +124,7 @@ export const Step1PersonalInfo: React.FC<Step1Props> = ({ product, state, action
 
         // Se for consulta comum ou parcelas recorrentes, pular Step 2 (Documentos)
         const isInstallment = !!state.eb3ScheduleId || !!state.eb2ScheduleId || !!state.scholarshipScheduleId || !!state.billingInstallmentId;
-        if (productSlug === 'consultation-common' || isInstallment) {
+        if (productSlug === 'consultation-common' || productSlug === 'scholarship-maintenance-fee' || isInstallment) {
             setCurrentStep(3);
         } else {
             setCurrentStep(2);
@@ -159,7 +159,7 @@ export const Step1PersonalInfo: React.FC<Step1Props> = ({ product, state, action
                     onClientNameChange={setClientName}
                     onClientEmailChange={setClientEmail}
                     onDateOfBirthChange={setDateOfBirth}
-                    isSimplified={productSlug === 'consultation-common'}
+                    isSimplified={productSlug === 'consultation-common' || productSlug === 'scholarship-maintenance-fee'}
                 />
 
                 <hr className="border-gold-medium/20" />
@@ -186,7 +186,7 @@ export const Step1PersonalInfo: React.FC<Step1Props> = ({ product, state, action
                     onNationalityChange={setClientNationality}
                     onClientWhatsAppChange={setClientWhatsApp}
                     onMaritalStatusChange={setMaritalStatus}
-                    isSimplified={productSlug === 'consultation-common'}
+                    isSimplified={productSlug === 'consultation-common' || productSlug === 'scholarship-maintenance-fee'}
                 />
 
                 <div className="space-y-2">
