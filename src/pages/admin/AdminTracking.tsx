@@ -112,6 +112,7 @@ const JOURNEY_CONFIG: Record<string, {
       { pattern: 'eb3-vinicius', label: 'EB3 Step 1' },
       { pattern: 'eb3-vinicius-parte-2', label: 'EB3 Step 2' },
       { pattern: 'eb2-niw-initial-payment', label: 'EB2 Initial' },
+      { pattern: 'eb2-installment-initial-payment', label: 'EB2 Installment Initial' },
       { pattern: 'b1-revolution', label: 'B1 Revolution' },
       { pattern: 'b1-premium', label: 'B1 Premium' },
     ],

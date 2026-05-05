@@ -65,8 +65,8 @@ interface PrefillValidationResult {
 // Lista de países ordenada alfabeticamente com "Other" por último
 const countries = getSortedCountries();
 
-const PRODUCTS_CACHE_KEY = 'seller_products_cache_v7';
-const PRODUCTS_CACHE_TIMESTAMP_KEY = 'seller_products_cache_timestamp_v7';
+const PRODUCTS_CACHE_KEY = 'seller_products_cache_v8';
+const PRODUCTS_CACHE_TIMESTAMP_KEY = 'seller_products_cache_timestamp_v8';
 const PRODUCTS_CACHE_DURATION = 10 * 60 * 1000; // 10 minutos (produtos mudam menos frequentemente)
 
 function getCachedProducts(): VisaProduct[] | null {
@@ -121,7 +121,7 @@ export function SellerLinks() {
   const [productsWithContracts, setProductsWithContracts] = useState<Set<string>>(new Set());
   const [copiedLink, setCopiedLink] = useState<string | null>(null);
   const [loading, setLoading] = useState(!hasCachedProducts);
-  const hasLoadedRef = useRef(hasCachedProducts);
+  const hasLoadedRef = useRef(false);
   const copyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [targetSeller, setTargetSeller] = useState<SellerInfo | null>(null);
@@ -488,27 +488,10 @@ export function SellerLinks() {
   }, [seller]);
 
   useEffect(() => {
-    // Se já temos produtos no estado e já carregou, não precisa fazer nada
-    if (products.length > 0 && hasLoadedRef.current) {
-      return;
-    }
-
-    // Se temos cache mas não temos produtos no estado, restaura do cache
+    // Se temos cache mas não temos produtos no estado, restaura do cache enquanto atualiza do remoto.
     if (hasCachedProducts && products.length === 0) {
       setProducts(cachedProducts);
-      hasLoadedRef.current = true;
       setLoading(false);
-      return;
-    }
-
-    // Se já carregou mas não tem produtos, pode ser que precisa recarregar
-    if (hasLoadedRef.current && products.length === 0) {
-      hasLoadedRef.current = false;
-    }
-
-    // Se já está marcado como carregado, não precisa recarregar
-    if (hasLoadedRef.current) {
-      return;
     }
 
     let isMounted = true;
@@ -1584,18 +1567,21 @@ export function SellerLinks() {
 
                     // Specific sorting logic for EB-2
                     // Goal (EB-2):
-                    // 1) Full Process Payment
-                    // 2) Initial Payment (1 step)
-                    // 3) I-140 (2 step)
-                    // 4) I-485 (3 step) / Consular
-                    // 5) Monthly Installment (Annex) / Installment plan entry
+                    // 1) Step Plan - Initial Payment
+                    // 2) Step Plan - I-140
+                    // 3) Step Plan - I-485 / Consular
+                    // 4) Installment Plan - Initial Payment
+                    // 5) Installment Plan - Monthly Installment
+                    // 6) Full Process Payment
                     if (groupKey === 'eb2') {
                       const score = (p: VisaProduct) => {
                         if (p.slug === 'eb2-niw-initial-payment') return 0;
                         if (p.slug === 'eb2-i140-step') return 1;
                         if (p.slug === 'eb2-i485-step') return 2;
-                        if (p.slug === 'eb2-annex-installment') return 3;
-                        if (p.slug === 'eb2-visa') return 4;
+                        if (p.slug === 'eb2-installment-initial-payment') return 3;
+                        if (p.slug.includes('installment') && p.slug.includes('initial')) return 3;
+                        if (p.slug === 'eb2-annex-installment' || p.slug.includes('monthly-installment')) return 4;
+                        if (p.slug === 'eb2-visa') return 5;
 
                         return 999;
                       };
@@ -1634,9 +1620,85 @@ export function SellerLinks() {
                   };
 
                   const paymentLabels = ['Selection Process', 'Scholarship', 'I-20 Control'];
+                  const getEb2PlanType = (product: VisaProduct): 'step' | 'installment' | 'full' | 'other' => {
+                    const text = `${product.slug} ${product.name}`.toLowerCase();
+
+                    if (
+                      product.slug === 'eb2-visa' ||
+                      text.includes('full process payment') ||
+                      text.includes('full process') ||
+                      text.includes('total-process')
+                    ) {
+                      return 'full';
+                    }
+
+                    if (text.includes('installment') || text.includes('annex')) {
+                      return 'installment';
+                    }
+
+                    if (
+                      product.slug === 'eb2-niw-initial-payment' ||
+                      text.includes('initial payment') ||
+                      text.includes('i-140') ||
+                      text.includes('i140') ||
+                      text.includes('i-485') ||
+                      text.includes('i485') ||
+                      text.includes('consular')
+                    ) {
+                      return 'step';
+                    }
+
+                    return 'other';
+                  };
+
+                  const getEb2DisplayProductName = (product: VisaProduct) => {
+                    const text = `${product.slug} ${product.name}`.toLowerCase();
+                    const planType = getEb2PlanType(product);
+
+                    if (planType === 'full') return 'EB-2 - Full Process Payment';
+
+                    if (planType === 'installment') {
+                      if (text.includes('monthly') || text.includes('annex')) {
+                        return 'EB-2 Installment Plan - Monthly Installment';
+                      }
+
+                      return 'EB-2 Installment Plan - Initial Payment';
+                    }
+
+                    if (text.includes('i-140') || text.includes('i140')) return 'EB-2 Step Plan - I-140';
+                    if (text.includes('i-485') || text.includes('i485') || text.includes('consular')) return 'EB-2 Step Plan - I-485';
+
+                    return 'EB-2 Step Plan - Initial Payment';
+                  };
+
+                  type Eb2PlanType = 'step' | 'installment' | 'full' | 'other';
+                  type Eb2DisplayItem = {
+                    product: VisaProduct;
+                    renderKey: string;
+                    planType?: Eb2PlanType;
+                    label?: string;
+                  };
+
+                  const getEb2SectionLabel = (currentType: Eb2PlanType, previousType: Eb2PlanType | null) => {
+                    if (currentType === previousType) return null;
+                    if (currentType === 'step') return 'Step Plan';
+                    if (currentType === 'installment') return 'Installment Plan';
+                    if (currentType === 'full') return 'Full Process Payment';
+
+                    return null;
+                  };
+
+                  const getEb2DisplayItems = (items: VisaProduct[]): Eb2DisplayItem[] => {
+                    return items.map((product) => ({
+                        product,
+                        renderKey: product.slug,
+                        planType: getEb2PlanType(product),
+                    }));
+                  };
+
                   const getDisplayProductName = (product: VisaProduct, groupKey: string) => {
                     if (groupKey === 'eb2') {
-                      return product.name.replace(/\s*\([^()]*\)\s*$/u, '').trim();
+                      return getEb2DisplayProductName(product);
                     }
 
                     return product.name;
@@ -1678,7 +1740,9 @@ export function SellerLinks() {
                               <div className="text-left">
                                 <h3 className="text-lg font-bold text-gold-light">{group.name}</h3>
                                 <p className="text-xs text-gray-400 mt-1">
-                                  {`${stepDenominator} Step Payments or Full Process Payment`}
+                                  {key === 'eb2'
+                                    ? 'Step Plan, Installment Plan or Full Process Payment'
+                                    : `${stepDenominator} Step Payments or Full Process Payment`}
                                 </p>
                               </div>
                             </div>
@@ -1687,16 +1751,22 @@ export function SellerLinks() {
                           {/* Dropdown Content */}
                           {isExpanded && (
                             <div className="border-t border-gold-medium/20 bg-black/30 p-4 space-y-3">
-                              {sortedProducts.map((product, index) => {
+                              {(key === 'eb2'
+                                ? getEb2DisplayItems(sortedProducts)
+                                : sortedProducts.map((product): Eb2DisplayItem => ({ product, renderKey: product.slug }))
+                              ).map((item, index, renderedProducts) => {
+                                const product = item.product;
                                 const isCopied = copiedLink === productGeneratedLinks[product.slug];
                                 const isTotalProcess = isFullProcessPayment(product);
                                 const paymentNumber = isTotalProcess
                                   ? 0
                                   : sortedProducts.slice(0, index + 1).filter((p) => !isFullProcessPayment(p)).length;
                                 // Use mapped label for Initial/COS/Transfer, but actual names for EB-3 and others
-                                const paymentLabel = (key === 'eb2' || key === 'eb3' || key === 'other' || isTotalProcess)
-                                  ? getDisplayProductName(product, key)
-                                  : (paymentLabels[index] || `Payment ${paymentNumber}`);
+                                const paymentLabel = key === 'eb2'
+                                  ? (item.label || getDisplayProductName(product, key))
+                                  : (key === 'eb3' || key === 'other' || isTotalProcess)
+                                    ? getDisplayProductName(product, key)
+                                    : (paymentLabels[index] || `Payment ${paymentNumber}`);
                                 const basePrice = parseFloat(product.base_price_usd || '0');
                                 const extraPrice = parseFloat(product.extra_unit_price || '0');
                                 const hasExtraUnits = product.allow_extra_units && extraPrice > 0;
@@ -1704,31 +1774,38 @@ export function SellerLinks() {
                                 // EB-3: sub-group denominators and section headers
                                 let displayPaymentNumber = paymentNumber;
                                 let displayDenominator = stepDenominator;
-                                let eb3SectionLabel: string | null = null;
+                                let sectionLabel: string | null = null;
+                                if (key === 'eb2') {
+                                  const prevItem = index > 0 ? renderedProducts[index - 1] : null;
+                                  const currentType = (item.planType || getEb2PlanType(product));
+                                  const previousType = prevItem ? (prevItem.planType || getEb2PlanType(prevItem.product)) : null;
+                                  sectionLabel = getEb2SectionLabel(currentType, previousType);
+                                }
+
                                 if (key === 'eb3') {
                                   if (!isTotalProcess && product.slug.includes('step-')) {
                                     const stepProducts = sortedProducts.filter(p => p.slug.includes('step-') && !isFullProcessPayment(p));
                                     displayDenominator = stepProducts.length;
                                     displayPaymentNumber = stepProducts.findIndex(p => p.slug === product.slug) + 1;
-                                    if (displayPaymentNumber === 1) eb3SectionLabel = 'Step Plan';
+                                    if (displayPaymentNumber === 1) sectionLabel = 'Step Plan';
                                   } else if (!isTotalProcess && product.slug.includes('installment-')) {
                                     const installmentProducts = sortedProducts.filter(p => p.slug.includes('installment-') && !isFullProcessPayment(p));
                                     displayDenominator = installmentProducts.length;
                                     displayPaymentNumber = installmentProducts.findIndex(p => p.slug === product.slug) + 1;
-                                    if (displayPaymentNumber === 1) eb3SectionLabel = 'Installment Plan';
+                                    if (displayPaymentNumber === 1) sectionLabel = 'Installment Plan';
                                   } else if (isTotalProcess) {
                                     const prevProduct = index > 0 ? sortedProducts[index - 1] : null;
-                                    if (!prevProduct || !isFullProcessPayment(prevProduct)) eb3SectionLabel = 'Full Process Payment';
+                                    if (!prevProduct || !isFullProcessPayment(prevProduct)) sectionLabel = 'Full Process Payment';
                                   }
                                 }
 
 
                                 return (
-                                  <React.Fragment key={product.slug}>
-                                    {eb3SectionLabel && (
+                                  <React.Fragment key={item.renderKey}>
+                                    {sectionLabel && (
                                       <div className="flex items-center gap-2 pb-1 pt-3 first:pt-0">
                                         <div className="h-px flex-1 bg-gold-medium/20" />
-                                        <span className="text-[10px] font-bold text-gold-medium uppercase tracking-widest px-2">{eb3SectionLabel}</span>
+                                        <span className="text-[10px] font-bold text-gold-medium uppercase tracking-widest px-2">{sectionLabel}</span>
                                         <div className="h-px flex-1 bg-gold-medium/20" />
                                       </div>
                                     )}
@@ -1739,7 +1816,7 @@ export function SellerLinks() {
                                       <div className="flex-1 space-y-2 w-full">
                                         {/* Payment Label with Number */}
                                         <div className="flex items-center gap-2">
-                                          {!isTotalProcess && (
+                                          {!isTotalProcess && key !== 'eb2' && (
                                             <span className="text-xs font-semibold text-gold-light bg-gold-medium/20 px-2 py-1 rounded">
                                               {displayPaymentNumber}/{displayDenominator}
                                             </span>
