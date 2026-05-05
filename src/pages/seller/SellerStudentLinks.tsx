@@ -22,7 +22,7 @@ interface SellerInfo {
 const STUDENT_SERVICES = [
   { key: 'transfer', label: 'Transfer', description: 'F-1 visa transfer process', available: true },
   { key: 'cos', label: 'Change of Status (COS)', description: 'Change of status to F-1', available: true },
-  { key: 'initial', label: 'Initial Application', description: 'First-time F-1 visa application', available: false },
+  { key: 'initial', label: 'Initial Application', description: 'First-time F-1 visa application', available: true },
   { key: 'eb2', label: 'EB-2', description: 'EB-2 employment-based visa', available: false },
   { key: 'eb3', label: 'EB-3', description: 'EB-3 employment-based visa', available: false },
   { key: 'turista', label: 'Turista (B1/B2)', description: 'Tourist / Business visitor visa', available: false },

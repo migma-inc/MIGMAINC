@@ -74,6 +74,7 @@ const MigmaCheckout: React.FC = () => {
   const [processing, setProcessing] = useState(false);
   const [progress, setProgress] = useState(0);
   const [processMessage, setProcessMessage] = useState('');
+  const [paymentVerificationFailed, setPaymentVerificationFailed] = useState(false);
   const stripeHandledRef = useRef(false);
   // Ref para capturar order_id de createStudent de forma síncrona (evita race condition com setState)
   const orderIdRef = useRef<string | null>(null);
@@ -174,6 +175,7 @@ const MigmaCheckout: React.FC = () => {
   }, [state.currentStep, state.totalPrice, regionLoading]);
 
   const handleVerifyAndAdvance = async () => {
+    setPaymentVerificationFailed(false);
     setPaymentLoading(true);
     setProcessMessage(t('migma_checkout.process_messages.verifying_payment', 'Verifying payment confirmation...'));
 
@@ -258,18 +260,11 @@ const MigmaCheckout: React.FC = () => {
         } catch {}
       }
 
-      // Se após 3 tentativas ainda não confirmou no banco, forçamos o avanço
-      // pois o usuário foi redirecionado com success=true do gateway.
-      if (finalUserId) {
-        console.log('[MigmaCheckout] ⏩ Forçando avanço para Step 2 (Webhook em atraso, mas redirecionamento confirmou sucesso).');
-        setState(prev => ({
-          ...prev,
-          userId: finalUserId,
-          step1Completed: true,
-          paymentConfirmed: true,
-          currentStep: 2,
-        }));
-      }
+      // Após 3 tentativas sem confirmação no banco, NÃO avançamos.
+      // O usuário pode ter saído do checkout sem pagar, ou o webhook pode estar atrasado.
+      // Exibimos uma mensagem de erro para que ele tente novamente.
+      console.warn('[MigmaCheckout] ⚠️ Pagamento não confirmado no banco após 3 tentativas. Não avançando.');
+      setPaymentVerificationFailed(true);
 
     } catch (err) {
       console.error('Erro ao verificar pagamento:', err);
@@ -1104,6 +1099,25 @@ const MigmaCheckout: React.FC = () => {
                   </div>
                 </div>
                 <div className="bg-[#0d0d0d] px-6 py-8">
+                  {paymentVerificationFailed && state.currentStep === 1 && (
+                    <div className="mb-6 flex items-start gap-3 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3">
+                      <span className="text-red-400 text-lg mt-0.5">⚠️</span>
+                      <div className="flex-1">
+                        <p className="text-sm font-bold text-red-300">
+                          {t('migma_checkout.payment_not_confirmed', 'Pagamento não confirmado')}
+                        </p>
+                        <p className="text-xs text-red-400/80 mt-0.5">
+                          {t('migma_checkout.payment_not_confirmed_desc', 'Não foi possível confirmar seu pagamento. Se você concluiu o pagamento, aguarde alguns instantes e tente novamente. Caso contrário, selecione um método de pagamento e tente novamente.')}
+                        </p>
+                      </div>
+                      <button
+                        onClick={handleVerifyAndAdvance}
+                        className="shrink-0 text-xs font-bold text-red-300 border border-red-500/30 rounded-lg px-3 py-1.5 hover:bg-red-500/10 transition-colors"
+                      >
+                        {t('migma_checkout.retry', 'Verificar novamente')}
+                      </button>
+                    </div>
+                  )}
                   {state.currentStep === 1 && !regionLoading && config && (
                     <Step1PersonalInfo
                       config={config}

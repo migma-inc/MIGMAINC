@@ -6,16 +6,8 @@ import {
 } from 'lucide-react';
 import { useStudentAuth } from '@/contexts/StudentAuthContext';
 import { supabase } from '@/lib/supabase';
-import { calculateCardAmountWithFees } from '@/utils/stripeFeeCalculator';
 import { ZelleUpload } from '@/features/visa-checkout/components/steps/step3/ZelleUpload';
 import { processZellePaymentWithN8n } from '@/lib/zelle-n8n-integration';
-
-// ── Icon components ──────────────────────────────────────────────────────────
-const StripeIcon: React.FC<{ className?: string }> = ({ className }) => (
-  <svg className={className} viewBox="0 0 24 24" fill="currentColor">
-    <path d="M13.976 9.15c-2.172-.806-3.356-1.426-3.356-2.409 0-.831.683-1.305 1.901-1.305 2.227 0 4.515.858 6.09 1.631l.89-5.494C18.252.975 15.697 0 12.165 0 9.667 0 7.589.654 6.104 1.872 4.56 3.147 3.757 4.992 3.757 7.218c0 4.039 2.467 5.76 6.476 7.219 2.585.92 3.445 1.574 3.445 2.583 0 .98-.84 1.545-2.354 1.545-1.875 0-4.965-.921-6.99-2.109l-.9 5.555C5.175 22.99 8.385 24 11.714 24c2.641 0 4.843-.624 6.328-1.813 1.664-1.305 2.525-3.236 2.525-5.732 0-4.128-2.524-5.851-6.591-7.305z" />
-  </svg>
-);
 
 const ParcelowIcon: React.FC<{ className?: string }> = ({ className }) => (
   <svg className={className} viewBox="0 0 24 24" fill="currentColor">
@@ -82,8 +74,6 @@ export function PlacementFee2ndInstallmentPage() {
 
   const placementFee = app?.institution_scholarships?.placement_fee_usd ?? 0;
   const amountDue = Math.ceil(placementFee / 2);
-  const cardAmountDue = calculateCardAmountWithFees(amountDue);
-
   const needsCpf = !!selectedMethod && ['parcelow_card', 'parcelow_pix', 'parcelow_ted'].includes(selectedMethod);
   const canPay = !!selectedMethod && selectedMethod !== 'zelle' &&
     (!needsCpf || cpf.replace(/\D/g, '').length >= 11);
@@ -258,27 +248,6 @@ export function PlacementFee2ndInstallmentPage() {
           {/* Payment methods */}
           <div className="p-5 space-y-3">
 
-            {/* Stripe */}
-            <button
-              onClick={() => { setSelectedMethod('stripe'); setPaymentError(null); }}
-              className={`w-full flex items-center gap-4 p-4 rounded-2xl border transition-all text-left ${
-                selectedMethod === 'stripe' ? 'border-[#CE9F48]/50 bg-[#CE9F48]/5' : 'border-white/10 bg-white/[0.02] hover:border-white/20'
-              }`}
-            >
-              <div className="w-10 h-10 rounded-xl bg-[#635BFF]/20 flex items-center justify-center shrink-0">
-                <StripeIcon className="w-5 h-5 text-[#635BFF]" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className={`font-black text-sm uppercase tracking-wide ${selectedMethod === 'stripe' ? 'text-white' : 'text-gray-200'}`}>
-                  Cartão de Crédito
-                </p>
-                <p className="text-[10px] text-gray-600 uppercase tracking-wider font-bold mt-0.5">* Podem incluir taxas</p>
-              </div>
-              <p className={`font-black text-lg shrink-0 ${selectedMethod === 'stripe' ? 'text-[#CE9F48]' : 'text-white'}`}>
-                ${cardAmountDue.toFixed(2)}
-              </p>
-            </button>
-
             {/* Parcelow Card */}
             <button
               onClick={() => { setSelectedMethod('parcelow_card'); setPaymentError(null); }}
@@ -417,7 +386,7 @@ export function PlacementFee2ndInstallmentPage() {
                   className="flex items-center justify-center gap-2 w-full bg-[#CE9F48] hover:bg-[#b8892f] disabled:opacity-50 text-black py-4 rounded-2xl font-black uppercase tracking-widest transition-all shadow-xl shadow-[#CE9F48]/10"
                 >
                   {processing && <Loader2 className="w-5 h-5 animate-spin" />}
-                  {processing ? 'Redirecionando...' : `Pagar $${(selectedMethod === 'stripe' ? cardAmountDue : amountDue).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} — 2ª Parcela`}
+                  {processing ? 'Redirecionando...' : `Pagar $${amountDue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} — 2ª Parcela`}
                 </button>
                 <p className="text-[10px] text-center text-gray-600 font-bold uppercase tracking-tighter">
                   🔒 Pagamento 100% Seguro e Criptografado

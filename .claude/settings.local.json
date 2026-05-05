@@ -34,7 +34,13 @@
       "Bash(xargs -I {} grep -l \"parcelow_pending\\\\|get_user_id_by_email\" \"C:\\\\Users\\\\victurib\\\\Migma\\\\migma-lp/supabase/migrations/{}\")",
       "Bash(rtk npx:*)",
       "Bash(rtk supabase:*)",
-      "Bash(date:*)"
+      "Bash(date:*)",
+      "Bash(rtk npm:*)",
+      "Bash(sed -n '15,25p' src/locales/pt.json)",
+      "Bash(sed -n '15,25p' src/locales/en.json)",
+      "Bash(sed -n '15,25p' src/locales/es.json)",
+      "Bash(sed -n '15,25p' src/locales/fr.json)",
+      "Bash(ls RELATORIO_TECNICO_*.md)"
     ]
   }
 }
