@@ -20,6 +20,7 @@ const SLUG_LABEL_MAP: Record<string, string> = {
     'eb2-niw-initial-payment':      'EB-2 Step 1 – Initial',
     'eb2-i140-step':                'EB-2 Step 2 – I-140',
     'eb2-i485-step':                'EB-2 Step 3 – I-485',
+    'eb2-installment-initial-payment': 'EB-2 Install. Initial',
     'eb2-annex-installment':        'EB-2 Monthly Installment',
     // EB-3
     'eb3-visa':                     'EB-3 Full Process',

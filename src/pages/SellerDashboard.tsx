@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { Fragment, useState, useEffect } from 'react';
 import { formatCurrency, generateUUID, copyToClipboard } from '@/lib/utils';
 import { Link, useNavigate, Navigate } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
@@ -810,42 +810,52 @@ export const SellerDashboard = () => {
                 const sortProducts = (groupProducts: VisaProduct[], groupKey: string) => {
                   // Specific sorting logic for EB-2
                   // Goal (EB-2):
-                  // 1) Full Process Payment
-                  // 2) Initial Payment (1 step)
-                  // 3) I-140 (2 step)
-                  // 4) I-485 (3 step) / Consular
-                  // 5) Monthly Installment (Annex) / Installment plan entry
+                  // 1) Step Plan - Initial Payment
+                  // 2) Step Plan - I-140
+                  // 3) Step Plan - I-485 / Consular
+                  // 4) Installment Plan - Initial Payment
+                  // 5) Installment Plan - Monthly Installment
+                  // 6) Full Process Payment
                   if (groupKey === 'eb2') {
                     const score = (p: VisaProduct) => {
                       const text = `${p.slug} ${p.name}`.toLowerCase();
 
+                      if (p.slug === 'eb2-niw-initial-payment') return 0;
+                      if (p.slug === 'eb2-i140-step') return 1;
+                      if (p.slug === 'eb2-i485-step') return 2;
+                      if (p.slug === 'eb2-installment-initial-payment') return 3;
+                      if (p.slug === 'eb2-annex-installment') return 4;
+                      if (p.slug === 'eb2-visa') return 5;
+
                       const isEb2FullProcess =
                         (text.includes('eb-2') || text.includes('eb2')) &&
                         (text.includes('full process payment') || text.includes('full process') || text.includes('total-process'));
-                      if (isEb2FullProcess) return 0;
+                      if (isEb2FullProcess) return 5;
 
                       const isEb2InitialStep1 =
                         (text.includes('initial payment') || text.includes('entrada')) &&
-                        (text.includes('1 step') || text.includes('1-step') || text.includes('one step') || text.includes('one-step'));
-                      if (isEb2InitialStep1) return 1;
+                        (text.includes('step') || !text.includes('installment'));
+                      if (isEb2InitialStep1) return 0;
 
                       const isEb2I140Step2 =
                         (text.includes('i-140') || text.includes('i140')) &&
                         (text.includes('2 step') || text.includes('2-step') || text.includes('step 2') || text.includes('etapa 2'));
-                      if (isEb2I140Step2) return 2;
-                      if (text.includes('i-140') || text.includes('i140')) return 3;
+                      if (isEb2I140Step2) return 1;
+                      if (text.includes('i-140') || text.includes('i140')) return 1;
 
                       const isI485OrConsular =
                         text.includes('i-485') ||
                         text.includes('i485') ||
                         text.includes('consular') ||
                         text.includes('processo consular');
-                      if (isI485OrConsular) return 4;
+                      if (isI485OrConsular) return 2;
+
+                      if (text.includes('installment') && text.includes('initial')) return 3;
 
                       const isMonthlyInstallmentAnnex =
                         text.includes('monthly installment') &&
                         (text.includes('annex') || text.includes('anexo'));
-                      if (isMonthlyInstallmentAnnex) return 5;
+                      if (isMonthlyInstallmentAnnex || text.includes('annex')) return 4;
 
                       return 999;
                     };
@@ -892,6 +902,82 @@ export const SellerDashboard = () => {
                   };
                   const totalStepPayments = sortedProducts.filter((p) => !isFullProcessPayment(p)).length;
                   const paymentLabels = ['Selection Process', 'Scholarship', 'I-20 Control'];
+                  const getEb2PlanType = (product: VisaProduct): 'step' | 'installment' | 'full' | 'other' => {
+                    const text = `${product.slug} ${product.name}`.toLowerCase();
+
+                    if (
+                      product.slug === 'eb2-visa' ||
+                      text.includes('full process payment') ||
+                      text.includes('full process') ||
+                      text.includes('total-process')
+                    ) {
+                      return 'full';
+                    }
+
+                    if (text.includes('installment') || text.includes('annex')) {
+                      return 'installment';
+                    }
+
+                    if (
+                      product.slug === 'eb2-niw-initial-payment' ||
+                      text.includes('initial payment') ||
+                      text.includes('i-140') ||
+                      text.includes('i140') ||
+                      text.includes('i-485') ||
+                      text.includes('i485') ||
+                      text.includes('consular')
+                    ) {
+                      return 'step';
+                    }
+
+                    return 'other';
+                  };
+
+                  const getEb2DisplayProductName = (product: VisaProduct) => {
+                    const text = `${product.slug} ${product.name}`.toLowerCase();
+                    const planType = getEb2PlanType(product);
+
+                    if (planType === 'full') return 'EB-2 - Full Process Payment';
+
+                    if (planType === 'installment') {
+                      if (text.includes('monthly') || text.includes('annex')) {
+                        return 'EB-2 Installment Plan - Monthly Installment';
+                      }
+
+                      return 'EB-2 Installment Plan - Initial Payment';
+                    }
+
+                    if (text.includes('i-140') || text.includes('i140')) return 'EB-2 Step Plan - I-140';
+                    if (text.includes('i-485') || text.includes('i485') || text.includes('consular')) return 'EB-2 Step Plan - I-485';
+
+                    return 'EB-2 Step Plan - Initial Payment';
+                  };
+
+                  type Eb2PlanType = 'step' | 'installment' | 'full' | 'other';
+                  type Eb2DisplayItem = {
+                    product: VisaProduct;
+                    renderKey: string;
+                    planType?: Eb2PlanType;
+                    label?: string;
+                  };
+
+                  const getEb2SectionLabel = (currentType: Eb2PlanType, previousType: Eb2PlanType | null) => {
+                    if (currentType === previousType) return null;
+                    if (currentType === 'step') return 'Step Plan';
+                    if (currentType === 'installment') return 'Installment Plan';
+                    if (currentType === 'full') return 'Full Process Payment';
+
+                    return null;
+                  };
+
+                  const getEb2DisplayItems = (items: VisaProduct[]): Eb2DisplayItem[] => {
+                    return items.map((product) => ({
+                        product,
+                        renderKey: product.slug,
+                        planType: getEb2PlanType(product),
+                    }));
+                  };
+
                   const isServiceGroup = ['initial', 'cos', 'transfer', 'eb2', 'eb3'].includes(key);
                   const isExpanded = expandedServices[key] ?? false;
 
@@ -913,7 +999,9 @@ export const SellerDashboard = () => {
                             <div className="text-left">
                               <h3 className="text-lg font-bold text-gold-light">{group.name}</h3>
                               <p className="text-xs text-gray-400 mt-1">
-                                {`${totalStepPayments} Step Payments or Full Process Payment`}
+                                {key === 'eb2'
+                                  ? 'Step Plan, Installment Plan or Full Process Payment'
+                                  : `${totalStepPayments} Step Payments or Full Process Payment`}
                               </p>
                             </div>
                           </div>
@@ -922,63 +1010,85 @@ export const SellerDashboard = () => {
                         {/* Dropdown Content */}
                         {isExpanded && (
                           <div className="border-t border-gold-medium/20 bg-black/30 p-4 space-y-2">
-                            {sortedProducts.map((product, index) => {
+                            {(key === 'eb2'
+                              ? getEb2DisplayItems(sortedProducts)
+                              : sortedProducts.map((product): Eb2DisplayItem => ({ product, renderKey: product.slug }))
+                            ).map((item, index, renderedProducts) => {
+                              const product = item.product;
                               const link = `${window.location.origin}/checkout/visa/${product.slug}?seller=${seller.seller_id_public}`;
                               const isCopied = copiedLink === link;
                               const isTotalProcess = isFullProcessPayment(product);
                               const paymentNumber = isTotalProcess
                                 ? 0
                                 : sortedProducts.slice(0, index + 1).filter((p) => !isFullProcessPayment(p)).length;
-                              const paymentLabel = key === 'eb2' || key === 'eb3' || key === 'other'
-                                ? product.name
-                                : (paymentLabels[index] || `Payment ${paymentNumber}`);
+                              const paymentLabel = key === 'eb2'
+                                ? (item.label || getEb2DisplayProductName(product))
+                                : (key === 'eb3' || key === 'other')
+                                  ? product.name
+                                  : (paymentLabels[index] || `Payment ${paymentNumber}`);
+                              const sectionLabel = key === 'eb2'
+                                ? (() => {
+                                  const prevItem = index > 0 ? renderedProducts[index - 1] : null;
+                                  const currentType = (item.planType || getEb2PlanType(product));
+                                  const previousType = prevItem ? (prevItem.planType || getEb2PlanType(prevItem.product)) : null;
+                                  return getEb2SectionLabel(currentType, previousType);
+                                })()
+                                : null;
 
                               return (
-                                <div
-                                  key={product.slug}
-                                  className="flex items-center justify-between p-3 bg-black/50 rounded-lg border border-gold-medium/20"
-                                >
-                                  <div className="flex-1">
-                                    <div className="flex items-center gap-2">
-                                      {!isTotalProcess && (
-                                        <span className="text-xs font-semibold text-gold-light bg-gold-medium/20 px-2 py-1 rounded">
-                                          {paymentNumber}/{totalStepPayments}
-                                        </span>
-                                      )}
-                                      <p className="text-white font-medium">{paymentLabel}</p>
+                                <Fragment key={item.renderKey}>
+                                  {sectionLabel && (
+                                    <div className="flex items-center gap-2 pb-1 pt-3 first:pt-0">
+                                      <div className="h-px flex-1 bg-gold-medium/20" />
+                                      <span className="text-[10px] font-bold text-gold-medium uppercase tracking-widest px-2">{sectionLabel}</span>
+                                      <div className="h-px flex-1 bg-gold-medium/20" />
                                     </div>
-                                    <p className="text-xs text-gray-400 mt-1">
-                                      Base: ${parseFloat(product.base_price_usd).toFixed(2)}
-                                      {product.allow_extra_units && !(() => {
-                                        const t = `${product.slug} ${product.name}`.toLowerCase();
-                                        return t.includes('monthly installment') && (t.includes('annex') || t.includes('anexo'));
-                                      })() && (
-                                        <> • Per dependent: ${parseFloat(product.extra_unit_price).toFixed(2)}</>
-                                      )}
-                                    </p>
-                                    <p className="text-xs text-gray-500 font-mono mt-1 break-all">{link}</p>
-                                  </div>
-                                  <Button
-                                    onClick={() => copyLink(product.slug)}
-                                    size="sm"
-                                    className={`ml-4 ${isCopied
-                                      ? 'bg-green-500 hover:bg-green-600'
-                                      : 'bg-gold-medium hover:bg-gold-light'
-                                      } text-black`}
+                                  )}
+                                  <div
+                                    className="flex items-center justify-between p-3 bg-black/50 rounded-lg border border-gold-medium/20"
                                   >
-                                    {isCopied ? (
-                                      <>
-                                        <CheckCircle className="w-4 h-4 mr-1" />
-                                        Copied!
-                                      </>
-                                    ) : (
-                                      <>
-                                        <Copy className="w-4 h-4 mr-1" />
-                                        Copy
-                                      </>
-                                    )}
-                                  </Button>
-                                </div>
+                                    <div className="flex-1">
+                                      <div className="flex items-center gap-2">
+                                        {!isTotalProcess && key !== 'eb2' && (
+                                          <span className="text-xs font-semibold text-gold-light bg-gold-medium/20 px-2 py-1 rounded">
+                                            {paymentNumber}/{totalStepPayments}
+                                          </span>
+                                        )}
+                                        <p className="text-white font-medium">{paymentLabel}</p>
+                                      </div>
+                                      <p className="text-xs text-gray-400 mt-1">
+                                        Base: ${parseFloat(product.base_price_usd).toFixed(2)}
+                                        {product.allow_extra_units && !(() => {
+                                          const t = `${product.slug} ${product.name}`.toLowerCase();
+                                          return t.includes('monthly installment') && (t.includes('annex') || t.includes('anexo'));
+                                        })() && (
+                                          <> • Per dependent: ${parseFloat(product.extra_unit_price).toFixed(2)}</>
+                                        )}
+                                      </p>
+                                      <p className="text-xs text-gray-500 font-mono mt-1 break-all">{link}</p>
+                                    </div>
+                                    <Button
+                                      onClick={() => copyLink(product.slug)}
+                                      size="sm"
+                                      className={`ml-4 ${isCopied
+                                        ? 'bg-green-500 hover:bg-green-600'
+                                        : 'bg-gold-medium hover:bg-gold-light'
+                                        } text-black`}
+                                    >
+                                      {isCopied ? (
+                                        <>
+                                          <CheckCircle className="w-4 h-4 mr-1" />
+                                          Copied!
+                                        </>
+                                      ) : (
+                                        <>
+                                          <Copy className="w-4 h-4 mr-1" />
+                                          Copy
+                                        </>
+                                      )}
+                                    </Button>
+                                  </div>
+                                </Fragment>
                               );
                             })}
                           </div>
