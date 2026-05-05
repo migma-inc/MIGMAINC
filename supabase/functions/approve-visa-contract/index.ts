@@ -16,11 +16,16 @@ const CONTRACT_IDENTITY_DOC_TYPES = [
   "document_back",
   "selfie_doc",
 ];
+const TEST_EMAIL_DOMAIN = "@uorak.com";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
+
+function isUorakTestEmail(email: string | null | undefined): boolean {
+  return Boolean(email?.trim().toLowerCase().endsWith(TEST_EMAIL_DOMAIN));
+}
 
 // Helper functions for n8n webhook
 function normalizeServiceName(productSlug: string, productName: string): string {
@@ -41,6 +46,11 @@ async function sendVisaAdminNotification(order: any, supabase: any) {
   console.log(`[Admin Notification] Preparing admin notification for order ${order.order_number}`);
 
   try {
+    if (isUorakTestEmail(order.client_email)) {
+      console.log(`[Admin Notification] Skipping admin email for test client: ${order.client_email}`);
+      return;
+    }
+
     const attachments = [];
 
     // 1. Add Main Contract if it exists

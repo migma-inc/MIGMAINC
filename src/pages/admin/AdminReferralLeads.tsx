@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useOutletContext } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -26,6 +27,7 @@ interface ReferralLead {
   meet_url: string | null;
   notes: string | null;
   referral_links: {
+    profile_id: string;
     unique_code: string;
     closures_count: number;
     user_profiles: {
@@ -36,6 +38,11 @@ interface ReferralLead {
 }
 
 type FilterTab = 'all' | 'scheduled' | 'fechado' | 'pending' | 'other';
+
+type DashboardOutletContext = {
+  accessRole: 'admin' | 'mentor';
+  mentorProfileId: string | null;
+};
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -72,6 +79,10 @@ function fmt(iso: string) {
 // ---------------------------------------------------------------------------
 
 export const AdminReferralLeads = () => {
+  const dashboardContext = useOutletContext<DashboardOutletContext | undefined>();
+  const isMentor = dashboardContext?.accessRole === 'mentor';
+  const mentorProfileId = isMentor ? dashboardContext?.mentorProfileId : null;
+
   const [leads, setLeads] = useState<ReferralLead[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -86,21 +97,44 @@ export const AdminReferralLeads = () => {
 
   const load = useCallback(async () => {
     setLoading(true);
-    const { data, error } = await supabase
-      .from('referral_leads')
-      .select(`
+
+    if (isMentor && !mentorProfileId) {
+      setLeads([]);
+      setLoading(false);
+      return;
+    }
+
+    const selectClause = isMentor
+      ? `
+        id, created_at, full_name, email, phone, country,
+        referral_code, status, meet_url, notes,
+        referral_links:referral_link_id!inner (
+          profile_id, unique_code, closures_count,
+          user_profiles:profile_id ( full_name, email )
+        )
+      `
+      : `
         id, created_at, full_name, email, phone, country,
         referral_code, status, meet_url, notes,
         referral_links:referral_link_id (
-          unique_code, closures_count,
+          profile_id, unique_code, closures_count,
           user_profiles:profile_id ( full_name, email )
         )
-      `)
-      .order('created_at', { ascending: false });
+      `;
+
+    let query = supabase
+      .from('referral_leads')
+      .select(selectClause);
+
+    if (isMentor && mentorProfileId) {
+      query = query.eq('referral_links.profile_id', mentorProfileId);
+    }
+
+    const { data, error } = await query.order('created_at', { ascending: false });
 
     if (!error) setLeads((data as unknown as ReferralLead[]) ?? []);
     setLoading(false);
-  }, []);
+  }, [isMentor, mentorProfileId]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -110,6 +144,8 @@ export const AdminReferralLeads = () => {
   }, [load]);
 
   const handleClose = async (lead: ReferralLead) => {
+    if (isMentor) return;
+
     setActionLoading(lead.id);
     const { data, error } = await supabase.rpc('credit_referral_lead_closure', { p_lead_id: lead.id });
     if (error) {
@@ -161,6 +197,8 @@ export const AdminReferralLeads = () => {
   };
 
   const handleRevert = async (lead: ReferralLead) => {
+    if (isMentor) return;
+
     setActionLoading(lead.id);
     const { data, error } = await supabase.rpc('revert_referral_lead_closure', { p_lead_id: lead.id });
     if (error) {
@@ -208,6 +246,9 @@ export const AdminReferralLeads = () => {
     { key: 'pending',   label: 'Pending' },
     { key: 'other',     label: 'Other' },
   ];
+  const tableHeaders = isMentor
+    ? ['Date', 'Lead', 'Contact', 'Country', 'Referred by', 'Status', 'Meet']
+    : ['Date', 'Lead', 'Contact', 'Country', 'Referred by', 'Status', 'Meet', 'Actions'];
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 space-y-6">
@@ -296,7 +337,7 @@ export const AdminReferralLeads = () => {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-white/5 text-left">
-                    {['Date', 'Lead', 'Contact', 'Country', 'Referred by', 'Status', 'Meet', 'Actions'].map(h => (
+                    {tableHeaders.map(h => (
                       <th key={h} className="px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">
                         {h}
                       </th>
@@ -378,33 +419,34 @@ export const AdminReferralLeads = () => {
                           )}
                         </td>
 
-                        {/* Actions */}
-                        <td className="px-4 py-3">
-                          <div className="flex items-center gap-2">
-                            {lead.status !== 'fechado' && (
-                              <Button
-                                size="sm"
-                                disabled={isLoading}
-                                onClick={() => handleClose(lead)}
-                                className="h-7 px-2 text-xs bg-green-600/20 border border-green-500/40 text-green-300 hover:bg-green-600/40 hover:text-white"
-                              >
-                                {isLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <CheckCircle2 className="w-3 h-3 mr-1" />}
-                                Close
-                              </Button>
-                            )}
-                            {lead.status === 'fechado' && (
-                              <Button
-                                size="sm"
-                                disabled={isLoading}
-                                onClick={() => handleRevert(lead)}
-                                className="h-7 px-2 text-xs bg-yellow-600/20 border border-yellow-500/40 text-yellow-300 hover:bg-yellow-600/40 hover:text-white"
-                              >
-                                {isLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Undo2 className="w-3 h-3 mr-1" />}
-                                Revert
-                              </Button>
-                            )}
-                          </div>
-                        </td>
+                        {!isMentor && (
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-2">
+                              {lead.status !== 'fechado' && (
+                                <Button
+                                  size="sm"
+                                  disabled={isLoading}
+                                  onClick={() => handleClose(lead)}
+                                  className="h-7 px-2 text-xs bg-green-600/20 border border-green-500/40 text-green-300 hover:bg-green-600/40 hover:text-white"
+                                >
+                                  {isLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <CheckCircle2 className="w-3 h-3 mr-1" />}
+                                  Close
+                                </Button>
+                              )}
+                              {lead.status === 'fechado' && (
+                                <Button
+                                  size="sm"
+                                  disabled={isLoading}
+                                  onClick={() => handleRevert(lead)}
+                                  className="h-7 px-2 text-xs bg-yellow-600/20 border border-yellow-500/40 text-yellow-300 hover:bg-yellow-600/40 hover:text-white"
+                                >
+                                  {isLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Undo2 className="w-3 h-3 mr-1" />}
+                                  Revert
+                                </Button>
+                              )}
+                            </div>
+                          </td>
+                        )}
                       </tr>
                     );
                   })}

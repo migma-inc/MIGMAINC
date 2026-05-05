@@ -50,6 +50,53 @@ export async function checkAdminAccess(): Promise<boolean> {
 }
 
 /**
+ * Get the profile id for the current active referral mentor.
+ */
+export async function getCurrentMentorProfileId(): Promise<string | null> {
+  try {
+    const { data: { session } } = await adminSupabase.auth.getSession();
+
+    if (!session || !session.user) {
+      return null;
+    }
+
+    if (session.user.user_metadata?.role !== 'mentor') {
+      return null;
+    }
+
+    const { data: profile, error: profileError } = await adminSupabase
+      .from('user_profiles')
+      .select('id')
+      .eq('user_id', session.user.id)
+      .maybeSingle();
+
+    if (profileError || !profile?.id) {
+      return null;
+    }
+
+    const { data: mentor, error: mentorError } = await adminSupabase
+      .from('referral_mentors')
+      .select('id')
+      .eq('profile_id', profile.id)
+      .eq('active', true)
+      .maybeSingle();
+
+    return !mentorError && mentor ? profile.id : null;
+  } catch (error) {
+    console.error('[AUTH] Error getting mentor profile id:', error);
+    return null;
+  }
+}
+
+/**
+ * Check if the current user is an active referral mentor.
+ * Mentor access is intentionally narrower than admin access.
+ */
+export async function checkMentorAccess(): Promise<boolean> {
+  return !!(await getCurrentMentorProfileId());
+}
+
+/**
  * Get current user information
  */
 export async function getCurrentUser(): Promise<AdminUser | null> {

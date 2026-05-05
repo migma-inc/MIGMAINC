@@ -43,6 +43,9 @@ import { SellerLogin } from './pages/SellerLogin';
 import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
 import { SellerRegister } from './pages/SellerRegister';
+import { MentorLogin } from './pages/MentorLogin';
+import { MentorRegister } from './pages/MentorRegister';
+import { MentorDashboardRedirect } from './pages/MentorDashboardRedirect';
 import { SellerDashboardLayout } from './pages/seller/SellerDashboardLayout';
 import { DashboardOverviewRouter } from './pages/seller/DashboardOverviewRouter';
 import { HeadOfSalesTeam } from './pages/seller/HeadOfSalesTeam';
@@ -154,6 +157,11 @@ function App() {
           <Route path="zelle-approvals" element={<SellerZelleApprovalPage />} />
         </Route>
         <Route path="/seller/orders/:orderId" element={<SellerRoute><SellerOrderDetail /></SellerRoute>} />
+
+        {/* Mentor Routes */}
+        <Route path="/mentor/login" element={<MentorLogin />} />
+        <Route path="/mentor/register" element={<MentorRegister />} />
+        <Route path="/mentor/dashboard" element={<MentorDashboardRedirect />} />
 
         <Route path="/global-partner/thank-you" element={<ThankYou />} />
         <Route path="/global-partner/success" element={<ThankYou />} />

@@ -4,6 +4,12 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
+const TEST_EMAIL_DOMAIN = "@uorak.com";
+
+function isUorakTestEmail(email: string | null | undefined): boolean {
+  return Boolean(email?.trim().toLowerCase().endsWith(TEST_EMAIL_DOMAIN));
+}
+
 Deno.serve(async (req) => {
   // Handle CORS
   if (req.method === "OPTIONS") {
@@ -78,15 +84,21 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Fetch admin emails using RPC function (same way as frontend)
-    const { data: adminEmailsData, error: adminError } = await supabase.rpc('get_admin_emails');
-    
     const adminEmails: string[] = [];
-    if (!adminError && adminEmailsData && Array.isArray(adminEmailsData)) {
-      adminEmails.push(...adminEmailsData.filter(Boolean));
-    } else if (!adminError && adminEmailsData) {
-      // If it's not an array, try to extract emails
-      adminEmails.push(adminEmailsData);
+    const skipAdminEmails = isUorakTestEmail(seller.email);
+
+    if (skipAdminEmails) {
+      console.log(`[PAYMENT_NOTIFICATIONS] Skipping admin emails for test seller: ${seller.email}`);
+    } else {
+      // Fetch admin emails using RPC function (same way as frontend)
+      const { data: adminEmailsData, error: adminError } = await supabase.rpc('get_admin_emails');
+
+      if (!adminError && adminEmailsData && Array.isArray(adminEmailsData)) {
+        adminEmails.push(...adminEmailsData.filter(Boolean));
+      } else if (!adminError && adminEmailsData) {
+        // If it's not an array, try to extract emails
+        adminEmails.push(adminEmailsData);
+      }
     }
 
     // Call send-email function for each email
@@ -183,6 +195,7 @@ Deno.serve(async (req) => {
         requestId,
         emailsSent: emailResults.filter(r => r.success).length,
         emailsTotal: emailResults.length,
+        adminNotificationsSkipped: skipAdminEmails,
         results: emailResults,
       }),
       { 

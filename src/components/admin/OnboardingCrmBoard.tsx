@@ -65,6 +65,7 @@ interface OnboardingCrmBoardProps {
   productLine?: 'cos' | 'transfer';
   title: string;
   description: string;
+  mentorProfileId?: string | null;
 }
 
 interface StuckState {
@@ -492,7 +493,7 @@ function KanbanView({
   );
 }
 
-export function OnboardingCrmBoard({ productLine, title, description }: OnboardingCrmBoardProps) {
+export function OnboardingCrmBoard({ productLine, title, description, mentorProfileId }: OnboardingCrmBoardProps) {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [cases, setCases] = useState<OnboardingCase[]>([]);
@@ -513,11 +514,11 @@ export function OnboardingCrmBoard({ productLine, title, description }: Onboardi
 
   const loadBoard = useCallback(async () => {
     setLoading(true);
-    const { cases: loaded, error } = await loadOnboardingBoard(productLine);
+    const { cases: loaded, error } = await loadOnboardingBoard(productLine, { mentorProfileId });
     if (error) console.error('[OnboardingCrmBoard] board load error:', error);
     setCases(loaded);
     setLoading(false);
-  }, [productLine]);
+  }, [productLine, mentorProfileId]);
 
   useEffect(() => {
     loadBoard();

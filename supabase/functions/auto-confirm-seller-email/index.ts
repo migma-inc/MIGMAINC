@@ -18,7 +18,7 @@ Deno.serve(async (req: Request) => {
     console.log("[Auto-Confirm] Request received:", { userId, role });
 
     // Verify that this is an allowed role
-    const allowedRoles = ["seller", "student"];
+    const allowedRoles = ["seller", "student", "mentor"];
     if (!allowedRoles.includes(role)) {
       console.error("[Auto-Confirm] Invalid role:", role);
       return new Response(

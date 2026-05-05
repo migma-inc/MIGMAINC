@@ -8,6 +8,8 @@ interface SidebarProps {
   className?: string;
   isMobileOpen?: boolean;
   onMobileClose?: () => void;
+  accessRole?: 'admin' | 'mentor';
+  mentorProfileId?: string | null;
 }
 
 interface SidebarItemProps {
@@ -49,8 +51,9 @@ function SidebarItem({ icon: Icon, label, to, count, onClick }: SidebarItemProps
   );
 }
 
-export function Sidebar({ className, isMobileOpen = false, onMobileClose }: SidebarProps) {
+export function Sidebar({ className, isMobileOpen = false, onMobileClose, accessRole = 'admin', mentorProfileId }: SidebarProps) {
   const location = useLocation();
+  const isMentor = accessRole === 'mentor';
   const [isRecurrenceOpen, setIsRecurrenceOpen] = useState(
     location.pathname.includes('eb3-recurring') || location.pathname.includes('eb2-recurring') || location.pathname.includes('scholarship-recurring')
   );
@@ -65,7 +68,7 @@ export function Sidebar({ className, isMobileOpen = false, onMobileClose }: Side
 
   useEffect(() => {
     if (location.pathname.includes('/dashboard/crm')) setIsCrmOpen(true);
-  }, [location.pathname]);
+  }, [location.pathname, isMentor, mentorProfileId]);
 
   const [counts, setCounts] = useState<{
     applications: number;
@@ -87,8 +90,56 @@ export function Sidebar({ className, isMobileOpen = false, onMobileClose }: Side
     referralLeads: 0,
   });
 
+  const loadCrmUsersCount = async (): Promise<number> => {
+    let profileQuery = supabase
+      .from('user_profiles')
+      .select('id')
+      .eq('source', 'migma');
+
+    if (isMentor) {
+      if (!mentorProfileId) return 0;
+      profileQuery = profileQuery.eq('mentor_id', mentorProfileId);
+    }
+
+    const { data: profileRows } = await profileQuery;
+
+    const profileIds = (profileRows || []).map((profile) => profile.id);
+    if (profileIds.length === 0) return 0;
+
+    const { data: mentorRows } = await supabase
+      .from('referral_mentors')
+      .select('profile_id')
+      .in('profile_id', profileIds);
+
+    const mentorProfileIds = new Set((mentorRows || []).map((mentor) => mentor.profile_id));
+    return profileIds.filter((profileId) => !mentorProfileIds.has(profileId)).length;
+  };
+
   const loadCounts = async () => {
     try {
+      if (isMentor) {
+        const usersCount = await loadCrmUsersCount();
+
+        let referralLeadsQuery = supabase
+          .from('referral_leads')
+          .select('id, referral_links:referral_link_id!inner(profile_id)', { count: 'exact', head: true })
+          .eq('status', 'scheduled');
+
+        if (mentorProfileId) {
+          referralLeadsQuery = referralLeadsQuery.eq('referral_links.profile_id', mentorProfileId);
+        }
+
+        const { count: referralLeadsCount } = mentorProfileId
+          ? await referralLeadsQuery
+          : { count: 0 };
+
+        setCounts((prev) => ({
+          ...prev,
+          users: usersCount,
+          referralLeads: referralLeadsCount || 0,
+        }));
+        return;
+      }
 
       // 1. Applications Count
       const { count: appCount } = await supabase
@@ -163,10 +214,7 @@ export function Sidebar({ className, isMobileOpen = false, onMobileClose }: Side
         .or('seller_id.is.null,seller_id.eq.""')
         .not('client_email', 'ilike', '%@uorak.com');
 
-      const { count: usersCount } = await supabase
-        .from('user_profiles')
-        .select('*', { count: 'exact', head: true })
-        .eq('source', 'migma');
+      const usersCount = await loadCrmUsersCount();
 
       const { count: referralLeadsCount } = await supabase
         .from('referral_leads')
@@ -187,7 +235,7 @@ export function Sidebar({ className, isMobileOpen = false, onMobileClose }: Side
         zelle: unifiedPendingKeys.size,
         orphanSales: orphanCount || 0,
         tracking: 0,
-        users: usersCount || 0,
+        users: usersCount,
         referralLeads: referralLeadsCount || 0,
       });
     } catch (err) {
@@ -200,14 +248,14 @@ export function Sidebar({ className, isMobileOpen = false, onMobileClose }: Side
       onMobileClose();
     }
     loadCounts();
-  }, [location.pathname]);
+  }, [location.pathname, isMentor, mentorProfileId]);
 
   const sidebarContent = (
     <div className="flex-1 flex flex-col h-full overflow-hidden">
       <div className="p-4 pb-0 flex items-center justify-between mb-6 shrink-0">
         <div className="flex items-center gap-2">
           <LayoutDashboard className="w-6 h-6 text-gold-medium" />
-          <h2 className="text-lg font-bold migma-gold-text">Admin Panel</h2>
+          <h2 className="text-lg font-bold migma-gold-text">{isMentor ? 'Mentor CRM' : 'Admin Panel'}</h2>
         </div>
         {onMobileClose && (
           <button
@@ -221,15 +269,19 @@ export function Sidebar({ className, isMobileOpen = false, onMobileClose }: Side
       </div>
 
       <nav className="flex-1 overflow-y-auto px-4 pb-8 space-y-1 custom-scrollbar min-h-0">
+        {!isMentor && (
+          <>
         <SidebarItem icon={ClipboardList} label="Partner Applications" to="/dashboard" count={counts.applications} onClick={onMobileClose} />
         <SidebarItem icon={Phone} label="Book a Call" to="/dashboard/book-a-call" onClick={onMobileClose} />
         <SidebarItem icon={Calendar} label="Schedule Meeting" to="/dashboard/schedule-meeting" onClick={onMobileClose} />
         <SidebarItem icon={FileText} label="Partner Contracts" to="/dashboard/contracts" count={counts.partnerContracts} onClick={onMobileClose} />
         <SidebarItem icon={ShoppingCart} label="Visa Orders" to="/dashboard/visa-orders" onClick={onMobileClose} />
         <SidebarItem icon={DollarSign} label="Zelle Approval" to="/dashboard/zelle-approval" count={counts.zelle} onClick={onMobileClose} />
-        
+
         {/* NEW Tracking item below Zelle */}
         <SidebarItem icon={Activity} label="Payment Tracking" to="/dashboard/tracking" count={counts.tracking} onClick={onMobileClose} />
+          </>
+        )}
 
         <div className="space-y-1">
           <button
@@ -327,6 +379,8 @@ export function Sidebar({ className, isMobileOpen = false, onMobileClose }: Side
           )}
         </div>
 
+        {!isMentor && (
+          <>
         <SidebarItem icon={FileText} label="Client Contract Approval" to="/dashboard/visa-contract-approval" count={counts.visaApprovals} onClick={onMobileClose} />
 
         <div className="space-y-1">
@@ -461,6 +515,8 @@ export function Sidebar({ className, isMobileOpen = false, onMobileClose }: Side
         <SidebarItem icon={FileCode} label="Contract Templates" to="/dashboard/contract-templates" onClick={onMobileClose} />
         <SidebarItem icon={Activity} label="Slack Reports" to="/dashboard/slack-reports" onClick={onMobileClose} />
         <SidebarItem icon={Mail} label="Contact Messages" to="/dashboard/contact-messages" onClick={onMobileClose} />
+          </>
+        )}
         <SidebarItem icon={UserCircle2} label="Profile" to="/dashboard/profile" onClick={onMobileClose} />
       </nav>
     </div>

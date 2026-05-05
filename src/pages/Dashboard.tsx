@@ -4,8 +4,8 @@
  */
 
 import { useState, useEffect } from 'react';
-import { Outlet, useSearchParams, Link } from 'react-router-dom';
-import { getCurrentUser, signOut, signIn, isAuthenticated as checkIsAuthenticated, checkAdminAccess } from '@/lib/auth';
+import { Navigate, Outlet, useLocation, useSearchParams, Link } from 'react-router-dom';
+import { getCurrentUser, signOut, signIn, isAuthenticated as checkIsAuthenticated, checkAdminAccess, checkMentorAccess, getCurrentMentorProfileId } from '@/lib/auth';
 import { supabase } from '@/lib/supabase';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -130,7 +130,7 @@ function LoginForm({ onLoginSuccess }: { onLoginSuccess: () => void }) {
   );
 }
 
-function DashboardLayout() {
+function DashboardLayout({ accessRole, mentorProfileId }: { accessRole: 'admin' | 'mentor'; mentorProfileId: string | null }) {
   const [user, setUser] = useState<{ email: string; role: string } | null>(null);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
@@ -157,6 +157,8 @@ function DashboardLayout() {
       <Sidebar
         isMobileOpen={isMobileMenuOpen}
         onMobileClose={() => setIsMobileMenuOpen(false)}
+        accessRole={accessRole}
+        mentorProfileId={mentorProfileId}
       />
 
       {/* Main Content Area */}
@@ -182,7 +184,9 @@ function DashboardLayout() {
                 <div>
                   <h1 className="text-xl sm:text-2xl font-bold migma-gold-text">
                     <span className="inline sm:hidden">MIGMA Dash</span>
-                    <span className="hidden sm:inline">MIGMA Admin Dashboard</span>
+                    <span className="hidden sm:inline">
+                      {accessRole === 'mentor' ? 'MIGMA Mentor CRM' : 'MIGMA Admin Dashboard'}
+                    </span>
                   </h1>
                   {user && (
                     <p className="text-[10px] sm:text-sm text-gray-400 truncate max-w-[150px] sm:max-w-none">Logged in as {user.email}</p>
@@ -203,7 +207,7 @@ function DashboardLayout() {
 
         {/* Page Content */}
         <main className="flex-1 overflow-auto">
-          <Outlet />
+          <Outlet context={{ accessRole, mentorProfileId }} />
         </main>
       </div>
     </div>
@@ -1316,9 +1320,12 @@ export function DashboardContent() {
 }
 
 export function Dashboard() {
+  const location = useLocation();
   const [isChecking, setIsChecking] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [isMentor, setIsMentor] = useState(false);
+  const [mentorProfileId, setMentorProfileId] = useState<string | null>(null);
 
   useEffect(() => {
     async function checkAuth() {
@@ -1327,13 +1334,20 @@ export function Dashboard() {
         setIsAuthenticated(authenticated);
 
         if (authenticated) {
-          const hasAdminAccess = await checkAdminAccess();
+          const [hasAdminAccess, hasMentorAccess] = await Promise.all([
+            checkAdminAccess(),
+            checkMentorAccess(),
+          ]);
           setIsAdmin(hasAdminAccess);
+          setIsMentor(hasMentorAccess);
+          setMentorProfileId(hasMentorAccess ? await getCurrentMentorProfileId() : null);
         }
       } catch (error) {
         console.error('[Dashboard] Error checking auth:', error);
         setIsAuthenticated(false);
         setIsAdmin(false);
+        setIsMentor(false);
+        setMentorProfileId(null);
       } finally {
         setIsChecking(false);
       }
@@ -1347,8 +1361,13 @@ export function Dashboard() {
     setIsAuthenticated(authenticated);
 
     if (authenticated) {
-      const hasAdminAccess = await checkAdminAccess();
+      const [hasAdminAccess, hasMentorAccess] = await Promise.all([
+        checkAdminAccess(),
+        checkMentorAccess(),
+      ]);
       setIsAdmin(hasAdminAccess);
+      setIsMentor(hasMentorAccess);
+      setMentorProfileId(hasMentorAccess ? await getCurrentMentorProfileId() : null);
     }
   };
 
@@ -1362,6 +1381,8 @@ export function Dashboard() {
       signOut().then(() => {
         setIsAuthenticated(false);
         setIsAdmin(false);
+        setIsMentor(false);
+        setMentorProfileId(null);
         // Clear URL parameters
         window.history.replaceState({}, document.title, window.location.pathname);
       });
@@ -1380,11 +1401,21 @@ export function Dashboard() {
     );
   }
 
-  // Show login form if not authenticated or not admin
-  if (!isAuthenticated || !isAdmin) {
+  // Show login form if not authenticated or not authorized for this dashboard
+  if (!isAuthenticated || (!isAdmin && !isMentor)) {
     return <LoginForm onLoginSuccess={handleLoginSuccess} />;
   }
 
+  const mentorAllowedPath =
+    location.pathname === '/dashboard/users' ||
+    location.pathname === '/dashboard/profile' ||
+    location.pathname.startsWith('/dashboard/users/') ||
+    location.pathname.startsWith('/dashboard/crm/');
+
+  if (isMentor && !isAdmin && !mentorAllowedPath) {
+    return <Navigate to="/dashboard/users" replace />;
+  }
+
   // Show dashboard layout if authenticated and admin
-  return <DashboardLayout />;
+  return <DashboardLayout accessRole={isMentor && !isAdmin ? 'mentor' : 'admin'} mentorProfileId={mentorProfileId} />;
 }
