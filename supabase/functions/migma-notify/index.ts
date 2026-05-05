@@ -64,6 +64,11 @@ interface NotifyPayload {
     payment_link?: string;
     app_url?: string;
     university_name?: string;
+    course_name?: string;
+    scholarship_label?: string;
+    scholarship_percent?: number;
+    placement_fee_usd?: number;
+    tuition_annual_usd?: number;
     document_name?: string;
     document_reason?: string;
     days_remaining?: number;
@@ -356,17 +361,39 @@ function buildTemplate(
     };
 
     // ── 04 ────────────────────────────────────────────────────────────────────
-    case "scholarship_approved": return {
-      subject: `Bolsa aprovada — ${data.university_name ?? "universidade selecionada"}`,
-      emailHtml: emailWrapper("Bolsa aprovada", `
-        <p>Olá, ${highlight(firstName)}!</p>
-        <p>Sua bolsa na <strong>${data.university_name ?? "universidade selecionada"}</strong> foi aprovada!</p>
-        <p>Para garantir sua vaga, realize o pagamento do <strong>Placement Fee</strong> através do link abaixo:</p>
-        ${data.payment_link ? btn("Pagar Placement Fee", data.payment_link) : ""}
-        <p style="margin-top:20px;color:#888;font-size:13px;">Link válido por tempo limitado. Em caso de dúvidas, entre em contato com o time Migma.</p>
-      `),
-      whatsapp: `🏫 *Migma* — Bolsa aprovada!\n\nOlá ${firstName}, sua bolsa na *${data.university_name ?? "universidade"}* foi aprovada!\n\nPague o Placement Fee para garantir sua vaga:\n${data.payment_link ?? dash}`,
-    };
+    case "scholarship_approved": {
+      const university = data.university_name ?? "your selected university";
+      const course = data.course_name ?? "Selected program";
+      const scholarship = data.scholarship_label ??
+        (typeof data.scholarship_percent === "number" ? `${data.scholarship_percent}% scholarship` : "Approved scholarship");
+      const placementFee = typeof data.placement_fee_usd === "number" ? data.placement_fee_usd : null;
+      const placementFeeLabel = placementFee === null ? "Pending confirmation" : placementFee === 0 ? "Waived" : `$${placementFee.toLocaleString("en-US")}`;
+      const tuitionLabel = typeof data.tuition_annual_usd === "number" ? `$${data.tuition_annual_usd.toLocaleString("en-US")}/year` : null;
+      const actionUrl = data.payment_link ?? routes.onboardingPlacementFee;
+      const isWaived = placementFee === 0;
+
+      return {
+        subject: `Scholarship approved — ${university}`,
+        emailHtml: emailWrapper("Scholarship approved", `
+          <p>Hi, ${highlight(firstName)}!</p>
+          <p>Your scholarship has been approved. Below are the approved details for your application:</p>
+          <div style="background:#111;border:1px solid #2a2a2a;border-radius:12px;padding:16px;margin:18px 0;">
+            <p style="margin:0 0 8px;color:#bbb;"><strong style="color:#fff;">University:</strong> ${university}</p>
+            <p style="margin:0 0 8px;color:#bbb;"><strong style="color:#fff;">Program:</strong> ${course}</p>
+            <p style="margin:0 0 8px;color:#bbb;"><strong style="color:#fff;">Scholarship:</strong> ${scholarship}</p>
+            ${tuitionLabel ? `<p style="margin:0 0 8px;color:#bbb;"><strong style="color:#fff;">Tuition:</strong> ${tuitionLabel}</p>` : ""}
+            <p style="margin:0;color:#bbb;"><strong style="color:#fff;">Placement Fee:</strong> ${placementFeeLabel}</p>
+          </div>
+          ${isWaived
+            ? `<p>No Placement Fee payment is required for this approved scholarship. Your seat has been confirmed and your next step is available in the student portal.</p>`
+            : `<p>To secure your seat, please complete the <strong>Placement Fee</strong> payment using the link below.</p>`
+          }
+          ${btn(isWaived ? "Access student portal" : "Pay Placement Fee", actionUrl)}
+          <p style="margin-top:20px;color:#888;font-size:13px;">If you have any questions, contact the Migma team before proceeding.</p>
+        `),
+        whatsapp: `🏫 *Migma* — Scholarship approved!\n\nHi ${firstName}, your scholarship at *${university}* has been approved.\n\n*Program:* ${course}\n*Scholarship:* ${scholarship}${tuitionLabel ? `\n*Tuition:* ${tuitionLabel}` : ""}\n*Placement Fee:* ${placementFeeLabel}\n\n${isWaived ? "No Placement Fee payment is required. Access your student portal for the next step:" : "Pay the Placement Fee to secure your seat:"}\n${actionUrl}`,
+      };
+    }
 
     // ── 05 ────────────────────────────────────────────────────────────────────
     case "application_fee_paid": return {

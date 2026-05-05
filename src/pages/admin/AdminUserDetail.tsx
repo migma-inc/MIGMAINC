@@ -1644,7 +1644,6 @@ function DocumentsTab({
               const displayStatus = isMentor
                 ? status === 'approved' ? 'complete' : 'pending'
                 : status;
-              const isContractIdentityDoc = CONTRACT_IDENTITY_DOC_TYPES.has(doc.type ?? '');
               return (
                 <div
                   key={doc.id}
@@ -1653,7 +1652,7 @@ function DocumentsTab({
                       openModal(
                         url,
                         label,
-                        isMentor || isContractIdentityDoc
+                        isMentor
                           ? undefined
                           : {
                               scope: 'student',
@@ -2470,15 +2469,6 @@ const DOC_TYPE_LABELS: Record<string, string> = {
   visa: 'Current Visa',
   other: 'Other',
 };
-
-const CONTRACT_IDENTITY_DOC_TYPES = new Set([
-  'passport',
-  'passport_back',
-  'selfie_with_doc',
-  'document_front',
-  'document_back',
-  'selfie_doc',
-]);
 
 function studentDocBadge(status: string | null) {
   if (status === 'complete') return 'bg-green-500/20 text-green-300 border-green-500/30';

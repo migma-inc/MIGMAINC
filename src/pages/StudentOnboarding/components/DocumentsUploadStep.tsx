@@ -2,7 +2,7 @@
  * Etapa 6 — Upload de documentos.
  * Faz upload para o Storage do Matricula USA e registra em global_document_requests.
  */
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   Upload, FileText, CheckCircle, Loader2,
   AlertCircle, ArrowRight, X, Languages, ExternalLink,
@@ -12,7 +12,20 @@ import { useStudentAuth } from '../../../contexts/StudentAuthContext';
 import { supabase } from '../../../lib/supabase';
 import type { StepProps } from '../types';
 
-const DOCUMENT_TYPES = [
+const MAX_DOCUMENT_FILE_SIZE_BYTES = 20 * 1024 * 1024;
+const ACCEPTED_DOCUMENT_EXTENSIONS = new Set(['pdf', 'jpg', 'jpeg', 'png', 'webp']);
+const FILE_ACCEPT = '.pdf,.jpg,.jpeg,.png,.webp';
+
+type ProcessCategory = 'transfer' | 'cos' | 'other';
+
+interface DocumentType {
+  key: string;
+  labelKey: string;
+  descKey: string;
+  required: boolean;
+}
+
+const DOCUMENT_TYPES: DocumentType[] = [
   {
     key: 'current_i20',
     labelKey: 'student_onboarding.documents.i20_label',
@@ -56,6 +69,12 @@ const DOCUMENT_TYPES = [
     required: true,
   },
   {
+    key: 'i797a',
+    labelKey: 'student_onboarding.documents.i797a_label',
+    descKey: 'student_onboarding.documents.i797a_desc',
+    required: false,
+  },
+  {
     key: 'certidoes',
     labelKey: 'student_onboarding.documents.family_label',
     descKey: 'student_onboarding.documents.family_desc',
@@ -63,11 +82,37 @@ const DOCUMENT_TYPES = [
   },
 ];
 
+const normalizeProcessCategory = (raw?: string | null): ProcessCategory => {
+  const value = (raw || '').toLowerCase();
+  if (value.includes('transfer')) return 'transfer';
+  if (value.includes('cos') || value.includes('change')) return 'cos';
+  return 'other';
+};
+
+const getDocumentTypesForProfile = (profile: any): DocumentType[] => {
+  const processCategory = normalizeProcessCategory(profile?.service_type ?? profile?.student_process_type);
+  const hasDependents = Number(profile?.num_dependents ?? 0) > 0;
+
+  return DOCUMENT_TYPES
+    .filter((doc) => {
+      if (doc.key === 'current_i20') return processCategory === 'transfer';
+      if (doc.key === 'certidoes') return hasDependents;
+      if (doc.key === 'i797a') return processCategory === 'transfer' || processCategory === 'cos';
+      return true;
+    })
+    .map((doc) => {
+      if (doc.key === 'current_i20') return { ...doc, required: processCategory === 'transfer' };
+      if (doc.key === 'certidoes') return { ...doc, required: hasDependents };
+      return doc;
+    });
+};
+
 interface UploadedDoc {
   id: string;
   document_type: string;
   submitted_url: string | null;
   status: string | null;
+  rejection_reason?: string | null;
   requested_at?: string | null;
   submitted_at?: string | null;
 }
@@ -78,8 +123,13 @@ interface PassportDoc {
   file_url: string | null;
   original_filename: string | null;
   status: string | null;
+  rejection_reason?: string | null;
   uploaded_at?: string | null;
 }
+
+const isRejectedStatus = (status?: string | null) => status === 'rejected';
+const isApprovedStatus = (status?: string | null) => status === 'approved';
+const isValidSubmittedStatus = (status?: string | null) => status !== 'rejected';
 
 export const DocumentsUploadStep: React.FC<StepProps> = ({ onNext }) => {
   const { t } = useTranslation();
@@ -93,6 +143,12 @@ export const DocumentsUploadStep: React.FC<StepProps> = ({ onNext }) => {
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
+  const documentTypes = useMemo(() => getDocumentTypesForProfile(userProfile), [
+    userProfile?.service_type,
+    userProfile?.student_process_type,
+    userProfile?.num_dependents,
+  ]);
+  const documentsApproved = userProfile?.documents_status === 'approved';
 
   useEffect(() => {
     if (!user?.id || !userProfile?.id) return;
@@ -109,12 +165,12 @@ export const DocumentsUploadStep: React.FC<StepProps> = ({ onNext }) => {
       const [globalDocsRes, passportRes] = await Promise.all([
         supabase
           .from('global_document_requests')
-          .select('id, document_type, submitted_url, status, requested_at, submitted_at')
+          .select('id, document_type, submitted_url, status, rejection_reason, requested_at, submitted_at')
           .eq('profile_id', userProfile.id)
           .order('requested_at', { ascending: false }),
         supabase
           .from('student_documents')
-          .select('id, type, file_url, original_filename, status, uploaded_at')
+          .select('id, type, file_url, original_filename, status, rejection_reason, uploaded_at')
           .eq('user_id', user.id)
           .eq('type', 'passport')
           .maybeSingle(),
@@ -129,13 +185,36 @@ export const DocumentsUploadStep: React.FC<StepProps> = ({ onNext }) => {
     }
   };
 
-  const handleFileSelect = (docType: string, file: File | null) => {
+  const validateFile = (file: File): boolean => {
+    const extension = file.name.split('.').pop()?.toLowerCase() || '';
+
+    if (!ACCEPTED_DOCUMENT_EXTENSIONS.has(extension)) {
+      setError(t('student_onboarding.documents.error_type', 'Only PDF, JPG, PNG or WEBP files are accepted.'));
+      return false;
+    }
+
+    if (file.size > MAX_DOCUMENT_FILE_SIZE_BYTES) {
+      setError(t('student_onboarding.documents.error_size', 'File too large. Maximum 20MB.'));
+      return false;
+    }
+
+    return true;
+  };
+
+  const handleFileSelect = (docType: string, file: File | null): boolean => {
+    if (file && !validateFile(file)) {
+      setSelectedFiles(prev => ({ ...prev, [docType]: null }));
+      return false;
+    }
+
     setSelectedFiles(prev => ({ ...prev, [docType]: file }));
     setError(null);
+    return true;
   };
 
   const uploadFile = async (docType: string, file: File): Promise<boolean> => {
     if (!user?.id || !userProfile?.id) return false;
+    if (!validateFile(file)) return false;
     setUploadingFiles(prev => ({ ...prev, [docType]: true }));
 
     try {
@@ -159,6 +238,7 @@ export const DocumentsUploadStep: React.FC<StepProps> = ({ onNext }) => {
         document_type: docType,
         submitted_url: publicUrlData.publicUrl,
         status: 'pending',
+        rejection_reason: null,
         requested_at: new Date().toISOString(),
         submitted_at: new Date().toISOString(),
       };
@@ -197,6 +277,50 @@ export const DocumentsUploadStep: React.FC<StepProps> = ({ onNext }) => {
     }
   };
 
+  const submitDocumentsForReview = async () => {
+    if (!user?.id || !userProfile?.id) return;
+
+    setSaving(true);
+    setError(null);
+
+    try {
+      const nextProfileUpdate = {
+        documents_uploaded: true,
+        documents_status: 'under_review',
+      };
+
+      const { error: profileError } = await supabase
+        .from('user_profiles')
+        .update(nextProfileUpdate)
+        .eq('user_id', user.id);
+
+      if (profileError) throw profileError;
+
+      await updateUserProfile(nextProfileUpdate as any);
+      setIsLocked(true);
+      setSelectedFiles({});
+
+      try {
+        await supabase.functions.invoke('migma-notify', {
+          body: {
+            trigger: 'admin_new_documents',
+            data: {
+              client_name: userProfile?.full_name ?? userProfile?.email ?? 'Student',
+              client_id: userProfile?.id,
+            },
+          },
+        });
+      } catch (err) {
+        console.warn('[DocumentsUploadStep] Admin notification failed:', err);
+      }
+    } catch (err: any) {
+      console.error('[DocumentsUploadStep] Erro ao finalizar documentos:', err);
+      setError(t('student_onboarding.documents.error_upload', 'Upload error. Please try again.'));
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const handleUploadAll = async () => {
     const filesToUpload = Object.entries(selectedFiles).filter(([_, file]) => file !== null);
     if (filesToUpload.length === 0) {
@@ -223,49 +347,35 @@ export const DocumentsUploadStep: React.FC<StepProps> = ({ onNext }) => {
 
     if (!allSuccess) return;
 
-    // Verificar se todos os documentos obrigatórios foram enviados
-    const updatedDocs = await supabase
-      .from('global_document_requests')
-      .select('document_type')
-      .eq('profile_id', userProfile!.id);
+    const [updatedDocs, updatedPassport] = await Promise.all([
+      supabase
+        .from('global_document_requests')
+        .select('document_type, status')
+        .eq('profile_id', userProfile!.id),
+      supabase
+        .from('student_documents')
+        .select('id, status')
+        .eq('user_id', user!.id)
+        .eq('type', 'passport')
+        .maybeSingle(),
+    ]);
 
-    const uploadedTypes = (updatedDocs.data || []).map((d: any) => d.document_type);
-    const requiredTypes = DOCUMENT_TYPES.filter(d => d.required).map(d => d.key);
-    const allUploaded = requiredTypes.every(t => uploadedTypes.includes(t));
+    const validUploadedTypes = (updatedDocs.data || [])
+      .filter((d: any) => isValidSubmittedStatus(d.status))
+      .map((d: any) => d.document_type);
+    const requiredTypes = documentTypes.filter(d => d.required).map(d => d.key);
+    const allUploaded = requiredTypes.every(t => validUploadedTypes.includes(t))
+      && !!updatedPassport.data?.id
+      && isValidSubmittedStatus(updatedPassport.data?.status);
 
     if (allUploaded) {
-      const nextProfileUpdate = {
-        documents_uploaded: true,
-        documents_status: 'under_review',
-      };
-
-      await supabase
-        .from('user_profiles')
-        .update(nextProfileUpdate)
-        .eq('user_id', user!.id);
-      await updateUserProfile(nextProfileUpdate as any);
-
-      // Fix 1: Admin notification when student uploads all documents
-      try {
-        await supabase.functions.invoke('migma-notify', {
-          body: {
-            trigger: 'admin_new_documents',
-            data: {
-              client_name: userProfile?.full_name ?? userProfile?.email ?? 'Student',
-              client_id: userProfile?.id,
-            },
-          },
-        });
-      } catch (err) {
-        console.warn('[DocumentsUploadStep] Admin notification failed:', err);
-      }
-
-      onNext();
+      await submitDocumentsForReview();
     }
   };
 
   const uploadPassport = async (file: File): Promise<boolean> => {
     if (!user?.id) return false;
+    if (!validateFile(file)) return false;
     setUploadingFiles(prev => ({ ...prev, passport: true }));
 
     try {
@@ -290,6 +400,7 @@ export const DocumentsUploadStep: React.FC<StepProps> = ({ onNext }) => {
         original_filename: file.name,
         file_size_bytes: file.size,
         status: 'pending',
+        rejection_reason: null,
         source: 'migma',
         uploaded_at: new Date().toISOString(),
       };
@@ -334,7 +445,24 @@ export const DocumentsUploadStep: React.FC<StepProps> = ({ onNext }) => {
 
   const getPassportStatus = () => passportDoc;
 
-  const allRequiredUploaded = DOCUMENT_TYPES.filter(d => d.required).every(d => getDocStatus(d.key)) && !!getPassportStatus();
+  const hasRejectedDocuments = uploadedDocs.some(d => isRejectedStatus(d.status)) || isRejectedStatus(passportDoc?.status);
+  const canSubmitSelectedFiles = !isLocked || hasRejectedDocuments;
+  const allRequiredUploaded = documentTypes.filter(d => d.required).every(d => {
+    const uploaded = getDocStatus(d.key);
+    return !!uploaded && isValidSubmittedStatus(uploaded.status);
+  }) && !!getPassportStatus() && isValidSubmittedStatus(getPassportStatus()?.status);
+  const passportRejected = isRejectedStatus(passportDoc?.status);
+  const passportApproved = isApprovedStatus(passportDoc?.status);
+  const passportSubmitted = !!passportDoc && !passportRejected;
+  const passportCardClass = passportRejected
+    ? 'border-red-500/40 bg-red-500/10 shadow-lg shadow-red-500/10'
+    : passportApproved
+      ? 'border-emerald-500/30 bg-emerald-500/5 shadow-lg shadow-emerald-500/5'
+      : passportSubmitted
+        ? 'border-amber-500/35 bg-amber-500/5 shadow-lg shadow-amber-500/5'
+        : selectedFiles.passport
+          ? 'border-gold-medium/50 bg-gold-medium/10 shadow-xl shadow-gold-medium/10'
+          : 'border-white/10 bg-white/5';
 
   return (
     <div className="space-y-8 pb-12 max-w-4xl mx-auto px-4">
@@ -343,6 +471,9 @@ export const DocumentsUploadStep: React.FC<StepProps> = ({ onNext }) => {
         <div className="space-y-4">
           <p className="text-sm text-gray-400 font-medium">
             {t('student_onboarding.documents.subtitle_main', 'Upload the required documents to continue.')}
+          </p>
+          <p className="text-xs text-gray-500 font-medium">
+            {t('student_onboarding.documents.file_requirements', 'Accepted formats: PDF, JPG, PNG or WEBP. Maximum size: 20MB per file.')}
           </p>
           
           <div className="inline-flex items-center gap-2.5 px-4 py-2 bg-gold-medium/10 border border-gold-medium/20 rounded-xl group hover:border-gold-medium/40 transition-all cursor-default">
@@ -366,10 +497,20 @@ export const DocumentsUploadStep: React.FC<StepProps> = ({ onNext }) => {
       </div>
 
       {isLocked && (
-        <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-2xl p-4 flex items-center gap-3">
-          <CheckCircle className="w-5 h-5 text-emerald-400 flex-shrink-0" />
-          <p className="text-emerald-400 font-medium text-sm">
-            {t('student_onboarding.documents.locked_notice')}
+        <div className={`border rounded-2xl p-4 flex items-center gap-3 ${
+          hasRejectedDocuments
+            ? 'bg-red-500/10 border-red-500/25'
+            : 'bg-emerald-500/10 border-emerald-500/20'
+        }`}>
+          {hasRejectedDocuments
+            ? <AlertCircle className="w-5 h-5 text-red-400 flex-shrink-0" />
+            : <CheckCircle className="w-5 h-5 text-emerald-400 flex-shrink-0" />
+          }
+          <p className={`font-medium text-sm ${hasRejectedDocuments ? 'text-red-300' : 'text-emerald-400'}`}>
+            {hasRejectedDocuments
+              ? t('student_onboarding.documents.rejected_notice', 'One or more documents need correction. Upload the rejected files again for review.')
+              : t('student_onboarding.documents.locked_notice')
+            }
           </p>
         </div>
       )}
@@ -381,23 +522,21 @@ export const DocumentsUploadStep: React.FC<StepProps> = ({ onNext }) => {
       ) : (
         <div className="space-y-4">
           {/* Passport Card */}
-          <div className={`border-2 rounded-2xl p-5 transition-all duration-300 ${
-            passportDoc 
-              ? 'border-emerald-500/30 bg-emerald-500/5 shadow-lg shadow-emerald-500/5' 
-              : selectedFiles.passport
-                ? 'border-gold-medium/50 bg-gold-medium/10 shadow-xl shadow-gold-medium/10'
-                : 'border-white/10 bg-white/5'
-          }`}>
+          <div className={`border-2 rounded-2xl p-5 transition-all duration-300 ${passportCardClass}`}>
             <div className="flex items-start gap-4">
               <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 transition-colors ${
-                passportDoc 
+                passportRejected
+                  ? 'bg-red-500/10'
+                  : passportSubmitted
                   ? 'bg-emerald-500/10' 
                   : selectedFiles.passport
                     ? 'bg-gold-medium/20'
                     : 'bg-white/10'
               }`}>
-                {passportDoc
-                  ? <CheckCircle className="w-5 h-5 text-emerald-400" />
+                {passportRejected
+                  ? <AlertCircle className="w-5 h-5 text-red-400" />
+                  : passportSubmitted
+                    ? <CheckCircle className={`w-5 h-5 ${passportApproved ? 'text-emerald-400' : 'text-amber-400'}`} />
                   : selectedFiles.passport
                     ? <Upload className="w-5 h-5 text-gold-medium animate-bounce" />
                     : <FileText className="w-5 h-5 text-gray-400" />
@@ -408,8 +547,19 @@ export const DocumentsUploadStep: React.FC<StepProps> = ({ onNext }) => {
                   <span className="font-bold text-white">{t('student_onboarding.documents.passport_label')}</span>
                   <span className="text-xs text-red-400 font-medium">*</span>
                   {passportDoc && (
-                    <span className="text-[10px] font-black uppercase border rounded-sm px-2 py-0.5 bg-emerald-500/10 text-emerald-300 border-emerald-500/20">
-                      {t('student_onboarding.documents.already_sent', 'Already sent')}
+                    <span className={`text-[10px] font-black uppercase border rounded-sm px-2 py-0.5 ${
+                      passportRejected
+                        ? 'bg-red-500/10 text-red-300 border-red-500/25'
+                        : passportApproved
+                          ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/20'
+                          : 'bg-amber-500/10 text-amber-300 border-amber-500/25'
+                    }`}>
+                      {passportRejected
+                        ? t('student_onboarding.documents.status_rejected', 'Rejected')
+                        : passportApproved
+                          ? t('student_onboarding.documents.status_approved', 'Approved')
+                          : t('student_onboarding.documents.status_pending', 'Under review')
+                      }
                     </span>
                   )}
                   {!passportDoc && selectedFiles.passport && (
@@ -421,9 +571,27 @@ export const DocumentsUploadStep: React.FC<StepProps> = ({ onNext }) => {
                 <p className="text-sm text-gray-500 mt-0.5">{t('student_onboarding.documents.passport_desc')}</p>
 
                 {passportDoc && (
-                  <div className="mt-2 flex items-center gap-1.5 text-sm text-emerald-400 font-medium">
-                    <CheckCircle className="w-4 h-4" />
-                    {passportDoc.original_filename || t('student_onboarding.documents.passport_sent', 'Passport uploaded')}
+                  <div className={`mt-2 flex items-center gap-1.5 text-sm font-medium ${
+                    passportRejected ? 'text-red-300' : passportApproved ? 'text-emerald-400' : 'text-amber-300'
+                  }`}>
+                    {passportRejected
+                      ? <AlertCircle className="w-4 h-4" />
+                      : <CheckCircle className="w-4 h-4" />
+                    }
+                    {passportRejected
+                      ? t('student_onboarding.documents.file_rejected_label', {
+                          label: t('student_onboarding.documents.passport_label'),
+                          defaultValue: '{{label}} rejected',
+                        })
+                      : passportDoc.original_filename || t('student_onboarding.documents.passport_sent', 'Passport uploaded')
+                    }
+                  </div>
+                )}
+
+                {passportRejected && passportDoc.rejection_reason && (
+                  <div className="mt-3 rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+                    <span className="font-bold">{t('student_onboarding.documents.rejection_reason_label', 'Reason')}:</span>{' '}
+                    {passportDoc.rejection_reason}
                   </div>
                 )}
 
@@ -431,8 +599,11 @@ export const DocumentsUploadStep: React.FC<StepProps> = ({ onNext }) => {
                   <input
                     type="file"
                     ref={el => { fileInputRefs.current.passport = el; }}
-                    onChange={e => handleFileSelect('passport', e.target.files?.[0] || null)}
-                    accept=".pdf,.jpg,.jpeg,.png,.webp"
+                    onChange={e => {
+                      const isValid = handleFileSelect('passport', e.target.files?.[0] || null);
+                      if (!isValid) e.currentTarget.value = '';
+                    }}
+                    accept={FILE_ACCEPT}
                     className="hidden"
                   />
                   <button
@@ -441,11 +612,18 @@ export const DocumentsUploadStep: React.FC<StepProps> = ({ onNext }) => {
                     className={`flex items-center gap-1.5 text-sm border rounded-lg px-4 py-2 transition-all font-bold uppercase tracking-wider ${
                       selectedFiles.passport
                         ? 'border-gold-medium/40 bg-gold-medium/10 text-gold-light hover:bg-gold-medium/20'
+                        : passportRejected
+                          ? 'border-red-500/30 bg-red-500/10 text-red-200 hover:border-red-400/50'
                         : 'border-white/10 bg-white/5 text-gray-300 hover:border-white/20'
                     }`}
                   >
                     <Upload className="w-4 h-4" />
-                    {passportDoc || selectedFiles.passport ? t('student_onboarding.documents.change') : t('student_onboarding.documents.upload')}
+                    {passportRejected
+                      ? t('student_onboarding.documents.resubmit', 'Resubmit')
+                      : passportDoc || selectedFiles.passport
+                        ? t('student_onboarding.documents.change')
+                        : t('student_onboarding.documents.upload')
+                    }
                   </button>
                   
                   {selectedFiles.passport && (
@@ -471,11 +649,24 @@ export const DocumentsUploadStep: React.FC<StepProps> = ({ onNext }) => {
             </div>
           </div>
 
-          {DOCUMENT_TYPES.map(doc => {
+          {documentTypes.map(doc => {
             const uploaded = getDocStatus(doc.key);
-            const isSelected = !!selectedFiles[doc.key] && !uploaded;
+            const isRejected = isRejectedStatus(uploaded?.status);
+            const isApproved = isApprovedStatus(uploaded?.status);
+            const isSubmitted = !!uploaded && !isRejected;
+            const isSelected = !!selectedFiles[doc.key] && (!uploaded || isRejected);
             const isUploading = uploadingFiles[doc.key];
             const isFunds = doc.key === 'bank_statement';
+            const canEditDocument = !isLocked || isRejected;
+            const cardClass = isRejected
+              ? 'border-red-500/40 bg-red-500/10 shadow-lg shadow-red-500/10'
+              : isApproved
+                ? 'border-emerald-500/30 bg-emerald-500/5 shadow-lg shadow-emerald-500/5'
+                : isSubmitted
+                  ? 'border-amber-500/35 bg-amber-500/5 shadow-lg shadow-amber-500/5'
+                  : isSelected
+                    ? 'border-gold-medium/50 bg-gold-medium/10 shadow-xl shadow-gold-medium/10'
+                    : 'border-white/10 bg-white/5';
 
             return (
               <div key={doc.key} className="space-y-4">
@@ -502,23 +693,21 @@ export const DocumentsUploadStep: React.FC<StepProps> = ({ onNext }) => {
                   </div>
                 )}
                 
-                <div className={`border-2 rounded-2xl p-5 transition-all duration-300 ${
-                  uploaded 
-                    ? 'border-emerald-500/30 bg-emerald-500/5 shadow-lg shadow-emerald-500/5' 
-                    : isSelected
-                      ? 'border-gold-medium/50 bg-gold-medium/10 shadow-xl shadow-gold-medium/10'
-                      : 'border-white/10 bg-white/5'
-                }`}>
+                <div className={`border-2 rounded-2xl p-5 transition-all duration-300 ${cardClass}`}>
                   <div className="flex items-start gap-4">
                     <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 transition-colors ${
-                      uploaded 
+                      isRejected
+                        ? 'bg-red-500/10'
+                        : isSubmitted
                         ? 'bg-emerald-500/10' 
                         : isSelected
                           ? 'bg-gold-medium/20'
                           : 'bg-white/10'
                     }`}>
-                      {uploaded
-                        ? <CheckCircle className="w-5 h-5 text-emerald-400" />
+                      {isRejected
+                        ? <AlertCircle className="w-5 h-5 text-red-400" />
+                        : isSubmitted
+                          ? <CheckCircle className={`w-5 h-5 ${isApproved ? 'text-emerald-400' : 'text-amber-400'}`} />
                         : isSelected
                           ? <Upload className="w-5 h-5 text-gold-medium animate-bounce" />
                           : <FileText className="w-5 h-5 text-gray-400" />
@@ -529,8 +718,19 @@ export const DocumentsUploadStep: React.FC<StepProps> = ({ onNext }) => {
                         <span className="font-bold text-white">{t(doc.labelKey)}</span>
                         {doc.required && <span className="text-xs text-red-400 font-medium">*</span>}
                         {uploaded && (
-                          <span className="text-[10px] font-black uppercase border rounded-sm px-2 py-0.5 bg-emerald-500/10 text-emerald-300 border-emerald-500/20">
-                            {t('student_onboarding.documents.already_sent', 'Already sent')}
+                          <span className={`text-[10px] font-black uppercase border rounded-sm px-2 py-0.5 ${
+                            isRejected
+                              ? 'bg-red-500/10 text-red-300 border-red-500/25'
+                              : isApproved
+                                ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/20'
+                                : 'bg-amber-500/10 text-amber-300 border-amber-500/25'
+                          }`}>
+                            {isRejected
+                              ? t('student_onboarding.documents.status_rejected', 'Rejected')
+                              : isApproved
+                                ? t('student_onboarding.documents.status_approved', 'Approved')
+                                : t('student_onboarding.documents.status_pending', 'Under review')
+                            }
                           </span>
                         )}
                         {isSelected && (
@@ -542,19 +742,48 @@ export const DocumentsUploadStep: React.FC<StepProps> = ({ onNext }) => {
                       <p className="text-sm text-gray-500 mt-0.5">{t(doc.descKey)}</p>
 
                       {uploaded && (
-                        <div className="mt-2 flex items-center gap-1.5 text-sm text-emerald-400 font-medium">
-                          <CheckCircle className="w-4 h-4" />
-                          {uploaded.submitted_url?.split('/').pop() ?? t('student_onboarding.documents.sent', 'Sent')}
+                        <div className={`mt-2 flex items-center gap-1.5 text-sm font-medium ${
+                          isRejected ? 'text-red-300' : isApproved ? 'text-emerald-400' : 'text-amber-300'
+                        }`}>
+                          {isRejected
+                            ? <AlertCircle className="w-4 h-4" />
+                            : <CheckCircle className="w-4 h-4" />
+                          }
+                          {isRejected
+                            ? t('student_onboarding.documents.file_rejected_label', {
+                                label: t(doc.labelKey),
+                                defaultValue: '{{label}} rejected',
+                              })
+                            : isApproved
+                              ? t('student_onboarding.documents.file_approved_label', {
+                                  label: t(doc.labelKey),
+                                  defaultValue: '{{label}} approved',
+                                })
+                              : t('student_onboarding.documents.file_pending_label', {
+                                  label: t(doc.labelKey),
+                                  defaultValue: '{{label}} under review',
+                                })
+                          }
                         </div>
                       )}
 
-                      {!isLocked && (
+                      {isRejected && uploaded.rejection_reason && (
+                        <div className="mt-3 rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+                          <span className="font-bold">{t('student_onboarding.documents.rejection_reason_label', 'Reason')}:</span>{' '}
+                          {uploaded.rejection_reason}
+                        </div>
+                      )}
+
+                      {canEditDocument && (
                         <div className="mt-4 flex flex-wrap items-center gap-3">
                           <input
                             type="file"
                             ref={el => { fileInputRefs.current[doc.key] = el; }}
-                            onChange={e => handleFileSelect(doc.key, e.target.files?.[0] || null)}
-                            accept=".pdf,.jpg,.jpeg,.png,.webp"
+                            onChange={e => {
+                              const isValid = handleFileSelect(doc.key, e.target.files?.[0] || null);
+                              if (!isValid) e.currentTarget.value = '';
+                            }}
+                            accept={FILE_ACCEPT}
                             className="hidden"
                           />
                           <button
@@ -563,11 +792,18 @@ export const DocumentsUploadStep: React.FC<StepProps> = ({ onNext }) => {
                             className={`flex items-center gap-1.5 text-sm border rounded-lg px-4 py-2 transition-all font-bold uppercase tracking-wider ${
                               selectedFiles[doc.key]
                                 ? 'border-gold-medium/40 bg-gold-medium/10 text-gold-light hover:bg-gold-medium/20'
+                                : isRejected
+                                  ? 'border-red-500/30 bg-red-500/10 text-red-200 hover:border-red-400/50'
                                 : 'border-white/10 bg-white/5 text-gray-300 hover:border-white/20'
                             }`}
                           >
                             <Upload className="w-4 h-4" />
-                            {uploaded || selectedFiles[doc.key] ? t('student_onboarding.documents.change') : t('student_onboarding.documents.upload')}
+                            {isRejected
+                              ? t('student_onboarding.documents.resubmit', 'Resubmit')
+                              : uploaded || selectedFiles[doc.key]
+                                ? t('student_onboarding.documents.change')
+                                : t('student_onboarding.documents.upload')
+                            }
                           </button>
                           
                           {selectedFiles[doc.key] && (
@@ -606,7 +842,7 @@ export const DocumentsUploadStep: React.FC<StepProps> = ({ onNext }) => {
         </div>
       )}
 
-      {!isLocked && (
+      {canSubmitSelectedFiles && (
         <div className="flex items-center justify-between pt-6 border-t border-white/5">
           {allRequiredUploaded && (
             <div className="flex items-center gap-2 text-sm text-emerald-400 font-bold bg-emerald-500/5 px-4 py-2 rounded-full border border-emerald-500/20">
@@ -615,7 +851,7 @@ export const DocumentsUploadStep: React.FC<StepProps> = ({ onNext }) => {
             </div>
           )}
           <button
-            onClick={allRequiredUploaded ? onNext : handleUploadAll}
+            onClick={allRequiredUploaded ? submitDocumentsForReview : handleUploadAll}
             disabled={saving || (Object.values(selectedFiles).every(f => !f) && !allRequiredUploaded)}
             className={`ml-auto flex items-center gap-3 py-4 px-10 rounded-2xl transition-all font-black uppercase tracking-widest disabled:opacity-40 disabled:cursor-not-allowed shadow-xl ${
               allRequiredUploaded 
@@ -627,18 +863,27 @@ export const DocumentsUploadStep: React.FC<StepProps> = ({ onNext }) => {
               ? <><Loader2 className="w-5 h-5 animate-spin" /> {t('student_onboarding.documents.uploading')}</>
               : allRequiredUploaded
               ? <><ArrowRight className="w-5 h-5" /> {t('student_onboarding.documents.finish_upload', 'Finish Submission')}</>
-              : <><Upload className="w-5 h-5" /> {t('student_onboarding.documents.submit_selected', 'Upload Selected Documents')}</>
+              : <><Upload className="w-5 h-5" /> {hasRejectedDocuments ? t('student_onboarding.documents.resubmit_selected', 'Resubmit selected documents') : t('student_onboarding.documents.submit_selected', 'Upload Selected Documents')}</>
             }
           </button>
         </div>
       )}
 
-      {isLocked && (
+      {isLocked && documentsApproved && (
         <button
           onClick={onNext}
           className="flex items-center gap-2 bg-gold-medium hover:bg-gold-dark text-black py-3 px-8 rounded-xl transition-colors font-black uppercase tracking-widest"
         >
           <ArrowRight className="w-4 h-4" /> {t('student_onboarding.selection_fee.continue')}
+        </button>
+      )}
+
+      {isLocked && !documentsApproved && (
+        <button
+          disabled
+          className="flex items-center gap-2 bg-white/10 text-gray-400 py-3 px-8 rounded-xl font-black uppercase tracking-widest cursor-not-allowed"
+        >
+          <Loader2 className="w-4 h-4 animate-spin" /> {t('student_onboarding.documents.waiting_review', 'Waiting for review')}
         </button>
       )}
     </div>

@@ -263,7 +263,7 @@ export const useOnboardingProgress = () => {
         computedMaxAllowedStep = 'scholarship_selection';
       } else if (!placementFeePaid) {
         computedMaxAllowedStep = 'placement_fee';
-      } else if (!documentsUploaded) {
+      } else if (!documentsUploaded || !documentsApproved) {
         computedMaxAllowedStep = 'documents_upload';
       } else if (!applicationFeePaid) {
         computedMaxAllowedStep = 'payment';

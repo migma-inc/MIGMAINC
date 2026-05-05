@@ -59,8 +59,6 @@ export const PaymentStep: React.FC<StepProps> = ({ onNext }) => {
   const [zelleUploading, setZelleUploading] = useState(false);
   const [zelleSubmitted, setZelleSubmitted] = useState(false);
   const [rejectionReason, setRejectionReason] = useState<string | null>(null);
-  const [couponOpen, setCouponOpen] = useState(false);
-  const [couponCode, setCouponCode] = useState('');
   const [, setExchangeRate] = useState(5.6);
   const [splitConfig, setSplitConfig] = useState<SplitPaymentConfig | null>(null);
   const [cardOwnership, setCardOwnership] = useState<'own' | 'third_party'>('own');
@@ -427,36 +425,6 @@ export const PaymentStep: React.FC<StepProps> = ({ onNext }) => {
         )}
 
         <div className="border-t border-white/8 mx-5" />
-
-        {/* Coupon section */}
-        <div className="p-5">
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => { setCouponOpen(!couponOpen); setCouponCode(''); }}
-              className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-all shrink-0 ${
-                couponOpen ? 'bg-gold-medium border-gold-medium' : 'border-white/30 hover:border-white/50'
-              }`}
-            >
-              {couponOpen && <CheckCircle className="w-3.5 h-3.5 text-black" />}
-            </button>
-            <span className="font-black text-white text-sm">{t('student_onboarding.payment_ui.coupon_title', 'Promotional Coupon')}</span>
-            {couponOpen && (
-              <>
-                <input
-                  value={couponCode}
-                  onChange={e => setCouponCode(e.target.value)}
-                  placeholder={t('student_onboarding.payment_ui.coupon_placeholder', 'Enter code')}
-                  className="flex-1 bg-white/5 border border-white/15 rounded-xl px-4 py-2 text-white text-sm placeholder-gray-600 outline-none focus:border-gold-medium/50 transition-colors min-w-0"
-                />
-                <button className="shrink-0 bg-white/10 hover:bg-white/15 border border-white/20 text-white text-[10px] font-black uppercase tracking-widest px-3 py-2 rounded-xl transition-all">
-                  {t('student_onboarding.payment_ui.validate_code', 'Validate Code')}
-                </button>
-              </>
-            )}
-          </div>
-        </div>
-
-        <div className="border-t border-white/8 mx-5" />
         
         {/* Rejection Alert */}
         {rejectionReason && (
@@ -625,6 +593,12 @@ export const PaymentStep: React.FC<StepProps> = ({ onNext }) => {
               {cardOwnership === 'third_party' && (
                 <div className="space-y-2">
                   <p className="text-[10px] text-amber-400/80 font-bold uppercase tracking-wider">{t('checkout.payer_data_title', 'Cardholder Data')}</p>
+                  <p className="rounded-xl border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-[11px] leading-relaxed text-amber-100/80">
+                    {t(
+                      'checkout.payer_data_notice',
+                      'We use this information only to process this payment with the payment provider and contact the cardholder if validation is required.'
+                    )}
+                  </p>
                   <input
                     value={payerName}
                     onChange={e => setPayerName(e.target.value.toUpperCase())}

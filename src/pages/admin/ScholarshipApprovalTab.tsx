@@ -195,6 +195,8 @@ export function ScholarshipApprovalTab({ detail }: { detail: CaseDetailPage }) {
       const originUrl = window.location.origin;
       const now = new Date().toISOString();
       let checkoutUrl: string | null = null;
+      const course = app.institutions?.institution_courses?.[0];
+      const scholarshipPercent = app.institution_scholarships.discount_percent;
 
       if (placementFee === 0) {
         // 1a. $0 tier — skip payment gateway, confirm vaga directly
@@ -263,13 +265,20 @@ export function ScholarshipApprovalTab({ detail }: { detail: CaseDetailPage }) {
           .in('id', otherIds);
       }
 
+      const paymentOrPortalLink = checkoutUrl ?? `${originUrl}/student/onboarding?step=placement_fee`;
+
       await supabase.functions.invoke('migma-notify', {
         body: {
           trigger: 'scholarship_approved',
           user_id: profile.id,
           data: {
             university_name: app.institutions?.name ?? 'selected university',
-            payment_link: checkoutUrl ?? `${originUrl}/student/onboarding?step=placement_fee`,
+            course_name: course ? `${course.course_name}${course.degree_level ? ` — ${course.degree_level}` : ''}` : undefined,
+            scholarship_label: `${scholarshipPercent}% scholarship`,
+            scholarship_percent: scholarshipPercent,
+            placement_fee_usd: placementFee,
+            tuition_annual_usd: app.institution_scholarships.tuition_annual_usd,
+            payment_link: paymentOrPortalLink,
           },
         },
       });

@@ -125,7 +125,7 @@ Deno.serve(async (req) => {
     // ── 2. Fetch user profile ────────────────────────────────────────────────
     const { data: profile } = await supabase
       .from("user_profiles")
-      .select("id, full_name, email, student_process_type")
+      .select("id, user_id, full_name, email, student_process_type")
       .eq("id", app.profile_id)
       .single();
 
@@ -164,11 +164,13 @@ Deno.serve(async (req) => {
 
     // ── 5. Fetch approved student documents + global document requests ─────
     const [studentDocsRes, requestDocsRes] = await Promise.all([
-      supabase
-        .from("student_documents")
-        .select("type, file_url, original_filename, status")
-        .eq("user_id", app.profile_id)
-        .eq("status", "approved"),
+      profile?.user_id
+        ? supabase
+            .from("student_documents")
+            .select("type, file_url, original_filename, status")
+            .eq("user_id", profile.user_id)
+            .eq("status", "approved")
+        : Promise.resolve({ data: [], error: null }),
       supabase
         .from("global_document_requests")
         .select("document_type, submitted_url, status")

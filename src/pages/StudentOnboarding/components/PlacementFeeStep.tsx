@@ -24,6 +24,13 @@ interface InstitutionApplication {
     placement_fee_usd: number;
     discount_percent: number;
     tuition_annual_usd: number;
+    institution_courses: {
+      course_name: string | null;
+      degree_level: string | null;
+    } | {
+      course_name: string | null;
+      degree_level: string | null;
+    }[] | null;
   } | null;
 }
 
@@ -57,9 +64,6 @@ export const PlacementFeeStep: React.FC<StepProps> = ({ onNext }) => {
   const [zelleFile, setZelleFile] = useState<File | null>(null);
   const [zelleUploading, setZelleUploading] = useState(false);
   const [zelleSubmitted, setZelleSubmitted] = useState(false);
-  const [confirmingZero, setConfirmingZero] = useState(false);
-  const [couponCode, setCouponCode] = useState('');
-  const [couponOpen, setCouponOpen] = useState(false);
   const [splitConfig, setSplitConfig] = useState<SplitPaymentConfig | null>(null);
   const [cardOwnership, setCardOwnership] = useState<'own' | 'third_party'>('own');
   const [payerName, setPayerName] = useState('');
@@ -95,7 +99,10 @@ export const PlacementFeeStep: React.FC<StepProps> = ({ onNext }) => {
         .select(`
           id, status, payment_link_url, placement_fee_paid_at, placement_fee_installments, admin_approved_at,
           institutions ( name, city, state ),
-          institution_scholarships ( scholarship_level, placement_fee_usd, discount_percent, tuition_annual_usd )
+          institution_scholarships (
+            scholarship_level, placement_fee_usd, discount_percent, tuition_annual_usd,
+            institution_courses ( course_name, degree_level )
+          )
         `)
         .eq('profile_id', userProfile.id);
       if (error) throw error;
@@ -127,6 +134,9 @@ export const PlacementFeeStep: React.FC<StepProps> = ({ onNext }) => {
   [applications]);
 
   const scholar = activeApp?.institution_scholarships;
+  const rawCourse = scholar?.institution_courses;
+  const course = Array.isArray(rawCourse) ? rawCourse[0] : rawCourse;
+  const courseLabel = [course?.course_name, course?.degree_level].filter(Boolean).join(' — ');
   const placementFee = scholar?.placement_fee_usd ?? 0;
   const isZeroFee = placementFee === 0 && activeApp?.status !== 'payment_confirmed';
   const needsCpf = !!selectedMethod && ['parcelow_card', 'parcelow_pix', 'parcelow_ted'].includes(selectedMethod);
@@ -141,24 +151,6 @@ export const PlacementFeeStep: React.FC<StepProps> = ({ onNext }) => {
   );
   const canInstall2x = placementFee >= 1000;
   const amountDueNow = (installments === 2 && canInstall2x) ? Math.floor(placementFee / 2) : placementFee;
-  const handleConfirmZeroFee = useCallback(async () => {
-    if (!userProfile?.id || !activeApp) return;
-    setConfirmingZero(true);
-    try {
-      const now = new Date().toISOString();
-      await supabase.from('institution_applications')
-        .update({ status: 'payment_confirmed', placement_fee_paid_at: now, placement_fee_installments: 1 })
-        .eq('id', activeApp.id);
-      await supabase.from('user_profiles')
-        .update({ is_placement_fee_paid: true })
-        .eq('id', userProfile.id);
-      onNext();
-    } catch (err) {
-      console.error('[PlacementFeeStep] handleConfirmZeroFee:', err);
-    } finally {
-      setConfirmingZero(false);
-    }
-  }, [userProfile?.id, activeApp, onNext]);
 
   const handleProcessPayment = useCallback(async () => {
     if (!selectedMethod || !activeApp || !userProfile?.id || !user?.id) return;
@@ -337,11 +329,30 @@ export const PlacementFeeStep: React.FC<StepProps> = ({ onNext }) => {
           </p>
           <div className="flex flex-col gap-3 p-4 bg-white/5 border border-white/10 rounded-2xl text-left">
             <p className="text-[10px] font-black uppercase text-gray-500 tracking-widest">{t('student_onboarding.placement_fee.your_selection', 'Your Selection:')}</p>
-            <div className="flex justify-between items-center">
-              <span className="text-white font-bold">{activeApp?.institutions?.name}</span>
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-[10px] font-black uppercase tracking-widest text-gray-500">
+                  {t('student_onboarding.placement_fee.university_label', 'University')}
+                </p>
+                <p className="text-white font-bold leading-tight">{activeApp?.institutions?.name}</p>
+              </div>
               <span className="text-xs bg-gold-medium/10 text-gold-medium px-2 py-0.5 rounded-full font-bold">
                 {scholar?.scholarship_level || `${scholar?.discount_percent}% OFF`}
               </span>
+            </div>
+            {courseLabel && (
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-widest text-gray-500">
+                  {t('student_onboarding.placement_fee.program_label', 'Program')}
+                </p>
+                <p className="text-sm font-semibold leading-tight text-gray-200">{courseLabel}</p>
+              </div>
+            )}
+            <div className="flex items-center justify-between gap-3 rounded-xl border border-gold-medium/20 bg-gold-medium/5 px-3 py-2">
+              <span className="text-[10px] font-black uppercase tracking-widest text-gold-medium">
+                {t('student_onboarding.placement_fee.fee_label', 'Placement Fee')}
+              </span>
+              <span className="text-sm font-black text-white">${placementFee.toLocaleString()}</span>
             </div>
           </div>
           <p className="mt-8 text-gray-600 text-xs">{t('student_onboarding.placement_fee.approval_time', 'Approval usually happens within 24 business hours.')}</p>
@@ -408,6 +419,11 @@ export const PlacementFeeStep: React.FC<StepProps> = ({ onNext }) => {
               <Building className="w-3 h-3 shrink-0" />
               {activeApp?.institutions?.name}
             </p>
+            {courseLabel && (
+              <p className="text-xs text-gray-400 font-semibold mt-0.5 leading-tight">
+                {courseLabel}
+              </p>
+            )}
             {scholar?.tuition_annual_usd && (
               <p className="text-xs text-blue-400 font-bold mt-0.5">
                 {t('student_onboarding.placement_fee.annual_scholarship_value', {
@@ -431,36 +447,6 @@ export const PlacementFeeStep: React.FC<StepProps> = ({ onNext }) => {
               <p className="text-[9px] text-gray-500 font-bold mt-0.5">
                 Total: ${placementFee.toLocaleString()}
               </p>
-            )}
-          </div>
-        </div>
-
-        <div className="border-t border-white/8 mx-5" />
-
-        {/* Coupon section */}
-        <div className="p-5">
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => { setCouponOpen(!couponOpen); setCouponCode(''); }}
-              className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-all shrink-0 ${
-                couponOpen ? 'bg-gold-medium border-gold-medium' : 'border-white/30 hover:border-white/50'
-              }`}
-            >
-              {couponOpen && <CheckCircle className="w-3.5 h-3.5 text-black" />}
-            </button>
-            <span className="font-black text-white text-sm">{t('student_onboarding.payment_ui.coupon_title', 'Promotional Coupon')}</span>
-            {couponOpen && (
-              <>
-                <input
-                  value={couponCode}
-                  onChange={e => setCouponCode(e.target.value)}
-                  placeholder={t('student_onboarding.payment_ui.coupon_placeholder', 'Enter code')}
-                  className="flex-1 bg-white/5 border border-white/15 rounded-xl px-4 py-2 text-white text-sm placeholder-gray-600 outline-none focus:border-gold-medium/50 transition-colors min-w-0"
-                />
-                <button className="shrink-0 bg-white/10 hover:bg-white/15 border border-white/20 text-white text-[10px] font-black uppercase tracking-widest px-3 py-2 rounded-xl transition-all">
-                  {t('student_onboarding.payment_ui.validate_code', 'Validate Code')}
-                </button>
-              </>
             )}
           </div>
         </div>
@@ -508,17 +494,21 @@ export const PlacementFeeStep: React.FC<StepProps> = ({ onNext }) => {
 
         {/* Payment methods */}
         {isZeroFee ? (
-          <div className="p-5">
-            <button
-              onClick={handleConfirmZeroFee}
-              disabled={confirmingZero}
-              className="flex items-center justify-center gap-2 w-full bg-gold-medium hover:bg-gold-light disabled:opacity-60 text-black py-4 rounded-2xl font-black uppercase tracking-widest transition-all"
-            >
-              {confirmingZero ? <Loader2 className="w-5 h-5 animate-spin" /> : <CheckCircle className="w-5 h-5" />}
-              {confirmingZero
-                ? t('student_onboarding.placement_fee.confirming', 'Confirming...')
-                : t('student_onboarding.placement_fee.confirm_seat', 'Confirm Seat')}
-            </button>
+          <div className="p-5 space-y-3">
+            <div className="flex items-start gap-3 rounded-2xl border border-amber-500/20 bg-amber-500/10 p-4">
+              <Clock className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
+              <div>
+                <p className="text-sm font-black uppercase tracking-wider text-amber-200">
+                  {t('student_onboarding.placement_fee.zero_fee_pending_title', 'No payment required')}
+                </p>
+                <p className="mt-1 text-xs leading-relaxed text-amber-100/80">
+                  {t(
+                    'student_onboarding.placement_fee.zero_fee_pending_desc',
+                    'This scholarship has no Placement Fee. Our team will confirm the waiver and your onboarding will advance automatically once approved.'
+                  )}
+                </p>
+              </div>
+            </div>
           </div>
         ) : (
           <div className="p-5 space-y-3">
@@ -673,6 +663,12 @@ export const PlacementFeeStep: React.FC<StepProps> = ({ onNext }) => {
               {cardOwnership === 'third_party' && (
                 <div className="space-y-2">
                   <p className="text-[10px] text-amber-400/80 font-bold uppercase tracking-wider">{t('checkout.payer_data_title', 'Cardholder Data')}</p>
+                  <p className="rounded-xl border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-[11px] leading-relaxed text-amber-100/80">
+                    {t(
+                      'checkout.payer_data_notice',
+                      'We use this information only to process this payment with the payment provider and contact the cardholder if validation is required.'
+                    )}
+                  </p>
                   <input
                     value={payerName}
                     onChange={e => setPayerName(e.target.value.toUpperCase())}
