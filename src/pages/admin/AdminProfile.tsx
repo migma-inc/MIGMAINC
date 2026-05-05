@@ -9,6 +9,7 @@ import { CalendarDays, Loader2, Save, User, Mail, Phone, Shield } from 'lucide-r
 import { Skeleton } from '@/components/ui/skeleton';
 
 export const AdminProfile = () => {
+    const [accountRole, setAccountRole] = useState<'admin' | 'mentor'>('admin');
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState('');
@@ -40,6 +41,7 @@ export const AdminProfile = () => {
             }
 
             const metadata = user.user_metadata || {};
+            setAccountRole(metadata.role === 'mentor' ? 'mentor' : 'admin');
 
             setFormData({
                 full_name: metadata.full_name || '',
@@ -184,7 +186,7 @@ export const AdminProfile = () => {
                     updated_at: new Date().toISOString(),
                 }, { onConflict: 'profile_id' });
 
-            setCalendarMsg(mentorError ? `Error: ${mentorError.message}` : 'Mentor de indicação salvo!');
+            setCalendarMsg(mentorError ? `Error: ${mentorError.message}` : 'Agenda salva com sucesso!');
         } catch {
             setCalendarMsg('Unexpected error');
         } finally {
@@ -225,11 +227,13 @@ export const AdminProfile = () => {
             <Card className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30">
                 <CardHeader>
                     <CardTitle className="text-2xl migma-gold-text flex items-center gap-2">
-                        <Shield className="w-6 h-6" />
-                        Admin Profile Settings
+                        {accountRole === 'mentor' ? <User className="w-6 h-6" /> : <Shield className="w-6 h-6" />}
+                        {accountRole === 'mentor' ? 'Mentor Profile Settings' : 'Admin Profile Settings'}
                     </CardTitle>
                     <CardDescription className="text-gray-400">
-                        Update your administrator account details
+                        {accountRole === 'mentor'
+                            ? 'Update your mentor account details and scheduling link'
+                            : 'Update your administrator account details'}
                     </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -330,10 +334,14 @@ export const AdminProfile = () => {
                     <div className="mt-8 pt-6 border-t border-white/10 space-y-3">
                         <Label htmlFor="calendar_booking_url" className="text-white flex items-center gap-2">
                             <CalendarDays className="w-4 h-4" />
-                            URL de agenda (Google Appointment Scheduling)
+                            {accountRole === 'mentor'
+                                ? 'Mentor scheduling URL'
+                                : 'URL de agenda (Google Appointment Scheduling)'}
                         </Label>
                         <p className="text-xs text-gray-500">
-                            Cole aqui a URL pública da sua agenda do Google Calendar. Leads indicados por seus alunos vão poder agendar diretamente nessa agenda.
+                            {accountRole === 'mentor'
+                                ? 'Add the public URL for your Google Calendar appointment schedule. Assigned students and referred leads can book directly through this link.'
+                                : 'Cole aqui a URL pública da sua agenda do Google Calendar. Leads indicados por seus alunos vão poder agendar diretamente nessa agenda.'}
                         </p>
                         <div className="flex gap-2">
                             <Input

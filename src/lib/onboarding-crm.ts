@@ -332,12 +332,15 @@ export function persistFilters(filters: OnboardingCrmFilters): void {
  * Load MIGMA profiles in bulk, then batch-load their service_requests and
  * visa_orders in two additional queries. Joins are performed in-memory.
  */
-export async function loadOnboardingBoard(productLine?: 'cos' | 'transfer'): Promise<{
+export async function loadOnboardingBoard(
+  productLine?: 'cos' | 'transfer',
+  options: { mentorProfileId?: string | null } = {},
+): Promise<{
   cases: OnboardingCase[];
   error: string | null;
 }> {
   // 1. Load all MIGMA profiles
-  const { data: profilesData, error: profilesError } = await supabase
+  let profilesQuery = supabase
     .from('user_profiles')
     .select(`
       id, user_id, email, full_name, phone, country, field_of_interest, academic_level,
@@ -349,16 +352,35 @@ export async function loadOnboardingBoard(productLine?: 'cos' | 'transfer'): Pro
       student_process_type, num_dependents, selection_process_fee_payment_method,
       signature_url, migma_seller_id, migma_agent_id, matricula_user_id, onboarding_email_status,
       transfer_deadline_date, cos_i94_expiry_date, selection_survey_completed_at,
-      identity_verified, updated_at, created_at
+      identity_verified, mentor_id, updated_at, created_at
     `)
-    .eq('source', 'migma')
-    .order('updated_at', { ascending: false });
+    .eq('source', 'migma');
+
+  if (options.mentorProfileId) {
+    profilesQuery = profilesQuery.eq('mentor_id', options.mentorProfileId);
+  }
+
+  const { data: profilesData, error: profilesError } = await profilesQuery.order('updated_at', { ascending: false });
 
   if (profilesError) {
     return { cases: [], error: profilesError.message };
   }
 
-  const profiles = (profilesData ?? []) as CrmProfile[];
+  const profileIds = ((profilesData ?? []) as Pick<CrmProfile, 'id'>[]).map((p) => p.id);
+  const { data: mentorProfilesData, error: mentorProfilesError } = profileIds.length > 0
+    ? await supabase
+        .from('referral_mentors')
+        .select('profile_id')
+        .in('profile_id', profileIds)
+    : { data: [], error: null };
+
+  if (mentorProfilesError) {
+    return { cases: [], error: mentorProfilesError.message };
+  }
+
+  const mentorProfileIds = new Set((mentorProfilesData ?? []).map((m) => m.profile_id));
+  const profiles = ((profilesData ?? []) as CrmProfile[]).filter((profile) => !mentorProfileIds.has(profile.id));
+
   if (profiles.length === 0) {
     return { cases: [], error: null };
   }
@@ -978,12 +1000,15 @@ export interface CrmSupportChatMessage {
  * Load all data required by the dedicated case detail page.
  * Accepts the user_profiles.id (not user_id / auth UUID).
  */
-export async function loadDetailPage(profileId: string): Promise<{
+export async function loadDetailPage(
+  profileId: string,
+  options: { mentorProfileId?: string | null } = {},
+): Promise<{
   data: CaseDetailPage | null;
   error: string | null;
 }> {
   // 1. Load the profile
-  const { data: profileData, error: profileError } = await supabase
+  let profileQuery = supabase
     .from('user_profiles')
     .select(`
       id, user_id, email, full_name, phone, country, field_of_interest, academic_level,
@@ -995,10 +1020,15 @@ export async function loadDetailPage(profileId: string): Promise<{
       student_process_type, num_dependents, selection_process_fee_payment_method,
       signature_url, migma_seller_id, migma_agent_id, matricula_user_id, onboarding_email_status,
       transfer_deadline_date, cos_i94_expiry_date, selection_survey_completed_at,
-      identity_verified, updated_at, created_at
+      identity_verified, mentor_id, updated_at, created_at
     `)
-    .eq('id', profileId)
-    .single();
+    .eq('id', profileId);
+
+  if (options.mentorProfileId) {
+    profileQuery = profileQuery.eq('mentor_id', options.mentorProfileId);
+  }
+
+  const { data: profileData, error: profileError } = await profileQuery.single();
 
   if (profileError || !profileData) {
     return { data: null, error: profileError?.message ?? 'Profile not found' };

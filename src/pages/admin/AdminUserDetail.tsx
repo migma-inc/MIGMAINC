@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useOutletContext, useParams } from 'react-router-dom';
 import DOMPurify from 'dompurify';
 import {
   Activity,
@@ -66,6 +66,11 @@ import { ScholarshipApprovalTab } from './ScholarshipApprovalTab';
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
+
+type DashboardOutletContext = {
+  accessRole: 'admin' | 'mentor';
+  mentorProfileId: string | null;
+};
 
 function formatCurrency(value: string | number | null) {
   if (value === null || value === undefined || value === '') return '—';
@@ -225,6 +230,10 @@ function MentorAssignSection({ profileId, currentMentorId }: { profileId: string
   const [msg, setMsg] = useState<string | null>(null);
 
   useEffect(() => {
+    setSelected(currentMentorId ?? '');
+  }, [currentMentorId]);
+
+  useEffect(() => {
     void supabase
       .from('referral_mentors')
       .select('profile_id, display_name')
@@ -243,7 +252,9 @@ function MentorAssignSection({ profileId, currentMentorId }: { profileId: string
     const { error } = await supabase
       .from('user_profiles')
       .update({ mentor_id: selected || null })
-      .eq('id', profileId);
+      .eq('id', profileId)
+      .select('id, mentor_id')
+      .single();
     setSaving(false);
     setMsg(error ? `Error: ${error.message}` : 'Mentor saved.');
   };
@@ -297,6 +308,7 @@ const TABS: Array<{ id: Tab; label: string }> = [
 
 function OverviewTab({
   detail,
+  accessRole,
   ownerInput,
   setOwnerInput,
   mutating,
@@ -309,6 +321,7 @@ function OverviewTab({
   billingMsg,
 }: {
   detail: CaseDetailPage;
+  accessRole: 'admin' | 'mentor';
   ownerInput: string;
   setOwnerInput: (v: string) => void;
   mutating: boolean;
@@ -344,10 +357,12 @@ function OverviewTab({
             <InfoRow label="Total Paid" value={formatCurrency(profile.total_price_usd)} />
             <InfoRow label="Status" value={toLabel(profile.status)} />
           </div>
-          <div className="mt-4 pt-4 border-t border-white/5">
-            <p className="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-2">Referral Mentor</p>
-            <MentorAssignSection profileId={profile.id} currentMentorId={profile.mentor_id} />
-          </div>
+          {accessRole === 'admin' && (
+            <div className="mt-4 pt-4 border-t border-white/5">
+              <p className="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-2">Referral Mentor</p>
+              <MentorAssignSection profileId={profile.id} currentMentorId={profile.mentor_id} />
+            </div>
+          )}
         </SectionCard>
 
         {/* Personal Data — user_identity */}
@@ -882,6 +897,7 @@ function DocumentsTab({
   profileId,
   profileUserId,
   adminId,
+  accessRole,
   onRefresh,
   institutionApplication,
   institutionForms,
@@ -894,6 +910,7 @@ function DocumentsTab({
   profileId: string;
   profileUserId: string | null;
   adminId: string | null;
+  accessRole: 'admin' | 'mentor';
   onRefresh: () => Promise<void>;
   institutionApplication: CaseDetailPage['institutionApplication'];
   institutionForms: CaseDetailPage['institutionForms'];
@@ -903,6 +920,7 @@ function DocumentsTab({
   globalDocumentRequests: CaseDetailPage['globalDocumentRequests'];
   orderDocuments: VisaOrderDocument[];
 }) {
+  const isMentor = accessRole === 'mentor';
   const [resolvedUrls, setResolvedUrls] = useState<Record<string, string>>({});
   const [loadingUrls, setLoadingUrls] = useState(true);
   const [mediaModal, setMediaModal] = useState<{
@@ -1107,6 +1125,10 @@ function DocumentsTab({
   const studentReviewSummary =
     studentDocuments.length === 0
       ? null
+      : isMentor
+        ? studentDocuments.every((doc) => doc.status === 'approved')
+          ? 'complete'
+          : 'pending'
       : studentDocuments.some((doc) => doc.status === 'rejected')
         ? 'rejected'
         : studentDocuments.every((doc) => doc.status === 'approved')
@@ -1619,6 +1641,9 @@ function DocumentsTab({
               const label = (DOC_TYPE_LABELS[doc.type ?? ''] ?? toLabel(doc.type)) || 'Document';
               const pdf = url ? isPdf(url) : false;
               const status = doc.status ?? 'pending';
+              const displayStatus = isMentor
+                ? status === 'approved' ? 'complete' : 'pending'
+                : status;
               const isContractIdentityDoc = CONTRACT_IDENTITY_DOC_TYPES.has(doc.type ?? '');
               return (
                 <div
@@ -1628,7 +1653,7 @@ function DocumentsTab({
                       openModal(
                         url,
                         label,
-                        isContractIdentityDoc
+                        isMentor || isContractIdentityDoc
                           ? undefined
                           : {
                               scope: 'student',
@@ -1659,8 +1684,8 @@ function DocumentsTab({
                       {label}
                   </div>
                   <div className="absolute top-2 right-2">
-                    <Badge className={cn('text-[8px] font-black uppercase border rounded-sm px-1.5 py-0.5', studentDocBadge(status))}>
-                      {toLabel(status)}
+                    <Badge className={cn('text-[8px] font-black uppercase border rounded-sm px-1.5 py-0.5', studentDocBadge(displayStatus))}>
+                      {toLabel(displayStatus)}
                     </Badge>
                   </div>
                 </div>
@@ -2456,6 +2481,7 @@ const CONTRACT_IDENTITY_DOC_TYPES = new Set([
 ]);
 
 function studentDocBadge(status: string | null) {
+  if (status === 'complete') return 'bg-green-500/20 text-green-300 border-green-500/30';
   if (status === 'approved') return 'bg-green-500/20 text-green-300 border-green-500/30';
   if (status === 'rejected') return 'bg-red-500/20 text-red-300 border-red-500/30';
   if (status === 'under_review') return 'bg-sky-500/20 text-sky-300 border-sky-500/30';
@@ -2962,6 +2988,8 @@ function SupportTab({
 export function AdminUserDetail() {
   const { profileId } = useParams<{ profileId: string }>();
   const navigate = useNavigate();
+  const context = useOutletContext<DashboardOutletContext | undefined>();
+  const mentorProfileId = context?.accessRole === 'mentor' ? context.mentorProfileId : null;
 
   const [loading, setLoading] = useState(true);
   const [detail, setDetail] = useState<CaseDetailPage | null>(null);
@@ -2983,9 +3011,14 @@ export function AdminUserDetail() {
 
   const load = useCallback(async () => {
     if (!profileId) return;
+    if (context?.accessRole === 'mentor' && !mentorProfileId) {
+      setLoading(false);
+      setError('Mentor access not found.');
+      return;
+    }
     setLoading(true);
     setError(null);
-    const { data, error: err } = await loadDetailPage(profileId);
+    const { data, error: err } = await loadDetailPage(profileId, { mentorProfileId });
     if (err || !data) {
       setError(err ?? 'Failed to load profile.');
     } else {
@@ -2993,7 +3026,7 @@ export function AdminUserDetail() {
       setOwnerInput(data.primaryRequest?.owner_user_id ?? '');
     }
     setLoading(false);
-  }, [profileId]);
+  }, [context?.accessRole, mentorProfileId, profileId]);
 
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { void load(); }, [load]);
@@ -3195,6 +3228,7 @@ export function AdminUserDetail() {
         {activeTab === 'overview' && (
           <OverviewTab
             detail={detail}
+            accessRole={context?.accessRole ?? 'admin'}
             ownerInput={ownerInput}
             setOwnerInput={setOwnerInput}
             mutating={mutating}
@@ -3217,6 +3251,7 @@ export function AdminUserDetail() {
             profileId={detail.profile.id}
             profileUserId={detail.profile.user_id}
             adminId={currentAdminId}
+            accessRole={context?.accessRole ?? 'admin'}
             onRefresh={load}
             institutionApplication={detail.institutionApplication}
             institutionForms={detail.institutionForms}
