@@ -602,14 +602,14 @@ const SECTION_E: SurveyQuestion[] = [
 export const SERVICE_SPECIFIC_QUESTIONS: Record<string, SurveyQuestion> = {
   transfer: {
     id: 'service_transfer_deadline',
-    section: 'A',
+    section: 'B',
     text: 'Qual é o seu prazo máximo de transferência?',
     type: 'date',
     required: true,
   },
   cos: {
     id: 'service_cos_i94_expiry',
-    section: 'A',
+    section: 'B',
     text: 'Quando vence o seu status / I-94?',
     type: 'date',
     required: true,
@@ -632,9 +632,10 @@ export function getQuestionsForService(serviceType: string): SurveyQuestion[] {
   const base = [...ALL_QUESTIONS];
   const serviceQ = SERVICE_SPECIFIC_QUESTIONS[serviceType];
   if (serviceQ) {
-    // Insert after a_weekly_availability in Section A
-    const insertAfterIdx = base.findIndex(q => q.id === 'a_weekly_availability');
-    base.splice(insertAfterIdx + 1, 0, serviceQ);
+    // Service-specific deadlines belong with documents and timeline.
+    const insertAfterIdx = base.findIndex(q => q.id === 'b_start_timeline');
+    const fallbackIdx = base.findIndex(q => q.section === serviceQ.section);
+    base.splice((insertAfterIdx >= 0 ? insertAfterIdx : fallbackIdx) + 1, 0, serviceQ);
   }
   return base;
 }

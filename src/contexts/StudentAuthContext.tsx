@@ -35,6 +35,14 @@ interface StudentProfile {
   num_dependents: number;
   total_price_usd: number | null;
   migma_checkout_completed_at: string | null;
+  selection_survey_data?: {
+    academic_formation?: string | null;
+    interest_areas?: string[] | null;
+    english_level?: string | null;
+    main_objective?: string | null;
+    weekly_availability?: string | null;
+    esl_recommended_by_admin?: boolean | null;
+  } | null;
 }
 
 interface StudentAuthContextType {

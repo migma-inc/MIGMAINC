@@ -52,7 +52,7 @@ const StepLoader = () => (
   </div>
 );
 
-const DISABLE_REVIEW_WAIT_ROOM_FOR_TESTS = true;
+const DISABLE_REVIEW_WAIT_ROOM_FOR_TESTS = false;
 
 const CompletedScreen = () => {
   const { t } = useTranslation();
@@ -161,6 +161,12 @@ const StudentOnboarding: React.FC = () => {
     const steps = getOrderedSteps();
     const currentIndex = steps.indexOf(state.currentStep);
     let nextStep = steps[currentIndex + 1];
+    if (
+      state.currentStep === 'selection_survey' &&
+      steps.indexOf(currentMax) >= steps.indexOf('scholarship_selection')
+    ) {
+      nextStep = 'scholarship_selection';
+    }
     if (DISABLE_REVIEW_WAIT_ROOM_FOR_TESTS && state.currentStep === 'selection_survey') {
       nextStep = 'scholarship_selection';
     }
@@ -191,7 +197,7 @@ const StudentOnboarding: React.FC = () => {
   const completedSteps: OnboardingStep[] = [];
   if (state.selectionFeePaid) completedSteps.push('selection_fee');
   if (state.selectionSurveyPassed) completedSteps.push('selection_survey');
-  if (state.contractApproved) completedSteps.push('wait_room');
+  if (state.contractApproved && state.reviewWindowComplete) completedSteps.push('wait_room');
   if (state.scholarshipsSelected) completedSteps.push('scholarship_selection');
   if (state.placementFeePaid) completedSteps.push('placement_fee');
   if (state.documentsUploaded) completedSteps.push('documents_upload');

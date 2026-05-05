@@ -12,10 +12,12 @@ import {
 import { useStudentAuth } from '../../../contexts/StudentAuthContext';
 import { supabase } from '../../../lib/supabase';
 import type { StepProps } from '../types';
-import { UniversitySelectionModal, type Institution } from './UniversitySelectionModal';
+import { UniversitySelectionModal, type Institution, type ScholarshipLevel } from './UniversitySelectionModal';
 
 const MAX_SELECTIONS = 4;
+const POPULAR_PLACEMENT_FEE_USD = 1800;
 const DISABLE_SCHOLARSHIP_APPROVAL_LOCK_FOR_TESTS = true;
+const ESL_ELIGIBLE_ENGLISH_LEVELS = new Set(['zero', 'basic', 'basico', 'básico']);
 
 const STUDY_AREA_LABEL_KEYS: Record<string, string> = {
   'Exatas & Tecnologia': 'student_onboarding.scholarship.study_area_options.stem',
@@ -29,6 +31,59 @@ const DEGREE_LEVEL_LABEL_KEYS: Record<string, string> = {
   'Pós-Graduação': 'student_onboarding.university_modal.degree_postgraduate',
   'Mestrado': 'student_onboarding.university_modal.degree_masters',
 };
+
+const getPopularScholarshipLevel = (scholarships: ScholarshipLevel[]) => {
+  if (scholarships.length === 0) return null;
+  return (
+    scholarships.find(s => Number(s.placement_fee_usd) === POPULAR_PLACEMENT_FEE_USD) ??
+    [...scholarships].sort((a, b) => b.placement_fee_usd - a.placement_fee_usd)[0]
+  );
+};
+
+const normalizeConditionValue = (value: unknown) =>
+  typeof value === 'string'
+    ? value
+        .trim()
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+    : '';
+
+const getStudentProcessType = (profile: unknown) => {
+  const p = profile as { service_type?: string | null; student_process_type?: string | null } | null;
+  const raw = normalizeConditionValue(p?.student_process_type || p?.service_type);
+  if (raw.includes('transfer')) return 'transfer';
+  if (raw.includes('cos') || raw.includes('change_of_status')) return 'cos';
+  return 'other';
+};
+
+const canShowEslInstitutions = (profile: unknown) => {
+  const p = profile as {
+    selection_survey_data?: {
+      english_level?: string | null;
+      esl_recommended_by_admin?: boolean | null;
+    } | null;
+  } | null;
+  const englishLevel = normalizeConditionValue(p?.selection_survey_data?.english_level);
+  return ESL_ELIGIBLE_ENGLISH_LEVELS.has(englishLevel) || p?.selection_survey_data?.esl_recommended_by_admin === true;
+};
+
+const isInstitutionEligibleForProfile = (institution: Institution, profile: unknown) => {
+  const processType = getStudentProcessType(profile);
+  if (processType === 'transfer' && !institution.accepts_transfer) return false;
+  if (processType === 'cos' && !institution.accepts_cos) return false;
+  if (institution.esl_flag) return canShowEslInstitutions(profile);
+  return true;
+};
+
+const isScholarshipEligibleForProfile = (scholarship: ScholarshipLevel, profile: unknown) => {
+  const rule = normalizeConditionValue(scholarship.eligibility_process || 'all');
+  if (!rule || rule === 'all') return true;
+  return rule === getStudentProcessType(profile);
+};
+
+const hasCompleteSelectionData = (institution: Institution) =>
+  institution.courses.length > 0 && institution.scholarships.length > 0;
 
 type SelectionEntry = {
   institution: Institution;
@@ -80,11 +135,29 @@ export const UniversitySelectionStep: React.FC<StepProps> = ({ onNext }) => {
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [existingApps, setExistingApps] = useState<ExistingApplication[]>([]);
   const [saving, setSaving] = useState(false);
+  const hasLoadedOnceRef = React.useRef(false);
+
+  const profileId = userProfile?.id ?? null;
+  const profileEligibility = useMemo(() => ({
+    service_type: userProfile?.service_type ?? null,
+    student_process_type: userProfile?.student_process_type ?? null,
+    selection_survey_data: {
+      english_level: userProfile?.selection_survey_data?.english_level ?? null,
+      esl_recommended_by_admin: userProfile?.selection_survey_data?.esl_recommended_by_admin ?? null,
+    },
+  }), [
+    userProfile?.service_type,
+    userProfile?.student_process_type,
+    userProfile?.selection_survey_data?.english_level,
+    userProfile?.selection_survey_data?.esl_recommended_by_admin,
+  ]);
 
   // ── Fetch ──
   const fetchData = useCallback(async () => {
+    const shouldShowBlockingLoader = !hasLoadedOnceRef.current;
+
     try {
-      setLoading(true);
+      if (shouldShowBlockingLoader) setLoading(true);
       const { data, error: fetchError } = await supabase
         .from('institutions')
         .select(`
@@ -92,13 +165,27 @@ export const UniversitySelectionStep: React.FC<StepProps> = ({ onNext }) => {
           courses:institution_courses(*),
           scholarships:institution_scholarships(*)
         `)
-        .eq('esl_flag', false)
         .order('name');
 
       if (fetchError) throw fetchError;
-      setInstitutions((data as Institution[]) || []);
+        const catalog = ((data as Institution[]) || [])
+          .filter(inst => isInstitutionEligibleForProfile(inst, profileEligibility))
+          .map(inst => {
+            const eligibleScholarships = inst.scholarships.filter(scholarship =>
+              isScholarshipEligibleForProfile(scholarship, profileEligibility)
+            );
+            const hasCourseSpecificScholarships = eligibleScholarships.some(scholarship => scholarship.course_id);
+            return {
+              ...inst,
+              scholarships: hasCourseSpecificScholarships
+                ? eligibleScholarships.filter(scholarship => scholarship.course_id)
+                : eligibleScholarships,
+            };
+          })
+          .filter(hasCompleteSelectionData);
+      setInstitutions(catalog);
 
-      if (userProfile?.id) {
+      if (profileId) {
         const { data: apps } = await supabase
           .from('institution_applications')
           .select(`
@@ -106,15 +193,16 @@ export const UniversitySelectionStep: React.FC<StepProps> = ({ onNext }) => {
             institutions ( name, city, state, logo_url ),
             institution_scholarships ( scholarship_level, discount_percent )
           `)
-          .eq('profile_id', userProfile.id);
+          .eq('profile_id', profileId);
         setExistingApps(((apps || []) as unknown) as ExistingApplication[]);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
-      setLoading(false);
+      hasLoadedOnceRef.current = true;
+      if (shouldShowBlockingLoader) setLoading(false);
     }
-  }, [userProfile?.id]);
+  }, [profileEligibility, profileId]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
@@ -146,9 +234,12 @@ export const UniversitySelectionStep: React.FC<StepProps> = ({ onNext }) => {
         // Filter: must mention CPT availability (cpt_after_months defined in courses)
         if (!inst.courses.some(c => c.cpt_after_months !== null)) return false;
       }
-      const instMinTuition = Math.min(...inst.scholarships.map(s => s.tuition_annual_usd), Infinity);
-      if (minT !== null && instMinTuition < minT) return false;
-      if (maxT !== null && instMinTuition > maxT) return false;
+      if (minT !== null || maxT !== null) {
+        if (inst.scholarships.length === 0) return false;
+        const instMinTuition = Math.min(...inst.scholarships.map(s => s.tuition_annual_usd), Infinity);
+        if (minT !== null && instMinTuition < minT) return false;
+        if (maxT !== null && instMinTuition > maxT) return false;
+      }
       return true;
     });
 
@@ -164,6 +255,7 @@ export const UniversitySelectionStep: React.FC<StepProps> = ({ onNext }) => {
   // ── Selection handlers ──
   const handleSelect = useCallback((instId: string, scholarshipId: string) => {
     setSelections(prev => {
+      if (prev.size >= MAX_SELECTIONS && !prev.has(instId)) return prev;
       const next = new Map(prev);
       const institution = institutions.find(i => i.id === instId);
       if (!institution) return prev;
@@ -418,6 +510,12 @@ export const UniversitySelectionStep: React.FC<StepProps> = ({ onNext }) => {
                   )}
                   {scholarship && (
                     <div className="flex flex-wrap gap-3 mt-2">
+                      <span className="text-xs bg-white/5 border border-white/10 text-white px-2.5 py-1 rounded-full font-bold">
+                        {t('student_onboarding.scholarship.scholarship_level_amount', {
+                          level: scholarship.scholarship_level || `${scholarship.discount_percent}% OFF`,
+                          defaultValue: 'Scholarship Level: {{level}}',
+                        })}
+                      </span>
                       <span className="text-xs bg-gold-medium/10 border border-gold-medium/20 text-gold-medium px-2.5 py-1 rounded-full font-bold">
                         {t('student_onboarding.scholarship.placement_fee_amount', {
                           amount: scholarship.placement_fee_usd.toLocaleString(),
@@ -449,6 +547,9 @@ export const UniversitySelectionStep: React.FC<StepProps> = ({ onNext }) => {
         </div>
 
         {/* Actions */}
+        <p className="text-xs text-gray-500 leading-relaxed">
+          {t('student_onboarding.scholarship.final_choice_note', 'You can still remove or adjust universities on this screen. The definitive confirmation happens only after the final confirmation modal.')}
+        </p>
         <div className="flex flex-col sm:flex-row gap-3 pt-2">
           <button
             onClick={() => setView('list')}
@@ -554,6 +655,12 @@ export const UniversitySelectionStep: React.FC<StepProps> = ({ onNext }) => {
         <p className="text-gray-400 max-w-2xl leading-relaxed font-medium">
           {t('student_onboarding.scholarship.subtitle_selecting')}
         </p>
+        <p className="text-gold-medium/80 max-w-2xl text-sm leading-relaxed font-bold">
+          {t('student_onboarding.scholarship.preacceptance_narrative', {
+            count: institutions.length,
+            defaultValue: 'From 1,481 candidate institutions, {{count}} universities confirmed pre-acceptance for your profile.',
+          })}
+        </p>
       </div>
 
       {/* ── 7.2 Guia Rápido (List Style) ── */}
@@ -579,20 +686,25 @@ export const UniversitySelectionStep: React.FC<StepProps> = ({ onNext }) => {
 
         {/* Row 1: search + university select */}
         <div className="flex flex-col lg:flex-row gap-3 relative z-10">
-          <div className="relative flex-1">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
-            <input
-              type="text"
-              placeholder={t('student_onboarding.scholarship.keyword_placeholder', 'Keyword: name, city, course...')}
-              value={searchTerm}
-              onChange={e => setSearchTerm(e.target.value)}
-              className="w-full pl-11 pr-4 py-3.5 bg-white/5 border border-white/10 rounded-2xl text-white placeholder-gray-600 focus:outline-none focus:border-gold-medium focus:ring-1 focus:ring-gold-medium/20 transition-all text-sm"
-            />
+          <div className="flex-1 space-y-1.5">
+            <label className="block text-[10px] font-black uppercase tracking-[0.2em] text-gray-500">
+              {t('student_onboarding.scholarship.keyword_label', 'Keyword')}
+            </label>
+            <div className="relative">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+              <input
+                type="text"
+                placeholder={t('student_onboarding.scholarship.keyword_placeholder', 'Keyword: name, city, course...')}
+                value={searchTerm}
+                onChange={e => setSearchTerm(e.target.value)}
+                className="w-full pl-11 pr-4 py-3.5 bg-white/5 border border-white/10 rounded-2xl text-white placeholder-gray-600 focus:outline-none focus:border-gold-medium focus:ring-1 focus:ring-gold-medium/20 transition-all text-sm"
+              />
+            </div>
           </div>
           <select
             value={universityFilter}
             onChange={e => setUniversityFilter(e.target.value)}
-            className="migma-select lg:min-w-[220px]"
+            className="migma-select lg:min-w-[220px] lg:mt-6"
           >
             <option value="">{t('student_onboarding.scholarship.all_universities', 'All Universities')}</option>
             {institutions.map(i => (
@@ -728,14 +840,15 @@ export const UniversitySelectionStep: React.FC<StepProps> = ({ onNext }) => {
       </div>
 
       {/* ── Results count ── */}
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-gray-500">
-          <span className="font-bold text-white">{filteredInstitutions.length}</span>{' '}
-          {t(filteredInstitutions.length === 1 ? 'student_onboarding.scholarship.university_found' : 'student_onboarding.scholarship.universities_found', {
-            count: filteredInstitutions.length,
-            defaultValue: filteredInstitutions.length === 1 ? 'university found' : 'universities found',
-          })}
-        </p>
+      <div className="flex items-center justify-between gap-4">
+        <div>
+          <p className="text-sm text-gray-500">
+            {t(filteredInstitutions.length === 1 ? 'student_onboarding.scholarship.university_found' : 'student_onboarding.scholarship.universities_found', {
+              count: filteredInstitutions.length,
+              defaultValue: filteredInstitutions.length === 1 ? 'university found' : 'universities found',
+            })}
+          </p>
+        </div>
         {selections.size > 0 && (
           <p className="text-sm text-gold-medium font-bold">
             {t('student_onboarding.scholarship.selected_counter', {
@@ -785,6 +898,7 @@ export const UniversitySelectionStep: React.FC<StepProps> = ({ onNext }) => {
         <UniversitySelectionModal
           institution={selectedInst}
           preSelectedScholarshipId={selections.get(selectedInst.id)?.scholarshipId ?? null}
+          selectionDisabled={selections.size >= MAX_SELECTIONS && !selections.has(selectedInst.id)}
           onClose={() => setModalInstId(null)}
           onSelect={scholarshipId => {
             handleSelect(selectedInst.id, scholarshipId);
@@ -850,11 +964,10 @@ const InstitutionCard: React.FC<CardProps> = ({
     if (scholarships.length === 0) return null;
     const maxTuition = Math.max(...scholarships.map(s => s.tuition_annual_usd));
     
-    // Determine which level to display in the header summary
-    // If a level is selected for this card, show it. Otherwise show the best discount.
+    // If a level is selected for this card, show it. Otherwise show the commercial popular level.
     const displayLevel = currentScholarshipId 
       ? scholarships.find(s => s.id === currentScholarshipId) 
-      : [...scholarships].sort((a, b) => b.discount_percent - a.discount_percent)[0];
+      : getPopularScholarshipLevel(scholarships);
 
     return {
       maxTuition,
@@ -864,14 +977,17 @@ const InstitutionCard: React.FC<CardProps> = ({
     };
   }, [scholarships, currentScholarshipId]);
 
-  if (!stats) return null;
+  const hasScholarshipData = scholarships.length > 0;
+  const cardUnavailable = !hasScholarshipData;
+  const limitReached = selectionDisabled && !isSelected;
+  const canOpenSelection = hasScholarshipData && !selectionDisabled;
 
   return (
     <div
       className={`group relative bg-[#0a0a0a] border rounded-[2.5rem] overflow-hidden flex flex-col transition-all duration-300 hover:shadow-[0_30px_60px_rgba(0,0,0,0.7)] ${
         isSelected
           ? 'border-gold-medium/60 shadow-[0_0_30px_rgba(184,158,78,0.1)]'
-          : selectionDisabled
+          : selectionDisabled || cardUnavailable
           ? 'border-white/5 opacity-60'
           : 'border-white/10 hover:border-gold-medium/30'
       }`}
@@ -917,28 +1033,41 @@ const InstitutionCard: React.FC<CardProps> = ({
           </div>
         </div>
 
-        {/* Financial Overview */}
-        <div className="bg-white/5 border border-white/10 rounded-2xl p-3">
-          <p className="text-[9px] text-gray-500 uppercase font-black tracking-widest mb-2">{t('student_onboarding.scholarship.finance_overview', 'Migma Finances')}</p>
-          <div className="grid grid-cols-2 gap-x-4 gap-y-1">
-            <div>
-              <p className="text-[8px] text-gray-600 uppercase font-black">{t('student_onboarding.scholarship.original', 'Original')}</p>
-              <p className="text-xs text-gray-500 line-through font-bold">${stats.maxTuition.toLocaleString()}</p>
-            </div>
-            <div className="text-right">
-              <p className="text-[8px] text-gold-medium uppercase font-black">{t('student_onboarding.scholarship.with_scholarship', 'With Scholarship')}</p>
-              <p className="text-xs text-white font-black">${stats.displayTuition.toLocaleString()}</p>
-            </div>
-            <div>
-              <p className="text-[8px] text-emerald-500 uppercase font-black">{t('student_onboarding.scholarship.discount', 'Discount')}</p>
-              <p className="text-xs text-emerald-400 font-black">{stats.displayDiscount}% OFF</p>
-            </div>
-            <div className="text-right">
-              <p className="text-[8px] text-gray-600 uppercase font-black">{t('student_onboarding.scholarship.placement_fee_short', 'Placement Fee')}</p>
-              <p className="text-xs text-gray-400 font-bold">${stats.displayPlacement.toLocaleString()}</p>
+        {stats ? (
+          <div className="bg-white/5 border border-white/10 rounded-2xl p-3">
+            <p className="text-[9px] text-gray-500 uppercase font-black tracking-widest mb-2">{t('student_onboarding.scholarship.finance_overview', 'Migma Finances')}</p>
+            <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+              <div>
+                <p className="text-[8px] text-gray-600 uppercase font-black">{t('student_onboarding.scholarship.original', 'Original')}</p>
+                <p className="text-xs text-gray-500 line-through font-bold">${stats.maxTuition.toLocaleString()}</p>
+              </div>
+              <div className="text-right">
+                <p className="text-[8px] text-gold-medium uppercase font-black">{t('student_onboarding.scholarship.with_scholarship', 'With Scholarship')}</p>
+                <p className="text-xs text-white font-black">${stats.displayTuition.toLocaleString()}</p>
+              </div>
+              <div>
+                <p className="text-[8px] text-emerald-500 uppercase font-black">{t('student_onboarding.scholarship.discount', 'Discount')}</p>
+                <p className="text-xs text-emerald-400 font-black">{stats.displayDiscount}% OFF</p>
+              </div>
+              <div className="text-right">
+                <p className="text-[8px] text-gray-600 uppercase font-black">{t('student_onboarding.scholarship.placement_fee_short', 'Placement Fee')}</p>
+                <p className="text-xs text-gray-400 font-bold">${stats.displayPlacement.toLocaleString()}</p>
+              </div>
             </div>
           </div>
-        </div>
+        ) : (
+          <div className="bg-amber-500/5 border border-amber-500/20 rounded-2xl p-4 flex gap-3">
+            <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+            <div>
+              <p className="text-[10px] text-amber-300 uppercase font-black tracking-widest">
+                {t('student_onboarding.scholarship.scholarship_data_pending_title', 'Scholarship data pending')}
+              </p>
+              <p className="text-xs text-gray-500 leading-relaxed mt-1">
+                {t('student_onboarding.scholarship.scholarship_data_pending_desc', 'Our team is validating scholarship and tuition data for this institution.')}
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* Modalidade / CPT */}
         <div className="grid grid-cols-2 gap-2">
@@ -958,7 +1087,13 @@ const InstitutionCard: React.FC<CardProps> = ({
             {t('student_onboarding.scholarship.scholarship_levels', 'Scholarship Levels')}
           </p>
 
-          {currentScholarshipId ? (
+          {!hasScholarshipData ? (
+            <div className="bg-white/[0.03] border border-dashed border-white/10 rounded-2xl px-4 py-3.5">
+              <p className="text-[10px] text-gray-500 font-bold leading-relaxed">
+                {t('student_onboarding.scholarship.unavailable_for_selection', 'Selection unavailable until scholarship levels are published.')}
+              </p>
+            </div>
+          ) : currentScholarshipId ? (
             /* Selected level display */
             (() => {
               const selected = scholarships.find(s => s.id === currentScholarshipId);
@@ -1010,10 +1145,14 @@ const InstitutionCard: React.FC<CardProps> = ({
           )}
 
           <p className="text-center text-[9px] text-gray-600 font-medium">
-            {t('student_onboarding.scholarship.levels_available_compare', {
-              count: scholarships.length,
-              defaultValue: '{{count}} level(s) available · view details to compare',
-            })}
+            {limitReached
+              ? t('student_onboarding.scholarship.limit_reached_remove_one', 'Limit reached. Remove one university to select another.')
+              : hasScholarshipData
+              ? t('student_onboarding.scholarship.levels_available_compare', {
+                  count: scholarships.length,
+                  defaultValue: '{{count}} level(s) available · view details to compare',
+                })
+              : t('student_onboarding.scholarship.awaiting_scholarship_levels', 'Awaiting scholarship levels')}
           </p>
         </div>
       </div>
@@ -1021,8 +1160,12 @@ const InstitutionCard: React.FC<CardProps> = ({
       {/* CTA buttons */}
       <div className="flex border-t border-white/5 mt-auto bg-white/[0.01]">
         <button
-          onClick={onOpenModal}
-          className="flex-1 py-4 text-[10px] font-black uppercase tracking-widest text-gray-500 hover:text-white hover:bg-white/5 transition-all flex items-center justify-center gap-2"
+          onClick={() => {
+            if (!hasScholarshipData) return;
+            onOpenModal();
+          }}
+          disabled={!hasScholarshipData}
+          className="flex-1 py-4 text-[10px] font-black uppercase tracking-widest text-gray-500 hover:text-white hover:bg-white/5 disabled:text-gray-800 disabled:hover:bg-transparent transition-all flex items-center justify-center gap-2"
         >
           <Info className="w-3.5 h-3.5" />
           {t('student_onboarding.scholarship.details', 'Details')}
@@ -1039,10 +1182,10 @@ const InstitutionCard: React.FC<CardProps> = ({
         ) : (
           <button
             onClick={() => {
-              if (selectionDisabled) return;
+              if (!canOpenSelection) return;
               onOpenModal();
             }}
-            disabled={selectionDisabled}
+            disabled={!canOpenSelection}
             className="flex-1 py-4 text-[10px] font-black uppercase tracking-widest text-gold-medium hover:bg-gold-medium hover:text-black disabled:text-gray-700 disabled:bg-transparent transition-all flex items-center justify-center gap-2"
           >
             <CheckCircle2 className="w-3.5 h-3.5" />

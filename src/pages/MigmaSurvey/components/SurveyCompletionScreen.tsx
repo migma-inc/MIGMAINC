@@ -18,12 +18,13 @@ interface Props {
 
 const TARGET = 1481;
 const DURATION_MS = 2800;
-const DISABLE_24H_REVIEW_LOCK_FOR_TESTS = true;
+const REVIEW_LOCK_MS = 24 * 60 * 60 * 1000;
 
 export const SurveyCompletionScreen: React.FC<Props> = ({ email, name, service, whatsapp, academicFormation, englishLevel, surveyCompletedAt, onContinue, standalone = true, contractApproved = false }) => {
   const { t, i18n } = useTranslation();
   const [count, setCount] = useState(0);
   const [timeLeft, setTimeLeft] = useState('');
+  const [isReviewWindowComplete, setIsReviewWindowComplete] = useState(false);
   const animationRef = useRef<number | null>(null);
 
   // Contador animado 0 → 1.481
@@ -48,19 +49,22 @@ export const SurveyCompletionScreen: React.FC<Props> = ({ email, name, service, 
   }, []);
 
   const unlockAt = useMemo(() => {
-    if (DISABLE_24H_REVIEW_LOCK_FOR_TESTS) return null;
     const completedAt = surveyCompletedAt ? new Date(surveyCompletedAt) : new Date();
-    return new Date(completedAt.getTime() + 24 * 60 * 60 * 1000);
+    const completedAtMs = Number.isNaN(completedAt.getTime()) ? Date.now() : completedAt.getTime();
+    return new Date(completedAtMs + REVIEW_LOCK_MS);
   }, [surveyCompletedAt]);
 
   // Countdown timer
   useEffect(() => {
-    if (DISABLE_24H_REVIEW_LOCK_FOR_TESTS) return;
-    if (!unlockAt) return;
     const update = () => {
       const now = new Date();
       const diff = unlockAt.getTime() - now.getTime();
-      if (diff <= 0) { setTimeLeft(''); return; }
+      if (diff <= 0) {
+        setTimeLeft('');
+        setIsReviewWindowComplete(true);
+        return;
+      }
+      setIsReviewWindowComplete(false);
       const h = Math.floor(diff / 3600000);
       const m = Math.floor((diff % 3600000) / 60000);
       const s = Math.floor((diff % 60000) / 1000);
@@ -71,7 +75,8 @@ export const SurveyCompletionScreen: React.FC<Props> = ({ email, name, service, 
     return () => clearInterval(interval);
   }, [unlockAt]);
 
-  const isUnlocked = DISABLE_24H_REVIEW_LOCK_FOR_TESTS || !timeLeft || contractApproved;
+  const isUnlocked = isReviewWindowComplete && contractApproved;
+  const chooseCollegesLabel = t('student_onboarding.survey_completion.btn_choose_colleges');
   const serviceLabel = service === 'transfer' ? 'Transfer' : service === 'cos' ? 'COS' : service.toUpperCase();
 
   return (
@@ -93,7 +98,7 @@ export const SurveyCompletionScreen: React.FC<Props> = ({ email, name, service, 
 
         {/* Contador animado */}
         <div className="mb-2">
-          <span className="text-gold-medium text-6xl font-black tabular-nums tracking-tighter shadow-gold-medium/20 text-shadow-sm">
+          <span className="sevis-counter-number text-gold-medium text-6xl font-black tabular-nums tracking-tighter shadow-gold-medium/20 text-shadow-sm">
             {count.toLocaleString(i18n.language)}
           </span>
         </div>
@@ -108,6 +113,12 @@ export const SurveyCompletionScreen: React.FC<Props> = ({ email, name, service, 
         >
           Study in the States — DHS
         </a>
+        <p className="mt-3 text-gray-400 text-xs leading-relaxed max-w-md mx-auto">
+          {t(
+            'student_onboarding.survey_completion.sevis_context',
+            'SEVIS is the U.S. government system used by DHS to track certified schools and F-1 students. This number represents the official pool of DHS SEVIS-certified institutions considered for your profile.'
+          )}
+        </p>
 
         {/* Resumo da candidatura */}
         <div className="mt-8 bg-white/[0.02] border border-white/5 rounded-[2rem] p-6 text-left space-y-3 text-sm">
@@ -158,7 +169,7 @@ export const SurveyCompletionScreen: React.FC<Props> = ({ email, name, service, 
               </p>
               <p className="text-gray-400 text-sm leading-relaxed">
                 {contractApproved
-                  ? t('student_onboarding.survey_completion.contract_approved_desc', 'Your approval has been confirmed. You can now proceed to college selection.')
+                  ? t('student_onboarding.survey_completion.contract_approved_desc', 'Your approval has been confirmed. College selection unlocks after the 24-hour university review window.')
                   : t('student_onboarding.survey_completion.profile_review_desc', 'Our team is reviewing your documents. Your scholarship access will be released soon.')}
               </p>
             </div>
@@ -173,27 +184,31 @@ export const SurveyCompletionScreen: React.FC<Props> = ({ email, name, service, 
 
         {/* Botão Escolher Faculdades */}
         <div className="mt-10">
-          {isUnlocked ? (
-            <button
-              onClick={onContinue}
-              className="w-full py-5 bg-gold-medium hover:bg-gold-light text-black font-black uppercase tracking-[0.2em] rounded-[1.5rem] text-sm transition-all shadow-[0_20px_40px_rgba(212,175,55,0.2)] active:scale-[0.98]"
-            >
-              {t('student_onboarding.survey_completion.btn_choose_colleges')}
-            </button>
-          ) : (
-            <div className="w-full py-5 bg-white/[0.02] border border-white/5 rounded-[1.5rem] text-center space-y-2 cursor-not-allowed group">
-              <p className="text-gray-500 text-xs font-black uppercase tracking-widest flex items-center justify-center gap-3">
-                <Clock className="w-4 h-4 text-gray-700" />
-                {t('student_onboarding.survey_completion.btn_choose_colleges').replace(' →', '')}
-              </p>
-              <p className="text-gold-medium/40 text-sm font-black tabular-nums">
-                {t('student_onboarding.survey_completion.available_in_time', {
-                  time: timeLeft,
-                  defaultValue: 'Available in {{time}}',
-                })}
-              </p>
-            </div>
-          )}
+          <button
+            onClick={isUnlocked ? onContinue : undefined}
+            disabled={!isUnlocked}
+            aria-disabled={!isUnlocked}
+            className={`w-full py-5 font-black uppercase tracking-[0.2em] rounded-[1.5rem] text-sm transition-all ${
+              isUnlocked
+                ? 'bg-gold-medium hover:bg-gold-light text-black shadow-[0_20px_40px_rgba(212,175,55,0.2)] active:scale-[0.98]'
+                : 'bg-white/[0.02] border border-white/5 text-gray-500 cursor-not-allowed'
+            }`}
+          >
+            <span className="flex items-center justify-center gap-3">
+              {!isUnlocked && <Clock className="w-4 h-4 text-gray-700" />}
+              {isUnlocked ? chooseCollegesLabel : chooseCollegesLabel.replace(' →', '')}
+            </span>
+            {!isUnlocked && (
+              <span className="mt-2 block text-gold-medium/40 text-sm font-black tabular-nums normal-case tracking-normal">
+                {timeLeft
+                  ? t('student_onboarding.survey_completion.available_in_time', {
+                      time: timeLeft,
+                      defaultValue: 'Available in {{time}}',
+                    })
+                  : t('student_onboarding.survey_completion.waiting_contract_approval', 'Waiting for Migma approval')}
+              </span>
+            )}
+          </button>
         </div>
       </main>
     </div>

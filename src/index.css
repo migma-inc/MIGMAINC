@@ -45,6 +45,28 @@
   background: rgba(206, 159, 72, 0.5);
 }
 
+.sevis-counter-number {
+  animation: sevis-counter-pop 2800ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes sevis-counter-pop {
+  0% {
+    opacity: 0.35;
+    transform: translateY(10px) scale(0.96);
+    filter: blur(1px);
+  }
+  65% {
+    opacity: 1;
+    transform: translateY(0) scale(1.03);
+    filter: blur(0);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: blur(0);
+  }
+}
+
 .driver-popover.migma-student-tour {
   max-width: min(340px, calc(100vw - 32px));
   border: 1px solid rgba(206, 159, 72, 0.28);

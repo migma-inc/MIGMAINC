@@ -18,6 +18,7 @@ export interface OnboardingState {
   currentStep: OnboardingStep;
   selectionFeePaid: boolean;
   selectionSurveyPassed: boolean;
+  reviewWindowComplete: boolean;
   contractApproved: boolean;
   scholarshipsSelected: boolean;
   processTypeSelected: boolean;

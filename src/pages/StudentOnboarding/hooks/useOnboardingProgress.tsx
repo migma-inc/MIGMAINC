@@ -11,8 +11,16 @@ const VALID_STEPS: OnboardingStep[] = [
   'my_applications', 'acceptance_letter', 'completed'
 ];
 
-const DISABLE_REVIEW_WAIT_ROOM_FOR_TESTS = true;
+const REVIEW_LOCK_MS = 24 * 60 * 60 * 1000;
+const DISABLE_REVIEW_WAIT_ROOM_FOR_TESTS = false;
 const DISABLE_SCHOLARSHIP_APPROVAL_LOCK_FOR_TESTS = true;
+
+const hasReviewWindowElapsed = (surveyCompletedAt: string | null): boolean => {
+  if (!surveyCompletedAt) return false;
+  const completedAtMs = new Date(surveyCompletedAt).getTime();
+  if (Number.isNaN(completedAtMs)) return false;
+  return Date.now() - completedAtMs >= REVIEW_LOCK_MS;
+};
 
 const normalizeLegacyStep = (step: OnboardingStep | string | null | undefined): OnboardingStep | null => {
   if (!step) return null;
@@ -78,6 +86,7 @@ export const useOnboardingProgress = () => {
       currentStep: initial,
       selectionFeePaid: userProfile?.has_paid_selection_process_fee || false,
       selectionSurveyPassed: userProfile?.selection_survey_passed || false,
+      reviewWindowComplete: false,
       contractApproved: false,
       scholarshipsSelected: false,
       processTypeSelected: false,
@@ -169,6 +178,7 @@ export const useOnboardingProgress = () => {
       const selectionFeePaid = !!freshProfile.has_paid_selection_process_fee;
       const selectionSurveyPassed = !!freshProfile.selection_survey_passed;
       const surveyCompletedAt: string | null = freshProfile.selection_survey_completed_at ?? null;
+      const reviewWindowComplete = selectionSurveyPassed && hasReviewWindowElapsed(surveyCompletedAt);
 
       // Verifica aprovação do contrato ou anexo na tabela visa_orders (Migma DB)
       let contractApproved = false;
@@ -246,7 +256,7 @@ export const useOnboardingProgress = () => {
         computedMaxAllowedStep = 'selection_fee';
       } else if (!selectionSurveyPassed) {
         computedMaxAllowedStep = 'selection_survey';
-      } else if (!contractApproved && !DISABLE_REVIEW_WAIT_ROOM_FOR_TESTS) {
+      } else if ((!reviewWindowComplete || !contractApproved) && !DISABLE_REVIEW_WAIT_ROOM_FOR_TESTS) {
         computedMaxAllowedStep = 'wait_room';
       } else if (!scholarshipsSelected || (!scholarshipsApproved && !DISABLE_SCHOLARSHIP_APPROVAL_LOCK_FOR_TESTS)) {
         // Must have selected AND at least one must be approved to advance
@@ -302,6 +312,7 @@ export const useOnboardingProgress = () => {
         currentStep: chosenStep,
         selectionFeePaid,
         selectionSurveyPassed,
+        reviewWindowComplete,
         contractApproved,
         scholarshipsSelected,
         processTypeSelected,

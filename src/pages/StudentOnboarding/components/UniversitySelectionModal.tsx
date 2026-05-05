@@ -21,6 +21,7 @@ export interface ScholarshipLevel {
   tuition_annual_usd: number;
   monthly_migma_usd: number;
   installments_total: number;
+  eligibility_process?: 'all' | 'cos' | 'transfer' | null;
 }
 
 export interface Course {
@@ -55,9 +56,20 @@ export interface Institution {
 interface Props {
   institution: Institution;
   preSelectedScholarshipId?: string | null;
+  selectionDisabled?: boolean;
   onClose: () => void;
   onSelect: (scholarshipId: string) => void;
 }
+
+const POPULAR_PLACEMENT_FEE_USD = 1800;
+
+const getPopularScholarshipLevel = (scholarships: ScholarshipLevel[]) => {
+  if (scholarships.length === 0) return null;
+  return (
+    scholarships.find(s => Number(s.placement_fee_usd) === POPULAR_PLACEMENT_FEE_USD) ??
+    [...scholarships].sort((a, b) => b.placement_fee_usd - a.placement_fee_usd)[0]
+  );
+};
 
 const FAQ_ITEMS = [
   {
@@ -94,23 +106,29 @@ const MODALITY_LABEL_KEYS: Record<string, string> = {
 export const UniversitySelectionModal: React.FC<Props> = ({
   institution,
   preSelectedScholarshipId,
+  selectionDisabled = false,
   onClose,
   onSelect,
 }) => {
   const { t } = useTranslation();
+  const defaultCourseId = institution.courses[0]?.id || null;
   const [selectedCourseId, setSelectedCourseId] = useState<string | null>(
-    institution.courses[0]?.id || null
+    defaultCourseId
   );
   
   const [selectedScholarshipId, setSelectedScholarshipId] = useState<string | null>(
     preSelectedScholarshipId ?? null
   );
   const [openFaq, setOpenFaq] = useState<number | null>(null);
+  const scrollContentRef = React.useRef<HTMLDivElement | null>(null);
 
   // Filtrar bolsas pelo curso selecionado
   const filteredScholarships = useMemo(() => {
     if (!selectedCourseId) return institution.scholarships;
-    return institution.scholarships.filter(s => s.course_id === selectedCourseId || !s.course_id);
+    const hasCourseSpecificScholarships = institution.scholarships.some(s => s.course_id);
+    return institution.scholarships.filter(s =>
+      s.course_id === selectedCourseId || (!hasCourseSpecificScholarships && !s.course_id)
+    );
   }, [institution.scholarships, selectedCourseId]);
 
   const sortedScholarships = useMemo(
@@ -124,6 +142,15 @@ export const UniversitySelectionModal: React.FC<Props> = ({
   );
 
   const selectedScholarship = sortedScholarships.find(s => s.id === selectedScholarshipId) ?? null;
+
+  React.useEffect(() => {
+    setSelectedCourseId(defaultCourseId);
+    setSelectedScholarshipId(preSelectedScholarshipId ?? null);
+    setOpenFaq(null);
+    requestAnimationFrame(() => {
+      scrollContentRef.current?.scrollTo({ top: 0, behavior: 'auto' });
+    });
+  }, [institution.id, defaultCourseId, preSelectedScholarshipId]);
 
   const formatDegreeLevel = (value: string | null | undefined) => {
     if (!value) return t('student_onboarding.university_modal.to_confirm');
@@ -177,7 +204,10 @@ export const UniversitySelectionModal: React.FC<Props> = ({
     return Math.max(...sortedScholarships.map(s => s.tuition_annual_usd), 0);
   }, [sortedScholarships]);
 
-  const mostPopularIdx = Math.floor(sortedScholarships.length / 2); // índice do meio
+  const mostPopularScholarshipId = useMemo(
+    () => getPopularScholarshipLevel(sortedScholarships)?.id ?? null,
+    [sortedScholarships]
+  );
 
   // Calculadora de economia total
   const savingsInfo = useMemo(() => {
@@ -221,12 +251,13 @@ export const UniversitySelectionModal: React.FC<Props> = ({
   }, [selectedCourse, t]);
 
   const handleSelect = () => {
-    if (!selectedScholarshipId) return;
+    if (!selectedScholarshipId || selectionDisabled) return;
     onSelect(selectedScholarshipId);
     onClose();
   };
 
   const initial = institution.name.charAt(0).toUpperCase();
+  const selectButtonDisabled = !selectedScholarshipId || selectionDisabled;
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 md:p-10">
@@ -296,7 +327,7 @@ export const UniversitySelectionModal: React.FC<Props> = ({
         </div>
 
         {/* ── Scrollable Content ── */}
-        <div className="flex-1 overflow-y-auto p-6 sm:p-8 space-y-10">
+        <div ref={scrollContentRef} className="flex-1 overflow-y-auto p-6 sm:p-8 space-y-10">
 
           {/* ── Seção 1.5 — Seletor de Curso ── */}
           {institution.courses.length > 1 && (
@@ -327,6 +358,40 @@ export const UniversitySelectionModal: React.FC<Props> = ({
             </section>
           )}
 
+          {selectedCourse && (
+            <section className="bg-white/[0.03] border border-white/10 rounded-2xl p-5 sm:p-6">
+              <div className="flex items-start gap-4">
+                <div className="w-10 h-10 rounded-xl bg-gold-medium/10 border border-gold-medium/20 flex items-center justify-center shrink-0">
+                  <BookOpen className="w-5 h-5 text-gold-medium" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-[10px] text-gold-medium uppercase font-black tracking-widest mb-1">
+                    {t('student_onboarding.university_modal.selected_course')}
+                  </p>
+                  <h3 className="text-lg font-black text-white leading-tight">
+                    {selectedCourse.course_name}
+                  </h3>
+                  <div className="flex flex-wrap gap-2 mt-3">
+                    <span className="text-[10px] font-black uppercase px-2.5 py-1 rounded-full bg-white/5 border border-white/10 text-gray-300 tracking-widest">
+                      {formatDegreeLevel(selectedCourse.degree_level)}
+                    </span>
+                    <span className="text-[10px] font-black uppercase px-2.5 py-1 rounded-full bg-white/5 border border-white/10 text-gray-300 tracking-widest">
+                      {selectedCourse.area}
+                    </span>
+                    {durationLabel && (
+                      <span className="text-[10px] font-black uppercase px-2.5 py-1 rounded-full bg-white/5 border border-white/10 text-gray-300 tracking-widest">
+                        {durationLabel}
+                      </span>
+                    )}
+                    <span className="text-[10px] font-black uppercase px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 tracking-widest">
+                      CPT: {cptLabel}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </section>
+          )}
+
           {/* ── Seção 2 — Escolha do Nível de Bolsa ── */}
           <section className="space-y-5">
             <div className="flex items-center gap-3">
@@ -352,21 +417,23 @@ export const UniversitySelectionModal: React.FC<Props> = ({
             ) : (
               <div className="space-y-2">
                 {/* Table header */}
-                <div className="hidden sm:grid grid-cols-4 px-6 pb-1 text-[10px] text-gray-600 font-black uppercase tracking-widest">
+                <div className="hidden sm:grid grid-cols-5 px-6 pb-1 text-[10px] text-gray-600 font-black uppercase tracking-widest">
                   <span>{t('student_onboarding.university_modal.placement_fee')}</span>
                   <span>{t('student_onboarding.university_modal.annual_tuition')}</span>
                   <span>{t('student_onboarding.university_modal.discount')}</span>
+                  <span>{t('student_onboarding.university_modal.annual_savings')}</span>
                   <span className="text-right">{t('student_onboarding.university_modal.select')}</span>
                 </div>
 
-                {sortedScholarships.map((level, idx) => {
+                {sortedScholarships.map((level) => {
                   const isSelected = selectedScholarshipId === level.id;
-                  const isPopular = idx === mostPopularIdx;
+                  const isPopular = level.id === mostPopularScholarshipId;
+                  const annualSavings = Math.max(maxTuition - level.tuition_annual_usd, 0);
                   return (
                     <div
                       key={level.id}
                       onClick={() => setSelectedScholarshipId(level.id)}
-                      className={`relative grid grid-cols-2 sm:grid-cols-4 items-center gap-4 px-5 sm:px-6 py-5 rounded-2xl border-2 transition-all cursor-pointer ${
+                      className={`relative grid grid-cols-2 sm:grid-cols-5 items-center gap-4 px-5 sm:px-6 py-5 rounded-2xl border-2 transition-all cursor-pointer ${
                         isSelected
                           ? 'border-gold-medium bg-gold-medium/5 shadow-[0_0_30px_rgba(184,158,78,0.08)]'
                           : 'border-white/5 bg-white/[0.02] hover:border-white/15 hover:bg-white/[0.04]'
@@ -401,7 +468,19 @@ export const UniversitySelectionModal: React.FC<Props> = ({
                           {formatScholarshipLevel(level.scholarship_level, level.discount_percent)}
                         </p>
                       </div>
-                      <div className="flex justify-end items-center sm:col-start-4">
+                      <div>
+                        <p className="text-[10px] text-gray-500 uppercase font-black tracking-widest mb-0.5 sm:hidden">
+                          {t('student_onboarding.university_modal.annual_savings')}
+                        </p>
+                        <p className="text-lg font-black text-white">
+                          {annualSavings > 0
+                            ? t('student_onboarding.university_modal.annual_savings_amount', {
+                                amount: `$${annualSavings.toLocaleString()}`,
+                              })
+                            : '-'}
+                        </p>
+                      </div>
+                      <div className="flex justify-end items-center sm:col-start-5">
                         <div
                           className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all ${
                             isSelected ? 'bg-gold-medium border-gold-medium' : 'border-white/10'
@@ -699,7 +778,13 @@ export const UniversitySelectionModal: React.FC<Props> = ({
             </span>
           </div>
 
-          <div className="flex items-center gap-3 w-full sm:w-auto">
+          <div className="flex flex-col sm:items-end gap-2 w-full sm:w-auto">
+            {selectionDisabled && (
+              <p className="text-[10px] text-amber-300 font-black uppercase tracking-widest text-center sm:text-right">
+                {t('student_onboarding.scholarship.limit_reached_remove_one', 'Limit reached. Remove one university to select another.')}
+              </p>
+            )}
+            <div className="flex items-center gap-3 w-full sm:w-auto">
             <button
               onClick={onClose}
               className="flex-1 sm:flex-none px-6 py-4 text-gray-400 font-bold uppercase tracking-widest text-xs hover:text-white transition-all"
@@ -708,12 +793,13 @@ export const UniversitySelectionModal: React.FC<Props> = ({
             </button>
             <button
               onClick={handleSelect}
-              disabled={!selectedScholarshipId}
+              disabled={selectButtonDisabled}
               className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-10 py-4 bg-gold-medium hover:bg-gold-light disabled:opacity-30 disabled:cursor-not-allowed text-black font-black uppercase tracking-widest text-sm rounded-2xl shadow-[0_0_30px_rgba(184,158,78,0.25)] transition-all active:scale-95"
             >
               <CheckCircle2 className="w-4 h-4" />
               {t('student_onboarding.university_modal.select_this_university')}
             </button>
+            </div>
           </div>
         </div>
 
