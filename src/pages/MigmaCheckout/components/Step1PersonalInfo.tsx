@@ -23,16 +23,10 @@ interface MethodOption {
 
 const METHODS: MethodOption[] = [
   {
-    id: 'stripe',
-    labelKey: 'checkout.method_stripe_label',
-    sublabelKey: 'checkout.method_stripe_sub',
-    regions: ['US', 'BR', 'OTHER'],
-  },
-  {
     id: 'parcelow_card',
     labelKey: 'checkout.method_parcelow_card_label',
     sublabelKey: 'checkout.method_parcelow_card_sub',
-    regions: ['BR'],
+    regions: ['US', 'BR', 'OTHER'],
   },
   {
     id: 'parcelow_pix',
@@ -96,13 +90,15 @@ export const Step1PersonalInfo: React.FC<Props> = ({
     signature_data_url: null,
   });
   const [termsOpen, setTermsOpen] = useState(false);
+  const [annexOpen, setAnnexOpen] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [globalError, setGlobalError] = useState<string | null>(null);
 
   // Contract loading
   const [contractLoading, setContractLoading] = useState(true);
-  const [fullContractText, setFullContractText] = useState<string>('');
+  const [mainContractText, setMainContractText] = useState<string>('');
+  const [annexText, setAnnexText] = useState<string>('');
   const [contractError, setContractError] = useState<string | null>(null);
 
   // Registration state (separate from payment)
@@ -161,12 +157,12 @@ export const Step1PersonalInfo: React.FC<Props> = ({
         ]);
         if (!mainContract) {
           setContractError(t('migma_checkout.step1.contract_not_found', 'Não foi possível encontrar o contrato desse serviço, por favor, entre em contato com o suporte.'));
-          setFullContractText('');
+          setMainContractText('');
+          setAnnexText('');
           return;
         }
-        let fullText = mainContract.content;
-        if (annex) fullText += '\n\n' + '-'.repeat(40) + '\n\n' + annex.content;
-        setFullContractText(fullText);
+        setMainContractText(mainContract.content);
+        setAnnexText(annex?.content || '');
       } catch (err) {
         console.error('[Step1] Failed to load contract:', err);
         setContractError(t('migma_checkout.step1.contract_error', 'Erro ao carregar contrato.'));
@@ -316,7 +312,13 @@ export const Step1PersonalInfo: React.FC<Props> = ({
         isOpen={termsOpen}
         onClose={() => setTermsOpen(false)}
         contractTitle={config.contractTitle}
-        contractText={contractLoading ? t('migma_checkout.step1.loading_contract', 'Carregando contrato...') : (contractError || fullContractText)}
+        contractText={contractLoading ? t('migma_checkout.step1.loading_contract', 'Carregando contrato...') : (contractError || mainContractText)}
+      />
+      <TermsModal
+        isOpen={annexOpen}
+        onClose={() => setAnnexOpen(false)}
+        contractTitle={t('migma_checkout.terms.annex_title', 'Anexo I — Autorização de Pagamento')}
+        contractText={contractLoading ? t('migma_checkout.step1.loading_contract', 'Carregando contrato...') : (contractError || annexText)}
       />
 
       <form onSubmit={handleSubmit} className="space-y-8">
@@ -471,9 +473,8 @@ export const Step1PersonalInfo: React.FC<Props> = ({
                 className="text-gold-medium underline hover:text-gold-light transition-colors">
                 {t('migma_checkout.step1.terms_label', 'Termos e Condições')}
               </button>{' '}
-              {t('migma_checkout.step1.terms_and', 'e seu')}
-              {' '}
-              <button type="button" onClick={() => setTermsOpen(true)}
+              {t('migma_checkout.step1.terms_and', 'e seu')}{' '}
+              <button type="button" onClick={() => setAnnexOpen(true)}
                 className="text-gold-medium underline hover:text-gold-light transition-colors">
                 {t('migma_checkout.step1.annex_label', 'Anexo I')}
               </button>. *
@@ -755,6 +756,15 @@ export const Step1PersonalInfo: React.FC<Props> = ({
               ))}
             </div>
             {errors.method && <p className="text-red-400 text-xs font-bold uppercase tracking-widest">{errors.method}</p>}
+
+            {method === 'parcelow_card' && (
+              <div className="mt-3 flex items-start gap-2 rounded-lg border border-blue-500/30 bg-blue-500/10 px-4 py-3 animate-in fade-in slide-in-from-top-2">
+                <CreditCard className="w-4 h-4 text-blue-400 mt-0.5 shrink-0" />
+                <p className="text-sm text-blue-200 leading-snug">
+                  {t('checkout.parcelow_card_us_notice', 'Parcelow accepts US and Brazilian credit cards. International cards are processed as a single charge — installments available for Brazilian cards only.')}
+                </p>
+              </div>
+            )}
           </div>
         </div>
 

@@ -6,7 +6,6 @@ import {
 import { Trans, useTranslation } from 'react-i18next';
 import { useStudentAuth } from '../../../contexts/StudentAuthContext';
 import { supabase } from '../../../lib/supabase';
-import { calculateCardAmountWithFees } from '../../../utils/stripeFeeCalculator';
 import { ZelleUpload } from '../../../features/visa-checkout/components/steps/step3/ZelleUpload';
 import { SplitPaymentSelector, type SplitPaymentConfig } from '../../../features/visa-checkout/components/steps/step3/SplitPaymentSelector';
 import { processZellePaymentWithN8n } from '../../../lib/zelle-n8n-integration';
@@ -31,12 +30,6 @@ interface InstitutionApplication {
 type PaymentMethod = 'stripe' | 'parcelow_card' | 'parcelow_pix' | 'parcelow_ted' | 'zelle';
 
 // ─── Icon components ───────────────────────────────────────────────────────────
-const StripeIcon: React.FC<{ className?: string }> = ({ className }) => (
-  <svg className={className} viewBox="0 0 24 24" fill="currentColor">
-    <path d="M13.976 9.15c-2.172-.806-3.356-1.426-3.356-2.409 0-.831.683-1.305 1.901-1.305 2.227 0 4.515.858 6.09 1.631l.89-5.494C18.252.975 15.697 0 12.165 0 9.667 0 7.589.654 6.104 1.872 4.56 3.147 3.757 4.992 3.757 7.218c0 4.039 2.467 5.76 6.476 7.219 2.585.92 3.445 1.574 3.445 2.583 0 .98-.84 1.545-2.354 1.545-1.875 0-4.965-.921-6.99-2.109l-.9 5.555C5.175 22.99 8.385 24 11.714 24c2.641 0 4.843-.624 6.328-1.813 1.664-1.305 2.525-3.236 2.525-5.732 0-4.128-2.524-5.851-6.591-7.305z" />
-  </svg>
-);
-
 const ParcelowIcon: React.FC<{ className?: string }> = ({ className }) => (
   <svg className={className} viewBox="0 0 24 24" fill="currentColor">
     <rect x="2" y="2" width="20" height="20" rx="5" />
@@ -148,8 +141,6 @@ export const PlacementFeeStep: React.FC<StepProps> = ({ onNext }) => {
   );
   const canInstall2x = placementFee >= 1000;
   const amountDueNow = (installments === 2 && canInstall2x) ? Math.floor(placementFee / 2) : placementFee;
-  const cardAmountDue = calculateCardAmountWithFees(amountDueNow);
-
   const handleConfirmZeroFee = useCallback(async () => {
     if (!userProfile?.id || !activeApp) return;
     setConfirmingZero(true);
@@ -532,33 +523,6 @@ export const PlacementFeeStep: React.FC<StepProps> = ({ onNext }) => {
         ) : (
           <div className="p-5 space-y-3">
 
-            {/* Cartão de Crédito — Stripe */}
-            <button
-              onClick={() => { setSelectedMethod('stripe'); setPaymentError(null); }}
-              className={`w-full flex items-center gap-4 p-4 rounded-2xl border transition-all text-left ${
-                selectedMethod === 'stripe'
-                  ? 'border-gold-medium/50 bg-gold-medium/5'
-                  : 'border-white/10 bg-white/[0.02] hover:border-white/20'
-              }`}
-            >
-              <div className="w-10 h-10 rounded-xl bg-[#635BFF]/20 flex items-center justify-center shrink-0">
-                <StripeIcon className="w-5 h-5 text-[#635BFF]" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className={`font-black text-sm uppercase tracking-wide ${selectedMethod === 'stripe' ? 'text-white' : 'text-gray-200'}`}>
-                  {t('student_onboarding.payment_ui.credit_card', 'Credit Card')}
-                </p>
-                <p className="text-[10px] text-gray-600 uppercase tracking-wider font-bold mt-0.5">
-                  {t('student_onboarding.payment_ui.processing_fees_may_apply', '* Processing fees may apply')}
-                </p>
-              </div>
-              <div className="text-right shrink-0">
-                <p className={`font-black text-lg ${selectedMethod === 'stripe' ? 'text-gold-medium' : 'text-white'}`}>
-                  ${cardAmountDue.toFixed(2)}
-                </p>
-              </div>
-            </button>
-
             {/* Parcelow */}
             <button
               onClick={() => { setSelectedMethod('parcelow_card'); setPaymentError(null); }}
@@ -801,7 +765,7 @@ export const PlacementFeeStep: React.FC<StepProps> = ({ onNext }) => {
                   {processing
                     ? t('student_onboarding.payment_ui.redirecting', 'Redirecting...')
                     : t(installments === 2 ? 'student_onboarding.payment_ui.pay_amount_first_installment' : 'student_onboarding.payment_ui.pay_amount', {
-                        amount: (selectedMethod === 'stripe' ? cardAmountDue : amountDueNow).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+                        amount: amountDueNow.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
                         defaultValue: installments === 2 ? 'Pay ${{amount}} (1st installment)' : 'Pay ${{amount}}',
                       })}
                 </button>
