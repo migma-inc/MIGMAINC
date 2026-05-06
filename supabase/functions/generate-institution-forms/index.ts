@@ -15,7 +15,7 @@ const CAROLINE_FORMS = [
   "application_for_admission",
   "i20_request_form",
   "letter_of_recommendation",       // external signer
-  "affidavit_of_financial_support",  // conditional on sponsor
+  "affidavit_of_financial_support",
   "tuition_refund_policy",
   "statement_of_institutional_purpose",
   "scholarship_support_compliance_agreement",
@@ -3214,9 +3214,9 @@ Deno.serve(async (req) => {
       ? [...OIKOS_FORMS]
       : ["application_for_admission", "i20_request_form", "termo_responsabilidade_estudante"];
 
-    // Filter out financial support form if no sponsor
+    // Caroline requires this form in the Initial package; Oikos keeps it sponsor-dependent.
     let finalFormList = formList.filter((ft) => {
-      if (ft === "affidavit_of_financial_support") return resolvedSupplemental.has_sponsor === true;
+      if (ft === "affidavit_of_financial_support") return isCaroline || resolvedSupplemental.has_sponsor === true;
       return true;
     });
 

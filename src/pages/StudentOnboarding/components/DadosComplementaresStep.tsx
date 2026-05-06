@@ -136,20 +136,41 @@ export const DadosComplementaresStep: React.FC<StepProps> = ({ onNext: _onNext }
   const navigate = useNavigate();
   const { userProfile } = useStudentAuth();
   const [form, setForm] = useState<FormData>(INITIAL);
+  const [activeInstitutionName, setActiveInstitutionName] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState<Partial<Record<keyof FormData | string, string>>>({});
+  const normalizedInstitutionName = activeInstitutionName.toLowerCase();
+  const isCaroline = normalizedInstitutionName.includes('caroline');
+  const isOikos = normalizedInstitutionName.includes('oikos');
 
   // Load existing data if any
   useEffect(() => {
     if (!userProfile?.id) return;
     (async () => {
-      const { data } = await supabase
-        .from('student_complementary_data')
-        .select('*')
-        .eq('profile_id', userProfile.id)
-        .maybeSingle();
+      const [complementaryRes, applicationRes] = await Promise.all([
+        supabase
+          .from('student_complementary_data')
+          .select('*')
+          .eq('profile_id', userProfile.id)
+          .maybeSingle(),
+        supabase
+          .from('institution_applications')
+          .select(`
+            id,
+            status,
+            is_application_fee_paid,
+            institutions ( name )
+          `)
+          .eq('profile_id', userProfile.id)
+          .in('status', ['payment_confirmed', 'approved', 'accepted'])
+          .order('is_application_fee_paid', { ascending: false })
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle(),
+      ]);
 
+      const data = complementaryRes.data;
       if (data) {
         setForm({
           emergency_contact_name: data.emergency_contact_name ?? '',
@@ -176,6 +197,9 @@ export const DadosComplementaresStep: React.FC<StepProps> = ({ onNext: _onNext }
           recommender2_contact: data.recommender2_contact ?? '',
         });
       }
+      const institution = (applicationRes.data as any)?.institutions;
+      const institutionName = Array.isArray(institution) ? institution[0]?.name : institution?.name;
+      setActiveInstitutionName(institutionName || '');
       setLoading(false);
     })();
   }, [userProfile?.id]);
@@ -213,10 +237,22 @@ export const DadosComplementaresStep: React.FC<StepProps> = ({ onNext: _onNext }
       if (!form.sponsor_name.trim()) errs.sponsor_name = required;
       if (!form.sponsor_relationship.trim()) errs.sponsor_relationship = required;
       if (!form.sponsor_phone.trim()) errs.sponsor_phone = required;
+      if (!form.sponsor_address.trim()) errs.sponsor_address = required;
+      if (isCaroline) {
+        if (!form.sponsor_employer.trim()) errs.sponsor_employer = required;
+        if (!form.sponsor_job_title.trim()) errs.sponsor_job_title = required;
+        if (!form.sponsor_years_employed.trim()) errs.sponsor_years_employed = required;
+        if (!form.sponsor_annual_income.trim()) errs.sponsor_annual_income = required;
+      }
     }
     if (!form.recommender1_name.trim()) errs.recommender1_name = required;
     if (!form.recommender1_role.trim()) errs.recommender1_role = required;
     if (!form.recommender1_contact.trim()) errs.recommender1_contact = required;
+    if (isCaroline) {
+      if (!form.recommender2_name.trim()) errs.recommender2_name = required;
+      if (!form.recommender2_role.trim()) errs.recommender2_role = required;
+      if (!form.recommender2_contact.trim()) errs.recommender2_contact = required;
+    }
     setErrors(errs);
     return Object.keys(errs).length === 0;
   };
@@ -293,6 +329,14 @@ export const DadosComplementaresStep: React.FC<StepProps> = ({ onNext: _onNext }
         <p className="text-sm text-gray-400 mt-1">
           {t('student_onboarding.complementary.subtitle', 'This information is required to complete your university application forms. All fields marked * are mandatory.')}
         </p>
+        {activeInstitutionName && (
+          <p className="mt-3 inline-flex rounded-full border border-gold-medium/20 bg-gold-medium/5 px-3 py-1 text-xs font-bold uppercase tracking-wider text-gold-medium">
+            {t('student_onboarding.complementary.active_university', {
+              university: activeInstitutionName,
+              defaultValue: 'University: {{university}}',
+            })}
+          </p>
+        )}
       </div>
 
       {/* ── Section A: Emergency Contact ─────────────────────────────────────── */}
@@ -477,20 +521,25 @@ export const DadosComplementaresStep: React.FC<StepProps> = ({ onNext: _onNext }
                 <input className={inputCls} placeholder="+1 (555) 000-0000" value={form.sponsor_phone} onChange={e => set('sponsor_phone', e.target.value)} />
                 {err('sponsor_phone')}
               </Field>
-              <Field label={t('student_onboarding.complementary.address', 'Address')}>
+              <Field label={t('student_onboarding.complementary.address', 'Address')} required>
                 <input className={inputCls} placeholder={t('student_onboarding.complementary.placeholder_full_address', 'Full address')} value={form.sponsor_address} onChange={e => set('sponsor_address', e.target.value)} />
+                {err('sponsor_address')}
               </Field>
-              <Field label={t('student_onboarding.complementary.current_employer', 'Current Employer')}>
+              <Field label={t('student_onboarding.complementary.current_employer', 'Current Employer')} required={isCaroline}>
                 <input className={inputCls} placeholder={t('student_onboarding.complementary.placeholder_company_name', 'Company name')} value={form.sponsor_employer} onChange={e => set('sponsor_employer', e.target.value)} />
+                {err('sponsor_employer')}
               </Field>
-              <Field label={t('student_onboarding.complementary.job_title', 'Job Title')}>
+              <Field label={t('student_onboarding.complementary.job_title', 'Job Title')} required={isCaroline}>
                 <input className={inputCls} placeholder={t('student_onboarding.complementary.placeholder_job_title', 'e.g. CEO, Director')} value={form.sponsor_job_title} onChange={e => set('sponsor_job_title', e.target.value)} />
+                {err('sponsor_job_title')}
               </Field>
-              <Field label={t('student_onboarding.complementary.years_employed', 'Years Employed')}>
+              <Field label={t('student_onboarding.complementary.years_employed', 'Years Employed')} required={isCaroline}>
                 <input className={inputCls} type="number" min="0" placeholder={t('student_onboarding.complementary.placeholder_years', 'e.g. 5')} value={form.sponsor_years_employed} onChange={e => set('sponsor_years_employed', e.target.value)} />
+                {err('sponsor_years_employed')}
               </Field>
-              <Field label={t('student_onboarding.complementary.gross_annual_income', 'Gross Annual Income')}>
+              <Field label={t('student_onboarding.complementary.gross_annual_income', 'Gross Annual Income')} required={isCaroline}>
                 <input className={inputCls} placeholder={t('student_onboarding.complementary.placeholder_income', 'e.g. $80,000')} value={form.sponsor_annual_income} onChange={e => set('sponsor_annual_income', e.target.value)} />
+                {err('sponsor_annual_income')}
               </Field>
               <Field label={t('student_onboarding.complementary.committed_amount', 'Committed Amount / Year (USD)')}>
                 <input className={inputCls} type="number" min="0" step="100" placeholder={t('student_onboarding.complementary.placeholder_committed_amount', 'e.g. 22000')} value={form.sponsor_committed_amount_usd} onChange={e => set('sponsor_committed_amount_usd', e.target.value)} />
@@ -509,7 +558,11 @@ export const DadosComplementaresStep: React.FC<StepProps> = ({ onNext: _onNext }
         />
 
         <div className="bg-gold-medium/5 border border-gold-medium/15 rounded-xl p-4 text-sm text-gray-400 leading-relaxed">
-          {t('student_onboarding.complementary.recommenders_notice', 'This person may be contacted by the university to confirm the recommendation. Choose someone available who can confirm the information if contacted. The signature can be digital or the full name typed in the designated field.')}
+          {isCaroline
+            ? t('student_onboarding.complementary.recommenders_notice_caroline', 'Caroline University requires two recommenders. Choose people available to confirm the information if contacted.')
+            : isOikos
+              ? t('student_onboarding.complementary.recommenders_notice_oikos', 'Oikos University requires one recommender. The second recommender is optional.')
+              : t('student_onboarding.complementary.recommenders_notice', 'This person may be contacted by the university to confirm the recommendation. Choose someone available who can confirm the information if contacted. The signature can be digital or the full name typed in the designated field.')}
         </div>
 
         {/* Recommender 1 */}
@@ -535,17 +588,25 @@ export const DadosComplementaresStep: React.FC<StepProps> = ({ onNext: _onNext }
         <div className="space-y-3">
           <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
             {t('student_onboarding.complementary.recommender_2', 'Recommender 2')}
-            <span className="ml-2 text-gold-medium/70 font-normal normal-case">{t('student_onboarding.complementary.required_for_caroline', 'Required for Caroline University')}</span>
+            {isCaroline && <span className="text-red-400"> *</span>}
+            <span className="ml-2 text-gold-medium/70 font-normal normal-case">
+              {isCaroline
+                ? t('student_onboarding.complementary.required_for_caroline', 'Required for Caroline University')
+                : t('student_onboarding.complementary.optional_for_university', 'Optional for this university')}
+            </span>
           </p>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <Field label={t('student_onboarding.complementary.full_name', 'Full Name')}>
+            <Field label={t('student_onboarding.complementary.full_name', 'Full Name')} required={isCaroline}>
               <input className={inputCls} placeholder={t('student_onboarding.complementary.placeholder_full_name', 'Full name')} value={form.recommender2_name} onChange={e => set('recommender2_name', e.target.value)} />
+              {err('recommender2_name')}
             </Field>
-            <Field label={t('student_onboarding.complementary.role_position', 'Role / Position')}>
+            <Field label={t('student_onboarding.complementary.role_position', 'Role / Position')} required={isCaroline}>
               <input className={inputCls} placeholder={t('student_onboarding.complementary.placeholder_recommender_role', 'Professor, Pastor, Supervisor...')} value={form.recommender2_role} onChange={e => set('recommender2_role', e.target.value)} />
+              {err('recommender2_role')}
             </Field>
-            <Field label={t('student_onboarding.complementary.phone_or_email', 'Phone or Email')}>
+            <Field label={t('student_onboarding.complementary.phone_or_email', 'Phone or Email')} required={isCaroline}>
               <input className={inputCls} placeholder={t('student_onboarding.complementary.placeholder_contact_info', 'Contact info')} value={form.recommender2_contact} onChange={e => set('recommender2_contact', e.target.value)} />
+              {err('recommender2_contact')}
             </Field>
           </div>
         </div>

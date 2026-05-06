@@ -356,6 +356,19 @@ export function Sidebar({ className, isMobileOpen = false, onMobileClose, access
                 <span>Transfer</span>
               </Link>
               <Link
+                to="/dashboard/crm/initial"
+                onClick={onMobileClose}
+                className={cn(
+                  'flex items-center gap-3 px-4 py-2 rounded-lg text-sm transition-colors',
+                  location.pathname === '/dashboard/crm/initial'
+                    ? 'text-gold-light font-medium'
+                    : 'text-gray-500 hover:text-gold-light'
+                )}
+              >
+                <UserRound className="w-4 h-4" />
+                <span>Initial</span>
+              </Link>
+              <Link
                 to="/dashboard/crm/referral-leads"
                 onClick={onMobileClose}
                 className={cn(

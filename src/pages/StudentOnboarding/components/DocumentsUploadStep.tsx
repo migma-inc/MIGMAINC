@@ -16,13 +16,14 @@ const MAX_DOCUMENT_FILE_SIZE_BYTES = 20 * 1024 * 1024;
 const ACCEPTED_DOCUMENT_EXTENSIONS = new Set(['pdf', 'jpg', 'jpeg', 'png', 'webp']);
 const FILE_ACCEPT = '.pdf,.jpg,.jpeg,.png,.webp';
 
-type ProcessCategory = 'transfer' | 'cos' | 'other';
+type ProcessCategory = 'transfer' | 'cos' | 'initial' | 'other';
 
 interface DocumentType {
   key: string;
   labelKey: string;
   descKey: string;
   required: boolean;
+  descValues?: Record<string, string | number>;
 }
 
 const DOCUMENT_TYPES: DocumentType[] = [
@@ -84,25 +85,46 @@ const DOCUMENT_TYPES: DocumentType[] = [
 
 const normalizeProcessCategory = (raw?: string | null): ProcessCategory => {
   const value = (raw || '').toLowerCase();
+  if (value.includes('initial')) return 'initial';
   if (value.includes('transfer')) return 'transfer';
   if (value.includes('cos') || value.includes('change')) return 'cos';
   return 'other';
 };
 
-const getDocumentTypesForProfile = (profile: any): DocumentType[] => {
+const getDocumentTypesForProfile = (profile: any, bankStatementRequiredUsd?: number | null): DocumentType[] => {
   const processCategory = normalizeProcessCategory(profile?.service_type ?? profile?.student_process_type);
   const hasDependents = Number(profile?.num_dependents ?? 0) > 0;
+  const bankStatementAmount = bankStatementRequiredUsd
+    ? bankStatementRequiredUsd.toLocaleString('en-US')
+    : '17,000';
 
   return DOCUMENT_TYPES
     .filter((doc) => {
       if (doc.key === 'current_i20') return processCategory === 'transfer';
+      if (doc.key === 'i94') return processCategory === 'transfer' || processCategory === 'cos';
+      if (doc.key === 'f1_visa') return processCategory === 'transfer' || processCategory === 'cos';
       if (doc.key === 'certidoes') return hasDependents;
       if (doc.key === 'i797a') return processCategory === 'transfer' || processCategory === 'cos';
+      if (doc.key === 'address_us') return processCategory === 'transfer' || processCategory === 'cos';
       return true;
     })
     .map((doc) => {
       if (doc.key === 'current_i20') return { ...doc, required: processCategory === 'transfer' };
       if (doc.key === 'certidoes') return { ...doc, required: hasDependents };
+      if (processCategory === 'initial' && doc.key === 'history_diploma') {
+        return {
+          ...doc,
+          labelKey: 'student_onboarding.documents.initial_academic_label',
+          descKey: 'student_onboarding.documents.initial_academic_desc',
+        };
+      }
+      if (processCategory === 'initial' && doc.key === 'bank_statement') {
+        return {
+          ...doc,
+          descKey: 'student_onboarding.documents.funds_initial_desc',
+          descValues: { amount: bankStatementAmount },
+        };
+      }
       return doc;
     });
 };
@@ -138,15 +160,17 @@ export const DocumentsUploadStep: React.FC<StepProps> = ({ onNext }) => {
   const [uploadingFiles, setUploadingFiles] = useState<Record<string, boolean>>({});
   const [uploadedDocs, setUploadedDocs] = useState<UploadedDoc[]>([]);
   const [passportDoc, setPassportDoc] = useState<PassportDoc | null>(null);
+  const [bankStatementRequiredUsd, setBankStatementRequiredUsd] = useState<number | null>(null);
   const [isLocked, setIsLocked] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
-  const documentTypes = useMemo(() => getDocumentTypesForProfile(userProfile), [
+  const documentTypes = useMemo(() => getDocumentTypesForProfile(userProfile, bankStatementRequiredUsd), [
     userProfile?.service_type,
     userProfile?.student_process_type,
     userProfile?.num_dependents,
+    bankStatementRequiredUsd,
   ]);
   const documentsApproved = userProfile?.documents_status === 'approved';
 
@@ -162,7 +186,7 @@ export const DocumentsUploadStep: React.FC<StepProps> = ({ onNext }) => {
       return;
     }
     try {
-      const [globalDocsRes, passportRes] = await Promise.all([
+      const [globalDocsRes, passportRes, applicationRes] = await Promise.all([
         supabase
           .from('global_document_requests')
           .select('id, document_type, submitted_url, status, rejection_reason, requested_at, submitted_at')
@@ -174,10 +198,27 @@ export const DocumentsUploadStep: React.FC<StepProps> = ({ onNext }) => {
           .eq('user_id', user.id)
           .eq('type', 'passport')
           .maybeSingle(),
+        supabase
+          .from('institution_applications')
+          .select(`
+            id,
+            status,
+            institution_scholarships ( bank_statement_required_usd )
+          `)
+          .eq('profile_id', userProfile.id)
+          .in('status', ['payment_confirmed', 'payment_pending', 'approved', 'accepted'])
+          .order('placement_fee_paid_at', { ascending: false, nullsFirst: false })
+          .limit(1)
+          .maybeSingle(),
       ]);
 
       setUploadedDocs((globalDocsRes.data as UploadedDoc[]) || []);
       setPassportDoc((passportRes.data as PassportDoc) || null);
+      const scholarship = (applicationRes.data as any)?.institution_scholarships;
+      const bankStatement = Array.isArray(scholarship)
+        ? scholarship[0]?.bank_statement_required_usd
+        : scholarship?.bank_statement_required_usd;
+      setBankStatementRequiredUsd(bankStatement ? Number(bankStatement) : null);
     } catch (err) {
       console.error('[DocumentsUploadStep]', err);
     } finally {
@@ -739,7 +780,7 @@ export const DocumentsUploadStep: React.FC<StepProps> = ({ onNext }) => {
                           </span>
                         )}
                       </div>
-                      <p className="text-sm text-gray-500 mt-0.5">{t(doc.descKey)}</p>
+                      <p className="text-sm text-gray-500 mt-0.5">{t(doc.descKey, doc.descValues)}</p>
 
                       {uploaded && (
                         <div className={`mt-2 flex items-center gap-1.5 text-sm font-medium ${

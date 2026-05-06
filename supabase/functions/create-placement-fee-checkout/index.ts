@@ -12,6 +12,9 @@ import Stripe from "npm:stripe@^17.3.1";
  *   payment_method: 'parcelow_card' | 'parcelow_pix' | 'parcelow_ted' | 'stripe'
  *   cpf?: string        (obrigatório para Parcelow)
  *   origin?: string     (URL base para redirect, ex: https://migmainc.com)
+ *   placement_fee_installments?: 1 | 2
+ *   amount_override?: number
+ *   is_2nd_installment?: boolean
  * }
  */
 
@@ -117,7 +120,7 @@ Deno.serve(async (req) => {
 
     // ── 1. Parse e validar input ──────────────────────────────────────────────
     const body = await req.json();
-    const { application_id, payment_method, cpf, origin, payer_name, payer_email, payer_phone, is_2nd_installment } = body as {
+    const { application_id, payment_method, cpf, origin, payer_name, payer_email, payer_phone, placement_fee_installments, amount_override, is_2nd_installment } = body as {
       application_id?: string;
       payment_method?: string;
       cpf?: string;
@@ -125,6 +128,8 @@ Deno.serve(async (req) => {
       payer_name?: string;
       payer_email?: string;
       payer_phone?: string;
+      placement_fee_installments?: number;
+      amount_override?: number;
       is_2nd_installment?: boolean;
     };
 
@@ -175,6 +180,14 @@ Deno.serve(async (req) => {
     } | null;
     const scholarship = app.institution_scholarships as { placement_fee_usd: number } | null;
     const placementFee = scholarship?.placement_fee_usd ?? 0;
+    const normalizedInstallments = placement_fee_installments === 2 && placementFee >= 1000 ? 2 : 1;
+    const amountDue = normalizedInstallments === 2
+      ? (is_2nd_installment ? Math.ceil(placementFee / 2) : Math.floor(placementFee / 2))
+      : placementFee;
+    const overrideAmount = Number(amount_override);
+    if (Number.isFinite(overrideAmount) && overrideAmount > 0 && Math.abs(overrideAmount - amountDue) > 0.01) {
+      return jsonError("Invalid amount_override for selected installment plan", 400);
+    }
 
     if (!profile?.email) return jsonError("Student profile incomplete", 500);
 
@@ -185,7 +198,8 @@ Deno.serve(async (req) => {
 
     console.log(
       `[create-placement-fee-checkout] user=${user.id} app=${application_id}` +
-      ` method=${payment_method} amount=${placementFee}`
+      ` method=${payment_method} total=${placementFee} due_now=${amountDue}` +
+      ` installments=${normalizedInstallments} second=${!!is_2nd_installment}`
     );
 
     // ── 3. Stripe ─────────────────────────────────────────────────────────────
@@ -195,7 +209,7 @@ Deno.serve(async (req) => {
 
       const stripe = new Stripe(stripeKey, { apiVersion: "2024-12-18.acacia" as any });
 
-      const finalAmount = Math.round(((placementFee + 0.30) / (1 - STRIPE_FEE_PERCENT)) * 100);
+      const finalAmount = Math.round(((amountDue + 0.30) / (1 - STRIPE_FEE_PERCENT)) * 100);
 
       const session = await stripe.checkout.sessions.create({
         payment_method_types: ["card"],
@@ -203,7 +217,9 @@ Deno.serve(async (req) => {
           price_data: {
             currency: "usd",
             product_data: {
-              name: "Migma — Placement Fee (Garantia de Vaga)",
+              name: is_2nd_installment
+                ? "Migma — Placement Fee (2nd Installment)"
+                : "Migma — Placement Fee (Garantia de Vaga)",
               description: "Pagamento único para garantir sua bolsa e vaga na universidade. Inclui taxa do cartão.",
             },
             unit_amount: finalAmount,
@@ -219,7 +235,9 @@ Deno.serve(async (req) => {
           application_id,
           user_id: user.id,
           full_name: profile.full_name || "",
-          net_amount_usd: placementFee.toString(),
+          net_amount_usd: amountDue.toString(),
+          placement_fee_total_usd: placementFee.toString(),
+          placement_fee_installments: normalizedInstallments.toString(),
         },
       });
 
@@ -228,7 +246,7 @@ Deno.serve(async (req) => {
         stripe_session_id: session.id,
         application_id,
         profile_id: myProfile.id,  // user_profiles.id
-        amount_usd: placementFee,
+        amount_usd: amountDue,
       });
 
       console.log(`[create-placement-fee-checkout] Stripe session: ${session.id}`);
@@ -274,9 +292,11 @@ Deno.serve(async (req) => {
       },
       items: [{
         reference: "PLACEMENT_FEE",
-        description: "Migma Placement Fee — Garantia de Vaga",
+        description: is_2nd_installment
+          ? "Migma Placement Fee — 2a Parcela"
+          : "Migma Placement Fee — Garantia de Vaga",
         quantity: 1,
-        amount: Math.round(placementFee * 100), // centavos USD
+        amount: Math.round(amountDue * 100), // centavos USD
       }],
       redirect: {
         success: `${returnBase}${returnBase.includes('?') ? '&' : '?'}pf_return=success`,

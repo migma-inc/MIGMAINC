@@ -25,6 +25,7 @@ import { Progress } from '@/components/ui/progress';
 import { cn } from '@/lib/utils';
 import {
   type OnboardingCase,
+  type CrmProductLine,
   type OnboardingCrmFilters,
   OPERATIONAL_STAGE_COLORS,
   OPERATIONAL_STAGE_LABELS,
@@ -62,7 +63,7 @@ const ONBOARDING_KANBAN_COLUMNS = [
 ] as const;
 
 interface OnboardingCrmBoardProps {
-  productLine?: 'cos' | 'transfer';
+  productLine?: CrmProductLine;
   title: string;
   description: string;
   mentorProfileId?: string | null;
@@ -216,7 +217,7 @@ function getPreOnboardingPaymentBadgeClass(item: OnboardingCase) {
   return 'bg-sky-500/20 text-sky-300 border-sky-500/30';
 }
 
-function getStuckState(item: OnboardingCase, productLine?: 'cos' | 'transfer'): StuckState {
+function getStuckState(item: OnboardingCase, productLine?: CrmProductLine): StuckState {
   const currentStep = item.profile.onboarding_current_step || 'selection_fee';
   const daysIdle = daysSince(item.profile.updated_at);
 
@@ -262,7 +263,7 @@ function alertBadgeClass(tone: StuckState['tone']) {
   return 'bg-white/5 text-gray-500 border-white/10';
 }
 
-function getDeadlineLabel(item: OnboardingCase, productLine?: 'cos' | 'transfer') {
+function getDeadlineLabel(item: OnboardingCase, productLine?: CrmProductLine) {
   if (productLine === 'transfer') {
     const days = daysUntil(item.profile.transfer_deadline_date);
     return days === null ? 'No deadline' : `Deadline ${days}d`;
@@ -273,6 +274,10 @@ function getDeadlineLabel(item: OnboardingCase, productLine?: 'cos' | 'transfer'
     return days === null ? 'No I-94' : `I-94 ${days}d`;
   }
 
+  if (productLine === 'initial') {
+    return toLabel(item.profile.onboarding_current_step);
+  }
+
   return toLabel(item.profile.onboarding_current_step);
 }
 
@@ -281,7 +286,7 @@ function applyFilters(
   search: string,
   filters: OnboardingCrmFilters,
   crmView: CrmView,
-  productLine?: 'cos' | 'transfer'
+  productLine?: CrmProductLine
 ) {
   const term = search.trim().toLowerCase();
 
@@ -353,7 +358,7 @@ function KanbanView({
 }: {
   cases: OnboardingCase[];
   crmView: CrmView;
-  productLine?: 'cos' | 'transfer';
+  productLine?: CrmProductLine;
 }) {
   const navigate = useNavigate();
 

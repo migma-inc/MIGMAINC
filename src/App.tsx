@@ -98,6 +98,7 @@ import { AdminTracking } from './pages/admin/AdminTracking';
 import { AdminUsers } from './pages/admin/AdminUsers';
 import { AdminCrmCos } from './pages/admin/AdminCrmCos';
 import { AdminCrmTransfer } from './pages/admin/AdminCrmTransfer';
+import { AdminCrmInitial } from './pages/admin/AdminCrmInitial';
 import { AdminUserDetail } from './pages/admin/AdminUserDetail';
 import { AdminReferralLeads } from './pages/admin/AdminReferralLeads';
 import { EB3InstallmentCheckout } from './pages/EB3InstallmentCheckout';
@@ -209,6 +210,7 @@ function App() {
           <Route path="users/:profileId" element={<AdminUserDetail />} />
           <Route path="crm/cos" element={<AdminCrmCos />} />
           <Route path="crm/transfer" element={<AdminCrmTransfer />} />
+          <Route path="crm/initial" element={<AdminCrmInitial />} />
           <Route path="crm/referral-leads" element={<AdminReferralLeads />} />
           <Route path="tracking" element={<AdminTracking />} />
           <Route path="coupons" element={<CouponManagement />} />

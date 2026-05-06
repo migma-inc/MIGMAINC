@@ -21,7 +21,10 @@ export interface ScholarshipLevel {
   tuition_annual_usd: number;
   monthly_migma_usd: number;
   installments_total: number;
-  eligibility_process?: 'all' | 'cos' | 'transfer' | null;
+  eligibility_process?: 'all' | 'cos' | 'transfer' | 'initial' | null;
+  bank_statement_required_usd?: number | null;
+  bank_statement_rule?: 'standard' | 'standard_plus_5000' | 'reduced_minus_5000' | string | null;
+  bank_statement_delta_usd?: number | null;
 }
 
 export interface Course {
@@ -47,6 +50,7 @@ export interface Institution {
   esl_flag: boolean;
   accepts_cos: boolean;
   accepts_transfer: boolean;
+  accepts_initial?: boolean | null;
   highlight_badge?: string | null;
   logo_url?: string | null;
   courses: Course[];
@@ -55,6 +59,7 @@ export interface Institution {
 
 interface Props {
   institution: Institution;
+  processType?: 'transfer' | 'cos' | 'initial' | 'other';
   preSelectedScholarshipId?: string | null;
   selectionDisabled?: boolean;
   onClose: () => void;
@@ -103,8 +108,232 @@ const MODALITY_LABEL_KEYS: Record<string, string> = {
   'A confirmar': 'student_onboarding.university_modal.to_confirm',
 };
 
+const formatUsd = (value: number | null | undefined) =>
+  `$${Number(value ?? 0).toLocaleString()}`;
+
+const InitialInvestmentIntro: React.FC<{ onComplete: () => void }> = ({ onComplete }) => {
+  const { t } = useTranslation();
+  const scrollRef = React.useRef<HTMLDivElement | null>(null);
+  const [canContinue, setCanContinue] = React.useState(false);
+
+  const checkScroll = React.useCallback(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    setCanContinue(el.scrollTop + el.clientHeight >= el.scrollHeight - 12);
+  }, []);
+
+  React.useEffect(() => {
+    const id = window.setTimeout(checkScroll, 80);
+    return () => window.clearTimeout(id);
+  }, [checkScroll]);
+
+  const blocks = [
+    {
+      titleKey: 'student_onboarding.university_modal.initial_investment_bank_title',
+      bodyKey: 'student_onboarding.university_modal.initial_investment_bank_body',
+    },
+    {
+      titleKey: 'student_onboarding.university_modal.initial_investment_scholarship_title',
+      bodyKey: 'student_onboarding.university_modal.initial_investment_scholarship_body',
+    },
+    {
+      titleKey: 'student_onboarding.university_modal.initial_investment_reduction_title',
+      bodyKey: 'student_onboarding.university_modal.initial_investment_reduction_body',
+      highlight: true,
+    },
+  ];
+
+  return (
+    <section className="space-y-6">
+      <div className="flex flex-wrap items-center gap-3">
+        <span className="rounded-full border border-gold-medium/30 bg-gold-medium/10 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-gold-light">
+          {t('student_onboarding.university_modal.initial_screen_a_label')}
+        </span>
+        <div className="h-px min-w-10 flex-1 bg-white/10" />
+        <span className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-[10px] font-black uppercase tracking-widest text-gray-500">
+          {t('student_onboarding.university_modal.initial_screen_b_label')}
+        </span>
+      </div>
+
+      <div className="flex items-center gap-3">
+        <Info className="w-5 h-5 text-gold-medium shrink-0" />
+        <h3 className="text-base font-black text-white uppercase tracking-widest">
+          {t('student_onboarding.university_modal.initial_investment_title')}
+        </h3>
+      </div>
+
+      <div
+        ref={scrollRef}
+        onScroll={checkScroll}
+        className="max-h-[56vh] overflow-y-auto pr-1 space-y-5 rounded-2xl border border-white/10 bg-white/[0.03] p-5 sm:p-6"
+      >
+        <p className="text-sm leading-relaxed text-gray-300">
+          {t('student_onboarding.university_modal.initial_investment_intro')}
+        </p>
+
+        <div className="grid gap-4">
+          {blocks.map(block => (
+            <div
+              key={block.titleKey}
+              className={`rounded-2xl border p-5 ${
+                block.highlight
+                  ? 'border-red-500/30 bg-red-500/10'
+                  : 'border-white/10 bg-black/20'
+              }`}
+            >
+              <p className={`text-sm font-black uppercase tracking-wide leading-tight ${
+                block.highlight ? 'text-red-300' : 'text-gold-medium'
+              }`}>
+                {t(block.titleKey)}
+              </p>
+              <p className="mt-3 text-sm leading-relaxed text-gray-300">
+                {t(block.bodyKey)}
+              </p>
+            </div>
+          ))}
+        </div>
+
+        <p className="rounded-2xl border border-gold-medium/25 bg-gold-medium/10 px-5 py-4 text-sm italic leading-relaxed text-gold-light">
+          {t('student_onboarding.university_modal.initial_investment_tip')}
+        </p>
+
+        <div className="border-t border-white/10 pt-5 space-y-3">
+          <p className="text-sm leading-relaxed text-gray-300">
+            {t('student_onboarding.university_modal.initial_investment_next')}
+          </p>
+          <p className="text-sm leading-relaxed text-gray-400">
+            {t('student_onboarding.university_modal.initial_investment_evaluate')}
+          </p>
+        </div>
+      </div>
+
+      <button
+        onClick={onComplete}
+        disabled={!canContinue}
+        className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-2xl bg-gold-medium px-8 py-4 text-sm font-black uppercase tracking-widest text-black transition-all hover:bg-gold-light disabled:cursor-not-allowed disabled:opacity-40"
+      >
+        {t('student_onboarding.university_modal.initial_view_options')}
+        <ChevronDown className="w-4 h-4 -rotate-90" />
+      </button>
+    </section>
+  );
+};
+
+const InitialScholarshipTable: React.FC<{
+  levels: ScholarshipLevel[];
+  selectedId: string | null;
+  popularScholarshipId: string | null;
+  onSelect: (id: string) => void;
+}> = ({ levels, selectedId, popularScholarshipId, onSelect }) => {
+  const { t } = useTranslation();
+
+  return (
+    <div className="space-y-5">
+      <div className="flex flex-wrap items-center gap-3">
+        <span className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-[10px] font-black uppercase tracking-widest text-gray-500">
+          {t('student_onboarding.university_modal.initial_screen_a_done_label')}
+        </span>
+        <div className="h-px min-w-10 flex-1 bg-white/10" />
+        <span className="rounded-full border border-gold-medium/30 bg-gold-medium/10 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-gold-light">
+          {t('student_onboarding.university_modal.initial_screen_b_label')}
+        </span>
+      </div>
+
+      <div className="rounded-2xl border border-gold-medium/20 bg-gold-medium/5 px-5 py-4">
+        <p className="text-[10px] font-black uppercase tracking-widest text-gold-medium">
+          {t('student_onboarding.university_modal.initial_screen_b_title')}
+        </p>
+        <p className="mt-2 text-sm leading-relaxed text-gray-300">
+          {t('student_onboarding.university_modal.initial_screen_b_desc')}
+        </p>
+      </div>
+
+      <div className="hidden sm:grid grid-cols-4 px-6 pb-1 text-[10px] text-gray-600 font-black uppercase tracking-widest">
+        <span>{t('student_onboarding.university_modal.annual_tuition')}</span>
+        <span>{t('student_onboarding.university_modal.discount')}</span>
+        <span>{t('student_onboarding.university_modal.placement_fee')}</span>
+        <span className="text-right">{t('student_onboarding.university_modal.initial_table_bank_statement_required')}</span>
+      </div>
+
+      {levels.map((level, index) => {
+        const previous = levels[index - 1];
+        const showDivider = level.placement_fee_usd >= 1000 && (!previous || previous.placement_fee_usd < 1000);
+        const isSelected = selectedId === level.id;
+        const isPopular = level.id === popularScholarshipId;
+        const bankStatement = level.bank_statement_required_usd;
+        const isReduced = level.bank_statement_rule === 'reduced_minus_5000' || level.bank_statement_delta_usd === -5000;
+
+        return (
+          <React.Fragment key={level.id}>
+            {showDivider && (
+              <div className="rounded-2xl border border-red-500/40 bg-red-500/10 px-5 py-3 text-center">
+                <p className="text-[10px] font-black uppercase tracking-widest text-red-300">
+                  {t('student_onboarding.university_modal.initial_bank_statement_divider')}
+                </p>
+              </div>
+            )}
+
+            <button
+              type="button"
+              onClick={() => onSelect(level.id)}
+              className={`relative w-full grid grid-cols-2 sm:grid-cols-4 items-center gap-4 rounded-2xl border-2 px-5 sm:px-6 py-5 text-left transition-all ${
+                isSelected
+                  ? 'border-gold-medium bg-gold-medium/5 shadow-[0_0_30px_rgba(184,158,78,0.08)]'
+                  : 'border-white/5 bg-white/[0.02] hover:border-white/15 hover:bg-white/[0.04]'
+              }`}
+            >
+              {isPopular && (
+                <div className="absolute -top-3 left-6 bg-emerald-500 text-black text-[9px] font-black px-3 py-0.5 rounded-full uppercase tracking-widest">
+                  {t('student_onboarding.university_modal.most_popular')}
+                </div>
+              )}
+              <div>
+                <p className="text-[10px] text-gray-500 uppercase font-black tracking-widest mb-0.5 sm:hidden">{t('student_onboarding.university_modal.annual_tuition')}</p>
+                <p className="text-lg font-black text-white">{formatUsd(level.tuition_annual_usd)}</p>
+              </div>
+              <div>
+                <p className="text-[10px] text-gray-500 uppercase font-black tracking-widest mb-0.5 sm:hidden">{t('student_onboarding.university_modal.discount')}</p>
+                <p className="text-lg font-black text-emerald-400">{level.discount_percent}%</p>
+              </div>
+              <div>
+                <p className="text-[10px] text-gray-500 uppercase font-black tracking-widest mb-0.5 sm:hidden">{t('student_onboarding.university_modal.placement_fee')}</p>
+                <p className={`text-lg font-black ${isSelected ? 'text-gold-medium' : 'text-gray-200'}`}>
+                  {formatUsd(level.placement_fee_usd)}
+                </p>
+              </div>
+              <div className="flex items-center justify-between gap-3 sm:justify-end">
+                <div className="sm:text-right">
+                  <p className="text-[10px] text-gray-500 uppercase font-black tracking-widest mb-0.5 sm:hidden">{t('student_onboarding.university_modal.initial_table_bank_statement')}</p>
+                  <p className={`text-lg font-black ${isReduced ? 'text-red-300' : 'text-white'}`}>
+                    {bankStatement ? formatUsd(bankStatement) : '-'}
+                  </p>
+                  {level.bank_statement_rule && (
+                    <p className="text-[9px] font-bold uppercase tracking-widest text-gray-500">
+                      {isReduced
+                        ? t('student_onboarding.university_modal.initial_bank_statement_reduced')
+                        : t('student_onboarding.university_modal.initial_bank_statement_standard')}
+                    </p>
+                  )}
+                </div>
+                <div
+                  className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all ${
+                    isSelected ? 'bg-gold-medium border-gold-medium' : 'border-white/10'
+                  }`}
+                >
+                  {isSelected && <CheckCircle2 className="w-4 h-4 text-black" />}
+                </div>
+              </div>
+            </button>
+          </React.Fragment>
+        );
+      })}
+    </div>
+  );
+};
+
 export const UniversitySelectionModal: React.FC<Props> = ({
   institution,
+  processType = 'other',
   preSelectedScholarshipId,
   selectionDisabled = false,
   onClose,
@@ -119,6 +348,7 @@ export const UniversitySelectionModal: React.FC<Props> = ({
   const [selectedScholarshipId, setSelectedScholarshipId] = useState<string | null>(
     preSelectedScholarshipId ?? null
   );
+  const [initialIntroCompleted, setInitialIntroCompleted] = useState(false);
   const [openFaq, setOpenFaq] = useState<number | null>(null);
   const scrollContentRef = React.useRef<HTMLDivElement | null>(null);
 
@@ -141,16 +371,23 @@ export const UniversitySelectionModal: React.FC<Props> = ({
     [institution.courses, selectedCourseId]
   );
 
+  React.useEffect(() => {
+    setInitialIntroCompleted(false);
+  }, [institution.id, processType]);
+
   const selectedScholarship = sortedScholarships.find(s => s.id === selectedScholarshipId) ?? null;
 
   React.useEffect(() => {
     setSelectedCourseId(defaultCourseId);
     setSelectedScholarshipId(preSelectedScholarshipId ?? null);
+    setInitialIntroCompleted(false);
     setOpenFaq(null);
     requestAnimationFrame(() => {
       scrollContentRef.current?.scrollTo({ top: 0, behavior: 'auto' });
     });
   }, [institution.id, defaultCourseId, preSelectedScholarshipId]);
+
+  const isInitialProcess = processType === 'initial';
 
   const formatDegreeLevel = (value: string | null | undefined) => {
     if (!value) return t('student_onboarding.university_modal.to_confirm');
@@ -392,6 +629,10 @@ export const UniversitySelectionModal: React.FC<Props> = ({
             </section>
           )}
 
+          {isInitialProcess && !initialIntroCompleted ? (
+            <InitialInvestmentIntro onComplete={() => setInitialIntroCompleted(true)} />
+          ) : (
+          <>
           {/* ── Seção 2 — Escolha do Nível de Bolsa ── */}
           <section className="space-y-5">
             <div className="flex items-center gap-3">
@@ -414,6 +655,13 @@ export const UniversitySelectionModal: React.FC<Props> = ({
               <div className="text-center py-8 text-gray-500 text-sm">
                 {t('student_onboarding.university_modal.no_scholarship_levels')}
               </div>
+            ) : isInitialProcess ? (
+              <InitialScholarshipTable
+                levels={sortedScholarships}
+                selectedId={selectedScholarshipId}
+                popularScholarshipId={mostPopularScholarshipId}
+                onSelect={setSelectedScholarshipId}
+              />
             ) : (
               <div className="space-y-2">
                 {/* Table header */}
@@ -699,16 +947,18 @@ export const UniversitySelectionModal: React.FC<Props> = ({
                     <Trans i18nKey="student_onboarding.university_modal.req_documents" components={{ strong: <strong className="text-white" /> }} />
                   </span>
                 </li>
-                <li className="flex items-start gap-3 text-sm text-gray-300">
-                  <CheckCircle2 className="w-4 h-4 text-gold-medium shrink-0 mt-0.5" />
-                  <span>
-                    <Trans
-                      i18nKey="student_onboarding.university_modal.req_bank_statement"
-                      values={{ amount: `$${institution.bank_statement_min_usd.toLocaleString()}` }}
-                      components={{ strong: <strong className="text-white" /> }}
-                    />
-                  </span>
-                </li>
+                {!isInitialProcess && (
+                  <li className="flex items-start gap-3 text-sm text-gray-300">
+                    <CheckCircle2 className="w-4 h-4 text-gold-medium shrink-0 mt-0.5" />
+                    <span>
+                      <Trans
+                        i18nKey="student_onboarding.university_modal.req_bank_statement"
+                        values={{ amount: `$${institution.bank_statement_min_usd.toLocaleString()}` }}
+                        components={{ strong: <strong className="text-white" /> }}
+                      />
+                    </span>
+                  </li>
+                )}
               </ul>
             </div>
           </section>
@@ -763,6 +1013,8 @@ export const UniversitySelectionModal: React.FC<Props> = ({
               </p>
             </div>
           </div>
+          </>
+          )}
 
         </div>
 

@@ -7,6 +7,7 @@ import { useStudentAuth } from '../../../contexts/StudentAuthContext';
 import { supabase } from '../../../lib/supabase';
 import { getSecureUrl } from '../../../lib/storage';
 import { DocumentViewerModal } from '../../../components/DocumentViewerModal';
+import { InitialConsularAttorneyCard } from '../../../components/student/InitialConsularAttorneyCard';
 import type { StepProps } from '../types';
 
 interface ApplicationData {
@@ -14,6 +15,7 @@ interface ApplicationData {
   placement_fee_installments: number | null;
   placement_fee_2nd_installment_paid_at: string | null;
   acceptance_letter_url: string | null;
+  acceptance_letter_received_at: string | null;
   transfer_form_url: string | null;
   transfer_form_filled_url: string | null;
   transfer_form_student_status: string | null;
@@ -46,12 +48,13 @@ export const AcceptanceLetterStep: React.FC<StepProps> = () => {
   };
 
   const isTransfer = userProfile?.student_process_type === 'transfer';
+  const isInitial = (userProfile?.student_process_type ?? userProfile?.service_type ?? '').toLowerCase() === 'initial';
 
   useEffect(() => {
     if (!userProfile?.id) return;
     supabase
       .from('institution_applications')
-      .select('id, placement_fee_installments, placement_fee_2nd_installment_paid_at, acceptance_letter_url, transfer_form_url, transfer_form_filled_url, transfer_form_student_status, package_status, institutions(name)')
+      .select('id, placement_fee_installments, placement_fee_2nd_installment_paid_at, acceptance_letter_url, acceptance_letter_received_at, transfer_form_url, transfer_form_filled_url, transfer_form_student_status, package_status, institutions(name)')
       .eq('profile_id', userProfile.id)
       .in('status', ['payment_confirmed', 'approved'])
       .order('created_at', { ascending: false })
@@ -132,6 +135,10 @@ export const AcceptanceLetterStep: React.FC<StepProps> = () => {
   const is2xPending =
     app?.placement_fee_installments === 2 &&
     !app?.placement_fee_2nd_installment_paid_at;
+  const showInitialConsularAttorney =
+    isInitial &&
+    !is2xPending &&
+    !!(app?.acceptance_letter_url || app?.acceptance_letter_received_at);
 
   return (
     <div className="max-w-2xl mx-auto space-y-6">
@@ -222,6 +229,10 @@ export const AcceptanceLetterStep: React.FC<StepProps> = () => {
                 </div>
               </div>
             </div>
+          )}
+
+          {showInitialConsularAttorney && (
+            <InitialConsularAttorneyCard />
           )}
 
           {/* Transfer Form — apenas para transfer students */}

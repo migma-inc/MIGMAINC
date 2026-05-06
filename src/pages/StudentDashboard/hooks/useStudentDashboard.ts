@@ -14,6 +14,7 @@ export interface DashboardApplication {
   package_status: string | null;
   package_storage_url: string | null;
   acceptance_letter_url: string | null;
+  acceptance_letter_received_at: string | null;
   transfer_form_url: string | null;
   transfer_form_filled_url: string | null;
   transfer_form_student_status: string | null;
@@ -171,7 +172,8 @@ export function useStudentDashboard() {
           id, status, placement_fee_paid_at, placement_fee_installments,
           placement_fee_2nd_installment_paid_at, admin_approved_at,
           payment_link_url, forms_status, package_status, package_storage_url,
-          acceptance_letter_url, transfer_form_url, transfer_form_filled_url, transfer_form_student_status,
+          acceptance_letter_url, acceptance_letter_received_at,
+          transfer_form_url, transfer_form_filled_url, transfer_form_student_status,
           transfer_form_admin_status, transfer_form_rejection_reason,
           transfer_form_delivered_at, transfer_concluded_at, created_at,
           institutions ( name, city, state, slug ),

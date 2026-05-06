@@ -31,6 +31,7 @@ import { getSecureUrl } from '@/lib/storage';
 import { DocumentViewerModal } from '@/components/DocumentViewerModal';
 import { StudentSupportPanel } from '@/pages/StudentSupport';
 import { StudentRewardsPanel } from '@/pages/StudentRewards';
+import { InitialConsularAttorneyCard } from '@/components/student/InitialConsularAttorneyCard';
 import {
   useStudentDashboard,
   type DashboardApplication,
@@ -481,6 +482,15 @@ function OverviewTab({
   const { userProfile } = useStudentAuth();
   const { t } = useTranslation();
   const step = getCurrentStepInfo(userProfile, application, t);
+  const processType = (userProfile?.student_process_type ?? userProfile?.service_type ?? '').toLowerCase();
+  const isInitial = processType === 'initial';
+  const is2ndPending =
+    application?.placement_fee_installments === 2 &&
+    !application?.placement_fee_2nd_installment_paid_at;
+  const showInitialConsularAttorney =
+    isInitial &&
+    !is2ndPending &&
+    !!(application?.acceptance_letter_url || application?.acceptance_letter_received_at);
   const approvedCount = applications.filter(app => ['approved', 'payment_pending', 'payment_confirmed'].includes(app.status)).length;
   const pendingCount = applications.filter(app => ['pending_admin_approval', 'payment_pending'].includes(app.status)).length;
   const profileItems = [
@@ -565,6 +575,10 @@ function OverviewTab({
           openViewer={openViewer}
           compact={true}
         />
+      )}
+
+      {showInitialConsularAttorney && (
+        <InitialConsularAttorneyCard compact />
       )}
 
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_420px]">
@@ -758,8 +772,15 @@ function DocumentsTab({
   const showTransferForm = !!application && serviceType === 'transfer' && (
     !!application.transfer_form_url || !!application.transfer_form_filled_url
   );
+  const isInitial = (serviceType ?? '').toLowerCase() === 'initial';
+  const is2ndPending =
+    application?.placement_fee_installments === 2 &&
+    !application?.placement_fee_2nd_installment_paid_at;
+  const showInitialConsularAttorney = !!application && isInitial && !is2ndPending && (
+    !!application.acceptance_letter_url || !!application.acceptance_letter_received_at
+  );
 
-  if (total === 0 && !showAcceptanceLetter && !showTransferForm) {
+  if (total === 0 && !showAcceptanceLetter && !showTransferForm && !showInitialConsularAttorney) {
     return (
       <div data-tour="student-documents-page" className="mx-auto max-w-5xl space-y-6">
         <div>
@@ -794,10 +815,13 @@ function DocumentsTab({
       <DocumentKpis total={total} submitted={submitted} approved={approved} rejected={rejected} />
 
       {/* Carta de Aceite e Transfer Form no topo da lista */}
-      {(showAcceptanceLetter || showTransferForm) && (
+      {(showAcceptanceLetter || showTransferForm || showInitialConsularAttorney) && (
         <div data-tour="student-documents-finals" className="space-y-4">
           {showAcceptanceLetter && (
             <AcceptanceLetterCard application={application!} openViewer={openViewer} />
+          )}
+          {showInitialConsularAttorney && (
+            <InitialConsularAttorneyCard />
           )}
           {showTransferForm && (
             <TransferFormOverview application={application!} onRefresh={onRefresh} openViewer={openViewer} />

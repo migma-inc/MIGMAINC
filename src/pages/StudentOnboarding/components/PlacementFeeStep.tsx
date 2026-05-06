@@ -24,6 +24,7 @@ interface InstitutionApplication {
     placement_fee_usd: number;
     discount_percent: number;
     tuition_annual_usd: number;
+    bank_statement_required_usd: number | null;
     institution_courses: {
       course_name: string | null;
       degree_level: string | null;
@@ -100,7 +101,7 @@ export const PlacementFeeStep: React.FC<StepProps> = ({ onNext }) => {
           id, status, payment_link_url, placement_fee_paid_at, placement_fee_installments, admin_approved_at,
           institutions ( name, city, state ),
           institution_scholarships (
-            scholarship_level, placement_fee_usd, discount_percent, tuition_annual_usd,
+            scholarship_level, placement_fee_usd, discount_percent, tuition_annual_usd, bank_statement_required_usd,
             institution_courses ( course_name, degree_level )
           )
         `)
@@ -138,6 +139,7 @@ export const PlacementFeeStep: React.FC<StepProps> = ({ onNext }) => {
   const course = Array.isArray(rawCourse) ? rawCourse[0] : rawCourse;
   const courseLabel = [course?.course_name, course?.degree_level].filter(Boolean).join(' — ');
   const placementFee = scholar?.placement_fee_usd ?? 0;
+  const bankStatementRequired = scholar?.bank_statement_required_usd ?? null;
   const isZeroFee = placementFee === 0 && activeApp?.status !== 'payment_confirmed';
   const needsCpf = !!selectedMethod && ['parcelow_card', 'parcelow_pix', 'parcelow_ted'].includes(selectedMethod);
   const isParcelowCard = selectedMethod === 'parcelow_card';
@@ -354,6 +356,14 @@ export const PlacementFeeStep: React.FC<StepProps> = ({ onNext }) => {
               </span>
               <span className="text-sm font-black text-white">${placementFee.toLocaleString()}</span>
             </div>
+            {bankStatementRequired && (
+              <div className="flex items-center justify-between gap-3 rounded-xl border border-red-500/20 bg-red-500/5 px-3 py-2">
+                <span className="text-[10px] font-black uppercase tracking-widest text-red-300">
+                  {t('student_onboarding.placement_fee.bank_statement_label', 'Bank Statement Required')}
+                </span>
+                <span className="text-sm font-black text-white">${bankStatementRequired.toLocaleString()}</span>
+              </div>
+            )}
           </div>
           <p className="mt-8 text-gray-600 text-xs">{t('student_onboarding.placement_fee.approval_time', 'Approval usually happens within 24 business hours.')}</p>
         </div>
@@ -429,6 +439,14 @@ export const PlacementFeeStep: React.FC<StepProps> = ({ onNext }) => {
                 {t('student_onboarding.placement_fee.annual_scholarship_value', {
                   amount: scholar.tuition_annual_usd.toLocaleString(),
                   defaultValue: 'Annual scholarship value: ${{amount}}',
+                })}
+              </p>
+            )}
+            {bankStatementRequired && (
+              <p className="text-xs text-red-300 font-bold mt-0.5">
+                {t('student_onboarding.placement_fee.bank_statement_amount', {
+                  amount: bankStatementRequired.toLocaleString(),
+                  defaultValue: 'Bank Statement required: ${{amount}}',
                 })}
               </p>
             )}

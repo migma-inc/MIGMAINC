@@ -53,6 +53,7 @@ const getStudentProcessType = (profile: unknown) => {
   const p = profile as { service_type?: string | null; student_process_type?: string | null } | null;
   const raw = normalizeConditionValue(p?.student_process_type || p?.service_type);
   if (raw.includes('transfer')) return 'transfer';
+  if (raw.includes('initial')) return 'initial';
   if (raw.includes('cos') || raw.includes('change_of_status')) return 'cos';
   return 'other';
 };
@@ -72,14 +73,19 @@ const isInstitutionEligibleForProfile = (institution: Institution, profile: unkn
   const processType = getStudentProcessType(profile);
   if (processType === 'transfer' && !institution.accepts_transfer) return false;
   if (processType === 'cos' && !institution.accepts_cos) return false;
+  if (processType === 'initial' && institution.accepts_initial === false) return false;
   if (institution.esl_flag) return canShowEslInstitutions(profile);
   return true;
 };
 
 const isScholarshipEligibleForProfile = (scholarship: ScholarshipLevel, profile: unknown) => {
   const rule = normalizeConditionValue(scholarship.eligibility_process || 'all');
+  const processType = getStudentProcessType(profile);
+  if (processType === 'initial') {
+    return rule === 'initial' && Number(scholarship.bank_statement_required_usd ?? 0) > 0;
+  }
   if (!rule || rule === 'all') return true;
-  return rule === getStudentProcessType(profile);
+  return rule === processType;
 };
 
 const hasCompleteSelectionData = (institution: Institution) =>
@@ -174,12 +180,20 @@ export const UniversitySelectionStep: React.FC<StepProps> = ({ onNext }) => {
             const eligibleScholarships = inst.scholarships.filter(scholarship =>
               isScholarshipEligibleForProfile(scholarship, profileEligibility)
             );
+            const processType = getStudentProcessType(profileEligibility);
+            const processSpecificScholarships = eligibleScholarships.filter(
+              scholarship => normalizeConditionValue(scholarship.eligibility_process) === processType
+            );
             const hasCourseSpecificScholarships = eligibleScholarships.some(scholarship => scholarship.course_id);
+            const scholarshipsForProcess = processSpecificScholarships.length > 0
+              ? processSpecificScholarships
+              : eligibleScholarships;
+            const hasCourseSpecificScholarshipsForProcess = scholarshipsForProcess.some(scholarship => scholarship.course_id);
             return {
               ...inst,
-              scholarships: hasCourseSpecificScholarships
-                ? eligibleScholarships.filter(scholarship => scholarship.course_id)
-                : eligibleScholarships,
+              scholarships: hasCourseSpecificScholarshipsForProcess || hasCourseSpecificScholarships
+                ? scholarshipsForProcess.filter(scholarship => scholarship.course_id)
+                : scholarshipsForProcess,
             };
           })
           .filter(hasCompleteSelectionData);
@@ -528,6 +542,14 @@ export const UniversitySelectionStep: React.FC<StepProps> = ({ onNext }) => {
                           defaultValue: 'Tuition: ${{amount}}/year',
                         })}
                       </span>
+                      {scholarship.bank_statement_required_usd && (
+                        <span className="text-xs bg-red-500/10 border border-red-500/20 text-red-300 px-2.5 py-1 rounded-full font-bold">
+                          {t('student_onboarding.scholarship.bank_statement_required_amount', {
+                            amount: scholarship.bank_statement_required_usd.toLocaleString(),
+                            defaultValue: 'Bank Statement: ${{amount}}',
+                          })}
+                        </span>
+                      )}
                       <span className="text-xs bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 px-2.5 py-1 rounded-full font-bold">
                         {scholarship.discount_percent}% OFF
                       </span>
@@ -897,6 +919,7 @@ export const UniversitySelectionStep: React.FC<StepProps> = ({ onNext }) => {
       {selectedInst && (
         <UniversitySelectionModal
           institution={selectedInst}
+          processType={getStudentProcessType(profileEligibility)}
           preSelectedScholarshipId={selections.get(selectedInst.id)?.scholarshipId ?? null}
           selectionDisabled={selections.size >= MAX_SELECTIONS && !selections.has(selectedInst.id)}
           onClose={() => setModalInstId(null)}

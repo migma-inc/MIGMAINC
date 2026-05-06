@@ -332,8 +332,10 @@ export function persistFilters(filters: OnboardingCrmFilters): void {
  * Load MIGMA profiles in bulk, then batch-load their service_requests and
  * visa_orders in two additional queries. Joins are performed in-memory.
  */
+export type CrmProductLine = 'cos' | 'transfer' | 'initial';
+
 export async function loadOnboardingBoard(
-  productLine?: 'cos' | 'transfer',
+  productLine?: CrmProductLine,
   options: { mentorProfileId?: string | null } = {},
 ): Promise<{
   cases: OnboardingCase[];
@@ -436,6 +438,7 @@ export async function loadOnboardingBoard(
             .order('created_at', { ascending: false });
           if (productLine === 'cos') q = q.ilike('product_slug', 'cos-%');
           if (productLine === 'transfer') q = q.ilike('product_slug', 'transfer-%');
+          if (productLine === 'initial') q = q.ilike('product_slug', 'initial-%');
           return q;
         })()
       : Promise.resolve({ data: [], error: null }),
