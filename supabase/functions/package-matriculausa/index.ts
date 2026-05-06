@@ -54,6 +54,51 @@ function extractStoragePath(url: string, bucket: string): string | null {
   }
 }
 
+const ENGLISH_PROFICIENT_NOTE = "Student is proficient";
+const ENGLISH_NOT_PROFICIENT_NOTE = "Student is not proficient in English. English language instruction will be provided as part of the academic program.";
+
+function asString(value: unknown): string {
+  if (value == null) return "";
+  if (typeof value === "string") return value.trim();
+  if (typeof value === "number" || typeof value === "boolean") return String(value);
+  return "";
+}
+
+function normalizeEnglishLevel(value: unknown): string {
+  return asString(value)
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase()
+    .replace(/[\s_-]+/g, "_");
+}
+
+function resolveEnglishProficiencyNotes(survey: Record<string, any> | null): { level?: string; notes?: string } {
+  const answers = (survey?.answers ?? {}) as Record<string, any>;
+  const level = asString(survey?.english_level)
+    || asString(answers.a_english_level)
+    || asString(answers.english_level)
+    || asString(answers.nivel_ingles)
+    || undefined;
+  const normalized = normalizeEnglishLevel(level);
+
+  if (normalized === "advanced" || normalized === "avancado" || normalized === "fluent" || normalized === "fluente") {
+    return { level, notes: ENGLISH_PROFICIENT_NOTE };
+  }
+
+  if (["zero", "basic", "basico", "intermediate", "intermediario"].includes(normalized)) {
+    return { level, notes: ENGLISH_NOT_PROFICIENT_NOTE };
+  }
+
+  return { level };
+}
+
+function isInitialProcess(profile: Record<string, any> | null | undefined): boolean {
+  const raw = asString(profile?.student_process_type || profile?.service_type);
+  const normalized = raw.trim().toLowerCase();
+  return normalized === "initial" || normalized.startsWith("initial-");
+}
+
 async function downloadFromStorage(
   supabase: any,
   bucket: string,
@@ -125,9 +170,22 @@ Deno.serve(async (req) => {
     // ── 2. Fetch user profile ────────────────────────────────────────────────
     const { data: profile } = await supabase
       .from("user_profiles")
-      .select("id, user_id, full_name, email, student_process_type")
+      .select("id, user_id, full_name, email, student_process_type, service_type")
       .eq("id", app.profile_id)
       .single();
+
+    const { data: survey } = await supabase
+      .from("selection_survey_responses")
+      .select("answers, english_level")
+      .eq("profile_id", app.profile_id)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    const shouldIncludeEnglishProficiency = isInitialProcess(profile as Record<string, any> | null);
+    const englishProficiency = shouldIncludeEnglishProficiency
+      ? resolveEnglishProficiencyNotes(survey as Record<string, any> | null)
+      : {};
 
     const clientName = (profile?.full_name ?? "Cliente").replace(/\s+/g, "_");
     const institution = app.institutions as any;
@@ -244,6 +302,16 @@ Curso:        ${course?.course_name ?? "-"} (${course?.degree_level ?? "-"})
 Processo:     ${profile?.student_process_type ?? "-"}
 Gerado em:    ${today}
 
+${shouldIncludeEnglishProficiency ? `
+ENGLISH PROFICIENCY NOTES - I-20 REQUEST
+========================================
+Nivel de ingles no questionario: ${englishProficiency.level ?? "-"}
+English Proficiency Notes: ${englishProficiency.notes ?? "Nao identificado no questionario"}
+
+IMPORTANTE PARA MATRICULAUSA:
+Usar exatamente a nota acima no campo "English Proficiency Notes" do I-20 Request quando aplicavel ao I-20 oficial.
+` : ""}
+
 Conteudo do pacote:
   - formularios/ : ${formsAdded} formulario(s) ${force ? "(pode conter nao-assinados - modo forcado)" : "assinados"}
   - documentos/  : ${docsAdded} documento(s) do aluno
@@ -254,10 +322,6 @@ INSTRUCOES PARA O ADMIN:
 3. Faca o upload de todos os arquivos da pasta /formularios
 4. Faca o upload dos documentos da pasta /documentos
 5. Marque o pacote como enviado no sistema Migma
-
-NOTA FUTURA:
-Este processo sera automatizado via API do MatriculaUSA
-quando os endpoints de upload estiverem disponiveis.
 `;
     zipFiles["README.txt"] = strToU8(readme);
 
@@ -372,6 +436,12 @@ quando os endpoints de upload estiverem disponiveis.
             zip_url: downloadUrl,
             zip_expires_at: zipExpiresAt,
             process_type: profile?.student_process_type ?? null,
+            english_proficiency: shouldIncludeEnglishProficiency ? {
+              survey_level: englishProficiency.level ?? null,
+              notes: englishProficiency.notes ?? null,
+              target_field: "English Proficiency Notes",
+              source: "MIGMA selection survey - Section A - English level",
+            } : undefined,
             files: packageFiles,
           }),
         });

@@ -200,6 +200,8 @@ interface OikosApplicationPacketData {
     requestType?: "new_student" | "change_of_status" | "transfer_student";
     foreignAddress?: string;
     usAddress?: string;
+    englishProficiencyNotes?: string;
+    englishLevel?: string;
     dependents?: Array<Record<string, string | undefined>>;
   };
   recommendation?: {
@@ -1036,6 +1038,49 @@ function compact(value?: string | null): string {
   return (value ?? "").trim();
 }
 
+const ENGLISH_PROFICIENT_NOTE = "Student is proficient";
+const ENGLISH_NOT_PROFICIENT_NOTE = "Student is not proficient in English. English language instruction will be provided as part of the academic program.";
+
+function normalizeEnglishLevel(value: unknown): string {
+  return asString(value)
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase()
+    .replace(/[\s_-]+/g, "_");
+}
+
+function resolveEnglishLevelFromSurvey(survey: Record<string, any> | null): string | undefined {
+  const answers = (survey?.answers ?? {}) as Record<string, any>;
+  return compact(
+    asString(survey?.english_level)
+      || asString(answers.a_english_level)
+      || asString(answers.english_level)
+      || asString(answers.nivel_ingles)
+  ) || undefined;
+}
+
+function resolveEnglishProficiencyNotes(survey: Record<string, any> | null): { level?: string; notes?: string } {
+  const level = resolveEnglishLevelFromSurvey(survey);
+  const normalized = normalizeEnglishLevel(level);
+
+  if (normalized === "advanced" || normalized === "avancado" || normalized === "fluent" || normalized === "fluente") {
+    return { level, notes: ENGLISH_PROFICIENT_NOTE };
+  }
+
+  if (["zero", "basic", "basico", "intermediate", "intermediario"].includes(normalized)) {
+    return { level, notes: ENGLISH_NOT_PROFICIENT_NOTE };
+  }
+
+  return { level };
+}
+
+function isInitialProcess(profile: Record<string, any> | null | undefined): boolean {
+  const raw = asString(profile?.student_process_type || profile?.service_type);
+  const normalized = raw.trim().toLowerCase();
+  return normalized === "initial" || normalized.startsWith("initial-");
+}
+
 function optionalString(value: unknown): string | undefined {
   const text = asString(value);
   return text || undefined;
@@ -1420,6 +1465,7 @@ function buildOikosApplicationPacketData(
       }]
     : [];
   const christianFaithStatement = compact(answers.christian_faith_statement ?? answers.faith_statement) || undefined;
+  const englishProficiency = isInitialProcess(profile) ? resolveEnglishProficiencyNotes(survey) : {};
 
   return {
     applicant: {
@@ -1462,6 +1508,8 @@ function buildOikosApplicationPacketData(
       requestType,
       foreignAddress,
       usAddress: currentAddress,
+      englishProficiencyNotes: englishProficiency.notes,
+      englishLevel: englishProficiency.level,
       dependents: [],
     },
     recommendation: {
@@ -1774,6 +1822,7 @@ function buildCarolineApplicationFormData(
 function buildCarolineI20RequestFormData(
   profile: Record<string, any>,
   course: Record<string, any> | null,
+  survey: Record<string, any> | null,
   supplemental: SupplementalData,
   identity: Record<string, any> | null,
 ): Record<string, any> {
@@ -1783,6 +1832,7 @@ function buildCarolineI20RequestFormData(
   const requestType = profile.service_type === "cos" ? "cos" : profile.service_type === "transfer" ? "transfer" : "new_student";
   const usAddress = joinAddress([identity?.address, identity?.city, identity?.state, identity?.zip_code]);
   const foreignAddress = compact(supplemental.emergency_contact?.address) || undefined;
+  const englishProficiency = isInitialProcess(profile) ? resolveEnglishProficiencyNotes(survey) : {};
 
   return {
     student: {
@@ -1796,6 +1846,8 @@ function buildCarolineI20RequestFormData(
       usAddress,
       requestType,
       degreeProgram: inferCarolineDegreeProgram(course),
+      englishProficiencyNotes: englishProficiency.notes,
+      englishLevel: englishProficiency.level,
     },
     dependents: [],
   };
@@ -1907,9 +1959,13 @@ function buildFormData(
 
     case "i20_request_form":
       if ((institution.slug ?? institution.name ?? "").toLowerCase().includes("caroline")) {
-        return buildCarolineI20RequestFormData(profile, course, supplemental, identity);
+        return buildCarolineI20RequestFormData(profile, course, survey, supplemental, identity);
       }
-      return { ...base, institution_name: institution.name };
+      return {
+        ...base,
+        institution_name: institution.name,
+        english_proficiency: isInitialProcess(profile) ? resolveEnglishProficiencyNotes(survey) : {},
+      };
 
     case "statement_of_institutional_purpose":
       if ((institution.slug ?? institution.name ?? "").toLowerCase().includes("caroline")) {
@@ -2134,6 +2190,48 @@ function drawPacketCheckbox(page: PDFPage, font: PDFFont, x: number, top: number
     size: 10,
     font,
     color: rgb(0, 0, 0),
+  });
+}
+
+function drawEnglishProficiencyNoteBox(
+  page: PDFPage,
+  font: PDFFont,
+  fontBold: PDFFont,
+  note: string | undefined,
+  level: string | undefined,
+  options: { x: number; top: number; width: number; height: number },
+) {
+  if (!note) return;
+
+  const y = page.getHeight() - options.top - options.height;
+  page.drawRectangle({
+    x: options.x,
+    y,
+    width: options.width,
+    height: options.height,
+    borderWidth: 0.8,
+    borderColor: rgb(0.66, 0.46, 0.16),
+    color: rgb(1, 0.97, 0.88),
+  });
+
+  page.drawText("English Proficiency Notes", {
+    x: options.x + 8,
+    y: y + options.height - 12,
+    size: 8,
+    font: fontBold,
+    color: rgb(0.25, 0.16, 0.04),
+  });
+
+  const levelLabel = level ? `Survey level: ${level}. ` : "";
+  const lines = wrapTextToWidth(font, `${levelLabel}${note}`, 7, options.width - 16).slice(0, 3);
+  lines.forEach((line: string, index: number) => {
+    page.drawText(line, {
+      x: options.x + 8,
+      y: y + options.height - 24 - index * 9,
+      size: 7,
+      font,
+      color: rgb(0, 0, 0),
+    });
   });
 }
 
@@ -2450,6 +2548,7 @@ async function generateCarolineI20RequestFormPdf(
   const doc = await PDFDocument.load(templateBytes);
   const pages = doc.getPages();
   const font = await doc.embedFont(StandardFonts.Helvetica);
+  const fontBold = await doc.embedFont(StandardFonts.HelveticaBold);
 
   for (const field of Object.values(CAROLINE_I20_REQUEST_FORM_V1.text)) {
     const value = resolveOverlayTextValue(formData, field);
@@ -2473,6 +2572,15 @@ async function generateCarolineI20RequestFormPdf(
       drawPacketCheckbox(pages[field.page], font, field.x, field.top);
     }
   }
+
+  drawEnglishProficiencyNoteBox(
+    pages[0],
+    font,
+    fontBold,
+    formData.student?.englishProficiencyNotes,
+    formData.student?.englishLevel,
+    { x: 72, top: 719, width: 468, height: 42 },
+  );
 
   return await doc.save();
 }
@@ -2620,6 +2728,7 @@ async function generateOikosApplicationPacketPdf(
   const doc = await PDFDocument.load(templateBytes);
   const pages = doc.getPages();
   const font = await doc.embedFont(StandardFonts.Helvetica);
+  const fontBold = await doc.embedFont(StandardFonts.HelveticaBold);
 
   for (const field of Object.values(OIKOS_APPLICATION_PACKET_V1.overlay.text)) {
     if (!shouldRenderField(formData as unknown as Record<string, any>, field.renderWhen)) continue;
@@ -2646,6 +2755,18 @@ async function generateOikosApplicationPacketPdf(
     const value = asString(getValueAtPath(formData as unknown as Record<string, any>, field.source));
     if (!value) continue;
     drawPacketMultiline(pages[field.page], font, value, field);
+  }
+
+  if (formData.i20?.englishProficiencyNotes) {
+    const lastPage = pages[pages.length - 1];
+    drawEnglishProficiencyNoteBox(
+      lastPage,
+      font,
+      fontBold,
+      formData.i20.englishProficiencyNotes,
+      formData.i20.englishLevel,
+      { x: 102, top: 660, width: 408, height: 58 },
+    );
   }
 
   return await doc.save();
