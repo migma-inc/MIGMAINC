@@ -10,6 +10,7 @@
  */
 
 import { supabase } from '@/lib/supabase';
+import { shouldHideTestUsersInProduction, TEST_USER_EMAIL_PATTERN } from '@/lib/utils';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -357,6 +358,10 @@ export async function loadOnboardingBoard(
       identity_verified, mentor_id, updated_at, created_at
     `)
     .eq('source', 'migma');
+
+  if (shouldHideTestUsersInProduction()) {
+    profilesQuery = profilesQuery.not('email', 'ilike', TEST_USER_EMAIL_PATTERN);
+  }
 
   if (options.mentorProfileId) {
     profilesQuery = profilesQuery.eq('mentor_id', options.mentorProfileId);
@@ -1026,6 +1031,10 @@ export async function loadDetailPage(
       identity_verified, mentor_id, updated_at, created_at
     `)
     .eq('id', profileId);
+
+  if (shouldHideTestUsersInProduction()) {
+    profileQuery = profileQuery.not('email', 'ilike', TEST_USER_EMAIL_PATTERN);
+  }
 
   if (options.mentorProfileId) {
     profileQuery = profileQuery.eq('mentor_id', options.mentorProfileId);

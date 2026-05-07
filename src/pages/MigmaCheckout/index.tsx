@@ -300,6 +300,22 @@ const MigmaCheckout: React.FC = () => {
     }
   };
 
+  const hasPendingCheckoutZelle = async (userId: string) => {
+    const { data, error } = await supabase
+      .from('migma_checkout_zelle_pending')
+      .select('id')
+      .eq('migma_user_id', userId)
+      .eq('status', 'pending_verification')
+      .limit(1);
+
+    if (error) {
+      console.warn('[MigmaCheckout] Could not verify pending Zelle checkout:', error.message);
+      return false;
+    }
+
+    return (data?.length ?? 0) > 0;
+  };
+
   const restoreDraftSession = async () => {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) return;
@@ -309,9 +325,14 @@ const MigmaCheckout: React.FC = () => {
     // 🚀 Verificação de "Status Real" no banco (Recuperação Pós-Login)
     const { data: profile } = await supabase
       .from('user_profiles')
-      .select('has_paid_selection_process_fee, identity_verified, full_name, email, phone, signature_url, migma_checkout_completed_at, total_price_usd, service_type, payment_submitted_at')
+      .select('has_paid_selection_process_fee, identity_verified, full_name, email, phone, signature_url, migma_checkout_completed_at, total_price_usd, service_type, payment_submitted_at, selection_process_fee_payment_method')
       .eq('user_id', session.user.id)
       .maybeSingle();
+
+    const hasZellePending = profile?.has_paid_selection_process_fee
+      ? false
+      : await hasPendingCheckoutZelle(session.user.id);
+    const canResumeAfterPayment = !!profile?.has_paid_selection_process_fee || hasZellePending;
 
     if (profile) {
       if (profile.migma_checkout_completed_at) {
@@ -319,8 +340,9 @@ const MigmaCheckout: React.FC = () => {
         return;
       }
 
-      // Pagamento confirmado ou submetido (qualquer método, incl. Zelle em análise) mas docs ainda não enviados → Step 2
-      if ((profile.has_paid_selection_process_fee || profile.payment_submitted_at) && !profile.identity_verified) {
+      // Somente pagamento confirmado ou Zelle pendente real libera documentos.
+      // payment_submitted_at indica tentativa/redirect e não pode liberar Step 2.
+      if (canResumeAfterPayment && !profile.identity_verified) {
         console.log('[MigmaCheckout] 🔄 Recuperando sessão: Pagamento confirmado, aguardando documentação. Indo para Passo 2.');
 
         // Cascade fallback para resolver o preço
@@ -364,7 +386,8 @@ const MigmaCheckout: React.FC = () => {
           num_dependents: null,
           terms_accepted: false,
           data_accepted: false,
-          signature_data_url: profile.signature_url || null
+          signature_data_url: profile.signature_url || null,
+          payment_method: (profile.selection_process_fee_payment_method as PaymentMethod | undefined) || (hasZellePending ? 'zelle' : undefined),
         });
 
         setState(prev => ({
@@ -374,7 +397,8 @@ const MigmaCheckout: React.FC = () => {
           dbServiceType: profile.service_type || null,
           step1Completed: true,
           step2Completed: false,
-          paymentConfirmed: true,
+          paymentConfirmed: !!profile.has_paid_selection_process_fee,
+          zelleProcessing: hasZellePending && !profile.has_paid_selection_process_fee,
           currentStep: 2
         }));
         return;
@@ -525,7 +549,11 @@ const MigmaCheckout: React.FC = () => {
             ...draft.state,
             userId: session.user.id,
             serviceRequestId: draft.state.serviceRequestId || state.serviceRequestId,
-            currentStep: draft.state.currentStep || 1,
+            currentStep: canResumeAfterPayment ? (draft.state.currentStep || 1) : 1,
+            step1Completed: canResumeAfterPayment ? !!draft.state.step1Completed : false,
+            step2Completed: canResumeAfterPayment ? !!draft.state.step2Completed : false,
+            paymentConfirmed: !!profile?.has_paid_selection_process_fee,
+            zelleProcessing: hasZellePending && !profile?.has_paid_selection_process_fee,
           }));
           draftLoaded = true;
         }
@@ -757,7 +785,7 @@ const MigmaCheckout: React.FC = () => {
           serviceType: service ?? 'transfer',
           serviceRequestId: state.serviceRequestId,
           numDependents: data.num_dependents,
-          step1Data: data,
+          step1Data: { ...data, payment_method: payment.method },
         };
         localStorage.setItem(STRIPE_LS_KEY, JSON.stringify(stripeState));
         await supabase.from('user_profiles').update({ payment_submitted_at: new Date().toISOString() }).eq('user_id', userId);
@@ -806,12 +834,12 @@ const MigmaCheckout: React.FC = () => {
             userId,
             totalPrice: total,
             matriculaUserId: state.matriculaUserId,
-            step1Completed: true,
+            step1Completed: false,
             step2Completed: false,
             serviceRequestId: state.serviceRequestId,
-            currentStep: 2,
+            currentStep: 1,
           },
-          step1Data: data,
+          step1Data: { ...data, payment_method: payment.method },
           step2Data: null,
         }));
 
@@ -870,12 +898,12 @@ const MigmaCheckout: React.FC = () => {
               userId,
               totalPrice: total,
               matriculaUserId: state.matriculaUserId,
-              step1Completed: true,
+              step1Completed: false,
               step2Completed: false,
               serviceRequestId: state.serviceRequestId,
-              currentStep: 2,
+              currentStep: 1,
             },
-            step1Data: data,
+            step1Data: { ...data, payment_method: payment.method },
             step2Data: null,
           }));
           await supabase.from('user_profiles').update({ payment_submitted_at: new Date().toISOString() }).eq('user_id', userId);
@@ -982,6 +1010,39 @@ const MigmaCheckout: React.FC = () => {
     setPaymentLoading(true);
 
     try {
+      const { data: paymentProfile, error: paymentProfileError } = await supabase
+        .from('user_profiles')
+        .select('has_paid_selection_process_fee, selection_process_fee_payment_method')
+        .eq('user_id', effectiveUserId)
+        .maybeSingle();
+
+      if (paymentProfileError) throw paymentProfileError;
+
+      const hasConfirmedPayment = !!paymentProfile?.has_paid_selection_process_fee;
+      const hasZellePending = hasConfirmedPayment ? false : await hasPendingCheckoutZelle(effectiveUserId);
+
+      if (!hasConfirmedPayment && !hasZellePending) {
+        alert(t(
+          'migma_checkout.errors.payment_not_confirmed',
+          'Payment has not been confirmed yet. Please complete your payment before continuing.'
+        ));
+        setState(prev => ({
+          ...prev,
+          currentStep: 1,
+          step1Completed: false,
+          step2Completed: false,
+          paymentConfirmed: false,
+          zelleProcessing: false,
+        }));
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        return;
+      }
+
+      const realPaymentMethod =
+        step1Data?.payment_method ||
+        (paymentProfile?.selection_process_fee_payment_method as PaymentMethod | undefined) ||
+        (hasZellePending ? 'zelle' : undefined);
+
       const bucket = 'migma-student-documents';
       const ts = Date.now();
       const docsForApi: any[] = [];
@@ -1070,18 +1131,20 @@ const MigmaCheckout: React.FC = () => {
       }
 
       // DISPARAR FINALIZAÇÃO DE CONTRATO (BACKEND - SEM AGUARDAR)
-      // Passa o método real do pagamento para que migma-payment-completed saiba se pode
-      // setar has_paid_selection_process_fee (Zelle/manual requer aprovação manual do admin)
-      const realPaymentMethod = step1Data?.payment_method || 'parcelow_card';
-      matriculaApi.paymentCompleted({
-        user_id: effectiveUserId,
-        fee_type: 'selection_process',
-        amount: state.totalPrice,
-        payment_method: realPaymentMethod as any,
-        service_type: service ?? 'transfer',
-        service_request_id: srId,
-        finalize_contract_only: true
-      }).catch(err => console.error('[Background Contract Sync] Error:', err));
+      // Nunca assume método default: sem método real, o backend não deve sincronizar pagamento.
+      if (realPaymentMethod) {
+        matriculaApi.paymentCompleted({
+          user_id: effectiveUserId,
+          fee_type: 'selection_process',
+          amount: state.totalPrice,
+          payment_method: realPaymentMethod as any,
+          service_type: service ?? 'transfer',
+          service_request_id: srId,
+          finalize_contract_only: true
+        }).catch(err => console.error('[Background Contract Sync] Error:', err));
+      } else {
+        console.warn('[Background Contract Sync] Skipped: missing confirmed payment method.');
+      }
 
       setState(prev => ({ ...prev, step2Completed: true, currentStep: 3 }));
       window.scrollTo({ top: 0, behavior: 'smooth' });

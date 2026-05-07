@@ -1,6 +1,6 @@
 import { Link, useLocation } from 'react-router-dom';
 import { FileText, ClipboardList, LayoutDashboard, Phone, ShoppingCart, DollarSign, UserCircle2, UserRound, Mail, FileCode, Calendar, X, Activity, Ticket, LinkIcon, ChevronDown, ChevronRight, GraduationCap, UserPlus, Crown, Plus, Users, UserCheck } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { cn, shouldHideTestUsersInProduction, TEST_USER_EMAIL_PATTERN } from '@/lib/utils';
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 
@@ -95,6 +95,10 @@ export function Sidebar({ className, isMobileOpen = false, onMobileClose, access
       .from('user_profiles')
       .select('id')
       .eq('source', 'migma');
+
+    if (shouldHideTestUsersInProduction()) {
+      profileQuery = profileQuery.not('email', 'ilike', TEST_USER_EMAIL_PATTERN);
+    }
 
     if (isMentor) {
       if (!mentorProfileId) return 0;

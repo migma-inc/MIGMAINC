@@ -83,6 +83,12 @@ export function isTestEnvironment(): boolean {
   );
 }
 
+export const TEST_USER_EMAIL_PATTERN = '%@uorak.com';
+
+export function shouldHideTestUsersInProduction(): boolean {
+  return !isTestEnvironment();
+}
+
 /**
  * Generate a random UUID.
  * Uses crypto.randomUUID() if available (secure contexts), 
