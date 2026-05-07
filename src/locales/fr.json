@@ -1568,6 +1568,57 @@
       "text": "Définition finale de votre volonté d'engagement (Svp écrivez-le avec vos propres mots) :"
     }
   },
+  "student_support": {
+    "team_name": "Équipe Migma",
+    "student_fallback": "Étudiant",
+    "welcome_message": "Bonjour ! Je fais partie de l'Équipe Migma 👋\n\nJe suis là pour répondre à vos questions sur le processus, les documents, les universités, le visa F-1 et tout le reste. Comment puis-je vous aider ?",
+    "status": {
+      "online_now": "En ligne maintenant",
+      "waiting_agent": "En attente d'un agent"
+    },
+    "errors": {
+      "schedule_not_configured": "Le calendrier du support n'est pas configuré.",
+      "load_slots": "Nous n'avons pas pu charger le calendrier pour le moment. Notre équipe suivra votre dossier.",
+      "slot_taken": "Ce créneau vient d'être réservé. Choisissez un autre créneau.",
+      "book_slot": "Nous n'avons pas pu confirmer ce créneau. Veuillez réessayer.",
+      "no_response": "Aucune réponse de l'Équipe Migma.",
+      "technical_issue": "Désolé, j'ai rencontré un problème technique. Veuillez réessayer dans quelques secondes."
+    },
+    "handoff": {
+      "system_message": "Support humain demandé. Un spécialiste de l'Équipe Migma suivra votre dossier. Choisissez un créneau dans le calendrier ci-dessous pour parler avec votre mentor.",
+      "meeting_scheduled": "Réunion avec le mentor planifiée",
+      "schedule_with_mentor": "Planifier avec votre mentor",
+      "requested_at": "Demandé à",
+      "chat_release_notice": "Le chat sera disponible à l'heure de la réunion.",
+      "choose_slot_notice": "Choisissez un créneau disponible pour parler avec l'Équipe Migma.",
+      "chat_available_in": "Chat disponible dans",
+      "meeting": "Réunion",
+      "join_google_meet": "Rejoindre Google Meet",
+      "loading_slots": "Chargement des créneaux disponibles",
+      "slot_one": "créneau",
+      "slot_other": "créneaux",
+      "with_mentor": "avec",
+      "confirm": "Confirmer",
+      "choose_time": "Choisir un créneau",
+      "no_slots": "Nous n'avons trouvé aucun créneau disponible pour le moment. Notre équipe suivra votre dossier."
+    },
+    "resolved": {
+      "title": "Support clôturé",
+      "continue_message": "Vous pouvez continuer à envoyer des messages normalement."
+    },
+    "footer": {
+      "chat_locked_until_meeting": "Chat verrouillé jusqu'à la réunion",
+      "transferred_choose_slot": "Conversation transférée. Choisissez un créneau dans le calendrier ci-dessus."
+    },
+    "composer": {
+      "placeholder": "Écrivez votre question...",
+      "hint": "Entrée pour envoyer · Maj+Entrée pour une nouvelle ligne"
+    },
+    "countdown": {
+      "waiting_confirmed": "En attente d'un horaire confirmé",
+      "available_now": "Disponible maintenant"
+    }
+  },
   "student_dashboard": {
     "topbar": "Tableau de Bord Étudiant",
     "portal_label": "Portail Étudiant",

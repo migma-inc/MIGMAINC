@@ -1568,6 +1568,57 @@
       "text": "Definición final de compromiso (escribe con tus propias palabras)"
     }
   },
+  "student_support": {
+    "team_name": "Equipo Migma",
+    "student_fallback": "Estudiante",
+    "welcome_message": "¡Hola! Soy del Equipo Migma 👋\n\nEstoy aquí para responder tus preguntas sobre el proceso, documentos, universidades, visa F-1 y todo lo demás. ¿Cómo puedo ayudarte?",
+    "status": {
+      "online_now": "En línea ahora",
+      "waiting_agent": "Esperando agente"
+    },
+    "errors": {
+      "schedule_not_configured": "La agenda de soporte no está configurada.",
+      "load_slots": "No pudimos cargar la agenda ahora. Nuestro equipo dará seguimiento a tu caso.",
+      "slot_taken": "Ese horario acaba de ser reservado. Elige otro horario.",
+      "book_slot": "No pudimos confirmar ese horario. Inténtalo de nuevo.",
+      "no_response": "Sin respuesta del Equipo Migma.",
+      "technical_issue": "Perdón, tuve un problema técnico ahora. Inténtalo de nuevo en unos segundos."
+    },
+    "handoff": {
+      "system_message": "Soporte humano solicitado. Un especialista del Equipo Migma dará seguimiento a tu caso. Elige un horario en la agenda de abajo para hablar con tu mentor.",
+      "meeting_scheduled": "Reunión con mentor agendada",
+      "schedule_with_mentor": "Agenda con tu mentor",
+      "requested_at": "Solicitado a las",
+      "chat_release_notice": "El chat estará disponible a la hora de la reunión.",
+      "choose_slot_notice": "Elige un horario disponible para hablar con el Equipo Migma.",
+      "chat_available_in": "Chat disponible en",
+      "meeting": "Reunión",
+      "join_google_meet": "Entrar a Google Meet",
+      "loading_slots": "Cargando horarios disponibles",
+      "slot_one": "horario",
+      "slot_other": "horarios",
+      "with_mentor": "con",
+      "confirm": "Confirmar",
+      "choose_time": "Elige un horario",
+      "no_slots": "No encontramos horarios disponibles ahora. Nuestro equipo dará seguimiento a tu caso."
+    },
+    "resolved": {
+      "title": "Atención finalizada",
+      "continue_message": "Puedes seguir enviando mensajes normalmente."
+    },
+    "footer": {
+      "chat_locked_until_meeting": "Chat bloqueado hasta la reunión",
+      "transferred_choose_slot": "Conversación transferida. Elige un horario en la agenda de arriba."
+    },
+    "composer": {
+      "placeholder": "Escribe tu pregunta...",
+      "hint": "Enter para enviar · Shift+Enter para una nueva línea"
+    },
+    "countdown": {
+      "waiting_confirmed": "Esperando horario confirmado",
+      "available_now": "Disponible ahora"
+    }
+  },
   "student_dashboard": {
     "topbar": "Panel del Estudiante",
     "portal_label": "Portal del Estudiante",

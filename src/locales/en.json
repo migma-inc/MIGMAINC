@@ -1570,6 +1570,57 @@
       "text": "Final definition of commitment (write in your own words)"
     }
   },
+  "student_support": {
+    "team_name": "Migma Team",
+    "student_fallback": "Student",
+    "welcome_message": "Hi! I am from the Migma Team 👋\n\nI am here to answer your questions about the process, documents, universities, F-1 visa, and anything else. How can I help?",
+    "status": {
+      "online_now": "Online now",
+      "waiting_agent": "Waiting for agent"
+    },
+    "errors": {
+      "schedule_not_configured": "Support schedule is not configured.",
+      "load_slots": "We could not load the schedule right now. Our team will follow up on your case.",
+      "slot_taken": "This time was just booked. Choose another time.",
+      "book_slot": "We could not confirm this time. Please try again.",
+      "no_response": "No response from the Migma Team.",
+      "technical_issue": "Sorry, I had a technical issue just now. Please try again in a few seconds."
+    },
+    "handoff": {
+      "system_message": "Human support requested. A Migma Team specialist will follow up on your case. Choose a time in the schedule below to speak with your mentor.",
+      "meeting_scheduled": "Mentor meeting scheduled",
+      "schedule_with_mentor": "Schedule with your mentor",
+      "requested_at": "Requested at",
+      "chat_release_notice": "Chat will be available at the meeting time.",
+      "choose_slot_notice": "Choose an available time to speak with the Migma Team.",
+      "chat_available_in": "Chat available in",
+      "meeting": "Meeting",
+      "join_google_meet": "Join Google Meet",
+      "loading_slots": "Loading available times",
+      "slot_one": "time",
+      "slot_other": "times",
+      "with_mentor": "with",
+      "confirm": "Confirm",
+      "choose_time": "Choose a time",
+      "no_slots": "We could not find available times right now. Our team will follow up on your case."
+    },
+    "resolved": {
+      "title": "Support closed",
+      "continue_message": "You can keep sending messages normally."
+    },
+    "footer": {
+      "chat_locked_until_meeting": "Chat locked until the meeting",
+      "transferred_choose_slot": "Conversation transferred. Choose a time in the schedule above."
+    },
+    "composer": {
+      "placeholder": "Write your question...",
+      "hint": "Enter to send · Shift+Enter for a new line"
+    },
+    "countdown": {
+      "waiting_confirmed": "Waiting for confirmed time",
+      "available_now": "Available now"
+    }
+  },
   "student_dashboard": {
     "topbar": "Student Panel",
     "portal_label": "Student Portal",

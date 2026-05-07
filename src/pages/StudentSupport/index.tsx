@@ -1,5 +1,7 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import { ArrowLeft, Send, Loader2, MessageCircle, UserCheck, CheckCircle, Calendar } from 'lucide-react';
 import { useStudentAuth } from '../../contexts/StudentAuthContext';
 import { supabase } from '../../lib/supabase';
@@ -46,37 +48,49 @@ interface SlotGroup {
   slots: Slot[];
 }
 
-const WELCOME_MESSAGE: Message = {
-  id: 'welcome',
-  role: 'assistant',
-  content: 'Olá! Sou da Equipe Migma 👋\n\nEstou aqui para tirar suas dúvidas sobre o processo, documentos, universidades, visto F-1 e tudo mais. Como posso ajudar?',
-  created_at: new Date().toISOString(),
-};
+function getDateLocale(language: string) {
+  if (language.startsWith('pt')) return 'pt-BR';
+  if (language.startsWith('es')) return 'es-ES';
+  if (language.startsWith('fr')) return 'fr-FR';
+  return 'en-US';
+}
 
-function formatTime(iso: string) {
-  return new Intl.DateTimeFormat('pt-BR', {
+function createWelcomeMessage(t: TFunction): Message {
+  return {
+    id: 'welcome',
+    role: 'assistant',
+    content: String(t(
+      'student_support.welcome_message',
+      'Hi! I am from the Migma Team 👋\n\nI am here to answer your questions about the process, documents, universities, F-1 visa, and anything else. How can I help?',
+    )),
+    created_at: new Date().toISOString(),
+  };
+}
+
+function formatTime(iso: string, locale: string) {
+  return new Intl.DateTimeFormat(locale, {
     hour: '2-digit',
     minute: '2-digit',
   }).format(new Date(iso));
 }
 
-function formatDateLabel(iso: string) {
-  return new Intl.DateTimeFormat('pt-BR', {
+function formatDateLabel(iso: string, locale: string) {
+  return new Intl.DateTimeFormat(locale, {
     weekday: 'long',
     month: 'short',
     day: 'numeric',
   }).format(new Date(iso));
 }
 
-function formatWeekday(iso: string) {
-  return new Intl.DateTimeFormat('pt-BR', { weekday: 'short' }).format(new Date(iso));
+function formatWeekday(iso: string, locale: string) {
+  return new Intl.DateTimeFormat(locale, { weekday: 'short' }).format(new Date(iso));
 }
 
-function formatMonthDay(iso: string) {
-  return new Intl.DateTimeFormat('pt-BR', { month: 'short', day: 'numeric' }).format(new Date(iso));
+function formatMonthDay(iso: string, locale: string) {
+  return new Intl.DateTimeFormat(locale, { month: 'short', day: 'numeric' }).format(new Date(iso));
 }
 
-function groupSlotsByDate(slots: Slot[]): SlotGroup[] {
+function groupSlotsByDate(slots: Slot[], locale: string): SlotGroup[] {
   const map = new Map<string, SlotGroup>();
   const sortedSlots = [...slots].sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
 
@@ -84,7 +98,7 @@ function groupSlotsByDate(slots: Slot[]): SlotGroup[] {
     const d = new Date(slot.start);
     const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
     if (!map.has(key)) {
-      map.set(key, { dateLabel: formatDateLabel(slot.start), dateKey: key, slots: [] });
+      map.set(key, { dateLabel: formatDateLabel(slot.start, locale), dateKey: key, slots: [] });
     }
     map.get(key)!.slots.push(slot);
   }
@@ -113,9 +127,9 @@ function getCountdown(targetIso: string | null): CountdownState | null {
   return { days, hours, mins, secs, expired: false };
 }
 
-function formatCountdown(countdown: CountdownState | null) {
-  if (!countdown) return 'Aguardando horário confirmado';
-  if (countdown.expired) return 'Disponível agora';
+function formatCountdown(countdown: CountdownState | null, t: TFunction) {
+  if (!countdown) return t('student_support.countdown.waiting_confirmed', 'Waiting for confirmed time');
+  if (countdown.expired) return t('student_support.countdown.available_now', 'Available now');
   const pad = (n: number) => String(n).padStart(2, '0');
   if (countdown.days > 0) {
     return `${countdown.days}d ${pad(countdown.hours)}h ${pad(countdown.mins)}m ${pad(countdown.secs)}s`;
@@ -127,11 +141,14 @@ function SupportSlotPicker({
   groups,
   selected,
   onSelect,
+  locale,
 }: {
   groups: SlotGroup[];
   selected: Slot | null;
   onSelect: (slot: Slot) => void;
+  locale: string;
 }) {
+  const { t } = useTranslation();
   const selectedDateKey = selected
     ? groups.find((group) => group.slots.some((slot) => slot.start === selected.start))?.dateKey
     : null;
@@ -159,10 +176,10 @@ function SupportSlotPicker({
               }`}
             >
               <span className="block text-[10px] font-black uppercase tracking-widest opacity-70">
-                {firstSlot ? formatWeekday(firstSlot.start) : group.dateLabel}
+                {firstSlot ? formatWeekday(firstSlot.start, locale) : group.dateLabel}
               </span>
               <span className="block text-sm font-black">
-                {firstSlot ? formatMonthDay(firstSlot.start) : group.dateLabel}
+                {firstSlot ? formatMonthDay(firstSlot.start, locale) : group.dateLabel}
               </span>
             </button>
           );
@@ -174,7 +191,9 @@ function SupportSlotPicker({
           <p className="text-xs font-black uppercase tracking-widest text-blue-700 dark:text-blue-300">
             {activeGroup.dateLabel}
           </p>
-          <p className="text-xs text-blue-700/60 dark:text-blue-300/60">{activeGroup.slots.length} horários</p>
+          <p className="text-xs text-blue-700/60 dark:text-blue-300/60">
+            {activeGroup.slots.length} {activeGroup.slots.length === 1 ? t('student_support.handoff.slot_one', 'time') : t('student_support.handoff.slot_other', 'times')}
+          </p>
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
           {activeGroup.slots.map((slot) => {
@@ -190,7 +209,7 @@ function SupportSlotPicker({
                     : 'border-blue-600/20 bg-white text-blue-900 hover:border-[#CE9F48]/70 dark:border-blue-500/20 dark:bg-white/5 dark:text-blue-100'
                 }`}
               >
-                {formatTime(slot.start)}
+                {formatTime(slot.start, locale)}
               </button>
             );
           })}
@@ -206,9 +225,12 @@ interface StudentSupportPanelProps {
 }
 
 export const StudentSupportPanel: React.FC<StudentSupportPanelProps> = ({ embedded = false, onBack }) => {
+  const { t, i18n } = useTranslation();
   const { user, userProfile } = useStudentAuth();
+  const locale = getDateLocale(i18n.language);
+  const welcomeMessage = useMemo(() => createWelcomeMessage(t), [t]);
 
-  const [messages, setMessages] = useState<Message[]>([WELCOME_MESSAGE]);
+  const [messages, setMessages] = useState<Message[]>(() => [welcomeMessage]);
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
   const [historyLoaded, setHistoryLoaded] = useState(false);
@@ -228,7 +250,11 @@ export const StudentSupportPanel: React.FC<StudentSupportPanelProps> = ({ embedd
   const [resolvedHandoff, setResolvedHandoff] = useState<HandoffRecord | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
-  const slotGroups = groupSlotsByDate(slots);
+  const slotGroups = groupSlotsByDate(slots, locale);
+
+  useEffect(() => {
+    setMessages((prev) => prev.map((message) => (message.id === 'welcome' ? welcomeMessage : message)));
+  }, [welcomeMessage]);
 
   useEffect(() => {
     if (!userProfile?.id) return;
@@ -250,7 +276,7 @@ export const StudentSupportPanel: React.FC<StudentSupportPanelProps> = ({ embedd
       ]);
 
       if (chatData && chatData.length > 0) {
-        setMessages([WELCOME_MESSAGE, ...(chatData as Message[])]);
+        setMessages([welcomeMessage, ...(chatData as Message[])]);
       }
 
       if (handoffData && handoffData.length > 0) {
@@ -279,7 +305,7 @@ export const StudentSupportPanel: React.FC<StudentSupportPanelProps> = ({ embedd
 
       setHistoryLoaded(true);
     })();
-  }, [userProfile?.id]);
+  }, [userProfile?.id, welcomeMessage]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -307,7 +333,7 @@ export const StudentSupportPanel: React.FC<StudentSupportPanelProps> = ({ embedd
 
   const fetchSupportSlots = useCallback(async (targetHandoffId: string) => {
     if (!SUPPORT_GET_SLOTS_URL) {
-      setSlotsError('Agenda de suporte não configurada.');
+      setSlotsError(t('student_support.errors.schedule_not_configured', 'Support schedule is not configured.'));
       return;
     }
 
@@ -328,11 +354,11 @@ export const StudentSupportPanel: React.FC<StudentSupportPanelProps> = ({ embedd
     } catch (err) {
       console.error('[StudentSupport] support slots error', err);
       setSlots([]);
-      setSlotsError('Não conseguimos carregar a agenda agora. Nossa equipe vai acompanhar seu caso.');
+      setSlotsError(t('student_support.errors.load_slots', 'We could not load the schedule right now. Our team will follow up on your case.'));
     } finally {
       setSlotsLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     if (!handoffId || handoffMeetingUrl) return;
@@ -346,7 +372,10 @@ export const StudentSupportPanel: React.FC<StudentSupportPanelProps> = ({ embedd
       const systemMsg: Message = {
         id: crypto.randomUUID(),
         role: 'system',
-        content: 'Atendimento humano solicitado. Um especialista da Equipe Migma vai acompanhar seu caso. Escolha um horário na agenda abaixo para falar com seu mentor.',
+        content: t(
+          'student_support.handoff.system_message',
+          'Human support requested. A Migma Team specialist will follow up on your case. Choose a time in the schedule below to speak with your mentor.',
+        ),
         created_at: new Date().toISOString(),
         is_handoff: true,
       };
@@ -383,18 +412,18 @@ export const StudentSupportPanel: React.FC<StudentSupportPanelProps> = ({ embedd
           },
           body: JSON.stringify({
             trigger: 'admin_support_handoff',
-            data: { client_name: userProfile.full_name ?? 'Aluno', client_id: userProfile.id, reason, last_message: lastAiMessage },
+            data: { client_name: userProfile.full_name ?? t('student_support.student_fallback', 'Student'), client_id: userProfile.id, reason, last_message: lastAiMessage },
           }),
         });
       } catch { /* best-effort */ }
     },
-    [userProfile, handedOff, saveMessage],
+    [userProfile, handedOff, saveMessage, t],
   );
 
   const bookSupportSlot = useCallback(async () => {
     if (!handoffId || !selectedSlot || bookingSlot) return;
     if (!SUPPORT_BOOK_SLOT_URL) {
-      setBookingError('Agenda de suporte não configurada.');
+      setBookingError(t('student_support.errors.schedule_not_configured', 'Support schedule is not configured.'));
       return;
     }
 
@@ -414,7 +443,7 @@ export const StudentSupportPanel: React.FC<StudentSupportPanelProps> = ({ embedd
 
       if (!res.ok) {
         if (data?.error === 'slot_taken') {
-          setBookingError('Esse horário acabou de ser reservado. Escolha outro horário.');
+          setBookingError(t('student_support.errors.slot_taken', 'This time was just booked. Choose another time.'));
           setSelectedSlot(null);
           await fetchSupportSlots(handoffId);
           return;
@@ -429,11 +458,11 @@ export const StudentSupportPanel: React.FC<StudentSupportPanelProps> = ({ embedd
       setSlots([]);
     } catch (err) {
       console.error('[StudentSupport] support booking error', err);
-      setBookingError('Não conseguimos confirmar esse horário. Tente novamente.');
+      setBookingError(t('student_support.errors.book_slot', 'We could not confirm this time. Please try again.'));
     } finally {
       setBookingSlot(false);
     }
-  }, [bookingSlot, fetchSupportSlots, handoffId, selectedSlot]);
+  }, [bookingSlot, fetchSupportSlots, handoffId, selectedSlot, t]);
 
   const sendMessage = useCallback(async () => {
     const text = input.trim();
@@ -449,7 +478,7 @@ export const StudentSupportPanel: React.FC<StudentSupportPanelProps> = ({ embedd
     await saveMessage('user', text);
 
     try {
-      if (!N8N_WEBHOOK_URL) throw new Error('VITE_N8N_WEBHOOK_URL não configurado');
+      if (!N8N_WEBHOOK_URL) throw new Error('VITE_N8N_WEBHOOK_URL is not configured');
 
       const res = await fetch(N8N_WEBHOOK_URL, {
         method: 'POST',
@@ -474,7 +503,7 @@ export const StudentSupportPanel: React.FC<StudentSupportPanelProps> = ({ embedd
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
       const json = await res.json();
-      const reply: string = json.response ?? json.message ?? json.output ?? json.text ?? 'Sem resposta da Equipe Migma.';
+      const reply: string = json.response ?? json.message ?? json.output ?? json.text ?? t('student_support.errors.no_response', 'No response from the Migma Team.');
       const escalate: boolean = json.escalate === true;
       const escalateReason: string = json.reason ?? json.escalate_reason ?? '';
 
@@ -486,14 +515,14 @@ export const StudentSupportPanel: React.FC<StudentSupportPanelProps> = ({ embedd
     } catch {
       setMessages((prev) => [...prev, {
         id: crypto.randomUUID(), role: 'assistant',
-        content: 'Ops, tive um problema técnico agora. Tente novamente em alguns segundos.',
+        content: t('student_support.errors.technical_issue', 'Sorry, I had a technical issue just now. Please try again in a few seconds.'),
         created_at: new Date().toISOString(),
       }]);
     } finally {
       setSending(false);
       inputRef.current?.focus();
     }
-  }, [input, sending, handedOff, meetingCountdown?.expired, resolvedHandoff, messages, userProfile, user, saveMessage, createHandoff]);
+  }, [input, sending, handedOff, meetingCountdown?.expired, resolvedHandoff, messages, userProfile, user, saveMessage, createHandoff, t]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
@@ -521,9 +550,9 @@ export const StudentSupportPanel: React.FC<StudentSupportPanelProps> = ({ embedd
               {handedOff ? <UserCheck className="w-5 h-5 text-blue-400" /> : <MessageCircle className="w-5 h-5 text-[#9a6a16] dark:text-[#CE9F48]" />}
             </div>
             <div>
-              <p className="text-sm font-semibold text-[#1f1a14] dark:text-white leading-none">Equipe Migma</p>
+              <p className="text-sm font-semibold text-[#1f1a14] dark:text-white leading-none">{t('student_support.team_name', 'Migma Team')}</p>
               <p className={`text-xs mt-0.5 ${handedOff ? 'text-blue-600 dark:text-blue-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
-                {handedOff ? 'Aguardando atendente' : 'Online agora'}
+                {handedOff ? t('student_support.status.waiting_agent', 'Waiting for agent') : t('student_support.status.online_now', 'Online now')}
               </p>
             </div>
           </div>
@@ -533,7 +562,7 @@ export const StudentSupportPanel: React.FC<StudentSupportPanelProps> = ({ embedd
 
       <main data-tour="student-support-chat" className="flex-1 overflow-y-auto px-4 py-6">
         <div className="max-w-2xl mx-auto space-y-4">
-          {messages.map((msg) => <MessageBubble key={msg.id} message={msg} />)}
+          {messages.map((msg) => <MessageBubble key={msg.id} message={msg} locale={locale} />)}
 
           {sending && <TypingIndicator />}
 
@@ -541,23 +570,25 @@ export const StudentSupportPanel: React.FC<StudentSupportPanelProps> = ({ embedd
             <div data-tour="student-support-handoff" className="flex items-start gap-3 bg-blue-500/10 border border-blue-500/20 rounded-2xl px-4 py-3 text-sm text-blue-700 dark:text-blue-300">
               <UserCheck className="w-4 h-4 flex-shrink-0 mt-0.5" />
               <div className="min-w-0 flex-1">
-                <p className="font-medium">{handoffMeetingUrl ? 'Reunião com mentor agendada' : 'Agende com seu mentor'}</p>
+                <p className="font-medium">
+                  {handoffMeetingUrl ? t('student_support.handoff.meeting_scheduled', 'Mentor meeting scheduled') : t('student_support.handoff.schedule_with_mentor', 'Schedule with your mentor')}
+                </p>
                 <p className="text-blue-600/60 dark:text-blue-300/60 text-xs mt-0.5">
-                  Solicitado às {new Date(handoffCreatedAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })} · {handoffMeetingUrl ? 'O chat será liberado no horário da reunião.' : 'Escolha um horário disponível para falar com a Equipe Migma.'}
+                  {t('student_support.handoff.requested_at', 'Requested at')} {new Date(handoffCreatedAt).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' })} · {handoffMeetingUrl ? t('student_support.handoff.chat_release_notice', 'Chat will be available at the meeting time.') : t('student_support.handoff.choose_slot_notice', 'Choose an available time to speak with the Migma Team.')}
                 </p>
 
                 {handoffMeetingUrl ? (
                   <div className="mt-3 space-y-3">
                     <div className="rounded-xl border border-blue-600/20 bg-white/60 px-4 py-3 dark:border-blue-500/20 dark:bg-black/20">
                       <p className="text-[10px] font-black uppercase tracking-widest text-blue-700/70 dark:text-blue-300/70">
-                        Chat disponível em
+                        {t('student_support.handoff.chat_available_in', 'Chat available in')}
                       </p>
                       <p className="mt-1 font-mono text-2xl font-black text-blue-800 dark:text-blue-100">
-                        {formatCountdown(meetingCountdown)}
+                        {formatCountdown(meetingCountdown, t)}
                       </p>
                       {handoffMeetingStart && (
                         <p className="mt-1 text-xs text-blue-700/60 dark:text-blue-300/60">
-                          Reunião: {new Date(handoffMeetingStart).toLocaleString('pt-BR', {
+                          {t('student_support.handoff.meeting', 'Meeting')}: {new Date(handoffMeetingStart).toLocaleString(locale, {
                             day: '2-digit',
                             month: 'short',
                             hour: '2-digit',
@@ -573,7 +604,7 @@ export const StudentSupportPanel: React.FC<StudentSupportPanelProps> = ({ embedd
                       className="inline-flex items-center gap-2 rounded-lg border border-blue-600/30 bg-blue-50 dark:border-blue-500/30 dark:bg-blue-500/10 px-3 py-2 text-xs font-bold text-blue-700 dark:text-blue-200 hover:bg-blue-100 dark:hover:bg-blue-500/20"
                     >
                       <Calendar className="h-3.5 w-3.5" />
-                      Entrar no Google Meet
+                      {t('student_support.handoff.join_google_meet', 'Join Google Meet')}
                     </a>
                   </div>
                 ) : (
@@ -581,13 +612,13 @@ export const StudentSupportPanel: React.FC<StudentSupportPanelProps> = ({ embedd
                     {slotsLoading ? (
                       <div className="flex items-center gap-2 text-xs text-blue-700/70 dark:text-blue-300/70">
                         <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                        Carregando horários disponíveis{mentorName ? ` com ${mentorName}` : ''}...
+                        {t('student_support.handoff.loading_slots', 'Loading available times')}{mentorName ? ` ${t('student_support.handoff.with_mentor', 'with')} ${mentorName}` : ''}...
                       </div>
                     ) : slotsError ? (
                       <p className="text-xs text-blue-700/70 dark:text-blue-300/70">{slotsError}</p>
                     ) : slotGroups.length > 0 ? (
                       <div data-tour="student-support-schedule" className="space-y-3">
-                        <SupportSlotPicker groups={slotGroups} selected={selectedSlot} onSelect={setSelectedSlot} />
+                        <SupportSlotPicker groups={slotGroups} selected={selectedSlot} onSelect={setSelectedSlot} locale={locale} />
                         {bookingError && <p className="text-xs font-medium text-red-600 dark:text-red-300">{bookingError}</p>}
                         <button
                           type="button"
@@ -596,12 +627,12 @@ export const StudentSupportPanel: React.FC<StudentSupportPanelProps> = ({ embedd
                           className="inline-flex items-center gap-2 rounded-lg bg-[#CE9F48] px-4 py-2 text-xs font-black text-black transition-colors hover:bg-[#b8892f] disabled:cursor-not-allowed disabled:opacity-50"
                         >
                           {bookingSlot ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Calendar className="h-3.5 w-3.5" />}
-                          {selectedSlot ? `Confirmar ${formatTime(selectedSlot.start)}` : 'Escolha um horário'}
+                          {selectedSlot ? `${t('student_support.handoff.confirm', 'Confirm')} ${formatTime(selectedSlot.start, locale)}` : t('student_support.handoff.choose_time', 'Choose a time')}
                         </button>
                       </div>
                     ) : (
                       <p className="text-xs text-blue-700/70 dark:text-blue-300/70">
-                        Não encontramos horários disponíveis agora. Nossa equipe vai acompanhar seu caso.
+                        {t('student_support.handoff.no_slots', 'We could not find available times right now. Our team will follow up on your case.')}
                       </p>
                     )}
                   </div>
@@ -614,11 +645,11 @@ export const StudentSupportPanel: React.FC<StudentSupportPanelProps> = ({ embedd
             <div className="flex items-start gap-3 bg-emerald-500/10 border border-emerald-500/20 rounded-2xl px-4 py-3 text-sm text-emerald-700 dark:text-emerald-300">
               <CheckCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
               <div>
-                <p className="font-medium">Atendimento encerrado</p>
+                <p className="font-medium">{t('student_support.resolved.title', 'Support closed')}</p>
                 {resolvedHandoff.resolved_note && (
                   <p className="text-emerald-600/80 dark:text-emerald-300/80 text-xs mt-1">"{resolvedHandoff.resolved_note}"</p>
                 )}
-                <p className="text-emerald-600/50 dark:text-emerald-300/50 text-xs mt-1">Pode continuar enviando mensagens normalmente.</p>
+                <p className="text-emerald-600/50 dark:text-emerald-300/50 text-xs mt-1">{t('student_support.resolved.continue_message', 'You can keep sending messages normally.')}</p>
               </div>
             </div>
           )}
@@ -633,8 +664,8 @@ export const StudentSupportPanel: React.FC<StudentSupportPanelProps> = ({ embedd
             <div className="flex flex-col items-center gap-3 text-center text-[#8a7b66] dark:text-white/40 text-sm py-2">
               <span>
                 {handoffMeetingUrl
-                  ? `Chat bloqueado até a reunião · ${formatCountdown(meetingCountdown)}`
-                  : 'Conversa transferida. Escolha um horário na agenda acima.'}
+                  ? `${t('student_support.footer.chat_locked_until_meeting', 'Chat locked until the meeting')} · ${formatCountdown(meetingCountdown, t)}`
+                  : t('student_support.footer.transferred_choose_slot', 'Conversation transferred. Choose a time in the schedule above.')}
               </span>
               {handoffMeetingUrl && (
                 <a
@@ -644,7 +675,7 @@ export const StudentSupportPanel: React.FC<StudentSupportPanelProps> = ({ embedd
                   className="inline-flex items-center gap-2 rounded-lg border border-blue-600/30 bg-blue-50 dark:border-blue-500/30 dark:bg-blue-500/10 px-3 py-2 text-xs font-bold text-blue-700 dark:text-blue-200 hover:bg-blue-100 dark:hover:bg-blue-500/20"
                 >
                   <Calendar className="h-3.5 w-3.5" />
-                  Entrar no Google Meet
+                  {t('student_support.handoff.join_google_meet', 'Join Google Meet')}
                 </a>
               )}
             </div>
@@ -656,7 +687,7 @@ export const StudentSupportPanel: React.FC<StudentSupportPanelProps> = ({ embedd
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
                   onKeyDown={handleKeyDown}
-                  placeholder="Escreva sua dúvida..."
+                  placeholder={t('student_support.composer.placeholder', 'Write your question...')}
                   rows={1}
                   className="flex-1 bg-transparent text-[#1f1a14] dark:text-white placeholder-[#8a7b66] dark:placeholder-white/30 text-sm resize-none outline-none max-h-32 leading-relaxed"
                   style={{ height: 'auto' }}
@@ -672,7 +703,7 @@ export const StudentSupportPanel: React.FC<StudentSupportPanelProps> = ({ embedd
                   {sending ? <Loader2 className="w-4 h-4 text-black animate-spin" /> : <Send className="w-4 h-4 text-black" />}
                 </button>
               </div>
-              <p className="text-center text-[#8a7b66] dark:text-white/20 text-xs mt-2">Enter para enviar · Shift+Enter para nova linha</p>
+              <p className="text-center text-[#8a7b66] dark:text-white/20 text-xs mt-2">{t('student_support.composer.hint', 'Enter to send · Shift+Enter for a new line')}</p>
             </>
           )}
         </div>
@@ -692,7 +723,7 @@ const StudentSupport: React.FC = () => {
   return <StudentSupportPanel onBack={() => navigate(-1)} />;
 };
 
-const MessageBubble: React.FC<{ message: Message }> = ({ message }) => {
+const MessageBubble: React.FC<{ message: Message; locale: string }> = ({ message, locale }) => {
   if (message.role === 'system') {
     return (
       <div className="flex justify-center">
@@ -715,7 +746,7 @@ const MessageBubble: React.FC<{ message: Message }> = ({ message }) => {
       <div data-tour={!isUser ? 'student-support-message' : undefined} className={`max-w-[80%] rounded-2xl px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap ${isUser ? 'bg-[#CE9F48] text-black rounded-tr-sm font-medium' : 'bg-[#f3ead9] dark:bg-white/5 border border-[#e3d5bd] dark:border-white/10 text-[#1f1a14] dark:text-white/90 rounded-tl-sm'}`}>
         {message.content}
         <div className={`text-xs mt-1.5 ${isUser ? 'text-black/50' : 'text-[#8a7b66] dark:text-white/25'}`}>
-          {new Date(message.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+          {new Date(message.created_at).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' })}
         </div>
       </div>
     </div>
