@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { LogOut, Moon, Sun } from 'lucide-react';
+import { ArrowLeft, LogOut, Moon, Sun } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { LanguageSelector } from '../../../components/LanguageSelector';
 import { supabase } from '../../../lib/supabase';
@@ -49,18 +49,36 @@ export const CheckoutTopbar: React.FC<Props> = ({ serviceLabel }) => {
   return (
     <div className="fixed top-0 left-0 right-0 z-50 bg-[#fffaf0]/95 dark:bg-black/95 backdrop-blur-sm border-b border-[#e3d5bd] dark:border-gold-medium/20">
       <div className="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between">
-        {/* Logo (Left) */}
-        <div className="flex items-center">
+        {/* Brand (Left) */}
+        <div className="flex items-center gap-3 min-w-0">
+          <button
+            type="button"
+            onClick={() => navigate('/')}
+            className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-[#e3d5bd] px-2 text-[11px] font-bold uppercase tracking-wider text-[#6f6251] transition-colors hover:bg-[#f3ead9] hover:text-[#1f1a14] dark:border-white/10 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-white"
+            aria-label={t('migma_checkout.topbar.back_home', 'Back to start')}
+            title={t('migma_checkout.topbar.back_home', 'Back to start')}
+          >
+            <ArrowLeft className="h-4 w-4" />
+            <span className="hidden sm:inline">{t('migma_checkout.topbar.back_home', 'Back to start')}</span>
+          </button>
           <img
             src="/favicon.png"
             alt="Migma"
             className="h-8 w-8 object-contain cursor-pointer rounded-lg"
             onClick={() => navigate('/')}
           />
+          <div className="min-w-0 leading-tight">
+            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#1f1a14] dark:text-white">
+              MIGMA
+            </p>
+            <p className="truncate text-[10px] font-bold uppercase tracking-[0.14em] text-[#8a7a61] dark:text-gold-light">
+              {t('migma_checkout.topbar.visa_checkout', 'Visa Checkout')}
+            </p>
+          </div>
         </div>
 
         {/* Title (Center) */}
-        <div className="absolute left-1/2 -translate-x-1/2 hidden md:block">
+        <div className="absolute left-1/2 -translate-x-1/2 hidden lg:block">
           <h1 className="text-[#1f1a14] dark:text-white font-bold text-sm tracking-[0.2em] uppercase whitespace-nowrap">
             {t('migma_checkout.topbar.title', {
               service: serviceLabel,

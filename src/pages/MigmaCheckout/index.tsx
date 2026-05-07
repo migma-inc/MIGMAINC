@@ -389,7 +389,7 @@ const MigmaCheckout: React.FC = () => {
         const userEmail = profile.email || session.user.email;
         const { data: latestOrder } = await supabase
           .from('visa_orders')
-          .select('service_request_id, total_price_usd')
+          .select('service_request_id, total_price_usd, payment_method')
           .eq('client_email', userEmail)
           .order('created_at', { ascending: false })
           .limit(1)
@@ -425,7 +425,8 @@ const MigmaCheckout: React.FC = () => {
           num_dependents: null,
           terms_accepted: false,
           data_accepted: false,
-          signature_data_url: profile.signature_url || null
+          signature_data_url: profile.signature_url || null,
+          payment_method: (latestOrder?.payment_method as PaymentMethod | undefined) || undefined,
         });
 
         // Recuperar dados pessoais do Step 2 de user_identity
@@ -456,6 +457,10 @@ const MigmaCheckout: React.FC = () => {
             nationality: identity.nationality || '',
             civil_status: (identity.marital_status as any) || 'single',
             notes: identity.notes || '',
+            emergency_contact_name: '',
+            emergency_contact_phone: '',
+            emergency_contact_relationship: '',
+            emergency_contact_address: '',
             doc_front: null,
             doc_back: null,
             selfie: null,
@@ -1024,6 +1029,29 @@ const MigmaCheckout: React.FC = () => {
           updated_at: new Date().toISOString(),
         }, { onConflict: 'user_id' });
 
+        const { data: profileForComplementary, error: profileLookupError } = await supabase
+          .from('user_profiles')
+          .select('id')
+          .eq('user_id', effectiveUserId)
+          .maybeSingle();
+
+        if (profileLookupError) throw profileLookupError;
+
+        if (profileForComplementary?.id) {
+          const { error: complementaryError } = await supabase
+            .from('student_complementary_data')
+            .upsert({
+              profile_id: profileForComplementary.id,
+              emergency_contact_name: data.emergency_contact_name.trim(),
+              emergency_contact_phone: data.emergency_contact_phone.trim(),
+              emergency_contact_relationship: data.emergency_contact_relationship.trim(),
+              emergency_contact_address: data.emergency_contact_address.trim(),
+              updated_at: new Date().toISOString(),
+            }, { onConflict: 'profile_id' });
+
+          if (complementaryError) throw complementaryError;
+        }
+
         // identity_files é populado pelo backend (migma-payment-completed) após garantir FK de service_request
 
         // 🚀 Marca identidate como verificada (enviada) para o fluxo Migma
@@ -1185,7 +1213,8 @@ const MigmaCheckout: React.FC = () => {
               processType: (state.dbServiceType === 'cos' || service === 'cos') ? 'Change of Status' :
                 (state.dbServiceType === 'transfer' || service === 'transfer') ? 'Visa Transfer' :
                   config?.label || 'F1 Visa',
-              totalPrice: state.totalPrice
+              totalPrice: state.totalPrice,
+              paymentMethod: step1Data?.payment_method ?? null,
             }}
             documents={{
               docFront: step2Data?.doc_front ?? null,

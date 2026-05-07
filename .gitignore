@@ -43,6 +43,7 @@ supabase/config.toml
 # Temp test outputs
 tmp-*.pdf
 tmp-*.log
+tmp/
 
 # Internal docs / reports
 RELATORIO_TECNICO_*.md

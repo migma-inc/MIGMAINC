@@ -156,7 +156,7 @@ export const Step1PersonalInfo: React.FC<Props> = ({
           getChargebackAnnexTemplate(),
         ]);
         if (!mainContract) {
-          setContractError(t('migma_checkout.step1.contract_not_found', 'Não foi possível encontrar o contrato desse serviço, por favor, entre em contato com o suporte.'));
+          setContractError(t('migma_checkout.step1.contract_not_found', 'Não foi possível encontrar os termos desse serviço, por favor, entre em contato com o suporte.'));
           setMainContractText('');
           setAnnexText('');
           return;
@@ -165,7 +165,7 @@ export const Step1PersonalInfo: React.FC<Props> = ({
         setAnnexText(annex?.content || '');
       } catch (err) {
         console.error('[Step1] Failed to load contract:', err);
-        setContractError(t('migma_checkout.step1.contract_error', 'Erro ao carregar contrato.'));
+        setContractError(t('migma_checkout.step1.contract_error', 'Erro ao carregar termos.'));
       } finally {
         setContractLoading(false);
       }
@@ -297,13 +297,13 @@ export const Step1PersonalInfo: React.FC<Props> = ({
 
   const payBtnLabel = () => {
     if (saving) return <><Loader2 className="w-4 h-4 animate-spin" /> {t('migma_checkout.step1.processing', 'Processando...')}</>;
-    if (isSplitEnabled) return t('migma_checkout.step1.pay_split', 'Pay Split — ${{total}} →', { total });
-    if (method === 'stripe') return t('migma_checkout.step1.pay_stripe_total', 'Pay with Stripe — ${{total}} →', { total });
-    if (method === 'zelle') return t('migma_checkout.step1.pay_zelle_receipt', 'Submit Zelle Receipt →');
-    if (method === 'parcelow_card') return t('migma_checkout.step1.pay_parcelow_card', 'Pay with Card (Parcelow) — ${{total}} →', { total });
-    if (method === 'parcelow_pix') return t('migma_checkout.step1.pay_parcelow_pix', 'Pay with PIX (Parcelow) — ${{total}} →', { total });
-    if (method === 'parcelow_ted') return t('migma_checkout.step1.pay_parcelow_ted', 'Pay with TED (Parcelow) — ${{total}} →', { total });
-    return t('migma_checkout.step1.continue_payment', 'Continue Payment — ${{total}} →', { total });
+    if (isSplitEnabled) return t('migma_checkout.step1.pay_split', 'Continuar com pagamento dividido — ${{total}} →', { total });
+    if (method === 'stripe') return t('migma_checkout.step1.pay_stripe_total', 'Continuar com Stripe — ${{total}} →', { total });
+    if (method === 'zelle') return t('migma_checkout.step1.pay_zelle_receipt', 'Continuar com Zelle →');
+    if (method === 'parcelow_card') return t('migma_checkout.step1.pay_parcelow_card', 'Continuar com Parcelow Card — ${{total}} →', { total });
+    if (method === 'parcelow_pix') return t('migma_checkout.step1.pay_parcelow_pix', 'Continuar com Parcelow PIX — ${{total}} →', { total });
+    if (method === 'parcelow_ted') return t('migma_checkout.step1.pay_parcelow_ted', 'Continuar com Parcelow TED — ${{total}} →', { total });
+    return t('migma_checkout.step1.continue_payment', 'Continuar pagamento — ${{total}} →', { total });
   };
 
   return (
@@ -312,13 +312,13 @@ export const Step1PersonalInfo: React.FC<Props> = ({
         isOpen={termsOpen}
         onClose={() => setTermsOpen(false)}
         contractTitle={config.contractTitle}
-        contractText={contractLoading ? t('migma_checkout.step1.loading_contract', 'Carregando contrato...') : (contractError || mainContractText)}
+        contractText={contractLoading ? t('migma_checkout.step1.loading_contract', 'Carregando termos...') : (contractError || mainContractText)}
       />
       <TermsModal
         isOpen={annexOpen}
         onClose={() => setAnnexOpen(false)}
         contractTitle={t('migma_checkout.terms.annex_title', 'Anexo I — Autorização de Pagamento')}
-        contractText={contractLoading ? t('migma_checkout.step1.loading_contract', 'Carregando contrato...') : (contractError || annexText)}
+        contractText={contractLoading ? t('migma_checkout.step1.loading_contract', 'Carregando termos...') : (contractError || annexText)}
       />
 
       <form onSubmit={handleSubmit} className="space-y-8">

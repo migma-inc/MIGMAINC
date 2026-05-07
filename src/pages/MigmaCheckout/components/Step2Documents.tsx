@@ -2,7 +2,7 @@
  * Step 2 — Documentos & Verificação de Identidade
  * Desbloqueado após confirmação de pagamento.
  */
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Upload, X, FileImage, AlertCircle, Loader2, ChevronDown, ChevronLeft } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { Step2Data, DocType, CivilStatus } from '../types';
@@ -39,6 +39,19 @@ const FileUploadArea: React.FC<FileUploadProps> = ({ label, hint, file, onFile, 
   const { t } = useTranslation();
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragOver, setDragOver] = useState(false);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!file) {
+      setPreviewUrl(null);
+      return;
+    }
+
+    const objectUrl = URL.createObjectURL(file);
+    setPreviewUrl(objectUrl);
+
+    return () => URL.revokeObjectURL(objectUrl);
+  }, [file]);
 
   const validate = (f: File): string | null => {
     if (!ALLOWED_TYPES.includes(f.type)) return t('migma_checkout.step2.error_file_type', 'Apenas arquivos JPG e PNG são permitidos');
@@ -62,14 +75,30 @@ const FileUploadArea: React.FC<FileUploadProps> = ({ label, hint, file, onFile, 
       <label className="text-sm font-medium text-gray-300 block">{label} *</label>
       {hint && <p className="text-xs text-gray-500">{hint}</p>}
       {showSelfieExample && (
-        <div className="bg-blue-500/10 border border-blue-500/30 rounded-xl p-3 text-xs text-blue-300">
-          {t('migma_checkout.step2.selfie_hint_box', 'Segure o documento próximo ao seu rosto. Tanto o rosto quanto o documento devem estar claramente visíveis.')}
+        <div className="grid gap-3 rounded-xl border border-gold-medium/30 bg-gold-dark/10 p-3 sm:grid-cols-[160px_1fr] sm:items-center">
+          <img
+            src="/helpselfie.png"
+            alt={t('migma_checkout.step2.selfie_example_alt', 'Selfie example')}
+            className="h-28 w-full rounded-lg border border-white/10 object-cover sm:h-24"
+            loading="lazy"
+          />
+          <p className="text-xs leading-relaxed text-gold-light">
+            {t('migma_checkout.step2.selfie_hint_box', 'Segure o documento ao lado do rosto. Rosto e documento devem estar visíveis.')}
+          </p>
         </div>
       )}
 
       {file ? (
-        <div className="flex items-center gap-3 bg-[#1a1a1a] border border-gold-medium/40 rounded-xl p-4">
-          <FileImage className="w-8 h-8 text-gold-medium flex-shrink-0" />
+        <div className="flex items-center gap-3 bg-[#1a1a1a] border border-gold-medium/40 rounded-xl p-3">
+          <div className="h-20 w-20 flex-shrink-0 overflow-hidden rounded-lg border border-white/10 bg-black">
+            {previewUrl ? (
+              <img src={previewUrl} alt={file.name} className="h-full w-full object-cover" />
+            ) : (
+              <div className="flex h-full w-full items-center justify-center">
+                <FileImage className="w-8 h-8 text-gold-medium" />
+              </div>
+            )}
+          </div>
           <div className="flex-1 min-w-0">
             <p className="text-white text-sm font-medium truncate">{file.name}</p>
             <p className="text-gray-500 text-xs">{(file.size / 1024 / 1024).toFixed(2)} MB</p>
@@ -158,6 +187,10 @@ export const Step2Documents: React.FC<Props> = ({ onComplete, onBack, isComplete
     birth_date: '', doc_type: 'passport', doc_number: '',
     address: '', city: '', state: '', zip_code: '', country: '', nationality: '',
     civil_status: 'single', notes: '',
+    emergency_contact_name: '',
+    emergency_contact_phone: '',
+    emergency_contact_relationship: '',
+    emergency_contact_address: '',
     doc_front: null, doc_back: null, selfie: null,
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -178,6 +211,10 @@ export const Step2Documents: React.FC<Props> = ({ onComplete, onBack, isComplete
     if (!form.zip_code.trim()) e.zip_code = t('common.required', 'Obrigatório');
     if (!form.country.trim()) e.country = t('common.required', 'Obrigatório');
     if (!form.nationality.trim()) e.nationality = t('common.required', 'Obrigatório');
+    if (!form.emergency_contact_name.trim()) e.emergency_contact_name = t('common.required', 'Obrigatório');
+    if (!form.emergency_contact_phone.trim()) e.emergency_contact_phone = t('common.required', 'Obrigatório');
+    if (!form.emergency_contact_relationship.trim()) e.emergency_contact_relationship = t('common.required', 'Obrigatório');
+    if (!form.emergency_contact_address.trim()) e.emergency_contact_address = t('common.required', 'Obrigatório');
     if (!form.doc_front) e.doc_front = t('migma_checkout.step2.validation_doc_front', 'Frente do documento é obrigatória');
     if (!form.doc_back) e.doc_back = t('migma_checkout.step2.validation_doc_back', 'Verso do documento é obrigatório');
     if (!form.selfie) e.selfie = t('migma_checkout.step2.validation_selfie', 'Selfie com documento é obrigatória');
@@ -318,7 +355,62 @@ export const Step2Documents: React.FC<Props> = ({ onComplete, onBack, isComplete
         </div>
       </div>
 
-      {/* ── Seção B: Upload de documentos ── */}
+      {/* ── Seção B: Contato de emergência ── */}
+      <div className="bg-[#111] border border-white/10 rounded-2xl p-6 space-y-5">
+        <div>
+          <h3 className="text-base font-bold text-white">{t('migma_checkout.step2.emergency_title', 'Contato de Emergência')}</h3>
+          <p className="mt-1 text-sm text-gray-500">{t('migma_checkout.step2.emergency_subtitle', 'Pessoa que podemos contatar se necessário.')}</p>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label className="text-sm font-medium text-gray-300 mb-1.5 block">{t('migma_checkout.step2.emergency_name', 'Nome')} *</label>
+            <input
+              type="text"
+              value={form.emergency_contact_name}
+              onChange={e => set('emergency_contact_name', e.target.value)}
+              placeholder={t('migma_checkout.step2.emergency_name_placeholder', 'Nome completo')}
+              className={`${INPUT_CLASS} ${errors.emergency_contact_name ? 'border-red-500' : ''}`}
+            />
+            {errors.emergency_contact_name && <p className="text-red-400 text-xs mt-1">{errors.emergency_contact_name}</p>}
+          </div>
+          <div>
+            <label className="text-sm font-medium text-gray-300 mb-1.5 block">{t('migma_checkout.step2.emergency_phone', 'Telefone')} *</label>
+            <input
+              type="tel"
+              value={form.emergency_contact_phone}
+              onChange={e => set('emergency_contact_phone', e.target.value)}
+              placeholder={t('migma_checkout.step2.emergency_phone_placeholder', '+1 (555) 000-0000')}
+              className={`${INPUT_CLASS} ${errors.emergency_contact_phone ? 'border-red-500' : ''}`}
+            />
+            {errors.emergency_contact_phone && <p className="text-red-400 text-xs mt-1">{errors.emergency_contact_phone}</p>}
+          </div>
+          <div>
+            <label className="text-sm font-medium text-gray-300 mb-1.5 block">{t('migma_checkout.step2.emergency_relationship', 'Relacionamento')} *</label>
+            <input
+              type="text"
+              value={form.emergency_contact_relationship}
+              onChange={e => set('emergency_contact_relationship', e.target.value)}
+              placeholder={t('migma_checkout.step2.emergency_relationship_placeholder', 'Pai, cônjuge, amigo...')}
+              className={`${INPUT_CLASS} ${errors.emergency_contact_relationship ? 'border-red-500' : ''}`}
+            />
+            {errors.emergency_contact_relationship && <p className="text-red-400 text-xs mt-1">{errors.emergency_contact_relationship}</p>}
+          </div>
+          <div>
+            <label className="text-sm font-medium text-gray-300 mb-1.5 block">{t('migma_checkout.step2.emergency_address', 'Endereço')} *</label>
+            <input
+              type="text"
+              value={form.emergency_contact_address}
+              onChange={e => set('emergency_contact_address', e.target.value)}
+              placeholder={t('migma_checkout.step2.emergency_address_placeholder', 'Endereço completo')}
+              className={`${INPUT_CLASS} ${errors.emergency_contact_address ? 'border-red-500' : ''}`}
+            />
+            {errors.emergency_contact_address && <p className="text-red-400 text-xs mt-1">{errors.emergency_contact_address}</p>}
+          </div>
+        </div>
+      </div>
+
+      {/* ── Seção C: Upload de documentos ── */}
       <div className="bg-[#111] border border-white/10 rounded-2xl p-6 space-y-6">
         <h3 className="text-base font-bold text-white">{t('migma_checkout.step2.doc_upload_title', 'Upload de Documentos')}</h3>
         <p className="text-sm text-gray-400">
@@ -342,7 +434,7 @@ export const Step2Documents: React.FC<Props> = ({ onComplete, onBack, isComplete
         />
         <FileUploadArea
           label={t('migma_checkout.step2.selfie_with_doc', 'Selfie com o Documento')}
-          hint={t('migma_checkout.step2.selfie_hint', 'Segure o documento próximo ao seu rosto.')}
+          hint={t('migma_checkout.step2.selfie_hint', 'Segure o documento ao lado do rosto.')}
           showSelfieExample
           file={form.selfie}
           onFile={f => set('selfie', f)}

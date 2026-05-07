@@ -2,7 +2,7 @@ import { AlertCircle, ExternalLink, MessageCircle, Scale, ShieldCheck } from 'lu
 import { useTranslation } from 'react-i18next';
 
 const EMBASSY_URL = 'https://br.usembassy.gov/pt/legal-assistance-portuguese/';
-const WHATSAPP_URL = 'https://wa.me/5562990700013?text=Ol%C3%A1%2C%20vim%20atrav%C3%A9s%20da%20MIGMA';
+const WHATSAPP_URL = 'https://wa.me/5562999070013?text=Ol%C3%A1%2C%20vim%20atrav%C3%A9s%20da%20MIGMA';
 
 interface InitialConsularAttorneyCardProps {
   compact?: boolean;

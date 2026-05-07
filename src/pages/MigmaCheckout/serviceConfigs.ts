@@ -104,7 +104,7 @@ export const SERVICE_CONFIGS: Record<ServiceType, ServiceConfig> = {
     label: 'Transfer',
     basePrice: 400,
     dependentPrice: 150,
-    contractTitle: 'Transfer — Selection Process Agreement',
+    contractTitle: 'Transfer — Selection Process Terms & Conditions',
     contractSlug: 'transfer-selection-process',
   },
   cos: {
@@ -113,7 +113,7 @@ export const SERVICE_CONFIGS: Record<ServiceType, ServiceConfig> = {
     label: 'COS',
     basePrice: 400,
     dependentPrice: 150,
-    contractTitle: 'Change of Status — Selection Process Agreement',
+    contractTitle: 'Change of Status — Selection Process Terms & Conditions',
     contractSlug: 'cos-selection-process',
   },
   eb2: {
@@ -122,7 +122,7 @@ export const SERVICE_CONFIGS: Record<ServiceType, ServiceConfig> = {
     label: 'EB-2',
     basePrice: 400,
     dependentPrice: 150,
-    contractTitle: 'EB-2 — Service Agreement',
+    contractTitle: 'EB-2 — Service Terms & Conditions',
     contractSlug: 'eb2-selection-process',
   },
   eb3: {
@@ -131,7 +131,7 @@ export const SERVICE_CONFIGS: Record<ServiceType, ServiceConfig> = {
     label: 'EB-3',
     basePrice: 400,
     dependentPrice: 150,
-    contractTitle: 'EB-3 — Service Agreement',
+    contractTitle: 'EB-3 — Service Terms & Conditions',
     contractSlug: 'eb3-selection-process',
   },
   initial: {
@@ -140,7 +140,7 @@ export const SERVICE_CONFIGS: Record<ServiceType, ServiceConfig> = {
     label: 'Initial',
     basePrice: 400,
     dependentPrice: 150,
-    contractTitle: 'Initial Visa — Selection Process Agreement',
+    contractTitle: 'Initial Visa — Selection Process Terms & Conditions',
     contractSlug: 'initial-selection-process',
   },
 };

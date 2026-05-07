@@ -9,7 +9,7 @@
  *   para que useOnboardingProgress avance o step
  * - Chama onNext() após conclusão
  */
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Loader2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { supabase } from '../../../lib/supabase';
@@ -37,14 +37,19 @@ export const MigmaSurveyStep: React.FC<ExtendedStepProps> = ({ onNext, contractA
   // ex: 'cos-selection-process' → 'cos'
   const VALID_SERVICE_TYPES = ['transfer', 'cos', 'initial', 'eb2', 'eb3'] as const;
   type ValidServiceType = typeof VALID_SERVICE_TYPES[number];
-  function normalizeService(raw: string | null | undefined): ValidServiceType {
-    if (!raw) return 'transfer';
-    const match = VALID_SERVICE_TYPES.find(v => raw === v || raw.startsWith(v + '-'));
-    return match ?? 'transfer';
+  function normalizeService(raw: string | null | undefined): ValidServiceType | null {
+    if (!raw) return null;
+    const normalized = raw.trim().toLowerCase();
+    const match = VALID_SERVICE_TYPES.find(v => normalized === v || normalized.startsWith(v + '-'));
+    return match ?? null;
   }
-  const service = normalizeService((userProfile as any)?.service_type);
+  const [resolvedService, setResolvedService] = useState<ValidServiceType | null>(
+    normalizeService((userProfile as any)?.service_type)
+      ?? normalizeService((userProfile as any)?.student_process_type)
+  );
+  const service = resolvedService;
 
-  const questions = getQuestionsForService(service);
+  const questions = useMemo(() => service ? getQuestionsForService(service) : [], [service]);
   const sections = SURVEY_SECTIONS;
 
   const [currentSectionIdx, setCurrentSectionIdx] = useState(0);
@@ -53,6 +58,7 @@ export const MigmaSurveyStep: React.FC<ExtendedStepProps> = ({ onNext, contractA
   const [completed, setCompleted] = useState(false);
   const [surveyCompletedAt, setSurveyCompletedAt] = useState<string | undefined>(undefined);
   const [profileId, setProfileId] = useState<string | null>(null);
+  const [completionProfile, setCompletionProfile] = useState({ name: '', email: '', whatsapp: '' });
   const [error, setError] = useState<string | null>(null);
   const topRef = useRef<HTMLDivElement>(null);
   const didMountRef = useRef(false);
@@ -64,24 +70,79 @@ export const MigmaSurveyStep: React.FC<ExtendedStepProps> = ({ onNext, contractA
 
       const { data: profile } = await supabase
         .from('user_profiles')
-        .select('id, full_name, email, selection_survey_completed_at')
+        .select('id, full_name, email, phone, service_type, student_process_type, selection_survey_data, selection_survey_completed_at')
         .eq('user_id', user.id)
         .maybeSingle();
 
       if (!profile) return;
       setProfileId(profile.id);
+      setCompletionProfile({
+        name: profile.full_name ?? (userProfile as any)?.full_name ?? '',
+        email: profile.email ?? (userProfile as any)?.email ?? '',
+        whatsapp: profile.phone ?? (userProfile as any)?.phone ?? (userProfile as any)?.whatsapp ?? '',
+      });
+
+      let serviceCandidate =
+        normalizeService(profile.service_type)
+        ?? normalizeService(profile.student_process_type)
+        ?? normalizeService((userProfile as any)?.service_type)
+        ?? normalizeService((userProfile as any)?.student_process_type);
+
+      if (!serviceCandidate) {
+        const orderEmail = profile.email ?? (userProfile as any)?.email ?? user.email ?? '';
+        if (orderEmail) {
+          const { data: latestOrder } = await supabase
+            .from('visa_orders')
+            .select('service_type')
+            .eq('client_email', orderEmail)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+
+          serviceCandidate = normalizeService(latestOrder?.service_type);
+        }
+      }
+
+      setResolvedService(serviceCandidate ?? 'initial');
+
+      const profileSurveyData = (profile.selection_survey_data ?? {}) as Record<string, any>;
+      const recoveredAnswers: Record<string, string | string[]> = {
+        a_email: profile.email ?? (userProfile as any)?.email ?? '',
+        a_full_name: profile.full_name ?? (userProfile as any)?.full_name ?? '',
+      };
+
+      if (profileSurveyData.academic_formation) {
+        recoveredAnswers.a_formation = profileSurveyData.academic_formation;
+      }
+      if (profileSurveyData.english_level) {
+        recoveredAnswers.a_english_level = profileSurveyData.english_level;
+      }
+
+      if (serviceCandidate) {
+        const { data: surveyResponse } = await supabase
+          .from('selection_survey_responses')
+          .select('answers')
+          .eq('profile_id', profile.id)
+          .eq('service_type', serviceCandidate)
+          .order('completed_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (surveyResponse?.answers && typeof surveyResponse.answers === 'object') {
+          Object.assign(recoveredAnswers, surveyResponse.answers as Record<string, string | string[]>);
+        }
+      }
+
+      setAnswers(prev => ({
+        ...prev,
+        ...recoveredAnswers,
+      }));
 
       if (profile.selection_survey_completed_at) {
         setSurveyCompletedAt(profile.selection_survey_completed_at);
         setCompleted(true);
         return;
       }
-
-      setAnswers(prev => ({
-        ...prev,
-        a_email: profile.email ?? (userProfile as any)?.email ?? '',
-        a_full_name: profile.full_name ?? (userProfile as any)?.full_name ?? '',
-      }));
     })();
   }, [user?.id]);
 
@@ -138,7 +199,7 @@ export const MigmaSurveyStep: React.FC<ExtendedStepProps> = ({ onNext, contractA
   };
 
   const handleSubmit = async () => {
-    if (!profileId || !user) return;
+    if (!profileId || !user || !service) return;
     setSaving(true);
     setError(null);
 
@@ -237,21 +298,36 @@ export const MigmaSurveyStep: React.FC<ExtendedStepProps> = ({ onNext, contractA
     }
   };
 
+  const getAnswerLabel = useCallback((questionId: string, value: string | string[] | undefined) => {
+    if (!value || Array.isArray(value)) return '';
+    const question = questions.find(q => q.id === questionId);
+    return question?.options?.find(option => option.value === value)?.label ?? value;
+  }, [questions]);
+
   if (completed) {
     return (
       <div ref={topRef}>
         <SurveyCompletionScreen
-          name={(userProfile as any)?.full_name ?? ''}
-          email={(userProfile as any)?.email ?? ''}
-          whatsapp={(userProfile as any)?.whatsapp ?? ''}
-          service={service}
-          academicFormation={typeof answers['a_formation'] === 'string' ? answers['a_formation'] : ''}
-          englishLevel={typeof answers['a_english_level'] === 'string' ? answers['a_english_level'] : ''}
+          name={completionProfile.name || (userProfile as any)?.full_name || ''}
+          email={completionProfile.email || (userProfile as any)?.email || ''}
+          whatsapp={completionProfile.whatsapp || (userProfile as any)?.phone || (userProfile as any)?.whatsapp || ''}
+          service={service ?? 'initial'}
+          academicFormation={getAnswerLabel('a_formation', answers['a_formation'])}
+          englishLevel={getAnswerLabel('a_english_level', answers['a_english_level'])}
           surveyCompletedAt={surveyCompletedAt}
           onContinue={onNext}
           standalone={false}
           contractApproved={contractApproved}
         />
+      </div>
+    );
+  }
+
+  if (!service) {
+    return (
+      <div ref={topRef} className="max-w-2xl mx-auto px-4 py-12 flex items-center justify-center gap-3 text-gray-400">
+        <Loader2 className="w-5 h-5 animate-spin text-gold-medium" />
+        <span className="text-sm font-bold">{t('student_onboarding.survey.loading', 'Loading survey...')}</span>
       </div>
     );
   }

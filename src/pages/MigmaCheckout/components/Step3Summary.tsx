@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { CheckCircle2, ArrowRight, User, Package, MapPin } from 'lucide-react';
+import { CheckCircle2, ArrowRight, User, Package, MapPin, CreditCard } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 interface Props {
@@ -8,6 +8,7 @@ interface Props {
     email: string;
     processType: string;
     totalPrice: number;
+    paymentMethod?: string | null;
   };
   documents: {
     docFront: File | null;
@@ -41,6 +42,17 @@ const CIVIL_STATUS_KEY: Record<string, string> = {
   married: 'married',
   divorced: 'divorced',
   widowed: 'widowed',
+};
+
+const PAYMENT_METHOD_LABEL_KEY: Record<string, string> = {
+  stripe: 'checkout.method_stripe_label',
+  parcelow: 'checkout.method_parcelow_card_label',
+  parcelow_card: 'checkout.method_parcelow_card_label',
+  pix: 'checkout.method_parcelow_pix_label',
+  parcelow_pix: 'checkout.method_parcelow_pix_label',
+  parcelow_ted: 'checkout.method_parcelow_ted_label',
+  zelle: 'checkout.method_zelle_label',
+  square: 'checkout.method_square_label',
 };
 
 interface DocPreviewProps {
@@ -82,6 +94,9 @@ export const Step3Summary: React.FC<Props> = ({ userData, documents, documentUrl
   const docTypeLabel = t(`docs.${personalInfo.docType}`, personalInfo.docType);
   const civilStatusLabel = t(`checkout.${CIVIL_STATUS_KEY[personalInfo.civilStatus] || personalInfo.civilStatus}`, personalInfo.civilStatus);
   const emptyDocLabel = t('migma_checkout.step3.not_sent', 'Not sent');
+  const paymentMethodLabel = userData.paymentMethod
+    ? t(PAYMENT_METHOD_LABEL_KEY[userData.paymentMethod] || `checkout.method_${userData.paymentMethod}_label`, userData.paymentMethod)
+    : t('migma_checkout.step3.payment_method_missing', 'Not available');
 
   return (
     <div className="space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-700">
@@ -134,6 +149,13 @@ export const Step3Summary: React.FC<Props> = ({ userData, documents, documentUrl
             <div>
               <p className="text-gray-500 text-[10px] uppercase font-bold tracking-tighter">{t('migma_checkout.step3.final_amount', 'Final Amount')}</p>
               <p className="text-gold-light font-black text-xl">U$ {userData.totalPrice.toFixed(2)}</p>
+            </div>
+            <div>
+              <p className="text-gray-500 text-[10px] uppercase font-bold tracking-tighter">{t('migma_checkout.step3.payment_method', 'Payment Method')}</p>
+              <p className="inline-flex items-center gap-2 rounded-full border border-gold-medium/30 bg-gold-dark/10 px-3 py-1.5 text-sm font-bold text-white">
+                <CreditCard className="h-4 w-4 text-gold-medium" />
+                {paymentMethodLabel}
+              </p>
             </div>
           </div>
         </div>

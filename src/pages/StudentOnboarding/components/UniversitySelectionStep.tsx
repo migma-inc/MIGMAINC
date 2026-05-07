@@ -32,6 +32,13 @@ const DEGREE_LEVEL_LABEL_KEYS: Record<string, string> = {
   'Mestrado': 'student_onboarding.university_modal.degree_masters',
 };
 
+const MODALITY_LABEL_KEYS: Record<string, string> = {
+  'Híbrido': 'student_onboarding.university_modal.modality_hybrid',
+  'Presencial': 'student_onboarding.university_modal.modality_in_person',
+  'Híbrido ou Presencial': 'student_onboarding.university_modal.modality_hybrid_or_in_person',
+  'A confirmar': 'student_onboarding.university_modal.to_confirm',
+};
+
 const getPopularScholarshipLevel = (scholarships: ScholarshipLevel[]) => {
   if (scholarships.length === 0) return null;
   return (
@@ -1004,6 +1011,30 @@ const InstitutionCard: React.FC<CardProps> = ({
   const cardUnavailable = !hasScholarshipData;
   const limitReached = selectionDisabled && !isSelected;
   const canOpenSelection = hasScholarshipData && !selectionDisabled;
+  const formatDegreeLevel = (value: string | null | undefined) => {
+    if (!value) return t('student_onboarding.university_modal.to_confirm', 'To be confirmed');
+    const key = DEGREE_LEVEL_LABEL_KEYS[value];
+    return key ? t(key) : value;
+  };
+
+  const formatModality = (value: string | null | undefined) => {
+    if (!value) return t('student_onboarding.university_modal.to_confirm', 'To be confirmed');
+    const key = MODALITY_LABEL_KEYS[value];
+    return key ? t(key) : value;
+  };
+
+  const formatCptLabel = (value: string | null | undefined) => {
+    if (!value) return 'CPT + OPT';
+    if (value === 'A confirmar') return t('student_onboarding.university_modal.to_confirm', 'To be confirmed');
+
+    const firstDayMatch = value.match(/^1º dia(?:\s+\((.+)\))?$/i);
+    if (firstDayMatch) {
+      const degree = firstDayMatch[1] ? ` (${formatDegreeLevel(firstDayMatch[1])})` : '';
+      return `${t('student_onboarding.scholarship.cpt_day_one_short', '1st day')}${degree}`;
+    }
+
+    return value;
+  };
 
   return (
     <div
@@ -1033,7 +1064,7 @@ const InstitutionCard: React.FC<CardProps> = ({
         {isSelected && (
           <div className="absolute top-3 right-3 flex items-center gap-1.5 bg-gold-medium text-black text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full">
             <CheckCircle2 className="w-3 h-3" />
-            Selecionada
+            {t('student_onboarding.scholarship.selected_badge', 'Selected')}
           </div>
         )}
         {institution.highlight_badge && !isSelected && (
@@ -1096,11 +1127,11 @@ const InstitutionCard: React.FC<CardProps> = ({
         <div className="grid grid-cols-2 gap-2">
           <div className="bg-white/5 border border-white/5 rounded-xl px-3 py-2">
             <p className="text-[8px] text-gray-600 uppercase font-black tracking-widest mb-0.5">{t('student_onboarding.scholarship.modality', 'Modality')}</p>
-            <p className="text-[11px] text-gray-200 font-black">{institution.modality}</p>
+            <p className="text-[11px] text-gray-200 font-black">{formatModality(institution.modality)}</p>
           </div>
           <div className="bg-white/5 border border-white/5 rounded-xl px-3 py-2">
             <p className="text-[8px] text-gray-600 uppercase font-black tracking-widest mb-0.5">{t('student_onboarding.scholarship.work', 'Work')}</p>
-            <p className="text-[11px] text-gray-200 font-black truncate">{institution.cpt_opt || 'CPT + OPT'}</p>
+            <p className="text-[11px] text-gray-200 font-black truncate">{formatCptLabel(institution.cpt_opt)}</p>
           </div>
         </div>
 

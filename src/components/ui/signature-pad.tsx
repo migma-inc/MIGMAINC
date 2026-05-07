@@ -295,67 +295,7 @@ export function SignaturePadComponent({
             clearInterval(countdownIntervalRef.current);
             countdownIntervalRef.current = null;
           }
-
-          // Mostrar contador regressivo
-          setAutoConfirmCountdown(3);
-
-          // Contador regressivo visual
-          let countdown = 3;
-          countdownIntervalRef.current = setInterval(() => {
-            countdown--;
-            setAutoConfirmCountdown(countdown);
-            if (countdown <= 0) {
-              if (countdownIntervalRef.current) {
-                clearInterval(countdownIntervalRef.current);
-                countdownIntervalRef.current = null;
-              }
-            }
-          }, 1000);
-
-          // Auto-confirmar após 2.5 segundos de inatividade (debounce)
-          // Este timeout será cancelado se o usuário começar a desenhar novamente (beginStroke)
-          // Salvar referências para uso no timeout
-          const padRef = signaturePadRef;
-          const confirmRef = handleConfirmRef;
-
-          autoConfirmTimeoutRef.current = setTimeout(() => {
-            // Verificar se ainda não está desenhando
-            if (isDrawingRef.current) {
-              return;
-            }
-
-            if (countdownIntervalRef.current) {
-              clearInterval(countdownIntervalRef.current);
-              countdownIntervalRef.current = null;
-            }
-            setAutoConfirmCountdown(null);
-
-            // Chamar handleConfirm através da referência
-            if (confirmRef.current) {
-              try {
-                confirmRef.current();
-              } catch (error) {
-                console.error('[SIGNATURE PAD] ERROR calling handleConfirm:', error);
-              }
-            } else {
-              // Fallback: chamar callbacks diretamente usando signaturePadRef
-              if (padRef.current && !padRef.current.isEmpty()) {
-                const currentDataURL = padRef.current.toDataURL('image/png');
-                if (onSignatureConfirmRef.current) {
-                  try {
-                    onSignatureConfirmRef.current(currentDataURL);
-                  } catch (error) {
-                    console.error('[SIGNATURE PAD] ERROR calling onSignatureConfirm:', error);
-                  }
-                }
-                try {
-                  onSignatureChangeRef.current(currentDataURL);
-                } catch (error) {
-                  console.error('[SIGNATURE PAD] ERROR calling onSignatureChange:', error);
-                }
-              }
-            }
-          }, 2500);
+          setAutoConfirmCountdown(null);
         }
       });
     };
@@ -463,19 +403,21 @@ export function SignaturePadComponent({
         clearInterval(countdownIntervalRef.current);
         countdownIntervalRef.current = null;
       }
-      setAutoConfirmCountdown(null);
 
-      // Chamar callbacks primeiro
-      if (onSignatureConfirm) {
-        onSignatureConfirm(dataURL);
-      }
-      onSignatureChange(dataURL);
+      setAutoConfirmCountdown(2);
 
-      // Esconder o componente após confirmação (tanto manual quanto automática)
-      setIsHidden(true);
-      // Mostrar mensagem de confirmação permanentemente (não temporária)
-      // A mensagem permanecerá visível enquanto houver assinatura salva
-      setShowMinimalMessage(true);
+      autoConfirmTimeoutRef.current = setTimeout(() => {
+        autoConfirmTimeoutRef.current = null;
+        setAutoConfirmCountdown(null);
+
+        if (onSignatureConfirm) {
+          onSignatureConfirm(dataURL);
+        }
+        onSignatureChange(dataURL);
+
+        setIsHidden(true);
+        setShowMinimalMessage(true);
+      }, 2000);
     } catch (error) {
       console.error('[SIGNATURE PAD] ERROR in handleConfirm:', error);
     }
@@ -598,7 +540,7 @@ export function SignaturePadComponent({
             e.stopPropagation();
             handleConfirm();
           }}
-          disabled={isEmpty}
+          disabled={isEmpty || autoConfirmCountdown !== null}
           className="bg-black text-gold-light hover:bg-gray-900 hover:text-gold-medium disabled:opacity-50 font-semibold min-h-[44px] text-xs sm:text-sm flex-1 sm:flex-initial"
         >
           <Check className="w-4 h-4 mr-1 sm:mr-2" />
@@ -608,8 +550,8 @@ export function SignaturePadComponent({
 
       {!isEmpty && (
         <p className="text-xs sm:text-sm text-gold-light font-medium">
-          ✓ {t('checkout.signature_captured', 'Signature captured.')} {autoConfirmCountdown !== null ? (
-            <span>{t(autoConfirmCountdown === 1 ? 'checkout.auto_confirming_dots' : 'checkout.auto_confirming_dots_plural', { count: autoConfirmCountdown, defaultValue: `Auto-confirming in ${autoConfirmCountdown} seconds...` })}</span>
+          ✓ {autoConfirmCountdown !== null ? (
+            <span>{t('checkout.signature_captured_confirming', 'Signature captured. Confirming in {{count}} seconds...', { count: autoConfirmCountdown })}</span>
           ) : (
             <span>{t('checkout.click_done_confirm_clear_resign', 'Click "Done" to confirm, or "Clear" to re-sign.')}</span>
           )}
@@ -618,7 +560,7 @@ export function SignaturePadComponent({
 
       {isEmpty && (
         <p className="text-xs sm:text-sm text-gray-400">
-          {t('checkout.electronic_signature_notice', 'By signing above, you are providing your electronic signature to this agreement.')}
+          {t('checkout.electronic_signature_notice', 'By signing above, you are providing your electronic signature for these Terms & Conditions.')}
         </p>
       )}
     </div>

@@ -113,19 +113,29 @@ const formatUsd = (value: number | null | undefined) =>
 
 const InitialInvestmentIntro: React.FC<{ onComplete: () => void }> = ({ onComplete }) => {
   const { t } = useTranslation();
-  const scrollRef = React.useRef<HTMLDivElement | null>(null);
+  const unlockRef = React.useRef<HTMLDivElement | null>(null);
   const [canContinue, setCanContinue] = React.useState(false);
 
-  const checkScroll = React.useCallback(() => {
-    const el = scrollRef.current;
-    if (!el) return;
-    setCanContinue(el.scrollTop + el.clientHeight >= el.scrollHeight - 12);
-  }, []);
-
   React.useEffect(() => {
-    const id = window.setTimeout(checkScroll, 80);
-    return () => window.clearTimeout(id);
-  }, [checkScroll]);
+    const el = unlockRef.current;
+    if (!el) return;
+    if (typeof IntersectionObserver === 'undefined') {
+      setCanContinue(true);
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry?.isIntersecting) {
+          setCanContinue(true);
+        }
+      },
+      { threshold: 0.8 }
+    );
+
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
 
   const blocks = [
     {
@@ -162,11 +172,7 @@ const InitialInvestmentIntro: React.FC<{ onComplete: () => void }> = ({ onComple
         </h3>
       </div>
 
-      <div
-        ref={scrollRef}
-        onScroll={checkScroll}
-        className="max-h-[56vh] overflow-y-auto pr-1 space-y-5 rounded-2xl border border-white/10 bg-white/[0.03] p-5 sm:p-6"
-      >
+      <div className="space-y-5 rounded-2xl border border-white/10 bg-white/[0.03] p-5 sm:p-6">
         <p className="text-sm leading-relaxed text-gray-300">
           {t('student_onboarding.university_modal.initial_investment_intro')}
         </p>
@@ -205,6 +211,8 @@ const InitialInvestmentIntro: React.FC<{ onComplete: () => void }> = ({ onComple
             {t('student_onboarding.university_modal.initial_investment_evaluate')}
           </p>
         </div>
+
+        <div ref={unlockRef} className="h-px" aria-hidden="true" />
       </div>
 
       <button
@@ -495,6 +503,7 @@ export const UniversitySelectionModal: React.FC<Props> = ({
 
   const initial = institution.name.charAt(0).toUpperCase();
   const selectButtonDisabled = !selectedScholarshipId || selectionDisabled;
+  const showInitialIntro = isInitialProcess && !initialIntroCompleted;
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 md:p-10">
@@ -629,7 +638,7 @@ export const UniversitySelectionModal: React.FC<Props> = ({
             </section>
           )}
 
-          {isInitialProcess && !initialIntroCompleted ? (
+          {showInitialIntro ? (
             <InitialInvestmentIntro onComplete={() => setInitialIntroCompleted(true)} />
           ) : (
           <>
@@ -1030,29 +1039,31 @@ export const UniversitySelectionModal: React.FC<Props> = ({
             </span>
           </div>
 
-          <div className="flex flex-col sm:items-end gap-2 w-full sm:w-auto">
-            {selectionDisabled && (
-              <p className="text-[10px] text-amber-300 font-black uppercase tracking-widest text-center sm:text-right">
-                {t('student_onboarding.scholarship.limit_reached_remove_one', 'Limit reached. Remove one university to select another.')}
-              </p>
-            )}
-            <div className="flex items-center gap-3 w-full sm:w-auto">
-            <button
-              onClick={onClose}
-              className="flex-1 sm:flex-none px-6 py-4 text-gray-400 font-bold uppercase tracking-widest text-xs hover:text-white transition-all"
-            >
-              {t('common.back', 'Back')}
-            </button>
-            <button
-              onClick={handleSelect}
-              disabled={selectButtonDisabled}
-              className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-10 py-4 bg-gold-medium hover:bg-gold-light disabled:opacity-30 disabled:cursor-not-allowed text-black font-black uppercase tracking-widest text-sm rounded-2xl shadow-[0_0_30px_rgba(184,158,78,0.25)] transition-all active:scale-95"
-            >
-              <CheckCircle2 className="w-4 h-4" />
-              {t('student_onboarding.university_modal.select_this_university')}
-            </button>
+          {!showInitialIntro && (
+            <div className="flex flex-col sm:items-end gap-2 w-full sm:w-auto">
+              {selectionDisabled && (
+                <p className="text-[10px] text-amber-300 font-black uppercase tracking-widest text-center sm:text-right">
+                  {t('student_onboarding.scholarship.limit_reached_remove_one', 'Limit reached. Remove one university to select another.')}
+                </p>
+              )}
+              <div className="flex items-center gap-3 w-full sm:w-auto">
+                <button
+                  onClick={onClose}
+                  className="flex-1 sm:flex-none px-6 py-4 text-gray-400 font-bold uppercase tracking-widest text-xs hover:text-white transition-all"
+                >
+                  {t('common.back', 'Back')}
+                </button>
+                <button
+                  onClick={handleSelect}
+                  disabled={selectButtonDisabled}
+                  className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-10 py-4 bg-gold-medium hover:bg-gold-light disabled:opacity-30 disabled:cursor-not-allowed text-black font-black uppercase tracking-widest text-sm rounded-2xl shadow-[0_0_30px_rgba(184,158,78,0.25)] transition-all active:scale-95"
+                >
+                  <CheckCircle2 className="w-4 h-4" />
+                  {t('student_onboarding.university_modal.select_this_university')}
+                </button>
+              </div>
             </div>
-          </div>
+          )}
         </div>
 
       </div>

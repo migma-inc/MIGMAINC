@@ -64,6 +64,10 @@ export interface Step2Data {
   nationality: string;
   civil_status: CivilStatus;
   notes: string;
+  emergency_contact_name: string;
+  emergency_contact_phone: string;
+  emergency_contact_relationship: string;
+  emergency_contact_address: string;
   doc_front: File | null;
   doc_back: File | null;
   selfie: File | null;

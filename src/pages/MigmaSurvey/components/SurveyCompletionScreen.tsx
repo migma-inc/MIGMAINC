@@ -19,6 +19,13 @@ interface Props {
 const TARGET = 1481;
 const DURATION_MS = 2800;
 const REVIEW_LOCK_MS = 24 * 60 * 60 * 1000;
+const SERVICE_LABELS: Record<string, string> = {
+  initial: 'Initial',
+  transfer: 'Transfer',
+  cos: 'COS',
+  eb2: 'EB-2',
+  eb3: 'EB-3',
+};
 
 export const SurveyCompletionScreen: React.FC<Props> = ({ email, name, service, whatsapp, academicFormation, englishLevel, surveyCompletedAt, onContinue, standalone = true, contractApproved = false }) => {
   const { t, i18n } = useTranslation();
@@ -77,7 +84,8 @@ export const SurveyCompletionScreen: React.FC<Props> = ({ email, name, service, 
 
   const isUnlocked = isReviewWindowComplete && contractApproved;
   const chooseCollegesLabel = t('student_onboarding.survey_completion.btn_choose_colleges');
-  const serviceLabel = service === 'transfer' ? 'Transfer' : service === 'cos' ? 'COS' : service.toUpperCase();
+  const serviceKey = service?.trim().toLowerCase();
+  const serviceLabel = serviceKey ? (SERVICE_LABELS[serviceKey] ?? service) : service;
 
   return (
     <div className={standalone ? 'migma-pre-onboarding min-h-screen bg-[#f7f4ee] text-[#1f1a14] dark:bg-black dark:text-white' : ''}>
