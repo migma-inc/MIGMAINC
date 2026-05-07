@@ -15,6 +15,22 @@ import { getExplicitMigmaUpsell, getOrderAddonLabel, resolveMigmaOrderLink } fro
 const isLocal = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
 const isProduction = typeof window !== 'undefined' && (window.location.hostname === 'migmainc.com' || window.location.hostname === 'www.migmainc.com');
 
+async function fetchMigmaCheckoutZellePending() {
+  const { data, error } = await supabase.functions.invoke('migma-checkout-zelle-admin', {
+    body: {
+      action: 'list',
+      include_test: isLocal,
+    },
+  });
+
+  if (error || !data?.success) {
+    console.error('[MigmaCheckout Zelle] Failed to load pending payments:', error || data?.error);
+    return [];
+  }
+
+  return data.payments || [];
+}
+
 interface ZelleOrder {
   id: string;
   order_number: string;
@@ -174,18 +190,12 @@ export const ZelleApprovalPage = () => {
 
       if (migmaError) console.error('Error loading Migma:', migmaError);
 
-      // 3b. Load MigmaCheckout Zelle pending early — needed to deduplicate migma_payments below
-      let migmaZelleEarlyQuery = supabase
-        .from('migma_checkout_zelle_pending')
-        .select('migma_user_email')
-        .eq('status', 'pending_verification');
-
-      if (!isLocal) migmaZelleEarlyQuery = migmaZelleEarlyQuery.eq('is_test', false);
-
-      const { data: migmaZelleDataEarly } = await migmaZelleEarlyQuery;
+      // 3b. Load MigmaCheckout Zelle pending through the admin-only function.
+      // The table no longer exposes global SELECT/UPDATE to every authenticated user.
+      const migmaZellePendingData = await fetchMigmaCheckoutZellePending();
 
       const migmaCheckoutEmails = new Set(
-        (migmaZelleDataEarly || []).map((p: any) => p.migma_user_email?.trim().toLowerCase()).filter(Boolean)
+        (migmaZellePendingData || []).map((p: any) => (p.migma_user_email || p.client_email)?.trim().toLowerCase()).filter(Boolean)
       );
 
       // 4. Load Products for names
@@ -503,35 +513,8 @@ export const ZelleApprovalPage = () => {
       setHistoryOrders(enrichedHistOrders);
 
       // Load MigmaCheckout Zelle pending (selection process fee awaiting admin approval)
-      let migmaZelleQuery = supabase
-        .from('migma_checkout_zelle_pending')
-        .select('*')
-        .eq('status', 'pending_verification')
-        .order('created_at', { ascending: false });
-
-      if (!isLocal) migmaZelleQuery = migmaZelleQuery.eq('is_test', false);
-
-      const { data: migmaZelleData } = await migmaZelleQuery;
-
-      if (migmaZelleData && migmaZelleData.length > 0 && !isProduction) {
-        const userIds = [...new Set(migmaZelleData.map((p: any) => p.migma_user_id))];
-        const { data: profilesData } = await supabase
-          .from('user_profiles')
-          .select('user_id, full_name, email')
-          .in('user_id', userIds);
-
-        const profilesMap = new Map((profilesData || []).map((p: any) => [p.user_id, p]));
-        setMigmaCheckoutZellePending(
-          migmaZelleData.map((p: any) => {
-            const profile = profilesMap.get(p.migma_user_id);
-            return {
-              ...p,
-              // Prioriza dados diretos da tabela, fallback para perfil, fallback final para ID
-              client_name: p.migma_user_name || profile?.full_name || `User ${p.migma_user_id?.substring(0, 8)}`,
-              client_email: p.migma_user_email || profile?.email || 'N/A',
-            };
-          })
-        );
+      if (migmaZellePendingData && migmaZellePendingData.length > 0) {
+        setMigmaCheckoutZellePending(migmaZellePendingData);
       } else {
         setMigmaCheckoutZellePending([]);
       }
@@ -1185,19 +1168,19 @@ export const ZelleApprovalPage = () => {
   const approveMigmaCheckoutZelle = async (payment: any) => {
     setProcessingMigmaCheckoutId(payment.id);
     try {
-      // 1. Mark local checkout record as approved BEFORE calling processMigmaApproval.
-      // This prevents processMigmaApproval's internal loadOrders() from fetching stale data!
-      const { error: updateErr } = await supabase
-        .from('migma_checkout_zelle_pending')
-        .update({
-          status: 'approved',
-          approved_at: new Date().toISOString(),
-          approved_by: (await supabase.auth.getUser()).data.user?.id,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', payment.id);
+      // 1. Mark local checkout record as approved through the admin-only function BEFORE
+      // calling processMigmaApproval. This prevents processMigmaApproval's internal
+      // loadOrders() from fetching stale data.
+      const { data: approvalResult, error: updateErr } = await supabase.functions.invoke('migma-checkout-zelle-admin', {
+        body: {
+          action: 'approve',
+          payment_id: payment.id,
+        },
+      });
 
-      if (updateErr) console.error('[MigmaCheckout Zelle] Failed to update status:', updateErr);
+      if (updateErr || !approvalResult?.success) {
+        throw new Error(approvalResult?.error || updateErr?.message || 'Failed to approve Migma Checkout Zelle payment');
+      }
 
       // 2. Locate the exact duplicate record in migma_payments
       const { data: migmaPayment } = await supabase
@@ -1273,34 +1256,16 @@ export const ZelleApprovalPage = () => {
   const rejectMigmaCheckoutZelle = async (payment: any) => {
     setProcessingMigmaCheckoutId(payment.id);
     try {
-      // 1. Mark local checkout record as rejected
-      await supabase
-        .from('migma_checkout_zelle_pending')
-        .update({
-          status: 'rejected',
-          admin_notes: 'Rejected by admin',
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', payment.id);
+      const { data: rejectionResult, error: rejectionError } = await supabase.functions.invoke('migma-checkout-zelle-admin', {
+        body: {
+          action: 'reject',
+          payment_id: payment.id,
+          rejection_reason: 'Rejected through secondary list (Migma Checkout)',
+        },
+      });
 
-      // 2. Reject corresponding migma_payments as well so it doesn't stay stuck
-      const { data: migmaPayment } = await supabase
-        .from('migma_payments')
-        .select('id')
-        .eq('user_id', payment.migma_user_id)
-        .in('status', ['pending', 'pending_verification'])
-        .maybeSingle();
-
-      if (migmaPayment) {
-        // Run edge function process-zelle-rejection for the migma payment duplicate
-        await supabase.functions.invoke('process-zelle-rejection', {
-          body: {
-            id: migmaPayment.id,
-            type: 'migma_payment',
-            rejection_reason: 'Rejeitado via lista secundária (Migma Checkout)',
-            processed_by_user_id: (await supabase.auth.getUser()).data.user?.id
-          }
-        });
+      if (rejectionError || !rejectionResult?.success) {
+        throw new Error(rejectionResult?.error || rejectionError?.message || 'Failed to reject Migma Checkout Zelle payment');
       }
 
       setAlertData({ title: 'Rejected', message: `Payment from ${payment.client_name} rejected.`, variant: 'success' });

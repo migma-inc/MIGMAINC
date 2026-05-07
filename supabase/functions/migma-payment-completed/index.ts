@@ -69,7 +69,7 @@ function triggerPdfs(migmaUrl: string, migmaKey: string, orderId: string) {
 }
 
 async function upsertIdentityFiles(
-  migma: ReturnType<typeof createClient>,
+  migma: any,
   serviceRequestId: string,
   docs: Array<{ type: string; file_url: string; original_filename?: string; file_size_bytes?: number }>
 ) {
@@ -103,7 +103,7 @@ async function upsertIdentityFiles(
 }
 
 async function resolveProfile(
-  migma: ReturnType<typeof createClient>,
+  migma: any,
   userOrProfileId: string,
 ) {
   const { data: profile, error } = await migma
@@ -121,7 +121,7 @@ async function resolveProfile(
 }
 
 async function notifyByProfile(
-  migma: ReturnType<typeof createClient>,
+  migma: any,
   migmaUrl: string,
   migmaKey: string,
   trigger: "selection_fee_paid" | "placement_fee_paid",
@@ -298,37 +298,35 @@ Deno.serve(async (req) => {
           }
         }
       }
-    } else if (
-      // finalize_only=true: webhook fired before visa_order existed, so paid flag may be false.
-      // If payment_method is an automatic gateway (not manual/zelle), ensure flag is set.
-      fee_type === "selection_process" &&
-      payment_method !== "zelle" &&
-      payment_method !== "manual"
-    ) {
-      const { data: currentProfile } = await migma
+    } else if (fee_type === "selection_process") {
+      const { data: currentProfile, error: currentProfileErr } = await migma
         .from("user_profiles")
         .select("has_paid_selection_process_fee")
         .eq("user_id", user_id)
         .maybeSingle();
 
-      if (!currentProfile?.has_paid_selection_process_fee) {
-        const { error: profErr } = await migma
-          .from("user_profiles")
-          .update({
-            has_paid_selection_process_fee: true,
-            onboarding_current_step: "selection_survey",
-            selection_process_fee_payment_method: payment_method,
-          })
-          .eq("user_id", user_id);
-
-        if (profErr) {
-          console.error(`[user_profiles] finalize_only: update paid flag falhou: ${profErr.message}`);
-        } else {
-          console.log(`[user_profiles] ✅ has_paid_selection_process_fee=true (finalize_only path) para ${user_id}`);
-        }
-      } else {
-        console.log(`[user_profiles] ℹ️ has_paid_selection_process_fee já era true (finalize_only)`);
+      if (currentProfileErr) {
+        console.error(`[user_profiles] finalize_only: consulta do perfil falhou: ${currentProfileErr.message}`);
       }
+
+      const hasConfirmedPayment = !!currentProfile?.has_paid_selection_process_fee;
+      const isManualLikeMethod = payment_method === "zelle" || payment_method === "manual";
+
+      if (!hasConfirmedPayment && !isManualLikeMethod) {
+        console.warn(
+          `[migma-payment-completed] finalize_only bloqueado: pagamento automático não confirmado para ${user_id} (${payment_method})`
+        );
+        return new Response(
+          JSON.stringify({
+            error: "Payment is not confirmed. finalize_contract_only cannot mark automatic gateway payments as paid.",
+          }),
+          { status: 409, headers: { ...CORS, "Content-Type": "application/json" } }
+        );
+      }
+
+      console.log(
+        `[user_profiles] finalize_only autorizado | paid=${hasConfirmedPayment} | method=${payment_method}`
+      );
     }
 
     // ── BLOCO 2: Lógica de contrato (visa_orders + PDFs) ─────────────────────
