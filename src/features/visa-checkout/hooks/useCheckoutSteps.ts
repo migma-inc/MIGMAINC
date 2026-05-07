@@ -13,7 +13,7 @@ export const useCheckoutSteps = (
         if (currentStep > 1) {
             // Se for consulta comum ou parcelas recorrentes e estiver no Step 3, volta direto para o 1 (pois pulou o 2)
             const isInstallment = !!state.eb3ScheduleId || !!state.eb2ScheduleId || !!state.scholarshipScheduleId || !!state.billingInstallmentId;
-            if (currentStep === 3 && (productSlug === 'consultation-common' || isInstallment)) {
+            if (currentStep === 3 && (productSlug === 'consultation-common' || productSlug === 'scholarship-maintenance-fee' || isInstallment)) {
                 setCurrentStep(1);
             } else {
                 setCurrentStep(currentStep - 1);

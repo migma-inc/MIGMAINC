@@ -129,7 +129,7 @@ export const VisaCheckoutPage: React.FC = () => {
     // Calcular passo exibido para o StepIndicator
     // Pulamos o Passo 2 (Documentos) para consultas comuns e para TODAS as parcelas recorrentes (EB-3, EB-2, Scholarship, Billing Tokens)
     const isInstallment = !!state.eb3ScheduleId || !!state.eb2ScheduleId || !!state.scholarshipScheduleId || !!state.billingInstallmentId;
-    const isSpecialFlow = productSlug === 'consultation-common' || isInstallment;
+    const isSpecialFlow = productSlug === 'consultation-common' || productSlug === 'scholarship-maintenance-fee' || isInstallment;
     
     const displayStep = (isSpecialFlow && state.currentStep === 3) ? 2 : state.currentStep;
     const totalStepsCount = isSpecialFlow ? 2 : 3;

@@ -44,7 +44,7 @@ export function validateStep1(
   allowExtraUnits: boolean = false
 ): ValidationResultWithFields {
   const errors: FieldErrors = {};
-  const isSimplified = productSlug === 'consultation-common';
+  const isSimplified = productSlug === 'consultation-common' || productSlug === 'scholarship-maintenance-fee';
 
   if (!formData.clientName.trim()) {
     errors.clientName = 'Full name is required';
