@@ -9,6 +9,25 @@ const CORS = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+const FORM_GENERATION_ROLES = new Set(["admin", "superadmin", "super_admin", "mentor"]);
+const MENTOR_ROLES = new Set(["mentor"]);
+
+function jsonResponse(payload: Record<string, unknown>, status = 200): Response {
+  return new Response(JSON.stringify(payload), {
+    status,
+    headers: { ...CORS, "Content-Type": "application/json" },
+  });
+}
+
+function metadataRole(value: unknown): string {
+  if (typeof value !== "string") return "";
+  return value.trim().toLowerCase();
+}
+
+function testModeEnabled(): boolean {
+  return Deno.env.get("GENERATE_INSTITUTION_FORMS_ALLOW_TEST_MODE") === "true";
+}
+
 // ─── Form type catalogues ─────────────────────────────────────────────────────
 
 const CAROLINE_FORMS = [
@@ -3151,11 +3170,52 @@ Deno.serve(async (req) => {
   // Prefer REMOTE_* when serving locally (CLI overrides SUPABASE_URL with local instance URL)
   const supabaseUrl = Deno.env.get("REMOTE_SUPABASE_URL") ?? Deno.env.get("SUPABASE_URL")!;
   const supabaseKey = Deno.env.get("REMOTE_SUPABASE_SERVICE_ROLE_KEY") ?? Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+  const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
   const supabase = createClient(supabaseUrl, supabaseKey);
 
   try {
     const { application_id, supplemental_data = {}, debug_env = false, local_test }: Payload = await req.json();
     const isLocalTest = local_test?.enabled === true;
+
+    if ((debug_env || isLocalTest) && !testModeEnabled()) {
+      return jsonResponse({ error: "Debug and local test modes are disabled in this environment" }, 403);
+    }
+
+    if (!anonKey) {
+      return jsonResponse({ error: "SUPABASE_ANON_KEY is not configured" }, 500);
+    }
+
+    const authHeader = req.headers.get("authorization") ?? "";
+    const jwt = authHeader.replace(/^Bearer\s+/i, "").trim();
+
+    if (!jwt) {
+      return jsonResponse({ error: "Unauthorized" }, 401);
+    }
+
+    const authClient = createClient(supabaseUrl, anonKey);
+    const { data: { user }, error: authError } = await authClient.auth.getUser(jwt);
+
+    if (authError || !user) {
+      return jsonResponse({ error: "Unauthorized" }, 401);
+    }
+
+    const { data: profileRoleRow } = await supabase
+      .from("user_profiles")
+      .select("id, role")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    const roleCandidates = [
+      metadataRole(user.app_metadata?.role),
+      metadataRole((user.user_metadata as Record<string, unknown> | null | undefined)?.role),
+      metadataRole((profileRoleRow as Record<string, unknown> | null)?.role),
+    ];
+    const allowedRole = roleCandidates.find((role) => FORM_GENERATION_ROLES.has(role)) ?? "";
+
+    if (!allowedRole) {
+      return jsonResponse({ error: "Forbidden" }, 403);
+    }
+    const isMentorCaller = MENTOR_ROLES.has(allowedRole);
 
     if (debug_env) {
       return new Response(
@@ -3254,6 +3314,35 @@ Deno.serve(async (req) => {
         return new Response(JSON.stringify({ error: "Application not found", detail: appErr?.message }), { status: 404, headers: CORS });
       }
       app = remoteApp as Record<string, any>;
+
+      if (isMentorCaller) {
+        const mentorProfileId = (profileRoleRow as Record<string, unknown> | null)?.id;
+        if (typeof mentorProfileId !== "string" || !mentorProfileId) {
+          return jsonResponse({ error: "Forbidden" }, 403);
+        }
+
+        const { data: activeMentor } = await supabase
+          .from("referral_mentors")
+          .select("profile_id")
+          .eq("profile_id", mentorProfileId)
+          .eq("active", true)
+          .maybeSingle();
+
+        if (!activeMentor) {
+          return jsonResponse({ error: "Forbidden" }, 403);
+        }
+
+        const { data: assignedStudent } = await supabase
+          .from("user_profiles")
+          .select("id")
+          .eq("id", app.profile_id)
+          .eq("mentor_id", mentorProfileId)
+          .maybeSingle();
+
+        if (!assignedStudent) {
+          return jsonResponse({ error: "Forbidden" }, 403);
+        }
+      }
 
       if (app.status !== "payment_confirmed") {
         return new Response(

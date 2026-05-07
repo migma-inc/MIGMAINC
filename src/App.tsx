@@ -11,7 +11,9 @@ const StudentSupport = lazy(() => import('./pages/StudentSupport'));
 const StudentDashboard = lazy(() => import('./pages/StudentDashboard/StudentDashboard'));
 const PlacementFee2ndInstallment = lazy(() => import('./pages/StudentDashboard/PlacementFee2ndInstallmentPage').then(m => ({ default: m.PlacementFee2ndInstallmentPage })));
 const PlacementFee2ndSuccess = lazy(() => import('./pages/StudentDashboard/PlacementFee2ndSuccessPage'));
-const PaymentSuccessPreview = lazy(() => import('./pages/dev/PaymentSuccessPreview'));
+const PaymentSuccessPreview = import.meta.env.DEV
+  ? lazy(() => import('./pages/dev/PaymentSuccessPreview'))
+  : null;
 import { Home } from './pages/Home';
 import { Services } from './pages/Services';
 import { About } from './pages/About';
@@ -249,10 +251,11 @@ function App() {
           <Suspense fallback={null}><StudentSupport /></Suspense>
         } />
 
-        {/* ── Dev / Preview Routes ──────────────────────────── */}
-        <Route path="/dev/payment-success" element={
-          <Suspense fallback={null}><PaymentSuccessPreview /></Suspense>
-        } />
+        {PaymentSuccessPreview && (
+          <Route path="/dev/payment-success" element={
+            <Suspense fallback={null}><PaymentSuccessPreview /></Suspense>
+          } />
+        )}
 
         {/* Catch-all 404 Route */}
         <Route path="*" element={<NotFound />} />
