@@ -54,6 +54,7 @@ export function AdminSyncSales() {
                 .eq('payment_status', 'completed')
                 .not('client_email', 'ilike', '%@uorak.com') // Filter test data
                 .or('seller_id.is.null,seller_id.eq.""')
+                .not('client_email', 'ilike', '%@uorak.com')
                 .order('created_at', { ascending: false });
 
             if (ordersError) throw ordersError;

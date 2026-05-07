@@ -6,6 +6,26 @@
 @tailwind components;
 @tailwind utilities;
 
+@layer components {
+  /* Migma Select Styles */
+  .migma-select {
+    @apply appearance-none bg-black border border-white/10 rounded-2xl text-white px-4 py-3.5 focus:outline-none focus:border-gold-medium transition-all text-sm cursor-pointer;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%23CE9F48'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 1rem center;
+    background-size: 1rem;
+    padding-right: 2.5rem;
+  }
+
+  .migma-select:hover {
+    @apply border-gold-medium/40 bg-white/[0.03];
+  }
+
+  .migma-select option {
+    @apply bg-[#0f0f0f] text-white py-2;
+  }
+}
+
 .custom-scrollbar::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -23,6 +43,126 @@
 
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
   background: rgba(206, 159, 72, 0.5);
+}
+
+.sevis-counter-number {
+  animation: sevis-counter-pop 2800ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes sevis-counter-pop {
+  0% {
+    opacity: 0.35;
+    transform: translateY(10px) scale(0.96);
+    filter: blur(1px);
+  }
+  65% {
+    opacity: 1;
+    transform: translateY(0) scale(1.03);
+    filter: blur(0);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: blur(0);
+  }
+}
+
+.driver-popover.migma-student-tour {
+  max-width: min(340px, calc(100vw - 32px));
+  border: 1px solid rgba(206, 159, 72, 0.28);
+  border-radius: 8px;
+  background: #fffaf0;
+  color: #1f1a14;
+  box-shadow: 0 18px 46px rgba(0, 0, 0, 0.28);
+}
+
+.dark .driver-popover.migma-student-tour {
+  border-color: rgba(255, 255, 255, 0.12);
+  background: #111;
+  color: #fff;
+}
+
+.driver-popover.migma-student-tour .driver-popover-title {
+  padding-right: 28px;
+  color: inherit;
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+  font-size: 16px;
+  line-height: 1.35;
+}
+
+.driver-popover.migma-student-tour .driver-popover-description {
+  margin-top: 8px;
+  color: #6f6251;
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.dark .driver-popover.migma-student-tour .driver-popover-description {
+  color: #d1d5db;
+}
+
+.driver-popover.migma-student-tour .driver-popover-progress-text {
+  color: #8a7b66;
+  font-weight: 700;
+}
+
+.driver-popover.migma-student-tour .driver-popover-footer button {
+  border: 1px solid rgba(206, 159, 72, 0.35);
+  border-radius: 6px;
+  background: transparent;
+  color: #1f1a14;
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+  font-weight: 800;
+  text-shadow: none;
+  padding: 7px 10px;
+}
+
+.dark .driver-popover.migma-student-tour .driver-popover-footer button {
+  color: #fff;
+}
+
+.driver-popover.migma-student-tour .driver-popover-footer button:hover,
+.driver-popover.migma-student-tour .driver-popover-footer button:focus {
+  background: rgba(206, 159, 72, 0.12);
+}
+
+.driver-popover.migma-student-tour .driver-popover-next-btn {
+  background: #CE9F48 !important;
+  color: #000 !important;
+}
+
+.driver-popover.migma-student-tour .driver-popover-close-btn {
+  color: #8a7b66;
+}
+
+.dark .driver-popover.migma-student-tour .driver-popover-close-btn {
+  color: #9ca3af;
+}
+
+/* Kanban board — scrollbar horizontal visível no desktop */
+.kanban-scroll::-webkit-scrollbar {
+  height: 4px;
+}
+
+.kanban-scroll::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 10px;
+}
+
+.kanban-scroll::-webkit-scrollbar-thumb {
+  background: rgba(206, 159, 72, 0.4);
+  border-radius: 10px;
+}
+
+.kanban-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(206, 159, 72, 0.65);
+}
+
+/* Firefox */
+.kanban-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(206, 159, 72, 0.4) transparent;
 }
 
 @layer base {
@@ -334,23 +474,297 @@
     }
   }
 
-  /* Custom overrides for react-international-phone to match Migma UI */
+  /* Custom overrides for react-international-phone to match Migma Dark UI */
   .react-international-phone-container {
-    --react-international-phone-border-color: #e2e8f0;
-    --react-international-phone-dropdown-item-background-color: #ffffff;
-    --react-international-phone-dropdown-item-text-color: #000000;
-    --react-international-phone-background-color: #ffffff;
-    --react-international-phone-text-color: #000000;
+    --react-international-phone-height: 46px;
+    --react-international-phone-background-color: #1a1a1a;
+    --react-international-phone-text-color: #ffffff;
+    --react-international-phone-border-color: rgba(255, 255, 255, 0.1);
+    --react-international-phone-dropdown-item-background-color: #1a1a1a;
+    --react-international-phone-dropdown-item-text-color: #ffffff;
+    --react-international-phone-dropdown-item-background-color--active: #2a2a2a;
+    --react-international-phone-dropdown-item-background-color--hover: #2a2a2a;
+    --react-international-phone-dropdown-z-index: 9999;
   }
 
   .react-international-phone-input {
     width: 100% !important;
-    border: 1px solid #e2e8f0 !important;
+    border: none !important;
+    background-color: transparent !important;
+    color: #ffffff !important;
     font-family: inherit !important;
   }
 
   .react-international-phone-country-selector-button {
-    border: 1px solid #e2e8f0 !important;
-    border-right: none !important;
+    background-color: transparent !important;
+    border: none !important;
+    padding-left: 12px !important;
+    padding-right: 8px !important;
   }
+
+  /* Force hover state on list items */
+  .react-international-phone-country-selector-dropdown__list-item:hover,
+  .react-international-phone-country-selector-dropdown__list-item--active,
+  .react-international-phone-country-selector-dropdown__list-item--selected {
+    background-color: #2a2a2a !important;
+    color: #ffffff !important;
+  }
+
+  .react-international-phone-country-selector-dropdown__list-item {
+     background-color: #1a1a1a !important;
+     color: #ffffff !important;
+  }
+}
+
+html:not(.dark) .student-onboarding {
+  color-scheme: light;
+}
+
+html:not(.dark) .student-onboarding .text-white {
+  color: #1f1a14;
+}
+
+html:not(.dark) .student-onboarding .text-gray-200,
+html:not(.dark) .student-onboarding .text-gray-300 {
+  color: #4b4032;
+}
+
+html:not(.dark) .student-onboarding .text-gray-400 {
+  color: #6f6251;
+}
+
+html:not(.dark) .student-onboarding .text-gray-500,
+html:not(.dark) .student-onboarding .text-gray-600,
+html:not(.dark) .student-onboarding .text-gray-700 {
+  color: #8a7b66;
+}
+
+html:not(.dark) .student-onboarding .text-gold-light,
+html:not(.dark) .student-onboarding .text-gold-medium {
+  color: #9a6a16;
+}
+
+html:not(.dark) .student-onboarding .text-emerald-400 {
+  color: #047857;
+}
+
+html:not(.dark) .student-onboarding .text-red-400 {
+  color: #dc2626;
+}
+
+html:not(.dark) .student-onboarding .text-amber-400 {
+  color: #b45309;
+}
+
+html:not(.dark) .student-onboarding [class~="bg-[#0a0a0a]"],
+html:not(.dark) .student-onboarding [class~="bg-[#0d0d0d]"],
+html:not(.dark) .student-onboarding [class~="bg-[#0f0f0f]"],
+html:not(.dark) .student-onboarding .bg-zinc-900,
+html:not(.dark) .student-onboarding .bg-black {
+  background-color: #fffaf0;
+}
+
+html:not(.dark) .student-onboarding .bg-zinc-950 {
+  background-color: #f3ead9;
+}
+
+html:not(.dark) .student-onboarding [class~="bg-white/5"],
+html:not(.dark) .student-onboarding [class~="bg-white/10"],
+html:not(.dark) .student-onboarding [class~="bg-white/[0.01]"],
+html:not(.dark) .student-onboarding [class~="bg-white/[0.02]"],
+html:not(.dark) .student-onboarding [class~="bg-white/[0.03]"],
+html:not(.dark) .student-onboarding [class~="bg-white/[0.04]"],
+html:not(.dark) .student-onboarding [class~="bg-white/[0.06]"] {
+  background-color: rgba(243, 234, 217, 0.75);
+}
+
+html:not(.dark) .student-onboarding [class~="bg-black/60"] {
+  background-color: rgba(31, 26, 20, 0.45);
+}
+
+html:not(.dark) .student-onboarding [class~="bg-black/80"] {
+  background-color: rgba(255, 250, 240, 0.9);
+}
+
+html:not(.dark) .student-onboarding [class~="border-white/5"],
+html:not(.dark) .student-onboarding [class~="border-white/8"],
+html:not(.dark) .student-onboarding [class~="border-white/10"],
+html:not(.dark) .student-onboarding [class~="border-white/15"],
+html:not(.dark) .student-onboarding [class~="border-white/20"],
+html:not(.dark) .student-onboarding [class~="border-white/30"],
+html:not(.dark) .student-onboarding [class~="border-white/50"] {
+  border-color: #e3d5bd;
+}
+
+html:not(.dark) .student-onboarding [class~="placeholder-gray-600"]::placeholder,
+html:not(.dark) .student-onboarding [class~="placeholder-gray-500"]::placeholder,
+html:not(.dark) .student-onboarding [class~="placeholder-gray-400"]::placeholder {
+  color: #a39177;
+}
+
+html:not(.dark) .student-onboarding [class~="hover:bg-white/5"]:hover,
+html:not(.dark) .student-onboarding [class~="hover:bg-white/10"]:hover,
+html:not(.dark) .student-onboarding [class~="hover:bg-white/15"]:hover,
+html:not(.dark) .student-onboarding [class~="hover:bg-white/[0.06]"]:hover {
+  background-color: #f3ead9;
+}
+
+html:not(.dark) .student-onboarding [class~="hover:text-white"]:hover,
+html:not(.dark) .student-onboarding [class~="group-hover:text-white"]:hover {
+  color: #1f1a14;
+}
+
+html:not(.dark) .student-onboarding input,
+html:not(.dark) .student-onboarding textarea,
+html:not(.dark) .student-onboarding select {
+  color-scheme: light;
+}
+
+html:not(.dark) .student-onboarding .react-international-phone-container {
+  --react-international-phone-background-color: #fffaf0;
+  --react-international-phone-text-color: #1f1a14;
+  --react-international-phone-border-color: #e3d5bd;
+  --react-international-phone-dropdown-item-background-color: #fffaf0;
+  --react-international-phone-dropdown-item-text-color: #1f1a14;
+  --react-international-phone-dropdown-item-background-color--active: #f3ead9;
+  --react-international-phone-dropdown-item-background-color--hover: #f3ead9;
+}
+
+html:not(.dark) .student-onboarding .react-international-phone-input {
+  color: #1f1a14 !important;
+}
+
+html:not(.dark) .student-onboarding .react-international-phone-country-selector-dropdown__list-item,
+html:not(.dark) .student-onboarding .react-international-phone-country-selector-dropdown__list-item:hover,
+html:not(.dark) .student-onboarding .react-international-phone-country-selector-dropdown__list-item--active,
+html:not(.dark) .student-onboarding .react-international-phone-country-selector-dropdown__list-item--selected {
+  background-color: #fffaf0 !important;
+  color: #1f1a14 !important;
+}
+
+html:not(.dark) .migma-pre-onboarding {
+  color-scheme: light;
+}
+
+html:not(.dark) .migma-pre-onboarding .text-white {
+  color: #1f1a14;
+}
+
+html:not(.dark) .migma-pre-onboarding .text-gray-200,
+html:not(.dark) .migma-pre-onboarding .text-gray-300 {
+  color: #4b4032;
+}
+
+html:not(.dark) .migma-pre-onboarding .text-gray-400 {
+  color: #6f6251;
+}
+
+html:not(.dark) .migma-pre-onboarding .text-gray-500,
+html:not(.dark) .migma-pre-onboarding .text-gray-600,
+html:not(.dark) .migma-pre-onboarding .text-gray-700 {
+  color: #8a7b66;
+}
+
+html:not(.dark) .migma-pre-onboarding .text-gold-light,
+html:not(.dark) .migma-pre-onboarding .text-gold-medium {
+  color: #9a6a16;
+}
+
+html:not(.dark) .migma-pre-onboarding .text-emerald-400 {
+  color: #047857;
+}
+
+html:not(.dark) .migma-pre-onboarding .text-red-300,
+html:not(.dark) .migma-pre-onboarding .text-red-400 {
+  color: #dc2626;
+}
+
+html:not(.dark) .migma-pre-onboarding .text-white\/20 {
+  color: rgba(31, 26, 20, 0.32);
+}
+
+html:not(.dark) .migma-pre-onboarding [class~="bg-[#0b0b0b]"],
+html:not(.dark) .migma-pre-onboarding [class~="bg-[#0d0d0d]"],
+html:not(.dark) .migma-pre-onboarding [class~="bg-[#111]"],
+html:not(.dark) .migma-pre-onboarding [class~="bg-[#1a1a1a]"],
+html:not(.dark) .migma-pre-onboarding .bg-black {
+  background-color: #fffaf0;
+}
+
+html:not(.dark) .migma-pre-onboarding [class~="bg-black/40"],
+html:not(.dark) .migma-pre-onboarding [class~="bg-white/5"],
+html:not(.dark) .migma-pre-onboarding [class~="bg-white/10"],
+html:not(.dark) .migma-pre-onboarding [class~="bg-white/[0.02]"],
+html:not(.dark) .migma-pre-onboarding [class~="bg-white/[0.03]"],
+html:not(.dark) .migma-pre-onboarding [class~="bg-white/[0.05]"] {
+  background-color: rgba(243, 234, 217, 0.75);
+}
+
+html:not(.dark) .migma-pre-onboarding [class~="bg-black/80"],
+html:not(.dark) .migma-pre-onboarding [class~="bg-black/95"] {
+  background-color: rgba(255, 250, 240, 0.92);
+}
+
+html:not(.dark) .migma-pre-onboarding [class~="border-white/5"],
+html:not(.dark) .migma-pre-onboarding [class~="border-white/10"],
+html:not(.dark) .migma-pre-onboarding [class~="border-white/20"],
+html:not(.dark) .migma-pre-onboarding [class~="border-white/25"],
+html:not(.dark) .migma-pre-onboarding [class~="border-white/30"],
+html:not(.dark) .migma-pre-onboarding [class~="border-white/40"] {
+  border-color: #e3d5bd;
+}
+
+html:not(.dark) .migma-pre-onboarding [class~="border-b"][class~="border-white/[0.03]"],
+html:not(.dark) .migma-pre-onboarding [class~="border-b"][class~="border-white/5"],
+html:not(.dark) .migma-pre-onboarding [class~="border-t"][class~="border-white/5"],
+html:not(.dark) .migma-pre-onboarding [class~="border-t"][class~="border-white/10"] {
+  border-color: #eadbbf;
+}
+
+html:not(.dark) .migma-pre-onboarding [class~="placeholder:text-gray-500"]::placeholder,
+html:not(.dark) .migma-pre-onboarding [class~="placeholder-gray-600"]::placeholder {
+  color: #a39177;
+}
+
+html:not(.dark) .migma-pre-onboarding [class~="hover:bg-white/5"]:hover,
+html:not(.dark) .migma-pre-onboarding [class~="hover:bg-white/10"]:hover,
+html:not(.dark) .migma-pre-onboarding [class~="hover:bg-[#111]"]:hover {
+  background-color: #f3ead9;
+}
+
+html:not(.dark) .migma-pre-onboarding [class~="hover:text-white"]:hover {
+  color: #1f1a14;
+}
+
+html:not(.dark) .migma-pre-onboarding input,
+html:not(.dark) .migma-pre-onboarding textarea,
+html:not(.dark) .migma-pre-onboarding select {
+  color-scheme: light !important;
+}
+
+html:not(.dark) .migma-pre-onboarding option {
+  background-color: #fffaf0;
+  color: #1f1a14;
+}
+
+html:not(.dark) .migma-pre-onboarding .react-international-phone-container {
+  --react-international-phone-background-color: #fffaf0;
+  --react-international-phone-text-color: #1f1a14;
+  --react-international-phone-border-color: #e3d5bd;
+  --react-international-phone-dropdown-item-background-color: #fffaf0;
+  --react-international-phone-dropdown-item-text-color: #1f1a14;
+  --react-international-phone-dropdown-item-background-color--active: #f3ead9;
+  --react-international-phone-dropdown-item-background-color--hover: #f3ead9;
+}
+
+html:not(.dark) .migma-pre-onboarding .react-international-phone-input {
+  color: #1f1a14 !important;
+}
+
+html:not(.dark) .migma-pre-onboarding .react-international-phone-country-selector-dropdown__list-item,
+html:not(.dark) .migma-pre-onboarding .react-international-phone-country-selector-dropdown__list-item:hover,
+html:not(.dark) .migma-pre-onboarding .react-international-phone-country-selector-dropdown__list-item--active,
+html:not(.dark) .migma-pre-onboarding .react-international-phone-country-selector-dropdown__list-item--selected {
+  background-color: #fffaf0 !important;
+  color: #1f1a14 !important;
 }

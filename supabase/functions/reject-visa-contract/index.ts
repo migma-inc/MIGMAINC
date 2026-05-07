@@ -3,6 +3,7 @@
 
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
+import { appendServiceRequestEvent } from "../shared/service-request-operational.ts";
 
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
 const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -20,6 +21,10 @@ Deno.serve(async (req) => {
 
   try {
     const { order_id, rejection_reason, reviewed_by, app_url, contract_type } = await req.json();
+    const adminIp = req.headers.get("cf-connecting-ip")
+      ?? req.headers.get("x-forwarded-for")?.split(",")[0]?.trim()
+      ?? req.headers.get("x-real-ip")
+      ?? null;
 
     if (!order_id) {
       return new Response(
@@ -44,7 +49,7 @@ Deno.serve(async (req) => {
     // Fetch order to get client email
     const { data: order, error: orderError } = await supabase
       .from('visa_orders')
-      .select('id, client_email, client_name, order_number')
+      .select('id, client_email, client_name, order_number, service_request_id, product_slug')
       .eq('id', order_id)
       .single();
 
@@ -97,6 +102,7 @@ Deno.serve(async (req) => {
       updateData.annex_approval_status = 'rejected';
       updateData.annex_approval_reviewed_by = reviewed_by;
       updateData.annex_approval_reviewed_at = new Date().toISOString();
+      if (adminIp) updateData.annex_approval_admin_ip = adminIp;
       if (rejection_reason) {
         updateData.annex_rejection_reason = rejection_reason;
       }
@@ -104,6 +110,7 @@ Deno.serve(async (req) => {
       updateData.upsell_contract_approval_status = 'rejected';
       updateData.upsell_contract_approval_reviewed_by = reviewed_by;
       updateData.upsell_contract_approval_reviewed_at = new Date().toISOString();
+      if (adminIp) updateData.upsell_contract_approval_admin_ip = adminIp;
       if (rejection_reason) {
         updateData.upsell_contract_rejection_reason = rejection_reason;
       }
@@ -111,6 +118,7 @@ Deno.serve(async (req) => {
       updateData.upsell_annex_approval_status = 'rejected';
       updateData.upsell_annex_approval_reviewed_by = reviewed_by;
       updateData.upsell_annex_approval_reviewed_at = new Date().toISOString();
+      if (adminIp) updateData.upsell_annex_approval_admin_ip = adminIp;
       if (rejection_reason) {
         updateData.upsell_annex_rejection_reason = rejection_reason;
       }
@@ -119,6 +127,7 @@ Deno.serve(async (req) => {
       updateData.contract_approval_status = 'rejected';
       updateData.contract_approval_reviewed_by = reviewed_by;
       updateData.contract_approval_reviewed_at = new Date().toISOString();
+      if (adminIp) updateData.contract_approval_admin_ip = adminIp;
       if (rejection_reason) {
         updateData.contract_rejection_reason = rejection_reason;
       }
@@ -136,6 +145,34 @@ Deno.serve(async (req) => {
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
+
+    // --- Operational stage: persist contract_rejected event ---
+    if (order.service_request_id) {
+      try {
+        await appendServiceRequestEvent(
+          supabase,
+          order.service_request_id,
+          'contract_rejected',
+          'user',
+          {
+            approval_type: approvalType,
+            order_id: order.id,
+            order_number: order.order_number,
+            rejection_reason: rejection_reason || null,
+            reviewed_by,
+          },
+        );
+        // Bump updated_at so the CRM hub reflects latest activity.
+        // Stage does NOT change on rejection — case stays awaiting resubmission.
+        await supabase
+          .from('service_requests')
+          .update({ updated_at: new Date().toISOString() })
+          .eq('id', order.service_request_id);
+      } catch (opErr) {
+        console.error('[EDGE FUNCTION] Non-critical: operational event failed after contract rejection', opErr);
+      }
+    }
+    // --- End operational stage block ---
 
     // Get base URL for email link
     // Priority: 1. app_url from request (frontend sends current origin), 2. APP_URL env var, 3. fallback

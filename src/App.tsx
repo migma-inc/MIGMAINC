@@ -1,11 +1,27 @@
 
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { lazy, Suspense } from 'react';
+
+// Student flow (lazy loaded)
+const StudentOnboarding = lazy(() => import('./pages/StudentOnboarding/StudentOnboarding'));
+const StudentLogin = lazy(() => import('./pages/StudentLogin'));
+const MigmaCheckout = lazy(() => import('./pages/MigmaCheckout'));
+const StudentRewards = lazy(() => import('./pages/StudentRewards'));
+const StudentSupport = lazy(() => import('./pages/StudentSupport'));
+const StudentDashboard = lazy(() => import('./pages/StudentDashboard/StudentDashboard'));
+const PlacementFee2ndInstallment = lazy(() => import('./pages/StudentDashboard/PlacementFee2ndInstallmentPage').then(m => ({ default: m.PlacementFee2ndInstallmentPage })));
+const PlacementFee2ndSuccess = lazy(() => import('./pages/StudentDashboard/PlacementFee2ndSuccessPage'));
+const PaymentSuccessPreview = import.meta.env.DEV
+  ? lazy(() => import('./pages/dev/PaymentSuccessPreview'))
+  : null;
 import { Home } from './pages/Home';
 import { Services } from './pages/Services';
 import { About } from './pages/About';
 import { Contact } from './pages/Contact';
 import { BookACall } from './pages/BookACall';
 import { BookACallThankYou } from './pages/BookACallThankYou';
+import { ReferralLandingPage } from './pages/ReferralLandingPage';
+import { ReferralThankYouPage } from './pages/ReferralThankYouPage';
 import { PrivacyPolicy } from './pages/PrivacyPolicy';
 import { WebsiteTerms } from './pages/WebsiteTerms';
 import { Cookies } from './pages/Cookies';
@@ -26,9 +42,12 @@ import { ZellePaymentProcessing } from './pages/ZellePaymentProcessing';
 import { SplitPaymentRedirectSuccessStyle } from './pages/SplitPaymentRedirectSuccessStyle';
 import { VisaServiceTerms } from './pages/VisaServiceTerms';
 import { SellerLogin } from './pages/SellerLogin';
-import { ForgotPassword } from './pages/ForgotPassword';
-import { ResetPassword } from './pages/ResetPassword';
+import ForgotPassword from './pages/ForgotPassword';
+import ResetPassword from './pages/ResetPassword';
 import { SellerRegister } from './pages/SellerRegister';
+import { MentorLogin } from './pages/MentorLogin';
+import { MentorRegister } from './pages/MentorRegister';
+import { MentorDashboardRedirect } from './pages/MentorDashboardRedirect';
 import { SellerDashboardLayout } from './pages/seller/SellerDashboardLayout';
 import { DashboardOverviewRouter } from './pages/seller/DashboardOverviewRouter';
 import { HeadOfSalesTeam } from './pages/seller/HeadOfSalesTeam';
@@ -41,6 +60,7 @@ import { SellerCommissions } from './pages/seller/SellerCommissions';
 import { SellerFunnel } from './pages/seller/SellerFunnel';
 import { SellerOrders } from './pages/seller/SellerOrders';
 import { SellerLinks } from './pages/seller/SellerLinks';
+import { SellerStudentLinks } from './pages/seller/SellerStudentLinks';
 import { SellerLeads } from './pages/seller/SellerLeads';
 import { SellerOrderDetail } from './pages/SellerOrderDetail';
 import { SellerZelleApprovalPage } from './pages/seller/SellerZelleApprovalPage';
@@ -77,6 +97,12 @@ import { EB2RecurringDetail } from './pages/admin/EB2RecurringDetail';
 import { AdminSyncSales } from './pages/admin/AdminSyncSales';
 import { CreateServiceLink } from './pages/admin/CreateServiceLink';
 import { AdminTracking } from './pages/admin/AdminTracking';
+import { AdminUsers } from './pages/admin/AdminUsers';
+import { AdminCrmCos } from './pages/admin/AdminCrmCos';
+import { AdminCrmTransfer } from './pages/admin/AdminCrmTransfer';
+import { AdminCrmInitial } from './pages/admin/AdminCrmInitial';
+import { AdminUserDetail } from './pages/admin/AdminUserDetail';
+import { AdminReferralLeads } from './pages/admin/AdminReferralLeads';
 import { EB3InstallmentCheckout } from './pages/EB3InstallmentCheckout';
 import { NotFound } from './pages/NotFound';
 
@@ -91,6 +117,8 @@ function App() {
         <Route path="/support/ticket" element={<SupportTicket />} />
         <Route path="/book-a-call" element={<BookACall />} />
         <Route path="/book-a-call/thank-you" element={<BookACallThankYou />} />
+        <Route path="/indicacao" element={<ReferralLandingPage />} />
+        <Route path="/indicacao/obrigado" element={<ReferralThankYouPage />} />
         <Route path="/legal/privacy-policy" element={<PrivacyPolicy />} />
         <Route path="/legal/website-terms" element={<WebsiteTerms />} />
         <Route path="/legal/cookies" element={<Cookies />} />
@@ -108,6 +136,7 @@ function App() {
 
         {/* Generic Password Recovery Routes */}
         <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/student/forgot-password" element={<ForgotPassword />} />
         <Route path="/reset-password" element={<ResetPassword />} />
 
         {/* Seller Routes */}
@@ -126,10 +155,16 @@ function App() {
           <Route path="funnel" element={<SellerFunnel />} />
           <Route path="orders" element={<SellerOrders />} />
           <Route path="links" element={<SellerLinks />} />
+          <Route path="student-links" element={<SellerStudentLinks />} />
           <Route path="leads" element={<SellerLeads />} />
           <Route path="zelle-approvals" element={<SellerZelleApprovalPage />} />
         </Route>
         <Route path="/seller/orders/:orderId" element={<SellerRoute><SellerOrderDetail /></SellerRoute>} />
+
+        {/* Mentor Routes */}
+        <Route path="/mentor/login" element={<MentorLogin />} />
+        <Route path="/mentor/register" element={<MentorRegister />} />
+        <Route path="/mentor/dashboard" element={<MentorDashboardRedirect />} />
 
         <Route path="/global-partner/thank-you" element={<ThankYou />} />
         <Route path="/global-partner/success" element={<ThankYou />} />
@@ -171,11 +206,56 @@ function App() {
           <Route path="profile" element={<AdminProfile />} />
           <Route path="send-existing-contracts" element={<SendExistingContracts />} />
           <Route path="links" element={<SellerLinks />} />
+          <Route path="student-links" element={<SellerStudentLinks />} />
           <Route path="create-service" element={<CreateServiceLink />} />
+          <Route path="users" element={<AdminUsers />} />
+          <Route path="users/:profileId" element={<AdminUserDetail />} />
+          <Route path="crm/cos" element={<AdminCrmCos />} />
+          <Route path="crm/transfer" element={<AdminCrmTransfer />} />
+          <Route path="crm/initial" element={<AdminCrmInitial />} />
+          <Route path="crm/referral-leads" element={<AdminReferralLeads />} />
           <Route path="tracking" element={<AdminTracking />} />
           <Route path="coupons" element={<CouponManagement />} />
           <Route path="sync-sales" element={<AdminRoute><AdminSyncSales /></AdminRoute>} />
         </Route>
+
+        {/* ── Migma Checkout (URL determina serviço) ────────────── */}
+        <Route path="/student/checkout/:service" element={
+          <Suspense fallback={null}><MigmaCheckout /></Suspense>
+        } />
+
+
+        {/* ── Student Flow ─────────────────────────────────────── */}
+        <Route path="/student/login" element={
+          <Suspense fallback={null}><StudentLogin /></Suspense>
+        } />
+        <Route path="/student/onboarding" element={
+          <Suspense fallback={null}><StudentOnboarding /></Suspense>
+        } />
+        <Route path="/student/dashboard" element={
+          <Suspense fallback={null}><StudentDashboard /></Suspense>
+        } />
+        <Route path="/student/dashboard/:tab" element={
+          <Suspense fallback={null}><StudentDashboard /></Suspense>
+        } />
+        <Route path="/student/dashboard/payment/placement-fee-2nd" element={
+          <Suspense fallback={null}><PlacementFee2ndInstallment /></Suspense>
+        } />
+        <Route path="/student/dashboard/payment/placement-fee-2nd/success" element={
+          <Suspense fallback={null}><PlacementFee2ndSuccess /></Suspense>
+        } />
+        <Route path="/student/rewards" element={
+          <Suspense fallback={null}><StudentRewards /></Suspense>
+        } />
+        <Route path="/student/support" element={
+          <Suspense fallback={null}><StudentSupport /></Suspense>
+        } />
+
+        {PaymentSuccessPreview && (
+          <Route path="/dev/payment-success" element={
+            <Suspense fallback={null}><PaymentSuccessPreview /></Suspense>
+          } />
+        )}
 
         {/* Catch-all 404 Route */}
         <Route path="*" element={<NotFound />} />

@@ -4,6 +4,7 @@ import Stripe from "npm:stripe@^17.3.1";
 import {
   appendServiceRequestEvent,
   ensureOperationalCaseInitialized,
+  syncMigmaUserProfile,
 } from "../shared/service-request-operational.ts";
 
 // Get all available webhook secrets (inline)
@@ -46,6 +47,25 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, stripe-signature",
 };
 
+function getSupabaseConfig() {
+  const supabaseUrl =
+    Deno.env.get("MIGMA_REMOTE_URL") ||
+    Deno.env.get("REMOTE_SUPABASE_URL") ||
+    Deno.env.get("SUPABASE_URL") ||
+    "";
+  const supabaseServiceKey =
+    Deno.env.get("MIGMA_REMOTE_SERVICE_ROLE_KEY") ||
+    Deno.env.get("REMOTE_SUPABASE_SERVICE_ROLE_KEY") ||
+    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ||
+    "";
+
+  if (!supabaseUrl || !supabaseServiceKey) {
+    throw new Error("Missing Supabase runtime configuration");
+  }
+
+  return { supabaseUrl, supabaseServiceKey };
+}
+
 /**
  * Unified processing for successful checkout sessions
  */
@@ -59,6 +79,74 @@ async function processSuccessfulSession(session: Stripe.Checkout.Session, supaba
     .eq("stripe_session_id", session.id);
 
   if (orderError || !orders || orders.length === 0) {
+    // ── V11 PLACEMENT FEE: verificar placement_fee_stripe_sessions ───────────
+    const { data: pfSession } = await supabase
+      .from("placement_fee_stripe_sessions")
+      .select("application_id, profile_id, amount_usd, status")
+      .eq("stripe_session_id", session.id)
+      .maybeSingle();
+
+    if (pfSession) {
+      if (pfSession.status === "completed") {
+        console.log(`[Webhook] Placement fee session ${session.id} already processed (idempotency).`);
+        return;
+      }
+
+      console.log(`[Webhook] 🎓 Placement fee Stripe session detectada: app=${pfSession.application_id}`);
+
+      // Detecta se é 2ª parcela pelo metadata do Stripe
+      const is2ndInstallment = session.metadata?.fee_type === "placement_fee_2nd";
+
+      await supabase
+        .from("placement_fee_stripe_sessions")
+        .update({ status: "completed" })
+        .eq("stripe_session_id", session.id);
+
+      if (is2ndInstallment) {
+        // Para a 2ª parcela: apenas grava placement_fee_2nd_installment_paid_at
+        const { error: appErr } = await supabase
+          .from("institution_applications")
+          .update({
+            placement_fee_2nd_installment_paid_at: new Date().toISOString(),
+          })
+          .eq("id", pfSession.application_id);
+
+        if (appErr) {
+          console.error(`[Webhook] ❌ Falhou ao gravar 2ª parcela: ${appErr.message}`);
+        } else {
+          console.log(`[Webhook] ✅ 2ª parcela Placement Fee confirmada: app=${pfSession.application_id}`);
+        }
+        return;
+      }
+
+      // Para a 1ª parcela: busca o auth user_id real antes de chamar migma-payment-completed
+      const { data: profileRow } = await supabase
+        .from("user_profiles")
+        .select("user_id")
+        .eq("id", pfSession.profile_id)
+        .maybeSingle();
+
+      const authUserId = profileRow?.user_id ?? pfSession.profile_id;
+
+      const { error: payErr } = await supabase.functions.invoke("migma-payment-completed", {
+        body: {
+          user_id: authUserId,
+          fee_type: "placement_fee",
+          amount: pfSession.amount_usd,
+          payment_method: "stripe",
+          service_type: "v11-onboarding",
+          application_id: pfSession.application_id,
+        },
+      });
+
+      if (payErr) {
+        console.error("[Webhook] ❌ migma-payment-completed falhou para placement fee:", payErr);
+      } else {
+        console.log(`[Webhook] ✅ Placement fee Stripe processada: app=${pfSession.application_id}`);
+      }
+      return;
+    }
+
     console.error(`[Webhook] No orders found for session ${session.id}:`, orderError);
     return;
   }
@@ -72,25 +160,46 @@ async function processSuccessfulSession(session: Stripe.Checkout.Session, supaba
   }
 
   const paymentMethod = session.payment_method_types?.[0] || "card";
-  const feeAmount = parseFloat(mainOrder.payment_metadata?.fee_amount || "0");
 
-  // 1. Update all orders
+  // Usar o valor real cobrado pelo Stripe (gross) — session.amount_total está em centavos
+  // Isso corrige o bug onde total_price_usd ficava com o net amount ($550) em vez do bruto ($571.75)
+  const grossAmountUsd = session.amount_total ? session.amount_total / 100 : null;
+  const netAmountUsd = session.metadata?.net_amount_usd
+    ? parseFloat(session.metadata.net_amount_usd)
+    : null;
+  const feeAmount = (grossAmountUsd !== null && netAmountUsd !== null)
+    ? parseFloat((grossAmountUsd - netAmountUsd).toFixed(2))
+    : parseFloat(mainOrder.payment_metadata?.fee_amount || "0");
+
+  console.log(`[Webhook] 💰 Stripe amounts — gross=$${grossAmountUsd} | net=$${netAmountUsd} | fee=$${feeAmount}`);
+
+  // 1. Update all orders — salva o gross amount (bruto real cobrado pelo Stripe)
   for (const orderItem of orders) {
+    const updatePayload: Record<string, unknown> = {
+      payment_status: "completed",
+      paid_at: new Date().toISOString(),
+      stripe_payment_intent_id: session.payment_intent as string || null,
+      payment_method: paymentMethod === "pix" ? "stripe_pix" : "stripe_card",
+      payment_metadata: {
+        ...orderItem.payment_metadata,
+        payment_method: paymentMethod,
+        completed_at: new Date().toISOString(),
+        session_id: session.id,
+        fee_amount: orderItem.id === mainOrder.id ? feeAmount : 0,
+        net_amount_usd: netAmountUsd,
+        gross_amount_usd: grossAmountUsd,
+      },
+    };
+
+    // Atualizar total_price_usd com o valor bruto real (o que o cliente pagou de fato)
+    // Apenas para a ordem principal e apenas se temos o valor do Stripe
+    if (orderItem.id === mainOrder.id && grossAmountUsd !== null) {
+      updatePayload.total_price_usd = grossAmountUsd;
+    }
+
     const { error: updateError } = await supabase
       .from("visa_orders")
-      .update({
-        payment_status: "completed",
-        paid_at: new Date().toISOString(),
-        stripe_payment_intent_id: session.payment_intent as string || null,
-        payment_method: paymentMethod === "pix" ? "stripe_pix" : "stripe_card",
-        payment_metadata: {
-          ...orderItem.payment_metadata,
-          payment_method: paymentMethod,
-          completed_at: new Date().toISOString(),
-          session_id: session.id,
-          fee_amount: orderItem.id === mainOrder.id ? feeAmount : 0,
-        },
-      })
+      .update(updatePayload)
       .eq("id", orderItem.id);
 
     if (updateError) {
@@ -148,6 +257,17 @@ async function processSuccessfulSession(session: Stripe.Checkout.Session, supaba
         stripe_payment_intent_id: session.payment_intent as string || null,
       },
     );
+
+    // Sync MIGMA CRM profile — usa gross amount (o que o cliente pagou de fato)
+    await syncMigmaUserProfile(supabase, {
+      email: mainOrder.client_email,
+      fullName: mainOrder.client_name || null,
+      phone: mainOrder.client_whatsapp || null,
+      productSlug: mainOrder.product_slug || null,
+      paymentMethod: mainOrder.payment_method || null,
+      totalPriceUsd: grossAmountUsd ?? mainOrder.total_price_usd ?? null,
+    });
+
   }
 
   // 3. Track funnel event
@@ -237,6 +357,7 @@ async function processSuccessfulSession(session: Stripe.Checkout.Session, supaba
   // 4. 🔍 Test User Detection
   const isTestUser = mainOrder.client_email?.toLowerCase() === 'victuribdev@gmail.com' ||
     mainOrder.client_email?.toLowerCase() === 'victtinho.ribeiro@gmail.com' ||
+    mainOrder.client_email?.toLowerCase() === 'nemerfrancisco@gmail.com' ||
     mainOrder.client_name?.toLowerCase().includes('paulo victor') ||
     mainOrder.client_name?.toLowerCase().includes('paulo víctor') ||
     mainOrder.client_email?.toLowerCase().includes('@uorak');
@@ -356,8 +477,7 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const { supabaseUrl, supabaseServiceKey } = getSupabaseConfig();
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     const bodyArrayBuffer = await req.arrayBuffer();

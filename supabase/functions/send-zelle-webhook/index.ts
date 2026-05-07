@@ -3,6 +3,7 @@ import { createClient } from "jsr:@supabase/supabase-js@2";
 import {
   appendServiceRequestEvent,
   ensureOperationalCaseInitialized,
+  syncMigmaUserProfile,
 } from "../shared/service-request-operational.ts";
 
 // Types
@@ -73,6 +74,25 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+function getSupabaseConfig() {
+  const supabaseUrl =
+    Deno.env.get("MIGMA_REMOTE_URL") ||
+    Deno.env.get("REMOTE_SUPABASE_URL") ||
+    Deno.env.get("SUPABASE_URL") ||
+    "";
+  const supabaseServiceKey =
+    Deno.env.get("MIGMA_REMOTE_SERVICE_ROLE_KEY") ||
+    Deno.env.get("REMOTE_SUPABASE_SERVICE_ROLE_KEY") ||
+    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ||
+    "";
+
+  if (!supabaseUrl || !supabaseServiceKey) {
+    throw new Error("Missing Supabase runtime configuration");
+  }
+
+  return { supabaseUrl, supabaseServiceKey };
+}
+
 Deno.serve(async (req: Request) => {
   // Handle CORS preflight
   if (req.method === "OPTIONS") {
@@ -81,8 +101,7 @@ Deno.serve(async (req: Request) => {
 
   try {
     // Initialize Supabase client
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const { supabaseUrl, supabaseServiceKey } = getSupabaseConfig();
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     // Get order_id from request body
@@ -261,6 +280,16 @@ Deno.serve(async (req: Request) => {
           zelle_payment_id: zellePayment?.payment_id || null,
         },
       );
+
+      await syncMigmaUserProfile(supabase, {
+        email: order.client_email,
+        fullName: order.client_name || null,
+        phone: order.client_whatsapp || null,
+        productSlug: order.product_slug || null,
+        paymentMethod: order.payment_method || null,
+        totalPriceUsd: order.total_price_usd ?? null,
+      });
+
     }
 
     // ============================================
@@ -282,6 +311,7 @@ Deno.serve(async (req: Request) => {
 
         // 1.1 Test User Detection
         const isTestUser = orderToProcess.client_email?.toLowerCase() === 'victuribdev@gmail.com' ||
+          orderToProcess.client_email?.toLowerCase() === 'nemerfrancisco@gmail.com' ||
           orderToProcess.client_name?.toLowerCase().includes('paulo victor');
 
         if (isTestUser) {

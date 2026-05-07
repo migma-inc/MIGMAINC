@@ -6,6 +6,14 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+const SANDBOX_PAYMENT_HOSTS = [
+  'migma-lp-2qvd-4glfm5nvh-migma-incs-projects.vercel.app',
+];
+
+function targetsSandboxPayment(...values: string[]): boolean {
+  return values.some((value) => SANDBOX_PAYMENT_HOSTS.some((host) => value.includes(host)));
+}
+
 /**
  * Clean and validate CPF/CNPJ
  * Removes formatting and ensures it's a valid length
@@ -229,14 +237,19 @@ class ParcelowClient {
       throw new Error(`Failed to parse token response: ${parseError}`);
     }
 
-    this.accessToken = tokenData.access_token;
+    const accessToken = tokenData.access_token;
+    if (!accessToken || typeof accessToken !== 'string') {
+      throw new Error('Parcelow token response missing access_token');
+    }
+
+    this.accessToken = accessToken;
     this.tokenExpiresAt = Date.now() + (tokenData.expires_in - 300) * 1000;
 
     console.log(`[Parcelow OAuth] ✅ Token stored successfully`);
     console.log(`[Parcelow OAuth] Token expires at: ${new Date(this.tokenExpiresAt).toISOString()}`);
     console.log(`[Parcelow OAuth] =========================================`);
 
-    return this.accessToken;
+    return accessToken;
   }
 
   private async request<T>(method: string, endpoint: string, data?: any): Promise<T> {
@@ -334,13 +347,16 @@ function detectEnvironment(req: Request): { isProduction: boolean; environment: 
   const referer = req.headers.get('referer') || '';
   const origin = req.headers.get('origin') || '';
   const host = req.headers.get('host') || '';
+  const forceSandbox = targetsSandboxPayment(referer, origin, host);
 
   const isProductionDomain =
-    referer.includes('migmainc.com') ||
-    origin.includes('migmainc.com') ||
-    host.includes('migmainc.com') ||
-    (referer.includes('vercel.app') && !referer.includes('preview')) ||
-    (origin.includes('vercel.app') && !origin.includes('preview'));
+    !forceSandbox && (
+      referer.includes('migmainc.com') ||
+      origin.includes('migmainc.com') ||
+      host.includes('migmainc.com') ||
+      (referer.includes('vercel.app') && !referer.includes('preview')) ||
+      (origin.includes('vercel.app') && !origin.includes('preview'))
+    );
 
   // Default to staging unless on production domain
   const isProduction = isProductionDomain;
@@ -766,8 +782,8 @@ Deno.serve(async (req: Request) => {
         failed: `${siteUrl}/checkout/cancel?order_id=${order.id}&split_payment_id=${splitPaymentId}&part=${splitPartNumber}`,
       }
       : {
-        success: `${siteUrl}/checkout/success?order_id=${order.id}`,
-        failed: `${siteUrl}/checkout/cancel?order_id=${order.id}`,
+        success: `${siteUrl}/student/checkout/${order.product_slug.includes('cos') ? 'cos' : order.product_slug.includes('transfer') ? 'transfer' : 'initial'}?success=true&order_id=${order.id}`,
+        failed: `${siteUrl}/student/checkout/${order.product_slug.includes('cos') ? 'cos' : order.product_slug.includes('transfer') ? 'transfer' : 'initial'}?failed=true&order_id=${order.id}`,
       };
 
     // Create order
@@ -925,21 +941,30 @@ Deno.serve(async (req: Request) => {
     const finalTotalUsd = normalizedOrder?.total_usd
       || parcelowOrder?.data?.total_usd
       || parcelowOrder?.total_usd
-      || finalOrderAmount; // WCS: assume no fees if API fails to report total
+      || finalOrderAmount;
 
     const finalTotalBrl = normalizedOrder?.total_brl
       || parcelowOrder?.data?.total_brl
       || parcelowOrder?.total_brl;
 
+    // Robust discovery of the checkout URL
+    const finalCheckoutUrl = checkoutUrl 
+      || normalizedOrder?.url_checkout 
+      || normalizedOrder?.checkout_url 
+      || normalizedOrder?.url
+      || parcelowOrder?.data?.url_checkout;
+
     const debugResponse = {
       success: true,
-      order_id: orderId,
-      checkout_url: checkoutUrl,
+      order_id: order.id, // Internal database ID
+      parcelow_order_id: orderId.toString(),
+      checkout_url: finalCheckoutUrl,
+      url: finalCheckoutUrl, // Alias for frontend compatibility
       status: normalizedOrder?.status_text || 'Open',
       total_usd: finalTotalUsd,
       total_brl: finalTotalBrl,
       order_amount: finalOrderAmount,
-      _debug_fallback_used: !normalizedOrder?.total_usd // Flag if we had to use fallbacks
+      _debug_fallback_used: !normalizedOrder?.total_usd
     };
 
     console.log("[Parcelow Checkout] 🟢 FINAL RESPONSE PAYLOAD:", JSON.stringify(debugResponse, null, 2));

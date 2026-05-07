@@ -1,8 +1,11 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
+import 'driver.js/dist/driver.css'
 import './index.css'
 import './i18n.ts'
 import App from './App.tsx'
+import { StudentAuthProvider } from './contexts/StudentAuthContext.tsx'
+import { PaymentBlockedProvider } from './contexts/PaymentBlockedContext.tsx'
 
 // Create circular favicon
 function createCircularFavicon() {
@@ -49,8 +52,17 @@ function createCircularFavicon() {
 // Initialize circular favicon
 createCircularFavicon();
 
+// Initialize theme based on user preference or default to dark
+const savedTheme = localStorage.getItem('theme');
+const shouldUseDark = savedTheme ? savedTheme === 'dark' : true;
+document.documentElement.classList.toggle('dark', shouldUseDark);
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <App />
+    <StudentAuthProvider>
+      <PaymentBlockedProvider>
+        <App />
+      </PaymentBlockedProvider>
+    </StudentAuthProvider>
   </StrictMode>,
 )

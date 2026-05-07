@@ -10,14 +10,31 @@ import {
   ArrowRight,
   Phone,
   Mail,
-  Info
+  Info,
+  Gift,
 } from 'lucide-react';
 import { useBookACall } from '@/hooks/useBookACall';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
 import { Link } from 'react-router-dom';
 import { format } from 'date-fns';
+import type { BookACallSubmission } from '@/types/book-a-call';
+
+const STATUS_COLORS: Record<BookACallSubmission['status'], string> = {
+  novo: 'border-blue-500/30 bg-blue-500/10 text-blue-300',
+  em_contato: 'border-yellow-500/30 bg-yellow-500/10 text-yellow-300',
+  fechado: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300',
+  descartado: 'border-red-500/30 bg-red-500/10 text-red-300',
+};
+
+const STATUS_LABELS: Record<BookACallSubmission['status'], string> = {
+  novo: 'Novo',
+  em_contato: 'Em contato',
+  fechado: 'Fechado',
+  descartado: 'Descartado',
+};
 
 export function BookACallPage() {
   const { submissions, loading, refetch } = useBookACall();
@@ -155,15 +172,26 @@ export function BookACallPage() {
                 <div className="flex flex-col lg:flex-row lg:items-center">
                   {/* Primary Info */}
                   <div className="p-4 flex-1 space-y-3">
-                    <div className="flex items-start justify-between">
-                      <div className="space-y-1">
-                        <h3 className="text-lg font-bold text-white group-hover:text-gold-light transition-colors">{lead.contact_name}</h3>
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="space-y-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h3 className="text-lg font-bold text-white group-hover:text-gold-light transition-colors">{lead.contact_name}</h3>
+                          <Badge className={STATUS_COLORS[lead.status ?? 'novo']}>
+                            {STATUS_LABELS[lead.status ?? 'novo']}
+                          </Badge>
+                          {lead.referral_code && (
+                            <Badge className="border-[#CE9F48]/30 bg-[#CE9F48]/10 text-[#CE9F48] flex items-center gap-1">
+                              <Gift className="w-3 h-3" />
+                              {lead.referral_code}
+                            </Badge>
+                          )}
+                        </div>
                         <p className="text-sm text-gray-400 flex items-center gap-2">
                           <Briefcase className="w-3 h-3 text-gold-medium" />
                           {lead.company_name}
                         </p>
                       </div>
-                      <div className="text-right">
+                      <div className="text-right shrink-0">
                         <p className="text-[10px] uppercase tracking-widest text-gray-500 font-bold mb-1">Received</p>
                         <p className="text-xs text-gray-300">{format(new Date(lead.created_at), 'MMM dd, yyyy')}</p>
                       </div>
@@ -191,7 +219,7 @@ export function BookACallPage() {
                       <p className="text-[10px] uppercase tracking-widest text-gray-500 font-bold">Volume</p>
                       <p className="text-xs text-gray-200">{lead.lead_volume}</p>
                     </div>
-                    <Link to={`/ dashboard / book - a - call / ${lead.id} `}>
+                    <Link to={`/dashboard/book-a-call/${lead.id}`}>
                       <Button size="icon" variant="ghost" className="rounded-full hover:bg-gold-medium/20 hover:text-gold-light">
                         <ArrowRight className="w-4 h-4" />
                       </Button>

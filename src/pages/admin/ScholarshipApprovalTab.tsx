@@ -22,6 +22,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/lib/supabase';
+import { getSecureUrl } from '@/lib/storage';
 import type { CaseDetailPage } from '@/lib/onboarding-crm';
 
 // ─────────────────────────────────────────────────────────────
@@ -76,11 +77,11 @@ interface InstitutionApplication {
 
 function statusLabel(s: string) {
   const map: Record<string, { label: string; cls: string }> = {
-    pending_admin_approval: { label: 'AGUARD. APROVAÇÃO', cls: 'bg-amber-500/20 text-amber-300 border-amber-500/30' },
-    approved: { label: 'APROVADA', cls: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30' },
-    rejected: { label: 'REJEITADA', cls: 'bg-white/5 text-gray-500 border-white/10' },
-    payment_pending: { label: 'AGUARD. PAGAMENTO', cls: 'bg-blue-500/20 text-blue-300 border-blue-500/30' },
-    payment_confirmed: { label: 'PLACEMENT FEE PAGO', cls: 'bg-green-500/20 text-green-300 border-green-500/30' },
+    pending_admin_approval: { label: 'AWAITING APPROVAL', cls: 'bg-amber-500/20 text-amber-300 border-amber-500/30' },
+    approved: { label: 'APPROVED', cls: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30' },
+    rejected: { label: 'REJECTED', cls: 'bg-white/5 text-gray-500 border-white/10' },
+    payment_pending: { label: 'AWAITING PAYMENT', cls: 'bg-blue-500/20 text-blue-300 border-blue-500/30' },
+    payment_confirmed: { label: 'PLACEMENT FEE PAID', cls: 'bg-green-500/20 text-green-300 border-green-500/30' },
   };
   return map[s] ?? { label: s.toUpperCase(), cls: 'bg-white/5 text-gray-400 border-white/10' };
 }
@@ -88,6 +89,10 @@ function statusLabel(s: string) {
 function fmtDate(iso: string | null | undefined) {
   if (!iso) return '—';
   return new Date(iso).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+}
+
+function errorMessage(error: unknown) {
+  return error instanceof Error ? error.message : 'Unexpected error';
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -106,6 +111,8 @@ export function ScholarshipApprovalTab({ detail }: { detail: CaseDetailPage }) {
   const [processing, setProcessing] = useState(false);
   const [actionMsg, setActionMsg] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [resolvedUrls, setResolvedUrls] = useState<Record<string, string>>({});
+  const [backgroundProcessingIds, setBackgroundProcessingIds] = useState<Set<string>>(new Set());
 
   // V11 post-payment states
   const [generatingForms, setGeneratingForms] = useState(false);
@@ -141,12 +148,26 @@ export function ScholarshipApprovalTab({ detail }: { detail: CaseDetailPage }) {
 
       if (err) throw err;
       setApplications((data as unknown as InstitutionApplication[]) || []);
-    } catch (e: any) {
-      setError(e.message);
+    } catch (e) {
+      setError(errorMessage(e));
     } finally {
       setLoading(false);
     }
   }, [profile.id]);
+
+  useEffect(() => {
+    const resolveAllUrls = async () => {
+      const resolved: Record<string, string> = {};
+      for (const app of applications) {
+        if (app.acceptance_letter_url) {
+          const url = await getSecureUrl(app.acceptance_letter_url);
+          if (url) resolved[app.id] = url;
+        }
+      }
+      setResolvedUrls(resolved);
+    };
+    if (applications.length > 0) resolveAllUrls();
+  }, [applications]);
 
   useEffect(() => { fetchApplications(); }, [fetchApplications]);
 
@@ -154,8 +175,8 @@ export function ScholarshipApprovalTab({ detail }: { detail: CaseDetailPage }) {
   const approvedApp = applications.find(a => a.status === 'approved' || a.status === 'payment_pending' || a.status === 'payment_confirmed');
   const overallStatus: 'awaiting' | 'approved' | 'paid' =
     applications.some(a => a.status === 'payment_confirmed') ? 'paid' :
-      approvedApp ? 'approved' :
-        'awaiting';
+    approvedApp ? 'approved' :
+    'awaiting';
 
   // ── Deadline display ──
   const serviceType = profile.service_type ?? profile.student_process_type;
@@ -164,61 +185,78 @@ export function ScholarshipApprovalTab({ detail }: { detail: CaseDetailPage }) {
     ? Math.ceil((new Date(deadlineDate).getTime() - Date.now()) / 86_400_000)
     : null;
 
-  // ── Approve handler ──
-  const handleApprove = async () => {
-    const app = applications.find(a => a.id === selectedAppId);
+  // ── Approve handler (Orchestrator) ──
+  const executeApprovalSequence = async (appId: string, adminId: string | null) => {
+    const app = applications.find(a => a.id === appId);
     if (!app || !app.institution_scholarships) return;
 
-    setProcessing(true);
-    setActionMsg(null);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const adminId = session?.user?.id ?? null;
-
-      // 1. Generate Parcelow checkout link for the placement fee
       const placementFee = app.institution_scholarships.placement_fee_usd;
       const originUrl = window.location.origin;
-
-      const fnRes = await supabase.functions.invoke('migma-parcelow-checkout', {
-        body: {
-          amount: String(placementFee),
-          email: profile.email,
-          full_name: profile.full_name,
-          user_id: profile.user_id,
-          reference_suffix: `-APP-${app.id.slice(0, 8)}`,
-          redirect_success_override: `${originUrl}/student/onboarding?step=placement_fee&success=true`,
-          redirect_failed_override: `${originUrl}/student/onboarding?step=placement_fee&failed=true`,
-          parcelow_environment: originUrl.includes('migmainc.com') ? 'production' : 'staging',
-        },
-      });
-
-      const checkoutUrl: string | null = fnRes.data?.checkout_url ?? fnRes.data?.url_checkout ?? null;
-
-      // 2. Update selected application → approved
       const now = new Date().toISOString();
-      const { error: approveErr } = await supabase
-        .from('institution_applications')
-        .update({
-          status: 'payment_pending',
-          admin_approved_at: now,
-          admin_approved_by: adminId,
-          payment_link_url: checkoutUrl,
-          payment_link_generated_at: checkoutUrl ? now : null,
-        })
-        .eq('id', app.id);
-      if (approveErr) throw approveErr;
+      let checkoutUrl: string | null = null;
+      const course = app.institutions?.institution_courses?.[0];
+      const scholarshipPercent = app.institution_scholarships.discount_percent;
+
+      if (placementFee === 0) {
+        // 1a. $0 tier — skip payment gateway, confirm vaga directly
+        const { error: approveErr } = await supabase
+          .from('institution_applications')
+          .update({
+            status: 'payment_confirmed',
+            admin_approved_at: now,
+            admin_approved_by: adminId,
+            placement_fee_paid_at: now,
+            placement_fee_installments: 1,
+          })
+          .eq('id', appId);
+        if (approveErr) throw approveErr;
+
+        await supabase
+          .from('user_profiles')
+          .update({ is_placement_fee_paid: true })
+          .eq('id', profile.id);
+      } else {
+        // 1b. Generate Parcelow checkout link for the placement fee
+        const fnRes = await supabase.functions.invoke('migma-parcelow-checkout', {
+          body: {
+            amount: String(placementFee),
+            email: profile.email,
+            full_name: profile.full_name,
+            user_id: profile.user_id,
+            reference_suffix: `-APP-${appId.slice(0, 8)}`,
+            redirect_success_override: `${originUrl}/student/onboarding?step=placement_fee&success=true`,
+            redirect_failed_override: `${originUrl}/student/onboarding?step=placement_fee&failed=true`,
+            parcelow_environment: originUrl.includes('migmainc.com') ? 'production' : 'staging',
+          },
+        });
+        checkoutUrl = fnRes.data?.checkout_url ?? fnRes.data?.url_checkout ?? null;
+
+        // 2. Update selected application → payment_pending
+        const { error: approveErr } = await supabase
+          .from('institution_applications')
+          .update({
+            status: 'payment_pending',
+            admin_approved_at: now,
+            admin_approved_by: adminId,
+            payment_link_url: checkoutUrl,
+            payment_link_generated_at: checkoutUrl ? now : null,
+          })
+          .eq('id', appId);
+        if (approveErr) throw approveErr;
+      }
 
       // 2b. Sync to MatriculaUSA — Caroline/Oikos only (fire-and-forget)
       const institutionSlug = (app.institutions?.slug ?? '').toLowerCase();
       if (institutionSlug.includes('caroline') || institutionSlug.includes('oikos')) {
         supabase.functions.invoke('sync-to-matriculausa', {
-          body: { application_id: app.id },
+          body: { application_id: appId },
         }).catch(e => console.error('[sync-to-matriculausa]', e));
       }
 
       // 3. Reject all other pending applications for this profile
       const otherIds = applications
-        .filter(a => a.id !== app.id && a.status === 'pending_admin_approval')
+        .filter(a => a.id !== appId && a.status === 'pending_admin_approval')
         .map(a => a.id);
       if (otherIds.length > 0) {
         await supabase
@@ -227,51 +265,65 @@ export function ScholarshipApprovalTab({ detail }: { detail: CaseDetailPage }) {
           .in('id', otherIds);
       }
 
-      // 4. Send notification email to student
-      if (profile.email) {
-        const instName = app.institutions?.name ?? 'universidade selecionada';
-        const courseName = app.institutions?.institution_courses?.[0]?.course_name ?? '';
-        const discount = app.institution_scholarships.discount_percent;
+      const paymentOrPortalLink = checkoutUrl ?? `${originUrl}/student/onboarding?step=placement_fee`;
 
-        await supabase.functions.invoke('send-email', {
-          body: {
-            to: profile.email,
-            subject: `✅ Sua vaga foi aprovada! — ${instName}`,
-            html: `
-              <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; color: #111;">
-                <h2 style="color: #B89E4E;">🎓 Parabéns, ${profile.full_name?.split(' ')[0] ?? 'aluno(a)'}!</h2>
-                <p>Sua vaga foi aprovada pela equipe Migma.</p>
-                <ul style="background: #f9f9f9; border-left: 4px solid #B89E4E; padding: 16px 24px; border-radius: 4px;">
-                  <li><strong>Instituição:</strong> ${instName}</li>
-                  ${courseName ? `<li><strong>Curso:</strong> ${courseName}</li>` : ''}
-                  <li><strong>Bolsa:</strong> ${discount}% de desconto</li>
-                  <li><strong>Placement Fee:</strong> $${placementFee.toLocaleString()}</li>
-                </ul>
-                ${checkoutUrl ? `
-                  <p style="margin-top: 24px;">
-                    <a href="${checkoutUrl}" style="background:#B89E4E;color:#000;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold;">
-                      Pagar Placement Fee →
-                    </a>
-                  </p>
-                  <p style="font-size: 12px; color: #666; margin-top: 8px;">
-                    Ou acesse pelo portal: <a href="${originUrl}/student/onboarding">${originUrl}/student/onboarding</a>
-                  </p>
-                ` : `<p>Acesse seu portal para ver o link de pagamento.</p>`}
-                <p style="color:#888;font-size:12px;margin-top:32px;">Migma Inc. — suporte@migmainc.com</p>
-              </div>
-            `,
+      await supabase.functions.invoke('migma-notify', {
+        body: {
+          trigger: 'scholarship_approved',
+          user_id: profile.id,
+          data: {
+            university_name: app.institutions?.name ?? 'selected university',
+            course_name: course ? `${course.course_name}${course.degree_level ? ` — ${course.degree_level}` : ''}` : undefined,
+            scholarship_label: `${scholarshipPercent}% scholarship`,
+            scholarship_percent: scholarshipPercent,
+            placement_fee_usd: placementFee,
+            tuition_annual_usd: app.institution_scholarships.tuition_annual_usd,
+            payment_link: paymentOrPortalLink,
           },
-        });
-      }
+        },
+      });
 
-      setActionMsg('Bolsa aprovada com sucesso! E-mail enviado ao cliente.');
+      setActionMsg(placementFee === 0
+        ? 'Scholarship approved and seat confirmed (Placement Fee waived). Customer notification sent.'
+        : 'Scholarship approved successfully. Customer notification sent.'
+      );
       await fetchApplications();
+    } catch (err) {
+      console.error('[process-approval]', err);
+      setActionMsg(`Processing error: ${errorMessage(err)}`);
+    } finally {
+      setBackgroundProcessingIds(prev => {
+        const next = new Set(prev);
+        next.delete(appId);
+        return next;
+      });
+    }
+  };
+
+  const handleApprove = async () => {
+    const appId = selectedAppId;
+    if (!appId) return;
+
+    setProcessing(true);
+    setActionMsg('Approval started in the background. You can keep working...');
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const adminId = session?.user?.id ?? null;
+
+      // Add to background processing set
+      setBackgroundProcessingIds(prev => new Set(prev).add(appId));
+
+      // Trigger sequence without awaiting
+      executeApprovalSequence(appId, adminId);
+
+      // UI Instant Feedback
       setSelectedAppId(null);
-    } catch (err: any) {
-      setActionMsg(`Erro: ${err.message}`);
+      setShowConfirmDialog(false);
+    } catch (err) {
+      setActionMsg(`Error starting approval: ${errorMessage(err)}`);
     } finally {
       setProcessing(false);
-      setShowConfirmDialog(false);
     }
   };
 
@@ -293,10 +345,10 @@ export function ScholarshipApprovalTab({ detail }: { detail: CaseDetailPage }) {
       });
       if (res.error) throw new Error(res.error.message);
       const n = res.data?.forms_generated ?? '?';
-      setV11Msg({ text: `${n} formulários gerados com sucesso.`, ok: true });
+      setV11Msg({ text: `${n} forms generated successfully.`, ok: true });
       await fetchApplications();
-    } catch (e: any) {
-      setV11Msg({ text: `Erro: ${e.message}`, ok: false });
+    } catch (e) {
+      setV11Msg({ text: `Error: ${errorMessage(e)}`, ok: false });
     } finally {
       setGeneratingForms(false);
     }
@@ -310,10 +362,13 @@ export function ScholarshipApprovalTab({ detail }: { detail: CaseDetailPage }) {
         body: { application_id: appId, force: true },
       });
       if (res.error) throw new Error(res.error.message);
-      setV11Msg({ text: `Pacote gerado. ${res.data?.forms_added ?? 0} forms + ${res.data?.docs_added ?? 0} docs.`, ok: true });
+      setV11Msg({
+        text: `Package generated. ${res.data?.forms_added ?? 0} forms + ${res.data?.docs_added ?? 0} docs.`,
+        ok: true,
+      });
       await fetchApplications();
-    } catch (e: any) {
-      setV11Msg({ text: `Erro: ${e.message}`, ok: false });
+    } catch (e) {
+      setV11Msg({ text: `Error: ${errorMessage(e)}`, ok: false });
     } finally {
       setBuildingPackage(false);
     }
@@ -329,11 +384,11 @@ export function ScholarshipApprovalTab({ detail }: { detail: CaseDetailPage }) {
         .update({ acceptance_letter_url: letterUrlInput.trim() })
         .eq('id', appId);
       if (error) throw error;
-      setV11Msg({ text: 'URL da carta de aceite salva.', ok: true });
+      setV11Msg({ text: 'Acceptance letter URL saved.', ok: true });
       setLetterUrlInput('');
       await fetchApplications();
-    } catch (e: any) {
-      setV11Msg({ text: `Erro: ${e.message}`, ok: false });
+    } catch (e) {
+      setV11Msg({ text: `Error: ${errorMessage(e)}`, ok: false });
     } finally {
       setSavingLetterUrl(false);
     }
@@ -348,10 +403,10 @@ export function ScholarshipApprovalTab({ detail }: { detail: CaseDetailPage }) {
         .update({ placement_fee_2nd_installment_paid_at: new Date().toISOString() })
         .eq('id', appId);
       if (error) throw error;
-      setV11Msg({ text: '2ª parcela confirmada. Carta de aceite desbloqueada para o aluno.', ok: true });
+      setV11Msg({ text: 'Second installment confirmed. Acceptance letter unlocked for the student.', ok: true });
       await fetchApplications();
-    } catch (e: any) {
-      setV11Msg({ text: `Erro: ${e.message}`, ok: false });
+    } catch (e) {
+      setV11Msg({ text: `Error: ${errorMessage(e)}`, ok: false });
     } finally {
       setConfirming2nd(false);
     }
@@ -375,7 +430,7 @@ export function ScholarshipApprovalTab({ detail }: { detail: CaseDetailPage }) {
         <p className="text-red-300 text-sm">{error}</p>
         <Button size="sm" onClick={fetchApplications} variant="outline" className="border-white/10 text-white">
           <RefreshCw className="w-4 h-4 mr-2" />
-          Tentar Novamente
+          Try Again
         </Button>
       </div>
     );
@@ -385,8 +440,8 @@ export function ScholarshipApprovalTab({ detail }: { detail: CaseDetailPage }) {
     return (
       <div className="text-center py-20 text-gray-500">
         <GraduationCap className="w-10 h-10 mx-auto mb-3 opacity-30" />
-        <p className="text-sm">Nenhuma seleção de universidade encontrada para este perfil.</p>
-        <p className="text-xs mt-1 text-gray-600">O aluno ainda não completou o passo de seleção de faculdades.</p>
+        <p className="text-sm">No university selection found for this profile.</p>
+        <p className="text-xs mt-1 text-gray-600">The student has not completed the university selection step yet.</p>
       </div>
     );
   }
@@ -403,25 +458,25 @@ export function ScholarshipApprovalTab({ detail }: { detail: CaseDetailPage }) {
         overallStatus === 'paid'
           ? 'bg-green-500/10 border-green-500/20'
           : overallStatus === 'approved'
-            ? 'bg-blue-500/10 border-blue-500/20'
-            : 'bg-amber-500/10 border-amber-500/20'
+          ? 'bg-blue-500/10 border-blue-500/20'
+          : 'bg-amber-500/10 border-amber-500/20'
       )}>
         <div className="flex items-center gap-3">
           {overallStatus === 'paid'
             ? <CheckCircle className="w-6 h-6 text-green-400" />
             : overallStatus === 'approved'
-              ? <Clock className="w-6 h-6 text-blue-400 animate-pulse" />
-              : <Clock className="w-6 h-6 text-amber-400 animate-pulse" />}
+            ? <Clock className="w-6 h-6 text-blue-400 animate-pulse" />
+            : <Clock className="w-6 h-6 text-amber-400 animate-pulse" />}
           <div>
             <p className="font-black text-white uppercase tracking-widest text-sm">
               {overallStatus === 'paid'
-                ? 'Placement Fee Pago'
+                ? 'Placement Fee Paid'
                 : overallStatus === 'approved'
-                  ? 'Aguardando Pagamento do Placement Fee'
-                  : 'Aguardando Aprovação de Bolsa'}
+                ? 'Awaiting Placement Fee Payment'
+                : 'Awaiting Scholarship Approval'}
             </p>
             <p className="text-xs text-gray-500 mt-0.5">
-              {applications.length} seleção(ões) · {applications.filter(a => a.status === 'pending_admin_approval').length} pendente(s)
+              {applications.length} selection(s) · {applications.filter(a => a.status === 'pending_admin_approval').length} pending
             </p>
           </div>
         </div>
@@ -430,12 +485,12 @@ export function ScholarshipApprovalTab({ detail }: { detail: CaseDetailPage }) {
             <div className={cn(
               'text-center px-3 py-2 rounded-xl border text-xs font-black',
               deadlineDays <= 7 ? 'bg-red-500/20 border-red-500/30 text-red-300' :
-                deadlineDays <= 30 ? 'bg-amber-500/20 border-amber-500/30 text-amber-300' :
-                  'bg-white/5 border-white/10 text-gray-400'
+              deadlineDays <= 30 ? 'bg-amber-500/20 border-amber-500/30 text-amber-300' :
+              'bg-white/5 border-white/10 text-gray-400'
             )}>
               <Timer className="w-3.5 h-3.5 mx-auto mb-0.5" />
               <div className="text-lg leading-none">{deadlineDays}</div>
-              <div className="tracking-widest uppercase opacity-70">dias</div>
+              <div className="tracking-widest uppercase opacity-70">days</div>
             </div>
           )}
           <Button size="sm" onClick={fetchApplications} variant="outline" className="border-white/10 text-white bg-transparent hover:bg-white/10">
@@ -451,7 +506,7 @@ export function ScholarshipApprovalTab({ detail }: { detail: CaseDetailPage }) {
         <div className="xl:col-span-2 space-y-4">
           <h3 className="text-xs font-black uppercase tracking-widest text-gray-400 flex items-center gap-2">
             <Award className="w-4 h-4 text-gold-medium" />
-            Seleções do Aluno ({applications.length})
+            Student Selections ({applications.length})
           </h3>
 
           {applications.map(app => {
@@ -472,10 +527,10 @@ export function ScholarshipApprovalTab({ detail }: { detail: CaseDetailPage }) {
                   isSelected
                     ? 'border-gold-medium/50 shadow-[0_0_20px_rgba(184,158,78,0.08)]'
                     : isPending
-                      ? 'border-white/5 hover:border-white/10'
-                      : app.status === 'approved' || app.status === 'payment_pending' || app.status === 'payment_confirmed'
-                        ? 'border-emerald-500/20'
-                        : 'border-white/5 opacity-50'
+                    ? 'border-white/5 hover:border-white/10'
+                    : app.status === 'approved' || app.status === 'payment_pending' || app.status === 'payment_confirmed'
+                    ? 'border-emerald-500/20'
+                    : 'border-white/5 opacity-50'
                 )}
               >
                 <CardContent className="p-5">
@@ -518,6 +573,15 @@ export function ScholarshipApprovalTab({ detail }: { detail: CaseDetailPage }) {
                         </Badge>
                       </div>
 
+                      {backgroundProcessingIds.has(app.id) && (
+                        <div className="mt-2 flex items-center gap-2 px-3 py-1.5 bg-blue-500/10 border border-blue-500/20 rounded-lg">
+                          <Loader2 className="w-3 h-3 text-blue-400 animate-spin" />
+                          <span className="text-[10px] font-black uppercase tracking-widest text-blue-300">
+                            Processing approval in the background...
+                          </span>
+                        </div>
+                      )}
+
                       {scholar && (
                         <div className="flex flex-wrap gap-2 mt-3">
                           <span className="text-xs bg-gold-medium/10 border border-gold-medium/20 text-gold-medium px-2.5 py-1 rounded-full font-bold">
@@ -527,7 +591,7 @@ export function ScholarshipApprovalTab({ detail }: { detail: CaseDetailPage }) {
                             {scholar.discount_percent}% OFF
                           </span>
                           <span className="text-xs bg-white/5 border border-white/10 text-gray-400 px-2.5 py-1 rounded-full font-bold">
-                            Tuition: ${scholar.tuition_annual_usd.toLocaleString()}/ano
+                            Tuition: ${scholar.tuition_annual_usd.toLocaleString()}/year
                           </span>
                         </div>
                       )}
@@ -559,13 +623,13 @@ export function ScholarshipApprovalTab({ detail }: { detail: CaseDetailPage }) {
 
                       {app.admin_approved_at && (
                         <p className="text-[10px] text-gray-600 mt-2">
-                          Aprovado em {fmtDate(app.admin_approved_at)}
+                          Approved on {fmtDate(app.admin_approved_at)}
                         </p>
                       )}
                       {app.placement_fee_paid_at && (
                         <p className="text-[10px] text-emerald-500 mt-1 flex items-center gap-1">
                           <CheckCircle2 className="w-3 h-3" />
-                          Placement Fee pago em {fmtDate(app.placement_fee_paid_at)}
+                          Placement Fee paid on {fmtDate(app.placement_fee_paid_at)}
                         </p>
                       )}
                     </div>
@@ -580,15 +644,15 @@ export function ScholarshipApprovalTab({ detail }: { detail: CaseDetailPage }) {
             <CardHeader className="pb-3">
               <CardTitle className="text-xs font-black uppercase tracking-widest text-gray-400 flex items-center gap-2">
                 <Shield className="w-4 h-4 text-gold-medium" />
-                Critérios de Aprovação CRM Migma
+                Migma CRM Approval Criteria
               </CardTitle>
             </CardHeader>
             <CardContent className="pt-0 space-y-2">
               {[
-                'Perfil financeiro compatível com o I-20 da faculdade',
-                'Curso coerente com histórico acadêmico e profissional do cliente',
-                'Instituição com histórico positivo de aprovação',
-                'Início de aulas compatível com o timing do processo',
+                'Financial profile compatible with the school I-20',
+                'Program aligned with the customer academic and professional background',
+                'Institution with a positive approval history',
+                'Class start date aligned with the process timing',
               ].map((c, i) => (
                 <div key={i} className="flex items-center gap-2.5 text-sm text-gray-400">
                   <div className="w-5 h-5 rounded-full bg-white/5 border border-white/10 flex items-center justify-center shrink-0 text-[10px] font-black text-gray-500">
@@ -609,18 +673,18 @@ export function ScholarshipApprovalTab({ detail }: { detail: CaseDetailPage }) {
             <CardHeader className="pb-3">
               <CardTitle className="text-xs font-black uppercase tracking-widest text-gray-400 flex items-center gap-2">
                 <GraduationCap className="w-4 h-4 text-gold-medium" />
-                Perfil do Aluno
+                Student Profile
               </CardTitle>
             </CardHeader>
             <CardContent className="pt-0 space-y-2 text-sm">
               {[
-                { label: 'Serviço', value: profile.service_type },
-                { label: 'Área de Interesse', value: profile.field_of_interest },
-                { label: 'Nível Acadêmico', value: profile.academic_level },
-                { label: 'Dependentes', value: profile.num_dependents != null ? String(profile.num_dependents) : null },
-                { label: 'Step Atual', value: profile.onboarding_current_step },
-                { label: 'Questionário', value: profile.selection_survey_passed ? '✓ Completo' : '✗ Pendente' },
-                { label: 'Selection Fee', value: profile.has_paid_selection_process_fee ? '✓ Pago' : '✗ Pendente' },
+                { label: 'Service', value: profile.service_type },
+                { label: 'Area of Interest', value: profile.field_of_interest },
+                { label: 'Academic Level', value: profile.academic_level },
+                { label: 'Dependents', value: profile.num_dependents != null ? String(profile.num_dependents) : null },
+                { label: 'Current Step', value: profile.onboarding_current_step },
+                { label: 'Survey', value: profile.selection_survey_passed ? '✓ Complete' : '✗ Pending' },
+                { label: 'Selection Fee', value: profile.has_paid_selection_process_fee ? '✓ Paid' : '✗ Pending' },
               ].map(({ label, value }) => (
                 <div key={label} className="flex justify-between py-1 border-b border-white/5 last:border-0">
                   <span className="text-gray-500 text-xs">{label}</span>
@@ -635,17 +699,17 @@ export function ScholarshipApprovalTab({ detail }: { detail: CaseDetailPage }) {
                   deadlineDays !== null && deadlineDays <= 7
                     ? 'bg-red-500/10 border-red-500/20 text-red-300'
                     : deadlineDays !== null && deadlineDays <= 30
-                      ? 'bg-amber-500/10 border-amber-500/20 text-amber-300'
-                      : 'bg-white/5 border-white/10 text-gray-400'
+                    ? 'bg-amber-500/10 border-amber-500/20 text-amber-300'
+                    : 'bg-white/5 border-white/10 text-gray-400'
                 )}>
                   <p className="font-black uppercase tracking-widest text-[10px] mb-1">
-                    {serviceType === 'transfer' ? 'Prazo de Transferência' : 'Vencimento I-94'}
+                    {serviceType === 'transfer' ? 'Transfer Deadline' : 'I-94 Expiration'}
                   </p>
                   <p className="font-black text-white">
-                    {new Date(deadlineDate).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' })}
+                    {new Date(deadlineDate).toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' })}
                   </p>
                   {deadlineDays !== null && (
-                    <p className="mt-0.5">{deadlineDays > 0 ? `${deadlineDays} dias restantes` : 'Prazo expirado'}</p>
+                    <p className="mt-0.5">{deadlineDays > 0 ? `${deadlineDays} days left` : 'Deadline expired'}</p>
                   )}
                 </div>
               )}
@@ -658,13 +722,13 @@ export function ScholarshipApprovalTab({ detail }: { detail: CaseDetailPage }) {
               <CardHeader className="pb-3">
                 <CardTitle className="text-xs font-black uppercase tracking-widest text-gray-400 flex items-center gap-2">
                   <Award className="w-4 h-4 text-gold-medium" />
-                  Aprovação de Bolsa
+                  Scholarship Approval
                 </CardTitle>
               </CardHeader>
               <CardContent className="pt-0 space-y-4">
                 {selectedAppId ? (
                   <div className="bg-gold-medium/5 border border-gold-medium/20 rounded-xl p-3">
-                    <p className="text-xs text-gold-medium font-black uppercase tracking-widest mb-1">Selecionado para aprovar:</p>
+                    <p className="text-xs text-gold-medium font-black uppercase tracking-widest mb-1">Selected for approval:</p>
                     <p className="text-sm text-white font-bold">
                       {applications.find(a => a.id === selectedAppId)?.institutions?.name}
                     </p>
@@ -675,7 +739,7 @@ export function ScholarshipApprovalTab({ detail }: { detail: CaseDetailPage }) {
                   </div>
                 ) : (
                   <p className="text-xs text-gray-500 italic">
-                    Selecione uma opção na lista ao lado para aprovar.
+                    Select an option from the list to approve.
                   </p>
                 )}
 
@@ -685,15 +749,15 @@ export function ScholarshipApprovalTab({ detail }: { detail: CaseDetailPage }) {
                   className="w-full bg-gold-medium hover:bg-gold-light disabled:opacity-40 text-black font-black uppercase tracking-widest text-xs"
                 >
                   {processing
-                    ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Processando...</>
-                    : <><Award className="w-4 h-4 mr-2" />Aprovar Bolsa</>}
+                    ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Processing...</>
+                    : <><Award className="w-4 h-4 mr-2" />Approve Scholarship</>}
                 </Button>
 
                 <div className="text-[10px] text-gray-600 space-y-1">
-                  <p>• Gera link Parcelow para o Placement Fee</p>
-                  <p>• Dispara e-mail de notificação ao cliente</p>
-                  <p>• Rejeita automaticamente as outras opções</p>
-                  <p>• Status: AGUARD. PAGAMENTO PLACEMENT FEE</p>
+                  <p>• Generates a Parcelow link for the Placement Fee</p>
+                  <p>• Sends a customer notification email</p>
+                  <p>• Automatically rejects the other options</p>
+                  <p>• Status: AWAITING PLACEMENT FEE PAYMENT</p>
                 </div>
               </CardContent>
             </Card>
@@ -705,7 +769,7 @@ export function ScholarshipApprovalTab({ detail }: { detail: CaseDetailPage }) {
               <CardHeader className="pb-3">
                 <CardTitle className="text-xs font-black uppercase tracking-widest text-gray-400 flex items-center gap-2">
                   <DollarSign className="w-4 h-4 text-blue-400" />
-                  Link de Pagamento Gerado
+                  Payment Link Generated
                 </CardTitle>
               </CardHeader>
               <CardContent className="pt-0 space-y-3">
@@ -727,11 +791,11 @@ export function ScholarshipApprovalTab({ detail }: { detail: CaseDetailPage }) {
                   className="flex items-center justify-center gap-2 w-full py-2.5 bg-blue-500/10 border border-blue-500/20 text-blue-300 hover:bg-blue-500/20 rounded-xl text-xs font-bold transition-all"
                 >
                   <ExternalLink className="w-3.5 h-3.5" />
-                  Abrir Link
+                  Open Link
                 </a>
                 {approvedApp.payment_link_generated_at && (
                   <p className="text-[10px] text-gray-600">
-                    Gerado em {fmtDate(approvedApp.payment_link_generated_at)}
+                    Generated on {fmtDate(approvedApp.payment_link_generated_at)}
                   </p>
                 )}
               </CardContent>
@@ -742,11 +806,11 @@ export function ScholarshipApprovalTab({ detail }: { detail: CaseDetailPage }) {
           {actionMsg && (
             <div className={cn(
               'rounded-xl px-4 py-3 text-sm border',
-              actionMsg.startsWith('Erro')
+              actionMsg.startsWith('Error') || actionMsg.startsWith('Processing error')
                 ? 'bg-red-500/10 border-red-500/20 text-red-300'
                 : 'bg-emerald-500/10 border-emerald-500/20 text-emerald-300'
             )}>
-              {actionMsg.startsWith('Erro')
+              {actionMsg.startsWith('Error') || actionMsg.startsWith('Processing error')
                 ? <AlertTriangle className="w-4 h-4 inline mr-2" />
                 : <CheckCircle2 className="w-4 h-4 inline mr-2" />}
               {actionMsg}
@@ -757,11 +821,11 @@ export function ScholarshipApprovalTab({ detail }: { detail: CaseDetailPage }) {
           <div className="bg-white/[0.02] border border-white/5 rounded-xl p-4">
             <p className="text-[10px] text-gray-600 uppercase font-black tracking-widest mb-1.5 flex items-center gap-1.5">
               <Send className="w-3 h-3" />
-              Notificações automáticas
+              Automatic Notifications
             </p>
             <ul className="text-[11px] text-gray-500 space-y-1">
-              <li>✉️ E-mail — enviado automaticamente na aprovação</li>
-              <li>📱 WhatsApp — integração via n8n (a configurar)</li>
+              <li>Email — sent automatically on approval</li>
+              <li>WhatsApp — integration via n8n (to be configured)</li>
             </ul>
           </div>
         </div>
@@ -775,17 +839,17 @@ export function ScholarshipApprovalTab({ detail }: { detail: CaseDetailPage }) {
           <div className="space-y-4">
             <h3 className="text-xs font-black uppercase tracking-widest text-gray-400 flex items-center gap-2 pt-2">
               <Package className="w-4 h-4 text-gold-medium" />
-              Fluxo V11 — Pós-Pagamento
+              V11 Flow — Post-Payment
             </h3>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
 
-              {/* 1. Gerar Formulários */}
+              {/* 1. Generate forms */}
               <Card className="bg-black/30 border border-white/10">
                 <CardContent className="p-5 space-y-3">
                   <div className="flex items-center gap-2">
                     <FileText className="w-4 h-4 text-gold-medium" />
-                    <span className="text-xs font-black uppercase tracking-widest text-gray-300">Formulários PDF</span>
+                    <span className="text-xs font-black uppercase tracking-widest text-gray-300">Institution Forms</span>
                     {paidApp.forms_status && (
                       <span className={cn(
                         'ml-auto text-[9px] font-black uppercase px-2 py-0.5 rounded-full border',
@@ -796,7 +860,7 @@ export function ScholarshipApprovalTab({ detail }: { detail: CaseDetailPage }) {
                     )}
                   </div>
                   <p className="text-xs text-gray-500">
-                    Gera os PDFs dos formulários da universidade com os dados do aluno.
+                    Generates the university PDF forms using the student data.
                   </p>
                   <Button
                     size="sm"
@@ -806,18 +870,18 @@ export function ScholarshipApprovalTab({ detail }: { detail: CaseDetailPage }) {
                     variant="outline"
                   >
                     {generatingForms
-                      ? <><Loader2 className="w-3.5 h-3.5 mr-2 animate-spin" />Gerando...</>
-                      : <><FileText className="w-3.5 h-3.5 mr-2" />{paidApp.forms_status === 'generated' ? 'Regenerar PDFs' : 'Gerar PDFs'}</>}
+                      ? <><Loader2 className="w-3.5 h-3.5 mr-2 animate-spin" />Generating...</>
+                      : <><FileText className="w-3.5 h-3.5 mr-2" />{paidApp.forms_status === 'generated' ? 'Regenerate PDFs' : 'Generate PDFs'}</>}
                   </Button>
                 </CardContent>
               </Card>
 
-              {/* 2. Pacote MatriculaUSA */}
+              {/* 2. MatriculaUSA package */}
               <Card className="bg-black/30 border border-white/10">
                 <CardContent className="p-5 space-y-3">
                   <div className="flex items-center gap-2">
                     <Package className="w-4 h-4 text-blue-400" />
-                    <span className="text-xs font-black uppercase tracking-widest text-gray-300">Pacote MatriculaUSA</span>
+                    <span className="text-xs font-black uppercase tracking-widest text-gray-300">MatriculaUSA Package</span>
                     {paidApp.package_status && (
                       <span className={cn(
                         'ml-auto text-[9px] font-black uppercase px-2 py-0.5 rounded-full border',
@@ -828,7 +892,7 @@ export function ScholarshipApprovalTab({ detail }: { detail: CaseDetailPage }) {
                     )}
                   </div>
                   <p className="text-xs text-gray-500">
-                    Monta ZIP com formulários + documentos e gera link de download (7 dias).
+                    Builds the ZIP with forms and documents and creates a 7-day download link.
                   </p>
                   <Button
                     size="sm"
@@ -838,8 +902,8 @@ export function ScholarshipApprovalTab({ detail }: { detail: CaseDetailPage }) {
                     variant="outline"
                   >
                     {buildingPackage
-                      ? <><Loader2 className="w-3.5 h-3.5 mr-2 animate-spin" />Montando...</>
-                      : <><Package className="w-3.5 h-3.5 mr-2" />{paidApp.package_status === 'ready' ? 'Remontar Pacote' : 'Montar Pacote'}</>}
+                      ? <><Loader2 className="w-3.5 h-3.5 mr-2 animate-spin" />Building...</>
+                      : <><Package className="w-3.5 h-3.5 mr-2" />{paidApp.package_status === 'ready' ? 'Rebuild Package' : 'Build Package'}</>}
                   </Button>
                   {paidApp.package_storage_url && (
                     <a
@@ -849,31 +913,35 @@ export function ScholarshipApprovalTab({ detail }: { detail: CaseDetailPage }) {
                       className="flex items-center gap-2 text-xs text-emerald-400 hover:text-emerald-300 transition-colors"
                     >
                       <Download className="w-3.5 h-3.5" />
-                      Baixar ZIP
+                      Download ZIP
                     </a>
                   )}
                 </CardContent>
               </Card>
 
-              {/* 3. Carta de Aceite */}
+              {/* Carta de Aceite — enviada automaticamente via webhook MatriculaUSA */}
               <Card className="bg-black/30 border border-white/10">
                 <CardContent className="p-5 space-y-3">
                   <div className="flex items-center gap-2">
                     <Link className="w-4 h-4 text-emerald-400" />
-                    <span className="text-xs font-black uppercase tracking-widest text-gray-300">Carta de Aceite / I-20</span>
-                    {paidApp.acceptance_letter_url && (
-                      <span className="ml-auto text-[9px] font-black uppercase px-2 py-0.5 rounded-full border bg-emerald-500/10 text-emerald-400 border-emerald-500/20">
-                        Disponível
-                      </span>
-                    )}
+                    <span className="text-xs font-black uppercase tracking-widest text-gray-300">Acceptance Letter / I-20</span>
+                    <span className={`ml-auto text-[9px] font-black uppercase px-2 py-0.5 rounded-full border ${paidApp.acceptance_letter_url ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-white/5 text-gray-500 border-white/10'}`}>
+                      {paidApp.acceptance_letter_url ? 'Available' : 'Waiting'}
+                    </span>
                   </div>
                   <p className="text-xs text-gray-500">
-                    Cole a URL da carta de aceite/I-20 recebida do MatriculaUSA para liberar ao aluno.
+                    Sent automatically by MatriculaUSA through the webhook. No action required.
                   </p>
                   {paidApp.acceptance_letter_url && (
                     <div className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-xl px-3 py-2">
                       <span className="text-xs text-gray-400 truncate flex-1 font-mono">{paidApp.acceptance_letter_url}</span>
-                      <a href={paidApp.acceptance_letter_url} target="_blank" rel="noopener noreferrer" className="text-emerald-400 hover:text-emerald-300">
+                      <a
+                        href={resolvedUrls[paidApp.id] || '#'}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-emerald-400 hover:text-emerald-300"
+                        onClick={(e) => !resolvedUrls[paidApp.id] && e.preventDefault()}
+                      >
                         <ExternalLink className="w-3.5 h-3.5" />
                       </a>
                     </div>
@@ -893,7 +961,7 @@ export function ScholarshipApprovalTab({ detail }: { detail: CaseDetailPage }) {
                       className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 hover:bg-emerald-500/20 text-xs font-black shrink-0"
                       variant="outline"
                     >
-                      {savingLetterUrl ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Salvar'}
+                      {savingLetterUrl ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Save'}
                     </Button>
                   </div>
                 </CardContent>
@@ -905,13 +973,13 @@ export function ScholarshipApprovalTab({ detail }: { detail: CaseDetailPage }) {
                   <CardContent className="p-5 space-y-3">
                     <div className="flex items-center gap-2">
                       <CreditCard className="w-4 h-4 text-amber-400" />
-                      <span className="text-xs font-black uppercase tracking-widest text-gray-300">2ª Parcela Placement Fee</span>
+                      <span className="text-xs font-black uppercase tracking-widest text-gray-300">Second Placement Fee Installment</span>
                       <span className="ml-auto text-[9px] font-black uppercase px-2 py-0.5 rounded-full border bg-amber-500/10 text-amber-400 border-amber-500/20">
-                        Pendente
+                        Pending
                       </span>
                     </div>
                     <p className="text-xs text-gray-500">
-                      Aluno pagou em 2x. Confirme o recebimento da 2ª parcela para desbloquear a carta de aceite.
+                      Student paid in 2 installments. Confirm receipt of the second installment to unlock the acceptance letter.
                     </p>
                     <Button
                       size="sm"
@@ -921,8 +989,8 @@ export function ScholarshipApprovalTab({ detail }: { detail: CaseDetailPage }) {
                       variant="outline"
                     >
                       {confirming2nd
-                        ? <><Loader2 className="w-3.5 h-3.5 mr-2 animate-spin" />Confirmando...</>
-                        : <><CheckCircle className="w-3.5 h-3.5 mr-2" />Confirmar 2ª Parcela Recebida</>}
+                        ? <><Loader2 className="w-3.5 h-3.5 mr-2 animate-spin" />Confirming...</>
+                        : <><CheckCircle className="w-3.5 h-3.5 mr-2" />Confirm Second Installment Received</>}
                     </Button>
                   </CardContent>
                 </Card>
@@ -951,11 +1019,11 @@ export function ScholarshipApprovalTab({ detail }: { detail: CaseDetailPage }) {
       <Dialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
         <DialogContent className="bg-[#0f0f0f] border border-white/10 text-white max-w-md rounded-3xl">
           <DialogTitle className="text-lg font-black uppercase tracking-tight">
-            Confirmar Aprovação de Bolsa
+            Confirm Scholarship Approval
           </DialogTitle>
           <DialogDescription className="text-gray-400 text-sm leading-relaxed">
-            Ao confirmar, você aprovará a seleção abaixo, rejeitará as demais e um link de pagamento
-            Parcelow será gerado automaticamente para o Placement Fee.
+            Confirming will approve the selection below, reject the others, and automatically generate
+            a Parcelow payment link for the Placement Fee.
           </DialogDescription>
 
           {selectedAppId && (() => {
@@ -973,7 +1041,7 @@ export function ScholarshipApprovalTab({ detail }: { detail: CaseDetailPage }) {
                       Placement Fee: ${scholar.placement_fee_usd.toLocaleString()}
                     </span>
                     <span className="text-xs text-emerald-400 font-bold">
-                      {scholar.discount_percent}% de desconto
+                      {scholar.discount_percent}% discount
                     </span>
                   </div>
                 )}
@@ -988,7 +1056,7 @@ export function ScholarshipApprovalTab({ detail }: { detail: CaseDetailPage }) {
               disabled={processing}
               className="flex-1 border-white/10 text-white bg-transparent hover:bg-white/10"
             >
-              Cancelar
+              Cancel
             </Button>
             <Button
               onClick={handleApprove}
@@ -996,8 +1064,8 @@ export function ScholarshipApprovalTab({ detail }: { detail: CaseDetailPage }) {
               className="flex-1 bg-gold-medium hover:bg-gold-light text-black font-black"
             >
               {processing
-                ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Aprovando...</>
-                : <><CheckCircle2 className="w-4 h-4 mr-2" />Confirmar Aprovação</>}
+                ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Approving...</>
+                : <><CheckCircle2 className="w-4 h-4 mr-2" />Confirm Approval</>}
             </Button>
           </div>
         </DialogContent>

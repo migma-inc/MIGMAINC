@@ -6,6 +6,12 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+const TEST_EMAIL_DOMAIN = "@uorak.com";
+
+function isUorakTestEmail(email: string | null | undefined): boolean {
+  return Boolean(email?.trim().toLowerCase().endsWith(TEST_EMAIL_DOMAIN));
+}
+
 function getBucketAndPath(url: string | null) {
   if (!url) return null;
   const match = url.match(/\/storage\/v1\/object\/public\/([^\/]+)\/(.+)$/);
@@ -49,8 +55,9 @@ Deno.serve(async (req) => {
 
   } catch (error) {
     console.error("[EDGE FUNCTION] Exception:", error);
+    const message = error instanceof Error ? error.message : "Internal server error";
     return new Response(
-      JSON.stringify({ success: false, error: error.message || "Internal server error" }),
+      JSON.stringify({ success: false, error: message }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
@@ -67,6 +74,11 @@ async function processVisaContract(orderId: string, supabase: any) {
 
   const adminEmail = "info@migmainc.com";
   const attachments = [];
+
+  if (isUorakTestEmail(order.client_email)) {
+    console.log(`[EDGE FUNCTION] Skipping Visa contract admin resend for test client: ${order.client_email}`);
+    return { success: true, skipped: true, message: "Admin email skipped for test client" };
+  }
 
   // 1. Add Main Contract if it exists
   const contract = getBucketAndPath(order.contract_pdf_url);
@@ -223,6 +235,11 @@ async function processPartnerContract(acceptanceId: string, supabase: any) {
   if (appError || !application) throw new Error("Partner application not found");
 
   const adminEmail = "adm@migmainc.com";
+
+  if (isUorakTestEmail(application.email)) {
+    console.log(`[EDGE FUNCTION] Skipping Partner contract admin resend for test partner: ${application.email}`);
+    return { success: true, skipped: true, message: "Admin email skipped for test partner" };
+  }
 
   if (!acceptance.contract_pdf_path) throw new Error("No PDF file found for this partner contract");
 

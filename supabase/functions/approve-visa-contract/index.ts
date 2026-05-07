@@ -4,15 +4,28 @@
 
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
-import { appendServiceRequestEvent } from "../shared/service-request-operational.ts";
+import { appendServiceRequestEvent, transitionServiceRequestStage } from "../shared/service-request-operational.ts";
 
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
 const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const CONTRACT_IDENTITY_DOC_TYPES = [
+  "passport",
+  "passport_back",
+  "selfie_with_doc",
+  "document_front",
+  "document_back",
+  "selfie_doc",
+];
+const TEST_EMAIL_DOMAIN = "@uorak.com";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
+
+function isUorakTestEmail(email: string | null | undefined): boolean {
+  return Boolean(email?.trim().toLowerCase().endsWith(TEST_EMAIL_DOMAIN));
+}
 
 // Helper functions for n8n webhook
 function normalizeServiceName(productSlug: string, productName: string): string {
@@ -33,6 +46,11 @@ async function sendVisaAdminNotification(order: any, supabase: any) {
   console.log(`[Admin Notification] Preparing admin notification for order ${order.order_number}`);
 
   try {
+    if (isUorakTestEmail(order.client_email)) {
+      console.log(`[Admin Notification] Skipping admin email for test client: ${order.client_email}`);
+      return;
+    }
+
     const attachments = [];
 
     // 1. Add Main Contract if it exists
@@ -206,6 +224,23 @@ async function sendVisaAdminNotification(order: any, supabase: any) {
   }
 }
 
+async function approveContractIdentityDocuments(supabase: any, userId: string | null | undefined) {
+  if (!userId) return;
+
+  const { error } = await supabase
+    .from('student_documents')
+    .update({
+      status: 'approved',
+      rejection_reason: null,
+    })
+    .eq('user_id', userId)
+    .in('type', CONTRACT_IDENTITY_DOC_TYPES);
+
+  if (error) {
+    console.error('[EDGE FUNCTION] Failed to approve contract identity documents:', error.message);
+  }
+}
+
 function isWebhookApprovalSatisfied(order: any, approvalType: string, isAnnexOnlyProduct: boolean): boolean {
   if (approvalType === 'contract') {
     return order.contract_approval_status === 'approved';
@@ -265,7 +300,8 @@ async function sendClientWebhook(order: any, supabase: any, isUpsell: boolean = 
     (order.client_email && (
       order.client_email.includes("@uorak") ||
       order.client_email.toLowerCase() === "victtinho.ribeiro@gmail.com" ||
-      order.client_email.toLowerCase() === "victuribdev@gmail.com"
+      order.client_email.toLowerCase() === "victuribdev@gmail.com" ||
+      order.client_email.toLowerCase() === "nemerfrancisco@gmail.com"
     ));
 
   const webhookUrls = isTestUser
@@ -314,7 +350,7 @@ async function sendClientWebhook(order: any, supabase: any, isUpsell: boolean = 
     // Fetch product pricing details
     const { data: product } = await supabase
       .from('visa_products')
-      .select('name, base_price_usd, price_per_dependent_usd')
+      .select('id, name, base_price_usd, price_per_dependent_usd')
       .eq('slug', productSlug)
       .single();
 
@@ -354,6 +390,7 @@ async function sendClientWebhook(order: any, supabase: any, isUpsell: boolean = 
     const mainPayload: ClientWebhookPayload = {
       order_id: order.id,
       service_request_id: order.service_request_id || '',
+      visa_produt_id: product?.id || '',
       servico: serviceName,
       plano_servico: productSlug,
       nome_completo_cliente_principal: order.client_name,
@@ -380,6 +417,7 @@ async function sendClientWebhook(order: any, supabase: any, isUpsell: boolean = 
         const depPayload: ClientWebhookPayload = {
           order_id: order.id,
           service_request_id: order.service_request_id || '',
+          visa_produt_id: product?.id || '',
           tipo: "dependente",
           nome_completo_cliente_principal: order.client_name,
           nome_completo_dependente: depName,
@@ -466,7 +504,7 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { order_id, reviewed_by, contract_type } = await req.json();
+    const { order_id, reviewed_by, contract_type, admin_ip } = await req.json();
 
     if (!order_id) {
       return new Response(
@@ -484,6 +522,11 @@ Deno.serve(async (req) => {
 
     // contract_type: 'annex', 'contract', 'upsell_contract', or 'upsell_annex'
     const approvalType = contract_type || 'contract';
+    const adminIp = admin_ip
+      ?? req.headers.get("cf-connecting-ip")
+      ?? req.headers.get("x-forwarded-for")?.split(",")[0]?.trim()
+      ?? req.headers.get("x-real-ip")
+      ?? null;
 
     console.log(`[EDGE FUNCTION] Approving ${approvalType} for order:`, order_id);
 
@@ -515,19 +558,23 @@ Deno.serve(async (req) => {
       updateData.annex_approval_status = 'approved';
       updateData.annex_approval_reviewed_by = reviewed_by;
       updateData.annex_approval_reviewed_at = new Date().toISOString();
+      if (adminIp) updateData.annex_approval_admin_ip = adminIp;
     } else if (approvalType === 'upsell_contract') {
       updateData.upsell_contract_approval_status = 'approved';
       updateData.upsell_contract_approval_reviewed_by = reviewed_by;
       updateData.upsell_contract_approval_reviewed_at = new Date().toISOString();
+      if (adminIp) updateData.upsell_contract_approval_admin_ip = adminIp;
     } else if (approvalType === 'upsell_annex') {
       updateData.upsell_annex_approval_status = 'approved';
       updateData.upsell_annex_approval_reviewed_by = reviewed_by;
       updateData.upsell_annex_approval_reviewed_at = new Date().toISOString();
+      if (adminIp) updateData.upsell_annex_approval_admin_ip = adminIp;
     } else {
       // Default to main contract
       updateData.contract_approval_status = 'approved';
       updateData.contract_approval_reviewed_by = reviewed_by;
       updateData.contract_approval_reviewed_at = new Date().toISOString();
+      if (adminIp) updateData.contract_approval_admin_ip = adminIp;
     }
 
     const { error: updateError } = await supabase
@@ -544,6 +591,118 @@ Deno.serve(async (req) => {
     }
 
     console.log(`[EDGE FUNCTION] ${approvalType} approved successfully in DB`);
+
+    if (approvalType === 'contract') {
+      try {
+        const { data: profile, error: profileError } = await supabase
+          .from('user_profiles')
+          .select('id, user_id')
+          .eq('email', order.client_email)
+          .maybeSingle();
+
+        if (profileError || !profile?.id) {
+          console.warn(`[EDGE FUNCTION] migma-notify contract_approved skipped: profile not found for ${order.client_email}`);
+        } else {
+          await supabase
+            .from('user_profiles')
+            .update({
+              onboarding_current_step: 'scholarship_selection',
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', profile.id);
+
+          await approveContractIdentityDocuments(supabase, profile.user_id);
+
+          const notifyRes = await fetch(`${supabaseUrl}/functions/v1/migma-notify`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${supabaseServiceKey}`,
+              'apikey': supabaseServiceKey,
+            },
+            body: JSON.stringify({
+              trigger: 'contract_approved',
+              user_id: profile.id,
+              channels: {
+                email: false,
+                whatsapp: true,
+              },
+              data: {
+                app_url: 'https://migmainc.com/student/onboarding?step=scholarship_selection',
+                order_id: order.id,
+                order_number: order.order_number,
+                reviewed_by,
+                admin_ip: adminIp,
+              },
+            }),
+          });
+
+          if (!notifyRes.ok) {
+            console.error('[EDGE FUNCTION] migma-notify contract_approved failed:', notifyRes.status);
+          } else {
+            console.log('[EDGE FUNCTION] ✅ migma-notify contract_approved dispatched for profile', profile.id);
+          }
+        }
+      } catch (notifyErr) {
+        console.error('[EDGE FUNCTION] migma-notify contract_approved error:', notifyErr);
+      }
+    }
+
+    // --- Operational stage: persist contract_approved event + transition stage ---
+    if (order.service_request_id) {
+      try {
+        const { data: sr, error: srFetchError } = await supabase
+          .from('service_requests')
+          .select('id, service_id, service_type, workflow_stage, stage_entered_at, case_status, status_i20, status_sevis, transfer_form_status, updated_at, created_at')
+          .eq('id', order.service_request_id)
+          .single();
+
+        if (!srFetchError && sr) {
+          await appendServiceRequestEvent(
+            supabase,
+            sr.id,
+            'contract_approved',
+            'user',
+            {
+              approval_type: approvalType,
+              order_id: order.id,
+              order_number: order.order_number,
+              reviewed_by,
+            },
+          );
+
+          // Transition to document_review for main contract approvals when
+          // the case is still in its initial stage. Annex-only products
+          // (scholarship / i20-control) also count as a main approval gate.
+          const isAnnexOnly = order.product_slug?.endsWith('-scholarship') || order.product_slug?.endsWith('-i20-control');
+          const isMainApproval = approvalType === 'contract' || (approvalType === 'annex' && isAnnexOnly);
+          const currentStage = sr.workflow_stage;
+          const eligibleForTransition = !currentStage || currentStage === 'case_created' || currentStage === 'awaiting_client_data';
+
+          if (isMainApproval && eligibleForTransition) {
+            await transitionServiceRequestStage(
+              supabase,
+              sr,
+              'document_review',
+              'user',
+              'contract_approved',
+              { approval_type: approvalType, order_id: order.id },
+            );
+          } else {
+            // For non-transitioning approvals, still bump updated_at so the
+            // CRM hub reflects the latest activity.
+            await supabase
+              .from('service_requests')
+              .update({ updated_at: new Date().toISOString() })
+              .eq('id', sr.id);
+          }
+        }
+      } catch (opErr) {
+        // Non-critical: operational audit must not block the contract approval flow.
+        console.error('[EDGE FUNCTION] Non-critical: operational stage update failed after contract approval', opErr);
+      }
+    }
+    // --- End operational stage block ---
 
     scheduleBackgroundTask((async () => {
       let freshOrder: any = null;
@@ -822,13 +981,26 @@ Deno.serve(async (req) => {
           </html>
         `;
 
-          await supabase.functions.invoke('send-email', {
-            body: {
+          const emailRes = await fetch(`${supabaseUrl}/functions/v1/send-email`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${supabaseServiceKey}`,
+              'apikey': supabaseServiceKey,
+            },
+            body: JSON.stringify({
               to: order.client_email,
               subject: `Document Approved: ${documentName} - Order #${order.order_number}`,
               html: emailHtml,
-            },
+            }),
           });
+
+          const emailBody = await emailRes.text();
+          if (!emailRes.ok) {
+            console.error("[EDGE FUNCTION] Contract approval client email failed:", emailRes.status, emailBody);
+          } else {
+            console.log("[EDGE FUNCTION] Contract approval client email sent:", order.client_email);
+          }
         }
       } catch (tokenEmailError) {
         console.error("[EDGE FUNCTION] Error with token/email (non-critical):", tokenEmailError);

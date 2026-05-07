@@ -4,11 +4,12 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Loader2, Save, User, Mail, Phone, Shield } from 'lucide-react';
+import { CalendarDays, Loader2, Save, User, Mail, Phone, Shield } from 'lucide-react';
 
 import { Skeleton } from '@/components/ui/skeleton';
 
 export const AdminProfile = () => {
+    const [accountRole, setAccountRole] = useState<'admin' | 'mentor'>('admin');
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState('');
@@ -19,6 +20,9 @@ export const AdminProfile = () => {
         phone: '',
     });
     const [initialEmail, setInitialEmail] = useState('');
+    const [calendarBookingUrl, setCalendarBookingUrl] = useState('');
+    const [savingCalendar, setSavingCalendar] = useState(false);
+    const [calendarMsg, setCalendarMsg] = useState('');
 
     useEffect(() => {
         loadProfile();
@@ -37,6 +41,7 @@ export const AdminProfile = () => {
             }
 
             const metadata = user.user_metadata || {};
+            setAccountRole(metadata.role === 'mentor' ? 'mentor' : 'admin');
 
             setFormData({
                 full_name: metadata.full_name || '',
@@ -44,6 +49,23 @@ export const AdminProfile = () => {
                 phone: metadata.phone || '',
             });
             setInitialEmail(user.email || '');
+
+            // Load mentor calendar URL from the explicit mentor registry first.
+            const { data: profile } = await supabase
+                .from('user_profiles')
+                .select('id, calendar_booking_url')
+                .eq('user_id', user.id)
+                .maybeSingle();
+
+            if (profile?.id) {
+                const { data: mentor } = await supabase
+                    .from('referral_mentors')
+                    .select('calendar_booking_url')
+                    .eq('profile_id', profile.id)
+                    .maybeSingle();
+
+                setCalendarBookingUrl(mentor?.calendar_booking_url ?? profile.calendar_booking_url ?? '');
+            }
         } catch (err) {
             console.error('[AdminProfile] Unexpected error:', err);
             setError('An unexpected error occurred');
@@ -88,7 +110,7 @@ export const AdminProfile = () => {
             const { data: { user: currentUser } } = await supabase.auth.getUser();
             const currentMetadata = currentUser?.user_metadata || {};
 
-            const updatePayload: any = {
+            const updatePayload: { data: Record<string, string | null>; email?: string } = {
                 data: {
                     ...currentMetadata,
                     full_name: formData.full_name.trim(),
@@ -128,6 +150,50 @@ export const AdminProfile = () => {
         }
     };
 
+    const handleSaveCalendarUrl = async () => {
+        setSavingCalendar(true);
+        setCalendarMsg('');
+        try {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) { setCalendarMsg('Not authenticated'); return; }
+
+            const trimmedUrl = calendarBookingUrl.trim();
+            const { data: profile, error: profileError } = await supabase
+                .from('user_profiles')
+                .update({ calendar_booking_url: trimmedUrl || null })
+                .eq('user_id', user.id)
+                .select('id, full_name, email')
+                .maybeSingle();
+
+            if (profileError) {
+                setCalendarMsg(`Error: ${profileError.message}`);
+                return;
+            }
+
+            if (!profile?.id) {
+                setCalendarMsg('Error: profile not found');
+                return;
+            }
+
+            const displayName = profile.full_name || profile.email || formData.full_name || user.email || profile.id;
+            const { error: mentorError } = await supabase
+                .from('referral_mentors')
+                .upsert({
+                    profile_id: profile.id,
+                    display_name: displayName,
+                    calendar_booking_url: trimmedUrl || null,
+                    active: Boolean(trimmedUrl),
+                    updated_at: new Date().toISOString(),
+                }, { onConflict: 'profile_id' });
+
+            setCalendarMsg(mentorError ? `Error: ${mentorError.message}` : 'Agenda salva com sucesso!');
+        } catch {
+            setCalendarMsg('Unexpected error');
+        } finally {
+            setSavingCalendar(false);
+        }
+    };
+
     if (loading) {
         return (
             <div className="max-w-3xl mx-auto p-4 sm:p-6 lg:p-8 space-y-8 animate-in fade-in duration-500">
@@ -161,11 +227,13 @@ export const AdminProfile = () => {
             <Card className="bg-gradient-to-br from-gold-light/10 via-gold-medium/5 to-gold-dark/10 border border-gold-medium/30">
                 <CardHeader>
                     <CardTitle className="text-2xl migma-gold-text flex items-center gap-2">
-                        <Shield className="w-6 h-6" />
-                        Admin Profile Settings
+                        {accountRole === 'mentor' ? <User className="w-6 h-6" /> : <Shield className="w-6 h-6" />}
+                        {accountRole === 'mentor' ? 'Mentor Profile Settings' : 'Admin Profile Settings'}
                     </CardTitle>
                     <CardDescription className="text-gray-400">
-                        Update your administrator account details
+                        {accountRole === 'mentor'
+                            ? 'Update your mentor account details and scheduling link'
+                            : 'Update your administrator account details'}
                     </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -261,6 +329,44 @@ export const AdminProfile = () => {
                             </Button>
                         </div>
                     </form>
+
+                    {/* Calendar Booking URL — separate save */}
+                    <div className="mt-8 pt-6 border-t border-white/10 space-y-3">
+                        <Label htmlFor="calendar_booking_url" className="text-white flex items-center gap-2">
+                            <CalendarDays className="w-4 h-4" />
+                            {accountRole === 'mentor'
+                                ? 'Mentor scheduling URL'
+                                : 'URL de agenda (Google Appointment Scheduling)'}
+                        </Label>
+                        <p className="text-xs text-gray-500">
+                            {accountRole === 'mentor'
+                                ? 'Add the public URL for your Google Calendar appointment schedule. Assigned students and referred leads can book directly through this link.'
+                                : 'Cole aqui a URL pública da sua agenda do Google Calendar. Leads indicados por seus alunos vão poder agendar diretamente nessa agenda.'}
+                        </p>
+                        <div className="flex gap-2">
+                            <Input
+                                id="calendar_booking_url"
+                                type="url"
+                                value={calendarBookingUrl}
+                                onChange={(e) => setCalendarBookingUrl(e.target.value)}
+                                className="bg-white text-black flex-1"
+                                placeholder="https://calendar.google.com/calendar/appointments/..."
+                            />
+                            <Button
+                                type="button"
+                                onClick={handleSaveCalendarUrl}
+                                disabled={savingCalendar}
+                                className="bg-gradient-to-b from-gold-light via-gold-medium to-gold-light text-black font-bold hover:from-gold-medium hover:via-gold-light hover:to-gold-medium"
+                            >
+                                {savingCalendar ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                            </Button>
+                        </div>
+                        {calendarMsg && (
+                            <p className={`text-sm ${calendarMsg.startsWith('Error') ? 'text-red-400' : 'text-green-400'}`}>
+                                {calendarMsg}
+                            </p>
+                        )}
+                    </div>
                 </CardContent>
             </Card>
         </div>

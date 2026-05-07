@@ -1,6 +1,17 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from 'jsr:@supabase/supabase-js@2';
 
+type AdminRecipient = {
+    email: string;
+    name: string;
+};
+
+const TEST_EMAIL_DOMAIN = "@uorak.com";
+
+function isUorakTestEmail(email: string | null | undefined): boolean {
+    return Boolean(email?.trim().toLowerCase().endsWith(TEST_EMAIL_DOMAIN));
+}
+
 Deno.serve(async (req) => {
     // Handle CORS
     if (req.method === "OPTIONS") {
@@ -51,6 +62,24 @@ Deno.serve(async (req) => {
             );
         }
 
+        if (isUorakTestEmail(clientEmail)) {
+            console.log(`[Admin Notification] Skipping admin emails for test client: ${clientEmail}`);
+            return new Response(
+                JSON.stringify({
+                    success: true,
+                    skipped: true,
+                    reason: "test_user_admin_notification_blocked",
+                }),
+                {
+                    status: 200,
+                    headers: {
+                        "Content-Type": "application/json",
+                        "Access-Control-Allow-Origin": "*",
+                    },
+                }
+            );
+        }
+
         // Get Supabase client
         const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
         const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
@@ -76,7 +105,7 @@ Deno.serve(async (req) => {
             );
         }
 
-        const admins = adminEmails ? adminEmails.map((email: string) => ({ email, name: "Admin" })) : [];
+        const admins: AdminRecipient[] = adminEmails ? adminEmails.map((email: string) => ({ email, name: "Admin" })) : [];
 
 
 
