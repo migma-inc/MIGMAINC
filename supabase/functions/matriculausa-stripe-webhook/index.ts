@@ -107,6 +107,16 @@ function getAllWebhookSecrets(): Array<{ env: "prod" | "test"; secret: string }>
   return secrets;
 }
 
+function getMatriculausaStripeKey(env: "prod" | "test"): string | null {
+  const prodKey = Deno.env.get("MATRICULAUSA_STRIPE_SECRET_KEY_PROD");
+  const testKey = Deno.env.get("MATRICULAUSA_STRIPE_SECRET_KEY_TEST");
+  const genericKey = Deno.env.get("MATRICULAUSA_STRIPE_SECRET_KEY");
+
+  return env === "prod"
+    ? prodKey || testKey || genericKey || null
+    : testKey || prodKey || genericKey || null;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: CORS });
 
@@ -135,7 +145,7 @@ Deno.serve(async (req) => {
 
     const env = isLive ? "prod" : "test";
     const secret = Deno.env.get(`MATRICULAUSA_STRIPE_WEBHOOK_SECRET_${env.toUpperCase()}`);
-    const stripeKey = Deno.env.get(`MATRICULAUSA_STRIPE_SECRET_KEY_${env.toUpperCase()}`);
+    const stripeKey = getMatriculausaStripeKey(env);
 
     console.log(`[matriculausa-stripe-webhook] Evento detectado: ${env.toUpperCase()} (livemode=${isLive})`);
 
@@ -191,14 +201,14 @@ Deno.serve(async (req) => {
     // Buscar profile_id via application_fee_stripe_sessions
     const { data: sessionRecord } = await supabase
       .from("application_fee_stripe_sessions")
-      .select("profile_id, scholarship_application_id")
+      .select("profile_id, scholarship_application_id, institution_application_id, application_type")
       .eq("stripe_session_id", session.id)
       .maybeSingle();
 
     const profileId = sessionRecord?.profile_id;
 
     // 1. Atualizar scholarship_applications (Apenas se for legacy)
-    const applicationType = session.metadata?.application_type || 'legacy';
+    const applicationType = sessionRecord?.application_type || session.metadata?.application_type || 'legacy';
     
     if (applicationType === 'legacy') {
       const { error: appErr } = await supabase
@@ -212,7 +222,20 @@ Deno.serve(async (req) => {
         console.log("[matriculausa-stripe-webhook] ✅ scholarship_applications.is_application_fee_paid = true");
       }
     } else {
-      console.log("[matriculausa-stripe-webhook] Skipping scholarship_applications update (V11 flow)");
+      const institutionApplicationId = sessionRecord?.institution_application_id || scholarshipApplicationId;
+      const { error: appErr } = await supabase
+        .from("institution_applications")
+        .update({
+          is_application_fee_paid: true,
+          application_fee_payment_method: "stripe",
+        })
+        .eq("id", institutionApplicationId);
+
+      if (appErr) {
+        console.error("[matriculausa-stripe-webhook] Erro ao atualizar institution_applications:", appErr.message);
+      } else {
+        console.log("[matriculausa-stripe-webhook] ✅ institution_applications.is_application_fee_paid = true");
+      }
     }
 
     // 2. Atualizar user_profiles via profile_id

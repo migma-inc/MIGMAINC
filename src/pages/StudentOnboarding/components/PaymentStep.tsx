@@ -5,7 +5,7 @@
  */
 import React, { useEffect, useState, useCallback } from 'react';
 import {
-  CheckCircle, Building, Shield, Loader2, AlertCircle, Upload, Clock,
+  CheckCircle, Building, Shield, Loader2, AlertCircle, Upload, Clock, CreditCard,
 } from 'lucide-react';
 import { Trans, useTranslation } from 'react-i18next';
 import { useStudentAuth } from '../../../contexts/StudentAuthContext';
@@ -442,6 +442,36 @@ export const PaymentStep: React.FC<StepProps> = ({ onNext }) => {
 
         {/* Payment methods */}
         <div className="p-5 space-y-3">
+
+          {/* Stripe — MatriculaUSA */}
+          <button
+            onClick={() => { setSelectedMethod('stripe'); setPaymentError(null); }}
+            className={`w-full flex items-center gap-4 p-4 rounded-2xl border transition-all text-left ${
+              selectedMethod === 'stripe'
+                ? 'border-gold-medium/50 bg-gold-medium/5'
+                : 'border-white/10 bg-white/[0.02] hover:border-white/20'
+            }`}
+          >
+            <div className="w-10 h-10 rounded-xl bg-[#635bff]/20 border border-[#635bff]/30 flex items-center justify-center shrink-0">
+              <CreditCard className="w-5 h-5 text-[#a7a2ff]" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className={`font-black text-sm uppercase tracking-wide ${selectedMethod === 'stripe' ? 'text-white' : 'text-gray-200'}`}>
+                {t('student_onboarding.payment_ui.stripe_card', 'Stripe — Card')}
+              </p>
+              <p className="text-[10px] text-gray-600 uppercase tracking-wider font-bold mt-0.5">
+                {t('student_onboarding.payment_ui.stripe_matriculausa_fees', 'MatriculaUSA checkout · Processing fees included')}
+              </p>
+            </div>
+            <div className="text-right shrink-0">
+              <p className={`font-black text-lg ${selectedMethod === 'stripe' ? 'text-gold-medium' : 'text-white'}`}>
+                ${applicationFee.toLocaleString()}.00
+              </p>
+              <p className="text-[9px] text-gray-500 font-black uppercase tracking-widest">
+                {t('student_onboarding.payment_ui.global_card', 'Global card')}
+              </p>
+            </div>
+          </button>
 
           {/* Parcelow — Cartão */}
           <button
