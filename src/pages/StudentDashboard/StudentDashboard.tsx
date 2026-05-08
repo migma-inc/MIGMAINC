@@ -3215,7 +3215,7 @@ const StudentDashboard = () => {
       case 'rewards':
         return <StudentRewardsPanel />;
       case 'support':
-        return <StudentSupportPanel />;
+        return <StudentSupportPanel embedded />;
       case 'profile':
         return (
           <ProfileTab

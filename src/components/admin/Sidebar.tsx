@@ -119,23 +119,54 @@ export function Sidebar({ className, isMobileOpen = false, onMobileClose, access
     return profileIds.filter((profileId) => !mentorProfileIds.has(profileId)).length;
   };
 
+  const loadMentorReferralLeadsCount = async (): Promise<number> => {
+    if (!mentorProfileId) return 0;
+
+    const { data: assignedProfiles, error: profilesError } = await supabase
+      .from('user_profiles')
+      .select('id')
+      .eq('mentor_id', mentorProfileId);
+
+    if (profilesError) {
+      console.error('Error loading mentor referral profiles count:', profilesError);
+      return 0;
+    }
+
+    const profileIds = (assignedProfiles || []).map((profile) => profile.id);
+    if (profileIds.length === 0) return 0;
+
+    const { data: referralLinks, error: linksError } = await supabase
+      .from('referral_links')
+      .select('id')
+      .in('profile_id', profileIds);
+
+    if (linksError) {
+      console.error('Error loading mentor referral links count:', linksError);
+      return 0;
+    }
+
+    const linkIds = (referralLinks || []).map((link) => link.id);
+    if (linkIds.length === 0) return 0;
+
+    const { count, error: leadsError } = await supabase
+      .from('referral_leads')
+      .select('id', { count: 'exact', head: true })
+      .eq('status', 'scheduled')
+      .in('referral_link_id', linkIds);
+
+    if (leadsError) {
+      console.error('Error loading mentor referral leads count:', leadsError);
+      return 0;
+    }
+
+    return count || 0;
+  };
+
   const loadCounts = async () => {
     try {
       if (isMentor) {
         const usersCount = await loadCrmUsersCount();
-
-        let referralLeadsQuery = supabase
-          .from('referral_leads')
-          .select('id, referral_links:referral_link_id!inner(profile_id)', { count: 'exact', head: true })
-          .eq('status', 'scheduled');
-
-        if (mentorProfileId) {
-          referralLeadsQuery = referralLeadsQuery.eq('referral_links.profile_id', mentorProfileId);
-        }
-
-        const { count: referralLeadsCount } = mentorProfileId
-          ? await referralLeadsQuery
-          : { count: 0 };
+        const referralLeadsCount = await loadMentorReferralLeadsCount();
 
         setCounts((prev) => ({
           ...prev,

@@ -15,6 +15,23 @@ import {
 
 type LeadStatus = 'visit' | 'pending' | 'scheduled' | 'fechado' | 'cancelled';
 
+interface ReferralLinkProfile {
+  full_name: string | null;
+  email: string | null;
+}
+
+interface ReferralLink {
+  id?: string;
+  profile_id: string;
+  unique_code: string;
+  closures_count: number;
+  user_profiles: ReferralLinkProfile | null;
+}
+
+interface RawReferralLink extends Omit<ReferralLink, 'user_profiles'> {
+  user_profiles: ReferralLinkProfile | ReferralLinkProfile[] | null;
+}
+
 interface ReferralLead {
   id: string;
   created_at: string;
@@ -26,15 +43,8 @@ interface ReferralLead {
   status: LeadStatus;
   meet_url: string | null;
   notes: string | null;
-  referral_links: {
-    profile_id: string;
-    unique_code: string;
-    closures_count: number;
-    user_profiles: {
-      full_name: string | null;
-      email: string | null;
-    } | null;
-  } | null;
+  referral_link_id?: string | null;
+  referral_links: ReferralLink | null;
 }
 
 type FilterTab = 'all' | 'scheduled' | 'fechado' | 'pending' | 'other';
@@ -104,6 +114,80 @@ export const AdminReferralLeads = () => {
       return;
     }
 
+    if (isMentor && mentorProfileId) {
+      const { data: assignedProfiles, error: profilesError } = await supabase
+        .from('user_profiles')
+        .select('id')
+        .eq('mentor_id', mentorProfileId);
+
+      if (profilesError) {
+        console.error('[AdminReferralLeads] assigned profiles error', profilesError);
+        setLeads([]);
+        setLoading(false);
+        return;
+      }
+
+      const profileIds = (assignedProfiles ?? []).map((profile) => profile.id);
+      if (profileIds.length === 0) {
+        setLeads([]);
+        setLoading(false);
+        return;
+      }
+
+      const { data: referralLinks, error: linksError } = await supabase
+        .from('referral_links')
+        .select(`
+          id, profile_id, unique_code, closures_count,
+          user_profiles:profile_id ( full_name, email )
+        `)
+        .in('profile_id', profileIds);
+
+      if (linksError) {
+        console.error('[AdminReferralLeads] referral links error', linksError);
+        setLeads([]);
+        setLoading(false);
+        return;
+      }
+
+      const links = ((referralLinks ?? []) as unknown as RawReferralLink[]).map((link) => ({
+        ...link,
+        user_profiles: Array.isArray(link.user_profiles)
+          ? link.user_profiles[0] ?? null
+          : link.user_profiles,
+      }));
+      const linksWithId = links.filter((link): link is ReferralLink & { id: string } => Boolean(link.id));
+      const linkIds = linksWithId.map((link) => link.id);
+      const linksById = new Map(linksWithId.map((link) => [link.id, link]));
+
+      if (linkIds.length === 0) {
+        setLeads([]);
+        setLoading(false);
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from('referral_leads')
+        .select(`
+          id, created_at, full_name, email, phone, country,
+          referral_code, referral_link_id, status, meet_url, notes
+        `)
+        .in('referral_link_id', linkIds)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('[AdminReferralLeads] mentor leads error', error);
+        setLeads([]);
+      } else {
+        setLeads(((data ?? []) as ReferralLead[]).map((lead) => ({
+          ...lead,
+          referral_links: lead.referral_link_id ? linksById.get(lead.referral_link_id) ?? null : null,
+        })));
+      }
+
+      setLoading(false);
+      return;
+    }
+
     const selectClause = isMentor
       ? `
         id, created_at, full_name, email, phone, country,
@@ -125,10 +209,6 @@ export const AdminReferralLeads = () => {
     let query = supabase
       .from('referral_leads')
       .select(selectClause);
-
-    if (isMentor && mentorProfileId) {
-      query = query.eq('referral_links.profile_id', mentorProfileId);
-    }
 
     const { data, error } = await query.order('created_at', { ascending: false });
 

@@ -11,6 +11,13 @@ export const MentorLogin = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const message = searchParams.get('message');
+  const googleResult = searchParams.get('google');
+  const googleReason = searchParams.get('reason');
+  const googleMessage = googleResult === 'connected'
+    ? 'Google Calendar conectado com sucesso.'
+    : googleResult === 'error'
+      ? `Falha ao conectar Google Calendar${googleReason ? `: ${googleReason}` : '.'}`
+      : '';
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -114,6 +121,12 @@ export const MentorLogin = () => {
           {message && (
             <div className="bg-green-500/10 border border-green-500/50 text-green-300 p-3 rounded-md text-sm mb-4">
               {message}
+            </div>
+          )}
+
+          {googleMessage && (
+            <div className={`${googleResult === 'connected' ? 'bg-green-500/10 border-green-500/50 text-green-300' : 'bg-red-500/10 border-red-500/50 text-red-300'} border p-3 rounded-md text-sm mb-4`}>
+              {googleMessage}
             </div>
           )}
 
