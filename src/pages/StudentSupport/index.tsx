@@ -6,10 +6,35 @@ import { ArrowLeft, Send, Loader2, MessageCircle, UserCheck, CheckCircle, Calend
 import { useStudentAuth } from '../../contexts/StudentAuthContext';
 import { supabase } from '../../lib/supabase';
 
-const N8N_WEBHOOK_URL = (import.meta.env.VITE_SUPPORT_N8N_WEBHOOK_URL || import.meta.env.VITE_N8N_WEBHOOK_URL) as string | undefined;
+const SUPPORT_N8N_WEBHOOK_URL = (
+  import.meta.env.VITE_N8N_WEBHOOK_SUPPORT_URL ||
+  import.meta.env.VITE_SUPPORT_N8N_WEBHOOK_URL
+) as string | undefined;
 const FUNCTIONS_URL = import.meta.env.VITE_FUNCTIONS_BASE_URL as string | undefined;
-const SUPPORT_GET_SLOTS_URL = import.meta.env.VITE_SUPPORT_GET_SLOTS_URL as string | undefined;
-const SUPPORT_BOOK_SLOT_URL = import.meta.env.VITE_SUPPORT_BOOK_SLOT_URL as string | undefined;
+
+function resolveSupportWorkflowUrl(explicitUrl: string | undefined, workflowPath: string) {
+  const explicit = explicitUrl?.trim();
+  if (explicit) return explicit;
+
+  const base = (
+    import.meta.env.VITE_N8N_WEBHOOK_SUPPORT_BASE_URL ||
+    import.meta.env.VITE_SUPPORT_N8N_WEBHOOK_BASE_URL
+  ) as string | undefined;
+  if (base?.trim()) return `${base.trim().replace(/\/+$/, '')}/${workflowPath}`;
+
+  const chatWebhook = SUPPORT_N8N_WEBHOOK_URL?.trim();
+  const match = chatWebhook?.match(/^(.*\/webhook(?:-test)?\/)/);
+  return match ? `${match[1]}${workflowPath}` : undefined;
+}
+
+const SUPPORT_GET_SLOTS_URL = resolveSupportWorkflowUrl(
+  (import.meta.env.VITE_N8N_WEBHOOK_SUPPORT_GET_SLOTS_URL || import.meta.env.VITE_SUPPORT_GET_SLOTS_URL) as string | undefined,
+  'support-get-slots',
+);
+const SUPPORT_BOOK_SLOT_URL = resolveSupportWorkflowUrl(
+  (import.meta.env.VITE_N8N_WEBHOOK_SUPPORT_BOOK_SLOT_URL || import.meta.env.VITE_SUPPORT_BOOK_SLOT_URL) as string | undefined,
+  'support-book-slot',
+);
 
 interface Message {
   id: string;
@@ -21,9 +46,13 @@ interface Message {
 
 interface HandoffRecord {
   id: string;
-  status: 'pending' | 'in_progress' | 'resolved';
+  status: 'pending' | 'in_progress' | 'scheduled' | 'resolved' | 'cancelled';
   meeting_url: string | null;
   meeting_requested_at: string | null;
+  meeting_start: string | null;
+  meeting_end: string | null;
+  calendar_event_id: string | null;
+  meeting_calendar_link: string | null;
   resolved_note: string | null;
   resolved_at: string | null;
   created_at: string;
@@ -106,8 +135,9 @@ function groupSlotsByDate(slots: Slot[], locale: string): SlotGroup[] {
   return Array.from(map.values());
 }
 
-function extractSupportMeetingStart(record: Pick<HandoffRecord, 'resolved_note' | 'meeting_requested_at'> | null) {
+function extractSupportMeetingStart(record: Pick<HandoffRecord, 'meeting_start' | 'resolved_note' | 'meeting_requested_at'> | null) {
   if (!record) return null;
+  if (record.meeting_start) return record.meeting_start;
   const startMatch = record.resolved_note?.match(/^Start:\s*(.+)$/im);
   return startMatch?.[1]?.trim() || record.meeting_requested_at || null;
 }
@@ -135,6 +165,29 @@ function formatCountdown(countdown: CountdownState | null, t: TFunction) {
     return `${countdown.days}d ${pad(countdown.hours)}h ${pad(countdown.mins)}m ${pad(countdown.secs)}s`;
   }
   return `${pad(countdown.hours)}:${pad(countdown.mins)}:${pad(countdown.secs)}`;
+}
+
+function getSlotsErrorMessage(error: string | undefined, t: TFunction) {
+  switch (error) {
+    case 'mentor_not_connected':
+    case 'mentor_token_revoked':
+      return t('student_support.errors.mentor_calendar_not_connected', 'Your mentor still needs to connect their calendar. Our team will follow up on your case.');
+    case 'student_without_mentor':
+    case 'mentor_not_found_or_inactive':
+      return t('student_support.errors.mentor_not_found', 'We could not find an active mentor for your profile. Our team will follow up on your case.');
+    case 'handoff_closed':
+      return t('student_support.errors.handoff_closed', 'This support request is already closed.');
+    default:
+      return t('student_support.errors.load_slots', 'We could not load the schedule right now. Our team will follow up on your case.');
+  }
+}
+
+function isSlotUnavailableError(error: string | undefined) {
+  return error === 'slot_taken' || error === 'slot_unavailable';
+}
+
+function isActiveHandoff(status: HandoffRecord['status']) {
+  return status === 'pending' || status === 'in_progress' || status === 'scheduled';
 }
 
 function SupportSlotPicker({
@@ -256,56 +309,108 @@ export const StudentSupportPanel: React.FC<StudentSupportPanelProps> = ({ embedd
     setMessages((prev) => prev.map((message) => (message.id === 'welcome' ? welcomeMessage : message)));
   }, [welcomeMessage]);
 
+  const loadSupportState = useCallback(async () => {
+    if (!userProfile?.id) return;
+
+    const [{ data: chatData, error: chatError }, { data: handoffData, error: handoffError }] = await Promise.all([
+      supabase
+        .from('support_chat_messages')
+        .select('id, role, content, created_at')
+        .eq('profile_id', userProfile.id)
+        .order('created_at', { ascending: true })
+        .limit(300),
+      supabase
+        .from('support_handoffs')
+        .select('id, status, meeting_url, meeting_requested_at, meeting_start, meeting_end, calendar_event_id, meeting_calendar_link, resolved_note, resolved_at, created_at')
+        .eq('profile_id', userProfile.id)
+        .order('created_at', { ascending: false })
+        .limit(5),
+    ]);
+
+    if (chatError) console.error('[StudentSupport] chat load error', chatError);
+    if (handoffError) console.error('[StudentSupport] handoff load error', handoffError);
+
+    setMessages(chatData && chatData.length > 0 ? [welcomeMessage, ...(chatData as Message[])] : [welcomeMessage]);
+
+    const handoffs = (handoffData ?? []) as HandoffRecord[];
+    const active = handoffs.find((h) => isActiveHandoff(h.status));
+    const resolved = handoffs.find((h) => h.status === 'resolved');
+
+    if (active) {
+      setHandedOff(true);
+      setHandoffId(active.id);
+      setHandoffCreatedAt(active.created_at);
+      setHandoffMeetingUrl(active.meeting_url);
+      setHandoffMeetingStart(extractSupportMeetingStart(active));
+      setResolvedHandoff(null);
+      return;
+    }
+
+    setHandedOff(false);
+    setHandoffId(null);
+    setHandoffCreatedAt(null);
+    setHandoffMeetingUrl(null);
+    setHandoffMeetingStart(null);
+    setSlots([]);
+    setSelectedSlot(null);
+    setBookingError(null);
+
+    if (resolved) {
+      const resolvedAt = resolved.resolved_at ? new Date(resolved.resolved_at).getTime() : 0;
+      const hasPostResolutionMessage = (chatData ?? []).some(
+        (m: { role: string; created_at: string }) =>
+          m.role === 'user' && new Date(m.created_at).getTime() > resolvedAt,
+      );
+      setResolvedHandoff(hasPostResolutionMessage ? null : resolved);
+    } else {
+      setResolvedHandoff(null);
+    }
+  }, [userProfile?.id, welcomeMessage]);
+
   useEffect(() => {
     if (!userProfile?.id) return;
 
     (async () => {
-      const [{ data: chatData }, { data: handoffData }] = await Promise.all([
-        supabase
-          .from('support_chat_messages')
-          .select('id, role, content, created_at')
-          .eq('profile_id', userProfile.id)
-          .order('created_at', { ascending: true })
-          .limit(300),
-        supabase
-          .from('support_handoffs')
-          .select('id, status, meeting_url, meeting_requested_at, resolved_note, resolved_at, created_at')
-          .eq('profile_id', userProfile.id)
-          .order('created_at', { ascending: false })
-          .limit(5),
-      ]);
-
-      if (chatData && chatData.length > 0) {
-        setMessages([welcomeMessage, ...(chatData as Message[])]);
-      }
-
-      if (handoffData && handoffData.length > 0) {
-        const active = (handoffData as HandoffRecord[]).find(
-          (h) => h.status === 'pending' || h.status === 'in_progress',
-        );
-        const resolved = (handoffData as HandoffRecord[]).find((h) => h.status === 'resolved');
-
-        if (active) {
-          setHandedOff(true);
-          setHandoffId(active.id);
-          setHandoffCreatedAt(active.created_at);
-          setHandoffMeetingUrl(active.meeting_url);
-          setHandoffMeetingStart(extractSupportMeetingStart(active));
-        } else if (resolved) {
-          const resolvedAt = resolved.resolved_at ? new Date(resolved.resolved_at).getTime() : 0;
-          const hasPostResolutionMessage = (chatData ?? []).some(
-            (m: { role: string; created_at: string }) =>
-              m.role === 'user' && new Date(m.created_at).getTime() > resolvedAt,
-          );
-          if (!hasPostResolutionMessage) {
-            setResolvedHandoff(resolved);
-          }
-        }
-      }
-
+      await loadSupportState();
       setHistoryLoaded(true);
     })();
-  }, [userProfile?.id, welcomeMessage]);
+  }, [loadSupportState, userProfile?.id]);
+
+  useEffect(() => {
+    if (!userProfile?.id) return;
+
+    const channel = supabase
+      .channel(`student-support-${userProfile.id}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'support_handoffs', filter: `profile_id=eq.${userProfile.id}` },
+        () => {
+          void loadSupportState();
+        },
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'support_chat_messages', filter: `profile_id=eq.${userProfile.id}` },
+        () => {
+          void loadSupportState();
+        },
+      )
+      .subscribe();
+
+    const refreshVisibleState = () => {
+      if (document.visibilityState === 'visible') void loadSupportState();
+    };
+    const interval = window.setInterval(refreshVisibleState, 15000);
+    window.addEventListener('focus', refreshVisibleState);
+    document.addEventListener('visibilitychange', refreshVisibleState);
+
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener('focus', refreshVisibleState);
+      document.removeEventListener('visibilitychange', refreshVisibleState);
+      void supabase.removeChannel(channel);
+    };
+  }, [loadSupportState, userProfile?.id]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -340,13 +445,21 @@ export const StudentSupportPanel: React.FC<StudentSupportPanelProps> = ({ embedd
     setSlotsLoading(true);
     setSlotsError(null);
     try {
-      const url = new URL(SUPPORT_GET_SLOTS_URL);
+      const url = new URL(SUPPORT_GET_SLOTS_URL, window.location.origin);
       url.searchParams.set('handoff_id', targetHandoffId);
       const res = await fetch(url.toString());
       const data = await res.json().catch(() => ({}));
 
       if (!res.ok) {
-        throw new Error(data?.error ?? `HTTP ${res.status}`);
+        const error = data?.error ?? `HTTP ${res.status}`;
+        setSlots([]);
+        setSlotsError(getSlotsErrorMessage(error, t));
+        return;
+      }
+      if (data?.ok === false) {
+        setSlots([]);
+        setSlotsError(getSlotsErrorMessage(data?.error, t));
+        return;
       }
 
       setSlots(Array.isArray(data.slots) ? data.slots : []);
@@ -382,7 +495,7 @@ export const StudentSupportPanel: React.FC<StudentSupportPanelProps> = ({ embedd
       setMessages((prev) => [...prev, systemMsg]);
       await saveMessage('system', systemMsg.content);
 
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('support_handoffs')
         .insert({
           profile_id: userProfile.id,
@@ -394,10 +507,22 @@ export const StudentSupportPanel: React.FC<StudentSupportPanelProps> = ({ embedd
         .select('id, created_at, meeting_url')
         .single();
 
+      if (error || !data?.id) {
+        console.error('[StudentSupport] handoff insert failed', error);
+        setMessages((prev) => [...prev, {
+          id: crypto.randomUUID(),
+          role: 'assistant',
+          content: t('student_support.errors.handoff_create_failed', 'We could not open the human support schedule right now. Please try again in a few seconds.'),
+          created_at: new Date().toISOString(),
+        }]);
+        return;
+      }
+
       setHandedOff(true);
-      setHandoffId(data?.id ?? null);
-      setHandoffCreatedAt(data?.created_at ?? new Date().toISOString());
-      setHandoffMeetingUrl(data?.meeting_url ?? null);
+      setHandoffId(data.id);
+      setHandoffCreatedAt(data.created_at ?? new Date().toISOString());
+      setHandoffMeetingUrl(data.meeting_url ?? null);
+      void fetchSupportSlots(data.id);
 
       try {
         const notifyUrl = FUNCTIONS_URL
@@ -417,7 +542,7 @@ export const StudentSupportPanel: React.FC<StudentSupportPanelProps> = ({ embedd
         });
       } catch { /* best-effort */ }
     },
-    [userProfile, handedOff, saveMessage, t],
+    [userProfile, handedOff, saveMessage, fetchSupportSlots, t],
   );
 
   const bookSupportSlot = useCallback(async () => {
@@ -442,13 +567,22 @@ export const StudentSupportPanel: React.FC<StudentSupportPanelProps> = ({ embedd
       const data = await res.json().catch(() => ({}));
 
       if (!res.ok) {
-        if (data?.error === 'slot_taken') {
+        if (isSlotUnavailableError(data?.error)) {
           setBookingError(t('student_support.errors.slot_taken', 'This time was just booked. Choose another time.'));
           setSelectedSlot(null);
           await fetchSupportSlots(handoffId);
           return;
         }
         throw new Error(data?.message ?? data?.error ?? `HTTP ${res.status}`);
+      }
+      if (data?.ok === false) {
+        if (isSlotUnavailableError(data?.error)) {
+          setBookingError(t('student_support.errors.slot_taken', 'This time was just booked. Choose another time.'));
+          setSelectedSlot(null);
+          await fetchSupportSlots(handoffId);
+          return;
+        }
+        throw new Error(data?.message ?? data?.error ?? 'booking_failed');
       }
 
       setHandoffMeetingUrl(data.meet_url ?? null);
@@ -478,9 +612,9 @@ export const StudentSupportPanel: React.FC<StudentSupportPanelProps> = ({ embedd
     await saveMessage('user', text);
 
     try {
-      if (!N8N_WEBHOOK_URL) throw new Error('VITE_N8N_WEBHOOK_URL is not configured');
+      if (!SUPPORT_N8N_WEBHOOK_URL) throw new Error('VITE_N8N_WEBHOOK_SUPPORT_URL is not configured');
 
-      const res = await fetch(N8N_WEBHOOK_URL, {
+      const res = await fetch(SUPPORT_N8N_WEBHOOK_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

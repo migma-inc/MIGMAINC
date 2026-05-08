@@ -2787,11 +2787,21 @@ function SupportTab({
     patch: Partial<Pick<CrmSupportHandoff, 'status' | 'assigned_to'>>,
   ) => {
     setUpdatingId(id);
-    const update: Record<string, unknown> = { ...patch };
-    if (patch.status === 'resolved') update.resolved_at = new Date().toISOString();
-    await supabase.from('support_handoffs').update(update).eq('id', id);
-    setUpdatingId(null);
-    onRefresh();
+    try {
+      const update: Record<string, unknown> = { ...patch };
+      if (patch.status === 'resolved') update.resolved_at = new Date().toISOString();
+      const { error } = await supabase.from('support_handoffs').update(update).eq('id', id);
+
+      if (error) {
+        console.error('[AdminUserDetail] Failed to update support handoff', error);
+        window.alert(`Could not update support handoff: ${error.message}`);
+        return;
+      }
+
+      onRefresh();
+    } finally {
+      setUpdatingId(null);
+    }
   };
 
   const resolveHandoff = async (id: string) => {
@@ -2800,22 +2810,35 @@ function SupportTab({
 
     setUpdatingId(id);
 
-    await supabase.from('support_handoffs').update({
-      status: 'resolved',
-      resolved_at: new Date().toISOString(),
-      resolved_note: note,
-    }).eq('id', id);
+    try {
+      const { error } = await supabase.from('support_handoffs').update({
+        status: 'resolved',
+        resolved_at: new Date().toISOString(),
+        resolved_note: note,
+      }).eq('id', id);
 
-    // Insert a visible milestone in the student's chat.
-    await supabase.from('support_chat_messages').insert({
-      profile_id: profileId,
-      role: 'system',
-      content: `Support handoff closed by the team. ${note}`,
-    });
+      if (error) {
+        console.error('[AdminUserDetail] Failed to resolve support handoff', error);
+        window.alert(`Could not resolve support handoff: ${error.message}`);
+        return;
+      }
 
-    setResolvingId(null);
-    setUpdatingId(null);
-    onRefresh();
+      // Insert a visible milestone in the student's chat.
+      const { error: messageError } = await supabase.from('support_chat_messages').insert({
+        profile_id: profileId,
+        role: 'system',
+        content: `Support handoff closed by the team. ${note}`,
+      });
+
+      if (messageError) {
+        console.error('[AdminUserDetail] Failed to append support resolution message', messageError);
+      }
+
+      setResolvingId(null);
+      onRefresh();
+    } finally {
+      setUpdatingId(null);
+    }
   };
 
   return (

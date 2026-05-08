@@ -14,3 +14,18 @@ entrypoint = "./functions/temp-query/index.ts"
 enabled = true
 verify_jwt = true
 entrypoint = "./functions/migma-checkout-zelle-admin/index.ts"
+
+[functions.mentor-google-oauth-start]
+enabled = true
+verify_jwt = true
+entrypoint = "./functions/mentor-google-oauth-start/index.ts"
+
+[functions.mentor-google-oauth-callback]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/mentor-google-oauth-callback/index.ts"
+
+[functions.mentor-google-disconnect]
+enabled = true
+verify_jwt = true
+entrypoint = "./functions/mentor-google-disconnect/index.ts"
