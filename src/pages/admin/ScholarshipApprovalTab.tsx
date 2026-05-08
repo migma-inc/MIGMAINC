@@ -265,7 +265,7 @@ export function ScholarshipApprovalTab({ detail }: { detail: CaseDetailPage }) {
           .in('id', otherIds);
       }
 
-      const paymentOrPortalLink = checkoutUrl ?? `${originUrl}/student/onboarding?step=placement_fee`;
+      const portalPlacementFeeLink = `${originUrl}/student/onboarding?step=placement_fee`;
 
       await supabase.functions.invoke('migma-notify', {
         body: {
@@ -278,7 +278,7 @@ export function ScholarshipApprovalTab({ detail }: { detail: CaseDetailPage }) {
             scholarship_percent: scholarshipPercent,
             placement_fee_usd: placementFee,
             tuition_annual_usd: app.institution_scholarships.tuition_annual_usd,
-            payment_link: paymentOrPortalLink,
+            payment_link: portalPlacementFeeLink,
           },
         },
       });

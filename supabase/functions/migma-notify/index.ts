@@ -256,7 +256,9 @@ function emailWrapper(title: string, body: string): string {
                       ${title}
                     </h2>
                     <div style="font-size:15px;color:#d1d5db;line-height:1.7;">
+                      <p style="margin:0 0 12px;font-size:11px;font-weight:700;letter-spacing:1.4px;text-transform:uppercase;color:#CE9F48;">English</p>
                       ${body}
+                      <!-- MIGMA_EMAIL_BODY_END -->
                     </div>
                   </td>
                 </tr>
@@ -309,16 +311,501 @@ function resolveUrl(url: string | null | undefined, fallback: string, baseUrl: s
 // ─── Template registry ────────────────────────────────────────────────────────
 
 interface Template { subject: string; emailHtml: string; whatsapp: string }
+interface LocalizedMessage { subject: string; html: string; whatsapp: string }
+interface MultilingualMessage { pt: LocalizedMessage; es: LocalizedMessage }
 
-function buildTemplate(
+function langSection(label: "Português" | "Español", body: string): string {
+  return `
+    <div style="height:1px;background:#2a2a2a;margin:28px 0 22px;"></div>
+    <p style="margin:0 0 12px;font-size:11px;font-weight:700;letter-spacing:1.4px;text-transform:uppercase;color:#CE9F48;">${label}</p>
+    ${body}
+  `;
+}
+
+function triSubject(en: string, pt: string, es: string): string {
+  return `${en} / ${pt} / ${es}`;
+}
+
+function triWhatsapp(en: string, pt: string, es: string): string {
+  return `${en}\n\n---\n*Português*\n${pt}\n\n---\n*Español*\n${es}`;
+}
+
+function moneyUsd(value: number | undefined): string {
+  return typeof value === "number" ? `US$ ${value.toLocaleString("en-US")}` : "-";
+}
+
+function resolveActionUrl(data: NotifyPayload["data"], fallback: string, baseUrl: string): string {
+  return resolveUrl(data?.billing_link ?? data?.payment_link ?? data?.app_url, fallback, baseUrl);
+}
+
+function buildMultilingualCopy(
   trigger: TriggerType,
-  name: string,
+  firstName: string,
   data: NotifyPayload["data"] = {},
-  appBaseUrl: string
-): Template {
-  const firstName = name.split(" ")[0];
-  const dash = normalizeBaseUrl(appBaseUrl);
-  const routes = {
+  routes: ReturnType<typeof buildRoutes>,
+  dash: string,
+): MultilingualMessage {
+  const university = data.university_name ?? "universidade selecionada";
+  const universidad = data.university_name ?? "universidad seleccionada";
+  const course = data.course_name ?? "programa selecionado";
+  const curso = data.course_name ?? "programa seleccionado";
+  const scholarship = data.scholarship_label ??
+    (typeof data.scholarship_percent === "number" ? `${data.scholarship_percent}%` : "bolsa aprovada");
+  const placementFee = typeof data.placement_fee_usd === "number" ? data.placement_fee_usd : undefined;
+  const placementFeePt = placementFee === 0 ? "isenta" : moneyUsd(placementFee);
+  const placementFeeEs = placementFee === 0 ? "exenta" : moneyUsd(placementFee);
+  const tuition = moneyUsd(data.tuition_annual_usd);
+  const documentName = data.document_name ?? "documento enviado";
+  const documentReason = data.document_reason ?? data.rejection_reason ?? "";
+  const task = data.task_description ?? "";
+  const supportUrl = routes.studentSupport;
+  const dashboardUrl = routes.studentDashboard;
+  const documentsUrl = resolveUrl(data.app_url, routes.studentDocuments, dash);
+  const formsUrl = resolveUrl(data.app_url, routes.studentForms, dash);
+  const paymentUrl = resolveActionUrl(data, routes.onboardingPayment, dash);
+  const placementUrl = resolveUrl(data.app_url, routes.onboardingPlacementFee, dash);
+  const acceptanceUrl = resolveUrl(data.acceptance_letter_url, routes.onboardingAcceptanceLetter, dash);
+  const clientName = data.client_name ?? "cliente";
+  const clientNameEs = data.client_name ?? "cliente";
+  const adminUrl = data.client_id ? routes.adminUser(data.client_id) : routes.adminUser();
+  const installmentNumber = data.installment_number ?? (data.installments_paid ?? 0) + 1;
+  const installmentsTotal = data.installments_total ?? "-";
+  const monthlyAmount = moneyUsd(data.monthly_usd);
+
+  switch (trigger) {
+    case "selection_fee_paid":
+      return {
+        pt: {
+          subject: "Pagamento confirmado — Processo de Seleção Migma",
+          html: `<p>Olá, ${highlight(firstName)}!</p><p>O pagamento da <strong>Taxa do Processo de Seleção</strong> foi confirmado.</p><p>Agora complete o questionário do perfil para apresentarmos sua aplicação às universidades parceiras.</p>${btn("Completar questionário", routes.onboardingSurvey)}`,
+          whatsapp: `✅ *Migma* — Pagamento confirmado!\n\nOlá ${firstName}, sua Taxa do Processo de Seleção foi recebida. Acesse sua conta e complete o questionário: ${routes.onboardingSurvey}`,
+        },
+        es: {
+          subject: "Pago confirmado — Proceso de Selección Migma",
+          html: `<p>Hola, ${highlight(firstName)}!</p><p>El pago de la <strong>Tarifa del Proceso de Selección</strong> fue confirmado.</p><p>Ahora completa el cuestionario de perfil para presentar tu aplicación a las universidades asociadas.</p>${btn("Completar cuestionario", routes.onboardingSurvey)}`,
+          whatsapp: `✅ *Migma* — Pago confirmado!\n\nHola ${firstName}, recibimos tu Tarifa del Proceso de Selección. Accede a tu cuenta y completa el cuestionario: ${routes.onboardingSurvey}`,
+        },
+      };
+
+    case "questionnaire_received":
+      return {
+        pt: {
+          subject: "Questionário recebido — Perfil enviado às universidades",
+          html: `<p>Olá, ${highlight(firstName)}!</p><p>Recebemos seu questionário. Seu perfil foi encaminhado para análise das universidades parceiras da Migma.</p><p>Nossa equipe avisará quando houver opções disponíveis para o seu perfil.</p>${btn("Acompanhar status", dashboardUrl)}`,
+          whatsapp: `📋 *Migma* — Questionário recebido!\n\nOlá ${firstName}, seu perfil foi enviado às universidades parceiras. Acompanhe o status aqui: ${dashboardUrl}`,
+        },
+        es: {
+          subject: "Cuestionario recibido — Perfil enviado a universidades",
+          html: `<p>Hola, ${highlight(firstName)}!</p><p>Recibimos tu cuestionario. Tu perfil fue enviado para revisión de las universidades asociadas a Migma.</p><p>Nuestro equipo te avisará cuando existan opciones disponibles para tu perfil.</p>${btn("Ver estado", dashboardUrl)}`,
+          whatsapp: `📋 *Migma* — Cuestionario recibido!\n\nHola ${firstName}, tu perfil fue enviado a las universidades asociadas. Revisa el estado aquí: ${dashboardUrl}`,
+        },
+      };
+
+    case "contract_approved":
+      return {
+        pt: {
+          subject: "Contrato aprovado — Escolha sua universidade",
+          html: `<p>Olá, ${highlight(firstName)}!</p><p>Boa notícia: seu contrato foi <strong>aprovado</strong> pela equipe Migma.</p><p>Agora você pode acessar sua conta e escolher a universidade mais adequada ao seu perfil.</p>${btn("Escolher universidade", routes.onboardingScholarship)}`,
+          whatsapp: `🎉 *Migma* — Contrato aprovado!\n\nOlá ${firstName}, seu contrato foi aprovado. Acesse sua conta para escolher sua universidade: ${routes.onboardingScholarship}`,
+        },
+        es: {
+          subject: "Contrato aprobado — Elige tu universidad",
+          html: `<p>Hola, ${highlight(firstName)}!</p><p>Buena noticia: tu contrato fue <strong>aprobado</strong> por el equipo Migma.</p><p>Ahora puedes acceder a tu cuenta y elegir la universidad más adecuada para tu perfil.</p>${btn("Elegir universidad", routes.onboardingScholarship)}`,
+          whatsapp: `🎉 *Migma* — Contrato aprobado!\n\nHola ${firstName}, tu contrato fue aprobado. Accede a tu cuenta para elegir tu universidad: ${routes.onboardingScholarship}`,
+        },
+      };
+
+    case "scholarship_approved":
+      return {
+        pt: {
+          subject: `Bolsa aprovada — ${university}`,
+          html: `<p>Olá, ${highlight(firstName)}!</p><p>Sua bolsa foi aprovada. Confira os dados aprovados:</p><div style="background:#111;border:1px solid #2a2a2a;border-radius:12px;padding:16px;margin:18px 0;"><p><strong>Universidade:</strong> ${university}</p><p><strong>Programa:</strong> ${course}</p><p><strong>Bolsa:</strong> ${scholarship}</p><p><strong>Tuition anual:</strong> ${tuition}</p><p><strong>Placement Fee:</strong> ${placementFeePt}</p></div><p>${placementFee === 0 ? "Não há pagamento de Placement Fee para esta bolsa aprovada." : "Para garantir sua vaga, conclua o pagamento da Placement Fee."}</p>${btn(placementFee === 0 ? "Acessar portal" : "Pagar Placement Fee", placementUrl)}`,
+          whatsapp: `🏫 *Migma* — Bolsa aprovada!\n\nOlá ${firstName}, sua bolsa em *${university}* foi aprovada.\n\n*Programa:* ${course}\n*Bolsa:* ${scholarship}\n*Tuition:* ${tuition}\n*Placement Fee:* ${placementFeePt}\n\n${placementFee === 0 ? "Nenhum pagamento de Placement Fee é necessário. Acesse o portal:" : "Pague a Placement Fee para garantir sua vaga:"}\n${placementUrl}`,
+        },
+        es: {
+          subject: `Beca aprobada — ${universidad}`,
+          html: `<p>Hola, ${highlight(firstName)}!</p><p>Tu beca fue aprobada. Revisa los datos aprobados:</p><div style="background:#111;border:1px solid #2a2a2a;border-radius:12px;padding:16px;margin:18px 0;"><p><strong>Universidad:</strong> ${universidad}</p><p><strong>Programa:</strong> ${curso}</p><p><strong>Beca:</strong> ${scholarship}</p><p><strong>Tuition anual:</strong> ${tuition}</p><p><strong>Placement Fee:</strong> ${placementFeeEs}</p></div><p>${placementFee === 0 ? "No se requiere pago de Placement Fee para esta beca aprobada." : "Para asegurar tu lugar, completa el pago de la Placement Fee."}</p>${btn(placementFee === 0 ? "Acceder al portal" : "Pagar Placement Fee", placementUrl)}`,
+          whatsapp: `🏫 *Migma* — Beca aprobada!\n\nHola ${firstName}, tu beca en *${universidad}* fue aprobada.\n\n*Programa:* ${curso}\n*Beca:* ${scholarship}\n*Tuition:* ${tuition}\n*Placement Fee:* ${placementFeeEs}\n\n${placementFee === 0 ? "No se requiere pago de Placement Fee. Accede al portal:" : "Paga la Placement Fee para asegurar tu lugar:"}\n${placementUrl}`,
+        },
+      };
+
+    case "application_fee_paid":
+      return {
+        pt: {
+          subject: "Application Fee confirmada — Vaga garantida",
+          html: `<p>Olá, ${highlight(firstName)}!</p><p>O pagamento da <strong>Application Fee</strong> foi confirmado.</p><p>Sua aplicação está registrada. Agora complete as informações adicionais solicitadas pela universidade.</p>${btn("Completar dados adicionais", routes.onboardingComplementaryData)}`,
+          whatsapp: `✅ *Migma* — Application Fee confirmada!\n\nOlá ${firstName}, seu pagamento foi recebido e sua aplicação foi registrada. Complete a próxima etapa aqui: ${routes.onboardingComplementaryData}`,
+        },
+        es: {
+          subject: "Application Fee confirmada — Lugar asegurado",
+          html: `<p>Hola, ${highlight(firstName)}!</p><p>El pago de la <strong>Application Fee</strong> fue confirmado.</p><p>Tu aplicación está registrada. Ahora completa la información adicional solicitada por la universidad.</p>${btn("Completar datos adicionales", routes.onboardingComplementaryData)}`,
+          whatsapp: `✅ *Migma* — Application Fee confirmada!\n\nHola ${firstName}, recibimos tu pago y tu aplicación fue registrada. Completa el siguiente paso aquí: ${routes.onboardingComplementaryData}`,
+        },
+      };
+
+    case "placement_fee_paid":
+      return {
+        pt: {
+          subject: "Placement Fee confirmada — Envie seus documentos",
+          html: `<p>Olá, ${highlight(firstName)}!</p><p>O pagamento da <strong>Placement Fee</strong> foi confirmado.</p><p>Agora envie os documentos exigidos para o seu processo.</p>${btn("Enviar documentos", routes.onboardingDocumentsUpload)}`,
+          whatsapp: `💳 *Migma* — Placement Fee confirmada!\n\nOlá ${firstName}, pagamento recebido. Agora envie seus documentos aqui: ${routes.onboardingDocumentsUpload}`,
+        },
+        es: {
+          subject: "Placement Fee confirmada — Sube tus documentos",
+          html: `<p>Hola, ${highlight(firstName)}!</p><p>El pago de la <strong>Placement Fee</strong> fue confirmado.</p><p>Ahora sube los documentos requeridos para tu proceso.</p>${btn("Subir documentos", routes.onboardingDocumentsUpload)}`,
+          whatsapp: `💳 *Migma* — Placement Fee confirmada!\n\nHola ${firstName}, pago recibido. Ahora sube tus documentos aquí: ${routes.onboardingDocumentsUpload}`,
+        },
+      };
+
+    case "document_rejected":
+      return {
+        pt: {
+          subject: `Documento recusado — Correção necessária: ${documentName}`,
+          html: `<p>Olá, ${highlight(firstName)}!</p><p>O documento <strong>${documentName}</strong> precisa de correção.</p>${documentReason ? `<p style="background:#1a1a1a;border-left:3px solid #e55;padding:12px 16px;border-radius:4px;color:#ddd;">${documentReason}</p>` : ""}<p>Acesse o portal, corrija o arquivo e envie novamente.</p>${btn("Reenviar documento", documentsUrl)}`,
+          whatsapp: `⚠️ *Migma* — Correção necessária\n\nOlá ${firstName}, o documento *${documentName}* precisa ser atualizado.${documentReason ? `\n\nMotivo: ${documentReason}` : ""}\n\nAcesse: ${documentsUrl}`,
+        },
+        es: {
+          subject: `Documento rechazado — Corrección necesaria: ${documentName}`,
+          html: `<p>Hola, ${highlight(firstName)}!</p><p>El documento <strong>${documentName}</strong> necesita corrección.</p>${documentReason ? `<p style="background:#1a1a1a;border-left:3px solid #e55;padding:12px 16px;border-radius:4px;color:#ddd;">${documentReason}</p>` : ""}<p>Accede al portal, corrige el archivo y envíalo nuevamente.</p>${btn("Reenviar documento", documentsUrl)}`,
+          whatsapp: `⚠️ *Migma* — Corrección necesaria\n\nHola ${firstName}, el documento *${documentName}* debe actualizarse.${documentReason ? `\n\nMotivo: ${documentReason}` : ""}\n\nAccede: ${documentsUrl}`,
+        },
+      };
+
+    case "all_documents_approved":
+      return {
+        pt: {
+          subject: "Documentos aprovados — Pague a Application Fee",
+          html: `<p>Olá, ${highlight(firstName)}!</p><p>Todos os seus documentos foram <strong>revisados e aprovados</strong>.</p><p>O próximo passo é pagar a <strong>Application Fee</strong>.</p>${btn("Pagar Application Fee", paymentUrl)}`,
+          whatsapp: `✅ *Migma* — Documentos aprovados!\n\nOlá ${firstName}, todos os documentos foram aprovados. Próximo passo: pague a Application Fee aqui:\n${paymentUrl}`,
+        },
+        es: {
+          subject: "Documentos aprobados — Paga la Application Fee",
+          html: `<p>Hola, ${highlight(firstName)}!</p><p>Todos tus documentos fueron <strong>revisados y aprobados</strong>.</p><p>El siguiente paso es pagar la <strong>Application Fee</strong>.</p>${btn("Pagar Application Fee", paymentUrl)}`,
+          whatsapp: `✅ *Migma* — Documentos aprobados!\n\nHola ${firstName}, todos los documentos fueron aprobados. Próximo paso: paga la Application Fee aquí:\n${paymentUrl}`,
+        },
+      };
+
+    case "forms_generated":
+      return {
+        pt: {
+          subject: "Formulários prontos — Assinatura digital necessária",
+          html: `<p>Olá, ${highlight(firstName)}!</p><p>Seus formulários foram gerados e estão prontos para assinatura digital.</p><p>Revise e assine cada formulário no portal.</p>${btn("Assinar formulários", formsUrl)}`,
+          whatsapp: `📄 *Migma* — Formulários prontos!\n\nOlá ${firstName}, seus formulários estão prontos para assinatura digital. Acesse aqui: ${formsUrl}`,
+        },
+        es: {
+          subject: "Formularios listos — Firma digital requerida",
+          html: `<p>Hola, ${highlight(firstName)}!</p><p>Tus formularios fueron generados y están listos para firma digital.</p><p>Revisa y firma cada formulario en el portal.</p>${btn("Firmar formularios", formsUrl)}`,
+          whatsapp: `📄 *Migma* — Formularios listos!\n\nHola ${firstName}, tus formularios están listos para firma digital. Accede aquí: ${formsUrl}`,
+        },
+      };
+
+    case "package_sent_matriculausa":
+      return {
+        pt: {
+          subject: "Pacote enviado à MatriculaUSA — Processamento iniciado",
+          html: `<p>Olá, ${highlight(firstName)}!</p><p>Seu pacote foi <strong>enviado à MatriculaUSA</strong> para processamento.</p><p>O setor de admissões processará seu I-20 / Acceptance Letter. Avisaremos quando estiver pronto.</p>${btn("Acompanhar status", routes.studentApplications)}`,
+          whatsapp: `🚀 *Migma* — Pacote enviado!\n\nOlá ${firstName}, seu pacote foi enviado à MatriculaUSA. Aguarde o processamento do I-20 / Acceptance Letter. Acompanhe aqui: ${routes.studentApplications}`,
+        },
+        es: {
+          subject: "Paquete enviado a MatriculaUSA — Procesamiento iniciado",
+          html: `<p>Hola, ${highlight(firstName)}!</p><p>Tu paquete fue <strong>enviado a MatriculaUSA</strong> para procesamiento.</p><p>El área de admisiones procesará tu I-20 / Acceptance Letter. Te avisaremos cuando esté listo.</p>${btn("Ver estado", routes.studentApplications)}`,
+          whatsapp: `🚀 *Migma* — Paquete enviado!\n\nHola ${firstName}, tu paquete fue enviado a MatriculaUSA. Espera el procesamiento del I-20 / Acceptance Letter. Revisa aquí: ${routes.studentApplications}`,
+        },
+      };
+
+    case "acceptance_letter_ready":
+      return {
+        pt: {
+          subject: "Sua Acceptance Letter está pronta — Migma",
+          html: `<p>Olá, ${highlight(firstName)}!</p><p>Ótima notícia: sua <strong>Acceptance Letter</strong> foi emitida e está disponível para download no portal.</p>${btn("Acessar documento", acceptanceUrl)}`,
+          whatsapp: `🎓 *Migma* — Acceptance Letter pronta!\n\nOlá ${firstName}, sua Acceptance Letter foi emitida. Acesse o portal para baixar: ${acceptanceUrl}`,
+        },
+        es: {
+          subject: "Tu Acceptance Letter está lista — Migma",
+          html: `<p>Hola, ${highlight(firstName)}!</p><p>Excelente noticia: tu <strong>Acceptance Letter</strong> fue emitida y está disponible para descargar en el portal.</p>${btn("Acceder al documento", acceptanceUrl)}`,
+          whatsapp: `🎓 *Migma* — Acceptance Letter lista!\n\nHola ${firstName}, tu Acceptance Letter fue emitida. Accede al portal para descargarla: ${acceptanceUrl}`,
+        },
+      };
+
+    case "transfer_form_approved":
+      return {
+        pt: {
+          subject: "Transfer Form aprovado — Migma",
+          html: `<p>Olá, ${highlight(firstName)}!</p><p>Seu <strong>Transfer Form</strong> foi revisado e <strong>aprovado</strong> pela equipe da MatriculaUSA.</p><p>Seu processo de transferência continuará avançando.</p>${btn("Ver status", routes.onboardingAcceptanceLetter)}`,
+          whatsapp: `✅ *Migma* — Transfer Form aprovado!\n\nOlá ${firstName}, seu Transfer Form foi aprovado pela equipe da MatriculaUSA. Seu processo está avançando.\n\nAcesse: ${routes.onboardingAcceptanceLetter}`,
+        },
+        es: {
+          subject: "Transfer Form aprobado — Migma",
+          html: `<p>Hola, ${highlight(firstName)}!</p><p>Tu <strong>Transfer Form</strong> fue revisado y <strong>aprobado</strong> por el equipo de MatriculaUSA.</p><p>Tu proceso de transferencia seguirá avanzando.</p>${btn("Ver estado", routes.onboardingAcceptanceLetter)}`,
+          whatsapp: `✅ *Migma* — Transfer Form aprobado!\n\nHola ${firstName}, tu Transfer Form fue aprobado por el equipo de MatriculaUSA. Tu proceso avanza.\n\nAccede: ${routes.onboardingAcceptanceLetter}`,
+        },
+      };
+
+    case "transfer_form_rejected":
+      return {
+        pt: {
+          subject: "Transfer Form — Correção necessária",
+          html: `<p>Olá, ${highlight(firstName)}!</p><p>Seu <strong>Transfer Form</strong> foi revisado e precisa de correção.</p>${documentReason ? `<p style="background:#1a1a1a;border-left:3px solid #e53e3e;padding:12px 16px;border-radius:4px;color:#ddd;"><strong>Motivo:</strong> ${documentReason}</p>` : ""}<p>Acesse o portal, corrija o formulário e envie novamente.</p>${btn("Reenviar Transfer Form", routes.onboardingAcceptanceLetter)}`,
+          whatsapp: `⚠️ *Migma* — Correção no Transfer Form\n\nOlá ${firstName}, seu Transfer Form precisa ser corrigido.${documentReason ? `\n\n*Motivo:* ${documentReason}` : ""}\n\nAcesse para reenviar: ${routes.onboardingAcceptanceLetter}`,
+        },
+        es: {
+          subject: "Transfer Form — Corrección necesaria",
+          html: `<p>Hola, ${highlight(firstName)}!</p><p>Tu <strong>Transfer Form</strong> fue revisado y necesita corrección.</p>${documentReason ? `<p style="background:#1a1a1a;border-left:3px solid #e53e3e;padding:12px 16px;border-radius:4px;color:#ddd;"><strong>Motivo:</strong> ${documentReason}</p>` : ""}<p>Accede al portal, corrige el formulario y envíalo nuevamente.</p>${btn("Reenviar Transfer Form", routes.onboardingAcceptanceLetter)}`,
+          whatsapp: `⚠️ *Migma* — Corrección en Transfer Form\n\nHola ${firstName}, tu Transfer Form debe corregirse.${documentReason ? `\n\n*Motivo:* ${documentReason}` : ""}\n\nAccede para reenviarlo: ${routes.onboardingAcceptanceLetter}`,
+        },
+      };
+
+    case "new_pending_task":
+      return {
+        pt: {
+          subject: "Nova tarefa pendente — Ação necessária",
+          html: `<p>Olá, ${highlight(firstName)}!</p><p>A equipe Migma criou uma nova tarefa pendente na sua conta.</p>${task ? `<p style="background:#1a1a1a;border-left:3px solid #f5a623;padding:12px 16px;border-radius:4px;color:#ddd;">${task}</p>` : ""}${btn("Resolver tarefa", dashboardUrl)}`,
+          whatsapp: `🔔 *Migma* — Nova tarefa pendente\n\nOlá ${firstName}${task ? `: ${task}` : ", há uma tarefa pendente na sua conta"}.\n\nAcesse: ${dashboardUrl}`,
+        },
+        es: {
+          subject: "Nueva tarea pendiente — Acción requerida",
+          html: `<p>Hola, ${highlight(firstName)}!</p><p>El equipo Migma creó una nueva tarea pendiente en tu cuenta.</p>${task ? `<p style="background:#1a1a1a;border-left:3px solid #f5a623;padding:12px 16px;border-radius:4px;color:#ddd;">${task}</p>` : ""}${btn("Resolver tarea", dashboardUrl)}`,
+          whatsapp: `🔔 *Migma* — Nueva tarea pendiente\n\nHola ${firstName}${task ? `: ${task}` : ", hay una tarea pendiente en tu cuenta"}.\n\nAccede: ${dashboardUrl}`,
+        },
+      };
+
+    case "deadline_alert_transfer":
+      return {
+        pt: {
+          subject: `Alerta de prazo — ${data.days_remaining} dia(s) restantes para sua Transfer`,
+          html: `<p>Olá, ${highlight(firstName)}!</p><p>Atenção: restam <strong>${data.days_remaining} dia(s)</strong> para o prazo do seu processo de Transfer.</p><p>Confira se todos os documentos e etapas estão completos.</p>${btn("Ver meu processo", dashboardUrl)}`,
+          whatsapp: `⏰ *Migma* — Alerta de prazo!\n\nOlá ${firstName}, restam *${data.days_remaining} dia(s)* para o prazo da sua Transfer. Confira seu processo: ${dashboardUrl}`,
+        },
+        es: {
+          subject: `Alerta de plazo — ${data.days_remaining} día(s) restantes para tu Transfer`,
+          html: `<p>Hola, ${highlight(firstName)}!</p><p>Atención: quedan <strong>${data.days_remaining} día(s)</strong> para el plazo de tu proceso de Transfer.</p><p>Revisa que todos los documentos y pasos estén completos.</p>${btn("Ver mi proceso", dashboardUrl)}`,
+          whatsapp: `⏰ *Migma* — Alerta de plazo!\n\nHola ${firstName}, quedan *${data.days_remaining} día(s)* para el plazo de tu Transfer. Revisa tu proceso: ${dashboardUrl}`,
+        },
+      };
+
+    case "deadline_alert_cos":
+      return {
+        pt: {
+          subject: `Alerta de prazo — ${data.days_remaining} dia(s) até o prazo do I-94 / COS`,
+          html: `<p>Olá, ${highlight(firstName)}!</p><p>Atenção: seu prazo de I-94 / Change of Status (COS) vence em <strong>${data.days_remaining} dia(s)</strong>.</p><p>É essencial concluir todas as etapas antes dessa data.</p>${btn("Ver meu processo", dashboardUrl)}`,
+          whatsapp: `⏰ *Migma* — Prazo urgente de COS!\n\nOlá ${firstName}, seu I-94 vence em *${data.days_remaining} dia(s)*. Confira com urgência: ${dashboardUrl}`,
+        },
+        es: {
+          subject: `Alerta de plazo — ${data.days_remaining} día(s) hasta el plazo del I-94 / COS`,
+          html: `<p>Hola, ${highlight(firstName)}!</p><p>Atención: tu plazo de I-94 / Change of Status (COS) vence en <strong>${data.days_remaining} día(s)</strong>.</p><p>Es esencial completar todos los pasos antes de esa fecha.</p>${btn("Ver mi proceso", dashboardUrl)}`,
+          whatsapp: `⏰ *Migma* — Plazo urgente de COS!\n\nHola ${firstName}, tu I-94 vence en *${data.days_remaining} día(s)*. Revisa con urgencia: ${dashboardUrl}`,
+        },
+      };
+
+    case "dependent_pending":
+      return {
+        pt: {
+          subject: "Tarefa pendente de dependente — Dados ou documentos necessários",
+          html: `<p>Olá, ${highlight(firstName)}!</p><p>Há uma pendência relacionada a <strong>dependentes</strong> na sua conta.</p>${task ? `<p style="background:#1a1a1a;border-left:3px solid #f5a623;padding:12px 16px;border-radius:4px;color:#ddd;">${task}</p>` : "<p>Acesse o portal para conferir os dados ou documentos solicitados.</p>"}${btn("Resolver tarefa", dashboardUrl)}`,
+          whatsapp: `👨‍👩‍👧 *Migma* — Pendência de dependente\n\nOlá ${firstName}${task ? `: ${task}` : ", há informações de dependente pendentes na sua conta"}.\n\nAcesse: ${dashboardUrl}`,
+        },
+        es: {
+          subject: "Tarea pendiente de dependiente — Datos o documentos necesarios",
+          html: `<p>Hola, ${highlight(firstName)}!</p><p>Hay una tarea pendiente relacionada con <strong>dependientes</strong> en tu cuenta.</p>${task ? `<p style="background:#1a1a1a;border-left:3px solid #f5a623;padding:12px 16px;border-radius:4px;color:#ddd;">${task}</p>` : "<p>Accede al portal para revisar los datos o documentos solicitados.</p>"}${btn("Resolver tarea", dashboardUrl)}`,
+          whatsapp: `👨‍👩‍👧 *Migma* — Pendiente de dependiente\n\nHola ${firstName}${task ? `: ${task}` : ", hay información de dependiente pendiente en tu cuenta"}.\n\nAccede: ${dashboardUrl}`,
+        },
+      };
+
+    case "referral_goal_reached":
+      return {
+        pt: {
+          subject: "Parabéns! Você atingiu 10 indicações — Mensalidade Migma isenta",
+          html: `<p>Olá, ${highlight(firstName)}!</p><p>Ótima notícia: você atingiu a meta de <strong>10 indicações fechadas</strong>.</p><p>Sua mensalidade Migma foi <strong>automaticamente isenta</strong>.</p>${btn("Ver minha conta", routes.studentRewards)}`,
+          whatsapp: `🏆 *Migma* — Meta atingida!\n\nParabéns ${firstName}! Você fechou 10 indicações e sua mensalidade Migma foi isenta automaticamente. Veja aqui: ${routes.studentRewards}`,
+        },
+        es: {
+          subject: "Felicitaciones! Llegaste a 10 referidos — Mensualidad Migma exenta",
+          html: `<p>Hola, ${highlight(firstName)}!</p><p>Excelente noticia: llegaste a la meta de <strong>10 referidos cerrados</strong>.</p><p>Tu mensualidad Migma fue <strong>exenta automáticamente</strong>.</p>${btn("Ver mi cuenta", routes.studentRewards)}`,
+          whatsapp: `🏆 *Migma* — Meta alcanzada!\n\nFelicitaciones ${firstName}! Cerraste 10 referidos y tu mensualidad Migma fue exenta automáticamente. Mira aquí: ${routes.studentRewards}`,
+        },
+      };
+
+    case "new_referral_closed":
+      return {
+        pt: {
+          subject: `Nova indicação fechada — ${data.closures_count ?? "?"} no total`,
+          html: `<p>Olá, ${highlight(firstName)}!</p><p>Sua indicação <strong>${data.referral_name ?? "recente"}</strong> se tornou cliente Migma.</p><p>Agora você tem <strong>${data.closures_count ?? "?"} indicação(ões) fechada(s)</strong>.</p>${btn("Ver recompensas", routes.studentRewards)}`,
+          whatsapp: `🎯 *Migma* — Indicação fechada!\n\nOlá ${firstName}, ${data.referral_name ?? "sua indicação"} se tornou cliente. Total: *${data.closures_count ?? "?"}* indicações fechadas. Veja aqui: ${routes.studentRewards}`,
+        },
+        es: {
+          subject: `Nuevo referido cerrado — ${data.closures_count ?? "?"} en total`,
+          html: `<p>Hola, ${highlight(firstName)}!</p><p>Tu referido <strong>${data.referral_name ?? "reciente"}</strong> se convirtió en cliente Migma.</p><p>Ahora tienes <strong>${data.closures_count ?? "?"} referido(s) cerrado(s)</strong>.</p>${btn("Ver recompensas", routes.studentRewards)}`,
+          whatsapp: `🎯 *Migma* — Referido cerrado!\n\nHola ${firstName}, ${data.referral_name ?? "tu referido"} se convirtió en cliente. Total: *${data.closures_count ?? "?"}* referidos cerrados. Mira aquí: ${routes.studentRewards}`,
+        },
+      };
+
+    case "admin_new_documents":
+      return {
+        pt: {
+          subject: `[Admin] Novos documentos para revisão — ${clientName}`,
+          html: `<p>Novos documentos foram enviados por <strong>${clientName}</strong> e aguardam revisão.</p>${data.client_id ? btn("Revisar documentos", adminUrl) : ""}`,
+          whatsapp: `📥 *Migma Admin* — Novos documentos\n\n${clientName} enviou documentos para revisão.\n${adminUrl}`,
+        },
+        es: {
+          subject: `[Admin] Nuevos documentos para revisión — ${clientNameEs}`,
+          html: `<p>Nuevos documentos fueron enviados por <strong>${clientNameEs}</strong> y esperan revisión.</p>${data.client_id ? btn("Revisar documentos", adminUrl) : ""}`,
+          whatsapp: `📥 *Migma Admin* — Nuevos documentos\n\n${clientNameEs} envió documentos para revisión.\n${adminUrl}`,
+        },
+      };
+
+    case "admin_contract_resubmitted":
+      return {
+        pt: {
+          subject: `[Admin] Documentos reenviados — ${clientName} | Pedido #${data.order_number ?? "?"}`,
+          html: `<p><strong>${clientName}</strong> reenviou documentos de identidade do pedido <strong>#${data.order_number ?? "?"}</strong>.</p><p>O contrato voltou para status pendente e aguarda nova revisão.</p>${data.client_id ? btn("Revisar pedido", adminUrl) : ""}`,
+          whatsapp: `📤 *Migma Admin* — Documentos reenviados\n\n${clientName} reenviou documentos do pedido *#${data.order_number ?? "?"}*.\n\nAguardando revisão.${data.client_id ? `\n${adminUrl}` : ""}`,
+        },
+        es: {
+          subject: `[Admin] Documentos reenviados — ${clientNameEs} | Pedido #${data.order_number ?? "?"}`,
+          html: `<p><strong>${clientNameEs}</strong> reenvió documentos de identidad del pedido <strong>#${data.order_number ?? "?"}</strong>.</p><p>El contrato volvió a estado pendiente y espera nueva revisión.</p>${data.client_id ? btn("Revisar pedido", adminUrl) : ""}`,
+          whatsapp: `📤 *Migma Admin* — Documentos reenviados\n\n${clientNameEs} reenvió documentos del pedido *#${data.order_number ?? "?"}*.\n\nEsperando revisión.${data.client_id ? `\n${adminUrl}` : ""}`,
+        },
+      };
+
+    case "admin_package_complete":
+      return {
+        pt: {
+          subject: `[Admin] Pacote completo — ${clientName} pronto para MatriculaUSA`,
+          html: `<p>O pacote de <strong>${clientName}</strong> está completo e pronto para envio à MatriculaUSA.</p>${data.client_id ? btn("Ver pacote", adminUrl) : ""}`,
+          whatsapp: `✅ *Migma Admin* — Pacote completo\n\n${clientName} tem um pacote pronto para MatriculaUSA.\n${adminUrl}`,
+        },
+        es: {
+          subject: `[Admin] Paquete completo — ${clientNameEs} listo para MatriculaUSA`,
+          html: `<p>El paquete de <strong>${clientNameEs}</strong> está completo y listo para enviar a MatriculaUSA.</p>${data.client_id ? btn("Ver paquete", adminUrl) : ""}`,
+          whatsapp: `✅ *Migma Admin* — Paquete completo\n\n${clientNameEs} tiene un paquete listo para MatriculaUSA.\n${adminUrl}`,
+        },
+      };
+
+    case "billing_started":
+      return {
+        pt: {
+          subject: "Cobrança Migma ativada — Plano mensal configurado",
+          html: `<p>Olá, ${highlight(firstName)}!</p><p>Seu plano mensal Migma foi ativado com sucesso.</p><ul style="color:#ccc;line-height:2;"><li>Valor mensal: <strong>${monthlyAmount}</strong></li><li>Parcelas: <strong>${installmentsTotal}x</strong></li><li>Processo: <strong>${data.process_type ?? data.degree_level ?? "-"}</strong></li><li>Primeira cobrança: <strong>${data.start_date ?? "-"}</strong></li></ul><p>Você receberá o link de pagamento mensalmente.</p>${btn("Acessar minha conta", dashboardUrl)}`,
+          whatsapp: `💳 *Migma* — Cobrança ativada!\n\nOlá ${firstName}, seu pagamento mensal de *${monthlyAmount}* em ${installmentsTotal} parcela(s) foi configurado. Você receberá o link todo mês. Dúvidas: ${dashboardUrl}`,
+        },
+        es: {
+          subject: "Cobro Migma activado — Plan mensual configurado",
+          html: `<p>Hola, ${highlight(firstName)}!</p><p>Tu plan mensual Migma fue activado correctamente.</p><ul style="color:#ccc;line-height:2;"><li>Valor mensual: <strong>${monthlyAmount}</strong></li><li>Cuotas: <strong>${installmentsTotal}x</strong></li><li>Proceso: <strong>${data.process_type ?? data.degree_level ?? "-"}</strong></li><li>Primer cobro: <strong>${data.start_date ?? "-"}</strong></li></ul><p>Recibirás el enlace de pago todos los meses.</p>${btn("Acceder a mi cuenta", dashboardUrl)}`,
+          whatsapp: `💳 *Migma* — Cobro activado!\n\nHola ${firstName}, tu pago mensual de *${monthlyAmount}* en ${installmentsTotal} cuota(s) fue configurado. Recibirás el enlace cada mes. Dudas: ${dashboardUrl}`,
+        },
+      };
+
+    case "billing_installment_due":
+      return {
+        pt: {
+          subject: `Parcela ${installmentNumber}/${installmentsTotal} criada — ${monthlyAmount}`,
+          html: `<p>Olá, ${highlight(firstName)}!</p><p>Sua parcela <strong>${installmentNumber} de ${installmentsTotal}</strong> foi criada.</p><p>Valor: <strong>${monthlyAmount}</strong></p>${data.billing_link ?? data.payment_link ? btn("Pagar agora", resolveUrl(data.billing_link ?? data.payment_link, dashboardUrl, dash)) : `<p style="color:#888;">A equipe Migma enviará as instruções de pagamento pelo canal combinado.</p>`}<p style="margin-top:20px;color:#888;font-size:13px;">Próxima parcela: ${data.next_billing_date ?? "-"}.</p>`,
+          whatsapp: `💳 *Migma* — Parcela ${installmentNumber}/${installmentsTotal} criada!\n\nOlá ${firstName}, sua mensalidade de *${monthlyAmount}* foi criada.\n\n${data.billing_link ?? data.payment_link ? `Pague aqui: ${resolveUrl(data.billing_link ?? data.payment_link, dashboardUrl, dash)}` : "A equipe Migma enviará as instruções pelo canal combinado."}`,
+        },
+        es: {
+          subject: `Cuota ${installmentNumber}/${installmentsTotal} creada — ${monthlyAmount}`,
+          html: `<p>Hola, ${highlight(firstName)}!</p><p>Tu cuota <strong>${installmentNumber} de ${installmentsTotal}</strong> fue creada.</p><p>Valor: <strong>${monthlyAmount}</strong></p>${data.billing_link ?? data.payment_link ? btn("Pagar ahora", resolveUrl(data.billing_link ?? data.payment_link, dashboardUrl, dash)) : `<p style="color:#888;">El equipo Migma enviará las instrucciones de pago por el canal acordado.</p>`}<p style="margin-top:20px;color:#888;font-size:13px;">Próxima cuota: ${data.next_billing_date ?? "-"}.</p>`,
+          whatsapp: `💳 *Migma* — Cuota ${installmentNumber}/${installmentsTotal} creada!\n\nHola ${firstName}, tu mensualidad de *${monthlyAmount}* fue creada.\n\n${data.billing_link ?? data.payment_link ? `Paga aquí: ${resolveUrl(data.billing_link ?? data.payment_link, dashboardUrl, dash)}` : "El equipo Migma enviará las instrucciones por el canal acordado."}`,
+        },
+      };
+
+    case "billing_installment_paid":
+      return {
+        pt: {
+          subject: `Pagamento confirmado — Parcela ${data.installment_number ?? "-"}/${installmentsTotal}`,
+          html: `<p>Olá, ${highlight(firstName)}!</p><p>Recebemos o pagamento da sua parcela <strong>${data.installment_number ?? "-"} de ${installmentsTotal}</strong>.</p><p>Parcelas pagas até agora: <strong>${data.installments_paid ?? "-"}</strong>.</p>${data.receipt_url ? btn("Ver recibo", resolveUrl(data.receipt_url, dashboardUrl, dash)) : btn("Acessar minha conta", dashboardUrl)}`,
+          whatsapp: `✅ *Migma* — Pagamento confirmado!\n\nOlá ${firstName}, recebemos a parcela ${data.installment_number ?? "-"}/${installmentsTotal}. Pagas até agora: ${data.installments_paid ?? "-"}.${data.receipt_url ? `\n\nRecibo: ${resolveUrl(data.receipt_url, dashboardUrl, dash)}` : ""}`,
+        },
+        es: {
+          subject: `Pago confirmado — Cuota ${data.installment_number ?? "-"}/${installmentsTotal}`,
+          html: `<p>Hola, ${highlight(firstName)}!</p><p>Recibimos el pago de tu cuota <strong>${data.installment_number ?? "-"} de ${installmentsTotal}</strong>.</p><p>Cuotas pagadas hasta ahora: <strong>${data.installments_paid ?? "-"}</strong>.</p>${data.receipt_url ? btn("Ver recibo", resolveUrl(data.receipt_url, dashboardUrl, dash)) : btn("Acceder a mi cuenta", dashboardUrl)}`,
+          whatsapp: `✅ *Migma* — Pago confirmado!\n\nHola ${firstName}, recibimos la cuota ${data.installment_number ?? "-"}/${installmentsTotal}. Pagadas hasta ahora: ${data.installments_paid ?? "-"}.${data.receipt_url ? `\n\nRecibo: ${resolveUrl(data.receipt_url, dashboardUrl, dash)}` : ""}`,
+        },
+      };
+
+    case "billing_suspended":
+      return {
+        pt: {
+          subject: "Cobrança Migma suspensa — Fale conosco",
+          html: `<p>Olá, ${highlight(firstName)}!</p><p>Sua cobrança Migma foi <strong>suspensa</strong>.</p>${data.suspend_reason ? `<p style="background:#1a1a1a;border-left:3px solid #e55;padding:12px 16px;border-radius:4px;color:#ddd;">${data.suspend_reason}</p>` : ""}<p>Entre em contato com a equipe Migma para resolver a situação.</p>${btn("Falar com a Migma", supportUrl)}`,
+          whatsapp: `⚠️ *Migma* — Cobrança suspensa\n\nOlá ${firstName}, seu plano mensal foi suspenso.${data.suspend_reason ? `\n\nMotivo: ${data.suspend_reason}` : ""}\n\nFale conosco: ${supportUrl}`,
+        },
+        es: {
+          subject: "Cobro Migma suspendido — Contáctanos",
+          html: `<p>Hola, ${highlight(firstName)}!</p><p>Tu cobro Migma fue <strong>suspendido</strong>.</p>${data.suspend_reason ? `<p style="background:#1a1a1a;border-left:3px solid #e55;padding:12px 16px;border-radius:4px;color:#ddd;">${data.suspend_reason}</p>` : ""}<p>Contacta al equipo Migma para resolver la situación.</p>${btn("Contactar a Migma", supportUrl)}`,
+          whatsapp: `⚠️ *Migma* — Cobro suspendido\n\nHola ${firstName}, tu plan mensual fue suspendido.${data.suspend_reason ? `\n\nMotivo: ${data.suspend_reason}` : ""}\n\nContáctanos: ${supportUrl}`,
+        },
+      };
+
+    case "transfer_form_delivered":
+      return {
+        pt: {
+          subject: `[Admin] Aluno confirmou entrega do Transfer Form — ${clientName}`,
+          html: `<p><strong>${clientName}</strong> confirmou que o Transfer Form foi entregue à escola atual.</p><p>Aguarde a liberação do SEVIS pela escola. Depois da confirmação, marque o processo como <strong>Transfer Completed</strong> no admin.</p>${data.client_id ? btn("Ver perfil do aluno", adminUrl) : ""}`,
+          whatsapp: `✅ *Migma Admin* — Transfer Form entregue\n\n${clientName} confirmou a entrega do Transfer Form à escola atual. Aguarde a liberação do SEVIS.\n${data.client_id ? adminUrl : routes.adminUser()}`,
+        },
+        es: {
+          subject: `[Admin] Alumno confirmó entrega del Transfer Form — ${clientNameEs}`,
+          html: `<p><strong>${clientNameEs}</strong> confirmó que el Transfer Form fue entregado a la escuela actual.</p><p>Espera la liberación de SEVIS por la escuela. Después de la confirmación, marca el proceso como <strong>Transfer Completed</strong> en admin.</p>${data.client_id ? btn("Ver perfil del alumno", adminUrl) : ""}`,
+          whatsapp: `✅ *Migma Admin* — Transfer Form entregado\n\n${clientNameEs} confirmó la entrega del Transfer Form a la escuela actual. Espera la liberación de SEVIS.\n${data.client_id ? adminUrl : routes.adminUser()}`,
+        },
+      };
+
+    case "transfer_completed":
+      return {
+        pt: {
+          subject: "Transfer concluído — Parabéns!",
+          html: `<p>Olá, ${highlight(firstName)}!</p><p><strong>Seu transfer foi concluído com sucesso.</strong></p><p>Seu novo I-20 foi emitido. Em breve, você receberá emails da universidade com informações de orientação, datas e início do programa.</p><p style="background:#0a1f0a;border-left:3px solid #22c55e;padding:12px 16px;border-radius:4px;color:#bbf7d0;">Aguarde o contato da universidade sobre o início das aulas. Bem-vindo à sua nova universidade.</p>${btn("Ver meu dashboard", dashboardUrl)}`,
+          whatsapp: `🎓 *Migma* — Transfer concluído!\n\nParabéns, ${firstName}! Seu transfer foi concluído e seu novo I-20 foi emitido. Aguarde o contato da universidade sobre o início das aulas.\n\nAcesse: ${dashboardUrl}`,
+        },
+        es: {
+          subject: "Transfer completado — Felicitaciones!",
+          html: `<p>Hola, ${highlight(firstName)}!</p><p><strong>Tu transfer fue completado con éxito.</strong></p><p>Tu nuevo I-20 fue emitido. Pronto recibirás emails de la universidad con información de orientación, fechas e inicio del programa.</p><p style="background:#0a1f0a;border-left:3px solid #22c55e;padding:12px 16px;border-radius:4px;color:#bbf7d0;">Espera el contacto de la universidad sobre el inicio de clases. Bienvenido a tu nueva universidad.</p>${btn("Ver mi dashboard", dashboardUrl)}`,
+          whatsapp: `🎓 *Migma* — Transfer completado!\n\nFelicitaciones, ${firstName}! Tu transfer fue completado y tu nuevo I-20 fue emitido. Espera el contacto de la universidad sobre el inicio de clases.\n\nAccede: ${dashboardUrl}`,
+        },
+      };
+
+    case "admin_no_university_match":
+      return {
+        pt: {
+          subject: `[Admin] Sem match Caroline/Oikos — Revisão manual necessária: ${clientName}`,
+          html: `<p><strong>${clientName}</strong> não teve compatibilidade com Caroline University ou Oikos University.</p><p>É necessária intervenção manual para definir uma alternativa.</p>${data.client_id ? btn("Ver perfil do cliente", adminUrl) : ""}`,
+          whatsapp: `⚠️ *Migma Admin* — Sem match de universidade\n\n${clientName} não tem Caroline/Oikos disponível. Intervenção manual necessária.\n${adminUrl}`,
+        },
+        es: {
+          subject: `[Admin] Sin match Caroline/Oikos — Revisión manual necesaria: ${clientNameEs}`,
+          html: `<p><strong>${clientNameEs}</strong> no tuvo compatibilidad con Caroline University u Oikos University.</p><p>Se requiere intervención manual para definir una alternativa.</p>${data.client_id ? btn("Ver perfil del cliente", adminUrl) : ""}`,
+          whatsapp: `⚠️ *Migma Admin* — Sin match de universidad\n\n${clientNameEs} no tiene Caroline/Oikos disponible. Intervención manual necesaria.\n${adminUrl}`,
+        },
+      };
+
+    case "admin_support_handoff":
+      return {
+        pt: {
+          subject: `[Suporte] Aluno aguardando atendimento humano: ${clientName}`,
+          html: `<p>O agente de IA transferiu <strong>${clientName}</strong> para atendimento humano.</p>${data.reason ? `<p><strong>Motivo:</strong> ${data.reason}</p>` : ""}${data.last_message ? `<p><strong>Última mensagem:</strong><br><em>"${data.last_message}"</em></p>` : ""}${data.client_id ? btn("Abrir conversa", adminUrl) : ""}`,
+          whatsapp: `🙋 *Migma Suporte* — Atendimento humano solicitado\n\nAluno: ${clientName}\n${data.reason ? `Motivo: ${data.reason}\n` : ""}${data.client_id ? adminUrl : routes.adminUser()}`,
+        },
+        es: {
+          subject: `[Soporte] Alumno esperando atención humana: ${clientNameEs}`,
+          html: `<p>El agente de IA transfirió a <strong>${clientNameEs}</strong> a atención humana.</p>${data.reason ? `<p><strong>Motivo:</strong> ${data.reason}</p>` : ""}${data.last_message ? `<p><strong>Último mensaje:</strong><br><em>"${data.last_message}"</em></p>` : ""}${data.client_id ? btn("Abrir conversación", adminUrl) : ""}`,
+          whatsapp: `🙋 *Migma Soporte* — Atención humana solicitada\n\nAlumno: ${clientNameEs}\n${data.reason ? `Motivo: ${data.reason}\n` : ""}${data.client_id ? adminUrl : routes.adminUser()}`,
+        },
+      };
+  }
+}
+
+function applyMultilingualTemplate(template: Template, copy: MultilingualMessage): Template {
+  const extraHtml = `${langSection("Português", copy.pt.html)}${langSection("Español", copy.es.html)}`;
+  return {
+    subject: triSubject(template.subject, copy.pt.subject, copy.es.subject),
+    emailHtml: template.emailHtml.replace("<!-- MIGMA_EMAIL_BODY_END -->", extraHtml),
+    whatsapp: triWhatsapp(template.whatsapp, copy.pt.whatsapp, copy.es.whatsapp),
+  };
+}
+
+function buildRoutes(dash: string) {
+  return {
     studentDashboard: `${dash}/student/dashboard`,
     studentApplications: `${dash}/student/dashboard/applications`,
     studentDocuments: `${dash}/student/dashboard/documents`,
@@ -336,7 +823,19 @@ function buildTemplate(
     onboardingAcceptanceLetter: `${dash}/student/onboarding?step=acceptance_letter`,
     adminUser: (profileId?: string) => profileId ? `${dash}/dashboard/users/${profileId}` : `${dash}/dashboard/users`,
   };
+}
 
+function buildTemplate(
+  trigger: TriggerType,
+  name: string,
+  data: NotifyPayload["data"] = {},
+  appBaseUrl: string
+): Template {
+  const firstName = name.split(" ")[0];
+  const dash = normalizeBaseUrl(appBaseUrl);
+  const routes = buildRoutes(dash);
+
+  const englishTemplate = (() => {
   switch (trigger) {
     // ── 01 ────────────────────────────────────────────────────────────────────
     case "selection_fee_paid": return {
@@ -383,7 +882,7 @@ function buildTemplate(
       const placementFee = typeof data.placement_fee_usd === "number" ? data.placement_fee_usd : null;
       const placementFeeLabel = placementFee === null ? "Pending confirmation" : placementFee === 0 ? "Waived" : `$${placementFee.toLocaleString("en-US")}`;
       const tuitionLabel = typeof data.tuition_annual_usd === "number" ? `$${data.tuition_annual_usd.toLocaleString("en-US")}/year` : null;
-      const actionUrl = resolveUrl(data.payment_link, routes.onboardingPlacementFee, dash);
+      const actionUrl = resolveUrl(data.app_url, routes.onboardingPlacementFee, dash);
       const isWaived = placementFee === 0;
 
       return {
@@ -740,6 +1239,12 @@ function buildTemplate(
     default:
       throw new Error(`Unknown trigger: ${trigger}`);
   }
+  })();
+
+  return applyMultilingualTemplate(
+    englishTemplate,
+    buildMultilingualCopy(trigger, firstName, data, routes, dash),
+  );
 }
 
 // ─── Main handler ─────────────────────────────────────────────────────────────

@@ -12,14 +12,22 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { getSecureUrl } from '@/lib/storage';
 import { getExplicitMigmaUpsell, getOrderAddonLabel, resolveMigmaOrderLink } from '@/lib/migma-zelle-linking';
 
-const isLocal = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+const isLocalHostname = typeof window !== 'undefined' && (
+  window.location.hostname === 'localhost' ||
+  window.location.hostname === '127.0.0.1' ||
+  window.location.hostname === '0.0.0.0' ||
+  window.location.hostname === '::1'
+);
+const isLocalSupabase = import.meta.env.VITE_SUPABASE_URL?.includes('127.0.0.1') ||
+  import.meta.env.VITE_SUPABASE_URL?.includes('localhost');
+const shouldIncludeTestApprovals = import.meta.env.DEV || isLocalHostname || isLocalSupabase;
 const isProduction = typeof window !== 'undefined' && (window.location.hostname === 'migmainc.com' || window.location.hostname === 'www.migmainc.com');
 
 async function fetchMigmaCheckoutZellePending() {
   const { data, error } = await supabase.functions.invoke('migma-checkout-zelle-admin', {
     body: {
       action: 'list',
-      include_test: isLocal,
+      include_test: shouldIncludeTestApprovals,
     },
   });
 
@@ -152,7 +160,7 @@ export const ZelleApprovalPage = () => {
         .eq('is_hidden', false)
         .order('created_at', { ascending: false });
 
-      if (!isLocal) {
+      if (!shouldIncludeTestApprovals) {
         ordersQuery = ordersQuery.eq('is_test', false).not('client_email', 'ilike', '%@uorak.com');
       }
 
@@ -183,7 +191,7 @@ export const ZelleApprovalPage = () => {
         .select('*')
         .in('status', ['pending', 'pending_verification']);
 
-      if (!isLocal) migmaQuery = migmaQuery.eq('is_test', false);
+      if (!shouldIncludeTestApprovals) migmaQuery = migmaQuery.eq('is_test', false);
 
       const { data: migmaData, error: migmaError } = await migmaQuery
         .order('updated_at', { ascending: false });
@@ -253,7 +261,7 @@ export const ZelleApprovalPage = () => {
         .eq('is_hidden', false)
         .order('updated_at', { ascending: false });
 
-      if (!isLocal) {
+      if (!shouldIncludeTestApprovals) {
         histQuery = histQuery.eq('is_test', false).not('client_email', 'ilike', '%@uorak.com');
       }
 
@@ -270,7 +278,7 @@ export const ZelleApprovalPage = () => {
         .select('*')
         .in('status', ['approved', 'rejected']);
 
-      if (!isLocal) histMigmaQuery = histMigmaQuery.eq('is_test', false);
+      if (!shouldIncludeTestApprovals) histMigmaQuery = histMigmaQuery.eq('is_test', false);
 
       histMigmaQuery = histMigmaQuery.order('updated_at', { ascending: false });
 

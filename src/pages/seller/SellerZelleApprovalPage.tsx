@@ -10,7 +10,15 @@ import { AlertModal } from '@/components/ui/alert-modal';
 import { getSecureUrl } from '@/lib/storage';
 import { getExplicitMigmaUpsell, getOrderAddonLabel, resolveMigmaOrderLink } from '@/lib/migma-zelle-linking';
 
-const isLocal = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+const isLocalHostname = typeof window !== 'undefined' && (
+    window.location.hostname === 'localhost' ||
+    window.location.hostname === '127.0.0.1' ||
+    window.location.hostname === '0.0.0.0' ||
+    window.location.hostname === '::1'
+);
+const isLocalSupabase = import.meta.env.VITE_SUPABASE_URL?.includes('127.0.0.1') ||
+    import.meta.env.VITE_SUPABASE_URL?.includes('localhost');
+const shouldIncludeTestApprovals = import.meta.env.DEV || isLocalHostname || isLocalSupabase;
 
 interface ZelleOrder {
     id: string;
@@ -161,7 +169,7 @@ export const SellerZelleApprovalPage = () => {
                 .eq('seller_id', currentSellerId)
                 .eq('is_hidden', false);
 
-            if (!isLocal) ordersQuery = ordersQuery.eq('is_test', false);
+            if (!shouldIncludeTestApprovals) ordersQuery = ordersQuery.eq('is_test', false);
 
             const { data: ordersData, error: ordersError } = await ordersQuery
                 .order('created_at', { ascending: false });
@@ -205,7 +213,7 @@ export const SellerZelleApprovalPage = () => {
                     .in('user_id', sellerClientIds)
                     .in('status', ['pending', 'pending_verification']);
 
-                if (!isLocal) migmaQuery = migmaQuery.eq('is_test', false);
+                if (!shouldIncludeTestApprovals) migmaQuery = migmaQuery.eq('is_test', false);
 
                 const { data: migmaData, error: migmaError } = await migmaQuery
                     .order('updated_at', { ascending: false });
@@ -350,7 +358,7 @@ export const SellerZelleApprovalPage = () => {
                 .in('payment_status', ['completed', 'failed'])
                 .eq('is_hidden', false);
 
-            if (!isLocal) histQuery = histQuery.eq('is_test', false);
+            if (!shouldIncludeTestApprovals) histQuery = histQuery.eq('is_test', false);
 
             const { data: histOrdersData } = await histQuery
                 .order('updated_at', { ascending: false })
@@ -364,7 +372,7 @@ export const SellerZelleApprovalPage = () => {
                     .in('user_id', sellerClientIds)
                     .in('status', ['approved', 'rejected']);
 
-                if (!isLocal) histMigmaQuery = histMigmaQuery.eq('is_test', false);
+                if (!shouldIncludeTestApprovals) histMigmaQuery = histMigmaQuery.eq('is_test', false);
 
                 const { data: histMigmaData } = await histMigmaQuery
                     .order('updated_at', { ascending: false })

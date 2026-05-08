@@ -24,6 +24,19 @@ const CORS = {
 const STRIPE_FEE_PERCENT = 0.039;
 const STRIPE_FEE_FIXED_CENTS = 30;
 
+function getMatriculausaStripeKey(siteUrl: string): string | null {
+  const isProduction = siteUrl.includes("migmainc.com");
+  const prodKey = Deno.env.get("MATRICULAUSA_STRIPE_SECRET_KEY_PROD");
+  const testKey = Deno.env.get("MATRICULAUSA_STRIPE_SECRET_KEY_TEST");
+  const genericKey = Deno.env.get("MATRICULAUSA_STRIPE_SECRET_KEY");
+
+  if (isProduction) {
+    return prodKey || testKey || genericKey || null;
+  }
+
+  return testKey || prodKey || genericKey || null;
+}
+
 // ─── Parcelow Client (MatriculaUSA keys) ─────────────────────────────────────
 class ParcelowClient {
   private clientId: number | string;
@@ -189,10 +202,7 @@ Deno.serve(async (req) => {
 
     // ── 3. Stripe (MatriculaUSA keys) ─────────────────────────────────────────
     if (payment_method === "stripe") {
-      const isProduction = siteUrl.includes("migmainc.com");
-      const stripeKey = isProduction
-        ? Deno.env.get("MATRICULAUSA_STRIPE_SECRET_KEY_PROD")
-        : Deno.env.get("MATRICULAUSA_STRIPE_SECRET_KEY_TEST");
+      const stripeKey = getMatriculausaStripeKey(siteUrl);
       if (!stripeKey) throw new Error("MatriculaUSA Stripe key not configured");
 
       const stripe = new Stripe(stripeKey, { apiVersion: "2024-12-18.acacia" as any });
@@ -230,6 +240,8 @@ Deno.serve(async (req) => {
       await supabase.from("application_fee_stripe_sessions").insert({
         stripe_session_id: session.id,
         scholarship_application_id: applicationType === 'legacy' ? scholarship_application_id : null,
+        institution_application_id: applicationType === 'institution' ? scholarship_application_id : null,
+        application_type: applicationType,
         profile_id: myProfile.id,
         amount_usd: applicationFee,
       });
