@@ -5,6 +5,7 @@ import {
   Activity,
   AlertCircle,
   ArrowLeft,
+  Bot,
   CalendarDays,
   CheckCircle2,
   Clock3,
@@ -16,6 +17,7 @@ import {
   Loader2,
   Mail,
   MapPin,
+  MessageCircle,
   Package,
   PauseCircle,
   Phone,
@@ -2765,6 +2767,40 @@ const HANDOFF_STATUS_COLORS: Record<CrmSupportHandoff['status'], string> = {
   resolved: 'bg-green-500/15 text-green-400 border-green-500/30',
 };
 
+function SupportChatMessageBubble({ msg }: { msg: CrmSupportChatMessage }) {
+  const isStudent = msg.role === 'user';
+  const isSystem = msg.role === 'system';
+  const roleLabel = isStudent ? 'Student' : isSystem ? 'System' : 'AI assistant';
+  const RoleIcon = isStudent ? User : isSystem ? Shield : Bot;
+
+  return (
+    <div className={cn('flex', isStudent ? 'justify-end' : 'justify-start')}>
+      <div
+        className={cn(
+          'max-w-[85%] rounded-xl border px-3 py-2 text-sm leading-relaxed text-white shadow-sm md:max-w-[76%]',
+          isStudent
+            ? 'border-[#CE9F48]/25 bg-[#CE9F48]/15'
+            : isSystem
+              ? 'border-blue-500/20 bg-blue-500/10 text-blue-100/85'
+              : 'border-white/10 bg-white/5 text-white/80',
+        )}
+      >
+        <div className="mb-1.5 flex flex-wrap items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide">
+          <RoleIcon className="h-3.5 w-3.5 opacity-70" />
+          <span className={isStudent ? 'text-[#CE9F48]' : isSystem ? 'text-blue-300' : 'text-white/45'}>
+            {roleLabel}
+          </span>
+          <span className="text-white/20">-</span>
+          <span className="font-medium normal-case tracking-normal text-white/30">
+            {fmtDate(msg.created_at)}
+          </span>
+        </div>
+        <p className="whitespace-pre-wrap break-words">{msg.content}</p>
+      </div>
+    </div>
+  );
+}
+
 function SupportTab({
   handoffs,
   chatMessages,
@@ -2841,157 +2877,185 @@ function SupportTab({
     }
   };
 
+  const openHandoffs = handoffs.filter((handoff) => handoff.status !== 'resolved').length;
+  const latestChatMessage = chatMessages[chatMessages.length - 1] ?? null;
+
   return (
-    <div className="space-y-4">
-      {/* Header */}
-      <div className="flex justify-between items-center">
-        <p className="text-xs text-white/40">{handoffs.length} handoff(s) · {chatMessages.length} messages</p>
-        <button
-          onClick={() => setChatOpen(true)}
-          disabled={chatMessages.length === 0}
-          className="px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-white/60 text-xs font-medium hover:bg-white/10 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-        >
-          View chat history
-        </button>
-      </div>
-
-      {/* Handoffs */}
-      {handoffs.length === 0 ? (
-        <p className="text-white/30 text-sm">No handoffs registered.</p>
-      ) : (
-        <div className="space-y-2">
-          {handoffs.map((h) => (
-            <div key={h.id} className="bg-white/5 border border-white/10 rounded-xl p-3 space-y-2">
-              {/* Linha 1 — status + ações */}
-              <div className="flex items-center justify-between gap-3">
-                <div className="flex items-center gap-2 min-w-0">
-                  <span className={`shrink-0 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${HANDOFF_STATUS_COLORS[h.status]}`}>
-                    {HANDOFF_STATUS_LABELS[h.status]}
-                  </span>
-                  <span className="text-xs text-white/30 truncate">
-                    {new Date(h.created_at).toLocaleString('en-US', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })} · via {h.triggered_by === 'ai_escalation' ? 'AI' : h.triggered_by === 'student_request' ? 'student' : 'admin'}
-                  </span>
-                </div>
-                <div className="flex gap-2 shrink-0">
-                  {h.status === 'pending' && (
-                    <button onClick={() => updateHandoff(h.id, { status: 'in_progress' })} disabled={updatingId === h.id}
-                      className="px-3 py-1 rounded-lg bg-blue-500/20 text-blue-400 text-xs font-medium hover:bg-blue-500/30 transition-colors disabled:opacity-50">
-                      Take Over
-                    </button>
-                  )}
-                  {h.status === 'in_progress' && resolvingId !== h.id && (
-                    <button onClick={() => setResolvingId(h.id)}
-                      className="px-3 py-1 rounded-lg bg-green-500/20 text-green-400 text-xs font-medium hover:bg-green-500/30 transition-colors">
-                      Resolve
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              {/* Motivo + última msg */}
-              {(h.reason || h.last_ai_message) && (
-                <div className="space-y-1">
-                  {h.reason && <p className="text-xs text-white/60"><span className="text-white/30">Reason: </span>{h.reason}</p>}
-                  {h.last_ai_message && (
-                    <p className="text-xs text-white/40 italic border-l-2 border-white/10 pl-2 truncate">"{h.last_ai_message}"</p>
-                  )}
-                </div>
-              )}
-
-              {h.meeting_url && (
-                <a
-                  href={h.meeting_url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center rounded-lg border border-blue-500/20 bg-blue-500/10 px-3 py-1.5 text-xs font-bold text-blue-300 hover:bg-blue-500/20"
-                >
-                  Human Scheduling Link
-                </a>
-              )}
-
-              {/* Nota de resolução — expande ao clicar Resolver */}
-              {h.status === 'in_progress' && resolvingId === h.id && (
-                <div className="space-y-2 pt-1 border-t border-white/10">
-                  <p className="text-xs text-white/50">Note to student <span className="text-red-400">*</span></p>
-                  <textarea
-                    value={resolveNoteInput[h.id] ?? ''}
-                    onChange={(e) => setResolveNoteInput((p) => ({ ...p, [h.id]: e.target.value }))}
-                    placeholder="Example: Situation clarified. Your I-94 was verified and is within the deadline."
-                    rows={2}
-                    className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-xs text-white placeholder-white/20 outline-none focus:border-green-500/40 resize-none"
-                  />
-                  <div className="flex gap-2 justify-end">
-                    <button onClick={() => setResolvingId(null)}
-                      className="px-3 py-1 rounded-lg text-white/40 text-xs hover:text-white/60 transition-colors">
-                      Cancel
-                    </button>
-                    <button
-                      onClick={() => resolveHandoff(h.id)}
-                      disabled={!resolveNoteInput[h.id]?.trim() || updatingId === h.id}
-                      className="px-3 py-1 rounded-lg bg-green-500/20 text-green-400 text-xs font-medium hover:bg-green-500/30 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                    >
-                      {updatingId === h.id ? 'Saving…' : 'Confirm Resolution'}
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {/* Nota exibida após resolução */}
-              {h.status === 'resolved' && h.resolved_note && (
-                <p className="text-xs text-green-400/60 border-l-2 border-green-500/20 pl-2">
-                  "{h.resolved_note}"
-                </p>
-              )}
-
-              {/* Atribuir */}
-              {h.status !== 'resolved' && (
-                <div className="flex gap-2 items-center pt-1">
-                  <input
-                    value={assignInput[h.id] ?? h.assigned_to ?? ''}
-                    onChange={(e) => setAssignInput((p) => ({ ...p, [h.id]: e.target.value }))}
-                    placeholder="Assign to…"
-                    className="flex-1 bg-white/5 border border-white/10 rounded-lg px-2.5 py-1 text-xs text-white placeholder-white/20 outline-none focus:border-[#CE9F48]/40"
-                  />
-                  <button
-                    onClick={() => updateHandoff(h.id, { assigned_to: assignInput[h.id] ?? h.assigned_to ?? '' })}
-                    disabled={updatingId === h.id}
-                    className="px-2.5 py-1 rounded-lg bg-[#CE9F48]/20 text-[#CE9F48] text-xs font-medium hover:bg-[#CE9F48]/30 transition-colors disabled:opacity-50"
-                  >
-                    Save
-                  </button>
-                </div>
-              )}
-            </div>
-          ))}
+    <div className="space-y-5">
+      <SectionCard title="AI Conversation History" icon={MessageCircle}>
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+          <p className="text-xs text-white/40">
+            {chatMessages.length} message(s) recorded between the student and the AI assistant.
+          </p>
+          {openHandoffs > 0 && (
+            <span className="rounded-full border border-yellow-500/30 bg-yellow-500/10 px-2.5 py-1 text-xs font-bold text-yellow-300">
+              {openHandoffs} open handoff(s)
+            </span>
+          )}
         </div>
-      )}
 
-      {/* Modal histórico de chat */}
+        {chatMessages.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-white/10 bg-white/[0.02] px-4 py-8 text-center">
+            <MessageCircle className="mx-auto mb-3 h-7 w-7 text-white/20" />
+            <p className="text-sm text-white/35">No AI conversation recorded for this student yet.</p>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setChatOpen(true)}
+            className="group w-full rounded-xl border border-white/10 bg-white/[0.03] p-4 text-left transition-colors hover:border-[#CE9F48]/35 hover:bg-white/[0.06]"
+          >
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-bold text-white">Open student conversation</p>
+                <p className="mt-1 text-xs text-white/40">
+                  {chatMessages.length} message(s) available in the AI support history.
+                </p>
+              </div>
+              <span className="inline-flex items-center gap-2 rounded-lg border border-[#CE9F48]/25 bg-[#CE9F48]/10 px-3 py-2 text-xs font-bold text-[#CE9F48] transition-colors group-hover:bg-[#CE9F48]/15">
+                <MessageCircle className="h-4 w-4" />
+                View history
+              </span>
+            </div>
+            {latestChatMessage && (
+              <div className="mt-4 border-t border-white/10 pt-3">
+                <p className="text-[10px] font-black uppercase tracking-widest text-white/25">Latest message</p>
+                <p className="mt-1 max-h-16 overflow-hidden text-sm leading-relaxed text-white/60">
+                  {latestChatMessage.content}
+                </p>
+              </div>
+            )}
+          </button>
+        )}
+      </SectionCard>
+
       <Dialog open={chatOpen} onOpenChange={setChatOpen}>
-        <DialogContent className="bg-[#111] border border-white/10 max-w-xl w-full max-h-[80vh] flex flex-col p-0">
-          <div className="flex items-center justify-between px-5 py-4 border-b border-white/10">
-            <DialogTitle className="text-sm font-semibold text-white">
-              Chat History — {chatMessages.length} messages
+        <DialogContent className="flex max-h-[82vh] w-[calc(100vw-2rem)] max-w-3xl flex-col border border-white/10 bg-[#111] p-0 text-white">
+          <div className="border-b border-white/10 px-5 py-4">
+            <DialogTitle className="flex items-center gap-2 text-sm font-semibold text-white">
+              <MessageCircle className="h-4 w-4 text-[#CE9F48]" />
+              AI Conversation History - {chatMessages.length} messages
             </DialogTitle>
           </div>
-          <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
+          <div className="flex-1 space-y-3 overflow-y-auto px-4 py-4">
             {chatMessages.map((msg) => (
-              <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                <div className={`max-w-[80%] rounded-xl px-3 py-2 text-sm whitespace-pre-wrap ${
-                  msg.role === 'user'
-                    ? 'bg-[#CE9F48]/20 text-white border border-[#CE9F48]/20'
-                    : 'bg-white/5 border border-white/10 text-white/80'
-                }`}>
-                  <p className={`text-xs mb-1 ${msg.role === 'user' ? 'text-[#CE9F48]/50' : 'text-white/25'}`}>
-                    {msg.role === 'user' ? 'Student' : 'AI'} · {new Date(msg.created_at).toLocaleString('en-US', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
-                  </p>
-                  {msg.content}
-                </div>
-              </div>
+              <SupportChatMessageBubble key={msg.id} msg={msg} />
             ))}
           </div>
         </DialogContent>
       </Dialog>
+
+      <SectionCard title="Human Support Handoffs" icon={Shield}>
+        {handoffs.length === 0 ? (
+          <p className="text-sm text-white/30">No handoffs registered.</p>
+        ) : (
+          <div className="space-y-2">
+            {handoffs.map((h) => (
+              <div key={h.id} className="bg-white/5 border border-white/10 rounded-xl p-3 space-y-2">
+                {/* Linha 1 — status + ações */}
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className={`shrink-0 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${HANDOFF_STATUS_COLORS[h.status]}`}>
+                      {HANDOFF_STATUS_LABELS[h.status]}
+                    </span>
+                    <span className="text-xs text-white/30 truncate">
+                      {new Date(h.created_at).toLocaleString('en-US', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })} · via {h.triggered_by === 'ai_escalation' ? 'AI' : h.triggered_by === 'student_request' ? 'student' : 'admin'}
+                    </span>
+                  </div>
+                  <div className="flex gap-2 shrink-0">
+                    {h.status === 'pending' && (
+                      <button onClick={() => updateHandoff(h.id, { status: 'in_progress' })} disabled={updatingId === h.id}
+                        className="px-3 py-1 rounded-lg bg-blue-500/20 text-blue-400 text-xs font-medium hover:bg-blue-500/30 transition-colors disabled:opacity-50">
+                        Take Over
+                      </button>
+                    )}
+                    {h.status === 'in_progress' && resolvingId !== h.id && (
+                      <button onClick={() => setResolvingId(h.id)}
+                        className="px-3 py-1 rounded-lg bg-green-500/20 text-green-400 text-xs font-medium hover:bg-green-500/30 transition-colors">
+                        Resolve
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Motivo + última msg */}
+                {(h.reason || h.last_ai_message) && (
+                  <div className="space-y-1">
+                    {h.reason && <p className="text-xs text-white/60"><span className="text-white/30">Reason: </span>{h.reason}</p>}
+                    {h.last_ai_message && (
+                      <p className="text-xs text-white/40 italic border-l-2 border-white/10 pl-2 truncate">"{h.last_ai_message}"</p>
+                    )}
+                  </div>
+                )}
+
+                {h.meeting_url && (
+                  <a
+                    href={h.meeting_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center rounded-lg border border-blue-500/20 bg-blue-500/10 px-3 py-1.5 text-xs font-bold text-blue-300 hover:bg-blue-500/20"
+                  >
+                    Human Scheduling Link
+                  </a>
+                )}
+
+                {/* Nota de resolução — expande ao clicar Resolver */}
+                {h.status === 'in_progress' && resolvingId === h.id && (
+                  <div className="space-y-2 pt-1 border-t border-white/10">
+                    <p className="text-xs text-white/50">Note to student <span className="text-red-400">*</span></p>
+                    <textarea
+                      value={resolveNoteInput[h.id] ?? ''}
+                      onChange={(e) => setResolveNoteInput((p) => ({ ...p, [h.id]: e.target.value }))}
+                      placeholder="Example: Situation clarified. Your I-94 was verified and is within the deadline."
+                      rows={2}
+                      className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-xs text-white placeholder-white/20 outline-none focus:border-green-500/40 resize-none"
+                    />
+                    <div className="flex gap-2 justify-end">
+                      <button onClick={() => setResolvingId(null)}
+                        className="px-3 py-1 rounded-lg text-white/40 text-xs hover:text-white/60 transition-colors">
+                        Cancel
+                      </button>
+                      <button
+                        onClick={() => resolveHandoff(h.id)}
+                        disabled={!resolveNoteInput[h.id]?.trim() || updatingId === h.id}
+                        className="px-3 py-1 rounded-lg bg-green-500/20 text-green-400 text-xs font-medium hover:bg-green-500/30 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                      >
+                        {updatingId === h.id ? 'Saving…' : 'Confirm Resolution'}
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Nota exibida após resolução */}
+                {h.status === 'resolved' && h.resolved_note && (
+                  <p className="text-xs text-green-400/60 border-l-2 border-green-500/20 pl-2">
+                    "{h.resolved_note}"
+                  </p>
+                )}
+
+                {/* Atribuir */}
+                {h.status !== 'resolved' && (
+                  <div className="flex gap-2 items-center pt-1">
+                    <input
+                      value={assignInput[h.id] ?? h.assigned_to ?? ''}
+                      onChange={(e) => setAssignInput((p) => ({ ...p, [h.id]: e.target.value }))}
+                      placeholder="Assign to…"
+                      className="flex-1 bg-white/5 border border-white/10 rounded-lg px-2.5 py-1 text-xs text-white placeholder-white/20 outline-none focus:border-[#CE9F48]/40"
+                    />
+                    <button
+                      onClick={() => updateHandoff(h.id, { assigned_to: assignInput[h.id] ?? h.assigned_to ?? '' })}
+                      disabled={updatingId === h.id}
+                      className="px-2.5 py-1 rounded-lg bg-[#CE9F48]/20 text-[#CE9F48] text-xs font-medium hover:bg-[#CE9F48]/30 transition-colors disabled:opacity-50"
+                    >
+                      Save
+                    </button>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </SectionCard>
     </div>
   );
 }
@@ -3206,7 +3270,7 @@ export function AdminUserDetail() {
             : tab.id === 'followups' ? detail.followups.length
             : tab.id === 'survey' ? detail.surveyResponses.length
             : tab.id === 'journey' ? (detail.studentDocuments.length + detail.stageHistory.length) || null
-            : tab.id === 'support' ? detail.supportHandoffs.filter(h => h.status !== 'resolved').length || null
+            : tab.id === 'support' ? detail.supportHandoffs.filter(h => h.status !== 'resolved').length || detail.supportChatMessages.length || null
             : null;
 
           const needsAction = tab.id === 'scholarship' && detail.institutionApplication?.status === 'pending_admin_approval';
