@@ -1,11 +1,22 @@
 {
   "version": "5",
   "specifiers": {
-    "jsr:@supabase/functions-js@*": "2.105.1"
+    "jsr:@supabase/functions-js@*": "2.105.1",
+    "jsr:@supabase/functions-js@^0.0.0-automated": "0.0.0-jsr-test.1",
+    "jsr:@supabase/supabase-js@2": "2.105.1"
   },
   "jsr": {
+    "@supabase/functions-js@0.0.0-jsr-test.1": {
+      "integrity": "b1b37924af1f0011b4753201e1585a37b030e996c6682492e02575eb27d902b2"
+    },
     "@supabase/functions-js@2.105.1": {
       "integrity": "d8e3801bba3efe2a6e132d2279924794a61991c2f833851d7a8956d72efcdaf4"
+    },
+    "@supabase/supabase-js@2.105.1": {
+      "integrity": "f45f9322ad8bca1d98e6ea56fafde1eb3fd3438f6f20805c797080fe7157132a",
+      "dependencies": [
+        "jsr:@supabase/functions-js@^0.0.0-automated"
+      ]
     }
   },
   "remote": {

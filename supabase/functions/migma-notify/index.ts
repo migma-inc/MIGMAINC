@@ -9,6 +9,7 @@ const CORS = {
 
 const TEST_EMAIL_DOMAIN = "@uorak.com";
 const ALLOWED_CLIENT_SERVICE_FAMILIES = new Set(["cos", "transfer", "initial"]);
+const STUDENT_SUPPORT_URL = "https://migmainc.com/student/dashboard/support";
 
 function isUorakTestEmail(email: string | null | undefined): boolean {
   return Boolean(email?.trim().toLowerCase().endsWith(TEST_EMAIL_DOMAIN));
@@ -341,6 +342,10 @@ interface Template { subject: string; emailHtml: string; whatsapp: string }
 interface LocalizedMessage { subject: string; html: string; whatsapp: string }
 interface MultilingualMessage { pt: LocalizedMessage; es: LocalizedMessage }
 
+function isAdminTemplateTrigger(trigger: TriggerType): boolean {
+  return trigger.startsWith("admin_") || trigger === "transfer_form_delivered";
+}
+
 function langSection(label: "Português" | "Español", body: string): string {
   return `
     <div style="height:1px;background:#2a2a2a;margin:28px 0 22px;"></div>
@@ -355,6 +360,36 @@ function triSubject(en: string, pt: string, es: string): string {
 
 function triWhatsapp(en: string, pt: string, es: string): string {
   return `${en}\n\n---\n*Português*\n${pt}\n\n---\n*Español*\n${es}`;
+}
+
+function supportEmailNote(lang: "en" | "pt" | "es", supportUrl: string): string {
+  const copy = {
+    en: {
+      text: "If you have any questions, please contact our support team.",
+      label: "Contact support",
+    },
+    pt: {
+      text: "Se tiver qualquer dúvida, acione nosso suporte.",
+      label: "Falar com o suporte",
+    },
+    es: {
+      text: "Si tienes cualquier duda, contacta a nuestro soporte.",
+      label: "Contactar soporte",
+    },
+  }[lang];
+
+  return `
+    <div style="margin-top:26px;padding:16px;border:1px solid #2a2a2a;border-radius:10px;background:#0f0f0f;">
+      <p style="margin:0 0 10px;color:#cbd5e1;font-size:13px;">${copy.text}</p>
+      <a href="${supportUrl}" style="color:#CE9F48;font-weight:700;text-decoration:none;">${copy.label}</a>
+    </div>
+  `;
+}
+
+function supportWhatsappNote(lang: "en" | "pt" | "es", supportUrl: string): string {
+  if (lang === "pt") return `Qualquer dúvida, acione nosso suporte: ${supportUrl}`;
+  if (lang === "es") return `Cualquier duda, contacta a nuestro soporte: ${supportUrl}`;
+  return `Questions? Contact our support team: ${supportUrl}`;
 }
 
 function moneyUsd(value: number | undefined): string {
@@ -822,12 +857,30 @@ function buildMultilingualCopy(
   }
 }
 
-function applyMultilingualTemplate(template: Template, copy: MultilingualMessage): Template {
-  const extraHtml = `${langSection("Português", copy.pt.html)}${langSection("Español", copy.es.html)}`;
+function applyMultilingualTemplate(
+  template: Template,
+  copy: MultilingualMessage,
+  options: { supportUrl?: string } = {},
+): Template {
+  const supportUrl = options.supportUrl;
+  const emailHtml = supportUrl
+    ? template.emailHtml.replace("<!-- MIGMA_EMAIL_BODY_END -->", `${supportEmailNote("en", supportUrl)}<!-- MIGMA_EMAIL_BODY_END -->`)
+    : template.emailHtml;
+  const ptHtml = supportUrl ? `${copy.pt.html}${supportEmailNote("pt", supportUrl)}` : copy.pt.html;
+  const esHtml = supportUrl ? `${copy.es.html}${supportEmailNote("es", supportUrl)}` : copy.es.html;
+  const extraHtml = `${langSection("Português", ptHtml)}${langSection("Español", esHtml)}`;
+  const whatsapp = supportUrl
+    ? triWhatsapp(
+      `${template.whatsapp}\n\n${supportWhatsappNote("en", supportUrl)}`,
+      `${copy.pt.whatsapp}\n\n${supportWhatsappNote("pt", supportUrl)}`,
+      `${copy.es.whatsapp}\n\n${supportWhatsappNote("es", supportUrl)}`,
+    )
+    : triWhatsapp(template.whatsapp, copy.pt.whatsapp, copy.es.whatsapp);
+
   return {
     subject: triSubject(template.subject, copy.pt.subject, copy.es.subject),
-    emailHtml: template.emailHtml.replace("<!-- MIGMA_EMAIL_BODY_END -->", extraHtml),
-    whatsapp: triWhatsapp(template.whatsapp, copy.pt.whatsapp, copy.es.whatsapp),
+    emailHtml: emailHtml.replace("<!-- MIGMA_EMAIL_BODY_END -->", extraHtml),
+    whatsapp,
   };
 }
 
@@ -838,7 +891,7 @@ function buildRoutes(dash: string) {
     studentDocuments: `${dash}/student/dashboard/documents`,
     studentForms: `${dash}/student/dashboard/forms`,
     studentRewards: `${dash}/student/dashboard/rewards`,
-    studentSupport: `${dash}/student/dashboard/support`,
+    studentSupport: STUDENT_SUPPORT_URL,
     onboarding: `${dash}/student/onboarding`,
     onboardingSurvey: `${dash}/student/onboarding?step=selection_survey`,
     onboardingScholarship: `${dash}/student/onboarding?step=scholarship_selection`,
@@ -1271,6 +1324,7 @@ function buildTemplate(
   return applyMultilingualTemplate(
     englishTemplate,
     buildMultilingualCopy(trigger, firstName, data, routes, dash),
+    isAdminTemplateTrigger(trigger) ? {} : { supportUrl: routes.studentSupport },
   );
 }
 

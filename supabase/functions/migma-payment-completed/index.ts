@@ -179,12 +179,31 @@ Deno.serve(async (req) => {
       service_request_id,
       num_dependents,
       finalize_contract_only,
+      parcelow_order_id,
+      external_reference,
+      payment_intent_id,
+      stripe_charge_id,
+      parcelow_status,
+      parcelow_status_code,
     } = body;
 
     // Guardar ID do pagamento para resposta final
     const amountNum = Number(amount) || 0;
     const netAmountNum = Number(net_amount) || null;
     const feeAmountNum = Number(fee_amount) || null;
+    const normalizedPaymentMethod = String(payment_method || "").toLowerCase();
+    const isParcelowPayment = normalizedPaymentMethod.startsWith("parcelow") || !!parcelow_order_id;
+    const externalPaymentReference =
+      parcelow_order_id ??
+      external_reference ??
+      payment_intent_id ??
+      stripe_charge_id ??
+      null;
+    const parcelowOrderId = parcelow_order_id ? String(parcelow_order_id) : null;
+    const parcelowStatusCode =
+      parcelow_status_code !== undefined && parcelow_status_code !== null
+        ? Number(parcelow_status_code)
+        : null;
 
     // Construir payment_metadata com decomposição correta de valores
     // Isso evita que o dashboard use o fallback legacy de 3.5% sobre o gross
@@ -195,6 +214,12 @@ Deno.serve(async (req) => {
     if (feeAmountNum !== null && feeAmountNum > 0) paymentMetadata.fee_amount = feeAmountNum;
     if (netAmountNum !== null && netAmountNum > 0) paymentMetadata.net_amount_usd = netAmountNum;
     if (amountNum > 0) paymentMetadata.gross_amount_usd = amountNum;
+    if (externalPaymentReference) paymentMetadata.external_reference = String(externalPaymentReference);
+    if (parcelowOrderId) paymentMetadata.parcelow_order_id = parcelowOrderId;
+    if (parcelow_status) paymentMetadata.parcelow_status = parcelow_status;
+    if (parcelowStatusCode !== null && !Number.isNaN(parcelowStatusCode)) {
+      paymentMetadata.parcelow_status_code = parcelowStatusCode;
+    }
 
     console.log(
       `[V15] 📥 user=${user_id} | fee=${fee_type} | gross=${amountNum} | net=${netAmountNum} | fee_val=${feeAmountNum} | method=${payment_method} | sr=${service_request_id ?? "—"} | finalize_only=${!!finalize_contract_only}`
@@ -213,6 +238,9 @@ Deno.serve(async (req) => {
           method: payment_method,
           payment_method,
           receipt_url,
+          external_reference: externalPaymentReference ? String(externalPaymentReference) : null,
+          payment_intent_id: payment_intent_id ? String(payment_intent_id) : null,
+          stripe_charge_id: stripe_charge_id ? String(stripe_charge_id) : null,
           status:
             payment_method === "zelle" || payment_method === "manual"
               ? "pending"
@@ -483,6 +511,13 @@ Deno.serve(async (req) => {
                 ? new Date().toISOString()
                 : null;
             if (amountNum > 0) orderUpdate.total_price_usd = amountNum;
+            if (isParcelowPayment && parcelowOrderId) {
+              orderUpdate.parcelow_order_id = parcelowOrderId;
+              orderUpdate.parcelow_status = parcelow_status || "Paid";
+              if (parcelowStatusCode !== null && !Number.isNaN(parcelowStatusCode)) {
+                orderUpdate.parcelow_status_code = parcelowStatusCode;
+              }
+            }
             // Salvar decomposição gross/net/fee no payment_metadata para o dashboard exibir corretamente
             if (Object.keys(paymentMetadata).length > 2) orderUpdate.payment_metadata = paymentMetadata;
           }
@@ -537,6 +572,12 @@ Deno.serve(async (req) => {
             contract_signed_at: new Date().toISOString(),
             service_request_id: service_request_id ?? null,
             seller_id: profile.migma_seller_id || null,
+            parcelow_order_id: isParcelowPayment && parcelowOrderId ? parcelowOrderId : null,
+            parcelow_status: isParcelowPayment && parcelowOrderId ? (parcelow_status || "Paid") : null,
+            parcelow_status_code:
+              isParcelowPayment && parcelowStatusCode !== null && !Number.isNaN(parcelowStatusCode)
+                ? parcelowStatusCode
+                : null,
             contract_approval_status: "pending",
             annex_approval_status: "pending",
             // Salvar decomposição gross/net/fee para o dashboard calcular corretamente
