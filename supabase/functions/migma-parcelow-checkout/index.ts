@@ -142,9 +142,15 @@ Deno.serve(async (req: Request) => {
 
     if (!parcelowOrderId) {
         console.error("[migma-parcelow-checkout] Resposta da Parcelow sem ID:", JSON.stringify(data));
-    } else if (!body.is_split_part) {
+        throw new Error("Parcelow não retornou ID do pedido.");
+    } else if (!body.is_split_part && body.service_type && body.user_id) {
         // Para split parts o webhook usa split_payments — não cria pendente individual
         console.log(`[migma-parcelow-checkout] ✅ Gravando pendente: ParcelowID=${parcelowOrderId} UserID=${body.user_id}`);
+
+        const requestedMethod = String(body.payment_method || "");
+        const pendingPaymentMethod = requestedMethod.startsWith("parcelow")
+            ? requestedMethod
+            : "parcelow";
 
         const { error: insertErr } = await supabase
             .from("migma_parcelow_pending")
@@ -153,20 +159,26 @@ Deno.serve(async (req: Request) => {
                 parcelow_order_id: parcelowOrderId.toString(),
                 parcelow_checkout_url: checkoutUrl,
                 amount: parseFloat(body.amount),
-                service_type: body.service_type || 'transfer',
-                service_request_id: body.service_request_id || null,
+                service_type: body.service_type,
+                payment_method: pendingPaymentMethod,
                 status: 'pending',
+                migma_payment_completed: false,
                 updated_at: new Date().toISOString()
             });
             
         if (insertErr) {
             console.error("[migma-parcelow-checkout] ❌ Erro ao gravar migma_parcelow_pending:", insertErr);
+            throw new Error(`Erro ao gravar vínculo Parcelow/MIGMA: ${insertErr.message}`);
         }
+    } else if (!body.is_split_part) {
+        console.warn(
+            `[migma-parcelow-checkout] ⚠️ Checkout sem pending: service_type=${body.service_type ?? "ausente"} user_id=${body.user_id ?? "ausente"} parcelow_id=${parcelowOrderId}`
+        );
     }
 
     return new Response(JSON.stringify({ ...data, checkout_url: checkoutUrl, parcelow_id: parcelowOrderId }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
   } catch (err: any) {
     console.error("[migma-parcelow-checkout] Erro Fatal:", err.message);
-    return new Response(JSON.stringify({ error: err.message }), { status: 200, headers: corsHeaders });
+    return new Response(JSON.stringify({ error: err.message }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
   }
 });
