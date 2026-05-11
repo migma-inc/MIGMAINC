@@ -15,6 +15,11 @@ enabled = true
 verify_jwt = true
 entrypoint = "./functions/migma-checkout-zelle-admin/index.ts"
 
+[functions.migma-notify]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/migma-notify/index.ts"
+
 [functions.mentor-google-oauth-start]
 enabled = true
 verify_jwt = true

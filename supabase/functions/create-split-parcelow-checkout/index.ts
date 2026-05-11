@@ -205,9 +205,9 @@ Deno.serve(async (req: Request) => {
             throw new Error(`Erro ao criar checkout Part 1: ${detailedMsg}`);
         }
 
-        if (!part1Data?.order_id || !part1Data?.checkout_url) {
+        if (!part1Data?.parcelow_order_id || !part1Data?.checkout_url) {
             console.error("[Split Checkout] Invalid Part 1 response:", part1Data);
-            throw new Error("Checkout Part 1 retornou sem order_id ou checkout_url");
+            throw new Error("Checkout Part 1 retornou sem parcelow_order_id ou checkout_url");
         }
 
         console.log(`[Split Checkout] ✅ Part 1 criada:`, part1Data.checkout_url);
@@ -234,9 +234,9 @@ Deno.serve(async (req: Request) => {
             throw new Error(`Erro ao criar checkout Part 2: ${part2Error.message}`);
         }
 
-        if (!part2Data?.order_id || !part2Data?.checkout_url) {
+        if (!part2Data?.parcelow_order_id || !part2Data?.checkout_url) {
             console.error("[Split Checkout] Invalid Part 2 response:", part2Data);
-            throw new Error("Checkout Part 2 retornou sem order_id ou checkout_url");
+            throw new Error("Checkout Part 2 retornou sem parcelow_order_id ou checkout_url");
         }
 
         console.log("[Split Checkout] ✅ Checkout Part 2 criado:", part2Data.checkout_url);
@@ -246,11 +246,11 @@ Deno.serve(async (req: Request) => {
         const { data: persistedSplitPayment, error: updateSplitError } = await supabase
             .from('split_payments')
             .update({
-                part1_parcelow_order_id: part1Data.order_id?.toString(),
+                part1_parcelow_order_id: part1Data.parcelow_order_id?.toString(),
                 part1_parcelow_checkout_url: part1Data.checkout_url,
                 part1_parcelow_status: part1Data.status || 'Open',
                 part1_payment_status: 'pending',
-                part2_parcelow_order_id: part2Data.order_id?.toString(),
+                part2_parcelow_order_id: part2Data.parcelow_order_id?.toString(),
                 part2_parcelow_checkout_url: part2Data.checkout_url,
                 part2_parcelow_status: part2Data.status || 'Open',
                 part2_payment_status: 'pending',

@@ -12,7 +12,6 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { supabase } from '@/lib/supabase';
-import { generateAccessToken } from '@/lib/support';
 import { sendContactMessageAccessLink } from '@/lib/emails';
 
 const contactSchema = z.object({
@@ -23,6 +22,14 @@ const contactSchema = z.object({
 });
 
 type ContactFormData = z.infer<typeof contactSchema>;
+
+function createAccessToken(): string {
+    if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
+        return `${crypto.randomUUID()}-${crypto.randomUUID()}`;
+    }
+
+    return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}-${Math.random().toString(36).slice(2)}`;
+}
 
 export const Contact = () => {
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -47,9 +54,10 @@ export const Contact = () => {
                 .catch(() => null);
 
             const userAgent = navigator.userAgent;
+            const accessToken = createAccessToken();
 
             // Save message to database
-            const { data: insertedData, error: dbError } = await supabase
+            const { error: dbError } = await supabase
                 .from('contact_messages')
                 .insert({
                     name: data.name,
@@ -58,44 +66,33 @@ export const Contact = () => {
                     message: data.message,
                     ip_address: ipAddress,
                     user_agent: userAgent,
+                    access_token: accessToken,
                 })
-                .select()
-                .single();
 
-            if (dbError || !insertedData) {
+            if (dbError) {
                 console.error('Error saving message:', dbError);
                 throw new Error('Failed to save message');
             }
 
-            console.log('[CONTACT] Message saved, ID:', insertedData.id);
-
-            // Generate access token for the ticket
-            const token = await generateAccessToken(insertedData.id);
-
-            if (!token) {
-                console.error('[CONTACT] Failed to generate access token');
-                // Continue anyway - message was saved
-            }
+            console.log('[CONTACT] Message saved');
 
             // Send email with access link
-            if (token) {
-                try {
-                    const emailSent = await sendContactMessageAccessLink(
-                        data.email,
-                        data.name,
-                        data.subject,
-                        token
-                    );
+            try {
+                const emailSent = await sendContactMessageAccessLink(
+                    data.email,
+                    data.name,
+                    data.subject,
+                    accessToken
+                );
 
-                    if (emailSent) {
-                        console.log('[CONTACT] Access link email sent successfully');
-                    } else {
-                        console.warn('[CONTACT] Failed to send access link email');
-                    }
-                } catch (emailErr) {
-                    console.error('[CONTACT] Exception sending email:', emailErr);
-                    // Don't fail the form submission if email fails
+                if (emailSent) {
+                    console.log('[CONTACT] Access link email sent successfully');
+                } else {
+                    console.warn('[CONTACT] Failed to send access link email');
                 }
+            } catch (emailErr) {
+                console.error('[CONTACT] Exception sending email:', emailErr);
+                // Don't fail the form submission if email fails
             }
 
             setSubmitted(true);

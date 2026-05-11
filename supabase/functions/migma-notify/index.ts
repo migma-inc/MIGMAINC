@@ -8,9 +8,36 @@ const CORS = {
 };
 
 const TEST_EMAIL_DOMAIN = "@uorak.com";
+const ALLOWED_CLIENT_SERVICE_FAMILIES = new Set(["cos", "transfer", "initial"]);
 
 function isUorakTestEmail(email: string | null | undefined): boolean {
   return Boolean(email?.trim().toLowerCase().endsWith(TEST_EMAIL_DOMAIN));
+}
+
+function normalizeServiceFamily(value: string | null | undefined): string | null {
+  const normalized = value?.trim().toLowerCase().replace(/_/g, "-").replace(/\s+/g, "-");
+  if (!normalized) return null;
+  if (normalized === "change-of-status" || normalized.includes("change-of-status")) return "cos";
+  const family = normalized.split("-")[0];
+  if (ALLOWED_CLIENT_SERVICE_FAMILIES.has(family)) return family;
+  if (normalized.includes("cos")) return "cos";
+  if (normalized.includes("transfer")) return "transfer";
+  if (normalized.includes("initial")) return "initial";
+  return null;
+}
+
+function resolveClientServiceFamily(profile: {
+  service_type?: string | null;
+  student_process_type?: string | null;
+}): string | null {
+  return normalizeServiceFamily(profile.service_type) ?? normalizeServiceFamily(profile.student_process_type);
+}
+
+function json(body: Record<string, unknown>, status: number): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...CORS, "Content-Type": "application/json" },
+  });
 }
 
 // ─── Trigger catalogue ────────────────────────────────────────────────────────
@@ -1287,26 +1314,41 @@ Deno.serve(async (req) => {
       if (!recipientPhone) {
         console.warn("[migma-notify] ADMIN_NOTIFY_PHONE not set — whatsapp skipped");
       }
-    } else if (user_id) {
+    } else {
+      if (!user_id && !data.client_email) {
+        return json({ error: "user_id or client_email is required for client triggers" }, 400);
+      }
+
       const { data: profile, error: profileErr } = await supabase
         .from("user_profiles")
-        .select("full_name, email, phone, whatsapp")
-        .eq("id", user_id)
+        .select("id, user_id, full_name, email, phone, whatsapp, source, service_type, student_process_type")
+        .eq(user_id ? "id" : "email", user_id ?? data.client_email!)
         .single();
 
       if (profileErr || !profile) {
-        return new Response(JSON.stringify({ error: "User not found", detail: profileErr?.message }), { status: 404, headers: CORS });
+        return json({ error: "User not found", detail: profileErr?.message }, 404);
+      }
+
+      if (!profile.user_id) {
+        return json({ error: "client_not_authenticated" }, 403);
+      }
+
+      const serviceFamily = resolveClientServiceFamily(profile);
+      if (profile.source !== "migma" || !serviceFamily) {
+        return json({
+          error: "client_not_eligible_for_migma_notify",
+          detail: "Client notifications are restricted to authenticated Migma clients in COS, Transfer, or Initial.",
+        }, 403);
       }
 
       recipientEmail = profile.email ?? "";
       recipientPhone = profile.phone ?? profile.whatsapp ?? "";
       recipientName = profile.full_name ?? "Client";
-    } else if (data.client_email || data.client_phone) {
-      recipientEmail = data.client_email ?? "";
-      recipientPhone = data.client_phone ?? "";
-      recipientName = data.client_name ?? "Client";
-    } else {
-      return new Response(JSON.stringify({ error: "user_id or client recipient data is required for client triggers" }), { status: 400, headers: CORS });
+      data.client_id = profile.id;
+      data.client_email = profile.email ?? data.client_email;
+      data.client_phone = profile.phone ?? profile.whatsapp ?? data.client_phone;
+      data.client_name = profile.full_name ?? data.client_name;
+      data.process_type = data.process_type ?? serviceFamily;
     }
 
     // ── Resolve client_id from client_email for admin triggers ───────────────
