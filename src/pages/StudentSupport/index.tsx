@@ -357,6 +357,21 @@ export const StudentSupportPanel: React.FC<StudentSupportPanelProps> = ({ embedd
   const humanSupportActive = handedOff || humanTimeoutActive || !supportChatSettings.ai_enabled;
   const shouldCallAiForNextMessage = supportChatSettings.ai_enabled && !humanSupportActive;
   const composerLocked = handedOff && Boolean(handoffMeetingUrl) && !meetingCountdown?.expired;
+  const supportStatusLabel = handedOff
+    ? t('student_support.status.waiting_agent', 'Waiting for support')
+    : humanSupportActive
+      ? t('student_support.status.support_active', 'Support active')
+      : t('student_support.status.online_now', 'Online now');
+  const supportStatusClass = handedOff
+    ? 'text-blue-600 dark:text-blue-400'
+    : humanSupportActive
+      ? 'text-[#9a6a16] dark:text-[#CE9F48]'
+      : 'text-emerald-600 dark:text-emerald-400';
+  const supportIconClass = handedOff
+    ? 'bg-blue-500/15 border-blue-500/30'
+    : humanSupportActive
+      ? 'bg-[#CE9F48]/15 border-[#CE9F48]/30'
+      : 'bg-emerald-500/15 border-emerald-500/30';
 
   useEffect(() => {
     setMessages((prev) => prev.map((message) => (message.id === 'welcome' ? welcomeMessage : message)));
@@ -562,7 +577,7 @@ export const StudentSupportPanel: React.FC<StudentSupportPanelProps> = ({ embedd
         role: 'system',
         content: t(
           'student_support.handoff.system_message',
-          'Human support requested. A Migma Team specialist will follow up on your case. Choose a time in the schedule below to speak with your mentor.',
+          'Support requested. The Migma Team will follow up on your case. Choose a time in the schedule below to speak with your mentor.',
         ),
         created_at: new Date().toISOString(),
         is_handoff: true,
@@ -587,7 +602,7 @@ export const StudentSupportPanel: React.FC<StudentSupportPanelProps> = ({ embedd
         setMessages((prev) => [...prev, {
           id: crypto.randomUUID(),
           role: 'assistant',
-          content: t('student_support.errors.handoff_create_failed', 'We could not open the human support schedule right now. Please try again in a few seconds.'),
+          content: t('student_support.errors.handoff_create_failed', 'We could not open the support schedule right now. Please try again in a few seconds.'),
           created_at: new Date().toISOString(),
         }]);
         return;
@@ -803,13 +818,17 @@ export const StudentSupportPanel: React.FC<StudentSupportPanelProps> = ({ embedd
             </button>
           )}
           <div data-tour="student-support-status" className="flex items-center gap-3 flex-1">
-            <div className={`w-9 h-9 rounded-full flex items-center justify-center border ${handedOff ? 'bg-blue-500/15 border-blue-500/30' : 'bg-[#CE9F48]/15 border-[#CE9F48]/30'}`}>
-              {handedOff ? <UserCheck className="w-5 h-5 text-blue-400" /> : <MessageCircle className="w-5 h-5 text-[#9a6a16] dark:text-[#CE9F48]" />}
+            <div className={`w-9 h-9 rounded-full flex items-center justify-center border ${supportIconClass}`}>
+              {handedOff ? (
+                <UserCheck className="w-5 h-5 text-blue-400" />
+              ) : (
+                <MessageCircle className={`w-5 h-5 ${humanSupportActive ? 'text-[#9a6a16] dark:text-[#CE9F48]' : 'text-emerald-500'}`} />
+              )}
             </div>
             <div>
               <p className="text-sm font-semibold text-[#1f1a14] dark:text-white leading-none">{t('student_support.team_name', 'Migma Team')}</p>
-              <p className={`text-xs mt-0.5 ${handedOff ? 'text-blue-600 dark:text-blue-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
-                {handedOff ? t('student_support.status.waiting_agent', 'Waiting for agent') : t('student_support.status.online_now', 'Online now')}
+              <p className={`text-xs mt-0.5 ${supportStatusClass}`}>
+                {supportStatusLabel}
               </p>
             </div>
           </div>

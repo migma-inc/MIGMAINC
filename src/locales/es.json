@@ -1577,7 +1577,8 @@
     "welcome_message": "¡Hola! Soy del Equipo Migma 👋\n\nEstoy aquí para responder tus preguntas sobre el proceso, documentos, universidades, visa F-1 y todo lo demás. ¿Cómo puedo ayudarte?",
     "status": {
       "online_now": "En línea ahora",
-      "waiting_agent": "Esperando agente"
+      "support_active": "Soporte activo",
+      "waiting_agent": "Esperando soporte"
     },
     "errors": {
       "schedule_not_configured": "La agenda de soporte no está configurada.",
@@ -1588,7 +1589,7 @@
       "technical_issue": "Perdón, tuve un problema técnico ahora. Inténtalo de nuevo en unos segundos."
     },
     "handoff": {
-      "system_message": "Soporte humano solicitado. Un especialista del Equipo Migma dará seguimiento a tu caso. Elige un horario en la agenda de abajo para hablar con tu mentor.",
+      "system_message": "Soporte solicitado. El Equipo Migma dará seguimiento a tu caso. Elige un horario en la agenda de abajo para hablar con tu mentor.",
       "meeting_scheduled": "Reunión con mentor agendada",
       "schedule_with_mentor": "Agenda con tu mentor",
       "requested_at": "Solicitado a las",
@@ -1868,19 +1869,19 @@
           },
           "header": {
             "title": "Canal de atención",
-            "description": "En la parte superior ves si estás hablando con soporte automático o si el caso ya fue transferido a un especialista."
+            "description": "En la parte superior puedes seguir el estado del soporte y los próximos pasos de tu solicitud."
           },
           "status": {
             "title": "Estado del soporte",
-            "description": "Este indicador muestra si el soporte está en línea o si estás esperando atención humana."
+            "description": "Este indicador muestra si el soporte está activo o si tu solicitud está en seguimiento."
           },
           "message": {
             "title": "Historial de conversación",
             "description": "Las respuestas y orientaciones quedan registradas aquí para que puedas revisar lo que ya fue tratado."
           },
           "handoff": {
-            "title": "Atención humana",
-            "description": "Cuando la IA identifica que se necesita un especialista, esta área muestra la transferencia y los próximos pasos."
+            "title": "Seguimiento Migma",
+            "description": "Cuando tu caso necesita seguimiento, esta área muestra los próximos pasos."
           },
           "schedule": {
             "title": "Agenda con mentor",
@@ -1892,7 +1893,7 @@
           },
           "send": {
             "title": "Enviar al soporte",
-            "description": "Después de escribir, envía tu mensaje para recibir una respuesta o transferencia."
+            "description": "Después de escribir, envía tu mensaje para recibir una respuesta o el próximo paso."
           }
         }
       },

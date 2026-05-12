@@ -1241,7 +1241,8 @@
     "welcome_message": "Olá! Sou da Equipe Migma 👋\n\nEstou aqui para tirar suas dúvidas sobre o processo, documentos, universidades, visto F-1 e tudo mais. Como posso ajudar?",
     "status": {
       "online_now": "Online agora",
-      "waiting_agent": "Aguardando atendente"
+      "support_active": "Suporte ativo",
+      "waiting_agent": "Aguardando suporte"
     },
     "errors": {
       "schedule_not_configured": "Agenda de suporte não configurada.",
@@ -1252,7 +1253,7 @@
       "technical_issue": "Ops, tive um problema técnico agora. Tente novamente em alguns segundos."
     },
     "handoff": {
-      "system_message": "Atendimento humano solicitado. Um especialista da Equipe Migma vai acompanhar seu caso. Escolha um horário na agenda abaixo para falar com seu mentor.",
+      "system_message": "Suporte solicitado. A Equipe Migma vai acompanhar seu caso. Escolha um horário na agenda abaixo para falar com seu mentor.",
       "meeting_scheduled": "Reunião com mentor agendada",
       "schedule_with_mentor": "Agende com seu mentor",
       "requested_at": "Solicitado às",
@@ -1532,19 +1533,19 @@
           },
           "header": {
             "title": "Canal de atendimento",
-            "description": "No topo você vê se está falando com o atendimento automático ou se o caso já foi transferido para um especialista."
+            "description": "No topo você acompanha o status do suporte e os próximos passos do seu atendimento."
           },
           "status": {
             "title": "Status do atendimento",
-            "description": "Este indicador mostra se o suporte está online ou se você está aguardando atendimento humano."
+            "description": "Este indicador mostra se o suporte está ativo ou se sua solicitação está em acompanhamento."
           },
           "message": {
             "title": "Histórico da conversa",
             "description": "As respostas e orientações ficam registradas aqui para você acompanhar o que já foi tratado."
           },
           "handoff": {
-            "title": "Atendimento humano",
-            "description": "Quando a IA identifica necessidade de especialista, esta área mostra o encaminhamento e os próximos passos."
+            "title": "Acompanhamento Migma",
+            "description": "Quando seu caso precisa de acompanhamento, esta área mostra o encaminhamento e os próximos passos."
           },
           "schedule": {
             "title": "Agenda com mentor",
