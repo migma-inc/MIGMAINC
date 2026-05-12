@@ -1637,6 +1637,9 @@
       "support": "Support",
       "profile": "Profil"
     },
+    "nav": {
+      "unread_support": "Nouveau message du support"
+    },
     "tour": {
       "prompt_title": "Voulez-vous faire une visite rapide du tableau de bord ?",
       "prompt_description": "En moins d'une minute, nous vous montrons où suivre votre processus, vos documents, vos formulaires, vos parrainages et le support.",

@@ -1301,6 +1301,9 @@
       "support": "Suporte",
       "profile": "Perfil"
     },
+    "nav": {
+      "unread_support": "Nova mensagem no suporte"
+    },
     "tour": {
       "prompt_title": "Quer fazer um tour rápido pelo painel?",
       "prompt_description": "Em menos de um minuto, mostramos onde acompanhar seu processo, documentos, formulários, indicações e suporte.",

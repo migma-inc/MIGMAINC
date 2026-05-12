@@ -1639,6 +1639,9 @@
       "support": "Support",
       "profile": "Profile"
     },
+    "nav": {
+      "unread_support": "New support message"
+    },
     "tour": {
       "prompt_title": "Want a quick tour of your dashboard?",
       "prompt_description": "In under a minute, we will show you where to track your process, documents, forms, referrals, and support.",

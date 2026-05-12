@@ -3618,6 +3618,10 @@ export function AdminUserDetail() {
   }, [currentAdminId, detail?.profile.id, supportReadTrackingDisabled]);
 
   const latestLiveSupportMessage = latestSupportChatMessage(liveSupportChatMessages);
+  const latestUnreadLiveSupportMessage = supportReadTrackingDisabled
+    ? null
+    : latestUnreadSupportChatMessage(liveSupportChatMessages, supportChatReadReceipt);
+  const hasUnreadLiveSupportMessage = Boolean(supportChatNotice || latestUnreadLiveSupportMessage);
 
   const markSupportChatRead = useCallback(async () => {
     if (!detail?.profile.id || !currentAdminId || !latestLiveSupportMessage || supportReadTrackingDisabled) return;
@@ -3826,6 +3830,7 @@ export function AdminUserDetail() {
             : null;
 
           const needsAction = tab.id === 'scholarship' && detail.institutionApplication?.status === 'pending_admin_approval';
+          const showSupportUnreadIndicator = tab.id === 'support' && hasUnreadLiveSupportMessage;
 
           return (
             <button
@@ -3842,7 +3847,13 @@ export function AdminUserDetail() {
               {needsAction && (
                 <span className="flex h-2 w-2 rounded-full bg-red-500" />
               )}
-              {count !== null && count > 0 && (
+              {showSupportUnreadIndicator ? (
+                <span
+                  aria-label="Unread support conversation"
+                  className="ml-0.5 h-2.5 w-2.5 rounded-full bg-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.85)]"
+                  title="Unread support conversation"
+                />
+              ) : count !== null && count > 0 && (
                 <span className="ml-0.5 text-[10px] bg-white/10 text-gray-400 rounded-full px-1.5 py-0.5">
                   {count}
                 </span>

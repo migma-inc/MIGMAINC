@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import SignaturePad from 'signature_pad';
@@ -67,6 +67,69 @@ const TABS_CONFIG: Array<{ id: StudentDashboardTab; key: string; icon: React.Com
 
 const isDashboardTab = (value: string | undefined): value is StudentDashboardTab =>
   !!value && TABS_CONFIG.some(tab => tab.id === value);
+
+type StudentSupportUnreadMessage = {
+  id: string;
+  role: string;
+  created_at: string;
+};
+
+const STUDENT_SUPPORT_INCOMING_ROLES = ['assistant', 'system', 'mentor', 'admin'];
+
+function getStudentSupportReadStorageKey(profileId: string) {
+  return `migma:student-support:last-read:${profileId}`;
+}
+
+function toStudentSupportUnreadMessage(record: unknown): StudentSupportUnreadMessage | null {
+  if (!record || typeof record !== 'object') return null;
+  const row = record as Record<string, unknown>;
+  const id = typeof row.id === 'string' ? row.id : null;
+  const role = typeof row.role === 'string' ? row.role : null;
+  const createdAt = typeof row.created_at === 'string' ? row.created_at : null;
+
+  if (!id || !role || !createdAt || !STUDENT_SUPPORT_INCOMING_ROLES.includes(role)) return null;
+
+  return { id, role, created_at: createdAt };
+}
+
+function hasUnreadStudentSupportMessage(message: StudentSupportUnreadMessage | null, profileId: string) {
+  if (!message) return false;
+
+  try {
+    const raw = window.localStorage.getItem(getStudentSupportReadStorageKey(profileId));
+    if (!raw) return true;
+
+    const parsed = JSON.parse(raw) as { messageId?: unknown; messageAt?: unknown; readAt?: unknown };
+    if (parsed.messageId === message.id) return false;
+
+    const messageTime = new Date(message.created_at).getTime();
+    const readAt = typeof parsed.readAt === 'string' ? new Date(parsed.readAt).getTime() : Number.NaN;
+    const messageAt = typeof parsed.messageAt === 'string' ? new Date(parsed.messageAt).getTime() : Number.NaN;
+    const latestReadTime = Math.max(
+      Number.isNaN(readAt) ? 0 : readAt,
+      Number.isNaN(messageAt) ? 0 : messageAt,
+    );
+
+    return Number.isNaN(messageTime) || messageTime > latestReadTime;
+  } catch {
+    return true;
+  }
+}
+
+function storeStudentSupportReadReceipt(profileId: string, message: StudentSupportUnreadMessage) {
+  try {
+    window.localStorage.setItem(
+      getStudentSupportReadStorageKey(profileId),
+      JSON.stringify({
+        messageId: message.id,
+        messageAt: message.created_at,
+        readAt: new Date().toISOString(),
+      }),
+    );
+  } catch {
+    // Local storage can be unavailable in restricted browsers; the chat remains functional.
+  }
+}
 
 // Document types that only apply to Transfer students (spec 11.5 / 14.1)
 const TRANSFER_ONLY_DOC_TYPES = new Set(['current_i20']);
@@ -3087,6 +3150,8 @@ const StudentDashboard = () => {
   const { user, userProfile, loading: authLoading, signOut } = useStudentAuth();
   const { t } = useTranslation();
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const [latestIncomingSupportMessage, setLatestIncomingSupportMessage] = useState<StudentSupportUnreadMessage | null>(null);
+  const [hasUnreadSupportMessage, setHasUnreadSupportMessage] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(() =>
     document.documentElement.classList.contains('dark')
   );
@@ -3123,11 +3188,115 @@ const StudentDashboard = () => {
     setIsViewerOpen(true);
   };
 
+  const markLatestSupportMessageRead = useCallback(
+    (message?: StudentSupportUnreadMessage | null) => {
+      const profileId = userProfile?.id;
+      const target = message ?? latestIncomingSupportMessage;
+      if (!profileId || !target) return;
+
+      storeStudentSupportReadReceipt(profileId, target);
+      setHasUnreadSupportMessage(false);
+    },
+    [latestIncomingSupportMessage, userProfile?.id],
+  );
+
   useEffect(() => {
     if (!authLoading && !user) {
       navigate('/student/login', { replace: true });
     }
   }, [authLoading, navigate, user]);
+
+  useEffect(() => {
+    const profileId = userProfile?.id;
+    if (!profileId) {
+      setLatestIncomingSupportMessage(null);
+      setHasUnreadSupportMessage(false);
+      return;
+    }
+
+    let cancelled = false;
+
+    const applyLatestMessage = (message: StudentSupportUnreadMessage | null) => {
+      if (cancelled) return;
+      setLatestIncomingSupportMessage(message);
+      setHasUnreadSupportMessage(hasUnreadStudentSupportMessage(message, profileId));
+    };
+
+    const loadLatestSupportMessage = async () => {
+      const { data, error } = await supabase
+        .from('support_chat_messages')
+        .select('id, role, created_at')
+        .eq('profile_id', profileId)
+        .in('role', STUDENT_SUPPORT_INCOMING_ROLES)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (cancelled) return;
+
+      if (error) {
+        console.warn('[StudentDashboard] Failed to load support unread status', error);
+        return;
+      }
+
+      applyLatestMessage(toStudentSupportUnreadMessage(data));
+    };
+
+    void loadLatestSupportMessage();
+
+    const channel = supabase
+      .channel(`student-dashboard-support-unread-${profileId}`)
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'support_chat_messages', filter: `profile_id=eq.${profileId}` },
+        (payload) => {
+          const nextMessage = toStudentSupportUnreadMessage(payload.new);
+          if (!nextMessage) return;
+
+          setLatestIncomingSupportMessage((current) => {
+            if (!current || new Date(nextMessage.created_at).getTime() >= new Date(current.created_at).getTime()) {
+              return nextMessage;
+            }
+            return current;
+          });
+          setHasUnreadSupportMessage(hasUnreadStudentSupportMessage(nextMessage, profileId));
+        },
+      )
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'support_chat_messages', filter: `profile_id=eq.${profileId}` },
+        () => {
+          void loadLatestSupportMessage();
+        },
+      )
+      .on(
+        'postgres_changes',
+        { event: 'DELETE', schema: 'public', table: 'support_chat_messages', filter: `profile_id=eq.${profileId}` },
+        () => {
+          void loadLatestSupportMessage();
+        },
+      )
+      .subscribe();
+
+    const refreshVisibleState = () => {
+      if (document.visibilityState === 'visible') void loadLatestSupportMessage();
+    };
+    window.addEventListener('focus', refreshVisibleState);
+    document.addEventListener('visibilitychange', refreshVisibleState);
+
+    return () => {
+      cancelled = true;
+      window.removeEventListener('focus', refreshVisibleState);
+      document.removeEventListener('visibilitychange', refreshVisibleState);
+      void supabase.removeChannel(channel);
+    };
+  }, [userProfile?.id]);
+
+  useEffect(() => {
+    if (activeTab === 'support') {
+      markLatestSupportMessageRead();
+    }
+  }, [activeTab, markLatestSupportMessageRead]);
 
   useEffect(() => {
     const isDark = document.documentElement.classList.contains('dark') || localStorage.getItem('theme') === 'dark';
@@ -3279,25 +3448,39 @@ const StudentDashboard = () => {
           </div>
 
           <nav className="mt-10 flex-1 space-y-1">
-            {TABS_CONFIG.map(item => (
-              <button
-                key={item.id}
-                data-tour={`student-nav-${item.id}`}
-                onClick={() => {
-                  navigate(`/student/dashboard/${item.id}`);
-                  setMobileSidebarOpen(false);
-                }}
-                className={cn(
-                  'flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm font-bold transition-all',
-                  activeTab === item.id
-                    ? 'bg-[#CE9F48] text-black shadow-lg shadow-[#CE9F48]/20'
-                    : 'text-[#6f6251] hover:bg-[#f3ead9] dark:text-gray-400 dark:hover:bg-white/5'
-                )}
-              >
-                <item.icon className="h-5 w-5 shrink-0" />
-                <span className="min-w-0 flex-1 truncate whitespace-nowrap">{t(item.key)}</span>
-              </button>
-            ))}
+            {TABS_CONFIG.map(item => {
+              const showSupportUnreadIndicator = item.id === 'support' && hasUnreadSupportMessage && activeTab !== 'support';
+
+              return (
+                <button
+                  key={item.id}
+                  data-tour={`student-nav-${item.id}`}
+                  onClick={() => {
+                    navigate(`/student/dashboard/${item.id}`);
+                    setMobileSidebarOpen(false);
+                  }}
+                  className={cn(
+                    'flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm font-bold transition-all',
+                    activeTab === item.id
+                      ? 'bg-[#CE9F48] text-black shadow-lg shadow-[#CE9F48]/20'
+                      : 'text-[#6f6251] hover:bg-[#f3ead9] dark:text-gray-400 dark:hover:bg-white/5'
+                  )}
+                >
+                  <item.icon className="h-5 w-5 shrink-0" />
+                  <span className="min-w-0 flex-1 truncate whitespace-nowrap">{t(item.key)}</span>
+                  {showSupportUnreadIndicator && (
+                    <span
+                      aria-label={t('student_dashboard.nav.unread_support', { defaultValue: 'Nova mensagem no suporte' })}
+                      className="relative ml-auto flex h-2.5 w-2.5 shrink-0"
+                      title={t('student_dashboard.nav.unread_support', { defaultValue: 'Nova mensagem no suporte' })}
+                    >
+                      <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+                      <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.85)]" />
+                    </span>
+                  )}
+                </button>
+              );
+            })}
           </nav>
 
           <div className="mt-auto space-y-2 pt-6 border-t border-[#f3ead9] dark:border-white/5">
