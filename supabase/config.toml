@@ -8,6 +8,11 @@ enabled = true
 verify_jwt = false
 entrypoint = "./functions/migma-notify/index.ts"
 
+[functions.support-mentor-message-notify]
+enabled = true
+verify_jwt = true
+entrypoint = "./functions/support-mentor-message-notify/index.ts"
+
 [functions.mentor-google-oauth-start]
 enabled = true
 verify_jwt = true

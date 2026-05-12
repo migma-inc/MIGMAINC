@@ -50,6 +50,11 @@ interface Message {
   sender_role_label?: string | null;
 }
 
+interface SavedSupportMessage {
+  id: string;
+  created_at: string;
+}
+
 interface HandoffRecord {
   id: string;
   status: 'pending' | 'in_progress' | 'scheduled' | 'resolved' | 'cancelled';
@@ -519,9 +524,56 @@ export const StudentSupportPanel: React.FC<StudentSupportPanelProps> = ({ embedd
   }, [handoffMeetingStart, handoffMeetingUrl]);
 
   const saveMessage = useCallback(
-    async (role: 'user' | 'assistant' | 'system', content: string) => {
-      if (!userProfile?.id) return;
-      await supabase.from('support_chat_messages').insert({ profile_id: userProfile.id, role, content });
+    async (role: 'user' | 'assistant' | 'system', content: string): Promise<SavedSupportMessage | null> => {
+      if (!userProfile?.id) return null;
+      const { data, error } = await supabase
+        .from('support_chat_messages')
+        .insert({ profile_id: userProfile.id, role, content })
+        .select('id, created_at')
+        .single();
+
+      if (error) {
+        console.error('[StudentSupport] failed to save support chat message', error);
+        return null;
+      }
+
+      return data as SavedSupportMessage;
+    },
+    [userProfile?.id],
+  );
+
+  const notifyMentorOfUnreadSupportMessage = useCallback(
+    async (messageId: string | null) => {
+      if (!userProfile?.id || !messageId) return;
+
+      try {
+        const session = (await supabase.auth.getSession()).data.session;
+        if (!session?.access_token) return;
+
+        const notifyUrl = FUNCTIONS_URL
+          ? `${FUNCTIONS_URL}/support-mentor-message-notify`
+          : `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/support-mentor-message-notify`;
+
+        const response = await fetch(notifyUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
+            Authorization: `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({
+            profile_id: userProfile.id,
+            message_id: messageId,
+          }),
+        });
+
+        if (!response.ok) {
+          const detail = await response.text().catch(() => '');
+          console.warn('[StudentSupport] mentor unread notification failed', response.status, detail);
+        }
+      } catch (err) {
+        console.warn('[StudentSupport] mentor unread notification error', err);
+      }
     },
     [userProfile?.id],
   );
@@ -699,7 +751,8 @@ export const StudentSupportPanel: React.FC<StudentSupportPanelProps> = ({ embedd
 
     const userMsg: Message = { id: crypto.randomUUID(), role: 'user', content: text, created_at: new Date().toISOString() };
     setMessages((prev) => [...prev, userMsg]);
-    await saveMessage('user', text);
+    const savedUserMessage = await saveMessage('user', text);
+    void notifyMentorOfUnreadSupportMessage(savedUserMessage?.id ?? null);
 
     if (!shouldCallAiForNextMessage) {
       setSending(false);
@@ -792,6 +845,7 @@ export const StudentSupportPanel: React.FC<StudentSupportPanelProps> = ({ embedd
     handoffMeetingUrl,
     handoffMeetingStart,
     saveMessage,
+    notifyMentorOfUnreadSupportMessage,
     createHandoff,
     t,
   ]);
