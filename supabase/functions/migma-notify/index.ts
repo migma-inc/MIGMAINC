@@ -63,9 +63,12 @@ export type TriggerType =
   | "new_pending_task"
   | "deadline_alert_transfer"
   | "deadline_alert_cos"
+  | "onboarding_step_followup"
   | "dependent_pending"
   | "referral_goal_reached"
   | "new_referral_closed"
+  // Mentor-facing
+  | "mentor_onboarding_step_stalled"
   // Billing (Fase 9)
   | "billing_started"
   | "billing_installment_due"
@@ -112,6 +115,15 @@ interface NotifyPayload {
     reason?: string;
     rejection_reason?: string;
     last_message?: string;
+    followup_id?: string;
+    profile_id?: string;
+    mentor_id?: string;
+    mentor_email?: string;
+    service_family?: string;
+    step?: string;
+    step_label?: string;
+    step_url?: string;
+    idle_hours?: number;
     // Billing (Fase 9)
     monthly_usd?: number;
     installment_number?: number;
@@ -139,7 +151,7 @@ async function sendWhatsAppViaN8n(args: {
   name: string;
   message: string;
   data: NotifyPayload["data"];
-  isAdminTrigger: boolean;
+  recipientType: "admin" | "client" | "mentor";
 }): Promise<{ sent: boolean; reason?: string; provider?: string }> {
   const webhookUrl = Deno.env.get("N8N_WHATSAPP_NOTIFY_URL");
   const webhookSecret = Deno.env.get("N8N_WHATSAPP_NOTIFY_SECRET");
@@ -161,7 +173,7 @@ async function sendWhatsAppViaN8n(args: {
       },
       body: JSON.stringify({
         trigger: args.trigger,
-        recipient_type: args.isAdminTrigger ? "admin" : "client",
+        recipient_type: args.recipientType,
         recipient: {
           name: args.name,
           email: args.email,
@@ -179,10 +191,32 @@ async function sendWhatsAppViaN8n(args: {
       }),
     });
 
+    const responseText = await res.text();
+
     if (!res.ok) {
-      const body = await res.text();
-      console.error(`[migma-notify][whatsapp:n8n] Webhook error ${res.status}: ${body}`);
+      console.error(`[migma-notify][whatsapp:n8n] Webhook error ${res.status}: ${responseText}`);
       return { sent: false, reason: `n8n_${res.status}`, provider: "n8n" };
+    }
+
+    if (responseText) {
+      try {
+        const parsedBody = JSON.parse(responseText);
+        const firstItem = Array.isArray(parsedBody) ? parsedBody[0] : parsedBody;
+
+        if (firstItem && typeof firstItem === "object") {
+          const result = firstItem as Record<string, unknown>;
+          const rejected = result.ok === false || result.should_send === false;
+
+          if (rejected) {
+            const error = String(result.error ?? "n8n_rejected");
+            const message = String(result.message ?? "n8n workflow rejected notification");
+            console.error(`[migma-notify][whatsapp:n8n] Workflow rejected trigger=${args.trigger}: ${error} - ${message}`);
+            return { sent: false, reason: `n8n_${error}`, provider: "n8n" };
+          }
+        }
+      } catch {
+        // Some n8n workflows return plain text or an empty body on success.
+      }
     }
 
     console.log(`[migma-notify][whatsapp:n8n] Dispatched trigger=${args.trigger} to ${normalised}`);
@@ -243,7 +277,7 @@ async function sendWhatsApp(args: {
   name: string;
   message: string;
   data: NotifyPayload["data"];
-  isAdminTrigger: boolean;
+  recipientType: "admin" | "client" | "mentor";
 }): Promise<{ sent: boolean; reason?: string; provider?: string }> {
   const n8nResult = await sendWhatsAppViaN8n(args);
   if (n8nResult.sent || n8nResult.reason !== "n8n_not_configured") return n8nResult;
@@ -343,7 +377,7 @@ interface LocalizedMessage { subject: string; html: string; whatsapp: string }
 interface MultilingualMessage { pt: LocalizedMessage; es: LocalizedMessage }
 
 function isAdminTemplateTrigger(trigger: TriggerType): boolean {
-  return trigger.startsWith("admin_") || trigger === "transfer_form_delivered";
+  return trigger.startsWith("admin_") || trigger.startsWith("mentor_") || trigger === "transfer_form_delivered";
 }
 
 function langSection(label: "Português" | "Español", body: string): string {
@@ -420,6 +454,9 @@ function buildMultilingualCopy(
   const documentName = data.document_name ?? "documento enviado";
   const documentReason = data.document_reason ?? data.rejection_reason ?? "";
   const task = data.task_description ?? "";
+  const stepLabel = data.step_label ?? "current step";
+  const stepUrl = resolveUrl(data.step_url, routes.onboarding, dash);
+  const idleHours = typeof data.idle_hours === "number" ? data.idle_hours : 48;
   const supportUrl = routes.studentSupport;
   const dashboardUrl = routes.studentDashboard;
   const documentsUrl = resolveUrl(data.app_url, routes.studentDocuments, dash);
@@ -631,6 +668,20 @@ function buildMultilingualCopy(
         },
       };
 
+    case "onboarding_step_followup":
+      return {
+        pt: {
+          subject: "Falta pouco! Conclua seu onboarding na Migma 🚀",
+          html: `<p>Olá, ${highlight(firstName)}!</p><p>Vimos que você está a apenas um passo de finalizar seu cadastro! Para garantir sua vaga e continuar sua jornada com a gente, conclua a etapa de <strong>${stepLabel}</strong>.</p>${btn("Continue sua inscrição aqui", stepUrl)}<p>Ficou com alguma dúvida ou precisa de ajuda? Nosso time está à disposição: <a href="${supportUrl}" style="color:#CE9F48;font-weight:700;text-decoration:none;">${supportUrl}</a></p><p>Abraços,<br>Equipe Migma</p>`,
+          whatsapp: `*Migma* — Falta pouco! Conclua seu onboarding na Migma 🚀\n\nOlá, ${firstName},\n\nVimos que você está a apenas um passo de finalizar seu cadastro! Para garantir sua vaga e continuar sua jornada com a gente, conclua a etapa de *${stepLabel}*.\n\n👉 Continue sua inscrição aqui: ${stepUrl}\n\nFicou com alguma dúvida ou precisa de ajuda? Nosso time está à disposição: ${supportUrl}\n\nAbraços,\nEquipe Migma`,
+        },
+        es: {
+          subject: "¡Ya casi! Completa tu onboarding en Migma 🚀",
+          html: `<p>Hola, ${highlight(firstName)},</p><p>¡Hemos notado que estás a un solo paso de finalizar tu registro! Para asegurar tu lugar y continuar con tu proceso, por favor completa la etapa de <strong>${stepLabel}</strong>.</p>${btn("Continúa tu inscripción aquí", stepUrl)}<p>¿Tienes alguna duda o necesitas ayuda? Nuestro equipo está listo para apoyarte: <a href="${supportUrl}" style="color:#CE9F48;font-weight:700;text-decoration:none;">${supportUrl}</a></p><p>Saludos,<br>Equipo Migma</p>`,
+          whatsapp: `*Migma* — ¡Ya casi! Completa tu onboarding en Migma 🚀\n\nHola, ${firstName},\n\n¡Hemos notado que estás a un solo paso de finalizar tu registro! Para asegurar tu lugar y continuar con tu proceso, por favor completa la etapa de *${stepLabel}*.\n\n👉 Continúa tu inscripción aquí: ${stepUrl}\n\n¿Tienes alguna duda o necesitas ayuda? Nuestro equipo está listo para apoyarte: ${supportUrl}\n\nSaludos,\nEquipo Migma`,
+        },
+      };
+
     case "deadline_alert_transfer":
       return {
         pt: {
@@ -656,6 +707,20 @@ function buildMultilingualCopy(
           subject: `Alerta de plazo — ${data.days_remaining} día(s) hasta el plazo del I-94 / COS`,
           html: `<p>Hola, ${highlight(firstName)}!</p><p>Atención: tu plazo de I-94 / Change of Status (COS) vence en <strong>${data.days_remaining} día(s)</strong>.</p><p>Es esencial completar todos los pasos antes de esa fecha.</p>${btn("Ver mi proceso", dashboardUrl)}`,
           whatsapp: `⏰ *Migma* — Plazo urgente de COS!\n\nHola ${firstName}, tu I-94 vence en *${data.days_remaining} día(s)*. Revisa con urgencia: ${dashboardUrl}`,
+        },
+      };
+
+    case "mentor_onboarding_step_stalled":
+      return {
+        pt: {
+          subject: `[Mentoria] Aluno parado no onboarding — ${clientName}`,
+          html: `<p>O aluno <strong>${clientName}</strong> está há mais de <strong>${idleHours} horas</strong> sem avançar na etapa <strong>${stepLabel}</strong>.</p><p>Entre em contato para destravar o onboarding.</p>${btn("Abrir aluno no CRM", adminUrl)}`,
+          whatsapp: `*Migma Mentoria* — Aluno parado no onboarding\n\nAluno: ${clientName}\nEtapa: ${stepLabel}\nInatividade: ${idleHours}h\n\nCRM: ${adminUrl}`,
+        },
+        es: {
+          subject: `[Mentoría] Alumno detenido en onboarding — ${clientNameEs}`,
+          html: `<p>El alumno <strong>${clientNameEs}</strong> lleva más de <strong>${idleHours} horas</strong> sin avanzar en la etapa <strong>${stepLabel}</strong>.</p><p>Contacta al alumno para destrabar el onboarding.</p>${btn("Abrir alumno en CRM", adminUrl)}`,
+          whatsapp: `*Migma Mentoría* — Alumno detenido en onboarding\n\nAlumno: ${clientNameEs}\nEtapa: ${stepLabel}\nInactividad: ${idleHours}h\n\nCRM: ${adminUrl}`,
         },
       };
 
@@ -1110,6 +1175,22 @@ function buildTemplate(
       whatsapp: `🔔 *Migma* — New pending task\n\nHi ${firstName}${data.task_description ? `: ${data.task_description}` : ", there is a pending task in your account"}.\n\nAccess: ${routes.studentDashboard}`,
     };
 
+    case "onboarding_step_followup": {
+      const stepLabel = data.step_label ?? "current step";
+      const stepUrl = resolveUrl(data.step_url, routes.onboarding, dash);
+      return {
+        subject: "You’re almost there! Complete your Migma onboarding 🚀",
+        emailHtml: emailWrapper("Complete Your Migma Onboarding", `
+          <p>Hi ${highlight(firstName)},</p>
+          <p>We noticed you're just one step away from finishing your onboarding! To secure your spot and keep things moving, please complete the <strong>${stepLabel}</strong> step.</p>
+          ${btn("Continue your application here", stepUrl)}
+          <p>Have questions or need a hand? We’re always here to help: <a href="${routes.studentSupport}" style="color:#CE9F48;font-weight:700;text-decoration:none;">${routes.studentSupport}</a></p>
+          <p>Best,<br>The Migma Team</p>
+        `),
+        whatsapp: `*Migma* — You’re almost there! Complete your Migma onboarding 🚀\n\nHi ${firstName},\n\nWe noticed you're just one step away from finishing your onboarding! To secure your spot and keep things moving, please complete the *${stepLabel}* step.\n\n👉 Continue your application here: ${stepUrl}\n\nHave questions or need a hand? We’re always here to help: ${routes.studentSupport}\n\nBest,\nThe Migma Team`,
+      };
+    }
+
     // ── 11 ────────────────────────────────────────────────────────────────────
     case "deadline_alert_transfer": return {
       subject: `Deadline Alert — ${data.days_remaining} day(s) remaining for your Transfer`,
@@ -1316,15 +1397,35 @@ function buildTemplate(
       whatsapp: `🙋 *Migma Support* — Handoff requested\n\nStudent: ${data.client_name ?? "N/A"}\n${data.reason ? `Reason: ${data.reason}\n` : ""}${data.client_id ? routes.adminUser(data.client_id) : routes.adminUser()}`,
     };
 
+    case "mentor_onboarding_step_stalled": {
+      const studentName = data.client_name ?? "Student";
+      const stepLabel = data.step_label ?? "current step";
+      const idleHours = typeof data.idle_hours === "number" ? data.idle_hours : 48;
+      const adminUrl = data.client_id ? routes.adminUser(data.client_id) : routes.adminUser();
+      return {
+        subject: `[Mentor] Student Stalled in Onboarding: ${studentName}`,
+        emailHtml: emailWrapper("[Mentor] Student Stalled in Onboarding", `
+          <p><strong>${studentName}</strong> has been inactive for more than <strong>${idleHours} hours</strong> on <strong>${stepLabel}</strong>.</p>
+          <p>Please contact the student and help unblock the onboarding step.</p>
+          ${btn("Open Student in CRM", adminUrl)}
+        `),
+        whatsapp: `*Migma Mentor* — Student stalled in onboarding\n\nStudent: ${studentName}\nStep: ${stepLabel}\nIdle: ${idleHours}h\n\nCRM: ${adminUrl}`,
+      };
+    }
+
     default:
       throw new Error(`Unknown trigger: ${trigger}`);
   }
   })();
 
+  const supportOptions = isAdminTemplateTrigger(trigger) || trigger === "onboarding_step_followup"
+    ? {}
+    : { supportUrl: routes.studentSupport };
+
   return applyMultilingualTemplate(
     englishTemplate,
     buildMultilingualCopy(trigger, firstName, data, routes, dash),
-    isAdminTemplateTrigger(trigger) ? {} : { supportUrl: routes.studentSupport },
+    supportOptions,
   );
 }
 
@@ -1333,8 +1434,9 @@ function buildTemplate(
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
 
-  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-  const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+  const supabaseUrl = Deno.env.get("MIGMA_REMOTE_URL") ?? Deno.env.get("SUPABASE_URL")!;
+  const supabaseKey = Deno.env.get("MIGMA_REMOTE_SERVICE_ROLE_KEY") ??
+    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
   const supabase = createClient(supabaseUrl, supabaseKey);
 
   const appBaseUrl = Deno.env.get("APP_BASE_URL") ?? "https://migmainc.com";
@@ -1352,6 +1454,8 @@ Deno.serve(async (req) => {
     }
 
     const isAdminTrigger = trigger.startsWith("admin_");
+    const isMentorTrigger = trigger.startsWith("mentor_");
+    const recipientType = isAdminTrigger ? "admin" : isMentorTrigger ? "mentor" : "client";
 
     // ── Resolve recipient ────────────────────────────────────────────────────
     let recipientEmail = "";
@@ -1368,6 +1472,28 @@ Deno.serve(async (req) => {
       if (!recipientPhone) {
         console.warn("[migma-notify] ADMIN_NOTIFY_PHONE not set — whatsapp skipped");
       }
+    } else if (isMentorTrigger) {
+      const mentorProfileId = user_id;
+
+      if (!mentorProfileId) {
+        return json({ error: "user_id is required for mentor triggers" }, 400);
+      }
+
+      const { data: mentorProfile, error: mentorErr } = await supabase
+        .from("user_profiles")
+        .select("id, user_id, full_name, email, phone, whatsapp")
+        .eq("id", mentorProfileId)
+        .single();
+
+      if (mentorErr || !mentorProfile) {
+        return json({ error: "Mentor not found", detail: mentorErr?.message }, 404);
+      }
+
+      recipientEmail = mentorProfile.email ?? "";
+      recipientPhone = mentorProfile.phone ?? mentorProfile.whatsapp ?? "";
+      recipientName = mentorProfile.full_name ?? "Mentor";
+      data.mentor_id = mentorProfile.id;
+      data.mentor_email = mentorProfile.email ?? undefined;
     } else {
       if (!user_id && !data.client_email) {
         return json({ error: "user_id or client_email is required for client triggers" }, 400);
@@ -1493,7 +1619,7 @@ Deno.serve(async (req) => {
         name: recipientName,
         message: template.whatsapp,
         data,
-        isAdminTrigger,
+        recipientType,
       });
     } else {
       console.warn(`[migma-notify][whatsapp] No phone for trigger ${trigger} user ${user_id}`);

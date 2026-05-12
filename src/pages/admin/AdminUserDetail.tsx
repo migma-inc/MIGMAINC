@@ -304,6 +304,35 @@ const TABS: Array<{ id: Tab; label: string }> = [
   { id: 'followups', label: 'Pending Tasks' },
 ];
 
+function getOperationalTabForOnboardingStep(step: string | null | undefined): Tab {
+  switch (step) {
+    case 'selection_survey':
+    case 'identity_verification':
+    case 'wait_room':
+      return 'survey';
+    case 'scholarship_selection':
+    case 'placement_fee':
+    case 'scholarship_fee':
+    case 'reinstatement_fee':
+      return 'scholarship';
+    case 'documents_upload':
+    case 'process_type':
+    case 'dados_complementares':
+    case 'my_applications':
+    case 'acceptance_letter':
+      return 'documents';
+    case 'selection_fee':
+    case 'payment':
+      return 'orders';
+    default:
+      return 'journey';
+  }
+}
+
+function getTabLabel(tabId: Tab): string {
+  return TABS.find((tab) => tab.id === tabId)?.label ?? toLabel(tabId);
+}
+
 // ---------------------------------------------------------------------------
 // Tab: Overview
 // ---------------------------------------------------------------------------
@@ -321,6 +350,7 @@ function OverviewTab({
   onStartBilling,
   onSuspendBilling,
   billingMsg,
+  onOpenOperationalTab,
 }: {
   detail: CaseDetailPage;
   accessRole: 'admin' | 'mentor';
@@ -334,8 +364,21 @@ function OverviewTab({
   onStartBilling: () => void;
   onSuspendBilling: (action: 'suspend' | 'cancel' | 'reactivate') => void;
   billingMsg: string | null;
+  onOpenOperationalTab: (tab: Tab) => void;
 }) {
-  const { profile, primaryRequest, primaryOrder, operationalStage, stageHistory, userIdentity } = detail;
+  const {
+    profile,
+    primaryRequest,
+    primaryOrder,
+    operationalStage,
+    stageHistory,
+    userIdentity,
+    onboardingStepFollowups,
+  } = detail;
+  const openStepFollowup = onboardingStepFollowups.find((followup) => followup.status === 'open') ?? null;
+  const openStepOperationalTab = openStepFollowup
+    ? getOperationalTabForOnboardingStep(openStepFollowup.onboarding_step)
+    : null;
 
   return (
     <div className="grid grid-cols-1 xl:grid-cols-3 gap-5">
@@ -356,6 +399,8 @@ function OverviewTab({
             <InfoRow label="Agent ID" value={profile.migma_agent_id ? <span className="font-mono text-xs">{profile.migma_agent_id}</span> : '—'} />
             <InfoRow label="Cross-site" value={profile.matricula_user_id ? <span className="font-mono text-xs">{profile.matricula_user_id}</span> : '—'} />
             <InfoRow label="Registered" value={fmtDate(profile.created_at)} />
+            <InfoRow label="Step Since" value={fmtDate(profile.onboarding_step_entered_at)} />
+            <InfoRow label="Last Activity" value={fmtDate(profile.last_activity_at)} />
             <InfoRow label="Total Paid" value={formatCurrency(profile.total_price_usd)} />
             <InfoRow label="Status" value={toLabel(profile.status)} />
           </div>
@@ -366,6 +411,36 @@ function OverviewTab({
             </div>
           )}
         </SectionCard>
+
+        {openStepFollowup && (
+          <SectionCard title="Onboarding Follow-Up" icon={Clock3}>
+            <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+              <div className="space-y-2">
+                <Badge className="w-fit bg-amber-500/15 text-amber-200 border border-amber-500/30 rounded-sm text-[9px] font-black uppercase">
+                  {openStepFollowup.idle_hours}h idle
+                </Badge>
+                <div>
+                  <p className="text-sm font-bold text-white">{openStepFollowup.step_label}</p>
+                  <p className="text-xs text-gray-500">
+                    Detected {fmtDate(openStepFollowup.created_at)} from activity reference {fmtDate(openStepFollowup.idle_reference_at)}.
+                  </p>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8">
+                  <InfoRow label="Student notified" value={fmtDate(openStepFollowup.student_notified_at)} />
+                  <InfoRow label="Mentor notified" value={fmtDate(openStepFollowup.mentor_notified_at)} />
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => openStepOperationalTab && onOpenOperationalTab(openStepOperationalTab)}
+                className="inline-flex items-center justify-center gap-2 rounded-md border border-gold-medium/30 bg-gold-medium/10 px-4 py-2 text-xs font-black uppercase tracking-widest text-gold-light hover:bg-gold-medium/20"
+              >
+                <Workflow className="h-3.5 w-3.5" />
+                Open {openStepOperationalTab ? getTabLabel(openStepOperationalTab) : 'CRM Area'}
+              </button>
+            </div>
+          </SectionCard>
+        )}
 
         {/* Personal Data — user_identity */}
         <SectionCard title="Personal Data" icon={MapPin}>
@@ -3316,6 +3391,7 @@ export function AdminUserDetail() {
             onStartBilling={handleStartBilling}
             onSuspendBilling={handleSuspendBilling}
             billingMsg={billingMsg}
+            onOpenOperationalTab={setActiveTab}
           />
         )}
         {activeTab === 'orders' && (

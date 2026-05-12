@@ -247,6 +247,7 @@ export const MigmaSurveyStep: React.FC<ExtendedStepProps> = ({ onNext, contractA
       // 2. Espelhar campos operacionais em user_profiles (MIGMA supabase)
       const profileUpdate: Record<string, any> = {
         selection_survey_completed_at: now,
+        last_activity_at: now,
         updated_at: now,
       };
       if (operationalFields.transfer_deadline_date) {
@@ -271,7 +272,7 @@ export const MigmaSurveyStep: React.FC<ExtendedStepProps> = ({ onNext, contractA
       // 3. Marcar selection_survey_passed = true (MIGMA)
       await supabase
         .from('user_profiles')
-        .update({ selection_survey_passed: true })
+        .update({ selection_survey_passed: true, last_activity_at: now })
         .eq('user_id', user.id);
 
       await updateUserProfile?.({ selection_survey_passed: true } as any);

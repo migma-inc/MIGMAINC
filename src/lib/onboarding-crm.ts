@@ -55,6 +55,8 @@ export interface CrmProfile {
   // Survey tracking
   selection_survey_completed_at: string | null;
   identity_verified: boolean | null;
+  last_activity_at: string | null;
+  onboarding_step_entered_at: string | null;
   updated_at: string | null;
   created_at: string | null;
   // Mentor assignment
@@ -124,12 +126,35 @@ export interface CrmCheckoutZellePending {
   approved_at: string | null;
 }
 
+export interface CrmOnboardingStepFollowup {
+  id: string;
+  profile_id: string;
+  service_request_id: string | null;
+  mentor_profile_id: string | null;
+  service_family: CrmProductLine;
+  onboarding_step: string;
+  step_label: string;
+  step_url: string;
+  idle_reference_at: string;
+  idle_hours: number;
+  status: 'open' | 'resolved' | 'cancelled';
+  student_notified_at: string | null;
+  mentor_notified_at: string | null;
+  notification_count: number;
+  notes: string | null;
+  resolved_at: string | null;
+  resolved_reason: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 /** The unified CRM case view built from the three source tables. */
 export interface OnboardingCase {
   profile: CrmProfile;
   serviceRequest: CrmServiceRequest | null;
   visaOrder: CrmVisaOrder | null;
   checkoutZellePending: CrmCheckoutZellePending | null;
+  onboardingStepFollowup: CrmOnboardingStepFollowup | null;
   /** Derived operational stage readable by the admin team. */
   operationalStage: OperationalStage;
 }
@@ -335,6 +360,114 @@ export function persistFilters(filters: OnboardingCrmFilters): void {
  */
 export type CrmProductLine = 'cos' | 'transfer' | 'initial';
 
+const PROFILE_SELECT_LEGACY = `
+  id, user_id, email, full_name, phone, country, field_of_interest, academic_level,
+  status, source, service_type,
+  total_price_usd, onboarding_completed, onboarding_current_step,
+  has_paid_selection_process_fee, is_application_fee_paid,
+  is_scholarship_fee_paid, has_paid_college_enrollment_fee, has_paid_i20_control_fee,
+  is_placement_fee_paid, selection_survey_passed, documents_uploaded, documents_status, placement_fee_flow,
+  student_process_type, num_dependents, selection_process_fee_payment_method,
+  signature_url, migma_seller_id, migma_agent_id, matricula_user_id, onboarding_email_status,
+  transfer_deadline_date, cos_i94_expiry_date, selection_survey_completed_at,
+  identity_verified, mentor_id, updated_at, created_at
+`;
+
+const PROFILE_SELECT_WITH_ACTIVITY = `
+  id, user_id, email, full_name, phone, country, field_of_interest, academic_level,
+  status, source, service_type,
+  total_price_usd, onboarding_completed, onboarding_current_step,
+  has_paid_selection_process_fee, is_application_fee_paid,
+  is_scholarship_fee_paid, has_paid_college_enrollment_fee, has_paid_i20_control_fee,
+  is_placement_fee_paid, selection_survey_passed, documents_uploaded, documents_status, placement_fee_flow,
+  student_process_type, num_dependents, selection_process_fee_payment_method,
+  signature_url, migma_seller_id, migma_agent_id, matricula_user_id, onboarding_email_status,
+  transfer_deadline_date, cos_i94_expiry_date, selection_survey_completed_at,
+  identity_verified, last_activity_at, onboarding_step_entered_at, mentor_id, updated_at, created_at
+`;
+
+const ONBOARDING_STEP_FOLLOWUP_SELECT = `
+  id, profile_id, service_request_id, mentor_profile_id, service_family,
+  onboarding_step, step_label, step_url, idle_reference_at, idle_hours,
+  status, student_notified_at, mentor_notified_at, notification_count,
+  notes, resolved_at, resolved_reason, created_at, updated_at
+`;
+
+function isPendingFollowupSchemaError(error: unknown): boolean {
+  const text = JSON.stringify(error ?? '').toLowerCase();
+  return (
+    text.includes('onboarding_step_entered_at') ||
+    text.includes('onboarding_step_followups') ||
+    text.includes('last_activity_at')
+  ) && text.includes('schema');
+}
+
+function normalizeProfile(profile: Partial<CrmProfile>): CrmProfile {
+  return {
+    last_activity_at: null,
+    onboarding_step_entered_at: null,
+    ...profile,
+  } as CrmProfile;
+}
+
+function buildProfilesQuery(
+  selectColumns: string,
+  options: { mentorProfileId?: string | null } = {},
+) {
+  let query = supabase
+    .from('user_profiles')
+    .select(selectColumns)
+    .eq('source', 'migma');
+
+  if (shouldHideTestUsersInProduction()) {
+    query = query.not('email', 'ilike', TEST_USER_EMAIL_PATTERN);
+  }
+
+  if (options.mentorProfileId) {
+    query = query.eq('mentor_id', options.mentorProfileId);
+  }
+
+  return query;
+}
+
+async function loadOpenOnboardingStepFollowups(profileIds: string[]): Promise<CrmOnboardingStepFollowup[]> {
+  if (profileIds.length === 0) return [];
+
+  const { data, error } = await supabase
+    .from('onboarding_step_followups')
+    .select(ONBOARDING_STEP_FOLLOWUP_SELECT)
+    .in('profile_id', profileIds)
+    .eq('status', 'open')
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    if (!isPendingFollowupSchemaError(error)) {
+      console.warn('[onboarding-crm] Failed to load onboarding step followups:', error.message);
+    }
+    return [];
+  }
+
+  return (data ?? []) as CrmOnboardingStepFollowup[];
+}
+
+async function loadOnboardingStepFollowupsForProfile(profileId: string): Promise<CrmDetailOnboardingStepFollowup[]> {
+  const { data, error } = await supabase
+    .from('onboarding_step_followups')
+    .select(ONBOARDING_STEP_FOLLOWUP_SELECT)
+    .eq('profile_id', profileId)
+    .order('created_at', { ascending: false })
+    .limit(30);
+
+  if (error) {
+    if (!isPendingFollowupSchemaError(error)) {
+      console.warn('[onboarding-crm] Failed to load profile onboarding step followups:', error.message);
+    }
+    return [];
+  }
+
+  return (data ?? []) as CrmDetailOnboardingStepFollowup[];
+}
+
 export async function loadOnboardingBoard(
   productLine?: CrmProductLine,
   options: { mentorProfileId?: string | null } = {},
@@ -343,37 +476,24 @@ export async function loadOnboardingBoard(
   error: string | null;
 }> {
   // 1. Load all MIGMA profiles
-  let profilesQuery = supabase
-    .from('user_profiles')
-    .select(`
-      id, user_id, email, full_name, phone, country, field_of_interest, academic_level,
-      status, source, service_type,
-      total_price_usd, onboarding_completed, onboarding_current_step,
-      has_paid_selection_process_fee, is_application_fee_paid,
-      is_scholarship_fee_paid, has_paid_college_enrollment_fee, has_paid_i20_control_fee,
-      is_placement_fee_paid, selection_survey_passed, documents_uploaded, documents_status, placement_fee_flow,
-      student_process_type, num_dependents, selection_process_fee_payment_method,
-      signature_url, migma_seller_id, migma_agent_id, matricula_user_id, onboarding_email_status,
-      transfer_deadline_date, cos_i94_expiry_date, selection_survey_completed_at,
-      identity_verified, mentor_id, updated_at, created_at
-    `)
-    .eq('source', 'migma');
+  let { data: profilesData, error: profilesError } = await buildProfilesQuery(
+    PROFILE_SELECT_WITH_ACTIVITY,
+    options,
+  ).order('updated_at', { ascending: false });
 
-  if (shouldHideTestUsersInProduction()) {
-    profilesQuery = profilesQuery.not('email', 'ilike', TEST_USER_EMAIL_PATTERN);
+  if (profilesError && isPendingFollowupSchemaError(profilesError)) {
+    const fallback = await buildProfilesQuery(PROFILE_SELECT_LEGACY, options)
+      .order('updated_at', { ascending: false });
+    profilesData = fallback.data;
+    profilesError = fallback.error;
   }
-
-  if (options.mentorProfileId) {
-    profilesQuery = profilesQuery.eq('mentor_id', options.mentorProfileId);
-  }
-
-  const { data: profilesData, error: profilesError } = await profilesQuery.order('updated_at', { ascending: false });
 
   if (profilesError) {
     return { cases: [], error: profilesError.message };
   }
 
-  const profileIds = ((profilesData ?? []) as Pick<CrmProfile, 'id'>[]).map((p) => p.id);
+  const normalizedProfiles = ((profilesData ?? []) as Partial<CrmProfile>[]).map(normalizeProfile);
+  const profileIds = normalizedProfiles.map((p) => p.id);
   const { data: mentorProfilesData, error: mentorProfilesError } = profileIds.length > 0
     ? await supabase
         .from('referral_mentors')
@@ -386,7 +506,7 @@ export async function loadOnboardingBoard(
   }
 
   const mentorProfileIds = new Set((mentorProfilesData ?? []).map((m) => m.profile_id));
-  const profiles = ((profilesData ?? []) as CrmProfile[]).filter((profile) => !mentorProfileIds.has(profile.id));
+  const profiles = normalizedProfiles.filter((profile) => !mentorProfileIds.has(profile.id));
 
   if (profiles.length === 0) {
     return { cases: [], error: null };
@@ -414,7 +534,7 @@ export async function loadOnboardingBoard(
 
   const resolvedClientIds = [...clientIdByEmail.values()];
 
-  const [requestsResult, ordersResult, zellePendingResult] = await Promise.all([
+  const [requestsResult, ordersResult, zellePendingResult, allStepFollowups] = await Promise.all([
     resolvedClientIds.length > 0
       ? supabase
           .from('service_requests')
@@ -459,6 +579,8 @@ export async function loadOnboardingBoard(
           .in('migma_user_id', userIds)
           .order('created_at', { ascending: false })
       : Promise.resolve({ data: [], error: null }),
+
+    loadOpenOnboardingStepFollowups(profileIds),
   ]);
 
   const allRequests = (requestsResult.data ?? []) as CrmServiceRequest[];
@@ -492,6 +614,13 @@ export async function loadOnboardingBoard(
     }
   }
 
+  const stepFollowupByProfileId = new Map<string, CrmOnboardingStepFollowup>();
+  for (const followup of allStepFollowups) {
+    if (!stepFollowupByProfileId.has(followup.profile_id)) {
+      stepFollowupByProfileId.set(followup.profile_id, followup);
+    }
+  }
+
   // 4. Assemble OnboardingCase per profile
   // Resolve service_request via email → clients.id → service_requests.client_id
   const cases: OnboardingCase[] = profiles
@@ -507,6 +636,7 @@ export async function loadOnboardingBoard(
         serviceRequest: sr,
         visaOrder: order,
         checkoutZellePending,
+        onboardingStepFollowup: stepFollowupByProfileId.get(profile.id) ?? null,
         operationalStage: deriveOperationalStage(profile, sr, order),
       };
     })
@@ -794,6 +924,8 @@ export interface CrmFollowup {
   updated_at: string;
 }
 
+export type CrmDetailOnboardingStepFollowup = CrmOnboardingStepFollowup;
+
 export interface CrmIdentityFile {
   id: string;
   file_type: string;
@@ -959,6 +1091,7 @@ export interface CaseDetailPage {
   stageHistory: CrmStageHistory[];
   events: CrmEvent[];
   followups: CrmFollowup[];
+  onboardingStepFollowups: CrmDetailOnboardingStepFollowup[];
   messages: CrmMessage[];
   srDocuments: CrmDocument[];
   identityFiles: CrmIdentityFile[];
@@ -1016,37 +1149,38 @@ export async function loadDetailPage(
   error: string | null;
 }> {
   // 1. Load the profile
-  let profileQuery = supabase
+  const buildProfileQuery = (selectColumns: string) => {
+    let query = supabase
     .from('user_profiles')
-    .select(`
-      id, user_id, email, full_name, phone, country, field_of_interest, academic_level,
-      status, source, service_type,
-      total_price_usd, onboarding_completed, onboarding_current_step,
-      has_paid_selection_process_fee, is_application_fee_paid,
-      is_scholarship_fee_paid, has_paid_college_enrollment_fee, has_paid_i20_control_fee,
-      is_placement_fee_paid, selection_survey_passed, documents_uploaded, documents_status, placement_fee_flow,
-      student_process_type, num_dependents, selection_process_fee_payment_method,
-      signature_url, migma_seller_id, migma_agent_id, matricula_user_id, onboarding_email_status,
-      transfer_deadline_date, cos_i94_expiry_date, selection_survey_completed_at,
-      identity_verified, mentor_id, updated_at, created_at
-    `)
+    .select(selectColumns)
     .eq('id', profileId);
 
-  if (shouldHideTestUsersInProduction()) {
-    profileQuery = profileQuery.not('email', 'ilike', TEST_USER_EMAIL_PATTERN);
-  }
+    if (shouldHideTestUsersInProduction()) {
+      query = query.not('email', 'ilike', TEST_USER_EMAIL_PATTERN);
+    }
 
-  if (options.mentorProfileId) {
-    profileQuery = profileQuery.eq('mentor_id', options.mentorProfileId);
-  }
+    if (options.mentorProfileId) {
+      query = query.eq('mentor_id', options.mentorProfileId);
+    }
 
-  const { data: profileData, error: profileError } = await profileQuery.single();
+    return query;
+  };
+
+  let { data: profileData, error: profileError } = await buildProfileQuery(
+    PROFILE_SELECT_WITH_ACTIVITY,
+  ).single();
+
+  if (profileError && isPendingFollowupSchemaError(profileError)) {
+    const fallback = await buildProfileQuery(PROFILE_SELECT_LEGACY).single();
+    profileData = fallback.data;
+    profileError = fallback.error;
+  }
 
   if (profileError || !profileData) {
     return { data: null, error: profileError?.message ?? 'Profile not found' };
   }
 
-  const profile = profileData as CrmProfile;
+  const profile = normalizeProfile(profileData as Partial<CrmProfile>);
 
   // 2. Load visa_orders first — they carry service_request_id which we use directly
   //    to load service_requests, bypassing the clients table entirely (avoids duplicate-client issues)
@@ -1096,7 +1230,7 @@ export async function loadDetailPage(
   const srId = primaryRequest?.id ?? null;
   const srIds = serviceRequests.map((sr) => sr.id);
 
-  const [historyResult, eventsResult, followupsResult, messagesResult, srDocumentsResult, identityResult, surveyResult, studentDocsResult, globalDocsResult, userIdentityResult, institutionAppResult, institutionFormsResult, recurringChargeResult, supportHandoffsResult, supportChatResult] = await Promise.all([
+  const [historyResult, eventsResult, followupsResult, onboardingStepFollowups, messagesResult, srDocumentsResult, identityResult, surveyResult, studentDocsResult, globalDocsResult, userIdentityResult, institutionAppResult, institutionFormsResult, recurringChargeResult, supportHandoffsResult, supportChatResult] = await Promise.all([
     srId
       ? supabase
           .from('service_request_stage_history')
@@ -1123,6 +1257,8 @@ export async function loadDetailPage(
           .order('created_at', { ascending: false })
           .limit(30)
       : Promise.resolve({ data: [], error: null }),
+
+    loadOnboardingStepFollowupsForProfile(profileId),
 
     profile.id
       ? supabase
@@ -1247,6 +1383,7 @@ export async function loadDetailPage(
       stageHistory: (historyResult.data ?? []) as CrmStageHistory[],
       events: (eventsResult.data ?? []) as CrmEvent[],
       followups: (followupsResult.data ?? []) as CrmFollowup[],
+      onboardingStepFollowups,
       messages: (messagesResult.data ?? []) as CrmMessage[],
       srDocuments: (srDocumentsResult.data ?? []) as CrmDocument[],
       identityFiles: (identityResult.data ?? []) as CrmIdentityFile[],

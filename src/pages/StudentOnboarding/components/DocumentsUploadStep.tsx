@@ -328,6 +328,7 @@ export const DocumentsUploadStep: React.FC<StepProps> = ({ onNext }) => {
       const nextProfileUpdate = {
         documents_uploaded: true,
         documents_status: 'under_review',
+        last_activity_at: new Date().toISOString(),
       };
 
       const { error: profileError } = await supabase

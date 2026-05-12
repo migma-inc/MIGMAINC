@@ -100,6 +100,12 @@ function daysSince(iso: string | null | undefined) {
   return Math.max(0, Math.floor(diff / (1000 * 60 * 60 * 24)));
 }
 
+function hoursSince(iso: string | null | undefined) {
+  if (!iso) return null;
+  const diff = Date.now() - new Date(iso).getTime();
+  return Math.max(0, Math.floor(diff / (1000 * 60 * 60)));
+}
+
 function daysUntil(dateStr: string | null | undefined): number | null {
   if (!dateStr) return null;
   const today = new Date();
@@ -108,6 +114,10 @@ function daysUntil(dateStr: string | null | undefined): number | null {
   target.setHours(0, 0, 0, 0);
   const diff = Math.round((target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
   return diff >= 0 ? diff : null;
+}
+
+function activityReference(profile: OnboardingCase['profile']) {
+  return profile.last_activity_at || profile.onboarding_step_entered_at || profile.updated_at || profile.created_at;
 }
 
 // Step order — used to pick the furthest-along step
@@ -218,8 +228,19 @@ function getPreOnboardingPaymentBadgeClass(item: OnboardingCase) {
 }
 
 function getStuckState(item: OnboardingCase, productLine?: CrmProductLine): StuckState {
+  const stepFollowup = item.onboardingStepFollowup;
+
+  if (stepFollowup?.status === 'open') {
+    const idleHours = Math.max(stepFollowup.idle_hours ?? 48, hoursSince(stepFollowup.idle_reference_at) ?? 48);
+    const idleDays = Math.floor(idleHours / 24);
+    const label = idleHours < 72 ? `${idleHours}h idle` : `${idleDays}d idle`;
+    if (idleHours >= 168) return { tone: 'critical', label };
+    if (idleHours >= 72) return { tone: 'danger', label };
+    return { tone: 'warning', label };
+  }
+
   const currentStep = item.profile.onboarding_current_step || 'selection_fee';
-  const daysIdle = daysSince(item.profile.updated_at);
+  const daysIdle = daysSince(activityReference(item.profile));
 
   // ── Transfer: alertas em 30, 15, 7, 1 dia ──────────────────────────────
   if (productLine === 'transfer') {
@@ -392,32 +413,40 @@ function KanbanView({
                 <span className="text-[10px] font-bold text-gray-600 bg-white/5 px-1.5 py-0.5 rounded-full">{cards.length}</span>
               </div>
               <div className="p-2 space-y-2 max-h-[600px] overflow-y-auto">
-                {cards.map((item) => (
-                  <button
-                    key={item.profile.id}
-                    onClick={() => navigate(`/dashboard/users/${item.profile.id}`)}
-                    className="w-full text-left bg-black/60 border border-white/5 rounded-md p-3 space-y-2 hover:border-white/10 transition-colors"
-                  >
-                    <div>
-                      <p className="text-[11px] font-bold text-white uppercase truncate">
-                        {item.profile.full_name || item.profile.email || 'Unnamed'}
-                      </p>
-                      <p className="text-[10px] text-gray-500 truncate">{item.profile.email || '-'}</p>
-                    </div>
-                    <div className="flex flex-wrap gap-1">
-                      <Badge className={cn('text-[8px] font-black uppercase rounded-sm border', getPreOnboardingPaymentBadgeClass(item))}>
-                        {getPreOnboardingPaymentLabel(item)}
-                      </Badge>
-                      <Badge className="text-[8px] font-black uppercase rounded-sm border bg-white/5 text-gray-400 border-white/10">
-                        {item.profile.selection_process_fee_payment_method || item.visaOrder?.payment_method || 'payment?'}
-                      </Badge>
-                    </div>
-                    <div className="text-[10px] text-gray-400">
-                      <div>Signup: {timeAgo(item.profile.created_at)}</div>
-                      <div>Owner: {shortId(item.profile.migma_seller_id)}</div>
-                    </div>
-                  </button>
-                ))}
+                {cards.map((item) => {
+                  const stuckState = getStuckState(item, productLine);
+                  return (
+                    <button
+                      key={item.profile.id}
+                      onClick={() => navigate(`/dashboard/users/${item.profile.id}`)}
+                      className="w-full text-left bg-black/60 border border-white/5 rounded-md p-3 space-y-2 hover:border-white/10 transition-colors"
+                    >
+                      <div>
+                        <p className="text-[11px] font-bold text-white uppercase truncate">
+                          {item.profile.full_name || item.profile.email || 'Unnamed'}
+                        </p>
+                        <p className="text-[10px] text-gray-500 truncate">{item.profile.email || '-'}</p>
+                      </div>
+                      <div className="flex flex-wrap gap-1">
+                        <Badge className={cn('text-[8px] font-black uppercase rounded-sm border', getPreOnboardingPaymentBadgeClass(item))}>
+                          {getPreOnboardingPaymentLabel(item)}
+                        </Badge>
+                        <Badge className="text-[8px] font-black uppercase rounded-sm border bg-white/5 text-gray-400 border-white/10">
+                          {item.profile.selection_process_fee_payment_method || item.visaOrder?.payment_method || 'payment?'}
+                        </Badge>
+                        {stuckState.label && (
+                          <Badge className={cn('text-[8px] font-black uppercase rounded-sm border', alertBadgeClass(stuckState.tone))}>
+                            {stuckState.label}
+                          </Badge>
+                        )}
+                      </div>
+                      <div className="text-[10px] text-gray-400">
+                        <div>Signup: {timeAgo(item.profile.created_at)}</div>
+                        <div>Owner: {shortId(item.profile.migma_seller_id)}</div>
+                      </div>
+                    </button>
+                  );
+                })}
                 {cards.length === 0 && <p className="text-[10px] text-gray-700 text-center py-4 italic">Empty</p>}
               </div>
             </div>
@@ -717,8 +746,9 @@ export function OnboardingCrmBoard({ productLine, title, description, mentorProf
               <div className="space-y-1.5">
                 <p className="text-[10px] font-black uppercase tracking-widest text-gray-500">General inactivity</p>
                 <div className="space-y-1 text-xs text-gray-400">
-                  <div className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full bg-yellow-400 shrink-0" /> Survey idle &gt; 3d</div>
-                  <div className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full bg-orange-400 shrink-0" /> Idle &gt; 7d</div>
+                  <div className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full bg-yellow-400 shrink-0" /> Step idle ≥ 48h</div>
+                  <div className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full bg-orange-400 shrink-0" /> Step idle ≥ 72h</div>
+                  <div className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full bg-red-500 shrink-0" /> Step idle ≥ 7d</div>
                 </div>
               </div>
             </div>
@@ -878,7 +908,7 @@ export function OnboardingCrmBoard({ productLine, title, description, mentorProf
                                 <td className="px-3 py-3 lg:px-5 lg:py-4">
                                   <div className="flex flex-col gap-1">
                                     <span className="text-[10px] text-gray-300">{timeAgo(profile.created_at)}</span>
-                                    <span className="text-[10px] text-gray-600 uppercase tracking-wider">updated {timeAgo(profile.updated_at)}</span>
+                                    <span className="text-[10px] text-gray-600 uppercase tracking-wider">activity {timeAgo(activityReference(profile))}</span>
                                   </div>
                                 </td>
                                 <td className="px-3 py-3 lg:px-5 lg:py-4">
@@ -899,7 +929,13 @@ export function OnboardingCrmBoard({ productLine, title, description, mentorProf
                                 </td>
                                 <td className="px-3 py-3 lg:px-5 lg:py-4">
                                   <div className="flex flex-col gap-1">
-                                    <span className="text-[10px] text-gray-300">{daysSince(profile.created_at) ?? 0}d since signup</span>
+                                    {stuckState.label ? (
+                                      <Badge className={cn('w-fit text-[9px] font-black uppercase rounded-sm border', alertBadgeClass(stuckState.tone))}>
+                                        {stuckState.label}
+                                      </Badge>
+                                    ) : (
+                                      <span className="text-[10px] text-gray-300">{daysSince(profile.created_at) ?? 0}d since signup</span>
+                                    )}
                                     {item.checkoutZellePending?.status && (
                                       <span className="text-[10px] text-gray-600 uppercase tracking-wider">{toLabel(item.checkoutZellePending.status)}</span>
                                     )}
@@ -953,7 +989,7 @@ export function OnboardingCrmBoard({ productLine, title, description, mentorProf
                               <td className="px-3 py-3 lg:px-5 lg:py-4">
                                 <div className="flex flex-col gap-1">
                                   <span className="text-[10px] text-gray-300">{getDeadlineLabel(item, productLine)}</span>
-                                  <span className="text-[10px] text-gray-600 uppercase tracking-wider">updated {timeAgo(profile.updated_at)}</span>
+                                  <span className="text-[10px] text-gray-600 uppercase tracking-wider">activity {timeAgo(activityReference(profile))}</span>
                                 </div>
                               </td>
                               <td className="px-3 py-3 lg:px-5 lg:py-4">
@@ -1017,6 +1053,7 @@ export function OnboardingCrmBoard({ productLine, title, description, mentorProf
                                 <div className="text-[10px] text-gray-400 space-y-1">
                                   <div>Signup: {timeAgo(profile.created_at)}</div>
                                   <div>Method: {profile.selection_process_fee_payment_method || item.visaOrder?.payment_method || 'payment?'}</div>
+                                  {stuckState.label && <div>{stuckState.label}</div>}
                                   <div>Owner: {shortId(profile.migma_seller_id)}</div>
                                 </div>
                               </div>
@@ -1036,7 +1073,7 @@ export function OnboardingCrmBoard({ productLine, title, description, mentorProf
                                 </div>
                                 <div className="text-[10px] text-gray-400 space-y-1">
                                   <div>{getDeadlineLabel(item, productLine)}</div>
-                                  <div>{stuckState.label || `Updated ${timeAgo(profile.updated_at)}`}</div>
+                                  <div>{stuckState.label || `Activity ${timeAgo(activityReference(profile))}`}</div>
                                   <div>{serviceRequest?.owner_user_id ? 'Assigned' : 'Unassigned'}</div>
                                 </div>
                               </div>

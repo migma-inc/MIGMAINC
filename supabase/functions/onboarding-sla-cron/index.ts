@@ -49,6 +49,22 @@ const COS_I94_DEADLINE_ALERTS: { days: number; followupType: string }[] = [
   { days: 7,  followupType: "sla_cos_i94_deadline_7d"  },
 ];
 
+const ONBOARDING_STEP_IDLE_HOURS = 48;
+const ALLOWED_ONBOARDING_SERVICE_FAMILIES = new Set(["cos", "transfer", "initial"]);
+
+const ONBOARDING_STEP_LABELS: Record<string, string> = {
+  selection_fee: "Selection Fee",
+  selection_survey: "Profile Survey",
+  wait_room: "Review Wait Room",
+  scholarship_selection: "University Selection",
+  placement_fee: "Placement Fee",
+  documents_upload: "Documents Upload",
+  payment: "Application Fee",
+  dados_complementares: "Complementary Data",
+  my_applications: "Applications",
+  acceptance_letter: "Acceptance Letter",
+};
+
 function getDeadlineAlertForDays(
   daysUntil: number,
   alerts: { days: number; followupType: string }[],
@@ -69,15 +85,21 @@ function getDeadlineAlertForDays(
 }
 
 async function notifyClient(trigger: string, profileId: string, data: Record<string, unknown>) {
-  const supabaseUrl = Deno.env.get("SUPABASE_URL") || Deno.env.get("MIGMA_REMOTE_URL") || "";
-  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ||
-    Deno.env.get("MIGMA_REMOTE_SERVICE_ROLE_KEY") || "";
+  const functionsBaseUrl = (
+    Deno.env.get("MIGMA_FUNCTIONS_BASE_URL") ||
+    Deno.env.get("FUNCTIONS_BASE_URL") ||
+    Deno.env.get("SUPABASE_URL") ||
+    Deno.env.get("MIGMA_REMOTE_URL") ||
+    ""
+  ).replace(/\/+$/, "");
+  const serviceKey = Deno.env.get("MIGMA_REMOTE_SERVICE_ROLE_KEY") ||
+    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
 
-  if (!supabaseUrl || !serviceKey) {
-    throw new Error("Missing SUPABASE_URL/SERVICE_ROLE for migma-notify");
+  if (!functionsBaseUrl || !serviceKey) {
+    throw new Error("Missing functions base URL or service role for migma-notify");
   }
 
-  const res = await fetch(`${supabaseUrl}/functions/v1/migma-notify`, {
+  const res = await fetch(`${functionsBaseUrl}/functions/v1/migma-notify`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -91,9 +113,12 @@ async function notifyClient(trigger: string, profileId: string, data: Record<str
     }),
   });
 
+  const responseText = await res.text();
   if (!res.ok) {
-    throw new Error(`migma-notify ${trigger} failed: ${res.status} ${await res.text()}`);
+    throw new Error(`migma-notify ${trigger} failed: ${res.status} ${responseText}`);
   }
+
+  return responseText ? JSON.parse(responseText) : { success: true };
 }
 
 // ---------------------------------------------------------------------------
@@ -106,9 +131,14 @@ serve(async (req) => {
 
   const authHeader = req.headers.get("authorization");
   const cronSecret = Deno.env.get("CRON_SECRET_KEY");
+  const acceptedSecrets = [
+    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY"),
+    Deno.env.get("MIGMA_REMOTE_SERVICE_ROLE_KEY"),
+    cronSecret,
+  ].filter((value): value is string => Boolean(value));
   const isAuthorized =
-    authHeader?.includes(Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "") ||
-    authHeader?.includes(cronSecret || "");
+    Boolean(authHeader) &&
+    acceptedSecrets.some((secret) => authHeader?.includes(secret));
 
   if (!isAuthorized) {
     return new Response(JSON.stringify({ error: "Unauthorized" }), {
@@ -126,10 +156,15 @@ serve(async (req) => {
     typeof body.test_service_request_id === "string" && body.test_service_request_id.trim()
       ? body.test_service_request_id.trim()
       : null;
+  const testProfileId =
+    typeof body.test_profile_id === "string" && body.test_profile_id.trim()
+      ? body.test_profile_id.trim()
+      : null;
   const requestedChecks = Array.isArray(body.checks)
-    ? body.checks.filter((value): value is string => typeof value === "string" && value.trim().length > 0)
+    ? body.checks.filter((value: unknown): value is string => typeof value === "string" && value.trim().length > 0)
     : null;
   const shouldRunCheck = (name: string) => !requestedChecks || requestedChecks.includes(name);
+  const dryRun = body.dry_run === true;
 
   const supabase = createClient(
     Deno.env.get("MIGMA_REMOTE_URL") || Deno.env.get("SUPABASE_URL") || "",
@@ -143,6 +178,8 @@ serve(async (req) => {
     failedWelcomeEmails: 0,
     transferDeadlineAlerts: 0,
     cosDeadlineAlerts: 0,
+    onboardingStepFollowups: 0,
+    dryRun,
     errors: [] as string[],
   };
 
@@ -195,6 +232,22 @@ serve(async (req) => {
     console.error("[SLA Cron]", msg);
   }
 
+  try {
+    if (shouldRunCheck("onboarding_steps")) {
+      report.onboardingStepFollowups = await checkOnboardingStepInactivity(
+        supabase,
+        testEmail,
+        testProfileId,
+        dryRun,
+      );
+    }
+    console.log(`[SLA Cron] Onboarding step followups: ${report.onboardingStepFollowups} followup(s) created`);
+  } catch (err) {
+    const msg = `onboardingStepFollowups: ${err instanceof Error ? err.message : String(err)}`;
+    report.errors.push(msg);
+    console.error("[SLA Cron]", msg);
+  }
+
   console.log("[SLA Cron] Run complete", report);
 
   return new Response(JSON.stringify({ success: true, report }), {
@@ -207,7 +260,7 @@ serve(async (req) => {
 // Helpers
 // ---------------------------------------------------------------------------
 
-type SupabaseClient = ReturnType<typeof createClient>;
+type SupabaseClient = any;
 
 /**
  * Returns true if an open followup of the given type already exists for the
@@ -641,6 +694,367 @@ async function checkCosI94Deadlines(
       deadline_date: profile.cos_i94_expiry_date,
     });
     created++;
+  }
+
+  return created;
+}
+
+// ---------------------------------------------------------------------------
+// Check 5: Onboarding step inactivity
+// ---------------------------------------------------------------------------
+
+type OnboardingProfile = {
+  id: string;
+  user_id: string | null;
+  email: string | null;
+  full_name: string | null;
+  source: string | null;
+  status: string | null;
+  service_type: string | null;
+  student_process_type: string | null;
+  onboarding_current_step: string | null;
+  onboarding_completed: boolean | null;
+  is_archived: boolean | null;
+  last_activity_at: string | null;
+  onboarding_step_entered_at: string | null;
+  onboarding_followup_started_at: string | null;
+  migma_checkout_completed_at: string | null;
+  updated_at: string | null;
+  created_at: string | null;
+  mentor_id: string | null;
+};
+
+type OnboardingStepFollowup = {
+  id: string;
+  profile_id: string;
+  onboarding_step: string;
+  step_label: string;
+  step_url: string;
+  idle_reference_at: string;
+  idle_hours: number;
+  status: string;
+  student_notified_at: string | null;
+  mentor_notified_at: string | null;
+  notification_count: number | null;
+};
+
+function normalizeServiceFamily(value: string | null | undefined): string | null {
+  const normalized = value?.trim().toLowerCase().replace(/_/g, "-").replace(/\s+/g, "-");
+  if (!normalized) return null;
+  if (normalized === "change-of-status" || normalized.includes("change-of-status")) return "cos";
+  if (normalized.includes("cos")) return "cos";
+  if (normalized.includes("transfer")) return "transfer";
+  if (normalized.includes("initial")) return "initial";
+  const family = normalized.split("-")[0];
+  return ALLOWED_ONBOARDING_SERVICE_FAMILIES.has(family) ? family : null;
+}
+
+function resolveProfileServiceFamily(profile: OnboardingProfile): "cos" | "transfer" | "initial" | null {
+  const family = normalizeServiceFamily(profile.service_type) ?? normalizeServiceFamily(profile.student_process_type);
+  if (family === "cos" || family === "transfer" || family === "initial") return family;
+  return null;
+}
+
+function getOnboardingStepLabel(step: string): string {
+  return ONBOARDING_STEP_LABELS[step] ?? step.replace(/[_-]+/g, " ").replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+function getOnboardingStepUrl(step: string): string {
+  const baseUrl = (Deno.env.get("APP_BASE_URL") ?? "https://migmainc.com").replace(/\/+$/, "");
+  return `${baseUrl}/student/onboarding?step=${encodeURIComponent(step)}`;
+}
+
+function latestIso(values: Array<string | null | undefined>): string | null {
+  let latest: Date | null = null;
+
+  for (const value of values) {
+    if (!value) continue;
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) continue;
+    if (!latest || parsed > latest) latest = parsed;
+  }
+
+  return latest?.toISOString() ?? null;
+}
+
+function idleHoursSince(iso: string): number {
+  return Math.floor((Date.now() - new Date(iso).getTime()) / (1000 * 60 * 60));
+}
+
+async function resolveLatestServiceRequestId(
+  supabase: SupabaseClient,
+  email: string | null,
+): Promise<string | null> {
+  if (!email) return null;
+
+  const { data } = await supabase
+    .from("visa_orders")
+    .select("service_request_id")
+    .eq("client_email", email)
+    .not("service_request_id", "is", null)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  return data?.service_request_id ?? null;
+}
+
+async function resolveMovedOnboardingStepFollowups(
+  supabase: SupabaseClient,
+  profileId: string,
+  currentStep: string,
+) {
+  const { error } = await supabase
+    .from("onboarding_step_followups")
+    .update({
+      status: "resolved",
+      resolved_at: new Date().toISOString(),
+      resolved_reason: "step_changed",
+    })
+    .eq("profile_id", profileId)
+    .eq("status", "open")
+    .neq("onboarding_step", currentStep);
+
+  if (error) {
+    console.error("[SLA Cron] Failed to resolve moved onboarding followups", {
+      profileId,
+      currentStep,
+      error,
+    });
+  }
+}
+
+async function getOpenOnboardingStepFollowup(
+  supabase: SupabaseClient,
+  profileId: string,
+  currentStep: string,
+): Promise<OnboardingStepFollowup | null> {
+  const { data, error } = await supabase
+    .from("onboarding_step_followups")
+    .select("id, profile_id, onboarding_step, step_label, step_url, idle_reference_at, idle_hours, status, student_notified_at, mentor_notified_at, notification_count")
+    .eq("profile_id", profileId)
+    .eq("onboarding_step", currentStep)
+    .eq("status", "open")
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    console.error("[SLA Cron] Failed to read onboarding step followup", {
+      profileId,
+      currentStep,
+      error,
+    });
+    return null;
+  }
+
+  return data as OnboardingStepFollowup | null;
+}
+
+async function createStudentDashboardNotification(
+  supabase: SupabaseClient,
+  profile: OnboardingProfile,
+  stepLabel: string,
+  stepUrl: string,
+) {
+  if (!profile.user_id) return;
+
+  const { error } = await supabase
+    .from("student_notifications")
+    .insert({
+      user_id: profile.user_id,
+      title: "Continue your Migma onboarding",
+      message: `You have been on ${stepLabel} for more than 48 hours. Continue here: ${stepUrl}`,
+    });
+
+  if (error) {
+    console.error("[SLA Cron] Failed to create student dashboard notification", {
+      profileId: profile.id,
+      error,
+    });
+  }
+}
+
+async function tryNotify(
+  trigger: string,
+  profileId: string,
+  data: Record<string, unknown>,
+): Promise<{ success: boolean; result: Record<string, unknown> }> {
+  try {
+    const result = await notifyClient(trigger, profileId, data);
+    return { success: true, result };
+  } catch (err) {
+    return {
+      success: false,
+      result: {
+        error: err instanceof Error ? err.message : String(err),
+      },
+    };
+  }
+}
+
+async function dispatchOnboardingStepNotifications(
+  supabase: SupabaseClient,
+  followup: OnboardingStepFollowup,
+  profile: OnboardingProfile,
+  serviceFamily: "cos" | "transfer" | "initial",
+) {
+  const data = {
+    followup_id: followup.id,
+    profile_id: profile.id,
+    client_id: profile.id,
+    client_name: profile.full_name ?? profile.email ?? "Student",
+    client_email: profile.email ?? undefined,
+    service_family: serviceFamily,
+    step: followup.onboarding_step,
+    step_label: followup.step_label,
+    step_url: followup.step_url,
+    idle_hours: Math.max(followup.idle_hours ?? ONBOARDING_STEP_IDLE_HOURS, idleHoursSince(followup.idle_reference_at)),
+  };
+
+  const updates: Record<string, unknown> = {
+    notification_count: (followup.notification_count ?? 0) + 1,
+  };
+
+  if (!followup.student_notified_at) {
+    const studentResult = await tryNotify("onboarding_step_followup", profile.id, data);
+    updates.student_notification_result = studentResult.result;
+
+    if (studentResult.success) {
+      updates.student_notified_at = new Date().toISOString();
+      await createStudentDashboardNotification(supabase, profile, followup.step_label, followup.step_url);
+    }
+  }
+
+  if (profile.mentor_id && !followup.mentor_notified_at) {
+    const mentorResult = await tryNotify("mentor_onboarding_step_stalled", profile.mentor_id, data);
+    updates.mentor_notification_result = mentorResult.result;
+
+    if (mentorResult.success) {
+      updates.mentor_notified_at = new Date().toISOString();
+    }
+  } else if (!profile.mentor_id) {
+    updates.mentor_notification_result = { skipped: "no_mentor" };
+  }
+
+  const { error } = await supabase
+    .from("onboarding_step_followups")
+    .update(updates)
+    .eq("id", followup.id);
+
+  if (error) {
+    console.error("[SLA Cron] Failed to update onboarding followup notification state", {
+      followupId: followup.id,
+      error,
+    });
+  }
+}
+
+async function checkOnboardingStepInactivity(
+  supabase: SupabaseClient,
+  testEmail: string | null = null,
+  testProfileId: string | null = null,
+  dryRun = false,
+): Promise<number> {
+  let created = 0;
+
+  let profileQuery = supabase
+    .from("user_profiles")
+    .select(`
+      id, user_id, email, full_name, source, status, service_type, student_process_type,
+      onboarding_current_step, onboarding_completed, is_archived,
+      last_activity_at, onboarding_step_entered_at, onboarding_followup_started_at, migma_checkout_completed_at,
+      updated_at, created_at, mentor_id
+    `)
+    .eq("source", "migma")
+    .not("onboarding_followup_started_at", "is", null)
+    .not("onboarding_current_step", "is", null);
+
+  if (testEmail) profileQuery = profileQuery.eq("email", testEmail);
+  if (testProfileId) profileQuery = profileQuery.eq("id", testProfileId);
+
+  const { data: profiles, error } = await profileQuery;
+
+  if (error) {
+    console.error("[SLA Cron] Error fetching profiles for onboarding inactivity", error);
+    throw error;
+  }
+
+  if (!profiles?.length) return 0;
+
+  for (const profile of profiles as OnboardingProfile[]) {
+    if (!profile.user_id) continue;
+    if (profile.status && profile.status !== "active") continue;
+    if (profile.onboarding_completed || profile.is_archived) continue;
+
+    const currentStep = profile.onboarding_current_step ?? "";
+    if (!currentStep || currentStep === "completed") continue;
+
+    const serviceFamily = resolveProfileServiceFamily(profile);
+    if (!serviceFamily) continue;
+
+    const idleReferenceAt = latestIso([
+      profile.last_activity_at,
+      profile.onboarding_step_entered_at,
+      profile.onboarding_followup_started_at,
+      profile.migma_checkout_completed_at,
+    ]);
+
+    if (!idleReferenceAt) continue;
+
+    const idleHours = idleHoursSince(idleReferenceAt);
+    if (idleHours < ONBOARDING_STEP_IDLE_HOURS) continue;
+
+    if (dryRun) {
+      created++;
+      continue;
+    }
+
+    await resolveMovedOnboardingStepFollowups(supabase, profile.id, currentStep);
+
+    const existing = await getOpenOnboardingStepFollowup(supabase, profile.id, currentStep);
+    if (existing) {
+      await dispatchOnboardingStepNotifications(supabase, existing, profile, serviceFamily);
+      continue;
+    }
+
+    const serviceRequestId = await resolveLatestServiceRequestId(supabase, profile.email);
+    const stepLabel = getOnboardingStepLabel(currentStep);
+    const stepUrl = getOnboardingStepUrl(currentStep);
+
+    const { data: inserted, error: insertError } = await supabase
+      .from("onboarding_step_followups")
+      .insert({
+        profile_id: profile.id,
+        service_request_id: serviceRequestId,
+        mentor_profile_id: profile.mentor_id,
+        service_family: serviceFamily,
+        onboarding_step: currentStep,
+        step_label: stepLabel,
+        step_url: stepUrl,
+        idle_reference_at: idleReferenceAt,
+        idle_hours: idleHours,
+        status: "open",
+        notes: `${profile.full_name ?? profile.email ?? profile.id} has been idle in ${stepLabel} for ${idleHours} hour(s).`,
+      })
+      .select("id, profile_id, onboarding_step, step_label, step_url, idle_reference_at, idle_hours, status, student_notified_at, mentor_notified_at, notification_count")
+      .single();
+
+    if (insertError || !inserted) {
+      console.error("[SLA Cron] Failed to create onboarding step followup", {
+        profileId: profile.id,
+        currentStep,
+        insertError,
+      });
+      continue;
+    }
+
+    created++;
+    await dispatchOnboardingStepNotifications(
+      supabase,
+      inserted as OnboardingStepFollowup,
+      profile,
+      serviceFamily,
+    );
   }
 
   return created;
