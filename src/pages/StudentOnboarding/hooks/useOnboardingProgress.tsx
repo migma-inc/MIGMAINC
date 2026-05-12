@@ -115,7 +115,10 @@ export const useOnboardingProgress = () => {
     try {
       const { error } = await supabase
         .from('user_profiles')
-        .update({ onboarding_current_step: step })
+        .update({
+          onboarding_current_step: step,
+          last_activity_at: new Date().toISOString(),
+        })
         .eq('user_id', user.id);
       if (error) throw error;
     } catch (err: unknown) {

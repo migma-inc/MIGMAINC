@@ -285,7 +285,8 @@ const MigmaCheckout: React.FC = () => {
           .from('user_profiles')
           .update({
             migma_checkout_completed_at: new Date().toISOString(),
-            onboarding_current_step: 'selection_survey'
+            onboarding_current_step: 'selection_survey',
+            last_activity_at: new Date().toISOString()
           })
           .eq('user_id', session.user.id);
       }

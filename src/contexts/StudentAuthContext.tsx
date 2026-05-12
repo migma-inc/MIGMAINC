@@ -25,6 +25,8 @@ interface StudentProfile {
   visa_transfer_active: boolean | null;
   onboarding_completed: boolean;
   onboarding_current_step: string | null;
+  onboarding_step_entered_at: string | null;
+  last_activity_at: string | null;
   has_paid_reinstatement_package: boolean;
   migma_seller_id: string | null;
   // Deadline fields (Transfer / COS)
@@ -88,9 +90,13 @@ export function StudentAuthProvider({ children }: { children: ReactNode }) {
 
   const updateUserProfile = useCallback(async (updates: Partial<StudentProfile>) => {
     if (!user?.id) return;
+    const nextUpdates = {
+      ...updates,
+      last_activity_at: new Date().toISOString(),
+    };
     const { error } = await supabase
       .from('user_profiles')
-      .update(updates)
+      .update(nextUpdates)
       .eq('user_id', user.id);
 
     if (error) {
@@ -98,7 +104,7 @@ export function StudentAuthProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    setUserProfile(prev => prev ? { ...prev, ...updates } : prev);
+    setUserProfile(prev => prev ? { ...prev, ...nextUpdates } : prev);
   }, [user?.id]);
 
   useEffect(() => {
