@@ -23,6 +23,7 @@ import {
   Phone,
   PlayCircle,
   RefreshCw,
+  Send,
   Shield,
   Tag,
   TrendingUp,
@@ -124,6 +125,100 @@ function timeAgo(iso: string | null | undefined) {
   const hrs = Math.floor(mins / 60);
   if (hrs < 24) return `${hrs}h ago`;
   return `${Math.floor(hrs / 24)}d ago`;
+}
+
+type SupportChatNotice = {
+  messageId: string;
+  receivedAt: number;
+} | null;
+
+type SupportChatReadReceipt = {
+  last_read_message_id: string | null;
+  last_read_at: string | null;
+} | null;
+
+function isSupportChatReadReceiptMissingError(error: { code?: string; message: string }) {
+  return error.code === '42P01'
+    || error.code === 'PGRST205'
+    || error.message.toLowerCase().includes('support_chat_read_receipts');
+}
+
+function toSupportChatMessage(record: unknown): CrmSupportChatMessage | null {
+  if (!record || typeof record !== 'object') return null;
+  const row = record as Record<string, unknown>;
+  const id = typeof row.id === 'string' ? row.id : null;
+  const profileId = typeof row.profile_id === 'string' ? row.profile_id : null;
+  const role = typeof row.role === 'string' ? row.role : null;
+  const content = typeof row.content === 'string' ? row.content : null;
+  const createdAt = typeof row.created_at === 'string' ? row.created_at : null;
+  const senderUserId = typeof row.sender_user_id === 'string' ? row.sender_user_id : null;
+  const senderProfileId = typeof row.sender_profile_id === 'string' ? row.sender_profile_id : null;
+  const senderDisplayName = typeof row.sender_display_name === 'string' ? row.sender_display_name : null;
+  const senderRoleLabel = typeof row.sender_role_label === 'string' ? row.sender_role_label : null;
+
+  if (!id || !profileId || !role || content === null || !createdAt) return null;
+
+  return {
+    id,
+    profile_id: profileId,
+    role,
+    content,
+    created_at: createdAt,
+    sender_user_id: senderUserId,
+    sender_profile_id: senderProfileId,
+    sender_display_name: senderDisplayName,
+    sender_role_label: senderRoleLabel,
+  };
+}
+
+function sortSupportChatMessages(messages: CrmSupportChatMessage[]) {
+  return [...messages].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+}
+
+function mergeSupportChatMessage(
+  messages: CrmSupportChatMessage[],
+  nextMessage: CrmSupportChatMessage,
+) {
+  const withoutDuplicate = messages.filter((message) => message.id !== nextMessage.id);
+  return sortSupportChatMessages([...withoutDuplicate, nextMessage]);
+}
+
+function latestSupportChatMessage(messages: CrmSupportChatMessage[]) {
+  return messages.length > 0 ? messages[messages.length - 1] : null;
+}
+
+function latestUnreadSupportChatMessage(
+  messages: CrmSupportChatMessage[],
+  receipt: SupportChatReadReceipt,
+) {
+  if (messages.length === 0) return null;
+  if (!receipt?.last_read_message_id && !receipt?.last_read_at) {
+    return latestSupportChatMessage(messages);
+  }
+
+  if (receipt.last_read_message_id) {
+    const lastReadIndex = messages.findIndex((message) => message.id === receipt.last_read_message_id);
+    if (lastReadIndex >= 0) {
+      const unreadMessages = messages.slice(lastReadIndex + 1);
+      return unreadMessages.length > 0 ? unreadMessages[unreadMessages.length - 1] : null;
+    }
+  }
+
+  if (receipt.last_read_at) {
+    const lastReadTime = new Date(receipt.last_read_at).getTime();
+    if (!Number.isNaN(lastReadTime)) {
+      const unreadMessages = messages.filter((message) => new Date(message.created_at).getTime() > lastReadTime);
+      return unreadMessages.length > 0 ? unreadMessages[unreadMessages.length - 1] : null;
+    }
+  }
+
+  return latestSupportChatMessage(messages);
+}
+
+function displayFirstName(value: string | null | undefined, fallback: string) {
+  const normalized = String(value ?? '').trim();
+  if (!normalized) return fallback;
+  return normalized.split(/\s+/)[0] || fallback;
 }
 
 function paymentBadge(status: string | null) {
@@ -2845,11 +2940,24 @@ const HANDOFF_STATUS_COLORS: Record<CrmSupportHandoff['status'], string> = {
 function SupportChatMessageBubble({ msg }: { msg: CrmSupportChatMessage }) {
   const isStudent = msg.role === 'user';
   const isSystem = msg.role === 'system';
-  const roleLabel = isStudent ? 'Student' : isSystem ? 'System' : 'AI assistant';
-  const RoleIcon = isStudent ? User : isSystem ? Shield : Bot;
+  const isHumanTeam = msg.role === 'mentor' || msg.role === 'admin';
+  const studentLabel = msg.sender_display_name || 'Student';
+  const humanLabel = displayFirstName(
+    msg.sender_display_name,
+    msg.role === 'mentor' ? 'Mentor' : 'Admin',
+  );
+  const roleLabel = isStudent
+    ? studentLabel
+    : isSystem
+      ? 'System'
+      : isHumanTeam
+        ? humanLabel
+        : 'AI assistant';
+  const roleSuffix = isHumanTeam && msg.sender_role_label ? msg.sender_role_label : null;
+  const RoleIcon = isStudent ? User : isSystem ? Shield : isHumanTeam ? UserCheck : Bot;
 
   return (
-    <div className={cn('flex', isStudent ? 'justify-end' : 'justify-start')}>
+    <div className={cn('flex', isStudent ? 'justify-start' : 'justify-end')}>
       <div
         className={cn(
           'max-w-[85%] rounded-xl border px-3 py-2 text-sm leading-relaxed text-white shadow-sm md:max-w-[76%]',
@@ -2857,14 +2965,24 @@ function SupportChatMessageBubble({ msg }: { msg: CrmSupportChatMessage }) {
             ? 'border-[#CE9F48]/25 bg-[#CE9F48]/15'
             : isSystem
               ? 'border-blue-500/20 bg-blue-500/10 text-blue-100/85'
-              : 'border-white/10 bg-white/5 text-white/80',
+              : isHumanTeam
+                ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-50/90'
+                : 'border-white/10 bg-white/5 text-white/80',
         )}
       >
         <div className="mb-1.5 flex flex-wrap items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide">
           <RoleIcon className="h-3.5 w-3.5 opacity-70" />
-          <span className={isStudent ? 'text-[#CE9F48]' : isSystem ? 'text-blue-300' : 'text-white/45'}>
+          <span className={isStudent ? 'text-[#CE9F48]' : isSystem ? 'text-blue-300' : isHumanTeam ? 'text-emerald-300' : 'text-white/45'}>
             {roleLabel}
           </span>
+          {roleSuffix && (
+            <>
+              <span className="text-white/20">-</span>
+              <span className="font-medium normal-case tracking-normal text-emerald-300/70">
+                {roleSuffix}
+              </span>
+            </>
+          )}
           <span className="text-white/20">-</span>
           <span className="font-medium normal-case tracking-normal text-white/30">
             {fmtDate(msg.created_at)}
@@ -2876,22 +2994,127 @@ function SupportChatMessageBubble({ msg }: { msg: CrmSupportChatMessage }) {
   );
 }
 
+function SupportChatConversation({
+  messages,
+  notice,
+  onClearNotice,
+  emptyMessage = 'No AI conversation recorded for this student yet.',
+  maxHeightClass = 'max-h-[58vh]',
+  scrollToMessageId,
+  highlightMessageId,
+}: {
+  messages: CrmSupportChatMessage[];
+  notice?: SupportChatNotice;
+  onClearNotice?: () => void;
+  emptyMessage?: string;
+  maxHeightClass?: string;
+  scrollToMessageId?: string | null;
+  highlightMessageId?: string | null;
+}) {
+  const latestMessage = latestSupportChatMessage(messages);
+  const messageRefs = useRef<Record<string, HTMLDivElement | null>>({});
+
+  useEffect(() => {
+    if (!scrollToMessageId) return;
+
+    const timeoutId = window.setTimeout(() => {
+      messageRefs.current[scrollToMessageId]?.scrollIntoView({
+        block: 'center',
+        inline: 'nearest',
+      });
+    }, 50);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [messages.length, scrollToMessageId]);
+
+  return (
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-xs text-white/40">
+          {messages.length} message(s) recorded in the student support conversation.
+        </p>
+        <span className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.03] px-2.5 py-1 text-[11px] font-semibold text-white/45">
+          <Clock3 className="h-3.5 w-3.5 text-[#CE9F48]" />
+          {latestMessage ? `Last message ${timeAgo(latestMessage.created_at)}` : 'No activity yet'}
+        </span>
+      </div>
+
+      {notice && (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-[#CE9F48]/30 bg-[#CE9F48]/10 px-3 py-2 text-xs text-[#F4D28B]">
+          <span className="inline-flex items-center gap-2 font-semibold">
+            <MessageCircle className="h-4 w-4" />
+            New support chat message received in real time.
+          </span>
+          {onClearNotice && (
+            <button
+              type="button"
+              onClick={onClearNotice}
+              className="rounded-md border border-[#CE9F48]/25 px-2 py-1 text-[10px] font-black uppercase tracking-widest text-[#F4D28B] transition-colors hover:bg-[#CE9F48]/15"
+            >
+              Dismiss
+            </button>
+          )}
+        </div>
+      )}
+
+      {messages.length === 0 ? (
+        <div className="rounded-xl border border-dashed border-white/10 bg-white/[0.02] px-4 py-8 text-center">
+          <MessageCircle className="mx-auto mb-3 h-7 w-7 text-white/20" />
+          <p className="text-sm text-white/35">{emptyMessage}</p>
+        </div>
+      ) : (
+        <div className={cn('space-y-3 overflow-y-auto rounded-xl border border-white/10 bg-black/25 px-3 py-3', maxHeightClass)}>
+          {messages.map((msg) => (
+            <div
+              key={msg.id}
+              ref={(node) => {
+                messageRefs.current[msg.id] = node;
+              }}
+              className={cn(
+                'rounded-xl transition-shadow',
+                msg.id === highlightMessageId && 'shadow-[0_0_0_2px_rgba(206,159,72,0.45)]',
+              )}
+            >
+              <SupportChatMessageBubble msg={msg} />
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function SupportTab({
   handoffs,
   chatMessages,
   profileId,
+  accessRole,
   onRefresh,
+  notice,
+  onClearNotice,
+  onChatViewed,
+  readReceipt,
 }: {
   handoffs: CrmSupportHandoff[];
   chatMessages: CrmSupportChatMessage[];
   profileId: string;
+  accessRole: 'admin' | 'mentor';
   onRefresh: () => void;
+  notice: SupportChatNotice;
+  onClearNotice: () => void;
+  onChatViewed: () => void;
+  readReceipt: SupportChatReadReceipt;
 }) {
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [assignInput, setAssignInput] = useState<Record<string, string>>({});
   const [resolveNoteInput, setResolveNoteInput] = useState<Record<string, string>>({});
   const [resolvingId, setResolvingId] = useState<string | null>(null);
   const [chatOpen, setChatOpen] = useState(false);
+  const [modalScrollTargetId, setModalScrollTargetId] = useState<string | null>(null);
+  const [modalUnreadTargetId, setModalUnreadTargetId] = useState<string | null>(null);
+  const [replyInput, setReplyInput] = useState('');
+  const [sendingReply, setSendingReply] = useState(false);
+  const [replyError, setReplyError] = useState<string | null>(null);
 
   const updateHandoff = async (
     id: string,
@@ -2954,13 +3177,77 @@ function SupportTab({
 
   const openHandoffs = handoffs.filter((handoff) => handoff.status !== 'resolved').length;
   const latestChatMessage = chatMessages[chatMessages.length - 1] ?? null;
+  const replyRole = accessRole === 'mentor' ? 'mentor' : 'admin';
+  const replyPlaceholder = accessRole === 'mentor'
+    ? 'Write a message to the student as mentor...'
+    : 'Write a message to the student as Migma team...';
+
+  const openChatModal = () => {
+    const unreadTargetMessage = latestUnreadSupportChatMessage(chatMessages, readReceipt);
+    const targetMessage = unreadTargetMessage ?? latestSupportChatMessage(chatMessages);
+    setModalScrollTargetId(targetMessage?.id ?? null);
+    setModalUnreadTargetId(unreadTargetMessage?.id ?? null);
+    setChatOpen(true);
+  };
+
+  const sendSupportReply = async () => {
+    const content = replyInput.trim();
+    if (!content || sendingReply) return;
+
+    setSendingReply(true);
+    setReplyError(null);
+
+    try {
+      const { data: authData } = await supabase.auth.getUser();
+      const metadata = authData.user?.user_metadata as Record<string, unknown> | undefined;
+      const metadataName = typeof metadata?.full_name === 'string'
+        ? metadata.full_name
+        : typeof metadata?.name === 'string'
+          ? metadata.name
+          : null;
+      const senderDisplayName = metadataName || authData.user?.email || (accessRole === 'mentor' ? 'Migma Mentor' : 'Migma Team');
+
+      const { error: messageError } = await supabase
+        .from('support_chat_messages')
+        .insert({
+          profile_id: profileId,
+          role: replyRole,
+          content,
+          sender_display_name: senderDisplayName,
+        });
+
+      if (messageError) {
+        console.error('[AdminUserDetail] Failed to send support chat reply', messageError);
+        setReplyError(`Could not send message: ${messageError.message}`);
+        return;
+      }
+
+      setReplyInput('');
+      setModalScrollTargetId(null);
+      setModalUnreadTargetId(null);
+    } finally {
+      setSendingReply(false);
+    }
+  };
+
+  const handleReplyKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (event.key !== 'Enter' || event.shiftKey) return;
+    event.preventDefault();
+    void sendSupportReply();
+  };
+
+  useEffect(() => {
+    if (!chatOpen) return;
+    const timeoutId = window.setTimeout(onChatViewed, 350);
+    return () => window.clearTimeout(timeoutId);
+  }, [chatMessages.length, chatOpen, onChatViewed]);
 
   return (
     <div className="space-y-5">
       <SectionCard title="AI Conversation History" icon={MessageCircle}>
         <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
           <p className="text-xs text-white/40">
-            {chatMessages.length} message(s) recorded between the student and the AI assistant.
+            {chatMessages.length} message(s) recorded in the student support conversation.
           </p>
           {openHandoffs > 0 && (
             <span className="rounded-full border border-yellow-500/30 bg-yellow-500/10 px-2.5 py-1 text-xs font-bold text-yellow-300">
@@ -2969,22 +3256,43 @@ function SupportTab({
           )}
         </div>
 
-        {chatMessages.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-white/10 bg-white/[0.02] px-4 py-8 text-center">
-            <MessageCircle className="mx-auto mb-3 h-7 w-7 text-white/20" />
-            <p className="text-sm text-white/35">No AI conversation recorded for this student yet.</p>
+        {notice && (
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-[#CE9F48]/30 bg-[#CE9F48]/10 px-3 py-2 text-xs text-[#F4D28B]">
+            <span className="inline-flex items-center gap-2 font-semibold">
+              <MessageCircle className="h-4 w-4" />
+              New support chat message received in real time.
+            </span>
+            <button
+              type="button"
+              onClick={onClearNotice}
+              className="rounded-md border border-[#CE9F48]/25 px-2 py-1 text-[10px] font-black uppercase tracking-widest text-[#F4D28B] transition-colors hover:bg-[#CE9F48]/15"
+            >
+              Dismiss
+            </button>
           </div>
+        )}
+
+        {chatMessages.length === 0 ? (
+          <button
+            type="button"
+            onClick={openChatModal}
+            className="group w-full rounded-xl border border-dashed border-white/10 bg-white/[0.02] px-4 py-8 text-center transition-colors hover:border-[#CE9F48]/35 hover:bg-white/[0.05]"
+          >
+            <MessageCircle className="mx-auto mb-3 h-7 w-7 text-white/20 group-hover:text-[#CE9F48]" />
+            <p className="text-sm font-bold text-white/70">Start student support conversation</p>
+            <p className="mt-1 text-xs text-white/35">No support chat messages recorded yet.</p>
+          </button>
         ) : (
           <button
             type="button"
-            onClick={() => setChatOpen(true)}
+            onClick={openChatModal}
             className="group w-full rounded-xl border border-white/10 bg-white/[0.03] p-4 text-left transition-colors hover:border-[#CE9F48]/35 hover:bg-white/[0.06]"
           >
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <p className="text-sm font-bold text-white">Open student conversation</p>
                 <p className="mt-1 text-xs text-white/40">
-                  {chatMessages.length} message(s) available in the AI support history.
+                  {chatMessages.length} message(s) available. {latestChatMessage ? `Last message ${timeAgo(latestChatMessage.created_at)}.` : ''}
                 </p>
               </div>
               <span className="inline-flex items-center gap-2 rounded-lg border border-[#CE9F48]/25 bg-[#CE9F48]/10 px-3 py-2 text-xs font-bold text-[#CE9F48] transition-colors group-hover:bg-[#CE9F48]/15">
@@ -3009,13 +3317,48 @@ function SupportTab({
           <div className="border-b border-white/10 px-5 py-4">
             <DialogTitle className="flex items-center gap-2 text-sm font-semibold text-white">
               <MessageCircle className="h-4 w-4 text-[#CE9F48]" />
-              AI Conversation History - {chatMessages.length} messages
+              Support Conversation - {chatMessages.length} messages
             </DialogTitle>
           </div>
-          <div className="flex-1 space-y-3 overflow-y-auto px-4 py-4">
-            {chatMessages.map((msg) => (
-              <SupportChatMessageBubble key={msg.id} msg={msg} />
-            ))}
+          <div className="flex-1 overflow-hidden px-4 py-4">
+            <SupportChatConversation
+              messages={chatMessages}
+              notice={notice}
+              onClearNotice={onClearNotice}
+              maxHeightClass="max-h-[48vh]"
+              scrollToMessageId={modalScrollTargetId}
+              highlightMessageId={modalUnreadTargetId}
+            />
+          </div>
+          <div className="border-t border-white/10 bg-black/30 px-4 py-4">
+            {replyError && (
+              <div className="mb-3 rounded-lg border border-red-500/25 bg-red-500/10 px-3 py-2 text-xs text-red-200">
+                {replyError}
+              </div>
+            )}
+            <div className="flex items-end gap-2">
+              <textarea
+                value={replyInput}
+                onChange={(event) => setReplyInput(event.target.value)}
+                onKeyDown={handleReplyKeyDown}
+                rows={2}
+                placeholder={replyPlaceholder}
+                disabled={sendingReply}
+                className="min-h-[44px] max-h-32 flex-1 resize-none rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-sm leading-relaxed text-white outline-none transition-colors placeholder:text-white/25 focus:border-[#CE9F48]/45 disabled:cursor-not-allowed disabled:opacity-60"
+              />
+              <button
+                type="button"
+                onClick={() => void sendSupportReply()}
+                disabled={sendingReply || !replyInput.trim()}
+                className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-[#CE9F48]/30 bg-[#CE9F48]/15 text-[#CE9F48] transition-colors hover:bg-[#CE9F48]/25 disabled:cursor-not-allowed disabled:opacity-45"
+                aria-label="Send support message"
+              >
+                {sendingReply ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+              </button>
+            </div>
+            <p className="mt-2 text-[11px] text-white/30">
+              Sends as {accessRole === 'mentor' ? 'mentor' : 'Migma team'} and appears instantly in the student's Support chat.
+            </p>
           </div>
         </DialogContent>
       </Dialog>
@@ -3145,6 +3488,10 @@ export function AdminUserDetail() {
 
   const [loading, setLoading] = useState(true);
   const [detail, setDetail] = useState<CaseDetailPage | null>(null);
+  const [liveSupportChatMessages, setLiveSupportChatMessages] = useState<CrmSupportChatMessage[]>([]);
+  const [supportChatNotice, setSupportChatNotice] = useState<SupportChatNotice>(null);
+  const [supportChatReadReceipt, setSupportChatReadReceipt] = useState<SupportChatReadReceipt>(null);
+  const [supportReadTrackingDisabled, setSupportReadTrackingDisabled] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<Tab>('overview');
 
@@ -3175,6 +3522,9 @@ export function AdminUserDetail() {
       setError(err ?? 'Failed to load profile.');
     } else {
       setDetail(data);
+      setLiveSupportChatMessages(sortSupportChatMessages(data.supportChatMessages));
+      setSupportChatNotice(null);
+      setSupportChatReadReceipt(null);
       setOwnerInput(data.primaryRequest?.owner_user_id ?? '');
     }
     setLoading(false);
@@ -3182,6 +3532,137 @@ export function AdminUserDetail() {
 
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { void load(); }, [load]);
+
+  useEffect(() => {
+    const currentProfileId = detail?.profile.id;
+    if (!currentProfileId) return;
+
+    const channel = supabase
+      .channel(`crm-support-chat-${currentProfileId}`)
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'support_chat_messages', filter: `profile_id=eq.${currentProfileId}` },
+        (payload) => {
+          const nextMessage = toSupportChatMessage(payload.new);
+          if (!nextMessage) return;
+
+          setLiveSupportChatMessages((current) => mergeSupportChatMessage(current, nextMessage));
+          if (!currentAdminId || nextMessage.sender_user_id !== currentAdminId) {
+            setSupportChatNotice({ messageId: nextMessage.id, receivedAt: Date.now() });
+          }
+        },
+      )
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'support_chat_messages', filter: `profile_id=eq.${currentProfileId}` },
+        (payload) => {
+          const nextMessage = toSupportChatMessage(payload.new);
+          if (!nextMessage) return;
+          setLiveSupportChatMessages((current) => mergeSupportChatMessage(current, nextMessage));
+        },
+      )
+      .on(
+        'postgres_changes',
+        { event: 'DELETE', schema: 'public', table: 'support_chat_messages', filter: `profile_id=eq.${currentProfileId}` },
+        (payload) => {
+          const deletedId = typeof payload.old?.id === 'string' ? payload.old.id : null;
+          if (!deletedId) return;
+          setLiveSupportChatMessages((current) => current.filter((message) => message.id !== deletedId));
+        },
+      )
+      .subscribe((status, err) => {
+        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+          console.warn('[AdminUserDetail] Support chat realtime subscription issue', status, err);
+        }
+      });
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [currentAdminId, detail?.profile.id]);
+
+  useEffect(() => {
+    const currentProfileId = detail?.profile.id;
+    if (!currentProfileId || !currentAdminId || supportReadTrackingDisabled) return;
+
+    let cancelled = false;
+
+    async function loadSupportChatReadReceipt() {
+      const { data, error: readError } = await supabase
+        .from('support_chat_read_receipts')
+        .select('last_read_message_id, last_read_at')
+        .eq('profile_id', currentProfileId)
+        .eq('viewer_user_id', currentAdminId)
+        .maybeSingle();
+
+      if (cancelled) return;
+
+      if (readError) {
+        if (isSupportChatReadReceiptMissingError(readError)) {
+          setSupportReadTrackingDisabled(true);
+          return;
+        }
+
+        console.warn('[AdminUserDetail] Failed to load support chat read receipt', readError);
+        return;
+      }
+
+      setSupportChatReadReceipt((data ?? null) as SupportChatReadReceipt);
+    }
+
+    void loadSupportChatReadReceipt();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [currentAdminId, detail?.profile.id, supportReadTrackingDisabled]);
+
+  const latestLiveSupportMessage = latestSupportChatMessage(liveSupportChatMessages);
+  const latestUnreadLiveSupportMessage = supportReadTrackingDisabled
+    ? null
+    : latestUnreadSupportChatMessage(liveSupportChatMessages, supportChatReadReceipt);
+  const hasUnreadLiveSupportMessage = Boolean(supportChatNotice || latestUnreadLiveSupportMessage);
+
+  const markSupportChatRead = useCallback(async () => {
+    if (!detail?.profile.id || !currentAdminId || !latestLiveSupportMessage || supportReadTrackingDisabled) return;
+
+    const readAt = new Date().toISOString();
+    const { error: readError } = await supabase
+      .from('support_chat_read_receipts')
+      .upsert(
+        {
+          profile_id: detail.profile.id,
+          viewer_user_id: currentAdminId,
+          viewer_role: context?.accessRole ?? 'admin',
+          last_read_message_id: latestLiveSupportMessage.id,
+          last_read_at: readAt,
+        },
+        { onConflict: 'profile_id,viewer_user_id' },
+      );
+
+    if (!readError) {
+      setSupportChatReadReceipt({
+        last_read_message_id: latestLiveSupportMessage.id,
+        last_read_at: readAt,
+      });
+      setSupportChatNotice(null);
+      return;
+    }
+
+    if (isSupportChatReadReceiptMissingError(readError)) {
+      setSupportReadTrackingDisabled(true);
+      console.info('[AdminUserDetail] Support chat read tracking is waiting for the local DB migration to be applied.');
+      return;
+    }
+
+    console.warn('[AdminUserDetail] Failed to mark support chat as read', readError);
+  }, [
+    context?.accessRole,
+    currentAdminId,
+    detail?.profile.id,
+    latestLiveSupportMessage,
+    supportReadTrackingDisabled,
+  ]);
 
   // Mutations
   async function handleAssign() {
@@ -3345,10 +3826,11 @@ export function AdminUserDetail() {
             : tab.id === 'followups' ? detail.followups.length
             : tab.id === 'survey' ? detail.surveyResponses.length
             : tab.id === 'journey' ? (detail.studentDocuments.length + detail.stageHistory.length) || null
-            : tab.id === 'support' ? detail.supportHandoffs.filter(h => h.status !== 'resolved').length || detail.supportChatMessages.length || null
+            : tab.id === 'support' ? detail.supportHandoffs.filter(h => h.status !== 'resolved').length || liveSupportChatMessages.length || null
             : null;
 
           const needsAction = tab.id === 'scholarship' && detail.institutionApplication?.status === 'pending_admin_approval';
+          const showSupportUnreadIndicator = tab.id === 'support' && hasUnreadLiveSupportMessage;
 
           return (
             <button
@@ -3365,7 +3847,13 @@ export function AdminUserDetail() {
               {needsAction && (
                 <span className="flex h-2 w-2 rounded-full bg-red-500" />
               )}
-              {count !== null && count > 0 && (
+              {showSupportUnreadIndicator ? (
+                <span
+                  aria-label="Unread support conversation"
+                  className="ml-0.5 h-2.5 w-2.5 rounded-full bg-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.85)]"
+                  title="Unread support conversation"
+                />
+              ) : count !== null && count > 0 && (
                 <span className="ml-0.5 text-[10px] bg-white/10 text-gray-400 rounded-full px-1.5 py-0.5">
                   {count}
                 </span>
@@ -3440,9 +3928,14 @@ export function AdminUserDetail() {
         {activeTab === 'support' && (
           <SupportTab
             handoffs={detail.supportHandoffs}
-            chatMessages={detail.supportChatMessages}
+            chatMessages={liveSupportChatMessages}
             profileId={detail.profile.id}
+            accessRole={context?.accessRole ?? 'admin'}
             onRefresh={load}
+            notice={supportChatNotice}
+            onClearNotice={() => setSupportChatNotice(null)}
+            onChatViewed={markSupportChatRead}
+            readReceipt={supportChatReadReceipt}
           />
         )}
       </div>

@@ -1579,7 +1579,8 @@
     "welcome_message": "Hi! I am from the Migma Team 👋\n\nI am here to answer your questions about the process, documents, universities, F-1 visa, and anything else. How can I help?",
     "status": {
       "online_now": "Online now",
-      "waiting_agent": "Waiting for agent"
+      "support_active": "Support active",
+      "waiting_agent": "Waiting for support"
     },
     "errors": {
       "schedule_not_configured": "Support schedule is not configured.",
@@ -1590,7 +1591,7 @@
       "technical_issue": "Sorry, I had a technical issue just now. Please try again in a few seconds."
     },
     "handoff": {
-      "system_message": "Human support requested. A Migma Team specialist will follow up on your case. Choose a time in the schedule below to speak with your mentor.",
+      "system_message": "Support requested. The Migma Team will follow up on your case. Choose a time in the schedule below to speak with your mentor.",
       "meeting_scheduled": "Mentor meeting scheduled",
       "schedule_with_mentor": "Schedule with your mentor",
       "requested_at": "Requested at",
@@ -1637,6 +1638,9 @@
       "rewards": "Referral Program",
       "support": "Support",
       "profile": "Profile"
+    },
+    "nav": {
+      "unread_support": "New support message"
     },
     "tour": {
       "prompt_title": "Want a quick tour of your dashboard?",
@@ -1870,19 +1874,19 @@
           },
           "header": {
             "title": "Support channel",
-            "description": "At the top you can see whether you are speaking with automated support or whether the case has already been transferred to a specialist."
+            "description": "At the top you can track support status and the next steps for your request."
           },
           "status": {
             "title": "Support status",
-            "description": "This indicator shows whether support is online or whether you are waiting for human assistance."
+            "description": "This indicator shows whether support is active or whether your request is being followed up."
           },
           "message": {
             "title": "Conversation history",
             "description": "Responses and guidance stay recorded here so you can track what has already been handled."
           },
           "handoff": {
-            "title": "Human assistance",
-            "description": "When the AI identifies that a specialist is needed, this area shows the handoff and next steps."
+            "title": "Migma follow-up",
+            "description": "When your case needs follow-up, this area shows the next steps."
           },
           "schedule": {
             "title": "Mentor schedule",
@@ -1894,7 +1898,7 @@
           },
           "send": {
             "title": "Send to support",
-            "description": "After writing, send your message to receive a response or handoff."
+            "description": "After writing, send your message to receive a response or next step."
           }
         }
       },

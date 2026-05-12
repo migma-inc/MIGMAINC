@@ -1577,7 +1577,8 @@
     "welcome_message": "Bonjour ! Je fais partie de l'Équipe Migma 👋\n\nJe suis là pour répondre à vos questions sur le processus, les documents, les universités, le visa F-1 et tout le reste. Comment puis-je vous aider ?",
     "status": {
       "online_now": "En ligne maintenant",
-      "waiting_agent": "En attente d'un agent"
+      "support_active": "Assistance active",
+      "waiting_agent": "En attente du support"
     },
     "errors": {
       "schedule_not_configured": "Le calendrier du support n'est pas configuré.",
@@ -1588,7 +1589,7 @@
       "technical_issue": "Désolé, j'ai rencontré un problème technique. Veuillez réessayer dans quelques secondes."
     },
     "handoff": {
-      "system_message": "Support humain demandé. Un spécialiste de l'Équipe Migma suivra votre dossier. Choisissez un créneau dans le calendrier ci-dessous pour parler avec votre mentor.",
+      "system_message": "Support demandé. L'Équipe Migma suivra votre dossier. Choisissez un créneau dans le calendrier ci-dessous pour parler avec votre mentor.",
       "meeting_scheduled": "Réunion avec le mentor planifiée",
       "schedule_with_mentor": "Planifier avec votre mentor",
       "requested_at": "Demandé à",
@@ -1635,6 +1636,9 @@
       "rewards": "Programme de Parrainage",
       "support": "Support",
       "profile": "Profil"
+    },
+    "nav": {
+      "unread_support": "Nouveau message du support"
     },
     "tour": {
       "prompt_title": "Voulez-vous faire une visite rapide du tableau de bord ?",
@@ -1868,19 +1872,19 @@
           },
           "header": {
             "title": "Canal de support",
-            "description": "En haut, vous voyez si vous parlez au support automatique ou si le dossier a déjà été transféré à un spécialiste."
+            "description": "En haut, vous pouvez suivre le statut du support et les prochaines étapes de votre demande."
           },
           "status": {
             "title": "Statut du support",
-            "description": "Cet indicateur montre si le support est en ligne ou si vous attendez une assistance humaine."
+            "description": "Cet indicateur montre si le support est actif ou si votre demande est en suivi."
           },
           "message": {
             "title": "Historique de conversation",
             "description": "Les réponses et orientations restent enregistrées ici pour suivre ce qui a déjà été traité."
           },
           "handoff": {
-            "title": "Assistance humaine",
-            "description": "Lorsque l'IA identifie qu'un spécialiste est nécessaire, cette zone affiche le transfert et les prochaines étapes."
+            "title": "Suivi Migma",
+            "description": "Lorsque votre dossier nécessite un suivi, cette zone affiche les prochaines étapes."
           },
           "schedule": {
             "title": "Agenda avec mentor",
@@ -1892,7 +1896,7 @@
           },
           "send": {
             "title": "Envoyer au support",
-            "description": "Après avoir écrit, envoyez votre message pour recevoir une réponse ou un transfert."
+            "description": "Après avoir écrit, envoyez votre message pour recevoir une réponse ou la prochaine étape."
           }
         }
       },

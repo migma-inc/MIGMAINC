@@ -11,6 +11,10 @@ const SUPPORT_N8N_WEBHOOK_URL = (
   import.meta.env.VITE_SUPPORT_N8N_WEBHOOK_URL
 ) as string | undefined;
 const FUNCTIONS_URL = import.meta.env.VITE_FUNCTIONS_BASE_URL as string | undefined;
+const DEFAULT_SUPPORT_CHAT_SETTINGS: SupportChatSettings = {
+  ai_enabled: false,
+  human_timeout_minutes: 60,
+};
 
 function resolveSupportWorkflowUrl(explicitUrl: string | undefined, workflowPath: string) {
   const explicit = explicitUrl?.trim();
@@ -38,10 +42,12 @@ const SUPPORT_BOOK_SLOT_URL = resolveSupportWorkflowUrl(
 
 interface Message {
   id: string;
-  role: 'user' | 'assistant' | 'system';
+  role: 'user' | 'assistant' | 'system' | 'mentor' | 'admin';
   content: string;
   created_at: string;
   is_handoff?: boolean;
+  sender_display_name?: string | null;
+  sender_role_label?: string | null;
 }
 
 interface HandoffRecord {
@@ -56,6 +62,11 @@ interface HandoffRecord {
   resolved_note: string | null;
   resolved_at: string | null;
   created_at: string;
+}
+
+interface SupportChatSettings {
+  ai_enabled: boolean;
+  human_timeout_minutes: number;
 }
 
 interface CountdownState {
@@ -190,6 +201,34 @@ function isActiveHandoff(status: HandoffRecord['status']) {
   return status === 'pending' || status === 'in_progress' || status === 'scheduled';
 }
 
+function isHumanTeamRole(role: Message['role']) {
+  return role === 'mentor' || role === 'admin';
+}
+
+function isSupportChatSettingsMissingError(error: { code?: string; message?: string }) {
+  const message = error.message?.toLowerCase() ?? '';
+  return error.code === '42P01'
+    || error.code === 'PGRST205'
+    || message.includes('support_chat_runtime_settings');
+}
+
+function normalizeSupportChatSettings(row: unknown): SupportChatSettings {
+  if (!row || typeof row !== 'object') return DEFAULT_SUPPORT_CHAT_SETTINGS;
+  const record = row as Record<string, unknown>;
+  const aiEnabled = record.ai_enabled === true;
+  const rawTimeout = typeof record.human_timeout_minutes === 'number'
+    ? record.human_timeout_minutes
+    : Number(record.human_timeout_minutes);
+  const humanTimeoutMinutes = Number.isFinite(rawTimeout)
+    ? Math.min(1440, Math.max(1, Math.round(rawTimeout)))
+    : DEFAULT_SUPPORT_CHAT_SETTINGS.human_timeout_minutes;
+
+  return {
+    ai_enabled: aiEnabled,
+    human_timeout_minutes: humanTimeoutMinutes,
+  };
+}
+
 function SupportSlotPicker({
   groups,
   selected,
@@ -301,21 +340,59 @@ export const StudentSupportPanel: React.FC<StudentSupportPanelProps> = ({ embedd
   const [bookingSlot, setBookingSlot] = useState(false);
   const [bookingError, setBookingError] = useState<string | null>(null);
   const [resolvedHandoff, setResolvedHandoff] = useState<HandoffRecord | null>(null);
+  const [supportChatSettings, setSupportChatSettings] = useState<SupportChatSettings>(DEFAULT_SUPPORT_CHAT_SETTINGS);
+  const [nowMs, setNowMs] = useState(() => Date.now());
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const slotGroups = groupSlotsByDate(slots, locale);
+  const latestHumanMessage = useMemo(
+    () => [...messages].reverse().find((message) => isHumanTeamRole(message.role)) ?? null,
+    [messages],
+  );
+  const latestHumanMessageAt = latestHumanMessage ? new Date(latestHumanMessage.created_at).getTime() : null;
+  const humanTimeoutMs = supportChatSettings.human_timeout_minutes * 60 * 1000;
+  const humanTimeoutActive = latestHumanMessageAt !== null
+    && !Number.isNaN(latestHumanMessageAt)
+    && nowMs - latestHumanMessageAt < humanTimeoutMs;
+  const humanSupportActive = handedOff || humanTimeoutActive || !supportChatSettings.ai_enabled;
+  const shouldCallAiForNextMessage = supportChatSettings.ai_enabled && !humanSupportActive;
+  const composerLocked = handedOff && Boolean(handoffMeetingUrl) && !meetingCountdown?.expired;
+  const supportStatusLabel = handedOff
+    ? t('student_support.status.waiting_agent', 'Waiting for support')
+    : humanSupportActive
+      ? t('student_support.status.support_active', 'Support active')
+      : t('student_support.status.online_now', 'Online now');
+  const supportStatusClass = handedOff
+    ? 'text-blue-600 dark:text-blue-400'
+    : humanSupportActive
+      ? 'text-[#9a6a16] dark:text-[#CE9F48]'
+      : 'text-emerald-600 dark:text-emerald-400';
+  const supportIconClass = handedOff
+    ? 'bg-blue-500/15 border-blue-500/30'
+    : humanSupportActive
+      ? 'bg-[#CE9F48]/15 border-[#CE9F48]/30'
+      : 'bg-emerald-500/15 border-emerald-500/30';
 
   useEffect(() => {
     setMessages((prev) => prev.map((message) => (message.id === 'welcome' ? welcomeMessage : message)));
   }, [welcomeMessage]);
 
+  useEffect(() => {
+    const interval = window.setInterval(() => setNowMs(Date.now()), 30000);
+    return () => window.clearInterval(interval);
+  }, []);
+
   const loadSupportState = useCallback(async () => {
     if (!userProfile?.id) return;
 
-    const [{ data: chatData, error: chatError }, { data: handoffData, error: handoffError }] = await Promise.all([
+    const [
+      { data: chatData, error: chatError },
+      { data: handoffData, error: handoffError },
+      { data: settingsData, error: settingsError },
+    ] = await Promise.all([
       supabase
         .from('support_chat_messages')
-        .select('id, role, content, created_at')
+        .select('id, role, content, created_at, sender_display_name, sender_role_label')
         .eq('profile_id', userProfile.id)
         .order('created_at', { ascending: true })
         .limit(300),
@@ -325,10 +402,23 @@ export const StudentSupportPanel: React.FC<StudentSupportPanelProps> = ({ embedd
         .eq('profile_id', userProfile.id)
         .order('created_at', { ascending: false })
         .limit(5),
+      supabase
+        .from('support_chat_runtime_settings')
+        .select('ai_enabled, human_timeout_minutes')
+        .eq('id', 'default')
+        .maybeSingle(),
     ]);
 
     if (chatError) console.error('[StudentSupport] chat load error', chatError);
     if (handoffError) console.error('[StudentSupport] handoff load error', handoffError);
+    if (settingsError) {
+      if (!isSupportChatSettingsMissingError(settingsError)) {
+        console.error('[StudentSupport] support chat settings load error', settingsError);
+      }
+      setSupportChatSettings(DEFAULT_SUPPORT_CHAT_SETTINGS);
+    } else {
+      setSupportChatSettings(normalizeSupportChatSettings(settingsData));
+    }
 
     setMessages(chatData && chatData.length > 0 ? [welcomeMessage, ...(chatData as Message[])] : [welcomeMessage]);
 
@@ -487,7 +577,7 @@ export const StudentSupportPanel: React.FC<StudentSupportPanelProps> = ({ embedd
         role: 'system',
         content: t(
           'student_support.handoff.system_message',
-          'Human support requested. A Migma Team specialist will follow up on your case. Choose a time in the schedule below to speak with your mentor.',
+          'Support requested. The Migma Team will follow up on your case. Choose a time in the schedule below to speak with your mentor.',
         ),
         created_at: new Date().toISOString(),
         is_handoff: true,
@@ -512,7 +602,7 @@ export const StudentSupportPanel: React.FC<StudentSupportPanelProps> = ({ embedd
         setMessages((prev) => [...prev, {
           id: crypto.randomUUID(),
           role: 'assistant',
-          content: t('student_support.errors.handoff_create_failed', 'We could not open the human support schedule right now. Please try again in a few seconds.'),
+          content: t('student_support.errors.handoff_create_failed', 'We could not open the support schedule right now. Please try again in a few seconds.'),
           created_at: new Date().toISOString(),
         }]);
         return;
@@ -600,7 +690,7 @@ export const StudentSupportPanel: React.FC<StudentSupportPanelProps> = ({ embedd
 
   const sendMessage = useCallback(async () => {
     const text = input.trim();
-    if (!text || sending || (handedOff && !meetingCountdown?.expired)) return;
+    if (!text || sending || composerLocked) return;
 
     if (resolvedHandoff) setResolvedHandoff(null);
 
@@ -611,6 +701,12 @@ export const StudentSupportPanel: React.FC<StudentSupportPanelProps> = ({ embedd
     setMessages((prev) => [...prev, userMsg]);
     await saveMessage('user', text);
 
+    if (!shouldCallAiForNextMessage) {
+      setSending(false);
+      inputRef.current?.focus();
+      return;
+    }
+
     try {
       if (!SUPPORT_N8N_WEBHOOK_URL) throw new Error('VITE_N8N_WEBHOOK_SUPPORT_URL is not configured');
 
@@ -618,18 +714,43 @@ export const StudentSupportPanel: React.FC<StudentSupportPanelProps> = ({ embedd
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          event: 'student_support_message',
+          payloadVersion: 2,
           message: text,
+          role: 'user',
+          currentMessage: {
+            role: 'user',
+            content: text,
+            created_at: userMsg.created_at,
+            sender_display_name: userProfile?.full_name ?? user?.email ?? 'Student',
+            sender_role_label: 'Student',
+          },
           sessionId: userProfile?.id ?? user?.id,
           profileId: userProfile?.id ?? user?.id,
           studentName: userProfile?.full_name ?? '',
           studentEmail: user?.email ?? '',
+          handoff: {
+            active: handedOff,
+            id: handoffId,
+            meetingUrl: handoffMeetingUrl,
+            meetingStart: handoffMeetingStart,
+            chatAvailable: !handedOff || Boolean(meetingCountdown?.expired),
+            resolvedAt: resolvedHandoff?.resolved_at ?? null,
+          },
           history: (() => {
             const cutoff = resolvedHandoff?.resolved_at ?? null;
             return messages
-              .filter((m) => m.id !== 'welcome' && m.role !== 'system')
+              .filter((m) => m.id !== 'welcome')
               .filter((m) => !cutoff || new Date(m.created_at) > new Date(cutoff))
               .slice(-20)
-              .map((m) => ({ role: m.role, content: m.content }));
+              .map((m) => ({
+                id: m.id,
+                role: m.role,
+                content: m.content,
+                created_at: m.created_at,
+                sender_display_name: m.sender_display_name ?? null,
+                sender_role_label: m.sender_role_label ?? null,
+              }));
           })(),
         }),
       });
@@ -656,7 +777,24 @@ export const StudentSupportPanel: React.FC<StudentSupportPanelProps> = ({ embedd
       setSending(false);
       inputRef.current?.focus();
     }
-  }, [input, sending, handedOff, meetingCountdown?.expired, resolvedHandoff, messages, userProfile, user, saveMessage, createHandoff, t]);
+  }, [
+    input,
+    sending,
+    composerLocked,
+    shouldCallAiForNextMessage,
+    handedOff,
+    meetingCountdown?.expired,
+    resolvedHandoff,
+    messages,
+    userProfile,
+    user,
+    handoffId,
+    handoffMeetingUrl,
+    handoffMeetingStart,
+    saveMessage,
+    createHandoff,
+    t,
+  ]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
@@ -680,13 +818,17 @@ export const StudentSupportPanel: React.FC<StudentSupportPanelProps> = ({ embedd
             </button>
           )}
           <div data-tour="student-support-status" className="flex items-center gap-3 flex-1">
-            <div className={`w-9 h-9 rounded-full flex items-center justify-center border ${handedOff ? 'bg-blue-500/15 border-blue-500/30' : 'bg-[#CE9F48]/15 border-[#CE9F48]/30'}`}>
-              {handedOff ? <UserCheck className="w-5 h-5 text-blue-400" /> : <MessageCircle className="w-5 h-5 text-[#9a6a16] dark:text-[#CE9F48]" />}
+            <div className={`w-9 h-9 rounded-full flex items-center justify-center border ${supportIconClass}`}>
+              {handedOff ? (
+                <UserCheck className="w-5 h-5 text-blue-400" />
+              ) : (
+                <MessageCircle className={`w-5 h-5 ${humanSupportActive ? 'text-[#9a6a16] dark:text-[#CE9F48]' : 'text-emerald-500'}`} />
+              )}
             </div>
             <div>
               <p className="text-sm font-semibold text-[#1f1a14] dark:text-white leading-none">{t('student_support.team_name', 'Migma Team')}</p>
-              <p className={`text-xs mt-0.5 ${handedOff ? 'text-blue-600 dark:text-blue-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
-                {handedOff ? t('student_support.status.waiting_agent', 'Waiting for agent') : t('student_support.status.online_now', 'Online now')}
+              <p className={`text-xs mt-0.5 ${supportStatusClass}`}>
+                {supportStatusLabel}
               </p>
             </div>
           </div>
@@ -794,7 +936,7 @@ export const StudentSupportPanel: React.FC<StudentSupportPanelProps> = ({ embedd
 
       <footer data-tour="student-support-composer" className="sticky bottom-0 bg-white/95 dark:bg-[#0a0a0a]/95 backdrop-blur border-t border-[#e3d5bd] dark:border-white/5 px-4 py-4">
         <div className="max-w-2xl mx-auto">
-          {handedOff && !meetingCountdown?.expired ? (
+          {composerLocked ? (
             <div className="flex flex-col items-center gap-3 text-center text-[#8a7b66] dark:text-white/40 text-sm py-2">
               <span>
                 {handoffMeetingUrl
@@ -870,14 +1012,26 @@ const MessageBubble: React.FC<{ message: Message; locale: string }> = ({ message
   }
 
   const isUser = message.role === 'user';
+  const isHumanTeam = message.role === 'mentor' || message.role === 'admin';
+  const displayName = message.sender_display_name || (message.role === 'mentor' ? 'Migma Mentor' : 'Migma Team');
+  const roleLabel = message.sender_role_label || (message.role === 'mentor' ? 'Mentor' : 'Migma Team');
+
   return (
     <div className={`flex gap-3 ${isUser ? 'flex-row-reverse' : 'flex-row'}`}>
       {!isUser && (
-        <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center mt-1 border ${message.is_handoff ? 'bg-blue-500/15 border-blue-500/30' : 'bg-[#CE9F48]/15 border-[#CE9F48]/30'}`}>
-          {message.is_handoff ? <UserCheck className="w-4 h-4 text-blue-400" /> : <MessageCircle className="w-4 h-4 text-[#9a6a16] dark:text-[#CE9F48]" />}
+        <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center mt-1 border ${message.is_handoff || isHumanTeam ? 'bg-blue-500/15 border-blue-500/30' : 'bg-[#CE9F48]/15 border-[#CE9F48]/30'}`}>
+          {message.is_handoff || isHumanTeam ? <UserCheck className="w-4 h-4 text-blue-400" /> : <MessageCircle className="w-4 h-4 text-[#9a6a16] dark:text-[#CE9F48]" />}
         </div>
       )}
       <div data-tour={!isUser ? 'student-support-message' : undefined} className={`max-w-[80%] rounded-2xl px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap ${isUser ? 'bg-[#CE9F48] text-black rounded-tr-sm font-medium' : 'bg-[#f3ead9] dark:bg-white/5 border border-[#e3d5bd] dark:border-white/10 text-[#1f1a14] dark:text-white/90 rounded-tl-sm'}`}>
+        {isHumanTeam && (
+          <div className="mb-1.5 text-[11px] font-black uppercase tracking-widest text-blue-500 dark:text-blue-300">
+            {displayName}
+            <span className="ml-1 font-semibold normal-case tracking-normal text-[#8a7b66] dark:text-white/35">
+              {roleLabel}
+            </span>
+          </div>
+        )}
         {message.content}
         <div className={`text-xs mt-1.5 ${isUser ? 'text-black/50' : 'text-[#8a7b66] dark:text-white/25'}`}>
           {new Date(message.created_at).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' })}
