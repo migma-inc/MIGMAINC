@@ -56,7 +56,7 @@ export function AdminRoute({ children }: AdminRouteProps) {
 
   // Redirect to login if not authenticated
   if (!isAuthorized) {
-    return <Navigate to="/admin/login" state={{ from: location }} replace />;
+    return <Navigate to="/dashboard" state={{ from: location }} replace />;
   }
 
   // Render children if authorized
