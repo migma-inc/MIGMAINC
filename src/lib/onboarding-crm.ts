@@ -417,7 +417,8 @@ function buildProfilesQuery(
   let query = supabase
     .from('user_profiles')
     .select(selectColumns)
-    .eq('source', 'migma');
+    .eq('source', 'migma')
+    .eq('is_archived', false);
 
   if (shouldHideTestUsersInProduction()) {
     query = query.not('email', 'ilike', TEST_USER_EMAIL_PATTERN);
@@ -1132,9 +1133,14 @@ export interface CrmSupportHandoff {
 
 export interface CrmSupportChatMessage {
   id: string;
-  role: 'user' | 'assistant' | 'system';
+  profile_id: string;
+  role: string;
   content: string;
   created_at: string;
+  sender_user_id: string | null;
+  sender_profile_id: string | null;
+  sender_display_name: string | null;
+  sender_role_label: string | null;
 }
 
 /**
@@ -1366,7 +1372,7 @@ export async function loadDetailPage(
     // Histórico de chat de suporte
     supabase
       .from('support_chat_messages')
-      .select('id, role, content, created_at')
+      .select('id, profile_id, role, content, created_at, sender_user_id, sender_profile_id, sender_display_name, sender_role_label')
       .eq('profile_id', profileId)
       .order('created_at', { ascending: true })
       .limit(300),
