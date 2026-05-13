@@ -9,7 +9,7 @@
  *   4. Sistema envia e-mail de notificação ao cliente
  *   5. Status atualiza para AGUARD. PAGAMENTO PLACEMENT FEE
  */
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import {
   Award, CheckCircle2, Clock, Copy, DollarSign,
   ExternalLink, GraduationCap, Loader2, MapPin, RefreshCw,
@@ -28,6 +28,58 @@ import type { CaseDetailPage } from '@/lib/onboarding-crm';
 // ─────────────────────────────────────────────────────────────
 // Types
 // ─────────────────────────────────────────────────────────────
+
+const ESL_ELIGIBLE_ENGLISH_LEVELS = new Set(['zero', 'basic', 'basico', 'básico']);
+
+type StudentProcessType = 'transfer' | 'cos' | 'initial' | 'other';
+type SurveyResponse = CaseDetailPage['surveyResponses'][number];
+
+interface CatalogCourse {
+  id: string;
+  institution_id: string;
+  course_name: string;
+  area: string;
+  degree_level: string;
+  duration_months: number | null;
+  cpt_after_months: number | null;
+}
+
+interface CatalogScholarship {
+  id: string;
+  institution_id: string;
+  course_id: string | null;
+  scholarship_level: string | null;
+  placement_fee_usd: number;
+  discount_percent: number;
+  tuition_annual_usd: number;
+  monthly_migma_usd: number;
+  installments_total: number;
+  eligibility_process: string | null;
+  bank_statement_required_usd: number | null;
+  bank_statement_rule: string | null;
+}
+
+interface CatalogInstitution {
+  id: string;
+  name: string;
+  slug: string;
+  city: string;
+  state: string;
+  modality: string;
+  cpt_opt: string;
+  application_fee_usd: number;
+  bank_statement_min_usd: number;
+  esl_flag: boolean;
+  accepts_cos: boolean;
+  accepts_transfer: boolean;
+  accepts_initial: boolean | null;
+  courses: CatalogCourse[];
+  scholarships: CatalogScholarship[];
+}
+
+interface EligiblePreviewInstitution extends CatalogInstitution {
+  scholarships: CatalogScholarship[];
+}
 
 interface InstitutionApplication {
   id: string;
@@ -67,6 +119,7 @@ interface InstitutionApplication {
   } | null;
   institution_scholarships: {
     id: string;
+    scholarship_level: string | null;
     placement_fee_usd: number;
     discount_percent: number;
     tuition_annual_usd: number;
@@ -77,6 +130,7 @@ interface InstitutionApplication {
 
 function statusLabel(s: string) {
   const map: Record<string, { label: string; cls: string }> = {
+    migrated_selection: { label: 'AWAITING APPROVAL', cls: 'bg-amber-500/20 text-amber-300 border-amber-500/30' },
     pending_admin_approval: { label: 'AWAITING APPROVAL', cls: 'bg-amber-500/20 text-amber-300 border-amber-500/30' },
     approved: { label: 'APPROVED', cls: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30' },
     rejected: { label: 'REJECTED', cls: 'bg-white/5 text-gray-500 border-white/10' },
@@ -95,14 +149,105 @@ function errorMessage(error: unknown) {
   return error instanceof Error ? error.message : 'Unexpected error';
 }
 
+const formatUsd = (value: number | null | undefined) =>
+  `$${Number(value ?? 0).toLocaleString()}`;
+
+const normalizeConditionValue = (value: unknown) =>
+  typeof value === 'string'
+    ? value
+        .trim()
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+    : '';
+
+const getStudentProcessType = (profile: CaseDetailPage['profile']): StudentProcessType => {
+  const raw = normalizeConditionValue(profile.student_process_type || profile.service_type);
+  if (raw.includes('transfer')) return 'transfer';
+  if (raw.includes('initial')) return 'initial';
+  if (raw.includes('cos') || raw.includes('change_of_status')) return 'cos';
+  return 'other';
+};
+
+const isEslRecommendedByAdmin = (survey: SurveyResponse | null) => {
+  const answers = (survey?.answers ?? {}) as Record<string, unknown>;
+  const raw = answers.esl_recommended_by_admin;
+  return raw === true || raw === 'true';
+};
+
+const canShowEslInstitutions = (survey: SurveyResponse | null) => {
+  const englishLevel = normalizeConditionValue(survey?.english_level);
+  return ESL_ELIGIBLE_ENGLISH_LEVELS.has(englishLevel) || isEslRecommendedByAdmin(survey);
+};
+
+const isInstitutionEligibleForProfile = (
+  institution: CatalogInstitution,
+  processType: StudentProcessType,
+  survey: SurveyResponse | null,
+) => {
+  if (processType === 'transfer' && !institution.accepts_transfer) return false;
+  if (processType === 'cos' && !institution.accepts_cos) return false;
+  if (processType === 'initial' && institution.accepts_initial === false) return false;
+  if (institution.esl_flag) return canShowEslInstitutions(survey);
+  return true;
+};
+
+const isScholarshipEligibleForProfile = (
+  scholarship: CatalogScholarship,
+  processType: StudentProcessType,
+) => {
+  const rule = normalizeConditionValue(scholarship.eligibility_process || 'all');
+  if (processType === 'initial') {
+    return rule === 'initial' && Number(scholarship.bank_statement_required_usd ?? 0) > 0;
+  }
+  if (!rule || rule === 'all') return true;
+  return rule === processType;
+};
+
+const getScholarshipCourse = (institution: CatalogInstitution, scholarship: CatalogScholarship) =>
+  scholarship.course_id
+    ? institution.courses.find(course => course.id === scholarship.course_id) ?? null
+    : institution.courses[0] ?? null;
+
+const buildEligiblePreviewCatalog = (
+  institutions: CatalogInstitution[],
+  profile: CaseDetailPage['profile'],
+  survey: SurveyResponse | null,
+): EligiblePreviewInstitution[] => {
+  const processType = getStudentProcessType(profile);
+  return institutions
+    .filter(institution => isInstitutionEligibleForProfile(institution, processType, survey))
+    .map(institution => {
+      const eligibleScholarships = institution.scholarships.filter(scholarship =>
+        isScholarshipEligibleForProfile(scholarship, processType)
+      );
+      const processSpecificScholarships = eligibleScholarships.filter(
+        scholarship => normalizeConditionValue(scholarship.eligibility_process) === processType
+      );
+      const hasCourseSpecificScholarships = eligibleScholarships.some(scholarship => scholarship.course_id);
+      const scholarshipsForProcess = processSpecificScholarships.length > 0
+        ? processSpecificScholarships
+        : eligibleScholarships;
+      const hasCourseSpecificScholarshipsForProcess = scholarshipsForProcess.some(scholarship => scholarship.course_id);
+      const scholarships = hasCourseSpecificScholarshipsForProcess || hasCourseSpecificScholarships
+        ? scholarshipsForProcess.filter(scholarship => scholarship.course_id)
+        : scholarshipsForProcess;
+
+      return { ...institution, scholarships };
+    })
+    .filter(institution => institution.courses.length > 0 && institution.scholarships.length > 0);
+};
+
 // ─────────────────────────────────────────────────────────────
 // Main Component
 // ─────────────────────────────────────────────────────────────
 
 export function ScholarshipApprovalTab({ detail }: { detail: CaseDetailPage }) {
   const { profile } = detail;
+  const latestSurvey = useMemo(() => detail.surveyResponses[0] ?? null, [detail.surveyResponses]);
 
   const [applications, setApplications] = useState<InstitutionApplication[]>([]);
+  const [eligiblePreview, setEligiblePreview] = useState<EligiblePreviewInstitution[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -122,6 +267,24 @@ export function ScholarshipApprovalTab({ detail }: { detail: CaseDetailPage }) {
   const [letterUrlInput, setLetterUrlInput] = useState('');
   const [v11Msg, setV11Msg] = useState<{ text: string; ok: boolean } | null>(null);
 
+  const fetchEligiblePreview = useCallback(async () => {
+    const { data, error: err } = await supabase
+      .from('institutions')
+      .select(`
+        *,
+        courses:institution_courses(*),
+        scholarships:institution_scholarships(*)
+      `)
+      .order('name');
+
+    if (err) throw err;
+    setEligiblePreview(buildEligiblePreviewCatalog(
+      ((data as unknown) as CatalogInstitution[]) || [],
+      profile,
+      latestSurvey,
+    ));
+  }, [latestSurvey, profile]);
+
   const fetchApplications = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -140,20 +303,96 @@ export function ScholarshipApprovalTab({ detail }: { detail: CaseDetailPage }) {
             institution_courses ( course_name, degree_level, area )
           ),
           institution_scholarships (
-            id, placement_fee_usd, discount_percent, tuition_annual_usd, monthly_migma_usd, installments_total
+            id, scholarship_level, placement_fee_usd, discount_percent, tuition_annual_usd, monthly_migma_usd, installments_total
           )
         `)
         .eq('profile_id', profile.id)
         .order('created_at', { ascending: true });
 
       if (err) throw err;
-      setApplications((data as unknown as InstitutionApplication[]) || []);
+      const normalizedApplications = (data as unknown as InstitutionApplication[]) || [];
+
+      if (normalizedApplications.length > 0) {
+        setEligiblePreview([]);
+        setApplications(normalizedApplications);
+        return;
+      }
+
+      const { data: profileScholarshipRow, error: profileScholarshipErr } = await supabase
+        .from('user_profiles')
+        .select('selected_scholarship_id')
+        .eq('id', profile.id)
+        .maybeSingle();
+
+      if (profileScholarshipErr) throw profileScholarshipErr;
+      if (!profileScholarshipRow?.selected_scholarship_id) {
+        setApplications([]);
+        await fetchEligiblePreview();
+        return;
+      }
+
+      const { data: selectedScholarship, error: selectedScholarshipErr } = await supabase
+        .from('institution_scholarships')
+        .select(`
+          id, institution_id, scholarship_level, placement_fee_usd, discount_percent,
+          tuition_annual_usd, monthly_migma_usd, installments_total,
+          institutions (
+            id, name, slug, city, state, modality, cpt_opt, accepts_cos, accepts_transfer, application_fee_usd,
+            institution_courses ( course_name, degree_level, area )
+          )
+        `)
+        .eq('id', profileScholarshipRow.selected_scholarship_id)
+        .maybeSingle();
+
+      if (selectedScholarshipErr) throw selectedScholarshipErr;
+
+      if (selectedScholarship) {
+        setEligiblePreview([]);
+        const institution = Array.isArray(selectedScholarship.institutions)
+          ? selectedScholarship.institutions[0]
+          : selectedScholarship.institutions;
+
+        setApplications([{
+          id: `migrated-${selectedScholarship.id}`,
+          profile_id: profile.id,
+          institution_id: selectedScholarship.institution_id,
+          scholarship_level_id: selectedScholarship.id,
+          status: 'migrated_selection',
+          placement_fee_paid_at: null,
+          placement_fee_installments: null,
+          placement_fee_2nd_installment_paid_at: null,
+          admin_approved_at: null,
+          admin_approved_by: null,
+          payment_link_url: null,
+          payment_link_generated_at: null,
+          forms_status: null,
+          package_status: null,
+          package_storage_url: null,
+          package_sent_at: null,
+          acceptance_letter_url: null,
+          created_at: new Date().toISOString(),
+          institutions: institution ?? null,
+          institution_scholarships: {
+            id: selectedScholarship.id,
+            scholarship_level: selectedScholarship.scholarship_level,
+            placement_fee_usd: selectedScholarship.placement_fee_usd,
+            discount_percent: selectedScholarship.discount_percent,
+            tuition_annual_usd: selectedScholarship.tuition_annual_usd,
+            monthly_migma_usd: selectedScholarship.monthly_migma_usd,
+            installments_total: selectedScholarship.installments_total,
+          },
+        }]);
+        return;
+      }
+
+      setApplications([]);
+      await fetchEligiblePreview();
     } catch (e) {
       setError(errorMessage(e));
     } finally {
       setLoading(false);
     }
-  }, [profile.id]);
+  }, [fetchEligiblePreview, profile.id]);
 
   useEffect(() => {
     const resolveAllUrls = async () => {
@@ -438,10 +677,149 @@ export function ScholarshipApprovalTab({ detail }: { detail: CaseDetailPage }) {
 
   if (applications.length === 0) {
     return (
-      <div className="text-center py-20 text-gray-500">
-        <GraduationCap className="w-10 h-10 mx-auto mb-3 opacity-30" />
-        <p className="text-sm">No university selection found for this profile.</p>
-        <p className="text-xs mt-1 text-gray-600">The student has not completed the university selection step yet.</p>
+      <div className="space-y-6">
+        <div className="rounded-2xl border border-amber-500/20 bg-amber-500/10 px-5 py-4 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <Clock className="w-6 h-6 text-amber-400" />
+            <div>
+              <p className="font-black text-white uppercase tracking-widest text-sm">
+                Waiting for University Choice
+              </p>
+              <p className="text-xs text-amber-100/70 mt-0.5">
+                No student selection exists yet. This preview mirrors the options available in onboarding.
+              </p>
+            </div>
+          </div>
+          <Button size="sm" onClick={fetchApplications} variant="outline" className="border-white/10 text-white bg-transparent hover:bg-white/10">
+            <RefreshCw className="w-3.5 h-3.5" />
+          </Button>
+        </div>
+
+        <div className="grid grid-cols-1 xl:grid-cols-3 gap-5">
+          <div className="xl:col-span-2 space-y-4">
+            <h3 className="text-xs font-black uppercase tracking-widest text-gray-400 flex items-center gap-2">
+              <GraduationCap className="w-4 h-4 text-gold-medium" />
+              Eligible Scholarships Preview ({eligiblePreview.reduce((total, institution) => total + institution.scholarships.length, 0)})
+            </h3>
+
+            {eligiblePreview.length === 0 ? (
+              <div className="text-center py-16 text-gray-500 border border-white/5 rounded-2xl bg-black/20">
+                <GraduationCap className="w-10 h-10 mx-auto mb-3 opacity-30" />
+                <p className="text-sm">No eligible scholarship options found for this profile.</p>
+                <p className="text-xs mt-1 text-gray-600">Check process type, survey answers, institution flags, and scholarship eligibility rules.</p>
+              </div>
+            ) : (
+              eligiblePreview.map(institution => (
+                <Card key={institution.id} className="bg-black/30 border border-white/5">
+                  <CardContent className="p-5">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <p className="font-black text-white">{institution.name}</p>
+                        <p className="text-xs text-gray-500 flex items-center gap-1 mt-0.5">
+                          <MapPin className="w-3 h-3" />
+                          {institution.city}, {institution.state} · {institution.modality}
+                        </p>
+                      </div>
+                      <Badge className="text-[9px] font-black uppercase border rounded-sm bg-white/5 text-gray-300 border-white/10">
+                        {institution.scholarships.length} option(s)
+                      </Badge>
+                    </div>
+
+                    <div className="mt-4 grid gap-2">
+                      {institution.scholarships.map(scholarship => {
+                        const course = getScholarshipCourse(institution, scholarship);
+                        return (
+                          <div
+                            key={scholarship.id}
+                            className="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-3"
+                          >
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <div className="min-w-0">
+                                <p className="text-sm font-bold text-white">
+                                  {scholarship.scholarship_level ?? 'Scholarship option'}
+                                </p>
+                                {course && (
+                                  <p className="text-xs text-gray-500 mt-0.5">
+                                    {course.course_name} · {course.degree_level} · {course.area}
+                                  </p>
+                                )}
+                              </div>
+                              <span className="text-xs bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 px-2.5 py-1 rounded-full font-bold">
+                                {scholarship.discount_percent}% OFF
+                              </span>
+                            </div>
+                            <div className="flex flex-wrap gap-2 mt-3">
+                              <span className="text-xs bg-gold-medium/10 border border-gold-medium/20 text-gold-medium px-2.5 py-1 rounded-full font-bold">
+                                Placement: {formatUsd(scholarship.placement_fee_usd)}
+                              </span>
+                              <span className="text-xs bg-white/5 border border-white/10 text-gray-400 px-2.5 py-1 rounded-full font-bold">
+                                Tuition: {formatUsd(scholarship.tuition_annual_usd)}/year
+                              </span>
+                              <span className="text-xs bg-white/5 border border-white/10 text-gray-400 px-2.5 py-1 rounded-full font-bold">
+                                MIGMA: {formatUsd(scholarship.monthly_migma_usd)}/mo
+                              </span>
+                              {scholarship.bank_statement_required_usd != null && (
+                                <span className="text-xs bg-blue-500/10 border border-blue-500/20 text-blue-300 px-2.5 py-1 rounded-full font-bold">
+                                  Bank statement: {formatUsd(scholarship.bank_statement_required_usd)}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </CardContent>
+                </Card>
+              ))
+            )}
+          </div>
+
+          <div className="space-y-4">
+            <Card className="bg-black/30 border border-white/5">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-xs font-black uppercase tracking-widest text-gray-400 flex items-center gap-2">
+                  <Shield className="w-4 h-4 text-gold-medium" />
+                  Eligibility Inputs
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="pt-0 space-y-2 text-sm">
+                {[
+                  { label: 'Service', value: profile.service_type },
+                  { label: 'Process Type', value: profile.student_process_type },
+                  { label: 'Current Step', value: profile.onboarding_current_step },
+                  { label: 'Survey', value: profile.selection_survey_passed ? 'Complete' : 'Pending' },
+                  { label: 'English Level', value: latestSurvey?.english_level },
+                  { label: 'Academic Formation', value: latestSurvey?.academic_formation },
+                  {
+                    label: 'Interest Areas',
+                    value: Array.isArray(latestSurvey?.interest_areas)
+                      ? latestSurvey.interest_areas.join(', ')
+                      : latestSurvey?.interest_areas,
+                  },
+                ].map(({ label, value }) => (
+                  <div key={label} className="flex justify-between gap-3 py-1 border-b border-white/5 last:border-0">
+                    <span className="text-gray-500 text-xs">{label}</span>
+                    <span className="text-white text-xs font-medium text-right capitalize">{value || '—'}</span>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+
+            <Card className="bg-black/20 border border-white/5">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-xs font-black uppercase tracking-widest text-gray-400 flex items-center gap-2">
+                  <Award className="w-4 h-4 text-gold-medium" />
+                  Preview Rule
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="pt-0 space-y-2 text-xs text-gray-500">
+                <p>Uses the same frontend filtering from the student onboarding university selection step.</p>
+                <p>For Initial students, scholarships must be marked as Initial and require a bank statement amount greater than zero.</p>
+                <p>If an institution has course-specific scholarships, only course-specific options are shown.</p>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
       </div>
     );
   }
@@ -584,6 +962,11 @@ export function ScholarshipApprovalTab({ detail }: { detail: CaseDetailPage }) {
 
                       {scholar && (
                         <div className="flex flex-wrap gap-2 mt-3">
+                          {scholar.scholarship_level && (
+                            <span className="text-xs bg-purple-500/10 border border-purple-500/20 text-purple-300 px-2.5 py-1 rounded-full font-bold">
+                              {scholar.scholarship_level}
+                            </span>
+                          )}
                           <span className="text-xs bg-gold-medium/10 border border-gold-medium/20 text-gold-medium px-2.5 py-1 rounded-full font-bold">
                             Placement Fee: ${scholar.placement_fee_usd.toLocaleString()}
                           </span>
@@ -1037,6 +1420,11 @@ export function ScholarshipApprovalTab({ detail }: { detail: CaseDetailPage }) {
                 )}
                 {scholar && (
                   <div className="flex gap-2 flex-wrap mt-2">
+                    {scholar.scholarship_level && (
+                      <span className="text-xs text-purple-300 font-bold">
+                        {scholar.scholarship_level}
+                      </span>
+                    )}
                     <span className="text-xs text-gold-medium font-bold">
                       Placement Fee: ${scholar.placement_fee_usd.toLocaleString()}
                     </span>
