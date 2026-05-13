@@ -360,7 +360,6 @@ export const StudentSupportPanel: React.FC<StudentSupportPanelProps> = ({ embedd
     && !Number.isNaN(latestHumanMessageAt)
     && nowMs - latestHumanMessageAt < humanTimeoutMs;
   const humanSupportActive = handedOff || humanTimeoutActive || !supportChatSettings.ai_enabled;
-  const shouldCallAiForNextMessage = supportChatSettings.ai_enabled && !humanSupportActive;
   const composerLocked = handedOff && Boolean(handoffMeetingUrl) && !meetingCountdown?.expired;
   const supportStatusLabel = handedOff
     ? t('student_support.status.waiting_agent', 'Waiting for support')
@@ -754,15 +753,14 @@ export const StudentSupportPanel: React.FC<StudentSupportPanelProps> = ({ embedd
     const savedUserMessage = await saveMessage('user', text);
     void notifyMentorOfUnreadSupportMessage(savedUserMessage?.id ?? null);
 
-    if (!shouldCallAiForNextMessage) {
+    if (!SUPPORT_N8N_WEBHOOK_URL) {
+      console.warn('[StudentSupport] Support automation webhook is not configured; message saved for team follow-up.');
       setSending(false);
       inputRef.current?.focus();
       return;
     }
 
     try {
-      if (!SUPPORT_N8N_WEBHOOK_URL) throw new Error('VITE_N8N_WEBHOOK_SUPPORT_URL is not configured');
-
       const res = await fetch(SUPPORT_N8N_WEBHOOK_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -811,9 +809,15 @@ export const StudentSupportPanel: React.FC<StudentSupportPanelProps> = ({ embedd
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
       const json = await res.json();
-      const reply: string = json.response ?? json.message ?? json.output ?? json.text ?? t('student_support.errors.no_response', 'No response from the Migma Team.');
+      const reply: string = String(json.response ?? json.message ?? json.output ?? json.text ?? '').trim();
       const escalate: boolean = json.escalate === true;
       const escalateReason: string = json.reason ?? json.escalate_reason ?? '';
+
+      if (!reply) {
+        setSending(false);
+        inputRef.current?.focus();
+        return;
+      }
 
       const assistantMsg: Message = { id: crypto.randomUUID(), role: 'assistant', content: reply, created_at: new Date().toISOString(), is_handoff: escalate };
       setMessages((prev) => [...prev, assistantMsg]);
@@ -834,7 +838,6 @@ export const StudentSupportPanel: React.FC<StudentSupportPanelProps> = ({ embedd
     input,
     sending,
     composerLocked,
-    shouldCallAiForNextMessage,
     handedOff,
     meetingCountdown?.expired,
     resolvedHandoff,

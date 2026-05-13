@@ -136,36 +136,42 @@ function normalizeOnboardingStep(onboardingStep: string | null | undefined) {
 }
 
 /**
- * Deriva o step efetivo do perfil usando as flags booleanas como mínimo garantido.
- * Isso evita que o CRM mostre um step desatualizado quando o aluno avançou no
- * onboarding mas o campo `onboarding_current_step` ainda não foi persistido.
+ * Deriva o step efetivo do perfil sem deixar flags genéricas pularem etapas.
+ * `documents_uploaded` pode representar documentos pré-universidade em perfis migrados,
+ * então ele só deve empurrar o tracking após o aluno já ter pago placement/scholarship.
  */
 function getEffectiveStep(profile: OnboardingCase['profile']): string {
-  // Mínimo derivado pelas flags
-  let flagMin: string;
-  if (profile.onboarding_completed) {
-    flagMin = 'dados_complementares';
-  } else if (profile.is_application_fee_paid) {
-    flagMin = 'dados_complementares';
-  } else if (profile.documents_uploaded) {
-    flagMin = 'payment';
-  } else if (profile.is_placement_fee_paid || profile.is_scholarship_fee_paid) {
-    flagMin = 'documents_upload';
-  } else if (!profile.has_paid_selection_process_fee) {
-    flagMin = 'selection_fee';
-  } else if (!profile.selection_survey_passed) {
-    flagMin = 'selection_survey';
-  } else {
-    flagMin = 'scholarship_selection'; // survey passou → no mínimo em University
+  const saved = normalizeOnboardingStep(profile.onboarding_current_step);
+  const savedIdx = STEP_ORDER.indexOf(saved);
+  const stepAtOrBefore = (step: string) => {
+    const idx = STEP_ORDER.indexOf(step);
+    return savedIdx >= 0 && savedIdx <= idx;
+  };
+
+  if (profile.onboarding_completed || profile.is_application_fee_paid) {
+    return 'dados_complementares';
   }
 
-  const saved = normalizeOnboardingStep(profile.onboarding_current_step);
-  const flagIdx = STEP_ORDER.indexOf(flagMin);
-  const savedIdx = STEP_ORDER.indexOf(saved);
+  if (!profile.has_paid_selection_process_fee) {
+    return 'selection_fee';
+  }
 
-  // Retorna o step mais avançado entre o derivado por flags e o salvo no banco
-  if (flagIdx < 0) return savedIdx >= 0 ? saved : 'selection_fee';
-  return savedIdx >= flagIdx ? saved : flagMin;
+  if (!profile.selection_survey_passed) {
+    return stepAtOrBefore('selection_survey') ? saved : 'selection_survey';
+  }
+
+  if (profile.is_placement_fee_paid || profile.is_scholarship_fee_paid) {
+    if (profile.documents_uploaded && profile.documents_status === 'approved') {
+      return stepAtOrBefore('payment') ? saved : 'payment';
+    }
+    return stepAtOrBefore('documents_upload') ? saved : 'documents_upload';
+  }
+
+  if (stepAtOrBefore('placement_fee')) {
+    return saved;
+  }
+
+  return 'scholarship_selection';
 }
 
 function getOnboardingProgress(profile: OnboardingCase['profile']) {

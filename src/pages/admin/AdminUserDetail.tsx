@@ -137,10 +137,58 @@ type SupportChatReadReceipt = {
   last_read_at: string | null;
 } | null;
 
+type SupportAiControl = {
+  ai_enabled: boolean;
+  human_timeout_minutes: number;
+  source: 'profile' | 'global';
+  updated_at: string | null;
+  updated_by_role: string | null;
+};
+
+const TEST_MENTOR_REFERRAL_IDS = new Set([
+  '0894668a-2768-46a4-b103-c0f31d3df8af',
+  '15eaab86-9901-4594-8271-09a7793adaf3',
+  '1f8c4ab8-8ee4-48e2-8560-17131dd31b11',
+]);
+
+function isUorakTestEmail(email: string | null | undefined) {
+  return String(email ?? '').trim().toLowerCase().endsWith('@uorak.com');
+}
+
 function isSupportChatReadReceiptMissingError(error: { code?: string; message: string }) {
   return error.code === '42P01'
     || error.code === 'PGRST205'
     || error.message.toLowerCase().includes('support_chat_read_receipts');
+}
+
+function isSupportChatAiControlMissingError(error: { code?: string; message: string }) {
+  const message = error.message.toLowerCase();
+  return error.code === '42P01'
+    || error.code === 'PGRST205'
+    || message.includes('support_chat_profile_ai_controls')
+    || message.includes('support_chat_runtime_settings');
+}
+
+function normalizeSupportAiControl(profileRow: unknown, globalRow: unknown): SupportAiControl {
+  const profile = profileRow && typeof profileRow === 'object' ? profileRow as Record<string, unknown> : null;
+  const global = globalRow && typeof globalRow === 'object' ? globalRow as Record<string, unknown> : null;
+  const source = profile ? 'profile' : 'global';
+  const row = profile ?? global;
+  const rawTimeout = typeof row?.human_timeout_minutes === 'number'
+    ? row.human_timeout_minutes
+    : Number(row?.human_timeout_minutes);
+
+  return {
+    ai_enabled: row?.ai_enabled === true,
+    human_timeout_minutes: Number.isFinite(rawTimeout) ? Math.min(1440, Math.max(1, Math.round(rawTimeout))) : 60,
+    source,
+    updated_at: typeof profile?.updated_at === 'string'
+      ? profile.updated_at
+      : typeof global?.updated_at === 'string'
+        ? global.updated_at
+        : null,
+    updated_by_role: typeof profile?.updated_by_role === 'string' ? profile.updated_by_role : null,
+  };
 }
 
 function toSupportChatMessage(record: unknown): CrmSupportChatMessage | null {
@@ -320,8 +368,9 @@ function SectionCard({ title, icon: Icon, children }: { title: string; icon: Rea
   );
 }
 
-function MentorAssignSection({ profileId, currentMentorId }: { profileId: string; currentMentorId: string | null }) {
-  const [mentors, setMentors] = useState<{ id: string; full_name: string | null }[]>([]);
+function MentorAssignSection({ profileId, profileEmail, currentMentorId }: { profileId: string; profileEmail: string | null; currentMentorId: string | null }) {
+  const isTestStudent = isUorakTestEmail(profileEmail);
+  const [mentors, setMentors] = useState<{ id: string; referralId: string; full_name: string | null }[]>([]);
   const [selected, setSelected] = useState(currentMentorId ?? '');
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
@@ -333,17 +382,24 @@ function MentorAssignSection({ profileId, currentMentorId }: { profileId: string
   useEffect(() => {
     void supabase
       .from('referral_mentors')
-      .select('profile_id, display_name')
+      .select('id, profile_id, display_name')
       .eq('active', true)
       .order('display_name', { ascending: true })
       .then(({ data }) => {
         if (data) {
-          setMentors(data.map((m) => ({ id: m.profile_id, full_name: m.display_name })));
+          setMentors(data
+            .filter((m) => TEST_MENTOR_REFERRAL_IDS.has(m.id) === isTestStudent)
+            .map((m) => ({ id: m.profile_id, referralId: m.id, full_name: m.display_name })));
         }
       });
-  }, []);
+  }, [isTestStudent]);
 
   const handleSave = async () => {
+    if (selected && !mentors.some((mentor) => mentor.id === selected)) {
+      setMsg(`Error: ${isTestStudent ? 'Test students can only be assigned to test mentors.' : 'Production students cannot be assigned to test mentors.'}`);
+      return;
+    }
+
     setSaving(true);
     setMsg(null);
     const { error } = await supabase
@@ -365,7 +421,7 @@ function MentorAssignSection({ profileId, currentMentorId }: { profileId: string
       >
         <option value="">— No mentor assigned —</option>
         {mentors.map((m) => (
-          <option key={m.id} value={m.id}>{m.full_name ?? m.id}</option>
+          <option key={m.referralId} value={m.id}>{m.full_name ?? m.id}</option>
         ))}
       </select>
       <div className="flex items-center gap-2">
@@ -375,7 +431,11 @@ function MentorAssignSection({ profileId, currentMentorId }: { profileId: string
         {msg && <span className={`text-xs ${msg.startsWith('Error') ? 'text-red-400' : 'text-green-400'}`}>{msg}</span>}
       </div>
       {mentors.length === 0 && (
-        <p className="text-xs text-gray-500">No active mentors. Configure the calendar URL in Admin Profile to create the mentor.</p>
+        <p className="text-xs text-gray-500">
+          {isTestStudent
+            ? 'No active test mentors available for @uorak.com students.'
+            : 'No active production mentors available for this student.'}
+        </p>
       )}
     </div>
   );
@@ -502,7 +562,7 @@ function OverviewTab({
           {accessRole === 'admin' && (
             <div className="mt-4 pt-4 border-t border-white/5">
               <p className="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-2">Referral Mentor</p>
-              <MentorAssignSection profileId={profile.id} currentMentorId={profile.mentor_id} />
+              <MentorAssignSection profileId={profile.id} profileEmail={profile.email} currentMentorId={profile.mentor_id} />
             </div>
           )}
         </SectionCard>
@@ -3115,6 +3175,12 @@ function SupportTab({
   const [replyInput, setReplyInput] = useState('');
   const [sendingReply, setSendingReply] = useState(false);
   const [replyError, setReplyError] = useState<string | null>(null);
+  const [aiControl, setAiControl] = useState<SupportAiControl | null>(null);
+  const [aiControlLoading, setAiControlLoading] = useState(false);
+  const [aiControlSaving, setAiControlSaving] = useState(false);
+  const [aiControlError, setAiControlError] = useState<string | null>(null);
+  const [aiEnabledInput, setAiEnabledInput] = useState(true);
+  const [timeoutInput, setTimeoutInput] = useState(60);
 
   const updateHandoff = async (
     id: string,
@@ -3181,6 +3247,93 @@ function SupportTab({
   const replyPlaceholder = accessRole === 'mentor'
     ? 'Write a message to the student as mentor...'
     : 'Write a message to the student as Migma team...';
+
+  const loadAiControl = useCallback(async () => {
+    setAiControlLoading(true);
+    setAiControlError(null);
+
+    try {
+      const [profileResult, globalResult] = await Promise.all([
+        supabase
+          .from('support_chat_profile_ai_controls')
+          .select('ai_enabled, human_timeout_minutes, updated_at, updated_by_role')
+          .eq('profile_id', profileId)
+          .maybeSingle(),
+        supabase
+          .from('support_chat_runtime_settings')
+          .select('ai_enabled, human_timeout_minutes, updated_at')
+          .eq('id', 'default')
+          .maybeSingle(),
+      ]);
+
+      if (profileResult.error && !isSupportChatAiControlMissingError(profileResult.error)) {
+        throw profileResult.error;
+      }
+
+      if (globalResult.error && !isSupportChatAiControlMissingError(globalResult.error)) {
+        throw globalResult.error;
+      }
+
+      if (
+        (profileResult.error && isSupportChatAiControlMissingError(profileResult.error))
+        || (globalResult.error && isSupportChatAiControlMissingError(globalResult.error))
+      ) {
+        setAiControlError('AI controls are waiting for the local database migration to be applied.');
+        setAiControl(null);
+        return;
+      }
+
+      const next = normalizeSupportAiControl(profileResult.data, globalResult.data);
+      setAiControl(next);
+      setAiEnabledInput(next.ai_enabled);
+      setTimeoutInput(next.human_timeout_minutes);
+    } catch (err) {
+      console.error('[AdminUserDetail] Failed to load support chat AI controls', err);
+      setAiControlError(errorMessage(err));
+    } finally {
+      setAiControlLoading(false);
+    }
+  }, [profileId]);
+
+  useEffect(() => {
+    void loadAiControl();
+  }, [loadAiControl]);
+
+  const saveAiControl = async (patch?: Partial<Pick<SupportAiControl, 'ai_enabled' | 'human_timeout_minutes'>>) => {
+    const nextAiEnabled = patch?.ai_enabled ?? aiEnabledInput;
+    const nextTimeout = patch?.human_timeout_minutes ?? timeoutInput;
+    const normalizedTimeout = Math.min(1440, Math.max(1, Math.round(Number(nextTimeout) || 60)));
+
+    setAiControlSaving(true);
+    setAiControlError(null);
+
+    try {
+      const { data, error } = await supabase
+        .from('support_chat_profile_ai_controls')
+        .upsert(
+          {
+            profile_id: profileId,
+            ai_enabled: nextAiEnabled,
+            human_timeout_minutes: normalizedTimeout,
+          },
+          { onConflict: 'profile_id' },
+        )
+        .select('ai_enabled, human_timeout_minutes, updated_at, updated_by_role')
+        .single();
+
+      if (error) throw error;
+
+      const next = normalizeSupportAiControl(data, null);
+      setAiControl(next);
+      setAiEnabledInput(next.ai_enabled);
+      setTimeoutInput(next.human_timeout_minutes);
+    } catch (err) {
+      console.error('[AdminUserDetail] Failed to save support chat AI controls', err);
+      setAiControlError(errorMessage(err));
+    } finally {
+      setAiControlSaving(false);
+    }
+  };
 
   const openChatModal = () => {
     const unreadTargetMessage = latestUnreadSupportChatMessage(chatMessages, readReceipt);
@@ -3253,6 +3406,77 @@ function SupportTab({
             <span className="rounded-full border border-yellow-500/30 bg-yellow-500/10 px-2.5 py-1 text-xs font-bold text-yellow-300">
               {openHandoffs} open handoff(s)
             </span>
+          )}
+        </div>
+
+        <div className="mb-4 rounded-xl border border-white/10 bg-black/25 px-3 py-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className={cn(
+                  'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-bold',
+                  aiEnabledInput
+                    ? 'border-emerald-500/25 bg-emerald-500/10 text-emerald-300'
+                    : 'border-yellow-500/25 bg-yellow-500/10 text-yellow-300',
+                )}>
+                  {aiEnabledInput ? <PlayCircle className="h-3.5 w-3.5" /> : <PauseCircle className="h-3.5 w-3.5" />}
+                  AI {aiEnabledInput ? 'enabled' : 'paused'}
+                </span>
+                <span className="text-xs text-white/35">
+                  {aiControlLoading
+                    ? 'Loading controls...'
+                    : aiControl?.source === 'profile'
+                      ? `Custom for this student${aiControl.updated_by_role ? ` by ${aiControl.updated_by_role}` : ''}`
+                      : 'Using global default'}
+                </span>
+              </div>
+              <p className="mt-2 text-xs text-white/35">
+                Human replies pause AI automatically. If no mentor/admin message is sent for the timeout window, AI can answer again.
+              </p>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <label className="flex items-center gap-2 text-xs text-white/40">
+                Timeout
+                <Input
+                  type="number"
+                  min={1}
+                  max={1440}
+                  value={timeoutInput}
+                  onChange={(event) => setTimeoutInput(Number(event.target.value))}
+                  disabled={aiControlSaving || aiControlLoading}
+                  className="h-9 w-24 border-white/10 bg-white/[0.04] text-white"
+                />
+                min
+              </label>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={aiControlSaving || aiControlLoading}
+                onClick={() => void saveAiControl({ ai_enabled: !aiEnabledInput })}
+                className="border-white/10 bg-white/[0.04] text-white hover:bg-white/[0.08]"
+              >
+                {aiEnabledInput ? <PauseCircle className="mr-1.5 h-4 w-4" /> : <PlayCircle className="mr-1.5 h-4 w-4" />}
+                {aiEnabledInput ? 'Pause AI' : 'Enable AI'}
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                disabled={aiControlSaving || aiControlLoading}
+                onClick={() => void saveAiControl()}
+                className="bg-[#CE9F48] text-black hover:bg-[#E0B45C]"
+              >
+                {aiControlSaving ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Clock3 className="mr-1.5 h-4 w-4" />}
+                Save
+              </Button>
+            </div>
+          </div>
+
+          {aiControlError && (
+            <p className="mt-3 rounded-lg border border-yellow-500/20 bg-yellow-500/10 px-3 py-2 text-xs text-yellow-200">
+              {aiControlError}
+            </p>
           )}
         </div>
 
