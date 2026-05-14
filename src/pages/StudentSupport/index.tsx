@@ -58,6 +58,7 @@ interface SavedSupportMessage {
 interface HandoffRecord {
   id: string;
   status: 'pending' | 'in_progress' | 'scheduled' | 'resolved' | 'cancelled';
+  triggered_by: 'ai_escalation' | 'ai_review' | 'ai_meeting' | 'student_request' | 'admin_manual' | string;
   meeting_url: string | null;
   meeting_requested_at: string | null;
   meeting_start: string | null;
@@ -206,6 +207,14 @@ function isActiveHandoff(status: HandoffRecord['status']) {
   return status === 'pending' || status === 'in_progress' || status === 'scheduled';
 }
 
+function isMeetingHandoff(record: Pick<HandoffRecord, 'triggered_by' | 'meeting_url' | 'meeting_start'> | null) {
+  if (!record) return false;
+  return record.triggered_by === 'ai_meeting'
+    || record.triggered_by === 'student_request'
+    || Boolean(record.meeting_url)
+    || Boolean(record.meeting_start);
+}
+
 function isHumanTeamRole(role: Message['role']) {
   return role === 'mentor' || role === 'admin';
 }
@@ -217,16 +226,24 @@ function isSupportChatSettingsMissingError(error: { code?: string; message?: str
     || message.includes('support_chat_runtime_settings');
 }
 
-function normalizeSupportChatSettings(row: unknown): SupportChatSettings {
-  if (!row || typeof row !== 'object') return DEFAULT_SUPPORT_CHAT_SETTINGS;
+function normalizeSupportChatSettings(profileRow: unknown, globalRow?: unknown): SupportChatSettings {
+  const profile = profileRow && typeof profileRow === 'object' ? profileRow as Record<string, unknown> : null;
+  const global = globalRow && typeof globalRow === 'object' ? globalRow as Record<string, unknown> : null;
+  const row = profile ?? global;
+  if (!row) return DEFAULT_SUPPORT_CHAT_SETTINGS;
   const record = row as Record<string, unknown>;
-  const aiEnabled = record.ai_enabled === true;
   const rawTimeout = typeof record.human_timeout_minutes === 'number'
     ? record.human_timeout_minutes
     : Number(record.human_timeout_minutes);
   const humanTimeoutMinutes = Number.isFinite(rawTimeout)
     ? Math.min(1440, Math.max(1, Math.round(rawTimeout)))
     : DEFAULT_SUPPORT_CHAT_SETTINGS.human_timeout_minutes;
+  const rawAiEnabled = record.ai_enabled === true;
+  const updatedAt = typeof profile?.updated_at === 'string' ? profile.updated_at : null;
+  const pauseUntilMs = profile && !rawAiEnabled && updatedAt
+    ? new Date(updatedAt).getTime() + humanTimeoutMinutes * 60 * 1000
+    : null;
+  const aiEnabled = rawAiEnabled || (pauseUntilMs !== null && Number.isFinite(pauseUntilMs) && pauseUntilMs <= Date.now());
 
   return {
     ai_enabled: aiEnabled,
@@ -336,6 +353,7 @@ export const StudentSupportPanel: React.FC<StudentSupportPanelProps> = ({ embedd
   const [handoffCreatedAt, setHandoffCreatedAt] = useState<string | null>(null);
   const [handoffMeetingUrl, setHandoffMeetingUrl] = useState<string | null>(null);
   const [handoffMeetingStart, setHandoffMeetingStart] = useState<string | null>(null);
+  const [handoffRequiresMeeting, setHandoffRequiresMeeting] = useState(false);
   const [meetingCountdown, setMeetingCountdown] = useState<CountdownState | null>(null);
   const [slotsLoading, setSlotsLoading] = useState(false);
   const [slots, setSlots] = useState<Slot[]>([]);
@@ -360,7 +378,7 @@ export const StudentSupportPanel: React.FC<StudentSupportPanelProps> = ({ embedd
     && !Number.isNaN(latestHumanMessageAt)
     && nowMs - latestHumanMessageAt < humanTimeoutMs;
   const humanSupportActive = handedOff || humanTimeoutActive || !supportChatSettings.ai_enabled;
-  const composerLocked = handedOff && Boolean(handoffMeetingUrl) && !meetingCountdown?.expired;
+  const composerLocked = handedOff && handoffRequiresMeeting && Boolean(handoffMeetingUrl) && !meetingCountdown?.expired;
   const supportStatusLabel = handedOff
     ? t('student_support.status.waiting_agent', 'Waiting for support')
     : humanSupportActive
@@ -392,7 +410,8 @@ export const StudentSupportPanel: React.FC<StudentSupportPanelProps> = ({ embedd
     const [
       { data: chatData, error: chatError },
       { data: handoffData, error: handoffError },
-      { data: settingsData, error: settingsError },
+      { data: profileSettingsData, error: profileSettingsError },
+      { data: globalSettingsData, error: globalSettingsError },
     ] = await Promise.all([
       supabase
         .from('support_chat_messages')
@@ -402,10 +421,15 @@ export const StudentSupportPanel: React.FC<StudentSupportPanelProps> = ({ embedd
         .limit(300),
       supabase
         .from('support_handoffs')
-        .select('id, status, meeting_url, meeting_requested_at, meeting_start, meeting_end, calendar_event_id, meeting_calendar_link, resolved_note, resolved_at, created_at')
+        .select('id, status, triggered_by, meeting_url, meeting_requested_at, meeting_start, meeting_end, calendar_event_id, meeting_calendar_link, resolved_note, resolved_at, created_at')
         .eq('profile_id', userProfile.id)
         .order('created_at', { ascending: false })
         .limit(5),
+      supabase
+        .from('support_chat_profile_ai_controls')
+        .select('ai_enabled, human_timeout_minutes, updated_at')
+        .eq('profile_id', userProfile.id)
+        .maybeSingle(),
       supabase
         .from('support_chat_runtime_settings')
         .select('ai_enabled, human_timeout_minutes')
@@ -415,13 +439,16 @@ export const StudentSupportPanel: React.FC<StudentSupportPanelProps> = ({ embedd
 
     if (chatError) console.error('[StudentSupport] chat load error', chatError);
     if (handoffError) console.error('[StudentSupport] handoff load error', handoffError);
-    if (settingsError) {
-      if (!isSupportChatSettingsMissingError(settingsError)) {
-        console.error('[StudentSupport] support chat settings load error', settingsError);
+    if (profileSettingsError || globalSettingsError) {
+      if (profileSettingsError && !isSupportChatSettingsMissingError(profileSettingsError)) {
+        console.error('[StudentSupport] profile support chat settings load error', profileSettingsError);
+      }
+      if (globalSettingsError && !isSupportChatSettingsMissingError(globalSettingsError)) {
+        console.error('[StudentSupport] support chat settings load error', globalSettingsError);
       }
       setSupportChatSettings(DEFAULT_SUPPORT_CHAT_SETTINGS);
     } else {
-      setSupportChatSettings(normalizeSupportChatSettings(settingsData));
+      setSupportChatSettings(normalizeSupportChatSettings(profileSettingsData, globalSettingsData));
     }
 
     setMessages(chatData && chatData.length > 0 ? [welcomeMessage, ...(chatData as Message[])] : [welcomeMessage]);
@@ -436,6 +463,7 @@ export const StudentSupportPanel: React.FC<StudentSupportPanelProps> = ({ embedd
       setHandoffCreatedAt(active.created_at);
       setHandoffMeetingUrl(active.meeting_url);
       setHandoffMeetingStart(extractSupportMeetingStart(active));
+      setHandoffRequiresMeeting(isMeetingHandoff(active));
       setResolvedHandoff(null);
       return;
     }
@@ -445,6 +473,7 @@ export const StudentSupportPanel: React.FC<StudentSupportPanelProps> = ({ embedd
     setHandoffCreatedAt(null);
     setHandoffMeetingUrl(null);
     setHandoffMeetingStart(null);
+    setHandoffRequiresMeeting(false);
     setSlots([]);
     setSelectedSlot(null);
     setBookingError(null);
@@ -615,21 +644,27 @@ export const StudentSupportPanel: React.FC<StudentSupportPanelProps> = ({ embedd
   }, [t]);
 
   useEffect(() => {
-    if (!handoffId || handoffMeetingUrl) return;
+    if (!handoffId || !handoffRequiresMeeting || handoffMeetingUrl) return;
     void fetchSupportSlots(handoffId);
-  }, [fetchSupportSlots, handoffId, handoffMeetingUrl]);
+  }, [fetchSupportSlots, handoffId, handoffMeetingUrl, handoffRequiresMeeting]);
 
   const createHandoff = useCallback(
-    async (reason: string, lastAiMessage: string) => {
+    async (reason: string, lastAiMessage: string, handoffType: 'review' | 'meeting') => {
       if (!userProfile?.id || handedOff) return;
+      const requiresMeeting = handoffType === 'meeting';
 
       const systemMsg: Message = {
         id: crypto.randomUUID(),
         role: 'system',
-        content: t(
-          'student_support.handoff.system_message',
-          'Support requested. The Migma Team will follow up on your case. Choose a time in the schedule below to speak with your mentor.',
-        ),
+        content: requiresMeeting
+          ? t(
+            'student_support.handoff.system_message',
+            'Support requested. The Migma Team will follow up on your case. Choose a time in the schedule below to speak with your mentor.',
+          )
+          : t(
+            'student_support.handoff.review_system_message',
+            'Support requested. The Migma Team will review your case and follow up here in the chat.',
+          ),
         created_at: new Date().toISOString(),
         is_handoff: true,
       };
@@ -640,7 +675,7 @@ export const StudentSupportPanel: React.FC<StudentSupportPanelProps> = ({ embedd
         .from('support_handoffs')
         .insert({
           profile_id: userProfile.id,
-          triggered_by: 'ai_escalation',
+          triggered_by: requiresMeeting ? 'ai_meeting' : 'ai_review',
           reason,
           last_ai_message: lastAiMessage,
           status: 'pending',
@@ -653,7 +688,9 @@ export const StudentSupportPanel: React.FC<StudentSupportPanelProps> = ({ embedd
         setMessages((prev) => [...prev, {
           id: crypto.randomUUID(),
           role: 'assistant',
-          content: t('student_support.errors.handoff_create_failed', 'We could not open the support schedule right now. Please try again in a few seconds.'),
+          content: requiresMeeting
+            ? t('student_support.errors.handoff_create_failed', 'We could not open the support schedule right now. Please try again in a few seconds.')
+            : t('student_support.errors.review_handoff_create_failed', 'We could not request a team review right now. Please try again in a few seconds.'),
           created_at: new Date().toISOString(),
         }]);
         return;
@@ -663,7 +700,8 @@ export const StudentSupportPanel: React.FC<StudentSupportPanelProps> = ({ embedd
       setHandoffId(data.id);
       setHandoffCreatedAt(data.created_at ?? new Date().toISOString());
       setHandoffMeetingUrl(data.meeting_url ?? null);
-      void fetchSupportSlots(data.id);
+      setHandoffRequiresMeeting(requiresMeeting);
+      if (requiresMeeting) void fetchSupportSlots(data.id);
 
       try {
         const notifyUrl = FUNCTIONS_URL
@@ -812,6 +850,7 @@ export const StudentSupportPanel: React.FC<StudentSupportPanelProps> = ({ embedd
       const reply: string = String(json.response ?? json.message ?? json.output ?? json.text ?? '').trim();
       const escalate: boolean = json.escalate === true;
       const escalateReason: string = json.reason ?? json.escalate_reason ?? '';
+      const handoffType: 'review' | 'meeting' = json.handoff_type === 'meeting' ? 'meeting' : 'review';
 
       if (!reply) {
         setSending(false);
@@ -823,7 +862,7 @@ export const StudentSupportPanel: React.FC<StudentSupportPanelProps> = ({ embedd
       setMessages((prev) => [...prev, assistantMsg]);
       await saveMessage('assistant', reply);
 
-      if (escalate) await createHandoff(escalateReason, reply);
+      if (escalate) await createHandoff(escalateReason, reply, handoffType);
     } catch {
       setMessages((prev) => [...prev, {
         id: crypto.randomUUID(), role: 'assistant',
@@ -904,13 +943,21 @@ export const StudentSupportPanel: React.FC<StudentSupportPanelProps> = ({ embedd
               <UserCheck className="w-4 h-4 flex-shrink-0 mt-0.5" />
               <div className="min-w-0 flex-1">
                 <p className="font-medium">
-                  {handoffMeetingUrl ? t('student_support.handoff.meeting_scheduled', 'Mentor meeting scheduled') : t('student_support.handoff.schedule_with_mentor', 'Schedule with your mentor')}
+                  {handoffRequiresMeeting
+                    ? handoffMeetingUrl
+                      ? t('student_support.handoff.meeting_scheduled', 'Mentor meeting scheduled')
+                      : t('student_support.handoff.schedule_with_mentor', 'Schedule with your mentor')
+                    : t('student_support.handoff.review_requested', 'MIGMA Team review requested')}
                 </p>
                 <p className="text-blue-600/60 dark:text-blue-300/60 text-xs mt-0.5">
-                  {t('student_support.handoff.requested_at', 'Requested at')} {new Date(handoffCreatedAt).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' })} · {handoffMeetingUrl ? t('student_support.handoff.chat_release_notice', 'Chat will be available at the meeting time.') : t('student_support.handoff.choose_slot_notice', 'Choose an available time to speak with the Migma Team.')}
+                  {t('student_support.handoff.requested_at', 'Requested at')} {new Date(handoffCreatedAt).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' })} · {handoffRequiresMeeting
+                    ? handoffMeetingUrl
+                      ? t('student_support.handoff.chat_release_notice', 'Chat will be available at the meeting time.')
+                      : t('student_support.handoff.choose_slot_notice', 'Choose an available time to speak with the Migma Team.')
+                    : t('student_support.handoff.review_notice', 'The team will review this and follow up here.')}
                 </p>
 
-                {handoffMeetingUrl ? (
+                {!handoffRequiresMeeting ? null : handoffMeetingUrl ? (
                   <div className="mt-3 space-y-3">
                     <div className="rounded-xl border border-blue-600/20 bg-white/60 px-4 py-3 dark:border-blue-500/20 dark:bg-black/20">
                       <p className="text-[10px] font-black uppercase tracking-widest text-blue-700/70 dark:text-blue-300/70">

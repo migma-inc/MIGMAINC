@@ -1119,7 +1119,7 @@ export interface CaseDetailPage {
 export interface CrmSupportHandoff {
   id: string;
   profile_id: string;
-  triggered_by: 'ai_escalation' | 'student_request' | 'admin_manual';
+  triggered_by: 'ai_escalation' | 'ai_review' | 'ai_meeting' | 'student_request' | 'admin_manual';
   reason: string | null;
   last_ai_message: string | null;
   assigned_to: string | null;
