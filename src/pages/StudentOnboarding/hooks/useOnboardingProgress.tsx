@@ -15,6 +15,11 @@ const REVIEW_LOCK_MS = 24 * 60 * 60 * 1000;
 const DISABLE_REVIEW_WAIT_ROOM_FOR_TESTS = false;
 const DISABLE_SCHOLARSHIP_APPROVAL_LOCK_FOR_TESTS = true;
 
+type DevOnboardingOverrideOptions = {
+  completePreviousSteps: boolean;
+  mockPaymentSteps: boolean;
+};
+
 const hasReviewWindowElapsed = (surveyCompletedAt: string | null): boolean => {
   if (!surveyCompletedAt) return false;
   const completedAtMs = new Date(surveyCompletedAt).getTime();
@@ -77,6 +82,9 @@ export const useOnboardingProgress = () => {
   const isSavingStepRef = useRef<boolean>(false);
   const lastManualNavRef = useRef<number>(0);
   const currentStepRef = useRef<OnboardingStep>('selection_fee');
+  const devOverrideRef = useRef<boolean>(false);
+  const devOverridePreviousStepRef = useRef<OnboardingStep>('selection_fee');
+  const skipNextProgressSaveRef = useRef<boolean>(false);
 
   const [state, setState] = useState<OnboardingState>(() => {
     const savedStep = normalizeLegacyStep(userProfile?.onboarding_current_step as OnboardingStep | null);
@@ -107,6 +115,7 @@ export const useOnboardingProgress = () => {
 
   const [loading, setLoading] = useState(true);
   const [maxAllowedStep, setMaxAllowedStep] = useState<OnboardingStep>('selection_fee');
+  const [devOverrideActive, setDevOverrideActive] = useState(false);
 
   // Persiste o step no banco do Matricula USA
   const saveStep = useCallback(async (step: OnboardingStep) => {
@@ -132,11 +141,17 @@ export const useOnboardingProgress = () => {
     lastManualNavRef.current = Date.now();
     currentStepRef.current = step;
     setState(prev => ({ ...prev, currentStep: step }));
+    if (import.meta.env.DEV && devOverrideRef.current) return;
     saveStep(step);
   }, [saveStep]);
 
   // Função mestre de verificação — lê direto do banco do Matricula USA
   const checkProgress = useCallback(async () => {
+    if (import.meta.env.DEV && devOverrideRef.current) {
+      if (loading) setLoading(false);
+      return { maxAllowedStep: 'completed' as OnboardingStep };
+    }
+
     if (!user?.id) {
       if (loading) setLoading(false);
       return;
@@ -337,7 +352,9 @@ export const useOnboardingProgress = () => {
       // (ex: causados por updates no background) não usem o valor default 'selection_fee'.
       currentStepRef.current = chosenStep;
 
-      if (chosenStep !== savedStep) {
+      if (skipNextProgressSaveRef.current) {
+        skipNextProgressSaveRef.current = false;
+      } else if (chosenStep !== savedStep) {
         saveStep(chosenStep);
       }
 
@@ -351,6 +368,56 @@ export const useOnboardingProgress = () => {
     return { maxAllowedStep: computedMaxAllowedStep };
   }, [user?.id, stableProfile, saveStep, loading, maxAllowedStep]);
 
+  const applyDevOverride = useCallback((step: OnboardingStep, options: DevOnboardingOverrideOptions) => {
+    if (!import.meta.env.DEV) return;
+
+    const stepIndex = VALID_STEPS.indexOf(step);
+    const hasCompleted = (candidate: OnboardingStep) =>
+      options.completePreviousSteps && VALID_STEPS.indexOf(candidate) >= 0 && VALID_STEPS.indexOf(candidate) < stepIndex;
+
+    const nowIso = new Date().toISOString();
+
+    if (!devOverrideRef.current) {
+      devOverridePreviousStepRef.current = currentStepRef.current;
+    }
+
+    devOverrideRef.current = true;
+    setDevOverrideActive(true);
+    setMaxAllowedStep('completed');
+    lastManualNavRef.current = Date.now();
+    currentStepRef.current = step;
+
+    setState(prev => ({
+      ...prev,
+      currentStep: step,
+      selectionFeePaid: options.mockPaymentSteps ? hasCompleted('selection_fee') || prev.selectionFeePaid : prev.selectionFeePaid,
+      migmaCheckoutCompleted: options.mockPaymentSteps ? hasCompleted('selection_fee') || prev.migmaCheckoutCompleted : prev.migmaCheckoutCompleted,
+      selectionSurveyPassed: hasCompleted('selection_survey') || prev.selectionSurveyPassed,
+      reviewWindowComplete: hasCompleted('wait_room') || prev.reviewWindowComplete,
+      contractApproved: hasCompleted('wait_room') || prev.contractApproved,
+      scholarshipsSelected: hasCompleted('scholarship_selection') || prev.scholarshipsSelected,
+      placementFeePaid: options.mockPaymentSteps ? hasCompleted('placement_fee') || prev.placementFeePaid : prev.placementFeePaid,
+      scholarshipFeePaid: options.mockPaymentSteps ? hasCompleted('placement_fee') || prev.scholarshipFeePaid : prev.scholarshipFeePaid,
+      documentsUploaded: hasCompleted('documents_upload') || prev.documentsUploaded,
+      documentsApproved: hasCompleted('documents_upload') || prev.documentsApproved,
+      applicationFeePaid: options.mockPaymentSteps ? hasCompleted('payment') || prev.applicationFeePaid : prev.applicationFeePaid,
+      complementaryDataSubmitted: hasCompleted('dados_complementares') || prev.complementaryDataSubmitted,
+      onboardingCompleted: step === 'completed' || prev.onboardingCompleted,
+      surveyCompletedAt: hasCompleted('selection_survey') ? prev.surveyCompletedAt ?? nowIso : prev.surveyCompletedAt,
+      isNewFlowUser: true,
+    }));
+  }, []);
+
+  const clearDevOverride = useCallback(() => {
+    if (!import.meta.env.DEV) return;
+
+    devOverrideRef.current = false;
+    currentStepRef.current = devOverridePreviousStepRef.current;
+    skipNextProgressSaveRef.current = true;
+    setDevOverrideActive(false);
+    void checkProgress();
+  }, [checkProgress]);
+
   useEffect(() => {
     checkProgress();
   }, [checkProgress]);
@@ -359,5 +426,15 @@ export const useOnboardingProgress = () => {
     await checkProgress();
   }, [checkProgress]);
 
-  return { state, loading, checkProgress, goToStep, markStepComplete, maxAllowedStep };
+  return {
+    state,
+    loading,
+    checkProgress,
+    goToStep,
+    markStepComplete,
+    maxAllowedStep,
+    devOverrideActive,
+    applyDevOverride,
+    clearDevOverride,
+  };
 };

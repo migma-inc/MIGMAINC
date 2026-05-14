@@ -5,6 +5,8 @@ import { useTranslation } from 'react-i18next';
 import { useStudentAuth } from '../../contexts/StudentAuthContext';
 import { useOnboardingProgress } from './hooks/useOnboardingProgress';
 import { StepIndicator } from './components/StepIndicator';
+import { OnboardingSupportWidget } from './components/OnboardingSupportWidget';
+import { OnboardingDevSkipPanel } from './components/OnboardingDevSkipPanel';
 import { LanguageSelector } from '../../components/LanguageSelector';
 import type { OnboardingStep } from './types';
 
@@ -46,6 +48,23 @@ const normalizeLegacyStep = (step: OnboardingStep | string | null | undefined): 
   return step as OnboardingStep;
 };
 
+const ONBOARDING_STEP_LABEL_KEYS: Record<OnboardingStep, string> = {
+  selection_fee: 'student_onboarding.steps.selection_fee',
+  selection_survey: 'student_onboarding.steps.survey',
+  wait_room: 'student_onboarding.steps.wait_room',
+  scholarship_selection: 'student_onboarding.steps.scholarship',
+  process_type: 'student_onboarding.steps.documents',
+  placement_fee: 'student_onboarding.steps.placement_fee',
+  documents_upload: 'student_onboarding.steps.documents',
+  payment: 'student_onboarding.steps.payment',
+  dados_complementares: 'student_onboarding.steps.complementary_data',
+  scholarship_fee: 'student_onboarding.steps.placement_fee',
+  reinstatement_fee: 'student_onboarding.steps.placement_fee',
+  my_applications: 'student_onboarding.steps.complementary_data',
+  acceptance_letter: 'student_onboarding.steps.complementary_data',
+  completed: 'student_onboarding.completed.title',
+};
+
 const StepLoader = () => (
   <div className="flex justify-center items-center py-32 min-h-[400px]">
     <Loader2 className="w-10 h-10 animate-spin text-gold-medium" />
@@ -76,11 +95,21 @@ const StudentOnboarding: React.FC = () => {
   const navigate = useNavigate();
   const { t } = useTranslation();
   const [searchParams] = useSearchParams();
-  const { state, loading, goToStep, checkProgress, maxAllowedStep } = useOnboardingProgress();
+  const {
+    state,
+    loading,
+    goToStep,
+    checkProgress,
+    maxAllowedStep,
+    devOverrideActive,
+    applyDevOverride,
+    clearDevOverride,
+  } = useOnboardingProgress();
   const isInitialMount = React.useRef(true);
   const [isDarkMode, setIsDarkMode] = React.useState(() =>
     document.documentElement.classList.contains('dark')
   );
+  const isLocalhost = typeof window !== 'undefined' && ['localhost', '127.0.0.1', '::1'].includes(window.location.hostname);
 
   // Redirecionar se não autenticado
   useEffect(() => {
@@ -217,6 +246,7 @@ const StudentOnboarding: React.FC = () => {
   }
 
   const stepProps = { onNext: handleNext, onBack: handleBack, currentStep: state.currentStep };
+  const currentStepLabel = String(t(ONBOARDING_STEP_LABEL_KEYS[state.currentStep]));
 
   return (
     <div className="student-onboarding min-h-screen bg-[#f7f4ee] text-[#1f1a14] dark:bg-[#0a0a0a] dark:text-white relative">
@@ -286,6 +316,22 @@ const StudentOnboarding: React.FC = () => {
           {state.currentStep === 'acceptance_letter' && <AcceptanceLetterStep {...stepProps} />}
         </Suspense>
       </div>
+      <OnboardingSupportWidget
+        currentStep={state.currentStep}
+        currentStepLabel={currentStepLabel}
+        completedSteps={completedSteps}
+        maxAllowedStep={maxAllowedStep}
+      />
+      {import.meta.env.DEV && isLocalhost && (
+        <OnboardingDevSkipPanel
+          steps={getOrderedSteps()}
+          currentStep={state.currentStep}
+          maxAllowedStep={maxAllowedStep}
+          devOverrideActive={devOverrideActive}
+          onJump={applyDevOverride}
+          onReset={clearDevOverride}
+        />
+      )}
     </div>
   );
 };

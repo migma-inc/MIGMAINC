@@ -185,6 +185,7 @@ Deno.serve(async (req) => {
       stripe_charge_id,
       parcelow_status,
       parcelow_status_code,
+      admin_approved,
     } = body;
 
     // Guardar ID do pagamento para resposta final
@@ -193,6 +194,8 @@ Deno.serve(async (req) => {
     const feeAmountNum = Number(fee_amount) || null;
     const normalizedPaymentMethod = String(payment_method || "").toLowerCase();
     const isParcelowPayment = normalizedPaymentMethod.startsWith("parcelow") || !!parcelow_order_id;
+    const isAdminApprovedManualPayment = admin_approved === true &&
+      (normalizedPaymentMethod === "zelle" || normalizedPaymentMethod === "manual");
     const externalPaymentReference =
       parcelow_order_id ??
       external_reference ??
@@ -242,7 +245,7 @@ Deno.serve(async (req) => {
           payment_intent_id: payment_intent_id ? String(payment_intent_id) : null,
           stripe_charge_id: stripe_charge_id ? String(stripe_charge_id) : null,
           status:
-            payment_method === "zelle" || payment_method === "manual"
+            (payment_method === "zelle" || payment_method === "manual") && !isAdminApprovedManualPayment
               ? "pending"
               : "completed",
           payment_date: new Date().toISOString(),
@@ -426,7 +429,7 @@ Deno.serve(async (req) => {
                 owner_user_id: user_id,
                 dependents_count: profile.num_dependents || 0,
                 status:
-                  payment_method === "zelle" || payment_method === "manual"
+                  (payment_method === "zelle" || payment_method === "manual") && !isAdminApprovedManualPayment
                     ? "pending_payment"
                     : "paid",
                 workflow_stage: "case_created",
@@ -500,10 +503,11 @@ Deno.serve(async (req) => {
           // Atualiza status e preço apenas em pagamento real (não no finalize_only)
           if (!finalize_contract_only) {
             orderUpdate.payment_status =
-              payment_method === "zelle" || payment_method === "manual"
+              (payment_method === "zelle" || payment_method === "manual") && !isAdminApprovedManualPayment
                 ? "manual_pending"
                 : "completed";
             orderUpdate.paid_at =
+              isAdminApprovedManualPayment ||
               payment_method === "parcelow" ||
               payment_method === "parcelow_card" ||
               payment_method === "parcelow_pix" ||
@@ -557,7 +561,7 @@ Deno.serve(async (req) => {
             client_country: profile.country,
             payment_method: payment_method,
             payment_status:
-              payment_method === "zelle" || payment_method === "manual"
+              (payment_method === "zelle" || payment_method === "manual") && !isAdminApprovedManualPayment
                 ? "manual_pending"
                 : "completed",
             base_price_usd: product?.base_price_usd || 400.0,
