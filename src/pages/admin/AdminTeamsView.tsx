@@ -5,7 +5,7 @@ import {
 } from 'lucide-react';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { isTestEnvironment } from '@/lib/utils';
+import { TEST_USER_EMAIL_PATTERN, isTestEnvironment, shouldHideTestUsersInProduction } from '@/lib/utils';
 
 interface TeamWithPerformance {
     id: string;
@@ -98,6 +98,9 @@ export function AdminTeamsView({ selectedMonth }: AdminTeamsViewProps) {
 
             if (!isTestEnvironment()) {
                 ordersQuery = ordersQuery.eq('is_test', false);
+            }
+            if (shouldHideTestUsersInProduction()) {
+                ordersQuery = ordersQuery.not('client_email', 'ilike', TEST_USER_EMAIL_PATTERN);
             }
 
             const { data: orders, error: ordersError } = await ordersQuery

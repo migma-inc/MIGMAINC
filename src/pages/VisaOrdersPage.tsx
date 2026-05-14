@@ -21,6 +21,7 @@ import { Pagination } from "@/components/ui/pagination";
 import { AlertModal } from '@/components/ui/alert-modal';
 import { calculateOrderAmounts } from '@/lib/seller-commissions';
 import { PeriodFilter, type PeriodOption, type CustomDateRange } from '@/components/seller/PeriodFilter';
+import { TEST_USER_EMAIL_PATTERN } from '@/lib/utils';
 
 const isLocal = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
 
@@ -696,7 +697,7 @@ export const VisaOrdersPage = () => {
       .select(VISA_ORDERS_SELECT);
 
     if (!isLocal) {
-      query = query.eq('is_test', false).not('client_email', 'ilike', '%@uorak.com');
+      query = query.eq('is_test', false).not('client_email', 'ilike', TEST_USER_EMAIL_PATTERN);
     }
 
     if (statusFilter !== 'all') {

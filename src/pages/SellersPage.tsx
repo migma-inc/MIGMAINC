@@ -4,7 +4,7 @@ import { adminSupabase } from '@/lib/auth';
 import { calculateNetAmount, calculateOrderAmounts } from '@/lib/seller-commissions';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { formatCurrency } from '@/lib/utils';
+import { TEST_USER_EMAIL_PATTERN, formatCurrency, shouldHideTestUsersInProduction } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ConfirmModal } from '@/components/ui/confirm-modal';
@@ -219,6 +219,10 @@ export const SellersPage = () => {
           .select('*, payment_metadata')
           .eq('seller_id', seller.seller_id_public);
 
+        if (shouldHideTestUsersInProduction()) {
+          ordersQuery = ordersQuery.eq('is_test', false).not('client_email', 'ilike', TEST_USER_EMAIL_PATTERN);
+        }
+
         if (periodFilter !== 'all_time') {
           ordersQuery = ordersQuery
             .gte('created_at', prevStart.toISOString())
@@ -233,6 +237,10 @@ export const SellersPage = () => {
           .from('visa_orders')
           .select('*, payment_metadata')
           .eq('seller_id', seller.seller_id_public);
+
+        if (shouldHideTestUsersInProduction()) {
+          prevOrdersQuery = prevOrdersQuery.eq('is_test', false).not('client_email', 'ilike', TEST_USER_EMAIL_PATTERN);
+        }
 
         prevOrdersQuery = prevOrdersQuery
           .gte('created_at', previousPeriod.start.toISOString())

@@ -6,6 +6,7 @@ import { ShoppingCart, CheckCircle, Clock, DollarSign, Coins } from 'lucide-reac
 import { calculateNetAmount } from '@/lib/seller-commissions';
 import { PeriodFilter, type PeriodOption, type CustomDateRange } from '@/components/seller/PeriodFilter';
 import { getPeriodDates, getCommissionSummary } from '@/lib/seller-analytics';
+import { TEST_USER_EMAIL_PATTERN, shouldHideTestUsersInProduction } from '@/lib/utils';
 
 interface SellerInfo {
   id: string;
@@ -86,6 +87,10 @@ export function SellerOverview() {
               .from('visa_orders')
               .select('*')
               .eq('seller_id', seller.seller_id_public);
+
+            if (shouldHideTestUsersInProduction()) {
+              query = query.eq('is_test', false).not('client_email', 'ilike', TEST_USER_EMAIL_PATTERN);
+            }
 
             // Adicionar filtro de data se necessário
             if (start && end) {

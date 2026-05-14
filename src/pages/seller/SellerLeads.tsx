@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { PdfModal } from '@/components/ui/pdf-modal';
 import { Users, Eye, Mail, Phone, Globe, FileText, Filter, X, Search } from 'lucide-react';
+import { TEST_USER_EMAIL_PATTERN, filterTestUserEmails, shouldHideTestUsersInProduction } from '@/lib/utils';
 
 interface SellerInfo {
   id: string;
@@ -78,7 +79,7 @@ export function SellerLeads() {
         }
 
         // Load orders to get payment status and order details
-        const { data: ordersData } = await supabase
+        let ordersQuery = supabase
           .from('visa_orders')
           .select(`
             id,
@@ -95,6 +96,12 @@ export function SellerLeads() {
             service_request_id
           `)
           .eq('seller_id', seller.seller_id_public);
+
+        if (shouldHideTestUsersInProduction()) {
+          ordersQuery = ordersQuery.eq('is_test', false).not('client_email', 'ilike', TEST_USER_EMAIL_PATTERN);
+        }
+
+        const { data: ordersData } = await ordersQuery;
 
         // Create a map of orders by service_request_id
         const ordersMap = new Map(
@@ -218,7 +225,7 @@ export function SellerLeads() {
           new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
         );
 
-        setLeads(leadsData);
+        setLeads(filterTestUserEmails(leadsData, (lead) => lead.client_email));
       } catch (err) {
         console.error('Error loading leads:', err);
       } finally {

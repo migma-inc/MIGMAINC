@@ -9,6 +9,7 @@ import { CheckCircle, XCircle, Clock, Eye } from 'lucide-react';
 import { AlertModal } from '@/components/ui/alert-modal';
 import { getSecureUrl } from '@/lib/storage';
 import { getExplicitMigmaUpsell, getOrderAddonLabel, resolveMigmaOrderLink } from '@/lib/migma-zelle-linking';
+import { TEST_USER_EMAIL_PATTERN, filterTestUserEmails, shouldHideTestUserEmail } from '@/lib/utils';
 
 const isLocalHostname = typeof window !== 'undefined' && (
     window.location.hostname === 'localhost' ||
@@ -169,7 +170,9 @@ export const SellerZelleApprovalPage = () => {
                 .eq('seller_id', currentSellerId)
                 .eq('is_hidden', false);
 
-            if (!shouldIncludeTestApprovals) ordersQuery = ordersQuery.eq('is_test', false);
+            if (!shouldIncludeTestApprovals) {
+                ordersQuery = ordersQuery.eq('is_test', false).not('client_email', 'ilike', TEST_USER_EMAIL_PATTERN);
+            }
 
             const { data: ordersData, error: ordersError } = await ordersQuery
                 .order('created_at', { ascending: false });
@@ -340,6 +343,8 @@ export const SellerZelleApprovalPage = () => {
 
             // Filter out items that are already completed in the unified map
             const finalPending = Array.from(unifiedMap.values()).filter(item => {
+                if (shouldHideTestUserEmail(item.client_email)) return false;
+
                 // If it has migma status, check it
                 if (item.type === 'migma' && (item.status === 'approved' || item.status === 'rejected')) return false;
 
@@ -358,12 +363,14 @@ export const SellerZelleApprovalPage = () => {
                 .in('payment_status', ['completed', 'failed'])
                 .eq('is_hidden', false);
 
-            if (!shouldIncludeTestApprovals) histQuery = histQuery.eq('is_test', false);
+            if (!shouldIncludeTestApprovals) {
+                histQuery = histQuery.eq('is_test', false).not('client_email', 'ilike', TEST_USER_EMAIL_PATTERN);
+            }
 
             const { data: histOrdersData } = await histQuery
                 .order('updated_at', { ascending: false })
                 .limit(20);
-            setHistoryOrders(histOrdersData || []);
+            setHistoryOrders(filterTestUserEmails(histOrdersData || [], (order) => order.client_email));
 
             if (sellerClientIds.length > 0) {
                 let histMigmaQuery = supabase
@@ -394,7 +401,7 @@ export const SellerZelleApprovalPage = () => {
                             client_email: client?.email || 'N/A'
                         };
                     });
-                    setHistoryMigma(enrichedHistMigma);
+                    setHistoryMigma(filterTestUserEmails(enrichedHistMigma, (payment) => payment.client_email));
                 } else {
                     setHistoryMigma([]);
                 }

@@ -11,6 +11,7 @@ import { AlertModal } from '@/components/ui/alert-modal';
 import { Skeleton } from '@/components/ui/skeleton';
 import { getSecureUrl } from '@/lib/storage';
 import { getExplicitMigmaUpsell, getOrderAddonLabel, resolveMigmaOrderLink } from '@/lib/migma-zelle-linking';
+import { TEST_USER_EMAIL_PATTERN, filterTestUserEmails, shouldHideTestUserEmail } from '@/lib/utils';
 
 const isLocalHostname = typeof window !== 'undefined' && (
   window.location.hostname === 'localhost' ||
@@ -161,7 +162,7 @@ export const ZelleApprovalPage = () => {
         .order('created_at', { ascending: false });
 
       if (!shouldIncludeTestApprovals) {
-        ordersQuery = ordersQuery.eq('is_test', false).not('client_email', 'ilike', '%@uorak.com');
+        ordersQuery = ordersQuery.eq('is_test', false).not('client_email', 'ilike', TEST_USER_EMAIL_PATTERN);
       }
 
       const { data: ordersData, error: ordersError } = await ordersQuery;
@@ -200,7 +201,10 @@ export const ZelleApprovalPage = () => {
 
       // 3b. Load MigmaCheckout Zelle pending through the admin-only function.
       // The table no longer exposes global SELECT/UPDATE to every authenticated user.
-      const migmaZellePendingData = await fetchMigmaCheckoutZellePending();
+      const migmaZellePendingData = filterTestUserEmails(
+        await fetchMigmaCheckoutZellePending(),
+        (payment: any) => payment.migma_user_email || payment.client_email,
+      );
 
       const migmaCheckoutEmails = new Set(
         (migmaZellePendingData || []).map((p: any) => (p.migma_user_email || p.client_email)?.trim().toLowerCase()).filter(Boolean)
@@ -262,7 +266,7 @@ export const ZelleApprovalPage = () => {
         .order('updated_at', { ascending: false });
 
       if (!shouldIncludeTestApprovals) {
-        histQuery = histQuery.eq('is_test', false).not('client_email', 'ilike', '%@uorak.com');
+        histQuery = histQuery.eq('is_test', false).not('client_email', 'ilike', TEST_USER_EMAIL_PATTERN);
       }
 
       if (searchHistory) {
@@ -464,6 +468,8 @@ export const ZelleApprovalPage = () => {
 
       // Filter out items that are already completed in the unified map
       const finalPending = Array.from(unifiedMap.values()).filter(item => {
+        if (shouldHideTestUserEmail(item.client_email)) return false;
+
         // If it has migma status, check it
         if (item.type === 'migma' && (item.status === 'approved' || item.status === 'rejected')) return false;
 
@@ -514,11 +520,11 @@ export const ZelleApprovalPage = () => {
             processed_by_name: adminsMap.get(p.processed_by_user_id || '')
           };
         });
-        setHistoryMigma(enrichedHistMigma);
+        setHistoryMigma(filterTestUserEmails(enrichedHistMigma, (payment) => payment.client_email));
       } else {
         setHistoryMigma([]);
       }
-      setHistoryOrders(enrichedHistOrders);
+      setHistoryOrders(filterTestUserEmails(enrichedHistOrders, (order) => order.client_email));
 
       // Load MigmaCheckout Zelle pending (selection process fee awaiting admin approval)
       if (migmaZellePendingData && migmaZellePendingData.length > 0) {

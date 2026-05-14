@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/lib/supabase';
-import { cn } from '@/lib/utils';
+import { cn, filterTestUserEmails } from '@/lib/utils';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -94,7 +94,7 @@ export const EB2RecurringManagement = () => {
                 throw controlError;
             }
 
-            setPrograms(controlData || []);
+            setPrograms(filterTestUserEmails(controlData || [], (program) => program.client_email));
 
         } catch (error) {
             console.error('Error loading EB-2 data:', error);

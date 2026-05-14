@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Eye, X, Search, ShoppingBag, FileSignature } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { calculateOrderAmounts } from '@/lib/seller-commissions';
+import { TEST_USER_EMAIL_PATTERN, shouldHideTestUsersInProduction } from '@/lib/utils';
 
 interface SellerInfo {
   id: string;
@@ -261,11 +262,16 @@ export function SellerOrders() {
       if (!seller) return;
 
       try {
-        const { data: ordersData } = await supabase
+        let query = supabase
           .from('visa_orders')
           .select('*, payment_metadata')
-          .eq('seller_id', seller.seller_id_public)
-          .order('created_at', { ascending: false });
+          .eq('seller_id', seller.seller_id_public);
+
+        if (shouldHideTestUsersInProduction()) {
+          query = query.eq('is_test', false).not('client_email', 'ilike', TEST_USER_EMAIL_PATTERN);
+        }
+
+        const { data: ordersData } = await query.order('created_at', { ascending: false });
 
         if (ordersData) {
           setOrders(ordersData as Order[]);

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
-import { formatCurrency } from '@/lib/utils';
+import { TEST_USER_EMAIL_PATTERN, formatCurrency, shouldHideTestUsersInProduction } from '@/lib/utils';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Briefcase, Layers, TrendingUp, BarChart3 } from 'lucide-react';
 import type { SellerInfo } from '@/types/seller';
@@ -34,11 +34,17 @@ export function HeadOfSalesTotalSales() {
                 if (teamMembers && teamMembers.length > 0) {
                     const sellerIds = teamMembers.map(m => m.seller_id_public);
 
-                    const { data: teamOrders } = await supabase
+                    let ordersQuery = supabase
                         .from('visa_orders')
                         .select('*')
                         .in('seller_id', sellerIds)
                         .eq('payment_status', 'completed');
+
+                    if (shouldHideTestUsersInProduction()) {
+                        ordersQuery = ordersQuery.eq('is_test', false).not('client_email', 'ilike', TEST_USER_EMAIL_PATTERN);
+                    }
+
+                    const { data: teamOrders } = await ordersQuery;
 
                     const processed = teamOrders?.map(order => ({
                         ...order,

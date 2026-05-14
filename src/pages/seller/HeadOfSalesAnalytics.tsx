@@ -5,7 +5,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { BarChart3, TrendingUp, Calendar, Filter, ShoppingCart, Award, DollarSign } from 'lucide-react';
 import type { SellerInfo } from '@/types/seller';
 import { getHeadOfSalesAnalyticsStartDate, getOrderEffectiveDate, getTeamYearlyAnalytics, type ProductMetric, type TeamYearlyAnalytics } from '@/lib/seller-analytics';
-import { formatCurrency } from '@/lib/utils';
+import { TEST_USER_EMAIL_PATTERN, formatCurrency, shouldHideTestUsersInProduction } from '@/lib/utils';
 import { Skeleton } from '@/components/ui/skeleton';
 import { supabase } from '@/lib/supabase';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -135,13 +135,19 @@ export function HeadOfSalesAnalytics() {
             const endYear = new Date(Date.UTC(parseInt(selectedYear), 11, 31, 23, 59, 59, 999));
 
             // Buscar slugs únicos que tiveram vendas completadas no ano/time
-            const { data: soldSlugs } = await supabase
+            let soldSlugsQuery = supabase
                 .from('visa_orders')
                 .select('product_slug, created_at, paid_at, payment_status')
                 .eq('team_id', seller.team_id)
                 .in('payment_status', ['completed', 'paid'])
                 .gte('created_at', expandedStart)
                 .lte('created_at', endYear.toISOString());
+
+            if (shouldHideTestUsersInProduction()) {
+                soldSlugsQuery = soldSlugsQuery.eq('is_test', false).not('client_email', 'ilike', TEST_USER_EMAIL_PATTERN);
+            }
+
+            const { data: soldSlugs } = await soldSlugsQuery;
 
             const activeSlugs = [...new Set((soldSlugs || [])
                 .filter(order => {

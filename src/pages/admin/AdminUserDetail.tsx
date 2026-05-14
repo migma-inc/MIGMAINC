@@ -140,6 +140,7 @@ type SupportChatReadReceipt = {
 type SupportAiControl = {
   ai_enabled: boolean;
   human_timeout_minutes: number;
+  ai_pause_until: string | null;
   source: 'profile' | 'global';
   updated_at: string | null;
   updated_by_role: string | null;
@@ -177,16 +178,26 @@ function normalizeSupportAiControl(profileRow: unknown, globalRow: unknown): Sup
   const rawTimeout = typeof row?.human_timeout_minutes === 'number'
     ? row.human_timeout_minutes
     : Number(row?.human_timeout_minutes);
+  const humanTimeoutMinutes = Number.isFinite(rawTimeout) ? Math.min(1440, Math.max(1, Math.round(rawTimeout))) : 60;
+  const updatedAt = typeof profile?.updated_at === 'string'
+    ? profile.updated_at
+    : typeof global?.updated_at === 'string'
+      ? global.updated_at
+      : null;
+  const rawAiEnabled = row?.ai_enabled === true;
+  const pauseUntilMs = source === 'profile' && !rawAiEnabled && updatedAt
+    ? new Date(updatedAt).getTime() + humanTimeoutMinutes * 60 * 1000
+    : null;
+  const pauseUntil = pauseUntilMs !== null && Number.isFinite(pauseUntilMs)
+    ? new Date(pauseUntilMs).toISOString()
+    : null;
 
   return {
-    ai_enabled: row?.ai_enabled === true,
-    human_timeout_minutes: Number.isFinite(rawTimeout) ? Math.min(1440, Math.max(1, Math.round(rawTimeout))) : 60,
+    ai_enabled: rawAiEnabled || (pauseUntilMs !== null && Number.isFinite(pauseUntilMs) && pauseUntilMs <= Date.now()),
+    human_timeout_minutes: humanTimeoutMinutes,
+    ai_pause_until: pauseUntil,
     source,
-    updated_at: typeof profile?.updated_at === 'string'
-      ? profile.updated_at
-      : typeof global?.updated_at === 'string'
-        ? global.updated_at
-        : null,
+    updated_at: updatedAt,
     updated_by_role: typeof profile?.updated_by_role === 'string' ? profile.updated_by_role : null,
   };
 }
@@ -3247,6 +3258,24 @@ function SupportTab({
   const replyPlaceholder = accessRole === 'mentor'
     ? 'Write a message to the student as mentor...'
     : 'Write a message to the student as Migma team...';
+  const aiPauseActive = Boolean(
+    !aiEnabledInput
+    && aiControl?.ai_pause_until
+    && new Date(aiControl.ai_pause_until).getTime() > Date.now(),
+  );
+  const aiStatusLabel = aiEnabledInput
+    ? 'enabled'
+    : aiPauseActive
+      ? 'paused'
+      : 'disabled';
+  const aiStatusTone = aiEnabledInput
+    ? 'border-emerald-500/25 bg-emerald-500/10 text-emerald-300'
+    : aiPauseActive
+      ? 'border-yellow-500/25 bg-yellow-500/10 text-yellow-300'
+      : 'border-red-500/25 bg-red-500/10 text-red-300';
+  const aiPauseHelper = aiPauseActive && aiControl?.ai_pause_until
+    ? `AI will resume automatically at ${fmtDate(aiControl.ai_pause_until)} if no new team message is sent.`
+    : 'Human replies pause AI automatically. If no mentor/admin message is sent for the timeout window, AI can answer again.';
 
   const loadAiControl = useCallback(async () => {
     setAiControlLoading(true);
@@ -3415,12 +3444,10 @@ function SupportTab({
               <div className="flex flex-wrap items-center gap-2">
                 <span className={cn(
                   'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-bold',
-                  aiEnabledInput
-                    ? 'border-emerald-500/25 bg-emerald-500/10 text-emerald-300'
-                    : 'border-yellow-500/25 bg-yellow-500/10 text-yellow-300',
+                  aiStatusTone,
                 )}>
                   {aiEnabledInput ? <PlayCircle className="h-3.5 w-3.5" /> : <PauseCircle className="h-3.5 w-3.5" />}
-                  AI {aiEnabledInput ? 'enabled' : 'paused'}
+                  AI {aiStatusLabel}
                 </span>
                 <span className="text-xs text-white/35">
                   {aiControlLoading
@@ -3431,7 +3458,7 @@ function SupportTab({
                 </span>
               </div>
               <p className="mt-2 text-xs text-white/35">
-                Human replies pause AI automatically. If no mentor/admin message is sent for the timeout window, AI can answer again.
+                {aiPauseHelper}
               </p>
             </div>
 
@@ -3458,7 +3485,7 @@ function SupportTab({
                 className="border-white/10 bg-white/[0.04] text-white hover:bg-white/[0.08]"
               >
                 {aiEnabledInput ? <PauseCircle className="mr-1.5 h-4 w-4" /> : <PlayCircle className="mr-1.5 h-4 w-4" />}
-                {aiEnabledInput ? 'Pause AI' : 'Enable AI'}
+                {aiEnabledInput ? `Pause ${Math.min(1440, Math.max(1, Math.round(Number(timeoutInput) || 60)))} min` : 'Resume AI'}
               </Button>
               <Button
                 type="button"
@@ -3601,7 +3628,15 @@ function SupportTab({
                       {HANDOFF_STATUS_LABELS[h.status]}
                     </span>
                     <span className="text-xs text-white/30 truncate">
-                      {new Date(h.created_at).toLocaleString('en-US', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })} · via {h.triggered_by === 'ai_escalation' ? 'AI' : h.triggered_by === 'student_request' ? 'student' : 'admin'}
+                      {new Date(h.created_at).toLocaleString('en-US', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })} · via {
+                        h.triggered_by === 'ai_meeting'
+                          ? 'AI meeting'
+                          : h.triggered_by === 'ai_review' || h.triggered_by === 'ai_escalation'
+                            ? 'AI review'
+                            : h.triggered_by === 'student_request'
+                              ? 'student'
+                              : 'admin'
+                      }
                     </span>
                   </div>
                   <div className="flex gap-2 shrink-0">

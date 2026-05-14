@@ -1,5 +1,5 @@
 import { Fragment, useState, useEffect } from 'react';
-import { formatCurrency, generateUUID, copyToClipboard } from '@/lib/utils';
+import { TEST_USER_EMAIL_PATTERN, copyToClipboard, formatCurrency, generateUUID, shouldHideTestUsersInProduction } from '@/lib/utils';
 import { Link, useNavigate, Navigate } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import { Button } from '@/components/ui/button';
@@ -138,11 +138,16 @@ export const SellerDashboard = () => {
         }
 
         // Load orders for this seller
-        const { data: ordersData } = await supabase
+        let ordersQuery = supabase
           .from('visa_orders')
           .select('*')
-          .eq('seller_id', sellerData.seller_id_public)
-          .order('created_at', { ascending: false });
+          .eq('seller_id', sellerData.seller_id_public);
+
+        if (shouldHideTestUsersInProduction()) {
+          ordersQuery = ordersQuery.eq('is_test', false).not('client_email', 'ilike', TEST_USER_EMAIL_PATTERN);
+        }
+
+        const { data: ordersData } = await ordersQuery.order('created_at', { ascending: false });
 
         if (ordersData) {
           setOrders(ordersData);

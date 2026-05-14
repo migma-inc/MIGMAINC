@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { formatCurrency } from '@/lib/utils';
+import { TEST_USER_EMAIL_PATTERN, formatCurrency, shouldHideTestUsersInProduction } from '@/lib/utils';
 import { useOutletContext } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import { Card, CardContent } from '@/components/ui/card';
@@ -95,11 +95,16 @@ export function SellerCommissions() {
 
       try {
         // Fetch ALL orders linked to the seller for full synchronization
-        const { data: ordersData, error: ordersError } = await supabase
+        let ordersQuery = supabase
           .from('visa_orders')
           .select('id, order_number, product_slug, client_name, client_email, total_price_usd, payment_status, created_at, paid_at')
-          .eq('seller_id', seller.seller_id_public)
-          .order('created_at', { ascending: false });
+          .eq('seller_id', seller.seller_id_public);
+
+        if (shouldHideTestUsersInProduction()) {
+          ordersQuery = ordersQuery.eq('is_test', false).not('client_email', 'ilike', TEST_USER_EMAIL_PATTERN);
+        }
+
+        const { data: ordersData, error: ordersError } = await ordersQuery.order('created_at', { ascending: false });
 
         if (ordersError) throw ordersError;
 

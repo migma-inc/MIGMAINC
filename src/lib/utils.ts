@@ -68,6 +68,18 @@ export function formatCurrency(amount: number | string): string {
   }).format(num);
 }
 
+export function isLocalhostEnvironment(): boolean {
+  if (typeof window === 'undefined') return false;
+  const hostname = window.location.hostname;
+
+  return (
+    hostname === 'localhost' ||
+    hostname === '127.0.0.1' ||
+    hostname === '0.0.0.0' ||
+    hostname === '::1'
+  );
+}
+
 /**
  * Detect if the current environment is running locally (localhost/127.0.0.1)
  * or in a preview deployment format such as vercel preview URLs.
@@ -77,16 +89,32 @@ export function isTestEnvironment(): boolean {
   const hostname = window.location.hostname;
 
   return (
-    hostname === 'localhost' ||
-    hostname === '127.0.0.1' ||
+    isLocalhostEnvironment() ||
     hostname.includes('vercel.app') && hostname.includes('preview')
   );
 }
 
+export const TEST_USER_EMAIL_DOMAIN = '@uorak.com';
 export const TEST_USER_EMAIL_PATTERN = '%@uorak.com';
 
 export function shouldHideTestUsersInProduction(): boolean {
-  return !isTestEnvironment();
+  return !isLocalhostEnvironment();
+}
+
+export function isTestUserEmail(email?: string | null): boolean {
+  return String(email ?? '').trim().toLowerCase().endsWith(TEST_USER_EMAIL_DOMAIN);
+}
+
+export function shouldHideTestUserEmail(email?: string | null): boolean {
+  return shouldHideTestUsersInProduction() && isTestUserEmail(email);
+}
+
+export function filterTestUserEmails<T>(
+  rows: T[],
+  getEmail: (row: T) => string | null | undefined,
+): T[] {
+  if (!shouldHideTestUsersInProduction()) return rows;
+  return rows.filter((row) => !isTestUserEmail(getEmail(row)));
 }
 
 /**
