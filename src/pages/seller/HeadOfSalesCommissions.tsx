@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
-import { formatCurrency } from '@/lib/utils';
+import { TEST_USER_EMAIL_PATTERN, formatCurrency, shouldHideTestUsersInProduction } from '@/lib/utils';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Coins, TrendingUp, UserCheck } from 'lucide-react';
 import type { SellerInfo } from '@/types/seller';
@@ -30,11 +30,17 @@ export function HeadOfSalesCommissions() {
 
             try {
                 // 1. Buscar pedidos diretamente pelo team_id fixado na ordem
-                const { data: orders, error: ordersError } = await supabase
+                let ordersQuery = supabase
                     .from('visa_orders')
                     .select('id, order_number, base_price_usd, extra_units, extra_unit_price_usd, discount_amount, upsell_price_usd, seller_id, team_name, client_name, product_slug, created_at')
                     .eq('team_id', seller.team_id)
                     .eq('payment_status', 'completed');
+
+                if (shouldHideTestUsersInProduction()) {
+                    ordersQuery = ordersQuery.eq('is_test', false).not('client_email', 'ilike', TEST_USER_EMAIL_PATTERN);
+                }
+
+                const { data: orders, error: ordersError } = await ordersQuery;
 
                 if (ordersError) throw ordersError;
 

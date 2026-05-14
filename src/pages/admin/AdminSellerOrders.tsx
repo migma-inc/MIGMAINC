@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { adminSupabase } from '@/lib/auth';
-import { formatCurrency } from '@/lib/utils';
+import { TEST_USER_EMAIL_PATTERN, formatCurrency, shouldHideTestUsersInProduction } from '@/lib/utils';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -11,8 +11,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Eye, Search, ShoppingBag, FileSignature, ArrowLeft, BarChart3, X } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { calculateOrderAmounts } from '@/lib/seller-commissions';
-
-const isLocal = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
 
 interface SellerInfo {
     id: string;
@@ -303,8 +301,8 @@ export function AdminSellerOrders() {
                     .eq('seller_id', seller.seller_id_public)
                     .order('created_at', { ascending: false });
 
-                if (!isLocal) {
-                    query = query.eq('is_test', false).not('client_email', 'ilike', '%@uorak.com');
+                if (shouldHideTestUsersInProduction()) {
+                    query = query.eq('is_test', false).not('client_email', 'ilike', TEST_USER_EMAIL_PATTERN);
                 }
 
                 const { data: ordersData } = await query;

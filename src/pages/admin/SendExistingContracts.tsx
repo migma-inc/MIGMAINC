@@ -7,6 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Progress } from '@/components/ui/progress';
 import { Send, CheckCircle2, AlertCircle, Clock, Search } from 'lucide-react';
+import { TEST_USER_EMAIL_PATTERN, filterTestUserEmails, shouldHideTestUsersInProduction } from '@/lib/utils';
 
 interface ContractItem {
     id: string;
@@ -34,11 +35,16 @@ export const SendExistingContracts = () => {
         setLoading(true);
         try {
             // 1. Fetch Visa Contracts (Approved)
-            const { data: visaData, error: visaError } = await supabase
+            let visaQuery = supabase
                 .from('visa_orders')
                 .select('id, client_name, client_email, created_at, order_number, admin_email_sent')
-                .eq('contract_approval_status', 'approved')
-                .order('created_at', { ascending: false });
+                .eq('contract_approval_status', 'approved');
+
+            if (shouldHideTestUsersInProduction()) {
+                visaQuery = visaQuery.eq('is_test', false).not('client_email', 'ilike', TEST_USER_EMAIL_PATTERN);
+            }
+
+            const { data: visaData, error: visaError } = await visaQuery.order('created_at', { ascending: false });
 
             if (visaError) throw visaError;
 
@@ -59,7 +65,7 @@ export const SendExistingContracts = () => {
 
             if (partnerError) throw partnerError;
 
-            setVisaContracts((visaData || []).map(item => ({
+            setVisaContracts(filterTestUserEmails((visaData || []).map(item => ({
                 id: item.id,
                 name: item.client_name,
                 email: item.client_email,
@@ -69,7 +75,7 @@ export const SendExistingContracts = () => {
                 selected: false,
                 status: 'pending',
                 admin_email_sent: !!item.admin_email_sent
-            })));
+            })), (item) => item.email));
 
             setPartnerContracts((partnerData || []).map(item => ({
                 id: item.id,

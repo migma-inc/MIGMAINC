@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Users, TrendingUp, ShoppingBag, LinkIcon } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
-import { formatCurrency } from '@/lib/utils';
+import { TEST_USER_EMAIL_PATTERN, formatCurrency, shouldHideTestUsersInProduction } from '@/lib/utils';
 import { useDashboardCache } from '@/contexts/DashboardCacheContext';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -53,11 +53,17 @@ export function HeadOfSalesTeam() {
                     const sellerIds = teamData.map(m => m.seller_id_public);
 
                     // 2. Buscar pedidos de todos esses vendedores
-                    const { data: orders, error: ordersError } = await supabase
+                    let ordersQuery = supabase
                         .from('visa_orders')
                         .select('seller_id, total_price_usd, base_price_usd, extra_units, extra_unit_price_usd, discount_amount, upsell_price_usd')
                         .in('seller_id', sellerIds)
                         .eq('payment_status', 'completed');
+
+                    if (shouldHideTestUsersInProduction()) {
+                        ordersQuery = ordersQuery.eq('is_test', false).not('client_email', 'ilike', TEST_USER_EMAIL_PATTERN);
+                    }
+
+                    const { data: orders, error: ordersError } = await ordersQuery;
 
                     if (ordersError) throw ordersError;
 

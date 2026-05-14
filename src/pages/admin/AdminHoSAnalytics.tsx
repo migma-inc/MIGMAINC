@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
-import { formatCurrency } from '@/lib/utils';
+import { TEST_USER_EMAIL_PATTERN, formatCurrency, shouldHideTestUsersInProduction } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Users, BarChart3, TrendingUp, DollarSign, Wallet } from 'lucide-react';
@@ -38,11 +38,17 @@ export function AdminHoSAnalytics() {
                     setHos(hosData);
 
                     // 2. Fetch all orders for this team directly by team_id
-                    const { data: teamOrders } = await supabase
+                    let teamOrdersQuery = supabase
                         .from('visa_orders')
                         .select('*')
                         .eq('team_id', hosData.team_id)
                         .in('payment_status', ['completed', 'paid']);
+
+                    if (shouldHideTestUsersInProduction()) {
+                        teamOrdersQuery = teamOrdersQuery.eq('is_test', false).not('client_email', 'ilike', TEST_USER_EMAIL_PATTERN);
+                    }
+
+                    const { data: teamOrders } = await teamOrdersQuery;
                     
                     const ordersList = teamOrders || [];
                     setOrders(ordersList);

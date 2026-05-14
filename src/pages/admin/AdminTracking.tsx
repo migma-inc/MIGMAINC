@@ -9,9 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/lib/supabase';
-import { cn } from '@/lib/utils';
-
-const isLocal = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+import { TEST_USER_EMAIL_PATTERN, cn, shouldHideTestUsersInProduction } from '@/lib/utils';
 import { 
   Popover, 
   PopoverContent, 
@@ -297,8 +295,8 @@ export function AdminTracking() {
         .in('payment_status', TRACKABLE_PAYMENT_STATUSES)
         .order('created_at', { ascending: false });
 
-      if (!isLocal) {
-        query = query.not('client_email', 'ilike', '%@uorak.com');
+      if (shouldHideTestUsersInProduction()) {
+        query = query.not('client_email', 'ilike', TEST_USER_EMAIL_PATTERN);
       }
 
       const { data: orders, error } = await query;

@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ShoppingCart } from 'lucide-react';
-import { formatCurrency } from '@/lib/utils';
+import { TEST_USER_EMAIL_PATTERN, formatCurrency, shouldHideTestUsersInProduction } from '@/lib/utils';
 import { useDashboardCache } from '@/contexts/DashboardCacheContext';
 import { Skeleton } from '@/components/ui/skeleton';
 
@@ -36,10 +36,16 @@ export function HeadOfSalesOrders() {
                 }, {} as Record<string, { name: string, is_current: boolean }>);
 
                 // 2. Fetch orders for the TEAM ID directly
-                const { data } = await supabase
+                let ordersQuery = supabase
                     .from('visa_orders')
                     .select('*')
-                    .eq('team_id', seller.team_id)
+                    .eq('team_id', seller.team_id);
+
+                if (shouldHideTestUsersInProduction()) {
+                    ordersQuery = ordersQuery.eq('is_test', false).not('client_email', 'ilike', TEST_USER_EMAIL_PATTERN);
+                }
+
+                const { data } = await ordersQuery
                     .order('created_at', { ascending: false })
                     .limit(100);
 

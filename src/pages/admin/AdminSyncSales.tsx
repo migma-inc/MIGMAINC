@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { AlertModal } from '@/components/ui/alert-modal';
 import { ConfirmModal } from '@/components/ui/confirm-modal';
 import { Checkbox } from '@/components/ui/checkbox';
+import { TEST_USER_EMAIL_PATTERN } from '@/lib/utils';
 
 export function AdminSyncSales() {
     const [orders, setOrders] = useState<Order[]>([]);
@@ -52,9 +53,8 @@ export function AdminSyncSales() {
                 .from('visa_orders')
                 .select('id, order_number, client_name, client_email, total_price_usd, product_slug, created_at, seller_id, payment_metadata')
                 .eq('payment_status', 'completed')
-                .not('client_email', 'ilike', '%@uorak.com') // Filter test data
                 .or('seller_id.is.null,seller_id.eq.""')
-                .not('client_email', 'ilike', '%@uorak.com')
+                .not('client_email', 'ilike', TEST_USER_EMAIL_PATTERN)
                 .order('created_at', { ascending: false });
 
             if (ordersError) throw ordersError;

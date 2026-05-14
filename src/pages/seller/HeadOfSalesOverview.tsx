@@ -4,7 +4,7 @@ import { Users, DollarSign, Award, ShieldCheck, TrendingUp, ArrowUpRight } from 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
-import { formatCurrency } from '@/lib/utils';
+import { TEST_USER_EMAIL_PATTERN, formatCurrency, shouldHideTestUsersInProduction } from '@/lib/utils';
 import { format } from 'date-fns';
 import { useDashboardCache } from '@/contexts/DashboardCacheContext';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -52,11 +52,17 @@ export function HeadOfSalesOverview() {
                 setTeamSize(currentMembers?.length || 0);
 
                 // 3. Buscar TODAS as vendas do TIME (por team_id)
-                const { data: teamOrders } = await supabase
+                let teamOrdersQuery = supabase
                     .from('visa_orders')
                     .select('base_price_usd, extra_units, extra_unit_price_usd, discount_amount, upsell_price_usd, seller_id, client_name, product_slug, created_at, payment_status')
                     .eq('team_id', seller.team_id)
                     .eq('payment_status', 'completed');
+
+                if (shouldHideTestUsersInProduction()) {
+                    teamOrdersQuery = teamOrdersQuery.eq('is_test', false).not('client_email', 'ilike', TEST_USER_EMAIL_PATTERN);
+                }
+
+                const { data: teamOrders } = await teamOrdersQuery;
 
                 const totalOrders = teamOrders?.length || 0;
                 setOrdersCount(totalOrders);

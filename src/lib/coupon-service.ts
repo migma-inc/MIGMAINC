@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase';
+import { TEST_USER_EMAIL_PATTERN, shouldHideTestUsersInProduction } from '@/lib/utils';
 
 export interface Coupon {
     id: string;
@@ -109,7 +110,7 @@ export interface CouponUsage {
 }
 
 export const getCouponUsage = async (couponCode: string): Promise<CouponUsage[]> => {
-    const { data, error } = await supabase
+    let query = supabase
         .from('visa_orders')
         .select(`
             id,
@@ -124,8 +125,13 @@ export const getCouponUsage = async (couponCode: string): Promise<CouponUsage[]>
             payment_status
         `)
         .eq('coupon_code', couponCode)
-        .neq('payment_status', 'cancelled') // Opcional: filtrar cancelados se desejar apenas usos efetivos
-        .order('created_at', { ascending: false });
+        .neq('payment_status', 'cancelled'); // Opcional: filtrar cancelados se desejar apenas usos efetivos
+
+    if (shouldHideTestUsersInProduction()) {
+        query = query.eq('is_test', false).not('client_email', 'ilike', TEST_USER_EMAIL_PATTERN);
+    }
+
+    const { data, error } = await query.order('created_at', { ascending: false });
 
     if (error) throw error;
     return data || [];
@@ -165,10 +171,16 @@ export const removeCouponFromOrder = async (orderId: string, _couponCode: string
 };
 export const syncCouponUsage = async (couponCode: string): Promise<number> => {
     // 1. Get actual orders count
-    const { count, error: countError } = await supabase
+    let countQuery = supabase
         .from('visa_orders')
         .select('*', { count: 'exact', head: true })
         .eq('coupon_code', couponCode);
+
+    if (shouldHideTestUsersInProduction()) {
+        countQuery = countQuery.eq('is_test', false).not('client_email', 'ilike', TEST_USER_EMAIL_PATTERN);
+    }
+
+    const { count, error: countError } = await countQuery;
 
     if (countError) throw countError;
 

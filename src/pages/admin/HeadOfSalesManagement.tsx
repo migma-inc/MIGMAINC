@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Crown, Users, X, Loader2, UserPlus, Search, UserCheck, BarChart3, Plus, ArrowDown } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { formatCurrency, isTestEnvironment } from '@/lib/utils';
+import { TEST_USER_EMAIL_PATTERN, formatCurrency, isTestEnvironment, shouldHideTestUsersInProduction } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ManageTeamModal } from '@/components/admin/ManageTeamModal';
@@ -135,6 +135,9 @@ export function HeadOfSalesManagement() {
 
                 if (!isTestEnvironment()) {
                     ordersQuery = ordersQuery.eq('is_test', false);
+                }
+                if (shouldHideTestUsersInProduction()) {
+                    ordersQuery = ordersQuery.not('client_email', 'ilike', TEST_USER_EMAIL_PATTERN);
                 }
 
                 const { data: fetchedTeamOrders } = await ordersQuery;

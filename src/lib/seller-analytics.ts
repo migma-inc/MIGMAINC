@@ -1,5 +1,6 @@
 import { supabase } from './supabase';
 import { calculateNetAmount } from './seller-commissions';
+import { TEST_USER_EMAIL_PATTERN, shouldHideTestUsersInProduction } from './utils';
 
 export interface ChartDataPoint {
   date: string;
@@ -184,10 +185,14 @@ async function getOrderMetadataMap(
     return new Map();
   }
 
-  const { data, error } = await supabase
+  let query = supabase
     .from('visa_orders')
     .select('id, created_at, paid_at, product_slug')
     .in('id', validOrderIds);
+  if (shouldHideTestUsersInProduction()) {
+    query = query.eq('is_test', false).not('client_email', 'ilike', TEST_USER_EMAIL_PATTERN);
+  }
+  const { data, error } = await query;
 
   if (error) {
     console.error('[Analytics] Error fetching order metadata:', error);
@@ -388,6 +393,10 @@ export async function getSellerChartData(
       .from('visa_orders')
       .select('*');
 
+    if (shouldHideTestUsersInProduction()) {
+      query = query.eq('is_test', false).not('client_email', 'ilike', TEST_USER_EMAIL_PATTERN);
+    }
+
     if (sellerId) {
       query = query.eq('seller_id', sellerId);
     }
@@ -483,6 +492,10 @@ export async function getProductMetrics(
     let query = supabase
       .from('visa_orders')
       .select('*');
+
+    if (shouldHideTestUsersInProduction()) {
+      query = query.eq('is_test', false).not('client_email', 'ilike', TEST_USER_EMAIL_PATTERN);
+    }
 
     if (sellerId) {
       query = query.eq('seller_id', sellerId);
@@ -580,6 +593,10 @@ export async function getPeriodComparison(
       .from('visa_orders')
       .select('*');
 
+    if (shouldHideTestUsersInProduction()) {
+      currentQuery = currentQuery.eq('is_test', false).not('client_email', 'ilike', TEST_USER_EMAIL_PATTERN);
+    }
+
     if (sellerId) {
       currentQuery = currentQuery.eq('seller_id', sellerId);
     }
@@ -598,6 +615,10 @@ export async function getPeriodComparison(
     let prevQuery = supabase
       .from('visa_orders')
       .select('*');
+
+    if (shouldHideTestUsersInProduction()) {
+      prevQuery = prevQuery.eq('is_test', false).not('client_email', 'ilike', TEST_USER_EMAIL_PATTERN);
+    }
 
     if (sellerId) {
       prevQuery = prevQuery.eq('seller_id', sellerId);
@@ -678,6 +699,10 @@ export async function getTrends(
     let query = supabase
       .from('visa_orders')
       .select('id, created_at, paid_at, total_price_usd, payment_status, payment_metadata');
+
+    if (shouldHideTestUsersInProduction()) {
+      query = query.eq('is_test', false).not('client_email', 'ilike', TEST_USER_EMAIL_PATTERN);
+    }
 
     if (sellerId) {
       query = query.eq('seller_id', sellerId);
@@ -779,6 +804,10 @@ export async function getAnalyticsData(
   let query = supabase
     .from('visa_orders')
     .select('*');
+
+  if (shouldHideTestUsersInProduction()) {
+    query = query.eq('is_test', false).not('client_email', 'ilike', TEST_USER_EMAIL_PATTERN);
+  }
 
   if (sellerId) {
     query = query.eq('seller_id', sellerId);
@@ -1192,7 +1221,7 @@ export async function getCommissionSummary(
 
     const filteredCommissions = commissions.filter((commission: any) => {
       const orderMetadata = orderMetadataMap.get(commission.order_id);
-      return orderMetadata ? isOrderWithinPeriod(orderMetadata, period) : true;
+      return orderMetadata ? isOrderWithinPeriod(orderMetadata, period) : false;
     });
 
     if (filteredCommissions.length === 0) {
@@ -1290,7 +1319,7 @@ export async function getCommissionByProduct(
 
     const filteredCommissions = commissions.filter((commission) => {
       const orderMetadata = orderMetadataMap.get(commission.order_id);
-      return orderMetadata ? isOrderWithinPeriod(orderMetadata, period) : true;
+      return orderMetadata ? isOrderWithinPeriod(orderMetadata, period) : false;
     });
 
     if (filteredCommissions.length === 0) {
@@ -1301,10 +1330,14 @@ export async function getCommissionByProduct(
     const orderIds = filteredCommissions.map(c => c.order_id);
 
     // Get orders with product info
-    const { data: orders } = await supabase
+    let ordersQuery = supabase
       .from('visa_orders')
       .select('id, product_slug')
       .in('id', orderIds);
+    if (shouldHideTestUsersInProduction()) {
+      ordersQuery = ordersQuery.eq('is_test', false).not('client_email', 'ilike', TEST_USER_EMAIL_PATTERN);
+    }
+    const { data: orders } = await ordersQuery;
 
     if (!orders) {
       return [];
@@ -1381,6 +1414,10 @@ export async function getTeamYearlyAnalytics(
       .in('payment_status', ['completed', 'paid'])
       .gte('created_at', expandedStart.toISOString())
       .lte('created_at', endDate.toISOString());
+
+    if (shouldHideTestUsersInProduction()) {
+      query = query.eq('is_test', false).not('client_email', 'ilike', TEST_USER_EMAIL_PATTERN);
+    }
 
     if (productSlug !== 'all') {
       if (productSlug === 'student') {

@@ -6,6 +6,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { TrendingUp, MousePointerClick, FileEdit, CheckCircle, CreditCard, DollarSign, ChevronDown, ChevronUp, Eye, Globe, Calendar, User } from 'lucide-react';
+import { filterTestUserEmails } from '@/lib/utils';
 
 interface SellerInfo {
   id: string;
@@ -152,7 +153,8 @@ export function SellerFunnel() {
                 .eq('seller_id', seller.seller_id_public);
 
               if (ordersData) {
-                const ordersMap = ordersData.reduce((acc, order) => {
+                const visibleOrdersData = filterTestUserEmails(ordersData, (order) => order.client_email);
+                const ordersMap = visibleOrdersData.reduce((acc, order) => {
                   acc[order.id] = order;
                   return acc;
                 }, {} as Record<string, any>);
@@ -186,7 +188,8 @@ export function SellerFunnel() {
               .eq('seller_id', seller.seller_id_public);
 
             if (ordersData) {
-              const ordersMap = ordersData.reduce((acc, order) => {
+              const visibleOrdersData = filterTestUserEmails(ordersData, (order) => order.client_email);
+              const ordersMap = visibleOrdersData.reduce((acc, order) => {
                 acc[order.id] = order;
                 return acc;
               }, {} as Record<string, any>);
