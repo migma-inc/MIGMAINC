@@ -129,14 +129,47 @@ function buildStudentEmail(args: {
   const senderName = escapeHtml(args.senderName);
   const senderLabel = escapeHtml(args.senderLabel);
   const supportUrl = escapeHtml(args.supportUrl);
+  const subject = `[Migma Support] New message / Nova mensagem / Nuevo mensaje`;
+  const sections = [
+    {
+      label: "English",
+      title: "New support message",
+      greeting: "Hi",
+      body: `<strong style="color:#ffffff;">${senderName}</strong> <span style="color:#9ca3af;">(${senderLabel})</span> sent a new message in your Migma support conversation.`,
+      notice: "This notice is sent only for the first unread message. After you open support, the next team message will generate a new notice.",
+    },
+    {
+      label: "Portugues",
+      title: "Nova mensagem no suporte",
+      greeting: "Ola",
+      body: `<strong style="color:#ffffff;">${senderName}</strong> <span style="color:#9ca3af;">(${senderLabel})</span> enviou uma nova mensagem na sua conversa de suporte da Migma.`,
+      notice: "Este aviso e enviado somente para a primeira mensagem nao lida. Depois que voce abrir o suporte, a proxima mensagem da equipe gerara um novo aviso.",
+    },
+    {
+      label: "Espanol",
+      title: "Nuevo mensaje en soporte",
+      greeting: "Hola",
+      body: `<strong style="color:#ffffff;">${senderName}</strong> <span style="color:#9ca3af;">(${senderLabel})</span> envio un nuevo mensaje en tu conversacion de soporte de Migma.`,
+      notice: "Este aviso se envia solo para el primer mensaje no leido. Despues de abrir soporte, el proximo mensaje del equipo generara un nuevo aviso.",
+    },
+  ].map((section, index) => `
+              ${index > 0 ? '<div style="height:1px;background:#2a2a2a;margin:24px 0 20px;"></div>' : ""}
+              <p style="margin:0 0 10px;color:#CE9F48;font-size:11px;font-weight:700;letter-spacing:1.4px;text-transform:uppercase;">${section.label}</p>
+              <h1 style="margin:0 0 16px;color:#F3E196;font-size:22px;line-height:1.25;text-align:left;">${section.title}</h1>
+              <p style="margin:0 0 14px;color:#d1d5db;font-size:15px;line-height:1.6;">${section.greeting}, <strong style="color:#ffffff;">${studentName}</strong>.</p>
+              <p style="margin:0 0 14px;color:#d1d5db;font-size:15px;line-height:1.6;">
+                ${section.body}
+              </p>
+              <p style="margin:0;color:#9ca3af;font-size:13px;line-height:1.6;">
+                ${section.notice}
+              </p>`).join("");
 
-  const subject = `[Migma Support] Nova mensagem de ${args.senderName}`;
   const html = `<!DOCTYPE html>
 <html>
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Nova mensagem no suporte</title>
+  <title>New message / Nova mensagem / Nuevo mensaje</title>
 </head>
 <body style="margin:0;padding:0;background:#000000;color:#e5e7eb;font-family:Arial,Helvetica,sans-serif;">
   <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#000000;">
@@ -150,18 +183,11 @@ function buildStudentEmail(args: {
           </tr>
           <tr>
             <td style="padding:0 34px 34px;">
-              <h1 style="margin:0 0 18px;color:#F3E196;font-size:24px;line-height:1.25;text-align:center;">Nova mensagem no suporte</h1>
-              <p style="margin:0 0 14px;color:#d1d5db;font-size:15px;line-height:1.6;">Ola, <strong style="color:#ffffff;">${studentName}</strong>.</p>
-              <p style="margin:0 0 14px;color:#d1d5db;font-size:15px;line-height:1.6;">
-                <strong style="color:#ffffff;">${senderName}</strong> <span style="color:#9ca3af;">(${senderLabel})</span> enviou uma nova mensagem na sua conversa de suporte da Migma.
-              </p>
-              <p style="margin:0 0 22px;color:#9ca3af;font-size:13px;line-height:1.6;">
-                Este aviso e enviado somente para a primeira mensagem nao lida. Depois que voce abrir o suporte, a proxima mensagem da equipe gerara um novo aviso.
-              </p>
-              <table role="presentation" cellspacing="0" cellpadding="0" align="center">
+              ${sections}
+              <table role="presentation" cellspacing="0" cellpadding="0" align="center" style="margin-top:24px;">
                 <tr>
                   <td align="center" style="border-radius:6px;background:#CE9F48;">
-                    <a href="${supportUrl}" style="display:inline-block;padding:14px 24px;color:#000000;text-decoration:none;font-weight:700;font-size:14px;">Abrir suporte</a>
+                    <a href="${supportUrl}" style="display:inline-block;padding:14px 24px;color:#000000;text-decoration:none;font-weight:700;font-size:14px;line-height:1.35;">Open support / Abrir suporte / Abrir soporte</a>
                   </td>
                 </tr>
               </table>

@@ -63,6 +63,7 @@ interface Props {
   processType?: 'transfer' | 'cos' | 'initial' | 'other';
   preSelectedScholarshipId?: string | null;
   selectionDisabled?: boolean;
+  showAllScholarships?: boolean;
   onClose: () => void;
   onSelect: (scholarshipId: string) => void;
 }
@@ -345,6 +346,7 @@ export const UniversitySelectionModal: React.FC<Props> = ({
   processType = 'other',
   preSelectedScholarshipId,
   selectionDisabled = false,
+  showAllScholarships = false,
   onClose,
   onSelect,
 }) => {
@@ -363,12 +365,13 @@ export const UniversitySelectionModal: React.FC<Props> = ({
 
   // Filtrar bolsas pelo curso selecionado
   const filteredScholarships = useMemo(() => {
+    if (showAllScholarships) return institution.scholarships;
     if (!selectedCourseId) return institution.scholarships;
     const hasCourseSpecificScholarships = institution.scholarships.some(s => s.course_id);
     return institution.scholarships.filter(s =>
       s.course_id === selectedCourseId || (!hasCourseSpecificScholarships && !s.course_id)
     );
-  }, [institution.scholarships, selectedCourseId]);
+  }, [institution.scholarships, selectedCourseId, showAllScholarships]);
 
   const sortedScholarships = useMemo(
     () => [...filteredScholarships].sort((a, b) => a.placement_fee_usd - b.placement_fee_usd),
