@@ -184,18 +184,10 @@ function normalizeSupportAiControl(profileRow: unknown, globalRow: unknown): Sup
     : typeof global?.updated_at === 'string'
       ? global.updated_at
       : null;
-  const rawAiEnabled = row?.ai_enabled === true;
-  const pauseUntilMs = source === 'profile' && !rawAiEnabled && updatedAt
-    ? new Date(updatedAt).getTime() + humanTimeoutMinutes * 60 * 1000
-    : null;
-  const pauseUntil = pauseUntilMs !== null && Number.isFinite(pauseUntilMs)
-    ? new Date(pauseUntilMs).toISOString()
-    : null;
-
   return {
-    ai_enabled: rawAiEnabled || (pauseUntilMs !== null && Number.isFinite(pauseUntilMs) && pauseUntilMs <= Date.now()),
+    ai_enabled: true,
     human_timeout_minutes: humanTimeoutMinutes,
-    ai_pause_until: pauseUntil,
+    ai_pause_until: null,
     source,
     updated_at: updatedAt,
     updated_by_role: typeof profile?.updated_by_role === 'string' ? profile.updated_by_role : null,
@@ -3190,7 +3182,6 @@ function SupportTab({
   const [aiControlLoading, setAiControlLoading] = useState(false);
   const [aiControlSaving, setAiControlSaving] = useState(false);
   const [aiControlError, setAiControlError] = useState<string | null>(null);
-  const [aiEnabledInput, setAiEnabledInput] = useState(true);
   const [timeoutInput, setTimeoutInput] = useState(60);
 
   const updateHandoff = async (
@@ -3258,24 +3249,21 @@ function SupportTab({
   const replyPlaceholder = accessRole === 'mentor'
     ? 'Write a message to the student as mentor...'
     : 'Write a message to the student as Migma team...';
-  const aiPauseActive = Boolean(
-    !aiEnabledInput
-    && aiControl?.ai_pause_until
-    && new Date(aiControl.ai_pause_until).getTime() > Date.now(),
-  );
-  const aiStatusLabel = aiEnabledInput
-    ? 'enabled'
-    : aiPauseActive
-      ? 'paused'
-      : 'disabled';
-  const aiStatusTone = aiEnabledInput
-    ? 'border-emerald-500/25 bg-emerald-500/10 text-emerald-300'
-    : aiPauseActive
-      ? 'border-yellow-500/25 bg-yellow-500/10 text-yellow-300'
-      : 'border-red-500/25 bg-red-500/10 text-red-300';
-  const aiPauseHelper = aiPauseActive && aiControl?.ai_pause_until
-    ? `AI will resume automatically at ${fmtDate(aiControl.ai_pause_until)} if no new team message is sent.`
-    : 'Human replies pause AI automatically. If no mentor/admin message is sent for the timeout window, AI can answer again.';
+  const configuredTimeoutMinutes = Math.min(1440, Math.max(1, Math.round(Number(timeoutInput) || 60)));
+  const latestTeamMessage = [...chatMessages].reverse().find((message) => message.role === 'mentor' || message.role === 'admin');
+  const latestTeamMessageAt = latestTeamMessage ? new Date(latestTeamMessage.created_at).getTime() : null;
+  const teamTimeoutUntilMs = latestTeamMessageAt !== null && Number.isFinite(latestTeamMessageAt)
+    ? latestTeamMessageAt + configuredTimeoutMinutes * 60 * 1000
+    : null;
+  const aiAutoPaused = teamTimeoutUntilMs !== null && teamTimeoutUntilMs > Date.now();
+  const teamTimeoutUntilIso = teamTimeoutUntilMs !== null ? new Date(teamTimeoutUntilMs).toISOString() : null;
+  const aiStatusLabel = aiAutoPaused ? 'auto-paused' : 'enabled';
+  const aiStatusTone = aiAutoPaused
+    ? 'border-yellow-500/25 bg-yellow-500/10 text-yellow-300'
+    : 'border-emerald-500/25 bg-emerald-500/10 text-emerald-300';
+  const aiPauseHelper = aiAutoPaused && teamTimeoutUntilIso
+    ? `AI is paused automatically until ${fmtDate(teamTimeoutUntilIso)} because the team replied in this conversation.`
+    : 'AI stays enabled by default. Mentor/admin replies pause it automatically for the timeout window.';
 
   const loadAiControl = useCallback(async () => {
     setAiControlLoading(true);
@@ -3314,7 +3302,6 @@ function SupportTab({
 
       const next = normalizeSupportAiControl(profileResult.data, globalResult.data);
       setAiControl(next);
-      setAiEnabledInput(next.ai_enabled);
       setTimeoutInput(next.human_timeout_minutes);
     } catch (err) {
       console.error('[AdminUserDetail] Failed to load support chat AI controls', err);
@@ -3328,8 +3315,7 @@ function SupportTab({
     void loadAiControl();
   }, [loadAiControl]);
 
-  const saveAiControl = async (patch?: Partial<Pick<SupportAiControl, 'ai_enabled' | 'human_timeout_minutes'>>) => {
-    const nextAiEnabled = patch?.ai_enabled ?? aiEnabledInput;
+  const saveAiControl = async (patch?: Partial<Pick<SupportAiControl, 'human_timeout_minutes'>>) => {
     const nextTimeout = patch?.human_timeout_minutes ?? timeoutInput;
     const normalizedTimeout = Math.min(1440, Math.max(1, Math.round(Number(nextTimeout) || 60)));
 
@@ -3342,7 +3328,7 @@ function SupportTab({
         .upsert(
           {
             profile_id: profileId,
-            ai_enabled: nextAiEnabled,
+            ai_enabled: true,
             human_timeout_minutes: normalizedTimeout,
           },
           { onConflict: 'profile_id' },
@@ -3354,7 +3340,6 @@ function SupportTab({
 
       const next = normalizeSupportAiControl(data, null);
       setAiControl(next);
-      setAiEnabledInput(next.ai_enabled);
       setTimeoutInput(next.human_timeout_minutes);
     } catch (err) {
       console.error('[AdminUserDetail] Failed to save support chat AI controls', err);
@@ -3446,7 +3431,7 @@ function SupportTab({
                   'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-bold',
                   aiStatusTone,
                 )}>
-                  {aiEnabledInput ? <PlayCircle className="h-3.5 w-3.5" /> : <PauseCircle className="h-3.5 w-3.5" />}
+                  {aiAutoPaused ? <PauseCircle className="h-3.5 w-3.5" /> : <PlayCircle className="h-3.5 w-3.5" />}
                   AI {aiStatusLabel}
                 </span>
                 <span className="text-xs text-white/35">
@@ -3476,17 +3461,6 @@ function SupportTab({
                 />
                 min
               </label>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                disabled={aiControlSaving || aiControlLoading}
-                onClick={() => void saveAiControl({ ai_enabled: !aiEnabledInput })}
-                className="border-white/10 bg-white/[0.04] text-white hover:bg-white/[0.08]"
-              >
-                {aiEnabledInput ? <PauseCircle className="mr-1.5 h-4 w-4" /> : <PlayCircle className="mr-1.5 h-4 w-4" />}
-                {aiEnabledInput ? `Pause ${Math.min(1440, Math.max(1, Math.round(Number(timeoutInput) || 60)))} min` : 'Resume AI'}
-              </Button>
               <Button
                 type="button"
                 size="sm"
