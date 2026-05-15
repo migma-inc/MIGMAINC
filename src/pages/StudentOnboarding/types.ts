@@ -50,4 +50,5 @@ export interface StepProps {
   onBack: () => void;
   onComplete?: () => void;
   currentStep?: OnboardingStep;
+  devCatalogBypass?: boolean;
 }

@@ -115,10 +115,11 @@ type ExistingApplication = {
   institution_scholarships: { scholarship_level: string | null; discount_percent: number | null } | null;
 };
 
-export const UniversitySelectionStep: React.FC<StepProps> = ({ onNext }) => {
+export const UniversitySelectionStep: React.FC<StepProps> = ({ onNext, devCatalogBypass = false }) => {
   const { userProfile } = useStudentAuth();
   const { t } = useTranslation();
   const preOnboardingDevBypass = isPreOnboardingDevBypassEnabled();
+  const showFullCatalogInDev = preOnboardingDevBypass || devCatalogBypass;
 
   const formatDegreeLevel = (value: string | null | undefined) => {
     if (!value) return '';
@@ -185,12 +186,12 @@ export const UniversitySelectionStep: React.FC<StepProps> = ({ onNext }) => {
 
       if (fetchError) throw fetchError;
         const sourceCatalog = ((data as Institution[]) || []);
-        const catalog = (preOnboardingDevBypass
+        const catalog = (showFullCatalogInDev
           ? sourceCatalog
           : sourceCatalog.filter(inst => isInstitutionEligibleForProfile(inst, profileEligibility))
         )
           .map(inst => {
-            if (preOnboardingDevBypass) return inst;
+            if (showFullCatalogInDev) return inst;
 
             const eligibleScholarships = inst.scholarships.filter(scholarship =>
               isScholarshipEligibleForProfile(scholarship, profileEligibility)
@@ -211,10 +212,12 @@ export const UniversitySelectionStep: React.FC<StepProps> = ({ onNext }) => {
                 : scholarshipsForProcess,
             };
           })
-          .filter(hasCompleteSelectionData);
+          .filter(inst => showFullCatalogInDev || hasCompleteSelectionData(inst));
       setInstitutions(catalog);
 
-      if (profileId) {
+      if (showFullCatalogInDev) {
+        setExistingApps([]);
+      } else if (profileId) {
         const { data: apps } = await supabase
           .from('institution_applications')
           .select(`
@@ -231,7 +234,7 @@ export const UniversitySelectionStep: React.FC<StepProps> = ({ onNext }) => {
       hasLoadedOnceRef.current = true;
       if (shouldShowBlockingLoader) setLoading(false);
     }
-  }, [profileEligibility, profileId, preOnboardingDevBypass]);
+  }, [profileEligibility, profileId, showFullCatalogInDev]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
@@ -380,9 +383,9 @@ export const UniversitySelectionStep: React.FC<StepProps> = ({ onNext }) => {
   }
 
   const selectedInst = modalInstId ? institutions.find(i => i.id === modalInstId) : null;
-  const isApproved = existingApps.some(a => ['approved', 'payment_pending', 'payment_confirmed', 'accepted'].includes(a.status));
-  const canContinueWithExistingApps = DISABLE_SCHOLARSHIP_APPROVAL_LOCK_FOR_TESTS && existingApps.length > 0;
-  const isPendingApproval = !isApproved && existingApps.length > 0 && existingApps.every(a => a.status === 'pending_admin_approval');
+  const isApproved = !showFullCatalogInDev && existingApps.some(a => ['approved', 'payment_pending', 'payment_confirmed', 'accepted'].includes(a.status));
+  const canContinueWithExistingApps = !showFullCatalogInDev && DISABLE_SCHOLARSHIP_APPROVAL_LOCK_FOR_TESTS && existingApps.length > 0;
+  const isPendingApproval = !showFullCatalogInDev && !isApproved && existingApps.length > 0 && existingApps.every(a => a.status === 'pending_admin_approval');
 
   // ── Approved state fallback ──
   if (isApproved || canContinueWithExistingApps) {
@@ -953,6 +956,7 @@ export const UniversitySelectionStep: React.FC<StepProps> = ({ onNext }) => {
           processType={getStudentProcessType(profileEligibility)}
           preSelectedScholarshipId={selections.get(selectedInst.id)?.scholarshipId ?? null}
           selectionDisabled={selections.size >= MAX_SELECTIONS && !selections.has(selectedInst.id)}
+          showAllScholarships={showFullCatalogInDev}
           onClose={() => setModalInstId(null)}
           onSelect={scholarshipId => {
             handleSelect(selectedInst.id, scholarshipId);

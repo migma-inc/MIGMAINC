@@ -247,7 +247,12 @@ const StudentOnboarding: React.FC = () => {
     return <CompletedScreen />;
   }
 
-  const stepProps = { onNext: handleNext, onBack: handleBack, currentStep: state.currentStep };
+  const stepProps = {
+    onNext: handleNext,
+    onBack: handleBack,
+    currentStep: state.currentStep,
+    devCatalogBypass: preOnboardingDevBypass || devOverrideActive,
+  };
   const currentStepLabel = String(t(ONBOARDING_STEP_LABEL_KEYS[state.currentStep]));
 
   return (

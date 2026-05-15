@@ -14,6 +14,12 @@ const LOCAL_INSTITUTION_BANNERS: Record<string, string> = {
   'ili-washington': '/institution-banners/ili-washington.png',
   'internexus-provo': '/institution-banners/internexus-provo.png',
   'trine-university': '/institution-banners/trine-university.png',
+  'american-national-university': '/institution-banners/american-national-university.png',
+  'uceda-school-orlando': '/institution-banners/uceda-school-orlando.png',
+  'uceda-school-las-vegas': '/institution-banners/uceda-school-las-vegas.png',
+  'uceda-school-elizabeth': '/institution-banners/uceda-school-elizabeth.png',
+  'uceda-school-boca-raton': '/institution-banners/uceda-school-boca-raton.png',
+  'csi-esl': '/institution-banners/csi-esl.png',
 };
 
 const toSlugKey = (value: string | null | undefined) =>
