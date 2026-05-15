@@ -16,7 +16,13 @@ export interface ScheduledMeeting {
   meeting_scheduled_at: string;
   scheduled_by?: string | null;
   notes?: string | null;
-  source: 'manual' | 'partner';
+  source: 'manual' | 'partner' | 'support';
+  profile_id?: string | null;
+  mentor_profile_id?: string | null;
+  attending_mentor_name?: string | null;
+  attending_mentor_email?: string | null;
+  meeting_end?: string | null;
+  status?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -29,6 +35,57 @@ export interface ScheduleMeetingData {
   meeting_link: string;
   scheduled_by?: string;
   notes?: string;
+}
+
+type SupportHandoffMeetingRow = {
+  id: string;
+  profile_id: string;
+  status: string | null;
+  triggered_by: string | null;
+  meeting_url: string | null;
+  meeting_calendar_link: string | null;
+  meeting_start: string | null;
+  meeting_end: string | null;
+  assigned_to: string | null;
+  created_at: string;
+  resolved_note: string | null;
+  user_profiles: { full_name: string | null; email: string | null; mentor_id: string | null } | { full_name: string | null; email: string | null; mentor_id: string | null }[] | null;
+};
+
+type ReferralMentorMeetingRow = {
+  profile_id: string;
+  display_name: string | null;
+  user_profiles: { full_name: string | null; email: string | null } | { full_name: string | null; email: string | null }[] | null;
+};
+
+function dateInputFromIso(iso: string | null) {
+  if (!iso) return '';
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return iso.split('T')[0] ?? '';
+  return date.toISOString().split('T')[0];
+}
+
+function timeLabelFromIso(iso: string | null) {
+  if (!iso) return '';
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return '';
+  return new Intl.DateTimeFormat('en-US', {
+    hour: '2-digit',
+    minute: '2-digit',
+    timeZoneName: 'short',
+  }).format(date);
+}
+
+function normalizeRelatedProfile(
+  profile: SupportHandoffMeetingRow['user_profiles'],
+) {
+  return Array.isArray(profile) ? profile[0] ?? null : profile;
+}
+
+function normalizeMentorProfile(
+  profile: ReferralMentorMeetingRow['user_profiles'],
+) {
+  return Array.isArray(profile) ? profile[0] ?? null : profile;
 }
 
 /**
@@ -134,21 +191,82 @@ export async function getScheduledMeetings(options?: {
       .select('id, email, full_name, meeting_date, meeting_time, meeting_link, meeting_scheduled_by, created_at')
       .not('meeting_date', 'is', null);
 
+    // 3. Fetch mentor support meetings booked through the support flow.
+    let supportQuery = supabase
+      .from('support_handoffs')
+      .select(`
+        id,
+        profile_id,
+        status,
+        triggered_by,
+        meeting_url,
+        meeting_calendar_link,
+        meeting_start,
+        meeting_end,
+        assigned_to,
+        created_at,
+        resolved_note,
+        user_profiles:profile_id ( full_name, email, mentor_id )
+      `)
+      .not('meeting_start', 'is', null);
+
     // Apply date filters
     const today = new Date().toISOString().split('T')[0];
+    const todayStart = `${today}T00:00:00.000Z`;
     if (options?.filterDate === 'upcoming') {
       manualQuery = manualQuery.gte('meeting_date', today);
       partnerQuery = partnerQuery.gte('meeting_date', today);
+      supportQuery = supportQuery.gte('meeting_start', todayStart);
     } else if (options?.filterDate === 'past') {
       manualQuery = manualQuery.lt('meeting_date', today);
       partnerQuery = partnerQuery.lt('meeting_date', today);
+      supportQuery = supportQuery.lt('meeting_start', todayStart);
     }
 
     // Execute queries
-    const [manualResult, partnerResult] = await Promise.all([manualQuery, partnerQuery]);
+    const [manualResult, partnerResult, supportResult] = await Promise.all([
+      manualQuery,
+      partnerQuery,
+      supportQuery,
+    ]);
 
     if (manualResult.error) throw manualResult.error;
     if (partnerResult.error) throw partnerResult.error;
+    if (supportResult.error) throw supportResult.error;
+
+    const supportRows = (supportResult.data || []) as SupportHandoffMeetingRow[];
+    const supportMentorIds = [...new Set(
+      supportRows
+        .map((handoff) => normalizeRelatedProfile(handoff.user_profiles)?.mentor_id)
+        .filter((mentorId): mentorId is string => Boolean(mentorId))
+    )];
+    let mentorsByProfileId = new Map<string, {
+      display_name: string | null;
+      full_name: string | null;
+      email: string | null;
+    }>();
+
+    if (supportMentorIds.length > 0) {
+      const { data: mentorRows, error: mentorError } = await supabase
+        .from('referral_mentors')
+        .select(`
+          profile_id,
+          display_name,
+          user_profiles:profile_id ( full_name, email )
+        `)
+        .in('profile_id', supportMentorIds);
+
+      if (mentorError) throw mentorError;
+
+      mentorsByProfileId = new Map(((mentorRows || []) as ReferralMentorMeetingRow[]).map((mentor) => {
+        const profile = normalizeMentorProfile(mentor.user_profiles);
+        return [mentor.profile_id, {
+          display_name: mentor.display_name,
+          full_name: profile?.full_name ?? null,
+          email: profile?.email ?? null,
+        }];
+      }));
+    }
 
     // Map and unify
     const manualMeetings: ScheduledMeeting[] = (manualResult.data || []).map(m => ({
@@ -172,7 +290,36 @@ export async function getScheduledMeetings(options?: {
       updated_at: m.created_at
     }));
 
-    let allMeetings = [...manualMeetings, ...partnerMeetings];
+    const supportMeetings: ScheduledMeeting[] = supportRows.map(m => {
+      const profile = normalizeRelatedProfile(m.user_profiles);
+      const mentor = profile?.mentor_id ? mentorsByProfileId.get(profile.mentor_id) ?? null : null;
+      const meetingLink = m.meeting_url || m.meeting_calendar_link || '';
+      const supportSource = m.triggered_by === 'student_request' ? 'student request' : 'AI support';
+      const mentorName = mentor?.display_name || mentor?.full_name || mentor?.email || m.assigned_to || null;
+
+      return {
+        id: m.id,
+        profile_id: m.profile_id,
+        mentor_profile_id: profile?.mentor_id ?? null,
+        attending_mentor_name: mentorName,
+        attending_mentor_email: mentor?.email ?? null,
+        email: profile?.email ?? '',
+        full_name: profile?.full_name || profile?.email || 'Student support meeting',
+        meeting_date: dateInputFromIso(m.meeting_start),
+        meeting_time: timeLabelFromIso(m.meeting_start),
+        meeting_link: meetingLink,
+        meeting_end: m.meeting_end,
+        meeting_scheduled_at: m.created_at,
+        scheduled_by: m.assigned_to || 'Support flow',
+        notes: `Support mentor meeting · ${supportSource}`,
+        source: 'support',
+        status: m.status,
+        created_at: m.created_at,
+        updated_at: m.created_at,
+      };
+    });
+
+    let allMeetings = [...manualMeetings, ...partnerMeetings, ...supportMeetings];
 
     // Sort
     const orderBy = options?.orderBy || 'meeting_date';

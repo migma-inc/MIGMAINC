@@ -3357,6 +3357,40 @@ function SupportTab({
     setChatOpen(true);
   };
 
+  const notifyStudentOfUnreadSupportMessage = async (messageId: string | null) => {
+    if (!profileId || !messageId) return;
+
+    try {
+      const session = (await supabase.auth.getSession()).data.session;
+      if (!session?.access_token) return;
+
+      const functionsBase = import.meta.env.VITE_FUNCTIONS_BASE_URL as string | undefined;
+      const notifyUrl = functionsBase
+        ? `${functionsBase}/support-student-message-notify`
+        : `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/support-student-message-notify`;
+
+      const response = await fetch(notifyUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          profile_id: profileId,
+          message_id: messageId,
+        }),
+      });
+
+      if (!response.ok) {
+        const detail = await response.text().catch(() => '');
+        console.warn('[AdminUserDetail] student unread notification failed', response.status, detail);
+      }
+    } catch (err) {
+      console.warn('[AdminUserDetail] student unread notification error', err);
+    }
+  };
+
   const sendSupportReply = async () => {
     const content = replyInput.trim();
     if (!content || sendingReply) return;
@@ -3374,14 +3408,16 @@ function SupportTab({
           : null;
       const senderDisplayName = metadataName || authData.user?.email || (accessRole === 'mentor' ? 'Migma Mentor' : 'Migma Team');
 
-      const { error: messageError } = await supabase
+      const { data: messageData, error: messageError } = await supabase
         .from('support_chat_messages')
         .insert({
           profile_id: profileId,
           role: replyRole,
           content,
           sender_display_name: senderDisplayName,
-        });
+        })
+        .select('id')
+        .single();
 
       if (messageError) {
         console.error('[AdminUserDetail] Failed to send support chat reply', messageError);
@@ -3389,6 +3425,7 @@ function SupportTab({
         return;
       }
 
+      void notifyStudentOfUnreadSupportMessage((messageData as { id?: string } | null)?.id ?? null);
       setReplyInput('');
       setModalScrollTargetId(null);
       setModalUnreadTargetId(null);

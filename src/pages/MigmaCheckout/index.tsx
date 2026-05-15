@@ -17,12 +17,21 @@ import { CheckoutProgressBar } from './components/CheckoutProgressBar';
 import { Step1PersonalInfo } from './components/Step1PersonalInfo';
 import { Step2Documents } from './components/Step2Documents';
 import { ProcessingModal } from './components/ProcessingModal';
+import { PreOnboardingDevSkipPanel } from './components/PreOnboardingDevSkipPanel';
 import { useIPDetection } from './hooks/useIPDetection';
 import { getServiceConfig } from './serviceConfigs';
 import { matriculaApi } from '../../lib/matriculaApi';
 import { supabase } from '../../lib/supabase';
 import { processZellePaymentWithN8n } from '../../lib/zelle-n8n-integration';
 import type { Step1Data, Step2Data, CheckoutState, PaymentMethod, CardOwnership, IPRegion, PayerInfo, SplitPaymentConfig } from './types';
+import type { CheckoutStep } from './types';
+import type { OnboardingStep } from '../StudentOnboarding/types';
+import {
+  buildPreOnboardingDevOnboardingUrl,
+  disablePreOnboardingDevBypass,
+  enablePreOnboardingDevBypass,
+  isLocalDevHost,
+} from '../StudentOnboarding/devMode';
 
 interface ExtendedState extends CheckoutState {
   matriculaUserId: string | null;
@@ -78,6 +87,7 @@ const MigmaCheckout: React.FC = () => {
   const stripeHandledRef = useRef(false);
   // Ref para capturar order_id de createStudent de forma síncrona (evita race condition com setState)
   const orderIdRef = useRef<string | null>(null);
+  const isLocalDev = isLocalDevHost();
 
   useEffect(() => {
     // Persist seller ref to localStorage so it survives auth redirects
@@ -274,6 +284,12 @@ const MigmaCheckout: React.FC = () => {
   };
 
   const handleFinalFinish = async () => {
+    if (isLocalDev && state.userId?.startsWith('dev-local-')) {
+      enablePreOnboardingDevBypass(service);
+      navigate(buildPreOnboardingDevOnboardingUrl('selection_survey'));
+      return;
+    }
+
     setProcessing(true);
     setProcessMessage(t('migma_checkout.process_messages.finishing_process', 'Finalizing your process...'));
     setProgress(50);
@@ -1157,6 +1173,94 @@ const MigmaCheckout: React.FC = () => {
     }
   };
 
+  const buildDevStep1Data = (): Step1Data => ({
+    full_name: 'Dev Student Migma',
+    email: 'dev.student@migma.test',
+    phone: '+15555550123',
+    num_dependents: 0,
+    terms_accepted: true,
+    data_accepted: true,
+    signature_data_url: null,
+    payment_method: 'parcelow_ted',
+  });
+
+  const buildDevStep2Data = (): Step2Data => ({
+    birth_date: '1995-01-15',
+    doc_type: 'passport',
+    doc_number: 'DEV123456',
+    address: '100 Dev Street',
+    city: 'Orlando',
+    state: 'FL',
+    zip_code: '32801',
+    country: 'United States',
+    nationality: 'Brazilian',
+    civil_status: 'single',
+    notes: 'Dev mock pre-onboarding',
+    emergency_contact_name: 'Dev Contact',
+    emergency_contact_phone: '+15555550999',
+    emergency_contact_relationship: 'Friend',
+    emergency_contact_address: '100 Dev Street',
+    doc_front: null,
+    doc_back: null,
+    selfie: null,
+  });
+
+  const handleDevJump = (targetStep: CheckoutStep, mockPayment: boolean) => {
+    if (!isLocalDev) return;
+
+    const devUserId = 'dev-local-pre-onboarding-user';
+    const nextStep1Data = step1Data ?? buildDevStep1Data();
+    const nextStep2Data = targetStep >= 3 ? (step2Data ?? buildDevStep2Data()) : step2Data;
+
+    setStep1Data(nextStep1Data);
+    if (nextStep2Data) setStep2Data(nextStep2Data);
+    setPaymentVerificationFailed(false);
+    setPaymentLoading(false);
+    setProcessing(false);
+
+    setState(prev => ({
+      ...prev,
+      currentStep: targetStep,
+      userId: devUserId,
+      totalPrice: prev.totalPrice || config?.basePrice || 400,
+      dbServiceType: service || prev.dbServiceType || 'transfer',
+      step1Completed: targetStep >= 2,
+      step2Completed: targetStep >= 3,
+      paymentConfirmed: mockPayment && targetStep >= 2,
+      zelleProcessing: false,
+    }));
+
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleDevGoToOnboarding = (targetStep: OnboardingStep) => {
+    if (!isLocalDev) return;
+    enablePreOnboardingDevBypass(service);
+    navigate(buildPreOnboardingDevOnboardingUrl(targetStep));
+  };
+
+  const handleDevReset = () => {
+    if (!isLocalDev) return;
+    disablePreOnboardingDevBypass();
+    setStep1Data(null);
+    setStep2Data(null);
+    setRecoveredDocUrls(null);
+    setPaymentVerificationFailed(false);
+    setState({
+      currentStep: 1,
+      step1Completed: false,
+      step2Completed: false,
+      paymentConfirmed: false,
+      zelleProcessing: false,
+      userId: null,
+      totalPrice: 0,
+      matriculaUserId: null,
+      serviceRequestId: crypto.randomUUID(),
+      orderId: null,
+      dbServiceType: null,
+    });
+  };
+
   return (
     <div className="migma-pre-onboarding min-h-screen bg-[#f7f4ee] text-[#1f1a14] dark:bg-black dark:text-white">
       <CheckoutTopbar serviceLabel={config?.label || ''} />
@@ -1307,6 +1411,14 @@ const MigmaCheckout: React.FC = () => {
         progress={progress}
         message={processMessage}
       />
+      {isLocalDev && (
+        <PreOnboardingDevSkipPanel
+          currentStep={state.currentStep as CheckoutStep}
+          onJump={handleDevJump}
+          onGoToOnboarding={handleDevGoToOnboarding}
+          onReset={handleDevReset}
+        />
+      )}
     </div>
   );
 };

@@ -10,6 +10,7 @@ import {
   ChevronDown, ChevronUp, MapPin, Briefcase, Shield, Info
 } from 'lucide-react';
 import { Trans, useTranslation } from 'react-i18next';
+import { getInstitutionLogoUrl, isLocalInstitutionBannerUrl } from './institutionLogoAssets';
 
 export interface ScholarshipLevel {
   id: string;
@@ -502,6 +503,8 @@ export const UniversitySelectionModal: React.FC<Props> = ({
   };
 
   const initial = institution.name.charAt(0).toUpperCase();
+  const logoUrl = getInstitutionLogoUrl(institution);
+  const isLocalBanner = isLocalInstitutionBannerUrl(logoUrl);
   const selectButtonDisabled = !selectedScholarshipId || selectionDisabled;
   const showInitialIntro = isInitialProcess && !initialIntroCompleted;
 
@@ -519,11 +522,11 @@ export const UniversitySelectionModal: React.FC<Props> = ({
           <div className="flex items-start gap-5 min-w-0">
             {/* Logo / initial */}
             <div className="w-14 h-14 sm:w-16 sm:h-16 bg-white border border-white/10 rounded-2xl flex items-center justify-center overflow-hidden shrink-0">
-              {institution.logo_url ? (
+              {logoUrl ? (
                 <img 
-                  src={institution.logo_url} 
+                  src={logoUrl} 
                   alt={institution.name} 
-                  className="w-full h-full object-contain p-2"
+                  className={isLocalBanner ? 'w-full h-full object-cover' : 'w-full h-full object-contain p-2'}
                 />
               ) : (
                 <span className="text-gold-medium font-black text-2xl select-none">

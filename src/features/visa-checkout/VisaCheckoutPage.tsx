@@ -155,6 +155,10 @@ export const VisaCheckoutPage: React.FC = () => {
         });
     };
 
+    const paymentBlockedReason = state.signatureImageDataUrl && !state.signatureConfirmed
+        ? t('checkout.payment_blocked_signature_not_confirmed', 'Voce desenhou a assinatura, mas ainda precisa clicar em "Pronto" para confirmar. O checkout so libera depois dessa confirmacao.')
+        : null;
+
     if (loading || isLoadingPrefill) {
         return (
             <div className="min-h-screen bg-black flex flex-col items-center justify-center text-white p-4">
@@ -322,6 +326,7 @@ export const VisaCheckoutPage: React.FC = () => {
                                 splitPaymentConfig={state.splitPaymentConfig}
                                 showPaymentButton={true}
                                 isSubmitting={state.submitting}
+                                paymentBlockedReason={paymentBlockedReason}
                                 isPaymentReady={
                                     state.signatureConfirmed &&
                                     state.termsAccepted &&

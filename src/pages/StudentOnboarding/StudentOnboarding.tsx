@@ -9,6 +9,7 @@ import { OnboardingSupportWidget } from './components/OnboardingSupportWidget';
 import { OnboardingDevSkipPanel } from './components/OnboardingDevSkipPanel';
 import { LanguageSelector } from '../../components/LanguageSelector';
 import type { OnboardingStep } from './types';
+import { disablePreOnboardingDevBypass, isPreOnboardingDevBypassEnabled } from './devMode';
 
 const SelectionFeeStep = React.lazy(() =>
   import('./components/SelectionFeeStep').then(m => ({ default: m.SelectionFeeStep }))
@@ -110,13 +111,14 @@ const StudentOnboarding: React.FC = () => {
     document.documentElement.classList.contains('dark')
   );
   const isLocalhost = typeof window !== 'undefined' && ['localhost', '127.0.0.1', '::1'].includes(window.location.hostname);
+  const preOnboardingDevBypass = isPreOnboardingDevBypassEnabled();
 
   // Redirecionar se não autenticado
   useEffect(() => {
-    if (!authLoading && !user) {
+    if (!authLoading && !user && !preOnboardingDevBypass) {
       navigate('/student/login');
     }
-  }, [authLoading, user, navigate]);
+  }, [authLoading, user, navigate, preOnboardingDevBypass]);
 
   useEffect(() => {
     const isDark = document.documentElement.classList.contains('dark') || localStorage.getItem('theme') === 'dark';
@@ -278,6 +280,9 @@ const StudentOnboarding: React.FC = () => {
 
             <button
               onClick={() => {
+                if (preOnboardingDevBypass) {
+                  disablePreOnboardingDevBypass();
+                }
                 signOut();
                 navigate('/student/login');
               }}
@@ -288,6 +293,12 @@ const StudentOnboarding: React.FC = () => {
             </button>
           </div>
         </div>
+
+        {preOnboardingDevBypass && (
+          <div className="mb-6 rounded-xl border border-amber-400/30 bg-amber-400/10 px-4 py-3 text-sm text-amber-100">
+            <span className="font-bold">Dev local:</span> onboarding aberto sem usuario real. Use o painel de skip para navegar pelo fluxo sem criar conta ou pagamento.
+          </div>
+        )}
 
         {/* Step indicator */}
         <StepIndicator currentStep={state.currentStep} completedSteps={completedSteps} />

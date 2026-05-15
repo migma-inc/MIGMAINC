@@ -24,6 +24,7 @@ import {
 import { SurveyQuestionField } from '../../MigmaSurvey/components/SurveyQuestionField';
 import { SurveyCompletionScreen } from '../../MigmaSurvey/components/SurveyCompletionScreen';
 import type { StepProps } from '../types';
+import { getPreOnboardingDevService, isPreOnboardingDevBypassEnabled } from '../devMode';
 
 interface ExtendedStepProps extends StepProps {
   contractApproved?: boolean;
@@ -32,6 +33,7 @@ interface ExtendedStepProps extends StepProps {
 export const MigmaSurveyStep: React.FC<ExtendedStepProps> = ({ onNext, contractApproved }) => {
   const { t } = useTranslation();
   const { user, userProfile, updateUserProfile, refreshProfile } = useStudentAuth();
+  const preOnboardingDevBypass = isPreOnboardingDevBypassEnabled();
 
   // Serviço determinado pelo perfil, normalizado para os valores aceitos pelo banco
   // ex: 'cos-selection-process' → 'cos'
@@ -46,6 +48,7 @@ export const MigmaSurveyStep: React.FC<ExtendedStepProps> = ({ onNext, contractA
   const [resolvedService, setResolvedService] = useState<ValidServiceType | null>(
     normalizeService((userProfile as any)?.service_type)
       ?? normalizeService((userProfile as any)?.student_process_type)
+      ?? (preOnboardingDevBypass ? normalizeService(getPreOnboardingDevService()) : null)
   );
   const service = resolvedService;
 
@@ -66,7 +69,24 @@ export const MigmaSurveyStep: React.FC<ExtendedStepProps> = ({ onNext, contractA
   // Pré-preencher dados do perfil e verificar se já concluiu
   useEffect(() => {
     (async () => {
-      if (!user) return;
+      if (!user) {
+        if (preOnboardingDevBypass) {
+          const devService = normalizeService(getPreOnboardingDevService()) ?? 'transfer';
+          setResolvedService(devService);
+          setProfileId('dev-local-profile');
+          setCompletionProfile({
+            name: 'Dev Student Migma',
+            email: 'dev.student@migma.test',
+            whatsapp: '+15555550123',
+          });
+          setAnswers(prev => ({
+            ...prev,
+            a_email: prev.a_email || 'dev.student@migma.test',
+            a_full_name: prev.a_full_name || 'Dev Student Migma',
+          }));
+        }
+        return;
+      }
 
       const { data: profile } = await supabase
         .from('user_profiles')
@@ -144,7 +164,7 @@ export const MigmaSurveyStep: React.FC<ExtendedStepProps> = ({ onNext, contractA
         return;
       }
     })();
-  }, [user?.id]);
+  }, [user?.id, preOnboardingDevBypass]);
 
   const currentSection: SurveySection = sections[currentSectionIdx];
   const sectionQuestions: SurveyQuestion[] = questions.filter(
@@ -199,12 +219,23 @@ export const MigmaSurveyStep: React.FC<ExtendedStepProps> = ({ onNext, contractA
   };
 
   const handleSubmit = async () => {
-    if (!profileId || !user || !service) return;
+    if (!profileId || !service) return;
     setSaving(true);
     setError(null);
 
     try {
-      const now = new Date().toISOString();
+      const now = preOnboardingDevBypass
+        ? new Date(Date.now() - 25 * 60 * 60 * 1000).toISOString()
+        : new Date().toISOString();
+
+      if (preOnboardingDevBypass && !user) {
+        setSurveyCompletedAt(now);
+        setCompleted(true);
+        scrollTop();
+        return;
+      }
+
+      if (!user) return;
 
       // Build operational fields
       const operationalFields: Record<string, any> = {};
@@ -318,7 +349,7 @@ export const MigmaSurveyStep: React.FC<ExtendedStepProps> = ({ onNext, contractA
           surveyCompletedAt={surveyCompletedAt}
           onContinue={onNext}
           standalone={false}
-          contractApproved={contractApproved}
+          contractApproved={preOnboardingDevBypass || contractApproved}
         />
       </div>
     );

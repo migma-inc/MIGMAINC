@@ -3,6 +3,7 @@
  */
 
 import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -16,6 +17,7 @@ interface ScheduledMeetingsListProps {
   onEdit?: (meeting: ScheduledMeeting) => void;
   refreshKey?: number;
   filterDate?: 'upcoming' | 'past' | 'all';
+  sourceFilter?: 'all' | ScheduledMeeting['source'];
   searchTerm?: string;
   selectedDate?: string;
 }
@@ -24,6 +26,7 @@ export function ScheduledMeetingsList({
   onEdit,
   refreshKey,
   filterDate = 'all',
+  sourceFilter = 'all',
   searchTerm = '',
   selectedDate = '',
 }: ScheduledMeetingsListProps) {
@@ -191,13 +194,18 @@ export function ScheduledMeetingsList({
     const searchLower = searchTerm.toLowerCase();
     const matchesSearch = !searchTerm || (
       meeting.full_name?.toLowerCase().includes(searchLower) ||
-      meeting.email?.toLowerCase().includes(searchLower)
+      meeting.email?.toLowerCase().includes(searchLower) ||
+      meeting.attending_mentor_name?.toLowerCase().includes(searchLower) ||
+      meeting.attending_mentor_email?.toLowerCase().includes(searchLower)
     );
 
     // 2. Exact Date filter
     const matchesDate = !selectedDate || meeting.meeting_date === selectedDate;
 
-    return matchesSearch && matchesDate;
+    // 3. Source filter
+    const matchesSource = sourceFilter === 'all' || meeting.source === sourceFilter;
+
+    return matchesSearch && matchesDate && matchesSource;
   });
 
   if (filteredMeetings.length === 0) {
@@ -205,7 +213,7 @@ export function ScheduledMeetingsList({
       <div className="text-center py-12">
         <Calendar className="w-16 h-16 text-gray-500 mx-auto mb-4" />
         <p className="text-gray-400 text-lg">No meetings found</p>
-        {(filterDate !== 'all' || searchTerm || selectedDate) && (
+        {(filterDate !== 'all' || sourceFilter !== 'all' || searchTerm || selectedDate) && (
           <p className="text-gray-500 text-sm mt-2">
             Try adjusting your {searchTerm || selectedDate ? 'filters' : 'view'}
           </p>
@@ -239,6 +247,11 @@ export function ScheduledMeetingsList({
                               Global Partner
                             </Badge>
                           )}
+                          {meeting.source === 'support' && (
+                            <Badge className="bg-purple-500/20 text-purple-300 border-purple-500/50">
+                              Support
+                            </Badge>
+                          )}
                           {upcoming ? (
                             <Badge className="bg-green-500/20 text-green-300 border-green-500/50">
                               Upcoming
@@ -262,6 +275,21 @@ export function ScheduledMeetingsList({
                             <Clock className="w-4 h-4 text-gray-400" />
                             <span>{meeting.meeting_time}</span>
                           </div>
+                          {meeting.source === 'support' && meeting.status && (
+                            <div className="flex items-center gap-2 text-gray-400 text-xs">
+                              <User className="w-3 h-3" />
+                              <span>Support status: {meeting.status}</span>
+                            </div>
+                          )}
+                          {meeting.source === 'support' && (
+                            <div className="flex items-center gap-2 text-gray-300">
+                              <User className="w-4 h-4 text-gray-400" />
+                              <span>
+                                Mentor attending: {meeting.attending_mentor_name || 'Not assigned'}
+                                {meeting.attending_mentor_email ? ` · ${meeting.attending_mentor_email}` : ''}
+                              </span>
+                            </div>
+                          )}
                           {meeting.meeting_link && (
                             <div className="flex items-center gap-2">
                               <ExternalLink className="w-4 h-4 text-gray-400" />
@@ -292,7 +320,16 @@ export function ScheduledMeetingsList({
                     </div>
                   </div>
                   <div className="flex flex-wrap gap-2">
-                    {onEdit && (
+                    {meeting.source === 'support' && meeting.profile_id && (
+                      <Link
+                        to={`/dashboard/users/${meeting.profile_id}`}
+                        className="inline-flex h-9 items-center justify-center rounded-md border border-purple-500/50 bg-black/50 px-3 text-sm text-purple-200 hover:bg-purple-500/20"
+                      >
+                        <ExternalLink className="w-4 h-4 mr-1" />
+                        Open Student
+                      </Link>
+                    )}
+                    {onEdit && meeting.source !== 'support' && (
                       <Button
                         onClick={() => onEdit(meeting)}
                         variant="outline"
@@ -303,24 +340,28 @@ export function ScheduledMeetingsList({
                         Edit
                       </Button>
                     )}
-                    <Button
-                      onClick={() => handleResendEmail(meeting)}
-                      variant="outline"
-                      size="sm"
-                      className="border-gold-medium/50 bg-black/50 text-gold-light hover:bg-gold-medium/20"
-                    >
-                      <Mail className="w-4 h-4 mr-1" />
-                      Resend Email
-                    </Button>
-                    <Button
-                      onClick={() => handleDelete(meeting.id, meeting.meeting_date)}
-                      variant="outline"
-                      size="sm"
-                      className="border-red-500/50 bg-black/50 text-red-300 hover:bg-red-500/20"
-                    >
-                      <Trash2 className="w-4 h-4 mr-1" />
-                      Delete
-                    </Button>
+                    {meeting.source !== 'support' && (
+                      <>
+                        <Button
+                          onClick={() => handleResendEmail(meeting)}
+                          variant="outline"
+                          size="sm"
+                          className="border-gold-medium/50 bg-black/50 text-gold-light hover:bg-gold-medium/20"
+                        >
+                          <Mail className="w-4 h-4 mr-1" />
+                          Resend Email
+                        </Button>
+                        <Button
+                          onClick={() => handleDelete(meeting.id, meeting.meeting_date)}
+                          variant="outline"
+                          size="sm"
+                          className="border-red-500/50 bg-black/50 text-red-300 hover:bg-red-500/20"
+                        >
+                          <Trash2 className="w-4 h-4 mr-1" />
+                          Delete
+                        </Button>
+                      </>
+                    )}
                   </div>
                 </div>
               </CardContent>

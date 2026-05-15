@@ -3,6 +3,7 @@ import { useStudentAuth } from '../../../contexts/StudentAuthContext';
 import { supabase } from '../../../lib/supabase';
 import { applicationStore, useCartStore } from '../../../stores/applicationStore';
 import type { OnboardingStep, OnboardingState } from '../types';
+import { disablePreOnboardingDevBypass, isPreOnboardingDevBypassEnabled } from '../devMode';
 
 const VALID_STEPS: OnboardingStep[] = [
   'selection_fee', 'selection_survey',
@@ -42,6 +43,7 @@ const getInitialUrlStep = (): OnboardingStep | null => {
 
 export const useOnboardingProgress = () => {
   const { user, userProfile } = useStudentAuth();
+  const preOnboardingDevBypass = isPreOnboardingDevBypassEnabled();
 
   // Campos primitivos estabilizados para evitar re-renders desnecessários
   const stableProfile = useMemo(() => ({
@@ -89,13 +91,14 @@ export const useOnboardingProgress = () => {
   const [state, setState] = useState<OnboardingState>(() => {
     const savedStep = normalizeLegacyStep(userProfile?.onboarding_current_step as OnboardingStep | null);
     const initial = getInitialUrlStep() || savedStep || 'selection_fee';
+    const devBypass = isPreOnboardingDevBypassEnabled();
     currentStepRef.current = initial;
     return {
       currentStep: initial,
-      selectionFeePaid: userProfile?.has_paid_selection_process_fee || false,
-      selectionSurveyPassed: userProfile?.selection_survey_passed || false,
-      reviewWindowComplete: false,
-      contractApproved: false,
+      selectionFeePaid: devBypass || userProfile?.has_paid_selection_process_fee || false,
+      selectionSurveyPassed: devBypass ? initial !== 'selection_survey' : userProfile?.selection_survey_passed || false,
+      reviewWindowComplete: devBypass,
+      contractApproved: devBypass,
       scholarshipsSelected: false,
       processTypeSelected: false,
       documentsUploaded: userProfile?.documents_uploaded || false,
@@ -107,9 +110,9 @@ export const useOnboardingProgress = () => {
       reinstatementFeePaid: userProfile?.has_paid_reinstatement_package || false,
       universityDocumentsUploaded: false,
       onboardingCompleted: userProfile?.onboarding_completed || false,
-      migmaCheckoutCompleted: !!userProfile?.migma_checkout_completed_at,
+      migmaCheckoutCompleted: devBypass || !!userProfile?.migma_checkout_completed_at,
       isNewFlowUser: true, // Migma: sempre placement_fee_flow = true
-      surveyCompletedAt: null,
+      surveyCompletedAt: devBypass ? new Date(Date.now() - REVIEW_LOCK_MS - 1000).toISOString() : null,
     };
   });
 
@@ -147,6 +150,39 @@ export const useOnboardingProgress = () => {
 
   // Função mestre de verificação — lê direto do banco do Matricula USA
   const checkProgress = useCallback(async () => {
+    if (preOnboardingDevBypass) {
+      const current = currentStepRef.current || getInitialUrlStep() || 'selection_survey';
+      const currentIdx = VALID_STEPS.indexOf(current);
+      const hasCompleted = (candidate: OnboardingStep) => {
+        const candidateIdx = VALID_STEPS.indexOf(candidate);
+        return candidateIdx >= 0 && currentIdx >= 0 && candidateIdx < currentIdx;
+      };
+
+      devOverrideRef.current = true;
+      setDevOverrideActive(true);
+      setMaxAllowedStep('completed');
+      setState(prev => ({
+        ...prev,
+        currentStep: current,
+        selectionFeePaid: true,
+        migmaCheckoutCompleted: true,
+        selectionSurveyPassed: hasCompleted('selection_survey') || current !== 'selection_survey' || prev.selectionSurveyPassed,
+        reviewWindowComplete: true,
+        contractApproved: true,
+        scholarshipsSelected: hasCompleted('scholarship_selection') || prev.scholarshipsSelected,
+        placementFeePaid: hasCompleted('placement_fee') || prev.placementFeePaid,
+        scholarshipFeePaid: hasCompleted('placement_fee') || prev.scholarshipFeePaid,
+        documentsUploaded: hasCompleted('documents_upload') || prev.documentsUploaded,
+        documentsApproved: hasCompleted('documents_upload') || prev.documentsApproved,
+        applicationFeePaid: hasCompleted('payment') || prev.applicationFeePaid,
+        complementaryDataSubmitted: hasCompleted('dados_complementares') || prev.complementaryDataSubmitted,
+        surveyCompletedAt: prev.surveyCompletedAt ?? new Date(Date.now() - REVIEW_LOCK_MS - 1000).toISOString(),
+        isNewFlowUser: true,
+      }));
+      if (loading) setLoading(false);
+      return { maxAllowedStep: 'completed' as OnboardingStep };
+    }
+
     if (import.meta.env.DEV && devOverrideRef.current) {
       if (loading) setLoading(false);
       return { maxAllowedStep: 'completed' as OnboardingStep };
@@ -366,7 +402,7 @@ export const useOnboardingProgress = () => {
       }
     }
     return { maxAllowedStep: computedMaxAllowedStep };
-  }, [user?.id, stableProfile, saveStep, loading, maxAllowedStep]);
+  }, [user?.id, stableProfile, saveStep, loading, maxAllowedStep, preOnboardingDevBypass]);
 
   const applyDevOverride = useCallback((step: OnboardingStep, options: DevOnboardingOverrideOptions) => {
     if (!import.meta.env.DEV) return;
@@ -412,6 +448,7 @@ export const useOnboardingProgress = () => {
     if (!import.meta.env.DEV) return;
 
     devOverrideRef.current = false;
+    disablePreOnboardingDevBypass();
     currentStepRef.current = devOverridePreviousStepRef.current;
     skipNextProgressSaveRef.current = true;
     setDevOverrideActive(false);

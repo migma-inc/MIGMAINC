@@ -65,9 +65,13 @@ export function Sidebar({ className, isMobileOpen = false, onMobileClose, access
     location.pathname.includes('/dashboard/users') ||
     location.pathname.includes('/dashboard/crm')
   );
+  const [isScheduleOpen, setIsScheduleOpen] = useState(
+    location.pathname.includes('/dashboard/schedule-meeting')
+  );
 
   useEffect(() => {
     if (location.pathname.includes('/dashboard/crm')) setIsCrmOpen(true);
+    if (location.pathname.includes('/dashboard/schedule-meeting')) setIsScheduleOpen(true);
   }, [location.pathname, isMentor, mentorProfileId]);
 
   const [counts, setCounts] = useState<{
@@ -308,7 +312,49 @@ export function Sidebar({ className, isMobileOpen = false, onMobileClose, access
           <>
         <SidebarItem icon={ClipboardList} label="Partner Applications" to="/dashboard" count={counts.applications} onClick={onMobileClose} />
         <SidebarItem icon={Phone} label="Book a Call" to="/dashboard/book-a-call" onClick={onMobileClose} />
-        <SidebarItem icon={Calendar} label="Schedule Meeting" to="/dashboard/schedule-meeting" onClick={onMobileClose} />
+        <div className="space-y-1">
+          <button
+            onClick={() => setIsScheduleOpen(!isScheduleOpen)}
+            className={cn(
+              'w-full flex items-center justify-between px-4 py-3 rounded-lg transition-colors group border border-transparent',
+              location.pathname.includes('/dashboard/schedule-meeting')
+                ? 'bg-gold-medium/20 text-gold-light font-medium border-gold-medium/50'
+                : 'text-gray-400 hover:bg-gold-medium/10 hover:text-gold-light'
+            )}
+          >
+            <div className="flex items-center gap-3">
+              <Calendar className="w-5 h-5" />
+              <span>Schedule Meeting</span>
+            </div>
+            {isScheduleOpen ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+          </button>
+
+          {isScheduleOpen && (
+            <div className="pl-6 space-y-1 mt-1">
+              {[
+                { to: '/dashboard/schedule-meeting', label: 'All Meetings' },
+                { to: '/dashboard/schedule-meeting?source=support', label: 'Support' },
+                { to: '/dashboard/schedule-meeting?source=manual', label: 'Manual' },
+                { to: '/dashboard/schedule-meeting?source=partner', label: 'Partner' },
+              ].map((item) => (
+                <Link
+                  key={item.to}
+                  to={item.to}
+                  onClick={onMobileClose}
+                  className={cn(
+                    'flex items-center gap-3 px-4 py-2 rounded-lg text-sm transition-colors',
+                    `${location.pathname}${location.search}` === item.to
+                      ? 'text-gold-light font-medium'
+                      : 'text-gray-500 hover:text-gold-light'
+                  )}
+                >
+                  <Calendar className="w-4 h-4" />
+                  <span>{item.label}</span>
+                </Link>
+              ))}
+            </div>
+          )}
+        </div>
         <SidebarItem icon={FileText} label="Partner Contracts" to="/dashboard/contracts" count={counts.partnerContracts} onClick={onMobileClose} />
         <SidebarItem icon={ShoppingCart} label="Visa Orders" to="/dashboard/visa-orders" onClick={onMobileClose} />
         <SidebarItem icon={DollarSign} label="Zelle Approval" to="/dashboard/zelle-approval" count={counts.zelle} onClick={onMobileClose} />
